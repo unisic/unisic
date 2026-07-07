@@ -10,8 +10,37 @@
 #include <QDir>
 #include <QFile>
 #include <QScreen>
+#include <QSet>
 #include <QDebug>
 #include <cstring>
+
+// The ffmpeg found in PATH varies: the Flatpak KDE runtime ships one without
+// GPL x264. Probe the available video encoders once so both the lossless
+// intermediate and the MP4 output can pick a working fallback. An empty set
+// means the probe itself failed (no ffmpeg) — callers keep their preferred
+// encoder and the existing "ffmpeg could not be started" path reports it.
+static const QSet<QString> &ffmpegEncoders()
+{
+    static QSet<QString> cached;
+    static bool probed = false;
+    if (probed)
+        return cached;
+    probed = true;
+    QProcess p;
+    p.start(QStringLiteral("ffmpeg"),
+            {QStringLiteral("-hide_banner"), QStringLiteral("-encoders")});
+    if (p.waitForFinished(5000)) {
+        const QList<QByteArray> lines = p.readAllStandardOutput().split('\n');
+        for (const QByteArray &line : lines) {
+            // " V....D libx264rgb   libx264 H.264 ... (codec h264)"
+            // (skip the legend line " V..... = Video")
+            const QList<QByteArray> cols = line.simplified().split(' ');
+            if (cols.size() >= 2 && cols[0].startsWith('V') && cols[1] != "=")
+                cached.insert(QString::fromLatin1(cols[1]));
+        }
+    }
+    return cached;
+}
 
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
@@ -158,10 +187,20 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                      QStringLiteral("-framerate"), QString::number(fps),
                      QStringLiteral("-i"), QStringLiteral("-")};
 
-    args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
-         << QStringLiteral("-preset") << QStringLiteral("ultrafast")
-         << QStringLiteral("-qp") << QStringLiteral("0")
-         << m_tempPath;
+    // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
+    // x264, else utvideo (fast intra-only RGB), else FFV1 — both ship in the
+    // Flatpak KDE runtime's ffmpeg.
+    const QSet<QString> &encoders = ffmpegEncoders();
+    if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
+        args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
+             << QStringLiteral("-preset") << QStringLiteral("ultrafast")
+             << QStringLiteral("-qp") << QStringLiteral("0");
+    } else if (encoders.contains(QStringLiteral("utvideo"))) {
+        args << QStringLiteral("-c:v") << QStringLiteral("utvideo");
+    } else {
+        args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
+    }
+    args << m_tempPath;
 
     m_ffmpeg = new QProcess(this);
     m_ffmpeg->setProcessChannelMode(QProcess::MergedChannels);
@@ -326,7 +365,7 @@ void GifRecorder::convertToGif()
     // True two-pass. A single split-graph command (`split[a][b];[a]palettegen…`)
     // buffers every decoded [b] frame in RAM until palettegen hits EOF — ~3 GB
     // for 30 s of 1080p, >10 GB for 4K — driving the machine into swap. The
-    // temp file is on disk anyway; decoding the ultrafast-qp0 x264rgb twice
+    // temp file is on disk anyway; decoding the lossless intermediate twice
     // is cheap by comparison.
     m_palettePath = m_tempPath + QStringLiteral(".palette.png");
     const QString vf = QStringLiteral("fps=%1,palettegen=stats_mode=%2").arg(fps).arg(statsMode);
@@ -436,10 +475,19 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-cpu-used") << QStringLiteral("4")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
-    } else {
+    } else if (ffmpegEncoders().contains(QStringLiteral("libx264"))
+               || ffmpegEncoders().isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264")
              << QStringLiteral("-preset") << QStringLiteral("veryfast")
              << QStringLiteral("-crf") << QString::number(crf)
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+             << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else {
+        // No GPL x264 (Flatpak KDE runtime): OpenH264. It has no CRF mode, so
+        // approximate the quality setting with a bitrate.
+        const int mbps = qBound(2, (51 - crf) / 3, 16);
+        args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+             << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(mbps)
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     }

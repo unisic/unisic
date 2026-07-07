@@ -3,7 +3,30 @@
 #include "KWinScreenShot2.h"
 #include "Settings.h"
 #include <QGuiApplication>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCall>
 #include <QDebug>
+
+// Inside Flatpak the KDE Screenshot portal denies non-interactive requests
+// unless the permission store answers "yes" for this app id, and the overlay
+// freeze must be silent (a dialog per capture is unusable). Self-grant the
+// permission — the manifest allows it via
+// --talk-name=org.freedesktop.impl.portal.PermissionStore.
+static void grantSilentScreenshotPermission()
+{
+    const QString appId = qEnvironmentVariable("FLATPAK_ID");
+    if (appId.isEmpty())
+        return;
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+        QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
+        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+        QStringLiteral("SetPermission"));
+    msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
+        << appId << QStringList{QStringLiteral("yes")};
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
 
 static bool isKWinAuthError(const QString &err)
 {
@@ -34,6 +57,7 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_portal(new PortalScreenshot(this))
     , m_kwin(new KWinScreenShot2(this))
 {
+    grantSilentScreenshotPermission();
 }
 
 void CaptureManager::portalFallback(Callback cb)

@@ -1,0 +1,115 @@
+name: Bug Report
+description: Report a problem with capture, editor, recording, or upload
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Search existing issues first to avoid duplicates.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What went wrong?
+      placeholder: Region capture froze the overlay and no screenshot was produced.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include terminal output from running `./build/unisic` if relevant.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Capture (fullscreen / region / window)
+        - On-overlay annotation
+        - Post-capture editor
+        - GIF / video recording
+        - Upload / destinations
+        - Clipboard
+        - Global hotkeys
+        - Tray icon / history
+        - Build / install
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: capture-backend
+    attributes:
+      label: Capture backend (if known)
+      options:
+        - KWin ScreenShot2
+        - xdg-desktop-portal
+        - Not sure
+    validations:
+      required: false
+
+  - type: input
+    id: desktop
+    attributes:
+      label: Desktop environment & version
+      placeholder: KDE Plasma 6.1 / Wayland
+    validations:
+      required: true
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distro & version
+      placeholder: Fedora 40
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Qt / ffmpeg / PipeWire versions
+      placeholder: Qt 6.7.0, ffmpeg 6.1, PipeWire 1.0.5
+    validations:
+      required: false
+
+  - type: input
+    id: unisic-version
+    attributes:
+      label: Unisic version / commit
+      placeholder: commit 37788e5
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Paste relevant logs or attach screenshots. Logs auto-format as code.
+      render: shell
+    validations:
+      required: false

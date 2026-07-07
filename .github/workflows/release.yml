@@ -187,6 +187,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends ca-certificates elfutils flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
+      - name: Validate AppStream metadata
+        run: appstreamcli validate --no-net resources/org.unisic.Unisic.metainfo.xml
+
       - name: Build Flatpak bundle
         run: |
           flatpak-builder --user --disable-rofiles-fuse --force-clean \

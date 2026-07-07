@@ -1,8 +1,9 @@
-app-id: org.unisic.Unisic
+id: org.unisic.Unisic
 runtime: org.kde.Platform
 runtime-version: "6.8"
 sdk: org.kde.Sdk
 command: unisic
+appstream-compose: false
 
 finish-args:
   - --share=ipc

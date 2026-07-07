@@ -11,6 +11,7 @@
 #include "record/GifRecorder.h"
 
 class QQmlEngine;
+class QMenu;
 class QSystemTrayIcon;
 class CaptureManager;
 class OverlayController;
@@ -73,7 +74,9 @@ public:
     Q_INVOKABLE void copyText(const QString &text);
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
-    Q_INVOKABLE void showToast(const QString &text);
+    // important: shown even when the user disabled notifications (errors
+    // must not vanish silently).
+    Q_INVOKABLE void showToast(const QString &text, bool important = false);
     Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
     Q_INVOKABLE QString formatShortcut(int key, int modifiers) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);
@@ -82,9 +85,10 @@ public:
     Q_INVOKABLE QString importSettings(const QUrl &file);
     Q_INVOKABLE QString filenamePreview() const;
 
-    // Used by EditorSession / CaptureNotification.
-    QString saveImageAuto(const QImage &img);
-    QString saveImageTo(const QImage &img, const QString &dir);
+    // Used by EditorSession / CaptureNotification. fileName: reuse a name
+    // computed once per capture (save and upload must agree); empty = generate.
+    QString saveImageAuto(const QImage &img, const QString &fileName = {});
+    QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {});
     void copyImageToClipboard(const QImage &img);
     void uploadImage(const QImage &img, UploadDone done);
     void openEditor(const QImage &img);
@@ -106,6 +110,7 @@ private:
     void setupTray();
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
+    void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
     void withDelay(std::function<void()> fn);
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
@@ -122,7 +127,9 @@ private:
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
+    QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_converting = false;
     bool m_shortcutRecording = false;
+    bool m_captureInFlight = false; // re-entry guard for portal captures
 };

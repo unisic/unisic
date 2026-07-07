@@ -19,7 +19,8 @@ Item {
         var v = from + r * (to - from)
         v = Math.round(v / stepSize) * stepSize
         v = Math.max(from, Math.min(to, v))
-        if (v !== value) { value = v; moved(v) }
+        // Emit only — assigning `value` would break the consumer's binding.
+        if (v !== value) moved(v)
     }
 
     Rectangle {  // track
@@ -59,6 +60,9 @@ Item {
         id: drag
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
+        // Inside a vertical Flickable a diagonal drag would otherwise let the
+        // Flickable steal the grab and drop the slider mid-drag.
+        preventStealing: true
         onPressed: (m) => root._setFromX(m.x)
         onPositionChanged: (m) => { if (pressed) root._setFromX(m.x) }
     }

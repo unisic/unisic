@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QPointer>
 #include <QScreen>
 #include <functional>
 
@@ -30,9 +31,10 @@ public:
 
 private:
     void portalFallback(Callback cb);
-    void kwinScreensSerial(QVector<QScreen *> screens, int index, QVector<QImage> acc,
+    // QPointer: a monitor can be unplugged while a portal dialog is open.
+    void kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index, QVector<QImage> acc,
                            MultiCallback cb);
-    void portalAllScreens(QVector<QScreen *> screens, MultiCallback cb,
+    void portalAllScreens(QVector<QPointer<QScreen>> screens, MultiCallback cb,
                           const QString &previousError = {});
     static QImage cropForScreen(const QImage &workspace, QScreen *screen);
 

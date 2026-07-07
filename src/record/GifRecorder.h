@@ -49,7 +49,8 @@ private:
     void onStreamReady(int fd, uint nodeId, const QSize &size, const QPoint &pos);
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
-    void convertToGif();
+    void convertToGif();                                     // pass 1: palettegen
+    void convertToGifRender(int fps, const QString &dither); // pass 2: paletteuse
     void convertVideo();
     void stopProcess(QProcess *&process);
     void cleanup();
@@ -68,6 +69,8 @@ private:
     State m_state = Idle;
     Output m_output = Gif;
     SourceType m_source = Screen;
+    int m_fps = 15;
+    qint64 m_framesWritten = 0; // wall-clock pacing (see sampleFrame)
     QRect m_crop;
     QRect m_encodeCrop;
     QSize m_streamSize;
@@ -75,5 +78,6 @@ private:
     QPointer<QScreen> m_targetScreen;
     QByteArray m_lastFrame;
     QString m_tempPath;
+    QString m_palettePath;
     QString m_outPath;
 };

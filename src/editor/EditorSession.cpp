@@ -1,6 +1,7 @@
 #include "EditorSession.h"
 #include "AnnotationCanvas.h"
 #include "AppContext.h"
+#include <QPointer>
 #include <QUrl>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image, QObject *parent)
@@ -59,9 +60,13 @@ void EditorSession::copyToClipboard()
 void EditorSession::upload()
 {
     setStatus(tr("Uploading…"));
-    m_app->uploadImage(composited(), [this](const QString &url, const QString &error) {
-        setStatus(error.isEmpty() ? tr("Uploaded — link copied: %1").arg(url)
-                                  : tr("Upload failed: %1").arg(error));
+    // The session dies with the editor window; the upload may outlive both.
+    QPointer<EditorSession> self(this);
+    m_app->uploadImage(composited(), [self](const QString &url, const QString &error) {
+        if (!self)
+            return;
+        self->setStatus(error.isEmpty() ? tr("Uploaded — link copied: %1").arg(url)
+                                        : tr("Upload failed: %1").arg(error));
     });
 }
 

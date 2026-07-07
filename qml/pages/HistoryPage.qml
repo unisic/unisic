@@ -72,7 +72,9 @@ Item {
                             clip: true
                             Image {
                                 anchors.fill: parent
-                                source: thumbnail !== "" ? "file://" + thumbnail : ""
+                                // encodeURI: '#', '?' or '%' in the data path
+                                // would otherwise produce an invalid URL.
+                                source: thumbnail !== "" ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
                             }

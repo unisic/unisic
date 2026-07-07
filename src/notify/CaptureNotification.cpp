@@ -12,6 +12,18 @@ CaptureNotification::CaptureNotification(AppContext *app, const QImage &img,
                                          QObject *parent)
     : QObject(parent), m_app(app), m_image(img), m_filePath(filePath), m_kind(kind)
 {
+    // Thumbnails are only removed in the destructor, so a crash/SIGKILL leaves
+    // them behind forever — sweep leftovers once per process.
+    static bool sweepDone = false;
+    if (!sweepDone) {
+        sweepDone = true;
+        QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                   + QStringLiteral("/unisic"));
+        const QStringList stale = cache.entryList({QStringLiteral("notif-*.png")}, QDir::Files);
+        for (const QString &f : stale)
+            cache.remove(f);
+    }
+
     // Cache a small thumbnail to disk and hand QML a file:// URL — avoids
     // registering a bespoke image provider just for the popup. The full image
     // stays in RAM for the action buttons.

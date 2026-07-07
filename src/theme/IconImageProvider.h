@@ -1,5 +1,6 @@
 #pragma once
 #include <QQuickImageProvider>
+#include <QHash>
 
 class ThemeController;
 
@@ -19,4 +20,9 @@ private:
     QPixmap tintedBundled(const QString &name, const QColor &color, const QSize &size) const;
 
     ThemeController *m_controller;
+    // Pixmap provider runs on the GUI thread only — no locking needed. The id
+    // embeds name+color+sz+v, so keying on it (+ target size) is exact; the
+    // cache is cleared whenever the theme revision changes.
+    QHash<QString, QPixmap> m_cache;
+    int m_cacheRev = -1;
 };

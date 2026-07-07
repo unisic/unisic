@@ -45,6 +45,7 @@ Window {
     }
 
     Item {
+        id: shortcutScope
         anchors.fill: parent
         focus: true
         Keys.onPressed: (e) => {
@@ -256,11 +257,17 @@ Window {
                         color: canvas.strokeColor
                         font.pixelSize: Math.max(10, canvas.fontSize * canvas.renderScale)
                         font.bold: true
+                        // Return focus to the shortcut scope, else Ctrl+Z/S/C/U
+                        // and Escape stay dead after using the text tool.
                         onAccepted: {
                             canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, text)
                             editorTextInput.visible = false
+                            shortcutScope.forceActiveFocus()
                         }
-                        Keys.onEscapePressed: editorTextInput.visible = false
+                        Keys.onEscapePressed: {
+                            editorTextInput.visible = false
+                            shortcutScope.forceActiveFocus()
+                        }
                     }
                 }
             }

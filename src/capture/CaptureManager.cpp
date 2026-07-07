@@ -65,20 +65,23 @@ void CaptureManager::captureWorkspace(Callback cb)
 
 void CaptureManager::captureScreen(QScreen *screen, Callback cb)
 {
+    // The portal dialog can stay open for seconds; the screen may be gone.
+    QPointer<QScreen> sp(screen);
     if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
         m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
-            [this, screen, cb](const QImage &img, const QString &err) {
+            [this, sp, cb](const QImage &img, const QString &err) {
                 if (!err.isEmpty()) {
                     qWarning() << "KWin captureScreen failed, portal fallback:" << err;
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
                     // Portal returns the whole workspace: crop to the screen.
-                    portalFallback([screen, cb, err](const QImage &full, const QString &e2) {
+                    portalFallback([sp, cb, err](const QImage &full, const QString &e2) {
                         if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
-                        QImage crop = CaptureManager::cropForScreen(full, screen);
+                        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
+                        QImage crop = CaptureManager::cropForScreen(full, sp);
                         if (crop.isNull()) {
                             cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
-                                                 .arg(screenLabel(screen))));
+                                                 .arg(screenLabel(sp))));
                             return;
                         }
                         cb(crop, {});
@@ -90,11 +93,13 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
         return;
     }
     // Portal path: capture all and crop.
-    portalFallback([screen, cb](const QImage &full, const QString &err) {
-        if (!err.isEmpty() || !screen) { cb(full, err); return; }
-        QImage crop = cropForScreen(full, screen);
+    const bool hadScreen = screen != nullptr;
+    portalFallback([sp, hadScreen, cb](const QImage &full, const QString &err) {
+        if (!err.isEmpty() || !hadScreen) { cb(full, err); return; }
+        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
+        QImage crop = cropForScreen(full, sp);
         if (crop.isNull()) {
-            cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(screen)));
+            cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(sp)));
             return;
         }
         cb(crop, {});
@@ -137,18 +142,26 @@ void CaptureManager::captureAllScreens(const QVector<QScreen *> &screens, MultiC
         cb({}, QStringLiteral("no screens"));
         return;
     }
+    QVector<QPointer<QScreen>> guarded;
+    guarded.reserve(screens.size());
+    for (QScreen *s : screens)
+        guarded.append(QPointer<QScreen>(s));
     if (!m_kwinDenied && KWinScreenShot2::isAvailable()) {
-        kwinScreensSerial(screens, 0, QVector<QImage>(screens.size()), std::move(cb));
+        kwinScreensSerial(std::move(guarded), 0, QVector<QImage>(screens.size()), std::move(cb));
         return;
     }
-    portalAllScreens(screens, std::move(cb));
+    portalAllScreens(std::move(guarded), std::move(cb));
 }
 
-void CaptureManager::kwinScreensSerial(QVector<QScreen *> screens, int index,
+void CaptureManager::kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index,
                                        QVector<QImage> acc, MultiCallback cb)
 {
     if (index >= screens.size()) {
         cb(acc, {});
+        return;
+    }
+    if (!screens[index]) {
+        cb({}, QStringLiteral("screen disconnected during capture"));
         return;
     }
     m_kwin->captureScreen(screens[index]->name(), m_settings->includeCursor(),
@@ -165,7 +178,7 @@ void CaptureManager::kwinScreensSerial(QVector<QScreen *> screens, int index,
         });
 }
 
-void CaptureManager::portalAllScreens(QVector<QScreen *> screens, MultiCallback cb,
+void CaptureManager::portalAllScreens(QVector<QPointer<QScreen>> screens, MultiCallback cb,
                                       const QString &previousError)
 {
     // ONE workspace request for all monitors (concurrent portal Screenshot
@@ -177,6 +190,10 @@ void CaptureManager::portalAllScreens(QVector<QScreen *> screens, MultiCallback 
         }
         QVector<QImage> out(screens.size());
         for (int i = 0; i < screens.size(); ++i) {
+            if (!screens[i]) {
+                cb({}, QStringLiteral("screen disconnected during capture"));
+                return;
+            }
             out[i] = cropForScreen(full, screens[i]);
             if (out[i].isNull()) {
                 cb({}, combinedError(previousError,

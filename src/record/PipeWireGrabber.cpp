@@ -215,9 +215,12 @@ void PipeWireGrabber::onProcess()
         }
         const auto *src = static_cast<const uint8_t *>(data.data) + offset;
 
-        QMutexLocker lock(&m_mutex);
-        m_latest.resize(qsizetype(rowBytes) * h);
-        char *dst = m_latest.data();
+        // Convert into the back buffer WITHOUT the lock — a 4K copy/swizzle
+        // takes milliseconds and must never block the GUI thread's
+        // latestFrame(). m_back is touched only on this (PipeWire) thread;
+        // resize()/data() detach it if a consumer still shares the old block.
+        m_back.resize(qsizetype(rowBytes) * h);
+        char *dst = m_back.data();
         const bool swapRB = (m_format == SPA_VIDEO_FORMAT_RGBx || m_format == SPA_VIDEO_FORMAT_RGBA);
         const bool hasAlpha = (m_format == SPA_VIDEO_FORMAT_BGRA || m_format == SPA_VIDEO_FORMAT_RGBA);
         for (int y = 0; y < h; ++y) {
@@ -238,6 +241,10 @@ void PipeWireGrabber::onProcess()
             }
             dst += rowBytes;
         }
+        {
+            QMutexLocker lock(&m_mutex);
+            m_latest.swap(m_back);
+        }
         m_haveFrame.store(true, std::memory_order_release);
     }
     pw_stream_queue_buffer(m_stream, b);
@@ -248,7 +255,8 @@ bool PipeWireGrabber::latestFrame(QByteArray &out)
     if (!m_haveFrame.load(std::memory_order_acquire))
         return false;
     QMutexLocker lock(&m_mutex);
-    out = m_latest; // implicit share; detached on next writer resize? m_latest is overwritten in-place,
-    out.detach();   // so force a deep copy while we hold the lock.
+    // Cheap shared reference: the front buffer is only ever *replaced* by the
+    // swap in onProcess(), never written in place, so no deep copy is needed.
+    out = m_latest;
     return true;
 }

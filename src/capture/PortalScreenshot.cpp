@@ -3,6 +3,8 @@
 #include <QDBusMessage>
 #include <QUrl>
 #include <QFile>
+#include <QGuiApplication>
+#include <QtConcurrentRun>
 #include <QDebug>
 
 void PortalScreenshot::capture(bool interactive, Callback cb, bool allowInteractiveFallback)
@@ -44,12 +46,19 @@ void PortalScreenshot::requestOnce(bool interactive, Callback cb)
             return;
         }
         const QUrl uri(results.value(QStringLiteral("uri")).toString());
-        QImage img(uri.toLocalFile());
-        if (img.isNull()) {
-            cb({}, QStringLiteral("Could not load screenshot from %1").arg(uri.toString()));
-            return;
-        }
-        QFile::remove(uri.toLocalFile()); // portal leaves the file in ~/Pictures; we own the pixels now
-        cb(img, {});
+        const QString file = uri.toLocalFile();
+        // Decode off-thread: a 4K/multi-monitor PNG takes 50-200 ms — too long
+        // for the GUI thread. Remove the portal's file (dropped in ~/Pictures)
+        // on every path, or failures leave orphans behind.
+        (void)QtConcurrent::run([file, uriStr = uri.toString(), cb] {
+            QImage img(file);
+            QFile::remove(file);
+            QMetaObject::invokeMethod(qApp, [img, uriStr, cb] {
+                if (img.isNull())
+                    cb({}, QStringLiteral("Could not load screenshot from %1").arg(uriStr));
+                else
+                    cb(img, {});
+            }, Qt::QueuedConnection);
+        });
     }, this);
 }

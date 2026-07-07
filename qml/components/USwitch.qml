@@ -38,6 +38,9 @@ Rectangle {
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: { root.checked = !root.checked; root.toggled(root.checked) }
+        // Emit only — writing `checked` here would destroy the consumer's
+        // declarative binding (checked: App.settings.x) on first interaction;
+        // the handler updates the source and the binding flows back.
+        onClicked: root.toggled(!root.checked)
     }
 }

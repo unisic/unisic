@@ -62,6 +62,13 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_session = new ScreenCastSession(this);
     connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
     connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
+    connect(m_session, &ScreenCastSession::sessionClosed, this, [this] {
+        // Sharing stopped from the system UI: finalize what we have.
+        if (m_state == Recording)
+            stop();
+        else if (m_state == Starting)
+            fail(tr("Screen sharing was stopped"));
+    });
     connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this, source](const QString &token) {
         const QString key = restoreTokenKey(source);
         if (token.isEmpty())
@@ -98,17 +105,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
     m_streamSize = streamSize;
     QRect sourceRect(QPoint(0, 0), m_streamSize);
-    m_encodeCrop = sourceRect;
-    m_encodeSize = m_streamSize;
+    QRect c = sourceRect;
 
     if (m_source == Region) {
-        QRect c = m_crop.normalized().intersected(sourceRect);
-        c.setWidth(c.width() & ~1);
-        c.setHeight(c.height() & ~1);
-        if (c.width() < 2 || c.height() < 2) {
-            fail(tr("Selected recording region is outside the chosen screen stream"));
-            return;
-        }
+        c = m_crop.normalized().intersected(sourceRect);
         if (m_targetScreen) {
             const qreal dpr = m_targetScreen->devicePixelRatio();
             const QSize expected(qRound(m_targetScreen->geometry().width() * dpr),
@@ -119,11 +119,24 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                            << "crop" << m_crop;
             }
         }
-        m_encodeCrop = c;
-        m_encodeSize = c.size();
     }
 
+    // yuv420p (MP4/WebM) requires even dimensions — enforce for every source,
+    // not just Region: window streams are frequently odd-sized.
+    c.setWidth(c.width() & ~1);
+    c.setHeight(c.height() & ~1);
+    if (c.width() < 2 || c.height() < 2) {
+        fail(m_source == Region
+                 ? tr("Selected recording region is outside the chosen screen stream")
+                 : tr("Recording stream is too small"));
+        return;
+    }
+    m_encodeCrop = c;
+    m_encodeSize = c.size();
+
     const int fps = qBound(1, m_output == Gif ? m_settings->gifFps() : m_settings->videoFps(), 60);
+    m_fps = fps;
+    m_framesWritten = 0;
     const QString ext = m_output == Gif ? QStringLiteral("gif")
                       : m_output == WebM ? QStringLiteral("webm")
                                          : QStringLiteral("mp4");
@@ -134,7 +147,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     m_outPath = m_settings->saveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
+    // -nostats: with MergedChannels the progress spam would otherwise grow
+    // unbounded in the QProcess read buffer for the whole recording.
     QStringList args{QStringLiteral("-y"),
+                     QStringLiteral("-nostats"), QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-f"), QStringLiteral("rawvideo"),
                      QStringLiteral("-pix_fmt"), QStringLiteral("bgra"),
                      QStringLiteral("-video_size"),
@@ -211,49 +227,64 @@ void GifRecorder::sampleFrame()
 #ifdef HAVE_PIPEWIRE
     if (m_state != Recording || !m_grabber || !m_ffmpeg)
         return;
-    if (m_ffmpeg->bytesToWrite() > 64 * 1024 * 1024)
-        return; // bounded buffer: drop this sample instead of aborting the recording
-    QByteArray frame;
-    if (!m_grabber->latestFrame(frame))
-        return; // no frame yet (idle screen) — sample-and-hold will catch up
+    // Bounded buffer: drop this sample instead of aborting the recording.
+    // Scale with the frame size — a fixed 64 MB is only ~2 frames at 4K BGRA,
+    // so a momentary encoder stall would drop samples immediately.
+    const qsizetype frameBytes = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
+    const qsizetype writeCap = qMax<qsizetype>(64 * 1024 * 1024, frameBytes * 30);
+    if (m_ffmpeg->bytesToWrite() > writeCap)
+        return;
     // ffmpeg's rawvideo demuxer slices stdin into fixed m_streamSize frames. If
     // the source renegotiated a different size mid-recording (e.g. a window was
     // resized), feeding the new-size frame would desync every subsequent frame
-    // into corruption — drop mismatched frames so the encoder holds the last
-    // good one instead.
+    // into corruption — hold the last good frame instead.
     const qsizetype expected = qsizetype(m_streamSize.width()) * m_streamSize.height() * 4;
-    if (frame.size() != expected) {
-        if (!m_lastFrame.isEmpty())
-            m_ffmpeg->write(m_lastFrame);
-        return;
-    }
-
+    QByteArray frame;
     QByteArray encoded;
-    if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
-        encoded = frame;
-    } else {
-        encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
-        const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
-        const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
-        const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
-                          + qsizetype(m_encodeCrop.x()) * 4;
-        char *dst = encoded.data();
-        for (int y = 0; y < m_encodeSize.height(); ++y) {
-            memcpy(dst, src, dstStride);
-            src += srcStride;
-            dst += dstStride;
+    if (m_grabber->latestFrame(frame) && frame.size() == expected) {
+        if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
+            encoded = frame;
+        } else {
+            encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
+            const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
+            const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
+            const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
+                              + qsizetype(m_encodeCrop.x()) * 4;
+            char *dst = encoded.data();
+            for (int y = 0; y < m_encodeSize.height(); ++y) {
+                memcpy(dst, src, dstStride);
+                src += srcStride;
+                dst += dstStride;
+            }
         }
+        m_lastFrame = encoded;
+    } else {
+        encoded = m_lastFrame; // no frame yet / renegotiated size: sample-and-hold
     }
-    m_lastFrame = encoded;
-    m_ffmpeg->write(encoded);
+    if (encoded.isEmpty())
+        return;
+
+    // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
+    // 30.3 fps) and backpressure drops ticks, while the container claims an
+    // exact -framerate — pace by elapsed time, duplicating frames as needed,
+    // or playback speed drifts from real time.
+    const qint64 target = m_elapsed.elapsed() * m_fps / 1000 + 1;
+    if (target <= m_framesWritten)
+        return; // ahead of schedule
+    const qint64 n = qMin<qint64>(target - m_framesWritten, m_fps); // ≤1 s burst
+    for (qint64 i = 0; i < n; ++i)
+        m_ffmpeg->write(encoded);
+    m_framesWritten += n;
 #endif
 }
 
 void GifRecorder::stop()
 {
     if (m_state != Recording) {
+        // fail() (not bare abort()): AppContext must get a signal so the QML
+        // recording state refreshes; "cancelled" is filtered from toasts.
         if (m_state == Starting)
-            abort();
+            fail(QStringLiteral("cancelled"));
         return;
     }
     m_state = Converting;
@@ -267,8 +298,11 @@ void GifRecorder::stop()
         m_grabber = nullptr;
     }
 #endif
-    delete m_session;
-    m_session = nullptr;
+    if (m_session) {
+        m_session->disconnect(this);
+        m_session->deleteLater();
+        m_session = nullptr;
+    }
 
     emit converting();
     if (!m_ffmpeg) {
@@ -276,6 +310,7 @@ void GifRecorder::stop()
         return;
     }
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
+    m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
 }
 
 void GifRecorder::convertToGif()
@@ -287,9 +322,58 @@ void GifRecorder::convertToGif()
                                   : (q == 1 ? QStringLiteral("bayer:bayer_scale=5")
                                             : QStringLiteral("sierra2_4a"));
     const QString statsMode = q == 2 ? QStringLiteral("diff") : QStringLiteral("full");
-    const QString vf = QStringLiteral(
-        "fps=%1,split[a][b];[a]palettegen=stats_mode=%2[p];[b][p]paletteuse=dither=%3:diff_mode=rectangle")
-        .arg(fps).arg(statsMode, dither);
+
+    // True two-pass. A single split-graph command (`split[a][b];[a]palettegen…`)
+    // buffers every decoded [b] frame in RAM until palettegen hits EOF — ~3 GB
+    // for 30 s of 1080p, >10 GB for 4K — driving the machine into swap. The
+    // temp file is on disk anyway; decoding the ultrafast-qp0 x264rgb twice
+    // is cheap by comparison.
+    m_palettePath = m_tempPath + QStringLiteral(".palette.png");
+    const QString vf = QStringLiteral("fps=%1,palettegen=stats_mode=%2").arg(fps).arg(statsMode);
+
+    auto *conv = new QProcess(this);
+    m_converter = conv;
+    conv->setProcessChannelMode(QProcess::MergedChannels);
+    connect(conv, &QProcess::finished, this, [this, conv, fps, dither](int code, QProcess::ExitStatus) {
+        if (m_converter != conv)
+            return;
+        const QByteArray out = conv->readAll();
+        m_converter = nullptr;
+        conv->deleteLater();
+        if (code != 0) {
+            qWarning() << out;
+            QFile::remove(m_tempPath);
+            QFile::remove(m_palettePath);
+            fail(tr("GIF conversion failed"));
+            return;
+        }
+        convertToGifRender(fps, dither);
+    });
+    connect(conv, &QProcess::errorOccurred, this, [this, conv](QProcess::ProcessError error) {
+        if (m_converter != conv || error != QProcess::FailedToStart)
+            return;
+        m_converter = nullptr;
+        conv->deleteLater();
+        QFile::remove(m_tempPath);
+        fail(tr("ffmpeg could not be started — is it installed?"));
+    });
+    conv->start(QStringLiteral("ffmpeg"),
+                {QStringLiteral("-y"), QStringLiteral("-nostats"),
+                 QStringLiteral("-loglevel"), QStringLiteral("error"),
+                 QStringLiteral("-i"), m_tempPath,
+                 QStringLiteral("-vf"), vf, m_palettePath});
+    if (!conv->waitForStarted(3000) && m_converter == conv) {
+        m_converter = nullptr;
+        conv->deleteLater();
+        QFile::remove(m_tempPath);
+        fail(tr("ffmpeg could not be started — is it installed?"));
+    }
+}
+
+void GifRecorder::convertToGifRender(int fps, const QString &dither)
+{
+    const QString lavfi = QStringLiteral("fps=%1[x];[x][1:v]paletteuse=dither=%2:diff_mode=rectangle")
+        .arg(fps).arg(dither);
 
     auto *conv = new QProcess(this);
     m_converter = conv;
@@ -301,6 +385,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
+        QFile::remove(m_palettePath);
         if (code != 0) {
             qWarning() << out;
             fail(tr("GIF conversion failed"));
@@ -316,15 +401,20 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
+        QFile::remove(m_palettePath);
         fail(tr("ffmpeg could not be started — is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
-                {QStringLiteral("-y"), QStringLiteral("-i"), m_tempPath,
-                 QStringLiteral("-vf"), vf, m_outPath});
+                {QStringLiteral("-y"), QStringLiteral("-nostats"),
+                 QStringLiteral("-loglevel"), QStringLiteral("error"),
+                 QStringLiteral("-i"), m_tempPath,
+                 QStringLiteral("-i"), m_palettePath,
+                 QStringLiteral("-lavfi"), lavfi, m_outPath});
     if (!conv->waitForStarted(3000) && m_converter == conv) {
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
+        QFile::remove(m_palettePath);
         fail(tr("ffmpeg could not be started — is it installed?"));
     }
 }
@@ -333,11 +423,17 @@ void GifRecorder::convertVideo()
 {
     // Re-encode the lossless temp into a shareable MP4 (H.264) or WebM (VP9).
     const int crf = qBound(0, m_settings->videoQuality(), 51);
-    QStringList args{QStringLiteral("-y"), QStringLiteral("-i"), m_tempPath};
+    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                     QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-i"), m_tempPath};
     if (m_output == WebM) {
+        // Without -deadline/-cpu-used libvpx-vp9 defaults to good/cpu-used 0,
+        // i.e. 0.1–0.3× realtime — minutes of conversion for a 1-minute clip.
         args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
              << QStringLiteral("-crf") << QString::number(crf)
              << QStringLiteral("-b:v") << QStringLiteral("0")
+             << QStringLiteral("-deadline") << QStringLiteral("good")
+             << QStringLiteral("-cpu-used") << QStringLiteral("4")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
     } else {
@@ -415,12 +511,22 @@ void GifRecorder::abort()
         m_grabber = nullptr;
     }
 #endif
-    delete m_session;
-    m_session = nullptr;
+    // fail() (and thus abort()) can run inside a ScreenCastSession signal
+    // emission — deleting the sender there is UB, so defer.
+    if (m_session) {
+        m_session->disconnect(this);
+        m_session->deleteLater();
+        m_session = nullptr;
+    }
     stopProcess(m_ffmpeg);
     stopProcess(m_converter);
     if (!m_tempPath.isEmpty())
         QFile::remove(m_tempPath);
+    if (!m_palettePath.isEmpty())
+        QFile::remove(m_palettePath);
+    // Aborting mid-conversion leaves a truncated file in the save directory.
+    if (m_state == Converting && !m_outPath.isEmpty())
+        QFile::remove(m_outPath);
     cleanup();
 }
 
@@ -428,6 +534,8 @@ void GifRecorder::cleanup()
 {
     m_state = Idle;
     m_tempPath.clear();
+    m_palettePath.clear();
+    m_outPath.clear();
     m_encodeCrop = {};
     m_encodeSize = {};
     m_targetScreen = nullptr;

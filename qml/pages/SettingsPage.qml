@@ -9,7 +9,7 @@ Item {
 
     readonly property var themeIds: ["system", "unisic", "dark", "light",
                                      "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
-    readonly property var themeNames: [qsTr("System (match KDE)"), "Unisic", qsTr("Dark"), qsTr("Light"),
+    readonly property var themeNames: [qsTr("System Theme"), "Unisic", qsTr("Dark"), qsTr("Light"),
                                        "Catppuccin Mocha", "Catppuccin Latte", "Dracula", "Nord", "Gruvbox"]
     readonly property var toolbarPosIds: ["follow", "top-left", "top-center", "top-right",
                                           "middle-left", "middle-center", "middle-right",
@@ -253,7 +253,14 @@ Item {
                             onEdited: (t) => App.settings.filenameTemplate = t
                         }
                         Text {
-                            text: qsTr("Preview: %1").arg(App.filenamePreview())
+                            // filenamePreview() is a plain Q_INVOKABLE with no
+                            // dependency tracking — reference the settings it
+                            // uses so the preview updates while typing.
+                            text: {
+                                App.settings.filenameTemplate
+                                App.settings.imageFormat
+                                return qsTr("Preview: %1").arg(App.filenamePreview())
+                            }
                             color: Theme.accent
                             font.pixelSize: Theme.fontS
                             font.family: "monospace"

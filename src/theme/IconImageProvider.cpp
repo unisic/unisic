@@ -62,12 +62,25 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
     ThemeController *tc = m_controller ? m_controller : ThemeController::instance();
     const bool system = tc && tc->themeName() == QLatin1String("system");
 
+    const int rev = tc ? tc->rev() : 0;
+    if (rev != m_cacheRev) {
+        m_cache.clear();
+        m_cacheRev = rev;
+    }
+    const QString cacheKey = id + QLatin1Char('|')
+        + QString::number(target.width()) + QLatin1Char('x') + QString::number(target.height());
+    if (auto it = m_cache.constFind(cacheKey); it != m_cache.constEnd()) {
+        if (size) *size = it->size();
+        return *it;
+    }
+
     if (system) {
         QIcon icon = QIcon::fromTheme(name);
         if (!icon.isNull()) {
             QPixmap pm = icon.pixmap(target);
             if (!pm.isNull()) {
                 if (size) *size = pm.size();
+                m_cache.insert(cacheKey, pm);
                 return pm;
             }
         }
@@ -76,6 +89,7 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
         QPixmap pm = tintedBundled(name, color.isValid() ? color : tc->sysText(), target);
         if (!pm.isNull()) {
             if (size) *size = pm.size();
+            m_cache.insert(cacheKey, pm);
             return pm;
         }
     }
@@ -87,5 +101,6 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
         pm = icon.pixmap(target);
     }
     if (size) *size = pm.isNull() ? target : pm.size();
+    m_cache.insert(cacheKey, pm);
     return pm;
 }

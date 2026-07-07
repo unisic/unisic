@@ -241,11 +241,18 @@ Window {
                 color: canvas.strokeColor
                 font.pixelSize: canvas.fontSize * canvas.renderScale
                 font.bold: true
+                // Return focus to root — the plain Item is no focus scope, so
+                // without this Escape/Enter/undo keys go dead after text entry
+                // and the overlay can no longer be cancelled from the keyboard.
                 onAccepted: {
                     canvas.commitText(textEditor.imgX, textEditor.imgY, text)
                     textEditor.visible = false
+                    root.forceActiveFocus()
                 }
-                Keys.onEscapePressed: textEditor.visible = false
+                Keys.onEscapePressed: {
+                    textEditor.visible = false
+                    root.forceActiveFocus()
+                }
             }
         }
     }

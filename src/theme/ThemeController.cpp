@@ -12,11 +12,28 @@ ThemeController::ThemeController(QObject *parent) : QObject(parent)
         s_instance = this;
 
     // Follow live system scheme/palette changes so the "System" theme updates
-    // without a restart.
+    // without a restart. A scheme flip fires BOTH signals — coalesce into one
+    // rev bump per event-loop turn, or every icon re-renders twice.
+    auto scheduleBump = [this] {
+        if (m_bumpQueued)
+            return;
+        m_bumpQueued = true;
+        QMetaObject::invokeMethod(this, [this] {
+            m_bumpQueued = false;
+            bump();
+            emit systemChanged();
+        }, Qt::QueuedConnection);
+    };
     if (auto *hints = QGuiApplication::styleHints()) {
-        connect(hints, &QStyleHints::colorSchemeChanged, this, [this] { bump(); emit systemChanged(); });
+        connect(hints, &QStyleHints::colorSchemeChanged, this, scheduleBump);
     }
-    connect(qApp, &QGuiApplication::paletteChanged, this, [this] { bump(); emit systemChanged(); });
+    connect(qApp, &QGuiApplication::paletteChanged, this, scheduleBump);
+}
+
+ThemeController::~ThemeController()
+{
+    if (s_instance == this)
+        s_instance = nullptr;
 }
 
 ThemeController *ThemeController::instance()
@@ -42,8 +59,13 @@ void ThemeController::bump()
 
 bool ThemeController::systemDark() const
 {
-    if (auto *hints = QGuiApplication::styleHints())
-        return hints->colorScheme() == Qt::ColorScheme::Dark;
+    // Unknown is common on non-KDE/wlroots compositors — fall back to the
+    // palette lightness heuristic there instead of always claiming light.
+    if (auto *hints = QGuiApplication::styleHints()) {
+        const auto scheme = hints->colorScheme();
+        if (scheme != Qt::ColorScheme::Unknown)
+            return scheme == Qt::ColorScheme::Dark;
+    }
     return qApp->palette().color(QPalette::Window).lightness() < 128;
 }
 

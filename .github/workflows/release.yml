@@ -188,7 +188,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Flatpak bundle
-        uses: flathub-infra/flatpak-github-actions/flatpak-builder@v6
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: org.unisic.Unisic.yml
           bundle: unisic.flatpak

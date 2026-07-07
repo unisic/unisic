@@ -1,0 +1,207 @@
+name: Release Packages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  deb:
+    name: Debian package
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
+            qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
+            libpipewire-0.3-dev
+
+      - uses: actions/checkout@v4
+
+      - name: Build DEB
+        run: |
+          cmake -B build-deb -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCPACK_GENERATOR=DEB
+          cmake --build build-deb --parallel
+          cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  rpm:
+    name: RPM package
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
+            pipewire-devel
+
+      - uses: actions/checkout@v4
+
+      - name: Build RPM
+        run: |
+          cmake -B build-rpm -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCPACK_GENERATOR=RPM
+          cmake --build build-rpm --parallel
+          cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-rpm
+          path: dist/*.rpm
+          if-no-files-found: error
+
+  arch:
+    name: Arch package
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed \
+            ca-certificates git base-devel cmake ninja pkgconf \
+            qt6-base qt6-declarative qt6-svg qt6-wayland \
+            pipewire ffmpeg wl-clipboard xdg-desktop-portal
+
+      - uses: actions/checkout@v4
+
+      - name: Build Arch package
+        run: |
+          version_line=""
+          while IFS= read -r line; do
+            if [[ "$line" == project\(unisic\ VERSION* ]]; then
+              version_line="$line"
+              break
+            fi
+          done < CMakeLists.txt
+          if [[ -z "$version_line" ]]; then
+            printf 'Could not read project version from CMakeLists.txt\n' >&2
+            exit 1
+          fi
+          version="${version_line#*VERSION }"
+          version="${version%% *}"
+          git archive --format=tar.gz --prefix="unisic-${version}/" HEAD > "packaging/arch/unisic-${version}.tar.gz"
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && UNISIC_PKGVER='$version' makepkg --noconfirm --clean --cleanbuild"
+          mkdir -p dist
+          cp packaging/arch/*.pkg.tar.zst dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-arch
+          path: dist/*.pkg.tar.zst
+          if-no-files-found: error
+
+  appimage:
+    name: AppImage
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ca-certificates curl file desktop-file-utils patchelf libfuse2 \
+            cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
+            libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
+            libwayland-client0 libwayland-cursor0 libwayland-egl1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          arch: linux_gcc_64
+          modules: qtsvg qtwayland
+          cache: true
+
+      - name: Build AppDir
+        run: |
+          cmake -B build-appimage -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build-appimage --parallel
+          mkdir -p AppDir
+          DESTDIR="$PWD/AppDir" cmake --install build-appimage --strip
+
+      - name: Build AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+          QML_SOURCES_PATHS: ${{ github.workspace }}/qml
+        run: |
+          mkdir -p tools dist
+          curl -L -o tools/linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          curl -L -o tools/linuxdeploy-plugin-qt-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
+          export PATH="$PWD/tools:$PATH"
+          export QMAKE="$(command -v qmake)"
+          ./tools/linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            --plugin qt \
+            --output appimage
+          mv ./*.AppImage dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+  flatpak:
+    name: Flatpak bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Flatpak tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates flatpak flatpak-builder
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+
+      - name: Build Flatpak bundle
+        run: |
+          flatpak-builder --user --disable-rofiles-fuse --force-clean \
+            --install-deps-from=flathub \
+            --repo="$RUNNER_TEMP/flatpak-repo" \
+            "$RUNNER_TEMP/flatpak-build" org.unisic.Unisic.yml
+          mkdir -p dist
+          flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
+            dist/org.unisic.Unisic.flatpak \
+            org.unisic.Unisic \
+            --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-flatpak
+          path: dist/*.flatpak
+          if-no-files-found: error

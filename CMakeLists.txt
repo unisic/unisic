@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 project(unisic VERSION 0.1.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -86,6 +88,34 @@ qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
-install(TARGETS unisic RUNTIME DESTINATION bin)
-install(FILES resources/org.unisic.Unisic.desktop DESTINATION share/applications)
-install(FILES resources/icons/unisic.svg DESTINATION share/icons/hicolor/scalable/apps)
+install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES resources/org.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/org.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES resources/icons/unisic.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME org.unisic.Unisic.svg)
+install(FILES resources/icons/unisic.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME unisic.svg)
+
+set(CPACK_PACKAGE_NAME "unisic")
+set(CPACK_PACKAGE_VENDOR "Unisic")
+set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ShareX-like screenshot and screen-recording tool for Linux Wayland")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_STRIP_FILES TRUE)
+
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")
+set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "ffmpeg, wl-clipboard, qt6-wayland, xdg-desktop-portal")
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
+set(CPACK_RPM_PACKAGE_LICENSE "LicenseRef-Unknown")
+set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, wl-clipboard, qt6-qtwayland, xdg-desktop-portal")
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+
+include(CPack)

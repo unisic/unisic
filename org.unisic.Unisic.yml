@@ -1,0 +1,29 @@
+app-id: org.unisic.Unisic
+runtime: org.kde.Platform
+runtime-version: "6.8"
+sdk: org.kde.Sdk
+command: unisic
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pipewire
+  - --device=dri
+  - --filesystem=xdg-pictures:create
+  - --filesystem=xdg-videos:create
+  - --filesystem=xdg-config/unisic:create
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --talk-name=org.kde.KWin
+  - --talk-name=org.kde.kglobalaccel
+
+modules:
+  - name: unisic
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/app
+    sources:
+      - type: dir
+        path: .

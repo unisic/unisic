@@ -1,0 +1,22 @@
+pkgname=unisic
+pkgver=${UNISIC_PKGVER:-0.1.0}
+pkgrel=1
+pkgdesc='ShareX-like screenshot and screen-recording tool for Linux Wayland'
+arch=('x86_64')
+url='https://github.com/unisic/unisic'
+license=('LicenseRef-Unknown')
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal')
+makedepends=('cmake' 'ninja' 'pkgconf')
+source=("${pkgname}-${pkgver}.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cmake -S "${srcdir}/${pkgname}-${pkgver}" -B build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr
+    cmake --build build
+}
+
+package() {
+    DESTDIR="${pkgdir}" cmake --install build --strip
+}

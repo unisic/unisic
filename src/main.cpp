@@ -24,15 +24,18 @@ static void ensureDesktopFile()
     // Dev-run icon: hicolor lookup needs it on disk, not just in qrc.
     const QString iconDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
                             + QStringLiteral("/icons/hicolor/scalable/apps");
-    const QString iconTarget = iconDir + QStringLiteral("/unisic.svg");
-    if (!QFile::exists(iconTarget)) {
-        QDir().mkpath(iconDir);
+    const QString iconTarget = iconDir + QStringLiteral("/org.unisic.Unisic.svg");
+    const QString legacyIconTarget = iconDir + QStringLiteral("/unisic.svg");
+    QDir().mkpath(iconDir);
+    if (!QFile::exists(iconTarget))
         QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), iconTarget);
-    }
+    if (!QFile::exists(legacyIconTarget))
+        QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), legacyIconTarget);
 
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     const QString target = dir + QStringLiteral("/org.unisic.Unisic.desktop");
     const QByteArray execLine = "Exec=" + QCoreApplication::applicationFilePath().toUtf8() + "\n";
+    const QByteArray iconLine = "Icon=org.unisic.Unisic\n";
     const QByteArray restrictedLine =
         "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
 
@@ -43,7 +46,7 @@ static void ensureDesktopFile()
         QFile existing(target);
         if (existing.open(QIODevice::ReadOnly)) {
             const QByteArray data = existing.readAll();
-            if (data.contains(execLine) && data.contains(restrictedLine))
+            if (data.contains(execLine) && data.contains(iconLine) && data.contains(restrictedLine))
                 return;
         }
     }
@@ -56,7 +59,7 @@ static void ensureDesktopFile()
             "Name=Unisic\n"
             "Comment=Screenshots, annotations, uploads and GIF recording\n"
             + execLine +
-            "Icon=unisic\n"
+            iconLine +
             "Terminal=false\n"
             "Categories=Utility;Graphics;\n"
             + restrictedLine);

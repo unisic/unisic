@@ -104,7 +104,7 @@ jobs:
           fi
           version="${version_line#*VERSION }"
           version="${version%% *}"
-          git archive --format=tar.gz --prefix="unisic-${version}/" HEAD > "packaging/arch/unisic-${version}.tar.gz"
+          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar.gz --prefix="unisic-${version}/" HEAD > "packaging/arch/unisic-${version}.tar.gz"
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
           runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && UNISIC_PKGVER='$version' makepkg --noconfirm --clean --cleanbuild"
@@ -139,7 +139,6 @@ jobs:
         with:
           version: "6.8.3"
           arch: linux_gcc_64
-          modules: qtsvg qtwayland
           cache: true
 
       - name: Build AppDir
@@ -185,7 +184,7 @@ jobs:
       - name: Install Flatpak tooling
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ca-certificates flatpak flatpak-builder
+          sudo apt-get install -y --no-install-recommends ca-certificates elfutils flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: Build Flatpak bundle

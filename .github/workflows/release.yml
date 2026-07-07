@@ -174,36 +174,3 @@ jobs:
           name: unisic-appimage
           path: dist/*.AppImage
           if-no-files-found: error
-
-  flatpak:
-    name: Flatpak bundle
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Flatpak tooling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ca-certificates elfutils flatpak flatpak-builder
-          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-
-      - name: Validate AppStream metadata
-        run: appstreamcli validate --no-net resources/org.unisic.Unisic.metainfo.xml
-
-      - name: Build Flatpak bundle
-        run: |
-          flatpak-builder --user --disable-rofiles-fuse --force-clean \
-            --install-deps-from=flathub \
-            --repo="$RUNNER_TEMP/flatpak-repo" \
-            "$RUNNER_TEMP/flatpak-build" org.unisic.Unisic.yml
-          mkdir -p dist
-          flatpak build-bundle "$RUNNER_TEMP/flatpak-repo" \
-            dist/org.unisic.Unisic.flatpak \
-            org.unisic.Unisic \
-            --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-flatpak
-          path: dist/*.flatpak
-          if-no-files-found: error

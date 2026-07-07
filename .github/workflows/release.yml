@@ -87,7 +87,8 @@ jobs:
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland \
-            pipewire ffmpeg wl-clipboard xdg-desktop-portal
+            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
+            tesseract leptonica
 
       - uses: actions/checkout@v4
 

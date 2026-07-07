@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/unisic/unisic/discussions
+    about: Ask usage questions or discuss ideas here instead of opening an issue.

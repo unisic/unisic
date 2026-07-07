@@ -1,0 +1,58 @@
+name: Feature Request
+description: Suggest a capability or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Unisic is a Wayland-first, ShareX-like tool. Keep requests within Wayland-legit paths (portals, KWin ScreenShot2, PipeWire, KGlobalAccel) — no X11-only hacks.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do that Unisic can't do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      multiple: true
+      options:
+        - Capture (fullscreen / region / window)
+        - On-overlay annotation
+        - Post-capture editor
+        - GIF / video recording
+        - Upload / destinations
+        - Clipboard
+        - Global hotkeys
+        - Tray icon / history
+        - Theming / UI
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups, ShareX parity references, links.
+    validations:
+      required: false

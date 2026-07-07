@@ -10,7 +10,6 @@ finish-args:
   - --share=network
   - --socket=wayland
   - --socket=fallback-x11
-  - --socket=pipewire
   - --device=dri
   - --filesystem=xdg-pictures:create
   - --filesystem=xdg-videos:create

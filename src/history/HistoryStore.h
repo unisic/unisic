@@ -1,7 +1,10 @@
 #pragma once
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QTimer>
 #include <qqmlregistration.h>
+
+class QFileSystemWatcher;
 
 // Capture/upload history persisted as JSON, with thumbnails on disk.
 // Newest entries first.
@@ -32,11 +35,18 @@ public:
                   const QString &kind, const QString &url = {}, const QString &deleteUrl = {});
     void setUrl(const QString &filePath, const QString &url, const QString &deleteUrl);
 
+    // Removes the entry at row and moves its capture file to the trash.
     Q_INVOKABLE void remove(int row);
+    // Removes the entry whose capture is filePath (and trashes the file).
+    Q_INVOKABLE void removeByFile(const QString &filePath);
+    // Clears all history entries but keeps the capture files on disk.
     Q_INVOKABLE void clearAll();
 
 signals:
     void countChanged();
+    // Emitted when a capture file could not be moved to the trash; the entry is
+    // still removed. AppContext surfaces this as a toast.
+    void fileTrashFailed(const QString &path);
 
 private:
     struct Entry {
@@ -50,6 +60,11 @@ private:
     void load();
     void persist();
     QString dataDir() const;
+    void removeRow(int row, bool trashFile);
+    void rebuildWatches();   // watch the parent directories of all capture files
+    void pruneMissing();     // drop entries whose capture file vanished on disk
 
     QVector<Entry> m_entries;
+    QFileSystemWatcher *m_watcher = nullptr;
+    QTimer m_validateTimer;
 };

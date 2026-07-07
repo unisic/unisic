@@ -52,7 +52,10 @@ Window {
             } else if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) {
                 canvas.selectAll()
             } else if (e.key === Qt.Key_Z && (e.modifiers & Qt.ControlModifier)) {
-                canvas.undo()
+                if (e.modifiers & Qt.ShiftModifier) canvas.redo()
+                else canvas.undo()
+            } else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) {
+                canvas.redo()
             } else if (e.key === Qt.Key_Left)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? -10 : -1, 0) }
             else if (e.key === Qt.Key_Right)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? 10 : 1, 0) }
             else if (e.key === Qt.Key_Up)     { canvas.nudgeSelection(0, e.modifiers & Qt.ShiftModifier ? -10 : -1) }
@@ -174,6 +177,7 @@ Window {
                         }
                     }
                     ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.undo() }
+                    ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.redo() }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
 

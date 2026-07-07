@@ -22,6 +22,10 @@ class HistoryStore;
 //   "urlPath": "$json:files[0].url$" | "$text$" | "$regex:...$",
 //   "deletionUrlPath": "$json:deletion_url$"
 // }
+// "urlPath"/"deletionUrlPath" may also embed tokens inline, e.g.
+//   "https://imgur.com/delete/$json:data.deletehash$"
+// Optional "urlReplace"/"urlReplaceWith" post-process the extracted URL with a
+// plain string replace (e.g. tmpfiles.org viewer URL -> direct /dl/ URL).
 // type "curl" handles ftp://, ftps://, sftp:// via the curl CLI:
 // { "name":"my-sftp", "type":"curl", "requestUrl":"sftp://host/dir/",
 //   "user":"name:pass", "publicUrlBase":"https://host/dir/" }
@@ -67,6 +71,7 @@ private:
                     const QString &mime, Callback cb);
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &fileName, Callback cb);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
+    static QString extractToken(const QString &token, const QByteArray &response);
     void setBusy(bool b);
 
     Settings *m_settings;

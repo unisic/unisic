@@ -2,15 +2,65 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QImage>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QUuid>
+#include <QSet>
 
 HistoryStore::HistoryStore(QObject *parent) : QAbstractListModel(parent)
 {
     load();
+
+    // External-deletion sync: watch the directories the captures live in (a
+    // handful even at 500 entries) rather than 500 individual files. Our own
+    // saves also fire directoryChanged, so validation is debounced and only
+    // does a cheap existence check.
+    m_watcher = new QFileSystemWatcher(this);
+    m_validateTimer.setSingleShot(true);
+    m_validateTimer.setInterval(250);
+    connect(&m_validateTimer, &QTimer::timeout, this, [this] {
+        pruneMissing();
+        rebuildWatches();
+    });
+    connect(m_watcher, &QFileSystemWatcher::directoryChanged, this,
+            [this] { m_validateTimer.start(); });
+
+    pruneMissing();   // catch deletions that happened while Unisic was closed
+    rebuildWatches();
+}
+
+void HistoryStore::rebuildWatches()
+{
+    QSet<QString> dirs;
+    for (const Entry &e : m_entries) {
+        if (e.filePath.isEmpty())
+            continue;
+        const QString dir = QFileInfo(e.filePath).absolutePath();
+        if (!dir.isEmpty())
+            dirs.insert(dir);
+    }
+    const QStringList wanted = QStringList(dirs.begin(), dirs.end());
+    const QStringList current = m_watcher->directories();
+    if (QSet<QString>(current.begin(), current.end()) == dirs)
+        return; // unchanged — avoid churning inotify watches on every capture
+    if (!current.isEmpty())
+        m_watcher->removePaths(current);
+    if (!wanted.isEmpty())
+        m_watcher->addPaths(wanted);
+}
+
+void HistoryStore::pruneMissing()
+{
+    // Walk back-to-front so row removals don't shift the indices still to check.
+    for (int i = m_entries.size() - 1; i >= 0; --i) {
+        const Entry &e = m_entries[i];
+        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath))
+            removeRow(i, /*trashFile=*/false);
+    }
 }
 
 QString HistoryStore::dataDir() const
@@ -112,6 +162,7 @@ void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
         endRemoveRows();
     }
     persist();
+    rebuildWatches();
     emit countChanged();
 }
 
@@ -128,16 +179,41 @@ void HistoryStore::setUrl(const QString &filePath, const QString &url, const QSt
     }
 }
 
-void HistoryStore::remove(int row)
+void HistoryStore::removeRow(int row, bool trashFile)
 {
     if (row < 0 || row >= m_entries.size())
         return;
+    const Entry e = m_entries[row];
+    // Move the capture to the trash on an explicit user delete. Never hard-delete
+    // on failure (e.g. moveToTrash unsupported on the volume) — surface it instead.
+    if (trashFile && !e.filePath.isEmpty() && QFile::exists(e.filePath)) {
+        if (!QFile::moveToTrash(e.filePath))
+            emit fileTrashFailed(e.filePath);
+    }
     beginRemoveRows({}, row, row);
-    QFile::remove(m_entries[row].thumbPath);
+    QFile::remove(e.thumbPath);
     m_entries.removeAt(row);
     endRemoveRows();
     persist();
+    rebuildWatches();
     emit countChanged();
+}
+
+void HistoryStore::remove(int row)
+{
+    removeRow(row, /*trashFile=*/true);
+}
+
+void HistoryStore::removeByFile(const QString &filePath)
+{
+    if (filePath.isEmpty())
+        return;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].filePath == filePath) {
+            removeRow(i, /*trashFile=*/true);
+            return;
+        }
+    }
 }
 
 void HistoryStore::clearAll()

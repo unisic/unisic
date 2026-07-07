@@ -3,7 +3,10 @@
 #include <QImage>
 #include <QColor>
 #include <QVector>
+#include <QRect>
 #include <qqmlregistration.h>
+
+template <typename T> class QFutureWatcher;
 
 // The single drawing surface used by both the region-selection overlay and
 // the post-capture editor. Holds the base image plus a list of vector
@@ -35,7 +38,8 @@ public:
     enum Tool {
         None = 0, Pen, Line, Arrow, Rect, Ellipse, Text,
         Blur, Pixelate, Highlight, Step, Crop,
-        SmartErase
+        SmartErase,
+        ObjectPick   // 13 — overlay-only: hover to highlight a detected object, click to capture it
     };
     Q_ENUM(Tool)
 
@@ -149,4 +153,10 @@ private:
     QRectF m_selStart;
     Annot m_current;
     bool m_drawing = false;
+
+    // Object-pick mode (overlay): detected candidate rects + the one under the
+    // cursor. Detection runs off-thread the first time the tool is selected.
+    QVector<QRect> m_objectCandidates;
+    QRect m_hoverObject;
+    QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;
 };

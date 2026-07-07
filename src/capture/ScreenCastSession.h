@@ -15,11 +15,12 @@ public:
 
     // sourceTypes: bitmask MONITOR=1, WINDOW=2, VIRTUAL=4 (the portal shows a
     // matching picker). Default MONITOR for screen/region capture.
-    void start(bool includeCursor, uint sourceTypes = 1);
+    void start(bool includeCursor, uint sourceTypes = 1, const QString &restoreToken = {});
 
 signals:
     void ready(int pipewireFd, uint nodeId, const QSize &streamSize, const QPoint &streamPos);
     void failed(const QString &error);
+    void restoreTokenChanged(const QString &token);
 
 private:
     void createSession(bool includeCursor);
@@ -28,5 +29,7 @@ private:
     void openRemote(uint nodeId, const QSize &size, const QPoint &pos);
 
     QString m_sessionHandle;
+    QString m_restoreToken;
     uint m_sourceTypes = 1;
+    bool m_restoreTokensSupported = false;
 };

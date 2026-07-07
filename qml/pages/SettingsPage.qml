@@ -17,6 +17,10 @@ Item {
     readonly property var toolbarPosNames: [qsTr("Follow selection"), qsTr("Top left"), qsTr("Top center"), qsTr("Top right"),
                                             qsTr("Middle left"), qsTr("Middle center"), qsTr("Middle right"),
                                             qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right")]
+    readonly property var popupPosIds: ["top-left", "top-center", "top-right",
+                                        "bottom-left", "bottom-center", "bottom-right"]
+    readonly property var popupPosNames: [qsTr("Top left"), qsTr("Top center"), qsTr("Top right"),
+                                          qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right")]
 
     function toolHidden(id) {
         var csv = App.settings.hiddenTools
@@ -147,6 +151,38 @@ Item {
                     SettingRow {
                         label: qsTr("Show notifications")
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Show capture preview popup")
+                        USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Popup position")
+                        UComboBox {
+                            width: 180
+                            model: page.popupPosNames
+                            currentIndex: Math.max(0, page.popupPosIds.indexOf(App.settings.capturePopupPosition))
+                            onActivated: (i) => App.settings.capturePopupPosition = page.popupPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Popup auto-hide (0 = keep open)")
+                        USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
+                    }
+                    SettingRow {
+                        visible: App.ocrAvailable
+                        height: App.ocrAvailable ? 44 : 0
+                        label: qsTr("OCR languages")
+                        UTextField {
+                            width: 150
+                            text: App.settings.ocrLanguages
+                            placeholder: "pol+eng"
+                            onEdited: (t) => App.settings.ocrLanguages = t
+                        }
                     }
                     SettingRow {
                         label: qsTr("Closing the window minimizes to tray")
@@ -409,23 +445,23 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Full screen")
-                        UTextField { width: 200; text: App.settings.hotkeyFullScreen; onEdited: (t) => App.settings.hotkeyFullScreen = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyFullScreen; onRecorded: (t) => App.settings.hotkeyFullScreen = t }
                     }
                     SettingRow {
                         label: qsTr("Region")
-                        UTextField { width: 200; text: App.settings.hotkeyRegion; onEdited: (t) => App.settings.hotkeyRegion = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => App.settings.hotkeyRegion = t }
                     }
                     SettingRow {
                         label: qsTr("Window")
-                        UTextField { width: 200; text: App.settings.hotkeyWindow; onEdited: (t) => App.settings.hotkeyWindow = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyWindow; onRecorded: (t) => App.settings.hotkeyWindow = t }
                     }
                     SettingRow {
                         label: qsTr("Video start/stop")
-                        UTextField { width: 200; text: App.settings.hotkeyRecord; onEdited: (t) => App.settings.hotkeyRecord = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRecord; onRecorded: (t) => App.settings.hotkeyRecord = t }
                     }
                     SettingRow {
                         label: qsTr("GIF start/stop")
-                        UTextField { width: 200; text: App.settings.hotkeyGif; onEdited: (t) => App.settings.hotkeyGif = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => App.settings.hotkeyGif = t }
                     }
                     UButton {
                         anchors.right: parent.right

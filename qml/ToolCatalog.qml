@@ -7,17 +7,18 @@ import QtQuick
 QtObject {
     readonly property var tools: [
         { id: "select",     tool: 0,  iconName: "select-rectangular", label: qsTr("Select"),       overlay: true,  editor: false, hideable: false },
+        { id: "object",     tool: 13, iconName: "object-pick",        label: qsTr("Pick object"),  overlay: true,  editor: false, hideable: true },
         { id: "pen",        tool: 1,  iconName: "draw-freehand",      label: qsTr("Pen"),          overlay: true,  editor: true,  hideable: true },
-        { id: "line",       tool: 2,  iconName: "draw-line",          label: qsTr("Line"),         overlay: false, editor: true,  hideable: true },
+        { id: "line",       tool: 2,  iconName: "draw-line",          label: qsTr("Line"),         overlay: true,  editor: true,  hideable: true },
         { id: "arrow",      tool: 3,  iconName: "draw-arrow",         label: qsTr("Arrow"),        overlay: true,  editor: true,  hideable: true },
         { id: "rect",       tool: 4,  iconName: "draw-rectangle",     label: qsTr("Rectangle"),    overlay: true,  editor: true,  hideable: true },
         { id: "ellipse",    tool: 5,  iconName: "draw-ellipse",       label: qsTr("Ellipse"),      overlay: true,  editor: true,  hideable: true },
         { id: "text",       tool: 6,  iconName: "draw-text",          label: qsTr("Text"),         overlay: true,  editor: true,  hideable: true },
-        { id: "highlight",  tool: 9,  iconName: "draw-highlight",     label: qsTr("Highlight"),    overlay: false, editor: true,  hideable: true },
-        { id: "blur",       tool: 7,  iconName: "blur",               label: qsTr("Blur"),         overlay: false, editor: true,  hideable: true },
-        { id: "pixelate",   tool: 8,  iconName: "pixelate",           label: qsTr("Pixelate"),     overlay: false, editor: true,  hideable: true },
-        { id: "smarterase", tool: 12, iconName: "draw-eraser",        label: qsTr("Smart eraser"), overlay: false, editor: true,  hideable: true },
-        { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  overlay: false, editor: true,  hideable: true },
+        { id: "highlight",  tool: 9,  iconName: "draw-highlight",     label: qsTr("Highlight"),    overlay: true,  editor: true,  hideable: true },
+        { id: "blur",       tool: 7,  iconName: "blur",               label: qsTr("Blur"),         overlay: true,  editor: true,  hideable: true },
+        { id: "pixelate",   tool: 8,  iconName: "pixelate",           label: qsTr("Pixelate"),     overlay: true,  editor: true,  hideable: true },
+        { id: "smarterase", tool: 12, iconName: "draw-eraser",        label: qsTr("Smart eraser"), overlay: true,  editor: true,  hideable: true },
+        { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  overlay: true,  editor: true,  hideable: true },
         { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         overlay: false, editor: true,  hideable: true }
     ]
 

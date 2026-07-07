@@ -5,6 +5,7 @@
 #include "PipeWireGrabber.h"
 #endif
 #include <QStandardPaths>
+#include <QSettings>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -26,6 +27,13 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
 GifRecorder::~GifRecorder()
 {
     abort();
+}
+
+static QString restoreTokenKey(GifRecorder::SourceType source)
+{
+    return source == GifRecorder::Window
+               ? QStringLiteral("record/portalRestoreTokenWindow")
+               : QStringLiteral("record/portalRestoreTokenMonitor");
 }
 
 int GifRecorder::elapsedSeconds() const
@@ -54,8 +62,16 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_session = new ScreenCastSession(this);
     connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
     connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
+    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this, source](const QString &token) {
+        const QString key = restoreTokenKey(source);
+        if (token.isEmpty())
+            m_settings->raw()->remove(key);
+        else
+            m_settings->raw()->setValue(key, token);
+    });
     // Window source → portal WINDOW picker; otherwise a monitor.
-    m_session->start(m_settings->includeCursor(), source == Window ? 2u : 1u);
+    const QString restoreToken = m_settings->raw()->value(restoreTokenKey(source)).toString();
+    m_session->start(m_settings->includeCursor(), source == Window ? 2u : 1u, restoreToken);
 #endif
 }
 

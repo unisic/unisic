@@ -27,7 +27,10 @@ Window {
     Connections {
         target: App
         function onShowMainWindowRequested() {
-            window.show()
+            if (window.visibility === Window.Minimized)
+                window.showNormal()
+            else
+                window.show()
             window.raise()
             window.requestActivate()
         }

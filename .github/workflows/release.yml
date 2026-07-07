@@ -39,6 +39,8 @@ jobs:
             -DCPACK_GENERATOR=DEB
           cmake --build build-deb --parallel
           cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
+          dpkg-deb --field dist/*.deb Depends Recommends
+          apt-get install -y --no-install-recommends ./dist/*.deb
 
       - uses: actions/upload-artifact@v4
         with:

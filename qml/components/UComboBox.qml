@@ -20,6 +20,20 @@ Rectangle {
     border.color: popup.opened ? Theme.accent : Theme.divider
     Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
+    Item {
+        id: outsideCatcher
+        parent: C.Overlay.overlay
+        width: parent ? parent.width : 0
+        height: parent ? parent.height : 0
+        visible: popup.opened && parent !== null
+        z: 999
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: popup.close()
+        }
+    }
+
     Text {
         anchors.left: parent.left
         anchors.leftMargin: 14
@@ -55,8 +69,9 @@ Rectangle {
         parent: C.Overlay.overlay
         width: root.width
         height: Math.min(list.contentHeight + 12, 320)
+        z: outsideCatcher.z + 1
         padding: 6
-        closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
+        closePolicy: C.Popup.CloseOnEscape
 
         // Position under the field in overlay coordinates each time it opens.
         onAboutToShow: {

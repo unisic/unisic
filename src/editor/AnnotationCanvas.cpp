@@ -1,10 +1,13 @@
 #include "AnnotationCanvas.h"
+#include "overlay/ObjectDetector.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
 #include <QHoverEvent>
 #include <QCursor>
 #include <QtMath>
+#include <QtConcurrent>
+#include <QFutureWatcher>
 
 AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
     : QQuickPaintedItem(parent)
@@ -43,6 +46,21 @@ void AnnotationCanvas::setTool(int t)
     if (m_tool == t) return;
     m_tool = t;
     emit toolChanged();
+    if (t == ObjectPick) {
+        m_hoverObject = QRect();
+        // Detect candidate objects once, off the GUI thread (a few tens of ms).
+        if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
+            m_detectWatcher = new QFutureWatcher<QVector<QRect>>(this);
+            connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished, this, [this] {
+                m_objectCandidates = m_detectWatcher->result();
+                m_detectWatcher->deleteLater();
+                m_detectWatcher = nullptr;
+                update();
+            });
+            m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
+        }
+    }
+    update();
 }
 
 void AnnotationCanvas::setStrokeColor(const QColor &c)
@@ -369,7 +387,23 @@ void AnnotationCanvas::paint(QPainter *painter)
     painter->drawImage(0, 0, m_base);
     drawAll(*painter);
 
-    if (m_selectionMode) {
+    if (m_tool == ObjectPick && !hasSelection()) {
+        // Highlight the object under the cursor: dim the rest, outline it in accent.
+        if (!m_hoverObject.isNull()) {
+            QPainterPath full;
+            full.addRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+            QPainterPath hole;
+            hole.addRect(QRectF(m_hoverObject));
+            full = full.subtracted(hole);
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(QColor(23, 21, 59, 150));
+            painter->drawPath(full);
+            QPen border(QColor(200, 172, 214), 2.0 / s); // accent
+            painter->setPen(border);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawRect(QRectF(m_hoverObject));
+        }
+    } else if (m_selectionMode) {
         // Dim everything outside the selection.
         QPainterPath full;
         full.addRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
@@ -443,6 +477,20 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
     m_dragStart = img;
 
+    if (m_tool == ObjectPick) {
+        if (!m_hoverObject.isNull()) {
+            m_selection = QRectF(m_hoverObject);
+            normalizeSelection();
+            emit selectionRectChanged();
+            update();
+            // Plain click captures the object immediately; Shift+click only
+            // selects it so the user can annotate before pressing Enter.
+            if (!(e->modifiers() & Qt::ShiftModifier))
+                emit selectionConfirmed();
+        }
+        e->accept();
+        return;
+    }
     if (m_tool == Text) {
         emit textRequested(img.x(), img.y());
         e->accept();
@@ -612,6 +660,22 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
 {
     const QPointF img = toImage(e->position().x(), e->position().y());
+    if (m_tool == ObjectPick) {
+        // Candidates are sorted smallest-first, so the first hit is the
+        // innermost element under the cursor.
+        QRect found;
+        const QPoint p = img.toPoint();
+        for (const QRect &r : std::as_const(m_objectCandidates)) {
+            if (r.contains(p)) { found = r; break; }
+        }
+        if (found != m_hoverObject) {
+            m_hoverObject = found;
+            update();
+        }
+        setCursor(found.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        e->accept();
+        return;
+    }
     if ((m_selectionMode && m_tool == None) || m_tool == Crop) {
         const int h = hitHandle(img);
         if (h == 0 || h == 7) setCursor(Qt::SizeFDiagCursor);

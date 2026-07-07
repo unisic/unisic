@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.1.0 LANGUAGES CXX)
+project(unisic VERSION 0.2.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 DBus Network Concurrent)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
@@ -31,7 +32,12 @@ qt_add_executable(unisic
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
+    src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
+    src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
 )
+
+# Single source of the app version string, exported to C++ from the project() call.
+target_compile_definitions(unisic PRIVATE UNISIC_VERSION="${PROJECT_VERSION}")
 
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
@@ -39,6 +45,14 @@ if(PIPEWIRE_FOUND)
     target_compile_definitions(unisic PRIVATE HAVE_PIPEWIRE)
 else()
     message(WARNING "libpipewire-0.3 not found — GIF/screen recording will be disabled at runtime")
+endif()
+
+if(TESSERACT_FOUND)
+    target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
+    target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT)
+    target_compile_definitions(unisic PRIVATE HAVE_TESSERACT)
+else()
+    message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
 endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -56,6 +70,7 @@ qt_add_qml_module(unisic
         qml/Main.qml
         qml/OverlayWindow.qml
         qml/EditorWindow.qml
+        qml/NotificationPopup.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -69,6 +84,7 @@ qt_add_qml_module(unisic
         qml/components/USwitch.qml
         qml/components/USlider.qml
         qml/components/UTextField.qml
+        qml/components/UShortcutRecorder.qml
         qml/components/UComboBox.qml
         qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
@@ -77,7 +93,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme)
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify)
 target_link_libraries(unisic PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
     Qt6::DBus Qt6::Network Qt6::Concurrent
@@ -110,12 +126,25 @@ set(CPACK_STRIP_FILES TRUE)
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")
 set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "ffmpeg, wl-clipboard, qt6-wayland, xdg-desktop-portal")
+set(UNISIC_DEBIAN_RUNTIME_DEPENDS
+    ffmpeg
+    libqt6svg6
+    pipewire
+    qml6-module-qtquick
+    qml6-module-qtquick-controls
+    qml6-module-qtquick-dialogs
+    qml6-module-qtquick-effects
+    qml6-module-qtquick-window
+    qt6-wayland
+    wl-clipboard
+    xdg-desktop-portal)
+string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "LicenseRef-Unknown")
-set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, wl-clipboard, qt6-qtwayland, xdg-desktop-portal")
+set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)

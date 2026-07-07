@@ -119,7 +119,14 @@ Item {
                                 onClicked: App.openFile(filePath)
                             }
                             UIconButton {
+                                iconName: "ocr"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Copy text (OCR)")
+                                visible: App.ocrAvailable && kind === "image" && filePath !== ""
+                                onClicked: App.ocrFile(filePath)
+                            }
+                            UIconButton {
                                 iconName: "edit-delete"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Delete (moves file to trash)")
                                 onClicked: App.history.remove(index)
                             }
                         }

@@ -315,6 +315,11 @@ Window {
                     enabled: !App.uploads.busy
                     onClicked: editorSession.upload()
                 }
+                UButton {
+                    visible: App.ocrAvailable
+                    iconName: "ocr"; text: qsTr("Copy text"); variant: "tonal"
+                    onClicked: editorSession.ocrCopyText()
+                }
                 UButton { iconName: "close"; text: qsTr("Close"); variant: "ghost"; onClicked: editorWindow.close() }
             }
         }

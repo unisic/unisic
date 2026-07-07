@@ -64,3 +64,8 @@ void EditorSession::upload()
                                   : tr("Upload failed: %1").arg(error));
     });
 }
+
+void EditorSession::ocrCopyText()
+{
+    m_app->ocrImage(composited());
+}

@@ -15,6 +15,13 @@
 #include <QMimeDatabase>
 #include <QDebug>
 
+// Imgur's anonymous image endpoint needs an "Authorization: Client-ID <id>"
+// header. Register a free application at https://api.imgur.com/oauth2/addclient
+// ("Anonymous usage without user authorisation") and drop the ID here — or edit
+// the "Imgur (anonymous)" destination in Settings to use your own. A shared ID
+// hits Imgur's per-app daily cap (~1250 uploads) across all users.
+static const char kImgurClientId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
+
 UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
 {
@@ -80,7 +87,68 @@ void UploadManager::ensureBuiltins()
             {QStringLiteral("fileFormName"), QStringLiteral("file")},
             {QStringLiteral("responseType"), QStringLiteral("text")},
             {QStringLiteral("urlPath"), QStringLiteral("$text$")},
-            {QStringLiteral("headers"), QJsonObject{{QStringLiteral("User-Agent"), QStringLiteral("Unisic/0.1 (screenshot tool)")}}},
+            {QStringLiteral("headers"), QJsonObject{{QStringLiteral("User-Agent"),
+                QStringLiteral("Unisic/" UNISIC_VERSION " (screenshot tool)")}}},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
+    if (!has(QStringLiteral("Imgur (anonymous)"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("Imgur (anonymous)")},
+            {QStringLiteral("type"), QStringLiteral("http")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://api.imgur.com/3/image")},
+            {QStringLiteral("method"), QStringLiteral("POST")},
+            {QStringLiteral("fileFormName"), QStringLiteral("image")},
+            {QStringLiteral("responseType"), QStringLiteral("json")},
+            {QStringLiteral("urlPath"), QStringLiteral("$json:data.link$")},
+            {QStringLiteral("deletionUrlPath"), QStringLiteral("https://imgur.com/delete/$json:data.deletehash$")},
+            {QStringLiteral("headers"), QJsonObject{{QStringLiteral("Authorization"),
+                QStringLiteral("Client-ID ") + QLatin1String(kImgurClientId)}}},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
+    if (!has(QStringLiteral("uguu.se (48h)"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("uguu.se (48h)")},
+            {QStringLiteral("type"), QStringLiteral("http")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://uguu.se/upload")},
+            {QStringLiteral("method"), QStringLiteral("POST")},
+            {QStringLiteral("fileFormName"), QStringLiteral("files[]")},
+            {QStringLiteral("responseType"), QStringLiteral("json")},
+            {QStringLiteral("urlPath"), QStringLiteral("$json:files[0].url$")},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
+    if (!has(QStringLiteral("litterbox (72h)"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("litterbox (72h)")},
+            {QStringLiteral("type"), QStringLiteral("http")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://litterbox.catbox.moe/resources/internals/api.php")},
+            {QStringLiteral("method"), QStringLiteral("POST")},
+            {QStringLiteral("fileFormName"), QStringLiteral("fileToUpload")},
+            {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("reqtype"), QStringLiteral("fileupload")},
+                                                      {QStringLiteral("time"), QStringLiteral("72h")}}},
+            {QStringLiteral("responseType"), QStringLiteral("text")},
+            {QStringLiteral("urlPath"), QStringLiteral("$text$")},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
+    if (!has(QStringLiteral("tmpfiles.org (1h)"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("tmpfiles.org (1h)")},
+            {QStringLiteral("type"), QStringLiteral("http")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://tmpfiles.org/api/v1/upload")},
+            {QStringLiteral("method"), QStringLiteral("POST")},
+            {QStringLiteral("fileFormName"), QStringLiteral("file")},
+            {QStringLiteral("responseType"), QStringLiteral("json")},
+            {QStringLiteral("urlPath"), QStringLiteral("$json:data.url$")},
+            // API returns a viewer URL; rewrite to the direct-download form.
+            {QStringLiteral("urlReplace"), QStringLiteral("tmpfiles.org/")},
+            {QStringLiteral("urlReplaceWith"), QStringLiteral("tmpfiles.org/dl/")},
             {QStringLiteral("builtin"), true},
         });
         changed = true;
@@ -184,18 +252,17 @@ void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
         httpUpload(dest, data, fileName, mime, done);
 }
 
-QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response)
+// Resolve a single $text$/$json:...$/$regex:...$ token against the response.
+// A string that is not a recognized token is returned verbatim.
+QString UploadManager::extractToken(const QString &token, const QByteArray &response)
 {
-    const QString spec = dest.value(key).toString();
-    if (spec.isEmpty())
-        return {};
-    if (spec == QLatin1String("$text$"))
+    if (token == QLatin1String("$text$"))
         return QString::fromUtf8(response).trimmed();
 
     static const QRegularExpression jsonSpec(QStringLiteral("^\\$json:(.+)\\$$"));
     static const QRegularExpression regexSpec(QStringLiteral("^\\$regex:(.+)\\$$"));
 
-    if (auto m = jsonSpec.match(spec); m.hasMatch()) {
+    if (auto m = jsonSpec.match(token); m.hasMatch()) {
         // Path syntax: a.b[0].c
         const QString path = m.captured(1);
         QJsonValue cur = QJsonDocument::fromJson(response).object();
@@ -210,13 +277,47 @@ QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, c
         }
         return cur.toString();
     }
-    if (auto m = regexSpec.match(spec); m.hasMatch()) {
+    if (auto m = regexSpec.match(token); m.hasMatch()) {
         const QRegularExpression re(m.captured(1));
         const auto match = re.match(QString::fromUtf8(response));
         if (match.hasMatch())
             return match.lastCapturedIndex() >= 1 ? match.captured(1) : match.captured(0);
     }
-    return spec; // literal template fallback
+    return token; // literal fallback
+}
+
+QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response)
+{
+    const QString spec = dest.value(key).toString();
+    if (spec.isEmpty())
+        return {};
+
+    QString url;
+    // Whole-spec token: keeps exact legacy behaviour, incl. regex specs that
+    // themselves contain '$' (which inline scanning could not handle).
+    static const QRegularExpression wholeToken(QStringLiteral("^\\$(?:text|json:.+|regex:.+)\\$$"));
+    if (wholeToken.match(spec).hasMatch()) {
+        url = extractToken(spec, response);
+    } else {
+        // Inline templating: replace each embedded token in place, leaving the
+        // surrounding literal text untouched. No tokens -> spec returned as-is.
+        static const QRegularExpression tokenRe(
+            QStringLiteral("\\$(?:text|json:[^$]+|regex:[^$]+)\\$"));
+        int last = 0;
+        auto it = tokenRe.globalMatch(spec);
+        while (it.hasNext()) {
+            const auto m = it.next();
+            url += spec.mid(last, m.capturedStart() - last);
+            url += extractToken(m.captured(0), response);
+            last = m.capturedEnd();
+        }
+        url += spec.mid(last);
+    }
+
+    const QString find = dest.value(QStringLiteral("urlReplace")).toString();
+    if (!find.isEmpty())
+        url.replace(find, dest.value(QStringLiteral("urlReplaceWith")).toString());
+    return url;
 }
 
 void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,

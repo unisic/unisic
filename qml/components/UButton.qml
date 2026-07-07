@@ -18,27 +18,21 @@ Rectangle {
                                : variant === "danger" ? Theme.dangerText
                                : Theme.textPrimary
 
-    readonly property color _base: variant === "filled" ? Theme.accent
-                                 : variant === "danger" ? Theme.danger
-                                 : variant === "tonal"  ? Theme.tertiary
-                                 : "transparent"
     readonly property bool _hovered: mouse.containsMouse && !mouse.pressed
+    readonly property color _base: variant === "danger" ? Theme.danger
+                                  : variant === "tonal" ? Theme.tertiary
+                                  : Theme.accent
+    readonly property color _bg: variant === "ghost"
+                                 ? (_hovered ? Theme.alpha(Theme.accent, 0.14) : "transparent")
+                                 : (_hovered ? Qt.lighter(_base, 1.12) : _base)
 
     implicitWidth: row.implicitWidth + (compact ? 28 : 40)
     implicitHeight: compact ? 34 : 42
     radius: height / 2
     opacity: root.enabled ? 1.0 : 0.4
 
-    color: variant === "ghost"
-           ? (_hovered ? Qt.rgba(200/255, 172/255, 214/255, 0.12) : "transparent")
-           : "transparent"
-    gradient: variant === "ghost" ? null : grad
-    Gradient {
-        id: grad
-        GradientStop { position: 0.0; color: root._hovered ? Qt.lighter(root._base, 1.16) : Qt.lighter(root._base, 1.08) }
-        GradientStop { position: 1.0; color: root._hovered ? Qt.lighter(root._base, 1.02) : Qt.darker(root._base, 1.08) }
-    }
-    border.width: variant === "ghost" ? 1 : 0
+    color: _bg
+    border.width: variant === "ghost" || variant === "tonal" ? 1 : 0
     border.color: Theme.divider
 
     layer.enabled: variant === "filled" || variant === "danger"

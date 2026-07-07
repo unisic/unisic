@@ -30,6 +30,7 @@ public:
     Q_INVOKABLE QString saveAs(const QUrl &dir);
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
+    Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
 
 signals:
     void statusTextChanged();

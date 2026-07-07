@@ -10,7 +10,7 @@ cmake --build build
 ./build/unisic
 ```
 
-Requires `qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel pipewire-devel` (Fedora) plus runtime `ffmpeg` and `wl-clipboard`. `pipewire-devel` is optional — without it the build succeeds but recording is disabled (`HAVE_PIPEWIRE` guard). No test suite yet.
+Requires `qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel pipewire-devel` (Fedora) plus runtime `ffmpeg` and `wl-clipboard`. `pipewire-devel` is optional — without it the build succeeds but recording is disabled (`HAVE_PIPEWIRE` guard). Same pattern for OCR: `tesseract-devel leptonica-devel` + a langpack like `tesseract-langpack-pol` enable it (`HAVE_TESSERACT`). The capture popup positions itself by filling the screen and masking input to the card (no layer-shell dependency). No test suite yet.
 
 ## Architecture
 

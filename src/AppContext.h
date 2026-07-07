@@ -16,6 +16,8 @@ class CaptureManager;
 class OverlayController;
 class GlobalHotkeys;
 class GifRecorder;
+class OcrEngine;
+class CaptureNotification;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -33,6 +35,7 @@ class AppContext : public QObject
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable CONSTANT)
+    Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
 
 public:
@@ -53,6 +56,7 @@ public:
     bool converting() const;
     int recordSeconds() const;
     bool recordingAvailable() const;
+    bool ocrAvailable() const;
     QString toastText() const { return m_toast; }
 
     // Capture entry points (also bound to hotkeys and tray).
@@ -70,16 +74,24 @@ public:
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
     Q_INVOKABLE void showToast(const QString &text);
+    Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
+    Q_INVOKABLE QString formatShortcut(int key, int modifiers) const;
+    Q_INVOKABLE void setShortcutRecording(bool recording);
     Q_INVOKABLE void applyHotkeys();
     Q_INVOKABLE QString exportSettings(const QUrl &file);   // "" on success, else error
     Q_INVOKABLE QString importSettings(const QUrl &file);
     Q_INVOKABLE QString filenamePreview() const;
 
-    // Used by EditorSession.
+    // Used by EditorSession / CaptureNotification.
     QString saveImageAuto(const QImage &img);
     QString saveImageTo(const QImage &img, const QString &dir);
     void copyImageToClipboard(const QImage &img);
     void uploadImage(const QImage &img, UploadDone done);
+    void openEditor(const QImage &img);
+    void ocrImage(const QImage &img);                // OCR + copy recognized text
+    // Upload for the capture popup: reuses the existing history entry (by path)
+    // instead of adding a new one, and reflects progress back on the popup.
+    void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path);
 
 signals:
     void recordingChanged();
@@ -89,7 +101,8 @@ signals:
 
 private:
     void finishCapture(const QImage &img);
-    void openEditor(const QImage &img);
+    CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
+                                                 const QString &kind);
     void setupTray();
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
@@ -107,7 +120,9 @@ private:
     HistoryStore *m_history;
     GlobalHotkeys *m_hotkeys;
     GifRecorder *m_recorder;
+    OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QString m_toast;
     bool m_converting = false;
+    bool m_shortcutRecording = false;
 };

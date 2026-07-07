@@ -55,6 +55,10 @@ class Settings : public QObject
     Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
+    Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
+    Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
+    Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
+    Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
 
 public:
     explicit Settings(QObject *parent = nullptr) : QObject(parent) {}
@@ -102,6 +106,10 @@ public:
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
     U_SETTING(int, videoMaxDurationSec, setVideoMaxDurationSec, "video/maxDurationSec", 0)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
+    U_SETTING(bool, showCapturePopup, setShowCapturePopup, "general/showCapturePopup", true)
+    U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "general/capturePopupPosition", QStringLiteral("bottom-right"))
+    U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "general/capturePopupDurationSec", 8) // 0 = stay open
+    U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -120,6 +128,8 @@ public:
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
+        emit showCapturePopupChanged(); emit capturePopupPositionChanged();
+        emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
     }
 
 signals:
@@ -159,6 +169,10 @@ signals:
     void videoQualityChanged();
     void videoMaxDurationSecChanged();
     void hotkeyRecordChanged();
+    void showCapturePopupChanged();
+    void capturePopupPositionChanged();
+    void capturePopupDurationSecChanged();
+    void ocrLanguagesChanged();
 
 private:
     QSettings m_s{QStringLiteral("Unisic"), QStringLiteral("unisic")};

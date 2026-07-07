@@ -8,12 +8,54 @@
 #include <QQuickStyle>
 #include <QIcon>
 #include <QStyleHints>
+#include <QLocalServer>
+#include <QLocalSocket>
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
 #include <QProcess>
 #include <QTimer>
 #include <QDebug>
+#include <unistd.h>
+
+static QString singleInstanceServerName()
+{
+    return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
+}
+
+static bool notifyExistingInstance(const QString &serverName)
+{
+    QLocalSocket socket;
+    socket.connectToServer(serverName, QIODevice::WriteOnly);
+    if (!socket.waitForConnected(200))
+        return false;
+    socket.write("show\n");
+    socket.flush();
+    socket.waitForBytesWritten(500);
+    socket.disconnectFromServer();
+    return true;
+}
+
+static QLocalServer *createSingleInstanceServer(const QString &serverName, QCoreApplication *app)
+{
+    auto *server = new QLocalServer(app);
+    if (server->listen(serverName))
+        return server;
+
+    // If a peer appeared between our probe and listen(), hand off to it instead
+    // of deleting a live socket. Otherwise remove the stale socket left by a crash.
+    if (notifyExistingInstance(serverName)) {
+        delete server;
+        return nullptr;
+    }
+    QLocalServer::removeServer(serverName);
+    if (server->listen(serverName))
+        return server;
+
+    qWarning() << "Could not create single-instance server:" << server->errorString();
+    delete server;
+    return nullptr;
+}
 
 // KWin only allows org.kde.KWin.ScreenShot2 for apps whose installed
 // .desktop file declares X-KDE-DBUS-Restricted-Interfaces. When running
@@ -81,11 +123,26 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     app.setApplicationName(QStringLiteral("unisic"));
+    app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
     app.setOrganizationName(QStringLiteral("Unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
     app.setDesktopFileName(QStringLiteral("org.unisic.Unisic"));
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
     app.setQuitOnLastWindowClosed(false); // lives in the tray
+
+    const QStringList args = app.arguments();
+    const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
+                                   || args.contains(QLatin1String("--import-settings"));
+    const QString serverName = singleInstanceServerName();
+    if (!settingsBatchMode && notifyExistingInstance(serverName))
+        return 0;
+    QLocalServer *singleInstanceServer = settingsBatchMode
+                                             ? nullptr
+                                             : createSingleInstanceServer(serverName, &app);
+    if (singleInstanceServer) {
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
+                         [serverName] { QLocalServer::removeServer(serverName); });
+    }
 
     QQuickStyle::setStyle(QStringLiteral("Basic")); // fully custom look, no platform theme
 
@@ -105,12 +162,23 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);
     context.initialize(&engine);
 
+    if (singleInstanceServer) {
+        QObject::connect(singleInstanceServer, &QLocalServer::newConnection, &context,
+                         [singleInstanceServer, &context] {
+            while (QLocalSocket *socket = singleInstanceServer->nextPendingConnection()) {
+                QObject::connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
+                socket->readAll();
+                QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
+                socket->disconnectFromServer();
+            }
+        });
+    }
+
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/Main.qml")));
 
     // ShareX-style CLI triggers: unisic --region | --fullscreen | --window | --gif
-    const QStringList args = app.arguments();
     QTimer::singleShot(300, &context, [&context, args] {
         if (args.contains(QLatin1String("--fullscreen"))) context.captureFullScreen();
         else if (args.contains(QLatin1String("--region"))) context.captureRegion();

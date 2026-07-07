@@ -3,6 +3,7 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusArgument>
+#include <QDBusVariant>
 #include <QDBusObjectPath>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
@@ -19,6 +20,21 @@ static const auto SCREENCAST_IFACE = QStringLiteral("org.freedesktop.portal.Scre
 
 ScreenCastSession::ScreenCastSession(QObject *parent) : QObject(parent) {}
 
+static uint screenCastPortalVersion()
+{
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        PORTAL_SERVICE, PORTAL_PATH,
+        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    msg << SCREENCAST_IFACE << QStringLiteral("version");
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 1000);
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
+        return 0;
+    const QVariant value = reply.arguments().constFirst();
+    if (value.canConvert<QDBusVariant>())
+        return value.value<QDBusVariant>().variant().toUInt();
+    return value.toUInt();
+}
+
 ScreenCastSession::~ScreenCastSession()
 {
     if (!m_sessionHandle.isEmpty()) {
@@ -29,9 +45,10 @@ ScreenCastSession::~ScreenCastSession()
     }
 }
 
-void ScreenCastSession::start(bool includeCursor, uint sourceTypes)
+void ScreenCastSession::start(bool includeCursor, uint sourceTypes, const QString &restoreToken)
 {
     m_sourceTypes = sourceTypes ? sourceTypes : 1;
+    m_restoreToken = restoreToken;
     createSession(includeCursor);
 }
 
@@ -62,14 +79,23 @@ void ScreenCastSession::selectSources(bool includeCursor)
 {
     const QString token = PortalRequest::nextToken();
     QDBusMessage msg = QDBusMessage::createMethodCall(PORTAL_SERVICE, PORTAL_PATH, SCREENCAST_IFACE,
-                                                      QStringLiteral("SelectSources"));
+                                                       QStringLiteral("SelectSources"));
+    QVariantMap options{
+        {QStringLiteral("handle_token"), token},
+        {QStringLiteral("types"), m_sourceTypes},                   // MONITOR / WINDOW
+        {QStringLiteral("multiple"), false},
+        {QStringLiteral("cursor_mode"), uint(includeCursor ? 2 : 1)}, // EMBEDDED : HIDDEN
+    };
+
+    m_restoreTokensSupported = screenCastPortalVersion() >= 4;
+    if (m_restoreTokensSupported) {
+        options.insert(QStringLiteral("persist_mode"), uint(2));
+        if (!m_restoreToken.isEmpty())
+            options.insert(QStringLiteral("restore_token"), m_restoreToken);
+    }
+
     msg << QVariant::fromValue(QDBusObjectPath(m_sessionHandle))
-        << QVariantMap{
-               {QStringLiteral("handle_token"), token},
-               {QStringLiteral("types"), m_sourceTypes},                   // MONITOR / WINDOW
-               {QStringLiteral("multiple"), false},
-               {QStringLiteral("cursor_mode"), uint(includeCursor ? 2 : 1)}, // EMBEDDED : HIDDEN
-           };
+        << options;
     PortalRequest::send(msg, token, [this](uint code, const QVariantMap &) {
         if (code != 0) {
             emit failed(code == 1 ? QStringLiteral("cancelled")
@@ -94,6 +120,8 @@ void ScreenCastSession::startCast()
                                   : QStringLiteral("ScreenCast Start failed"));
             return;
         }
+        if (m_restoreTokensSupported)
+            emit restoreTokenChanged(results.value(QStringLiteral("restore_token")).toString());
         // streams: a(ua{sv})
         uint nodeId = 0;
         QSize size;

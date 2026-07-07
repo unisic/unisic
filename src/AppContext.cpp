@@ -7,8 +7,15 @@
 #include "hotkeys/GlobalHotkeys.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
+#include "notify/CaptureNotification.h"
 #include "theme/ThemeController.h"
+#ifdef HAVE_TESSERACT
+#include "ocr/OcrEngine.h"
+#endif
 #include <QGuiApplication>
+#include <QScreen>
+#include <QRegion>
+#include <QPointer>
 #include <QClipboard>
 #include <QQmlEngine>
 #include <QQmlComponent>
@@ -16,6 +23,7 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QKeySequence>
 #include <QDesktopServices>
 #include <QDateTime>
 #include <QDir>
@@ -44,6 +52,8 @@ AppContext::AppContext(QObject *parent)
     , m_recorder(new GifRecorder(m_settings, this))
 {
     connect(m_hotkeys, &GlobalHotkeys::activated, this, [this](const QString &action) {
+        if (m_shortcutRecording)
+            return;
         if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
         else if (action == QLatin1String("capture-region")) captureRegion();
         else if (action == QLatin1String("capture-window")) captureWindow();
@@ -70,6 +80,16 @@ AppContext::AppContext(QObject *parent)
         if (e != QLatin1String("cancelled"))
             showToast(tr("Recording failed: %1").arg(e));
     });
+
+    // A history file that could not be trashed still gets its entry removed;
+    // let the user know the file is still on disk.
+    connect(m_history, &HistoryStore::fileTrashFailed, this, [this](const QString &path) {
+        showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path));
+    });
+
+#ifdef HAVE_TESSERACT
+    m_ocr = new OcrEngine(this);
+#endif
 }
 
 AppContext::~AppContext()
@@ -97,12 +117,77 @@ bool AppContext::recordingAvailable() const
 #endif
 }
 
+bool AppContext::ocrAvailable() const
+{
+#ifdef HAVE_TESSERACT
+    return true;
+#else
+    return false;
+#endif
+}
+
+void AppContext::ocrImage(const QImage &img)
+{
+#ifdef HAVE_TESSERACT
+    if (img.isNull()) {
+        showToast(tr("Nothing to recognize"));
+        return;
+    }
+    showToast(tr("Recognizing text…"));
+    m_ocr->recognize(img, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+        if (!err.isEmpty())
+            showToast(err);
+        else if (text.isEmpty())
+            showToast(tr("No text found"));
+        else {
+            copyText(text);
+            showToast(tr("Text copied"));
+        }
+    });
+#else
+    Q_UNUSED(img);
+    showToast(tr("OCR is not available in this build"));
+#endif
+}
+
+void AppContext::ocrFile(const QString &path)
+{
+    ocrImage(QImage(path));
+}
+
 void AppContext::showToast(const QString &text)
 {
     if (!m_settings->showNotifications())
         return;
     m_toast = text;
     emit toastChanged();
+}
+
+QString AppContext::formatShortcut(int key, int modifiers) const
+{
+    switch (key) {
+    case Qt::Key_Control:
+    case Qt::Key_Shift:
+    case Qt::Key_Alt:
+    case Qt::Key_Meta:
+    case Qt::Key_AltGr:
+    case Qt::Key_Super_L:
+    case Qt::Key_Super_R:
+    case Qt::Key_Hyper_L:
+    case Qt::Key_Hyper_R:
+        return {};
+    default:
+        break;
+    }
+
+    const auto allowed = Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
+    const Qt::KeyboardModifiers mods = Qt::KeyboardModifiers(modifiers) & allowed;
+    return QKeySequence(mods.toInt() | key).toString(QKeySequence::PortableText);
+}
+
+void AppContext::setShortcutRecording(bool recording)
+{
+    m_shortcutRecording = recording;
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -220,16 +305,24 @@ void AppContext::onRecordingFinished(const QString &path)
     m_converting = false;
     emit recordingChanged();
     QImage thumb(path); // first GIF frame loads fine via Qt's gif plugin
-    m_history->addEntry(path, thumb, path.endsWith(QLatin1String(".gif")) ? QStringLiteral("gif")
-                                                                          : QStringLiteral("video"));
+    const QString kind = path.endsWith(QLatin1String(".gif")) ? QStringLiteral("gif")
+                                                              : QStringLiteral("video");
+    m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
+
+    auto *notif = showCaptureNotification(thumb, path, kind);
+    QPointer<CaptureNotification> np(notif);
+
     if (m_settings->uploadAfterCapture()) {
-        m_uploads->uploadFile(path, [this, path](const QString &url, const QString &del, const QString &err) {
+        if (np) np->setUploading(true);
+        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
             if (err.isEmpty()) {
                 m_history->setUrl(path, url, del);
                 afterUploadActions(url);
+                if (np) np->setUrl(url);
             } else {
                 showToast(tr("Upload failed: %1").arg(err));
+                if (np) np->setUploading(false);
             }
         });
     }
@@ -254,15 +347,20 @@ void AppContext::finishCapture(const QImage &img)
     if (!uploading || !path.isEmpty())
         m_history->addEntry(path, img, QStringLiteral("image"));
 
+    auto *notif = showCaptureNotification(img, path, QStringLiteral("image"));
+    QPointer<CaptureNotification> np(notif);
+
     if (uploading) {
+        if (np) np->setUploading(true);
         QString mime;
         const QByteArray data = encodeImage(img, &mime);
         m_uploads->uploadData(data, makeFileName(), mime,
-            [this, path, img](const QString &url, const QString &del, const QString &err) {
+            [this, path, img, np](const QString &url, const QString &del, const QString &err) {
                 if (!err.isEmpty()) {
                     if (path.isEmpty())
                         m_history->addEntry({}, img, QStringLiteral("image"));
                     showToast(tr("Upload failed: %1").arg(err));
+                    if (np) np->setUploading(false);
                     return;
                 }
                 if (!path.isEmpty())
@@ -270,6 +368,7 @@ void AppContext::finishCapture(const QImage &img)
                 else
                     m_history->addEntry({}, img, QStringLiteral("image"), url, del);
                 afterUploadActions(url);
+                if (np) np->setUrl(url);
             });
     } else if (!path.isEmpty()) {
         showToast(tr("Saved %1").arg(path));
@@ -312,6 +411,94 @@ void AppContext::openEditor(const QImage &img)
         delete obj;
         session->deleteLater();
     }
+}
+
+void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path)
+{
+    QPointer<CaptureNotification> np(n);
+    if (n)
+        n->setUploading(true);
+    QString mime;
+    const QByteArray data = encodeImage(img, &mime);
+    const QString fileName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
+    m_uploads->uploadData(data, fileName, mime,
+        [this, img, path, np](const QString &url, const QString &del, const QString &err) {
+            if (!err.isEmpty()) {
+                showToast(tr("Upload failed: %1").arg(err));
+                if (np) np->setUploading(false);
+                return;
+            }
+            if (!path.isEmpty())
+                m_history->setUrl(path, url, del);
+            else
+                m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+            afterUploadActions(url);
+            if (np) np->setUrl(url);
+        });
+}
+
+CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
+                                                         const QString &kind)
+{
+    if (!m_settings->showCapturePopup() || !m_engine)
+        return nullptr;
+    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/NotificationPopup.qml")));
+    if (component.isError()) {
+        qWarning() << component.errorString();
+        return nullptr;
+    }
+    // Wayland ignores client-set positions for ordinary toplevels (KWin centers
+    // them), so the popup is a transparent window that FILLS the screen — the one
+    // geometry the compositor honors (same trick as OverlayController) — with the
+    // card drawn at the chosen corner and an input mask making the rest of the
+    // surface click-through.
+    QScreen *screen = QGuiApplication::primaryScreen();
+    const QRect g = screen ? screen->geometry() : QRect(0, 0, 1920, 1080);
+    const QRect avail = screen ? screen->availableGeometry() : g;
+    const int cardW = 400, cardH = 150, margin = 16;
+
+    const QString posName = m_settings->capturePopupPosition();
+    const bool top = posName.startsWith(QLatin1String("top"));
+    const bool left = posName.endsWith(QLatin1String("left"));
+    const bool right = posName.endsWith(QLatin1String("right"));
+    // Card position in window-local coords (window origin == screen top-left),
+    // kept inside the available area so it clears panels.
+    const int ax = avail.x() - g.x(), ay = avail.y() - g.y();
+    const int px = left  ? ax + margin
+                 : right ? ax + avail.width() - cardW - margin
+                 :         ax + (avail.width() - cardW) / 2;
+    const int py = top ? ay + margin : ay + avail.height() - cardH - margin;
+
+    auto *notif = new CaptureNotification(this, img, path, kind, this);
+    auto *ctx = new QQmlContext(m_engine->rootContext(), notif);
+    ctx->setContextProperty(QStringLiteral("notif"), notif);
+    ctx->setContextProperty(QStringLiteral("popupX"), px);
+    ctx->setContextProperty(QStringLiteral("popupY"), py);
+    ctx->setContextProperty(QStringLiteral("popupW"), cardW);
+    ctx->setContextProperty(QStringLiteral("popupH"), cardH);
+    QObject *obj = component.create(ctx);
+    auto *win = qobject_cast<QQuickWindow *>(obj);
+    if (!win) {
+        delete obj;
+        notif->deleteLater();
+        ctx->deleteLater();
+        return nullptr;
+    }
+    connect(notif, &CaptureNotification::closeRequested, win, &QQuickWindow::close);
+    connect(win, &QQuickWindow::visibleChanged, notif, [win, notif, ctx](bool v) {
+        if (!v) { win->deleteLater(); notif->deleteLater(); ctx->deleteLater(); }
+    });
+
+    if (screen)
+        win->setScreen(screen);
+    win->setGeometry(g);
+    // Create the platform surface up front so the input mask is applied BEFORE
+    // the window is mapped — the transparent remainder is click-through from the
+    // very first frame (never a moment where it blocks the whole screen).
+    win->create();
+    win->setMask(QRegion(px, py, cardW, cardH));
+    win->show(); // deliberately no requestActivate() — must not steal focus
+    return notif;
 }
 
 QString AppContext::saveImageAuto(const QImage &img)

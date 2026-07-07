@@ -1,0 +1,91 @@
+cmake_minimum_required(VERSION 3.21)
+project(unisic VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 DBus Network Concurrent)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+
+qt_standard_project_setup(REQUIRES 6.5)
+qt_policy(SET QTP0001 NEW)
+
+qt_add_executable(unisic
+    src/main.cpp
+    src/AppContext.h src/AppContext.cpp
+    src/Settings.h src/Settings.cpp
+    src/capture/PortalRequest.h src/capture/PortalRequest.cpp
+    src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
+    src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
+    src/capture/CaptureManager.h src/capture/CaptureManager.cpp
+    src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
+    src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+    src/editor/EditorSession.h src/editor/EditorSession.cpp
+    src/overlay/OverlayController.h src/overlay/OverlayController.cpp
+    src/upload/UploadManager.h src/upload/UploadManager.cpp
+    src/history/HistoryStore.h src/history/HistoryStore.cpp
+    src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
+    src/theme/ThemeController.h src/theme/ThemeController.cpp
+    src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
+)
+
+if(PIPEWIRE_FOUND)
+    target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
+    target_link_libraries(unisic PRIVATE PkgConfig::PIPEWIRE)
+    target_compile_definitions(unisic PRIVATE HAVE_PIPEWIRE)
+else()
+    message(WARNING "libpipewire-0.3 not found — GIF/screen recording will be disabled at runtime")
+endif()
+
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+set_source_files_properties(qml/ToolCatalog.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
+qt_add_qml_module(unisic
+    URI Unisic
+    VERSION 1.0
+    # On case-insensitive filesystems the default "Unisic" output dir would
+    # collide with the "unisic" executable name.
+    OUTPUT_DIRECTORY qmlmod/Unisic
+    QML_FILES
+        qml/Theme.qml
+        qml/ToolCatalog.qml
+        qml/Main.qml
+        qml/OverlayWindow.qml
+        qml/EditorWindow.qml
+        qml/pages/CapturePage.qml
+        qml/pages/RecordPage.qml
+        qml/pages/GifPage.qml
+        qml/pages/HistoryPage.qml
+        qml/pages/DestinationsPage.qml
+        qml/pages/SettingsPage.qml
+        qml/components/UButton.qml
+        qml/components/UIcon.qml
+        qml/components/UIconButton.qml
+        qml/components/UCard.qml
+        qml/components/USwitch.qml
+        qml/components/USlider.qml
+        qml/components/UTextField.qml
+        qml/components/UComboBox.qml
+        qml/components/USpinBox.qml
+        qml/components/SidebarItem.qml
+        qml/components/ToolChip.qml
+        qml/components/ColorDot.qml
+)
+
+# qmltyperegistrations includes QML_ELEMENT headers by basename
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme)
+target_link_libraries(unisic PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
+    Qt6::DBus Qt6::Network Qt6::Concurrent
+)
+
+qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
+
+file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
+qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
+
+install(TARGETS unisic RUNTIME DESTINATION bin)
+install(FILES resources/org.unisic.Unisic.desktop DESTINATION share/applications)
+install(FILES resources/icons/unisic.svg DESTINATION share/icons/hicolor/scalable/apps)

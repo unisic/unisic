@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#433D8B"/>
+      <stop offset="1" stop-color="#2E236C"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E2CFEE"/>
+      <stop offset="1" stop-color="#C8ACD6"/>
+    </linearGradient>
+    <radialGradient id="lens" cx="0.5" cy="0.4" r="0.75">
+      <stop offset="0" stop-color="#2E236C"/>
+      <stop offset="1" stop-color="#17153B"/>
+    </radialGradient>
+  </defs>
+  <!-- rounded app tile -->
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="url(#bg)"/>
+  <rect x="8" y="8" width="112" height="112" rx="30" fill="none" stroke="#C8ACD6" stroke-opacity="0.28" stroke-width="2"/>
+  <!-- top sheen -->
+  <path d="M 38 8 h 52 a 30 30 0 0 1 30 30 v 8 H 8 v -8 a 30 30 0 0 1 30 -30 z" fill="#FFFFFF" opacity="0.06"/>
+  <!-- shutter/lens -->
+  <circle cx="64" cy="64" r="30" fill="url(#ring)"/>
+  <circle cx="64" cy="64" r="21" fill="url(#lens)"/>
+  <circle cx="55" cy="55" r="6.5" fill="#FFFFFF" opacity="0.75"/>
+  <!-- selection-corner marks -->
+  <g stroke="#C8ACD6" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M 24 38 v -8 a 6 6 0 0 1 6 -6 h 8"/>
+    <path d="M 104 38 v -8 a 6 6 0 0 0 -6 -6 h -8"/>
+    <path d="M 24 90 v 8 a 6 6 0 0 0 6 6 h 8"/>
+    <path d="M 104 90 v 8 a 6 6 0 0 1 -6 6 h -8"/>
+  </g>
+</svg>

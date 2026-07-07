@@ -1,0 +1,127 @@
+#include "GlobalHotkeys.h"
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <QDBusMetaType>
+#include <QKeySequence>
+#include <QCoreApplication>
+#include <QDebug>
+
+static const auto KGA_SERVICE = QStringLiteral("org.kde.kglobalaccel");
+static const auto KGA_PATH = QStringLiteral("/kglobalaccel");
+static const auto KGA_IFACE = QStringLiteral("org.kde.KGlobalAccel");
+
+GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
+{
+    qDBusRegisterMetaType<QList<int>>();
+    auto *iface = QDBusConnection::sessionBus().interface();
+    m_available = iface && (iface->isServiceRegistered(KGA_SERVICE)
+                            || iface->startService(KGA_SERVICE).isValid());
+    if (!m_available)
+        qWarning() << "KGlobalAccel not available — global hotkeys disabled";
+}
+
+QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
+{
+    // KGlobalAccel canonical id: [componentUnique, actionUnique, componentFriendly, actionFriendly]
+    return {QString::fromLatin1(COMPONENT), actionId, QStringLiteral("Unisic"), friendlyName};
+}
+
+QList<int> GlobalHotkeys::keysFor(const QString &keySequence) const
+{
+    QList<int> keys;
+    const QKeySequence seq(keySequence);
+    for (int i = 0; i < seq.count(); ++i)
+        keys.append(int(seq[i].toCombined()));
+    return keys;
+}
+
+void GlobalHotkeys::ensureSignalConnected()
+{
+    if (m_signalConnected)
+        return;
+    m_signalConnected = QDBusConnection::sessionBus().connect(
+        KGA_SERVICE,
+        QStringLiteral("/component/") + QString::fromLatin1(COMPONENT),
+        QStringLiteral("org.kde.kglobalaccel.Component"),
+        QStringLiteral("globalShortcutPressed"),
+        this, SLOT(onShortcutPressed(QString, QString, qlonglong)));
+    if (!m_signalConnected)
+        qWarning() << "Could not connect to KGlobalAccel component signal";
+}
+
+void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendlyName,
+                                 const QString &defaultKeySequence)
+{
+    if (!m_available)
+        return;
+
+    const QStringList id = fullActionId(actionId, friendlyName);
+
+    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("doRegister"));
+    reg << id;
+    QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+
+    // KGlobalAccel SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
+    // We register with IsDefault (8) + autoloading (no NoAutoloading). Verified
+    // behavior on Plasma 6 (kglobalacceld) for this exact call:
+    //   * fresh install (no stored key): both the active AND default columns are
+    //     set to defaultKeySequence, so the hotkey fires immediately;
+    //   * a key the user changed in KDE's Shortcuts KCM is autoloaded and is NOT
+    //     clobbered on subsequent launches (only the default column is touched).
+    // Adding a separate SetPresent(2) call is deliberately avoided: on this
+    // daemon it *clears* the binding (persists nothing / wipes a stored key).
+    // A user-initiated change from Unisic's own settings is pushed later via
+    // setShortcut() (SetPresent), which the daemon does honor.
+    const QList<int> defKeys = keysFor(defaultKeySequence);
+    QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("setShortcut"));
+    set << id << QVariant::fromValue(defKeys) << uint(0x8);
+    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
+    if (reply.type() == QDBusMessage::ErrorMessage)
+        qWarning() << "defineAction setShortcut failed for" << actionId << reply.errorMessage();
+
+    ensureSignalConnected();
+}
+
+void GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendlyName,
+                                const QString &keySequence)
+{
+    if (!m_available)
+        return;
+    const QStringList id = fullActionId(actionId, friendlyName);
+
+    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("doRegister"));
+    reg << id;
+    QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+
+    // SetPresent(2), autoloading kept on → the new active key is written to
+    // kglobalshortcutsrc, so the change shows up in the DE's Shortcuts KCM.
+    QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("setShortcut"));
+    set << id << QVariant::fromValue(keysFor(keySequence)) << uint(0x2);
+    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
+    if (reply.type() == QDBusMessage::ErrorMessage)
+        qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();
+
+    ensureSignalConnected();
+}
+
+void GlobalHotkeys::unregisterAll()
+{
+    if (!m_available)
+        return;
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        KGA_SERVICE, QStringLiteral("/component/") + QString::fromLatin1(COMPONENT),
+        QStringLiteral("org.kde.kglobalaccel.Component"), QStringLiteral("cleanUp"));
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
+
+void GlobalHotkeys::onShortcutPressed(const QString &componentUnique, const QString &actionUnique,
+                                      qlonglong)
+{
+    if (componentUnique == QLatin1String(COMPONENT))
+        emit activated(actionUnique);
+}

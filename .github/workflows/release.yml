@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 defaults:
   run:
@@ -174,3 +174,55 @@ jobs:
           name: unisic-appimage
           path: dist/*.AppImage
           if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - deb
+      - rpm
+      - arch
+      - appimage
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version_line=""
+          while IFS= read -r line; do
+            if [[ "$line" == project\(unisic\ VERSION* ]]; then
+              version_line="$line"
+              break
+            fi
+          done < CMakeLists.txt
+          if [[ -z "$version_line" ]]; then
+            printf 'Could not read project version from CMakeLists.txt\n' >&2
+            exit 1
+          fi
+          version="${version_line#*VERSION }"
+          version="${version%% *}"
+          tag="v${version}-build.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          short_sha="${GITHUB_SHA::7}"
+
+          shopt -s globstar nullglob
+          assets=()
+          for path in dist/**/*; do
+            if [[ -f "$path" ]]; then
+              assets+=("$path")
+            fi
+          done
+          if [[ ${#assets[@]} -eq 0 ]]; then
+            printf 'No release assets found\n' >&2
+            exit 1
+          fi
+
+          gh release create "$tag" "${assets[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "Unisic ${version} build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
+            --notes "Automated release from main at commit ${short_sha}."

@@ -7,8 +7,6 @@
 #include <QFile>
 #include <QDebug>
 #include <QCoreApplication>
-#include <QSet>
-#include <QHash>
 #include "ConfigPath.h"
 #include <qqmlregistration.h>
 
@@ -122,15 +120,32 @@ public:
             m_s.sync(); // re-open the now-absent file cleanly
         }
 
-        // DUPLICATE-SECTION self-heal. If a SECOND unisic process (an older
-        // build with a different single-instance socket name, so the guard
-        // didn't catch it) wrote this file concurrently, QSettings can leave
-        // two "[%General]" headers — and the interleaved writes drop settings
-        // (the reported "General-tab options reset every launch"). QSettings
-        // reads the union but never rewrites a clean file on its own. Detect a
-        // repeated group header in the raw text and force a single clean
-        // rewrite from the in-memory (deduplicated) view.
-        rewriteIfDuplicated();
+        // Fold keys from the old "general" group into top-level keys. A group
+        // named "general" collides with the INI format's magic "General"
+        // section: QSettings WRITES it percent-escaped as [%General], but a
+        // fresh process PARSES that back as group "General" (capital G).
+        // Reads of "general/..." are case-sensitive, so they missed and every
+        // General-tab setting silently reset to its default on each launch —
+        // and each session then re-added a lowercase "general" group next to
+        // the parsed "General" one, which serialized as a SECOND [%General]
+        // section (the duplicated config files). Top-level keys land in the
+        // plain [General] section, which round-trips exactly. Qt docs:
+        // "Do not use a group called 'General'". Idempotent; also folds keys
+        // brought in by the legacy migration above.
+        const QStringList oldGeneral = m_s.allKeys();
+        bool migratedGeneral = false;
+        for (const QString &k : oldGeneral) {
+            if (k.startsWith(QLatin1String("General/"))
+                || k.startsWith(QLatin1String("general/"))) {
+                // Sorted allKeys yields "General/x" before "general/x", so the
+                // lowercase variant (the app's most recent writes) wins.
+                m_s.setValue(k.mid(k.indexOf(QLatin1Char('/')) + 1), m_s.value(k));
+                m_s.remove(k);
+                migratedGeneral = true;
+            }
+        }
+        if (migratedGeneral)
+            m_s.sync();
         // Writability probe: round-trip a marker through a fresh reader.
         m_s.setValue(QStringLiteral("_probe"), 1);
         m_s.sync();
@@ -151,38 +166,6 @@ public:
     bool persistent() const { return m_writable; }
     Q_INVOKABLE QString configPath() const { return m_s.fileName(); }
 
-    // Collapse a config file that ended up with repeated group headers (from a
-    // concurrent second writer) into one clean section per group, preserving
-    // every key. QSettings reads the union already, so allKeys()->clear()->
-    // re-set->sync() rewrites a single, canonical file.
-    void rewriteIfDuplicated()
-    {
-        QFile f(m_s.fileName());
-        if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-            return;
-        QSet<QString> seenHeaders;
-        bool dup = false;
-        while (!f.atEnd()) {
-            const QByteArray line = f.readLine().trimmed();
-            if (line.startsWith('[') && line.endsWith(']')) {
-                if (seenHeaders.contains(line)) { dup = true; break; }
-                seenHeaders.insert(line);
-            }
-        }
-        f.close();
-        if (!dup)
-            return;
-        qWarning() << "Settings file had duplicate sections (concurrent writer?) — rewriting clean";
-        QHash<QString, QVariant> all;
-        const QStringList keys = m_s.allKeys();
-        for (const QString &k : keys)
-            all.insert(k, m_s.value(k));
-        m_s.clear();
-        for (auto it = all.constBegin(); it != all.constEnd(); ++it)
-            m_s.setValue(it.key(), it.value());
-        m_s.sync();
-    }
-
     static QString defaultSaveDir()
     {
         // No mkpath here: U_SETTING evaluates the default on every read, so a
@@ -194,13 +177,13 @@ public:
         return d;
     }
 
-    U_SETTING(QString, saveDirectory, setSaveDirectory, "general/saveDirectory", defaultSaveDir())
-    U_SETTING(bool, autoSave, setAutoSave, "general/autoSave", true)
-    U_SETTING(bool, copyToClipboard, setCopyToClipboard, "general/copyToClipboard", true)
-    U_SETTING(bool, openEditor, setOpenEditor, "general/openEditor", true)
-    U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "general/uploadAfterCapture", false)
-    U_SETTING(bool, includeCursor, setIncludeCursor, "general/includeCursor", false)
-    U_SETTING(int, captureDelayMs, setCaptureDelayMs, "general/captureDelayMs", 200)
+    U_SETTING(QString, saveDirectory, setSaveDirectory, "saveDirectory", defaultSaveDir())
+    U_SETTING(bool, autoSave, setAutoSave, "autoSave", true)
+    U_SETTING(bool, copyToClipboard, setCopyToClipboard, "copyToClipboard", true)
+    U_SETTING(bool, openEditor, setOpenEditor, "openEditor", true)
+    U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "uploadAfterCapture", false)
+    U_SETTING(bool, includeCursor, setIncludeCursor, "includeCursor", false)
+    U_SETTING(int, captureDelayMs, setCaptureDelayMs, "captureDelayMs", 200)
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -212,9 +195,9 @@ public:
     U_SETTING(QString, imageFormat, setImageFormat, "image/format", QStringLiteral("png"))
     U_SETTING(int, imageQuality, setImageQuality, "image/quality", 90)
     U_SETTING(QString, filenameTemplate, setFilenameTemplate, "image/filenameTemplate", QStringLiteral("Unisic_%date%_%time%"))
-    U_SETTING(bool, showNotifications, setShowNotifications, "general/showNotifications", true)
-    U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "general/minimizeToTrayOnClose", true)
-    U_SETTING(bool, openAfterSave, setOpenAfterSave, "general/openAfterSave", false)
+    U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
+    U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
+    U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
     U_SETTING(bool, afterUploadOpenInBrowser, setAfterUploadOpenInBrowser, "upload/afterUploadOpenInBrowser", false)
     U_SETTING(QString, editorStrokeColor, setEditorStrokeColor, "editor/strokeColor", QStringLiteral("#FF4757"))
@@ -230,9 +213,9 @@ public:
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
     U_SETTING(int, videoMaxDurationSec, setVideoMaxDurationSec, "video/maxDurationSec", 0)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
-    U_SETTING(bool, showCapturePopup, setShowCapturePopup, "general/showCapturePopup", true)
-    U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "general/capturePopupPosition", QStringLiteral("bottom-right"))
-    U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "general/capturePopupDurationSec", 8) // 0 = stay open
+    U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
+    U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
+    U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.

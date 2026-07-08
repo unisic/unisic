@@ -952,8 +952,15 @@ QString AppContext::importSettings(const QUrl &file)
         const int idx = mo->indexOfProperty(it.key().toLatin1().constData());
         if (idx >= mo->propertyOffset())
             mo->property(idx).write(m_settings, it.value().toVariant());
-        else if (it.key().contains(QLatin1Char('/')))
-            m_settings->raw()->setValue(it.key(), it.value().toVariant()); // legacy raw keys
+        else if (it.key().contains(QLatin1Char('/'))) {
+            QString k = it.key(); // legacy raw keys
+            // Old exports kept General-tab keys in a "general" group — that
+            // group name breaks INI round-trips (see Settings ctor migration);
+            // fold to the top-level key it lives at now.
+            if (k.startsWith(QLatin1String("general/")) || k.startsWith(QLatin1String("General/")))
+                k = k.mid(k.indexOf(QLatin1Char('/')) + 1);
+            m_settings->raw()->setValue(k, it.value().toVariant());
+        }
     }
     m_settings->raw()->sync();
 

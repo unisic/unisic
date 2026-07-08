@@ -33,8 +33,8 @@ static void unixSignalHandler(int)
 }
 static void installSignalHandlers(QCoreApplication *app)
 {
-    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sigQuitFd) != 0)
-        return;
+    if (::socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0, sigQuitFd) != 0)
+        return; // CLOEXEC: ffmpeg/curl/grim children must not inherit the quit pipe
     auto *notifier = new QSocketNotifier(sigQuitFd[0], QSocketNotifier::Read, app);
     QObject::connect(notifier, &QSocketNotifier::activated, app, [] {
         char tmp;
@@ -52,12 +52,19 @@ static void installSignalHandlers(QCoreApplication *app)
 
 static QString singleInstanceServerName()
 {
-    // Scope to the login session too: with two concurrent sessions (two
+    // Scope to the graphical session: with two concurrent sessions (two
     // seats, or Wayland+X11), `unisic --region` must trigger the instance in
-    // THIS session, not forward the capture to the other one.
-    QString session = qEnvironmentVariable("XDG_SESSION_ID");
+    // THIS session, not forward the capture to the other one. WAYLAND_DISPLAY
+    // first — unlike XDG_SESSION_ID it is identical for every process of one
+    // graphical session, including systemd user services (autostart) and
+    // compositor keybind spawns; keying on the session id split those into
+    // duplicate instances.
+    QString session = qEnvironmentVariable("WAYLAND_DISPLAY");
     if (session.isEmpty())
-        session = qEnvironmentVariable("WAYLAND_DISPLAY");
+        session = qEnvironmentVariable("DISPLAY");
+    if (session.isEmpty())
+        session = qEnvironmentVariable("XDG_SESSION_ID");
+    session.replace(QLatin1Char('/'), QLatin1Char('_'));
     return QStringLiteral("org.unisic.Unisic.%1.%2").arg(getuid()).arg(session);
 }
 
@@ -86,15 +93,20 @@ static bool notifyExistingInstance(const QString &serverName, const QByteArray &
     return true;
 }
 
-static QLocalServer *createSingleInstanceServer(const QString &serverName, QCoreApplication *app)
+static QLocalServer *createSingleInstanceServer(const QString &serverName, QCoreApplication *app,
+                                                const QByteArray &command, bool *handedOff)
 {
+    *handedOff = false;
     auto *server = new QLocalServer(app);
     if (server->listen(serverName))
         return server;
 
-    // If a peer appeared between our probe and listen(), hand off to it instead
-    // of deleting a live socket. Otherwise remove the stale socket left by a crash.
-    if (notifyExistingInstance(serverName)) {
+    // If a peer appeared between our probe and listen(), hand off to it — with
+    // the REAL command, and signal main() to exit: continuing would boot a
+    // duplicate instance with duplicate hotkey registrations (every press
+    // would then fire twice). Otherwise remove the stale socket left by a crash.
+    if (notifyExistingInstance(serverName, command)) {
+        *handedOff = true;
         delete server;
         return nullptr;
     }
@@ -185,7 +197,6 @@ int main(int argc, char *argv[])
     app.setDesktopFileName(QStringLiteral("org.unisic.Unisic"));
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
     app.setQuitOnLastWindowClosed(false); // lives in the tray
-    installSignalHandlers(&app);
 
     const QStringList args = app.arguments();
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
@@ -224,10 +235,18 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    // Batch mode above runs without an event loop — the self-pipe notifier
+    // would never fire there; default signal dispositions are correct for it.
+    installSignalHandlers(&app);
+
     const QString serverName = singleInstanceServerName();
     if (notifyExistingInstance(serverName, cliCommand(args)))
         return 0;
-    QLocalServer *singleInstanceServer = createSingleInstanceServer(serverName, &app);
+    bool handedOff = false;
+    QLocalServer *singleInstanceServer =
+        createSingleInstanceServer(serverName, &app, cliCommand(args), &handedOff);
+    if (handedOff)
+        return 0;
     if (singleInstanceServer) {
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });

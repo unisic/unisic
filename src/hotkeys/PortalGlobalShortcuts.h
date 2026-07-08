@@ -54,6 +54,7 @@ signals:
 private slots:
     void onActivated(const QDBusObjectPath &sessionHandle, const QString &shortcutId,
                      qulonglong timestamp, const QVariantMap &options);
+    void onSessionClosed();
 
 private:
     void createSession(const QVector<Shortcut> &shortcuts);
@@ -62,5 +63,7 @@ private:
     QString m_sessionHandle; // object path string from the CreateSession response
     bool m_signalConnected = false;
     bool m_sessionPending = false; // CreateSession round-trip in flight
+    bool m_retriedBind = false;    // one stale-session retry per bind attempt
     QVector<Shortcut> m_queued;    // newest set requested while pending
+    QVector<Shortcut> m_lastBound; // for transparent re-bind after a portal restart
 };

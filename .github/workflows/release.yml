@@ -169,6 +169,11 @@ jobs:
           # is "waylandcompositor" (see its WaylandcompositorPluginsDeployer).
           EXTRA_QT_MODULES: "waylandcompositor"
           EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
+          # The env var is honored by BOTH the linuxdeploy core and the qt
+          # plugin subprocess — the --exclude-library CLI flags below only
+          # reach the core, and the qt plugin was re-bundling the host's
+          # libwayland anyway (symbol-lookup hazard on modern compositors).
+          LINUXDEPLOY_EXCLUDED_LIBRARIES: "libwayland-client*;libwayland-cursor*;libwayland-egl*"
           # Embedded update information (AppImageUpdate / libappimageupdate):
           # differential updates via the .zsync file published with each
           # release. "latest" tracks the newest non-prerelease GitHub release.
@@ -205,6 +210,10 @@ jobs:
           # loudly instead of shipping another XWayland-only build.
           test -f AppDir/usr/plugins/platforms/libqwayland-generic.so \
             || { echo "::error::Qt wayland platform plugin was not deployed"; exit 1; }
+          # ...and the host's libwayland must NOT be (see env var above).
+          if find AppDir/usr -name 'libwayland-*' -print | grep -q .; then
+            echo "::error::host libwayland was bundled into the AppDir"; exit 1
+          fi
 
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
           # binary when update information is embedded. HARD-fail if it did

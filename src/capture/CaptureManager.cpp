@@ -9,6 +9,7 @@
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QDebug>
+#include <memory>
 
 // Host apps have no sandbox identity: xdg-desktop-portal resolves the app id
 // from the systemd launch unit (.desktop launches) or "" (terminal/AppImage
@@ -84,11 +85,15 @@ static bool isKWinAuthError(const QString &err)
            || err.contains(QLatin1String("not authorized"), Qt::CaseInsensitive);
 }
 
+// Backend-agnostic: with grim/GNOME/portal all feeding both slots, the old
+// "KWin failed: %1; portal failed: %2" template mislabeled errors on desktops
+// that have no KWin at all. Fragments self-identify via origin prefixes
+// ("KWin:", "portal:", "GNOME Shell:", "grim:") added at their source.
 static QString combinedError(const QString &first, const QString &second)
 {
     if (first.isEmpty()) return second;
     if (second.isEmpty()) return first;
-    return QStringLiteral("KWin failed: %1; portal failed: %2").arg(first, second);
+    return QStringLiteral("%1; then: %2").arg(first, second);
 }
 
 static QString screenLabel(const CaptureManager::ScreenGeom &s)
@@ -113,12 +118,23 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     grantSilentScreenshotPermission();
 }
 
+// A stale WAYLAND_DISPLAY in a genuine X11 session (systemd --user env
+// surviving a Wayland→X11 relogin) must not route captures to a dead — or
+// worse, ANOTHER session's — compositor. Empty/"tty" stay permissive (sway
+// launched from a bare tty).
+static bool isX11Session()
+{
+    return qEnvironmentVariable("XDG_SESSION_TYPE")
+               .compare(QLatin1String("x11"), Qt::CaseInsensitive) == 0;
+}
+
 // grim as the PRIMARY backend: any Wayland session that isn't KDE (KWin fast
 // path, no screencopy) or GNOME (portal-only) — the whole wlroots family plus
 // niri and COSMIC. Silent, deterministic, no portal roundtrip.
 bool CaptureManager::preferGrim() const
 {
-    return !isKdeSession() && !isGnomeSession() && GrimScreenshot::isAvailable();
+    return !isX11Session() && !isKdeSession() && !isGnomeSession()
+           && GrimScreenshot::isAvailable();
 }
 
 bool CaptureManager::preferGnome() const
@@ -148,19 +164,23 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
     const bool gnomeAvail = GnomeScreenshot::isAvailable();
     const bool niri = GnomeScreenshot::isNiriSession();
 
-    // Deepest rescue: wlr-screencopy via grim. When it's absent on a session
-    // where it is likely the ONLY working backend (niri: multi-monitor D-Bus
-    // dead end #117; sway/river/labwc: no Screenshot portal at all), say so.
-    auto grimRescue = [this, cursor, cb, niri](const QString &prevErr) {
-        if (!GrimScreenshot::isAvailable()) {
+    // Each stage takes the accumulated error chain and whether grim already
+    // ran as the primary (re-running it in the rescue would just repeat the
+    // same deterministic failure and lose the primary's error).
+    auto grimRescue = [this, cursor, cb, niri](const QString &prevErr, bool grimTried) {
+        if (grimTried || !GrimScreenshot::isAvailable()) {
             QString msg = prevErr;
-            if (niri)
-                msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
-                                      "fails with more than one monitor (niri issue #117)");
-            else if (!isKdeSession() && !isGnomeSession()
-                     && !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
-                msg += QStringLiteral("; installing 'grim' usually fixes capture on this "
-                                      "desktop (wlr-screencopy works where portals don't)");
+            if (!GrimScreenshot::isAvailable()) {
+                // grim missing on a session where it is likely the ONLY
+                // working backend — say so.
+                if (niri)
+                    msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
+                                          "fails with more than one monitor (niri issue #117)");
+                else if (!isKdeSession() && !isGnomeSession()
+                         && !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
+                    msg += QStringLiteral("; installing 'grim' usually fixes capture on this "
+                                          "desktop (wlr-screencopy works where portals don't)");
+            }
             cb({}, msg);
             return;
         }
@@ -170,46 +190,55 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
         });
     };
 
-    auto portalThenGnome = [this, cursor, cb, previousError, gnomeAvail, allowInteractive,
-                            grimRescue]() {
-        m_portal->capture(false, [this, cursor, cb, previousError, gnomeAvail, grimRescue]
+    auto portalThenGnome = [this, cursor, cb, gnomeAvail, allowInteractive, grimRescue]
+                           (const QString &prevErr, bool grimTried) {
+        m_portal->capture(false, [this, cursor, cb, prevErr, gnomeAvail, grimRescue, grimTried]
                           (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
-            if (!gnomeAvail) { grimRescue(combinedError(previousError, err)); return; }
+            const QString labeled = QStringLiteral("portal: %1").arg(err);
+            if (!gnomeAvail) { grimRescue(combinedError(prevErr, labeled), grimTried); return; }
             qWarning() << "Portal workspace capture failed, trying org.gnome.Shell.Screenshot:" << err;
-            m_gnome->captureWorkspace(cursor, [cb, previousError, err, grimRescue]
+            m_gnome->captureWorkspace(cursor, [cb, prevErr, labeled, grimRescue, grimTried]
                                       (const QImage &gimg, const QString &gerr) {
-                if (!gerr.isEmpty()) { grimRescue(combinedError(previousError, combinedError(err, gerr))); return; }
+                if (!gerr.isEmpty()) {
+                    grimRescue(combinedError(prevErr,
+                                             combinedError(labeled,
+                                                           QStringLiteral("GNOME Shell: %1").arg(gerr))),
+                               grimTried);
+                    return;
+                }
                 cb(gimg, {});
             });
         }, allowInteractive);
     };
 
-    auto gnomeFirst = [this, cursor, cb, portalThenGnome]() {
-        m_gnome->captureWorkspace(cursor, [cb, portalThenGnome]
+    auto gnomeFirst = [this, cursor, cb, portalThenGnome](const QString &prevErr, bool grimTried) {
+        m_gnome->captureWorkspace(cursor, [cb, portalThenGnome, prevErr, grimTried]
                                   (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
             qWarning() << "niri GNOME-direct capture failed, trying portal:" << err;
-            portalThenGnome();
+            portalThenGnome(combinedError(prevErr, QStringLiteral("GNOME Shell: %1").arg(err)),
+                            grimTried);
         });
     };
 
     // wlroots family / niri / COSMIC with grim installed: go straight to the
     // backend that actually works there (silent, no dialog, no portal).
     if (preferGrim()) {
-        m_grim->captureWorkspace(cursor, [this, cb, gnomeFirst, portalThenGnome]
+        m_grim->captureWorkspace(cursor, [this, cb, gnomeFirst, portalThenGnome, previousError]
                                  (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
             qWarning() << "grim capture failed, trying GNOME/portal chain:" << err;
-            if (preferGnome()) gnomeFirst(); else portalThenGnome();
+            const QString chain = combinedError(previousError, err);
+            if (preferGnome()) gnomeFirst(chain, true); else portalThenGnome(chain, true);
         });
         return;
     }
     if (preferGnome()) {
-        gnomeFirst();
+        gnomeFirst(previousError, false);
         return;
     }
-    portalThenGnome();
+    portalThenGnome(previousError, false);
 }
 
 void CaptureManager::portalFallback(Callback cb)
@@ -227,8 +256,9 @@ void CaptureManager::captureWorkspace(Callback cb)
                     qWarning() << "KWin capture failed, falling back to portal:" << err;
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
-                    portalFallback([cb, err](const QImage &img, const QString &portalErr) {
-                        if (!portalErr.isEmpty()) { cb({}, combinedError(err, portalErr)); return; }
+                    const QString kerr = QStringLiteral("KWin: %1").arg(err);
+                    portalFallback([cb, kerr](const QImage &img, const QString &portalErr) {
+                        if (!portalErr.isEmpty()) { cb({}, combinedError(kerr, portalErr)); return; }
                         cb(img, {});
                     });
                     return;
@@ -255,11 +285,12 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
                     // Portal returns the whole workspace: crop to the screen.
-                    portalFallback([geom, cb, err](const QImage &full, const QString &e2) {
-                        if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
+                    const QString kerr = QStringLiteral("KWin: %1").arg(err);
+                    portalFallback([geom, cb, kerr](const QImage &full, const QString &e2) {
+                        if (!e2.isEmpty()) { cb({}, combinedError(kerr, e2)); return; }
                         QImage crop = CaptureManager::cropForScreen(full, geom);
                         if (crop.isNull()) {
-                            cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
+                            cb({}, combinedError(kerr, QStringLiteral("portal screenshot does not contain screen %1")
                                                  .arg(screenLabel(geom))));
                             return;
                         }
@@ -352,24 +383,46 @@ void CaptureManager::captureAllScreens(const QVector<QScreen *> &screens, MultiC
 void CaptureManager::grimScreensSerial(QVector<QPointer<QScreen>> screens, int index,
                                        QVector<QImage> acc, MultiCallback cb)
 {
-    if (index >= screens.size()) {
-        cb(acc, {});
-        return;
+    Q_UNUSED(index) Q_UNUSED(acc)
+    // All outputs captured in PARALLEL — the overlay freeze latency must not
+    // scale with monitor count. Names snapshotted up front (QPointer validity
+    // checked once; later unplugs are covered by OverlayController's
+    // screenRemoved -> cancel + generation guard).
+    QStringList names;
+    names.reserve(screens.size());
+    for (const QPointer<QScreen> &s : std::as_const(screens)) {
+        if (!s) {
+            cb({}, QStringLiteral("screen disconnected during capture"));
+            return;
+        }
+        names.append(s->name());
     }
-    if (!screens[index]) {
-        cb({}, QStringLiteral("screen disconnected during capture"));
-        return;
+    struct State {
+        QVector<QImage> acc;
+        int remaining = 0;
+        bool failed = false;
+        MultiCallback cb;
+    };
+    auto state = std::make_shared<State>();
+    state->acc.resize(screens.size());
+    state->remaining = screens.size();
+    state->cb = std::move(cb);
+    for (int i = 0; i < names.size(); ++i) {
+        m_grim->captureOutput(names[i], m_settings->includeCursor(),
+            [this, screens, state, i](const QImage &img, const QString &err) {
+                if (state->failed)
+                    return; // a sibling already failed and triggered the fallback
+                if (!err.isEmpty()) {
+                    state->failed = true;
+                    qWarning() << "grim -o failed, falling back to the workspace path:" << err;
+                    portalAllScreens(screens, state->cb, err);
+                    return;
+                }
+                state->acc[i] = img;
+                if (--state->remaining == 0)
+                    state->cb(state->acc, {});
+            });
     }
-    m_grim->captureOutput(screens[index]->name(), m_settings->includeCursor(),
-        [this, screens, index, acc, cb](const QImage &img, const QString &err) mutable {
-            if (!err.isEmpty()) {
-                qWarning() << "grim -o failed, falling back to the workspace path:" << err;
-                portalAllScreens(screens, std::move(cb), err);
-                return;
-            }
-            acc[index] = img;
-            grimScreensSerial(screens, index + 1, std::move(acc), std::move(cb));
-        });
 }
 
 void CaptureManager::kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index,
@@ -389,7 +442,7 @@ void CaptureManager::kwinScreensSerial(QVector<QPointer<QScreen>> screens, int i
                 qWarning() << "KWin captureScreen failed, portal fallback:" << err;
                 if (isKWinAuthError(err))
                     m_kwinDenied = true;
-                portalAllScreens(screens, std::move(cb), err);
+                portalAllScreens(screens, std::move(cb), QStringLiteral("KWin: %1").arg(err));
                 return;
             }
             acc[index] = img;

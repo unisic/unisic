@@ -1,6 +1,7 @@
 #include "GrimScreenshot.h"
 #include <QProcess>
 #include <QStandardPaths>
+#include <QTimer>
 #include <QtConcurrent>
 #include <QFutureWatcher>
 
@@ -12,7 +13,9 @@ bool GrimScreenshot::isAvailable()
 
 void GrimScreenshot::captureWorkspace(bool includeCursor, Callback cb)
 {
-    QStringList args{QStringLiteral("-t"), QStringLiteral("png")};
+    // -l 1: fastest PNG compression — encode time dominates the capture and
+    // the image is decoded and discarded right away.
+    QStringList args{QStringLiteral("-t"), QStringLiteral("png"), QStringLiteral("-l"), QStringLiteral("1")};
     if (includeCursor)
         args << QStringLiteral("-c");
     args << QStringLiteral("-"); // PNG to stdout
@@ -21,7 +24,7 @@ void GrimScreenshot::captureWorkspace(bool includeCursor, Callback cb)
 
 void GrimScreenshot::captureOutput(const QString &outputName, bool includeCursor, Callback cb)
 {
-    QStringList args{QStringLiteral("-t"), QStringLiteral("png"),
+    QStringList args{QStringLiteral("-t"), QStringLiteral("png"), QStringLiteral("-l"), QStringLiteral("1"),
                      QStringLiteral("-o"), outputName};
     if (includeCursor)
         args << QStringLiteral("-c");
@@ -71,4 +74,10 @@ void GrimScreenshot::run(const QStringList &args, Callback cb)
         cb({}, QStringLiteral("could not run grim"));
     });
     proc->start(QStringLiteral("grim"), args);
+    // Watchdog, same 30 s discipline as every other backend: grim blocked on a
+    // screencopy frame that never comes (locked session, DPMS-off output)
+    // would otherwise never fire finished() — the lost callback permanently
+    // wedges every capture entry point (m_captureInFlight / overlay active()).
+    // kill() makes finished(code, CrashExit) deliver the error instead.
+    QTimer::singleShot(30000, proc, [proc] { proc->kill(); });
 }

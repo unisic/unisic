@@ -14,6 +14,7 @@
 class QQmlEngine;
 class QMenu;
 class QSystemTrayIcon;
+class QDBusServiceWatcher;
 class QQuickWindow;
 class QTimer;
 class CaptureManager;
@@ -43,6 +44,8 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // Open post-capture editors — quit-on-close must not destroy unsaved work.
+    Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
@@ -71,6 +74,7 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
+    int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
@@ -126,6 +130,7 @@ signals:
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
     void trayAvailableChanged();
+    void editorWindowsOpenChanged();
 
 private:
     struct HotkeyAction {
@@ -168,11 +173,13 @@ private:
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
+    QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QTimer *m_trimTimer = nullptr;
     QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_screenCastPortalPresent = true; // optimistic until the async probe answers
+    int m_editorWindows = 0;
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures

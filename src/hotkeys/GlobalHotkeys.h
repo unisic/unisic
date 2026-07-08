@@ -15,9 +15,14 @@ public:
 
     // Register the action with KGlobalAccel and set its default shortcut. Uses
     // autoloading so KDE's stored key (incl. edits made in the System Settings
-    // Shortcuts KCM) stays authoritative — call this on startup for every action.
+    // Shortcuts KCM) stays authoritative — call this on startup for every
+    // action. The daemon's reply already carries the ACTIVE keys — returned via
+    // the out-params so startup does not need 10 extra shortcutKeys
+    // round-trips for the bootstrap check and KCM-drift sync. `ok` false on
+    // error/timeout (never treat that as "unbound").
     void defineAction(const QString &actionId, const QString &friendlyName,
-                      const QString &defaultKeySequence);
+                      const QString &defaultKeySequence,
+                      QList<int> *activeKeysOut = nullptr, bool *ok = nullptr);
 
     // Push a user-chosen shortcut from Unisic's own settings to KGlobalAccel so
     // the change propagates to the DE. Call this only when the user edits a key

@@ -17,6 +17,10 @@ class AppContext;
 class OverlayController : public QObject
 {
     Q_OBJECT
+    // True while an overlay window's in-place text editor is open — the
+    // focus-follows-hover activation must not steal keyboard focus mid-typing
+    // (Escape would then cancel the whole session instead of the text box).
+    Q_PROPERTY(bool textEditing READ textEditing WRITE setTextEditing NOTIFY textEditingChanged)
 public:
     // Result: annotated cropped image (image mode).
     using ImageCallback = std::function<void(const QImage &img)>;
@@ -26,9 +30,19 @@ public:
     explicit OverlayController(AppContext *app, QObject *parent = nullptr);
 
     bool active() const { return m_starting || !m_windows.isEmpty(); }
+    bool textEditing() const { return m_textEditing; }
+    void setTextEditing(bool on)
+    {
+        if (m_textEditing == on) return;
+        m_textEditing = on;
+        emit textEditingChanged();
+    }
 
     void pickAnnotatedImage(ImageCallback cb);   // full capture flow
     void pickRegion(RegionCallback cb);          // GIF region flow (no annotation tools)
+
+signals:
+    void textEditingChanged();
 
 public slots:
     void confirmFromWindow(QQuickWindow *win);   // Enter / double-click
@@ -47,5 +61,6 @@ private:
     RegionCallback m_regionCb;
     bool m_annotationTools = true;
     bool m_starting = false;
+    bool m_textEditing = false;
     int m_generation = 0; // invalidates in-flight freeze callbacks
 };

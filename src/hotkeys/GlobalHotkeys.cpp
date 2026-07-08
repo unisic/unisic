@@ -37,11 +37,17 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
 
 QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
 {
+    // Keep ALL sequences ("Meta+Shift+1; Print"), not just the first: the
+    // daemon-authoritative sync feeds this back into setShortcut on the next
+    // apply, and a single-key round-trip would silently delete a user's
+    // alternate KCM binding. QKeySequence parses/serializes multi-sequence
+    // strings natively, and keysFor() iterates every sequence.
+    QStringList parts;
     for (int k : keys)
         if (k != 0)
-            return QKeySequence(QKeyCombination::fromCombined(k))
-                .toString(QKeySequence::PortableText);
-    return {};
+            parts << QKeySequence(QKeyCombination::fromCombined(k))
+                         .toString(QKeySequence::PortableText);
+    return parts.join(QStringLiteral("; "));
 }
 
 QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
@@ -117,8 +123,11 @@ void GlobalHotkeys::onYourShortcutsListChanged(const QDBusMessage &msg)
 }
 
 void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendlyName,
-                                 const QString &defaultKeySequence)
+                                 const QString &defaultKeySequence,
+                                 QList<int> *activeKeysOut, bool *ok)
 {
+    if (ok)
+        *ok = false;
     if (!m_available)
         return;
 
@@ -145,8 +154,14 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(defKeys) << uint(0x8);
     QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
-    if (reply.type() == QDBusMessage::ErrorMessage)
+    if (reply.type() == QDBusMessage::ErrorMessage) {
         qWarning() << "defineAction setShortcut failed for" << actionId << reply.errorMessage();
+    } else if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
+        if (ok)
+            *ok = true;
+        if (activeKeysOut)
+            *activeKeysOut = qdbus_cast<QList<int>>(reply.arguments().first());
+    }
 
     ensureSignalConnected();
 }

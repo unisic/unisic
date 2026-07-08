@@ -21,7 +21,13 @@ Window {
         // nudge) would go nowhere. Pointer presence is a legitimate activation
         // trigger, so claim focus when the cursor enters this screen's overlay.
         HoverHandler {
-            onHoveredChanged: if (hovered && !overlayWindow.active) overlayWindow.requestActivate()
+            onHoveredChanged: {
+                // Never steal focus while ANY overlay window's text editor is
+                // open — a stray pointer crossing to another monitor would
+                // redirect keystrokes and make Escape cancel the whole session.
+                if (hovered && !overlayWindow.active && !overlayController.textEditing)
+                    overlayWindow.requestActivate()
+            }
         }
 
         // Selection rect in item (screen) coordinates — reactive on the
@@ -288,6 +294,7 @@ Window {
             property real imgX: 0
             property real imgY: 0
             visible: false
+            onVisibleChanged: overlayController.textEditing = visible
             x: imgX * canvas.renderScale
             y: imgY * canvas.renderScale
             width: 320

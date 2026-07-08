@@ -34,8 +34,18 @@ Window {
             window.hide()
         } else if (!App.trayAvailable) {
             // quitOnLastWindowClosed is false (tray lifetime) — without a tray
-            // an accepted close would leave a hidden resident process. Quit.
-            Qt.quit()
+            // an accepted close would leave a hidden resident process. Quit —
+            // but never kill an in-flight recording/encode or open editors
+            // with unsaved annotations.
+            if (App.recording || App.converting) {
+                close.accepted = false
+                App.showToast(qsTr("Recording in progress — stop it before closing"), true)
+            } else if (App.editorWindowsOpen > 0) {
+                window.hide()
+                close.accepted = false
+            } else {
+                Qt.quit()
+            }
         }
     }
 

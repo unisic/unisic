@@ -275,7 +275,9 @@ QString AppContext::captureErrorGuidance(const QString &err)
     else if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
         text += tr(" — allow screenshots for Unisic in GNOME Settings → Apps, and check that "
                    "xdg-desktop-portal-gnome is running.");
-    else
+    else if (!err.contains(QLatin1String("grim")))
+        // The capture chain's own rescue may already carry grim advice
+        // (with per-desktop rationale) — don't tell the user twice.
         text += tr(" — install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
                    "xdg-desktop-portal backend for your desktop.");
     return text;
@@ -516,8 +518,14 @@ void AppContext::openEditor(const QImage &img)
     ctx->setContextProperty(QStringLiteral("editorSession"), session);
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
+        ++m_editorWindows;
+        emit editorWindowsOpenChanged();
         connect(win, &QQuickWindow::visibleChanged, session, [this, session, win](bool v) {
-            if (!v) { win->deleteLater(); session->deleteLater(); scheduleMemoryTrim(); }
+            if (!v) {
+                win->deleteLater(); session->deleteLater(); scheduleMemoryTrim();
+                --m_editorWindows;
+                emit editorWindowsOpenChanged();
+            }
         });
         win->show();
         win->requestActivate();
@@ -648,9 +656,16 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
         // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
         win->showFullScreen();
     } else {
-        // Card-sized toplevel; the compositor decides placement. No mask —
-        // everything inside the (padded) window belongs to the popup.
-        win->resize(cardW + 2 * pad, cardH + 2 * pad);
+        // Card-sized toplevel; the compositor decides placement. FIXED size:
+        // sway/i3-style tilers float fixed-size windows instead of tiling a
+        // half-screen transparent surface into the user's layout. The input
+        // mask keeps the 24px shadow ring click-through.
+        const QSize cardWin(cardW + 2 * pad, cardH + 2 * pad);
+        win->setMinimumSize(cardWin);
+        win->setMaximumSize(cardWin);
+        win->resize(cardWin);
+        win->create();
+        win->setMask(QRegion(pad, pad, cardW, cardH));
         win->show();
     }
     return notif;
@@ -775,8 +790,8 @@ void AppContext::copyImageToClipboard(const QImage &img)
     // wl-copy (if present) makes it stick regardless. NOT under XWayland:
     // there Qt owns the X11 CLIPBOARD while wl-copy would set a second,
     // separate Wayland selection — two clipboards fighting.
-    if (QGuiApplication::platformName() != QLatin1String("wayland"))
-        return;
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+        return; // includes "wayland-egl"; excludes xcb/XWayland
     const QString wlCopy = wlCopyPath();
     if (wlCopy.isEmpty())
         return;
@@ -799,7 +814,7 @@ void AppContext::copyImageToClipboard(const QImage &img)
 void AppContext::copyText(const QString &text)
 {
     QGuiApplication::clipboard()->setText(text);
-    if (QGuiApplication::platformName() != QLatin1String("wayland"))
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
         return;
     const QString wlCopy = wlCopyPath();
     if (!wlCopy.isEmpty()) {
@@ -966,8 +981,16 @@ void AppContext::defineHotkeys()
 
     if (m_hotkeys->available()) {
         m_hotkeyBackend = QStringLiteral("kglobalaccel");
-        for (const HotkeyAction &a : acts)
-            m_hotkeys->defineAction(a.id, a.name, a.keys);
+        // The registration reply already carries each action's ACTIVE keys —
+        // reuse it for both the bootstrap check and the KCM-drift sync
+        // instead of 10 extra blocking shortcutKeys round-trips.
+        struct RegResult { QList<int> keys; bool ok = false; };
+        QHash<QString, RegResult> active;
+        for (const HotkeyAction &a : acts) {
+            RegResult r;
+            m_hotkeys->defineAction(a.id, a.name, a.keys, &r.keys, &r.ok);
+            active.insert(a.id, r);
+        }
 
         // Self-heal for fresh installs: our reference kglobalacceld binds both
         // the active and default columns on an IsDefault registration, but
@@ -977,9 +1000,8 @@ void AppContext::defineHotkeys()
         // so deliberately unbinding a key in the KCM still sticks.
         if (!m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
             for (const HotkeyAction &a : acts) {
-                bool ok = false;
-                const bool unbound = m_hotkeys->activeKeys(a.id, &ok).isEmpty();
-                if (ok && unbound && !a.keys.isEmpty()) {
+                const RegResult &r = active.value(a.id);
+                if (r.ok && r.keys.isEmpty() && !a.keys.isEmpty()) {
                     qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
                                << "— forcing default" << a.keys;
                     m_hotkeys->setShortcut(a.id, a.name, a.keys);
@@ -1005,8 +1027,17 @@ void AppContext::defineHotkeys()
                          "(System Settings → Shortcuts to free it)"));
         }
         // The daemon may have autoloaded KCM-edited keys that differ from our
-        // stored strings — reflect reality in the UI.
-        syncAllHotkeysFromDaemon();
+        // stored strings — reflect reality in the UI (from the registration
+        // replies; no extra queries). An error/timeout must never be treated
+        // as "unbound" — that would wipe (and sync()-persist) the stored key.
+        for (const HotkeyAction &a : acts) {
+            const RegResult &r = active.value(a.id);
+            if (!r.ok)
+                continue;
+            const QString actual = GlobalHotkeys::portableFromKeys(r.keys);
+            if (actual != a.keys)
+                syncHotkeyFromDaemon(a.id, actual);
+        }
         emit hotkeysAvailableChanged();
         return;
     }
@@ -1111,21 +1142,38 @@ void AppContext::setupTray()
         // still starting, GNOME extension loading late) — watch for it and
         // build the tray then. Until it exists, trayAvailable stays false and
         // closing the window really closes it (no vanish-into-nothing trap).
-        // The WATCHER name registering does not guarantee a HOST is ready yet,
-        // so retry twice with a delay before giving up on this registration.
-        auto *w = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
-                                          QDBusConnection::sessionBus(),
-                                          QDBusServiceWatcher::WatchForRegistration, this);
-        connect(w, &QDBusServiceWatcher::serviceRegistered, this, [this, w] {
-            w->deleteLater();
+        // ONE watcher for the app's lifetime: retries re-enter this branch and
+        // must not stack additional watchers/match rules.
+        if (m_trayWatcher)
+            return;
+        m_trayWatcher = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                                QDBusConnection::sessionBus(),
+                                                QDBusServiceWatcher::WatchForRegistration, this);
+        connect(m_trayWatcher, &QDBusServiceWatcher::serviceRegistered, this, [this] {
+            // The HOST routinely lags the watcher name (waybar/extension
+            // startup) and isSystemTrayAvailable() needs the host — poll a
+            // few times instead of giving up after one shot.
+            auto *retry = new QTimer(this);
+            retry->setInterval(2000);
+            auto attempts = std::make_shared<int>(0);
+            connect(retry, &QTimer::timeout, this, [this, retry, attempts] {
+                if (m_tray || ++*attempts > 15) {
+                    retry->deleteLater();
+                    return;
+                }
+                setupTray();
+            });
+            retry->start();
             if (!m_tray)
                 setupTray();
-            QTimer::singleShot(3000, this, [this] {
-                if (!m_tray)
-                    setupTray();
-            });
         });
         return;
+    }
+    if (m_trayWatcher) {
+        // deleteLater, not delete: this path is reachable from inside the
+        // watcher's own serviceRegistered emission.
+        m_trayWatcher->deleteLater();
+        m_trayWatcher = nullptr;
     }
     m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")), this);
     auto *menu = new QMenu;

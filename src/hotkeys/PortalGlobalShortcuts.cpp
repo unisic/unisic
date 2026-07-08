@@ -6,6 +6,7 @@
 #include <QDBusArgument>
 #include <QDBusObjectPath>
 #include <QDBusMetaType>
+#include <QDBusServiceWatcher>
 #include <QKeySequence>
 #include <QDebug>
 
@@ -41,6 +42,22 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
 {
     qDBusRegisterMetaType<PortalShortcutWire>();
     qDBusRegisterMetaType<QList<PortalShortcutWire>>();
+    // Session::Closed is NOT emitted when xdg-desktop-portal crashes — watch
+    // the service owner too. Sessions are in-memory frontend objects: after a
+    // restart the new daemon would never fire Activated for the old handle
+    // (hotkeys silently dead while the app believes they work). Re-create and
+    // re-bind; persisted grants make it prompt-free on KDE/GNOME.
+    auto *w = new QDBusServiceWatcher(PORTAL_SERVICE, QDBusConnection::sessionBus(),
+                                      QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(w, &QDBusServiceWatcher::serviceOwnerChanged, this,
+            [this](const QString &, const QString &, const QString &newOwner) {
+        if (m_sessionHandle.isEmpty())
+            return;
+        qWarning() << "xdg-desktop-portal restarted — re-binding global shortcuts";
+        m_sessionHandle.clear();
+        if (!newOwner.isEmpty() && !m_lastBound.isEmpty())
+            bind(m_lastBound);
+    });
 }
 
 bool PortalGlobalShortcuts::interfacePresent()
@@ -108,6 +125,7 @@ QString PortalGlobalShortcuts::toPortalTrigger(const QString &portableKeySequenc
 
 void PortalGlobalShortcuts::bind(const QVector<Shortcut> &shortcuts)
 {
+    m_lastBound = shortcuts;
     if (m_sessionPending) {
         // CreateSession already in flight (quick repeated Apply): remember the
         // newest set; the response handler binds it. A second CreateSession
@@ -156,8 +174,27 @@ void PortalGlobalShortcuts::createSession(const QVector<Shortcut> &shortcuts)
             if (!m_signalConnected)
                 qWarning() << "Could not subscribe to GlobalShortcuts Activated";
         }
+        // A portal restart (crash, package upgrade) closes the session — the
+        // hotkeys would silently die while the app still believes they work.
+        // Re-create + re-bind transparently (persisted grants make it silent).
+        QDBusConnection::sessionBus().connect(
+            PORTAL_SERVICE, m_sessionHandle,
+            QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
+            this, SLOT(onSessionClosed()));
         bindNow(shortcuts);
     }, this);
+}
+
+void PortalGlobalShortcuts::onSessionClosed()
+{
+    qWarning() << "GlobalShortcuts portal session closed (portal restart?) — re-binding";
+    QDBusConnection::sessionBus().disconnect(
+        PORTAL_SERVICE, m_sessionHandle,
+        QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
+        this, SLOT(onSessionClosed()));
+    m_sessionHandle.clear();
+    if (!m_lastBound.isEmpty())
+        bind(m_lastBound);
 }
 
 void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
@@ -180,11 +217,29 @@ void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
         << QVariantMap{{QStringLiteral("handle_token"), token}};
 
     PortalRequest::send(msg, token, [this](uint code, const QVariantMap &results) {
+        if (code == 1) {
+            // User cancelled the consent dialog: the backend WORKS, the set
+            // just wasn't confirmed — reporting failure here used to flip the
+            // whole UI to "no hotkeys on this desktop" with no way back.
+            qWarning() << "GlobalShortcuts bind cancelled by the user";
+            emit bindFinished(true, {});
+            return;
+        }
         if (code != 0) {
             qWarning() << "GlobalShortcuts BindShortcuts failed (code" << code << ")";
+            // The session may be stale (portal restarted between binds):
+            // retry ONCE through a fresh session before reporting failure —
+            // a failure report flips the whole hotkey UI off for the run.
+            m_sessionHandle.clear();
+            if (!m_retriedBind && !m_lastBound.isEmpty()) {
+                m_retriedBind = true;
+                bind(m_lastBound);
+                return;
+            }
             emit bindFinished(false, {});
             return;
         }
+        m_retriedBind = false;
         // Response carries a(sa{sv}) with per-id trigger_description strings.
         QVariantMap triggers;
         const QVariant raw = results.value(QStringLiteral("shortcuts"));

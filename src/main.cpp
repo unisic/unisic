@@ -16,11 +16,49 @@
 #include <QProcess>
 #include <QTimer>
 #include <QDebug>
+#include <QSocketNotifier>
+#include <csignal>
+#include <sys/socket.h>
 #include <unistd.h>
+
+// SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
+// cleanup, tray teardown) — the default handlers kill the process cold and
+// every settings change since launch is lost. Self-pipe pattern: the handler
+// only write()s (async-signal-safe); the notifier quits the event loop.
+static int sigQuitFd[2] = {-1, -1};
+static void unixSignalHandler(int)
+{
+    const char one = 1;
+    (void)::write(sigQuitFd[1], &one, sizeof(one));
+}
+static void installSignalHandlers(QCoreApplication *app)
+{
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, sigQuitFd) != 0)
+        return;
+    auto *notifier = new QSocketNotifier(sigQuitFd[0], QSocketNotifier::Read, app);
+    QObject::connect(notifier, &QSocketNotifier::activated, app, [] {
+        char tmp;
+        (void)::read(sigQuitFd[0], &tmp, sizeof(tmp));
+        QCoreApplication::quit();
+    });
+    struct sigaction sa{};
+    sa.sa_handler = unixSignalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
+    sigaction(SIGHUP, &sa, nullptr);
+}
 
 static QString singleInstanceServerName()
 {
-    return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
+    // Scope to the login session too: with two concurrent sessions (two
+    // seats, or Wayland+X11), `unisic --region` must trigger the instance in
+    // THIS session, not forward the capture to the other one.
+    QString session = qEnvironmentVariable("XDG_SESSION_ID");
+    if (session.isEmpty())
+        session = qEnvironmentVariable("WAYLAND_DISPLAY");
+    return QStringLiteral("org.unisic.Unisic.%1.%2").arg(getuid()).arg(session);
 }
 
 // Capture flag from argv, mapped to the command sent over the local socket —
@@ -147,6 +185,7 @@ int main(int argc, char *argv[])
     app.setDesktopFileName(QStringLiteral("org.unisic.Unisic"));
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
     app.setQuitOnLastWindowClosed(false); // lives in the tray
+    installSignalHandlers(&app);
 
     const QStringList args = app.arguments();
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
@@ -202,7 +241,11 @@ int main(int argc, char *argv[])
                       && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     QIcon::setFallbackThemeName(dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze"));
 
-    ensureDesktopFile();
+    // The desktop file exists solely for KWin's ScreenShot2 authorization —
+    // skip the app-grid pollution (with an Exec that goes stale on every
+    // build-tree move / AppImage remount) on other desktops.
+    if (qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("KDE"), Qt::CaseInsensitive))
+        ensureDesktopFile();
 
     // ThemeController is a module QML singleton (engine-created); the icon
     // provider shares that instance lazily via ThemeController::instance().
@@ -221,6 +264,8 @@ int main(int argc, char *argv[])
                 // running instance must capture, not just raise the window).
                 auto dispatch = [socket, &context] {
                     const QByteArray cmd = socket->readAll().trimmed();
+                    if (cmd.isEmpty())
+                        return; // second delivery (readyRead after manual call)
                     if (cmd == "fullscreen") context.captureFullScreen();
                     else if (cmd == "region") context.captureRegion();
                     else if (cmd == "window") context.captureWindow();

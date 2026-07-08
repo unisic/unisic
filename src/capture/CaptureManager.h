@@ -50,6 +50,12 @@ private:
     void portalFallback(Callback cb);
     void workspaceFallback(Callback cb, bool allowInteractive, const QString &previousError = {});
     bool preferGnome() const;
+    bool preferGrim() const;
+    // Overlay freeze on wlroots-family sessions: one grim -o <output> shot per
+    // screen — native resolution per output, immune to the mixed-DPI cropping
+    // errors of the crop-from-workspace path. Falls back to portalAllScreens.
+    void grimScreensSerial(QVector<QPointer<QScreen>> screens, int index, QVector<QImage> acc,
+                           MultiCallback cb);
     // QPointer: a monitor can be unplugged while a portal dialog is open.
     void kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index, QVector<QImage> acc,
                            MultiCallback cb);

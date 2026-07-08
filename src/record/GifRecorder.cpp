@@ -153,17 +153,25 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     QRect c = sourceRect;
 
     if (m_source == Region) {
-        c = m_crop.normalized().intersected(sourceRect);
+        QRect crop = m_crop.normalized();
         if (m_targetScreen) {
             const qreal dpr = m_targetScreen->devicePixelRatio();
             const QSize expected(qRound(m_targetScreen->geometry().width() * dpr),
                                  qRound(m_targetScreen->geometry().height() * dpr));
-            if (expected.isValid() && expected != m_streamSize) {
-                qWarning() << "Recording stream size does not match selected screen"
-                           << "stream" << m_streamSize << "screen" << expected
-                           << "crop" << m_crop;
+            if (!expected.isEmpty() && expected != m_streamSize) {
+                // The portal stream is the monitor at a DIFFERENT pixel size
+                // than the overlay assumed (fractional scaling on GNOME, or a
+                // logically-sized stream). Rescale the crop by the ratio
+                // instead of recording a misplaced region.
+                const qreal sx = qreal(m_streamSize.width()) / expected.width();
+                const qreal sy = qreal(m_streamSize.height()) / expected.height();
+                qWarning() << "Recording stream size differs from the selected screen —"
+                           << "rescaling crop" << crop << "by" << sx << sy;
+                crop = QRect(qRound(crop.x() * sx), qRound(crop.y() * sy),
+                             qRound(crop.width() * sx), qRound(crop.height() * sy));
             }
         }
+        c = crop.intersected(sourceRect);
     }
 
     // yuv420p (MP4/WebM) requires even dimensions — enforce for every source,

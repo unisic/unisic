@@ -16,6 +16,14 @@ Window {
         anchors.fill: parent
         focus: true
 
+        // Non-KDE compositors (Mutter, sway) routinely deny requestActivate()
+        // issued from a hotkey with no focused window — keyboard (Esc/Enter/
+        // nudge) would go nowhere. Pointer presence is a legitimate activation
+        // trigger, so claim focus when the cursor enters this screen's overlay.
+        HoverHandler {
+            onHoveredChanged: if (hovered && !overlayWindow.active) overlayWindow.requestActivate()
+        }
+
         // Selection rect in item (screen) coordinates — reactive on the
         // canvas properties so bound positions follow the selection live.
         function selItem() {

@@ -27,4 +27,10 @@ public:
 
     // Whole layout (all outputs), PNG via stdout, decoded off the GUI thread.
     void captureWorkspace(bool includeCursor, Callback cb);
+    // One output by its Wayland name (QScreen::name() when Qt runs natively on
+    // Wayland) — native resolution, no mixed-DPI cropping involved.
+    void captureOutput(const QString &outputName, bool includeCursor, Callback cb);
+
+private:
+    void run(const QStringList &args, Callback cb);
 };

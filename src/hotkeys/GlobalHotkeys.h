@@ -2,6 +2,8 @@
 #include <QObject>
 #include <QHash>
 
+class QDBusMessage;
+
 // Global shortcuts on Plasma Wayland via the org.kde.KGlobalAccel DBus
 // service (no KDE Frameworks link dependency). Falls back to doing nothing
 // on desktops without KGlobalAccel — the tray menu still provides access.
@@ -31,17 +33,29 @@ public:
     // must not report a bind "conflict" that is really just no daemon.
     bool available() const { return m_available; }
 
-    // The action's currently ACTIVE keys as reported by the daemon (empty when
-    // unbound or the daemon is unavailable). Lets startup verify that an
-    // IsDefault registration actually resulted in a live binding.
-    QList<int> activeKeys(const QString &actionId) const;
+    // The action's currently ACTIVE keys as reported by the daemon. `ok`
+    // separates "unbound" (reply arrived, no keys) from "call failed/timed
+    // out" — treating a timeout as unbound once wiped the user's keys via the
+    // daemon-authoritative sync.
+    QList<int> activeKeys(const QString &actionId, bool *ok = nullptr) const;
+
+    // First non-empty key as a portable QKeySequence string ("Meta+Shift+1"),
+    // for daemon-authoritative display in the settings UI.
+    static QString portableFromKeys(const QList<int> &keys);
+    QString activeKeysPortable(const QString &actionId, bool *ok = nullptr) const
+    { return portableFromKeys(activeKeys(actionId, ok)); }
 
 signals:
     void activated(const QString &actionId);
+    // A binding for one of OUR actions changed daemon-side (KCM edit, another
+    // client) — portableKeys is the new active key ("" = unbound).
+    void shortcutChanged(const QString &actionId, const QString &portableKeys);
 
 private slots:
     void onShortcutPressed(const QString &componentUnique, const QString &actionUnique,
                            qlonglong timestamp);
+    void onYourShortcutsChanged(const QStringList &actionId, const QList<int> &newKeys);
+    void onYourShortcutsListChanged(const QDBusMessage &msg);
 
 private:
     QStringList fullActionId(const QString &actionId, const QString &friendlyName) const;

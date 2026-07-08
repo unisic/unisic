@@ -3,6 +3,7 @@
 #include <QSettings>
 #include <QStandardPaths>
 #include <QDir>
+#include <QTimer>
 #include <qqmlregistration.h>
 
 #define U_SETTING(type, name, setterName, key, defval)                                 \
@@ -10,6 +11,7 @@
     void setterName(const type &v) {                                                   \
         if (name() == v) return;                                                       \
         m_s.setValue(key, v);                                                          \
+        m_syncTimer.start();                                                            \
         emit name##Changed();                                                          \
     }
 
@@ -64,7 +66,17 @@ class Settings : public QObject
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
 
 public:
-    explicit Settings(QObject *parent = nullptr) : QObject(parent) {}
+    explicit Settings(QObject *parent = nullptr) : QObject(parent)
+    {
+        // QSettings only guarantees a flush in its destructor — any abnormal
+        // exit (crash, SIGKILL, logout, Ctrl+C on a dev build) silently loses
+        // every change made since launch ("settings don't survive between
+        // builds"). Debounce a sync() after each write so changes hit disk
+        // within a second of being made.
+        m_syncTimer.setSingleShot(true);
+        m_syncTimer.setInterval(800);
+        connect(&m_syncTimer, &QTimer::timeout, this, [this] { m_s.sync(); });
+    }
 
     static QString defaultSaveDir()
     {
@@ -196,4 +208,5 @@ signals:
 
 private:
     QSettings m_s{QStringLiteral("Unisic"), QStringLiteral("unisic")};
+    QTimer m_syncTimer;
 };

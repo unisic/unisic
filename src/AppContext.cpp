@@ -1,10 +1,12 @@
 #include "AppContext.h"
 #include "Settings.h"
 #include "capture/CaptureManager.h"
+#include "capture/KWinScreenShot2.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
+#include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
 #include "notify/CaptureNotification.h"
@@ -41,6 +43,10 @@
 #include <QMetaProperty>
 #include <QStandardPaths>
 #include <QtConcurrentRun>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusServiceWatcher>
 #include <QDebug>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -56,27 +62,10 @@ AppContext::AppContext(QObject *parent)
     , m_hotkeys(new GlobalHotkeys(this))
     , m_recorder(new GifRecorder(m_settings, this))
 {
-    connect(m_hotkeys, &GlobalHotkeys::activated, this, [this](const QString &action) {
-        // Emergency stop first, and NOT behind the shortcut-recorder guard:
-        // it must fire even while the settings UI is capturing a key press.
-        if (action == QLatin1String("stop-recording")) {
-            if (recording())
-                stopRecording();
-            return;
-        }
-        if (m_shortcutRecording)
-            return;
-        if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
-        else if (action == QLatin1String("capture-region")) captureRegion();
-        else if (action == QLatin1String("capture-window")) captureWindow();
-        else if (action == QLatin1String("record-gif")) {
-            if (recording()) stopRecording();
-            else startGifRegion();
-        } else if (action == QLatin1String("record-video")) {
-            if (recording()) stopRecording();
-            else startVideoRegion();
-        }
-    });
+    connect(m_hotkeys, &GlobalHotkeys::activated, this, &AppContext::dispatchHotkey);
+    // Live two-way sync: a KCM edit updates the app's stored/displayed key.
+    connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
+            &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
@@ -114,7 +103,56 @@ void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
     setupTray();
-    defineHotkeys(); // register + autoload; DE-stored keys win, not clobbered
+    // Deferred to the first event-loop pass: hotkey registration is a burst of
+    // blocking D-Bus round-trips (2 s timeout each) — after the QML engine has
+    // loaded the window instead of before it, and late enough that startup
+    // toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
+    QTimer::singleShot(0, this, &AppContext::defineHotkeys);
+
+#ifdef HAVE_PIPEWIRE
+    // Async probe: is a ScreenCast portal backend actually present? (-xapp and
+    // -lxqt desktops have none.) Optimistic until the reply lands.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"),
+        QStringLiteral("/org/freedesktop/portal/desktop"),
+        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    msg << QStringLiteral("org.freedesktop.portal.ScreenCast") << QStringLiteral("version");
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *w) {
+        const bool present = !w->isError();
+        w->deleteLater();
+        if (m_screenCastPortalPresent != present) {
+            m_screenCastPortalPresent = present;
+            emit recordingAvailableChanged();
+            if (!present)
+                qWarning() << "No ScreenCast portal backend on this desktop — recording disabled"
+                              " (install a backend such as xdg-desktop-portal-wlr/-kde/-gnome)";
+        }
+    });
+#endif
+}
+
+void AppContext::dispatchHotkey(const QString &action)
+{
+    // Emergency stop first, and NOT behind the shortcut-recorder guard:
+    // it must fire even while the settings UI is capturing a key press.
+    if (action == QLatin1String("stop-recording")) {
+        if (recording())
+            stopRecording();
+        return;
+    }
+    if (m_shortcutRecording)
+        return;
+    if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
+    else if (action == QLatin1String("capture-region")) captureRegion();
+    else if (action == QLatin1String("capture-window")) captureWindow();
+    else if (action == QLatin1String("record-gif")) {
+        if (recording()) stopRecording();
+        else startGifRegion();
+    } else if (action == QLatin1String("record-video")) {
+        if (recording()) stopRecording();
+        else startVideoRegion();
+    }
 }
 
 bool AppContext::recording() const { return m_recorder->recording(); }
@@ -124,7 +162,10 @@ int AppContext::recordSeconds() const { return m_recorder->elapsedSeconds(); }
 bool AppContext::recordingAvailable() const
 {
 #ifdef HAVE_PIPEWIRE
-    return true;
+    // Compile-time PipeWire support AND a runtime ScreenCast portal backend —
+    // Cinnamon/MATE/XFCE (-xapp) and LXQt ship none, so the record UI must say
+    // so instead of failing with a raw D-Bus error.
+    return m_screenCastPortalPresent;
 #else
     return false;
 #endif
@@ -141,7 +182,7 @@ bool AppContext::ocrAvailable() const
 
 bool AppContext::hotkeysAvailable() const
 {
-    return m_hotkeys->available();
+    return !m_hotkeyBackend.isEmpty();
 }
 
 void AppContext::ocrImage(const QImage &img)
@@ -216,18 +257,27 @@ void AppContext::withDelay(std::function<void()> fn)
 
 // ------------------------------------------------------------------ capture
 
-// Appends actionable guidance when the failure looks like the classic
-// "unauthorized build-tree run / portal missing" situation.
-static QString captureErrorText(const QString &err)
+// Appends actionable, DESKTOP-AWARE guidance when the failure looks like the
+// classic "unauthorized run / missing backend" situation. The old text sent
+// everyone to KDE tools — useless advice on GNOME or sway.
+QString AppContext::captureErrorGuidance(const QString &err)
 {
-    QString text = QCoreApplication::translate("AppContext", "Capture failed: %1").arg(err);
-    if (err.contains(QLatin1String("portal"), Qt::CaseInsensitive)
-        || err.contains(QLatin1String("NoAuthorized"))) {
-        text += QCoreApplication::translate(
-            "AppContext",
-            " — install Unisic (sudo cmake --install build) and launch it from the application "
-            "menu so KDE authorizes it, and check that xdg-desktop-portal-kde is running.");
-    }
+    QString text = tr("Capture failed: %1").arg(err);
+    if (!(err.contains(QLatin1String("portal"), Qt::CaseInsensitive)
+          || err.contains(QLatin1String("NoAuthorized"))
+          || err.contains(QLatin1String("denied"), Qt::CaseInsensitive)))
+        return text;
+    const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
+    if (desktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
+        text += tr(" — install Unisic (sudo cmake --install build) and launch it from the "
+                   "application menu so KDE authorizes it, and check that "
+                   "xdg-desktop-portal-kde is running.");
+    else if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
+        text += tr(" — allow screenshots for Unisic in GNOME Settings → Apps, and check that "
+                   "xdg-desktop-portal-gnome is running.");
+    else
+        text += tr(" — install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
+                   "xdg-desktop-portal backend for your desktop.");
     return text;
 }
 
@@ -241,7 +291,7 @@ void AppContext::captureFullScreen()
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
-                    showToast(captureErrorText(err), true);
+                    showToast(captureErrorGuidance(err), true);
                 return;
             }
             finishCapture(img);
@@ -269,7 +319,7 @@ void AppContext::captureWindow()
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
-                    showToast(captureErrorText(err), true);
+                    showToast(captureErrorGuidance(err), true);
                 return;
             }
             finishCapture(img);
@@ -525,6 +575,18 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     const QRect avail = screen ? screen->availableGeometry() : g;
     const int cardW = 400, cardH = 150, margin = 16;
 
+    // The fullscreen-transparent-window trick is KWin-only: KWin honors the
+    // input mask and composits the transparent remainder invisibly. On
+    // wlroots a fullscreen view BLANKS the workspace beneath it after every
+    // capture, and on Mutter it animates/joins alt-tab — there a small
+    // compositor-placed toplevel is the sane behavior (24px transparent
+    // padding keeps the drop shadow). Session check, not
+    // KWinScreenShot2::isAvailable(): the latter is false inside Flatpak even
+    // on KDE, and the compositor is what matters here.
+    const bool fullscreenTrick = qEnvironmentVariable("XDG_CURRENT_DESKTOP")
+                                     .contains(QLatin1String("KDE"), Qt::CaseInsensitive);
+    const int pad = 24;
+
     const QString posName = m_settings->capturePopupPosition();
     const bool top = posName.startsWith(QLatin1String("top"));
     const bool left = posName.endsWith(QLatin1String("left"));
@@ -532,10 +594,13 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     // Card position in window-local coords (window origin == screen top-left),
     // kept inside the available area so it clears panels.
     const int ax = avail.x() - g.x(), ay = avail.y() - g.y();
-    const int px = left  ? ax + margin
+    const int px = !fullscreenTrick ? pad
+                 : left  ? ax + margin
                  : right ? ax + avail.width() - cardW - margin
                  :         ax + (avail.width() - cardW) / 2;
-    const int py = top ? ay + margin : ay + avail.height() - cardH - margin;
+    const int py = !fullscreenTrick ? pad
+                 : top ? ay + margin
+                 :       ay + avail.height() - cardH - margin;
 
     // Only one popup at a time: retire the previous one so its full-resolution
     // image and screen-sized window don't linger (matters when auto-hide is 0).
@@ -568,19 +633,26 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
 
     if (screen)
         win->setScreen(screen);
-    win->setGeometry(g);
-    // Create the platform surface up front so the input mask is applied BEFORE
-    // the window is mapped — the transparent remainder is click-through from the
-    // very first frame (never a moment where it blocks the whole screen).
-    win->create();
-    win->setMask(QRegion(px, py, cardW, cardH));
-    // showFullScreen, not show(): a plain toplevel gets placed by the
-    // compositor's policy (KWin offsets it into the work area, e.g. below a
-    // top panel), which shifts the whole surface and cuts the card off at the
-    // screen edge. Fullscreen is the one state where the surface is pinned
-    // exactly to the screen origin — the same reason OverlayController uses it.
-    // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
-    win->showFullScreen();
+    if (fullscreenTrick) {
+        win->setGeometry(g);
+        // Create the platform surface up front so the input mask is applied
+        // BEFORE the window is mapped — the transparent remainder is
+        // click-through from the very first frame.
+        win->create();
+        win->setMask(QRegion(px, py, cardW, cardH));
+        // showFullScreen, not show(): a plain toplevel gets placed by the
+        // compositor's policy (KWin offsets it into the work area, e.g. below
+        // a top panel), which shifts the whole surface and cuts the card off
+        // at the screen edge. Fullscreen is the one state where the surface is
+        // pinned exactly to the screen origin — the same trick as the overlay.
+        // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
+        win->showFullScreen();
+    } else {
+        // Card-sized toplevel; the compositor decides placement. No mask —
+        // everything inside the (padded) window belongs to the popup.
+        win->resize(cardW + 2 * pad, cardH + 2 * pad);
+        win->show();
+    }
     return notif;
 }
 
@@ -700,7 +772,11 @@ void AppContext::copyImageToClipboard(const QImage &img)
 {
     QGuiApplication::clipboard()->setImage(img);
     // Wayland: clipboard offers can be lost when no window has focus.
-    // wl-copy (if present) makes it stick regardless.
+    // wl-copy (if present) makes it stick regardless. NOT under XWayland:
+    // there Qt owns the X11 CLIPBOARD while wl-copy would set a second,
+    // separate Wayland selection — two clipboards fighting.
+    if (QGuiApplication::platformName() != QLatin1String("wayland"))
+        return;
     const QString wlCopy = wlCopyPath();
     if (wlCopy.isEmpty())
         return;
@@ -723,6 +799,8 @@ void AppContext::copyImageToClipboard(const QImage &img)
 void AppContext::copyText(const QString &text)
 {
     QGuiApplication::clipboard()->setText(text);
+    if (QGuiApplication::platformName() != QLatin1String("wayland"))
+        return;
     const QString wlCopy = wlCopyPath();
     if (!wlCopy.isEmpty()) {
         auto *proc = new QProcess(this);
@@ -839,80 +917,216 @@ QString AppContext::importSettings(const QUrl &file)
 
 // ---------------------------------------------------------------- shell
 
-// Called once at startup: register each action + its default, with autoloading
-// so a key edited in KDE's Shortcuts KCM is honored and not overwritten.
-void AppContext::defineHotkeys()
+QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
 {
-    struct Act { QString id; QString name; QString keys; };
-    const Act acts[] = {
+    return {
         {QStringLiteral("capture-fullscreen"), tr("Capture full screen"), m_settings->hotkeyFullScreen()},
         {QStringLiteral("capture-region"), tr("Capture region"), m_settings->hotkeyRegion()},
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
     };
-    for (const Act &a : acts)
-        m_hotkeys->defineAction(a.id, a.name, a.keys);
+}
 
-    // Self-heal for fresh installs: our reference kglobalacceld binds both the
-    // active and default columns on an IsDefault registration, but daemons in
-    // the field have been seen applying it to the default column only —
-    // leaving every action registered yet UNBOUND (hotkeys silently dead).
-    // Verify once per install: any action the daemon reports keyless right
-    // after registration gets its default forced (SetPresent|NoAutoloading).
-    // Never repeated afterwards, so deliberately unbinding a key in the KCM
-    // still sticks.
-    if (m_hotkeys->available()
-        && !m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
-        for (const Act &a : acts) {
-            if (!a.keys.isEmpty() && m_hotkeys->activeKeys(a.id).isEmpty()) {
-                qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
-                           << "— forcing default" << a.keys;
-                m_hotkeys->setShortcut(a.id, a.name, a.keys);
-            }
-        }
-        m_settings->raw()->setValue(QStringLiteral("hotkeys/bootstrapped"), true);
-        // Flush now: a SIGTERM/logout kill skips destructors, and losing the
-        // flag would re-force defaults on every launch (breaking deliberate
-        // KCM unbinds).
-        m_settings->raw()->sync();
-    }
-    // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable. Pushed
-    // with setShortcut (SetPresent|NoAutoloading) on every startup, so even an
-    // edit made in KDE's Shortcuts KCM is reverted at the next launch. Stock
-    // Plasma ships Ctrl+Esc bound to "Show System Activity" — the daemon then
-    // refuses the grab, so tell the user instead of failing silently.
-    if (m_hotkeys->available()
-        && !m_hotkeys->setShortcut(QStringLiteral("stop-recording"),
-                                   tr("Stop recording (emergency)"),
-                                   QStringLiteral("Ctrl+Escape"))) {
-        qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
-                      " component — on stock Plasma: Show System Activity)";
-        showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
-                     "(System Settings → Shortcuts to free it)"));
+// Daemon-authoritative display: whatever key is ACTUALLY bound is what the
+// settings UI must show — the stored string is just the app's last wish.
+void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &portable)
+{
+    if (actionId == QLatin1String("capture-fullscreen")) m_settings->setHotkeyFullScreen(portable);
+    else if (actionId == QLatin1String("capture-region")) m_settings->setHotkeyRegion(portable);
+    else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
+    else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
+    else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
+    else return;
+    // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
+    m_settings->raw()->sync();
+}
+
+void AppContext::syncAllHotkeysFromDaemon()
+{
+    if (!m_hotkeys->available())
+        return;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts) {
+        bool ok = false;
+        const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
+        // A failed/timed-out query must NOT be mistaken for "unbound" — that
+        // would wipe the stored key (and the sync() below persists the wipe).
+        if (ok && actual != a.keys)
+            syncHotkeyFromDaemon(a.id, actual);
     }
 }
 
-// Called when the user changes a shortcut in Unisic's own settings (or on
-// import): push the chosen keys to KGlobalAccel so the DE reflects the change.
+// Called once at startup (deferred past engine load): register each action +
+// its default with autoloading so a key edited in KDE's Shortcuts KCM is
+// honored, then pick the portal backend when KGlobalAccel isn't the answer.
+void AppContext::defineHotkeys()
+{
+    const QVector<HotkeyAction> acts = hotkeyActions();
+
+    if (m_hotkeys->available()) {
+        m_hotkeyBackend = QStringLiteral("kglobalaccel");
+        for (const HotkeyAction &a : acts)
+            m_hotkeys->defineAction(a.id, a.name, a.keys);
+
+        // Self-heal for fresh installs: our reference kglobalacceld binds both
+        // the active and default columns on an IsDefault registration, but
+        // daemons in the field have been seen applying it to the default
+        // column only — leaving every action registered yet UNBOUND (hotkeys
+        // silently dead). Verify once per install; never repeated afterwards,
+        // so deliberately unbinding a key in the KCM still sticks.
+        if (!m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
+            for (const HotkeyAction &a : acts) {
+                bool ok = false;
+                const bool unbound = m_hotkeys->activeKeys(a.id, &ok).isEmpty();
+                if (ok && unbound && !a.keys.isEmpty()) {
+                    qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
+                               << "— forcing default" << a.keys;
+                    m_hotkeys->setShortcut(a.id, a.name, a.keys);
+                }
+            }
+            m_settings->raw()->setValue(QStringLiteral("hotkeys/bootstrapped"), true);
+            // Flush now: a SIGTERM/logout kill skips destructors, and losing
+            // the flag would re-force defaults on every launch (breaking
+            // deliberate KCM unbinds).
+            m_settings->raw()->sync();
+        }
+        // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable.
+        // Pushed with SetPresent|NoAutoloading on every startup, so even a KCM
+        // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
+        // bound to "Show System Activity" — the daemon then refuses the grab,
+        // so tell the user instead of failing silently.
+        if (!m_hotkeys->setShortcut(QStringLiteral("stop-recording"),
+                                    tr("Stop recording (emergency)"),
+                                    QStringLiteral("Ctrl+Escape"))) {
+            qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
+                          " component — on stock Plasma: Show System Activity)";
+            showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
+                         "(System Settings → Shortcuts to free it)"));
+        }
+        // The daemon may have autoloaded KCM-edited keys that differ from our
+        // stored strings — reflect reality in the UI.
+        syncAllHotkeysFromDaemon();
+        emit hotkeysAvailableChanged();
+        return;
+    }
+
+    // Non-KDE: the GlobalShortcuts portal (GNOME 48+, Hyprland, …). The
+    // interface can be present yet backed by a broken impl (xdp-gnome's is
+    // hardwired to org.gnome.Shell), so the bind response is the real test.
+    if (PortalGlobalShortcuts::interfacePresent()) {
+        m_portalHotkeys = new PortalGlobalShortcuts(this);
+        connect(m_portalHotkeys, &PortalGlobalShortcuts::activated,
+                this, &AppContext::dispatchHotkey);
+        connect(m_portalHotkeys, &PortalGlobalShortcuts::bindFinished, this,
+                [this](bool ok, const QVariantMap &) {
+            const QString wanted = ok ? QStringLiteral("portal") : QString();
+            if (m_hotkeyBackend != wanted) {
+                m_hotkeyBackend = wanted;
+                emit hotkeysAvailableChanged();
+            }
+            if (!ok)
+                qWarning() << "GlobalShortcuts portal exists but has no working backend here"
+                              " — falling back to compositor-binds guidance";
+        });
+        // Optimistic until the response lands — avoids flashing the
+        // "unavailable" card during the round-trip.
+        m_hotkeyBackend = QStringLiteral("portal");
+        emit hotkeysAvailableChanged();
+        bindPortalHotkeys();
+        return;
+    }
+
+    m_hotkeyBackend.clear();
+    emit hotkeysAvailableChanged();
+}
+
+void AppContext::bindPortalHotkeys()
+{
+    if (!m_portalHotkeys)
+        return;
+    QVector<PortalGlobalShortcuts::Shortcut> list;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts)
+        list.append({a.id, a.name, PortalGlobalShortcuts::toPortalTrigger(a.keys)});
+    list.append({QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
+                 QStringLiteral("CTRL+Escape")});
+    m_portalHotkeys->bind(list);
+}
+
+// Push ONE action's stored key to the system. KGlobalAccel: setShortcut with
+// SetPresent|NoAutoloading, conflict surfaced as a toast + the daemon's actual
+// key synced back into the UI. Portal: re-bind the whole set (the portal has
+// no per-shortcut rebind; unchanged sets don't re-prompt on KDE/GNOME).
+void AppContext::applyHotkey(const QString &actionId)
+{
+    if (m_portalHotkeys && m_hotkeyBackend == QLatin1String("portal")) {
+        bindPortalHotkeys();
+        return;
+    }
+    if (!m_hotkeys->available())
+        return;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts) {
+        if (a.id != actionId)
+            continue;
+        if (!m_hotkeys->setShortcut(a.id, a.name, a.keys)) {
+            showToast(tr("Could not bind %1 — the key is taken by another shortcut").arg(a.keys),
+                      true);
+            // Show what is actually bound instead of the refused wish.
+            bool ok = false;
+            const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
+            if (ok)
+                syncHotkeyFromDaemon(a.id, actual);
+        }
+        return;
+    }
+}
+
+// Bulk push (settings import, the explicit "Apply hotkeys" button): the app's
+// stored keys are the user's intent here, so all five are asserted.
 void AppContext::applyHotkeys()
 {
-    m_hotkeys->setShortcut(QStringLiteral("capture-fullscreen"), tr("Capture full screen"),
-                           m_settings->hotkeyFullScreen());
-    m_hotkeys->setShortcut(QStringLiteral("capture-region"), tr("Capture region"),
-                           m_settings->hotkeyRegion());
-    m_hotkeys->setShortcut(QStringLiteral("capture-window"), tr("Capture active window"),
-                           m_settings->hotkeyWindow());
-    m_hotkeys->setShortcut(QStringLiteral("record-gif"), tr("Record GIF (start/stop)"),
-                           m_settings->hotkeyGif());
-    m_hotkeys->setShortcut(QStringLiteral("record-video"), tr("Record video (start/stop)"),
-                           m_settings->hotkeyRecord());
+    if (m_portalHotkeys && m_hotkeyBackend == QLatin1String("portal")) {
+        bindPortalHotkeys();
+        return;
+    }
+    if (!m_hotkeys->available())
+        return;
+    const auto acts = hotkeyActions();
+    bool allOk = true;
+    for (const HotkeyAction &a : acts)
+        allOk &= m_hotkeys->setShortcut(a.id, a.name, a.keys);
+    if (!allOk) {
+        showToast(tr("Some hotkeys could not be bound (keys taken) — showing the actual state"),
+                  true);
+        syncAllHotkeysFromDaemon();
+    }
 }
 
 void AppContext::setupTray()
 {
-    if (!QSystemTrayIcon::isSystemTrayAvailable())
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        // The StatusNotifier host can appear AFTER us (plasmashell/waybar
+        // still starting, GNOME extension loading late) — watch for it and
+        // build the tray then. Until it exists, trayAvailable stays false and
+        // closing the window really closes it (no vanish-into-nothing trap).
+        // The WATCHER name registering does not guarantee a HOST is ready yet,
+        // so retry twice with a delay before giving up on this registration.
+        auto *w = new QDBusServiceWatcher(QStringLiteral("org.kde.StatusNotifierWatcher"),
+                                          QDBusConnection::sessionBus(),
+                                          QDBusServiceWatcher::WatchForRegistration, this);
+        connect(w, &QDBusServiceWatcher::serviceRegistered, this, [this, w] {
+            w->deleteLater();
+            if (!m_tray)
+                setupTray();
+            QTimer::singleShot(3000, this, [this] {
+                if (!m_tray)
+                    setupTray();
+            });
+        });
         return;
+    }
     m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")), this);
     auto *menu = new QMenu;
     m_trayMenu = menu;
@@ -934,4 +1148,5 @@ void AppContext::setupTray()
             emit showMainWindowRequested();
     });
     m_tray->show();
+    emit trayAvailableChanged();
 }

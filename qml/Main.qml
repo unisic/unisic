@@ -25,10 +25,17 @@ Window {
 
     property int currentPage: 0
 
+    // Hide-to-tray only when a tray actually EXISTS — on GNOME without the
+    // AppIndicator extension (or bare wlroots) hiding here would make the app
+    // unreachable except by launching `unisic` again.
     onClosing: (close) => {
-        if (App.settings.minimizeToTrayOnClose) {
+        if (App.settings.minimizeToTrayOnClose && App.trayAvailable) {
             close.accepted = false
             window.hide()
+        } else if (!App.trayAvailable) {
+            // quitOnLastWindowClosed is false (tray lifetime) — without a tray
+            // an accepted close would leave a hidden resident process. Quit.
+            Qt.quit()
         }
     }
 
@@ -299,6 +306,16 @@ Window {
             function onToastChanged() {
                 if (App.toastText === "")
                     return
+                toastLabel.text = App.toastText
+                toast.opacity = 1
+                toastTimer.restart()
+            }
+        }
+
+        // Toasts emitted during startup (hotkey conflicts etc.) fire before
+        // this UI exists — pick up the pending one on load.
+        Component.onCompleted: {
+            if (App.toastText !== "") {
                 toastLabel.text = App.toastText
                 toast.opacity = 1
                 toastTimer.restart()

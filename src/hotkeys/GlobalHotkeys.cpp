@@ -15,11 +15,33 @@ static const auto KGA_IFACE = QStringLiteral("org.kde.KGlobalAccel");
 GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
 {
     qDBusRegisterMetaType<QList<int>>();
+    // KGlobalAccel can only grab keys under KWin. D-Bus-activating it on other
+    // desktops — which happens whenever KDE libraries are installed — yields a
+    // daemon that registers everything and never fires a single shortcut, so
+    // availability must be gated on the session actually being KDE, not on
+    // the service being activatable.
+    const QStringList desktops =
+        qEnvironmentVariable("XDG_CURRENT_DESKTOP").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+    const bool kde = desktops.contains(QLatin1String("KDE"), Qt::CaseInsensitive)
+                     || desktops.contains(QLatin1String("plasma"), Qt::CaseInsensitive);
+    if (!kde) {
+        qInfo() << "Not a KDE session — KGlobalAccel skipped (portal/compositor binds instead)";
+        return;
+    }
     auto *iface = QDBusConnection::sessionBus().interface();
     m_available = iface && (iface->isServiceRegistered(KGA_SERVICE)
                             || iface->startService(KGA_SERVICE).isValid());
     if (!m_available)
         qWarning() << "KGlobalAccel not available — global hotkeys disabled";
+}
+
+QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
+{
+    for (int k : keys)
+        if (k != 0)
+            return QKeySequence(QKeyCombination::fromCombined(k))
+                .toString(QKeySequence::PortableText);
+    return {};
 }
 
 QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
@@ -49,6 +71,49 @@ void GlobalHotkeys::ensureSignalConnected()
         this, SLOT(onShortcutPressed(QString, QString, qlonglong)));
     if (!m_signalConnected)
         qWarning() << "Could not connect to KGlobalAccel component signal";
+    // Live sync: the daemon announces binding changes for our actions (e.g.
+    // edits in the System Settings Shortcuts KCM) — keep the app's display
+    // truthful instead of showing stale stored strings. The daemon exposes
+    // BOTH signal generations with different key encodings; subscribe to both
+    // (a duplicate delivery is de-duplicated by the settings setter's guard):
+    //   yourShortcutGotChanged  (as ai)    — flat key ints
+    //   yourShortcutsChanged    (as a(ai)) — list of packed key sequences
+    QDBusConnection::sessionBus().connect(
+        KGA_SERVICE, KGA_PATH, KGA_IFACE, QStringLiteral("yourShortcutGotChanged"),
+        this, SLOT(onYourShortcutsChanged(QStringList, QList<int>)));
+    QDBusConnection::sessionBus().connect(
+        KGA_SERVICE, KGA_PATH, KGA_IFACE, QStringLiteral("yourShortcutsChanged"),
+        this, SLOT(onYourShortcutsListChanged(QDBusMessage)));
+}
+
+void GlobalHotkeys::onYourShortcutsChanged(const QStringList &actionId, const QList<int> &newKeys)
+{
+    if (actionId.size() >= 2 && actionId.at(0) == QLatin1String(COMPONENT))
+        emit shortcutChanged(actionId.at(1), portableFromKeys(newKeys));
+}
+
+void GlobalHotkeys::onYourShortcutsListChanged(const QDBusMessage &msg)
+{
+    const QList<QVariant> args = msg.arguments();
+    if (args.size() < 2)
+        return;
+    const QStringList actionId = args.at(0).toStringList();
+    if (actionId.size() < 2 || actionId.at(0) != QLatin1String(COMPONENT))
+        return;
+    QList<int> flat;
+    const QDBusArgument arg = args.at(1).value<QDBusArgument>();
+    arg.beginArray();
+    while (!arg.atEnd()) {
+        arg.beginStructure();
+        QList<int> seq;
+        arg >> seq;
+        arg.endStructure();
+        for (int k : std::as_const(seq))
+            if (k != 0)
+                flat.append(k);
+    }
+    arg.endArray();
+    emit shortcutChanged(actionId.at(1), portableFromKeys(flat));
 }
 
 void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendlyName,
@@ -130,8 +195,10 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     return true;
 }
 
-QList<int> GlobalHotkeys::activeKeys(const QString &actionId) const
+QList<int> GlobalHotkeys::activeKeys(const QString &actionId, bool *ok) const
 {
+    if (ok)
+        *ok = false;
     QList<int> keys;
     if (!m_available)
         return keys;
@@ -143,6 +210,8 @@ QList<int> GlobalHotkeys::activeKeys(const QString &actionId) const
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
     if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
         return keys;
+    if (ok)
+        *ok = true;
     // Reply is a(ai): a list of key sequences, each packed as 4 ints
     // (QKeySequence slots); zeros are empty slots.
     const QDBusArgument arg = reply.arguments().first().value<QDBusArgument>();

@@ -32,6 +32,7 @@ qt_add_executable(unisic
     src/upload/UploadManager.h src/upload/UploadManager.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
+    src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp

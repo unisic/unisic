@@ -58,10 +58,7 @@ void OverlayController::begin(bool annotationTools)
             if (!err.isEmpty()) {
                 qWarning() << "Freeze capture failed:" << err;
                 if (err != QLatin1String("cancelled"))
-                    m_app->showToast(tr("Screen capture failed: %1. Install Unisic "
-                                        "(sudo cmake --install build) and launch it from the "
-                                        "application menu so KDE authorizes it — and make sure "
-                                        "xdg-desktop-portal-kde is running.").arg(err), true);
+                    m_app->showToast(m_app->captureErrorGuidance(err), true);
                 cancel();
                 return;
             }

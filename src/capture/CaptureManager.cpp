@@ -10,25 +10,73 @@
 #include <QDBusPendingCall>
 #include <QDebug>
 
-// Inside Flatpak the KDE Screenshot portal denies non-interactive requests
-// unless the permission store answers "yes" for this app id, and the overlay
-// freeze must be silent (a dialog per capture is unusable). Self-grant the
-// permission — the manifest allows it via
-// --talk-name=org.freedesktop.impl.portal.PermissionStore.
-static void grantSilentScreenshotPermission()
+// Host apps have no sandbox identity: xdg-desktop-portal resolves the app id
+// from the systemd launch unit (.desktop launches) or "" (terminal/AppImage
+// launches). Since xdg-desktop-portal 1.20 the Registry interface lets a host
+// app self-assign its id BEFORE the first portal call, so permissions are
+// keyed per-app instead of the anonymous "" bucket. Absent on older portals —
+// the async call just fails, harmlessly.
+static void registerHostAppId()
 {
-    const QString appId = qEnvironmentVariable("FLATPAK_ID");
-    if (appId.isEmpty())
-        return;
+    if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
+        return; // sandboxed: identity comes from the sandbox metadata
+    // NOTE: only the INTERFACE name carries the "host" domain — the object
+    // lives on the main portal path (verified live on xdg-desktop-portal
+    // 1.22: the /org/freedesktop/host/... path returns "Object does not
+    // exist").
     QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
-        QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
-        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
-        QStringLiteral("SetPermission"));
-    msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
-        << appId << QStringList{QStringLiteral("yes")};
+        QStringLiteral("org.freedesktop.portal.Desktop"),
+        QStringLiteral("/org/freedesktop/portal/desktop"),
+        QStringLiteral("org.freedesktop.host.portal.Registry"),
+        QStringLiteral("Register"));
+    msg << QStringLiteral("org.unisic.Unisic") << QVariantMap{};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
+
+// The SILENT portal Screenshot path is gated on the permission store's
+// "screenshot" table by BOTH GNOME (43+) and KDE (Plasma 6.4+) — without a
+// stored "yes" the first request pops a consent dialog, which the overlay
+// freeze must never do. Self-grant it up front (the store is talkable by host
+// apps too; this is the documented flameshot recipe). For host launches the
+// grant is written both for our registered id and for "" — the key the portal
+// uses for unidentifiable launches (terminal, AppImage, xdg-desktop-portal
+// < 1.20 without the Registry). Note the "" grant covers every unidentified
+// HOST app, not just us — the user installed a screenshot tool; that is the
+// established trade-off (flameshot does the same).
+static void grantSilentScreenshotPermission()
+{
+    const QString flatpakId = qEnvironmentVariable("FLATPAK_ID");
+    QStringList appIds;
+    if (!flatpakId.isEmpty())
+        appIds << flatpakId;
+    else
+        appIds << QStringLiteral("org.unisic.Unisic") << QString();
+    for (const QString &appId : std::as_const(appIds)) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+            QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
+            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+            QStringLiteral("SetPermission"));
+        msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
+            << appId << QStringList{QStringLiteral("yes")};
+        QDBusConnection::sessionBus().asyncCall(msg);
+    }
+}
+
+// Session family — chooses the capture chain. KDE has the KWin fast path
+// (KWin implements NEITHER screencopy protocol, grim never works there);
+// GNOME is portal-only (org.gnome.Shell.Screenshot is allowlisted since 41
+// and removed in 49); everything else (sway/river/labwc/Wayfire/Hyprland/
+// niri/COSMIC) speaks wlr-screencopy or its ext- successor, i.e. grim.
+static bool sessionContains(const char *token)
+{
+    const auto has = [token](const char *var) {
+        return qEnvironmentVariable(var).contains(QLatin1String(token), Qt::CaseInsensitive);
+    };
+    return has("XDG_CURRENT_DESKTOP") || has("XDG_SESSION_DESKTOP");
+}
+static bool isKdeSession() { return sessionContains("KDE") || sessionContains("plasma"); }
+static bool isGnomeSession() { return sessionContains("GNOME"); }
 
 static bool isKWinAuthError(const QString &err)
 {
@@ -59,7 +107,18 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_gnome(new GnomeScreenshot(this))
     , m_grim(new GrimScreenshot(this))
 {
+    // Order matters: Register must precede any other portal interaction on
+    // this connection for the id to stick.
+    registerHostAppId();
     grantSilentScreenshotPermission();
+}
+
+// grim as the PRIMARY backend: any Wayland session that isn't KDE (KWin fast
+// path, no screencopy) or GNOME (portal-only) — the whole wlroots family plus
+// niri and COSMIC. Silent, deterministic, no portal roundtrip.
+bool CaptureManager::preferGrim() const
+{
+    return !isKdeSession() && !isGnomeSession() && GrimScreenshot::isAvailable();
 }
 
 bool CaptureManager::preferGnome() const
@@ -89,14 +148,19 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
     const bool gnomeAvail = GnomeScreenshot::isAvailable();
     const bool niri = GnomeScreenshot::isNiriSession();
 
-    // Deepest rescue: wlr-screencopy via grim. When it's absent on niri, say
-    // so — installing grim is THE fix for the multi-monitor dead end there.
+    // Deepest rescue: wlr-screencopy via grim. When it's absent on a session
+    // where it is likely the ONLY working backend (niri: multi-monitor D-Bus
+    // dead end #117; sway/river/labwc: no Screenshot portal at all), say so.
     auto grimRescue = [this, cursor, cb, niri](const QString &prevErr) {
         if (!GrimScreenshot::isAvailable()) {
             QString msg = prevErr;
             if (niri)
                 msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
                                       "fails with more than one monitor (niri issue #117)");
+            else if (!isKdeSession() && !isGnomeSession()
+                     && !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
+                msg += QStringLiteral("; installing 'grim' usually fixes capture on this "
+                                      "desktop (wlr-screencopy works where portals don't)");
             cb({}, msg);
             return;
         }
@@ -130,9 +194,9 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
         });
     };
 
-    // niri with grim installed: go straight to the backend that actually
-    // works there (silent, no dialog, multi-monitor-safe).
-    if (niri && GrimScreenshot::isAvailable()) {
+    // wlroots family / niri / COSMIC with grim installed: go straight to the
+    // backend that actually works there (silent, no dialog, no portal).
+    if (preferGrim()) {
         m_grim->captureWorkspace(cursor, [this, cb, gnomeFirst, portalThenGnome]
                                  (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
@@ -275,7 +339,37 @@ void CaptureManager::captureAllScreens(const QVector<QScreen *> &screens, MultiC
         kwinScreensSerial(std::move(guarded), 0, QVector<QImage>(screens.size()), std::move(cb));
         return;
     }
+    // Per-output grim beats crop-from-workspace: native pixels per screen,
+    // no mixed-DPI scale errors. Only useful when Qt runs natively on Wayland
+    // (QScreen::name() must be the wl output name — under XWayland it isn't).
+    if (preferGrim() && QGuiApplication::platformName() == QLatin1String("wayland")) {
+        grimScreensSerial(std::move(guarded), 0, QVector<QImage>(screens.size()), std::move(cb));
+        return;
+    }
     portalAllScreens(std::move(guarded), std::move(cb));
+}
+
+void CaptureManager::grimScreensSerial(QVector<QPointer<QScreen>> screens, int index,
+                                       QVector<QImage> acc, MultiCallback cb)
+{
+    if (index >= screens.size()) {
+        cb(acc, {});
+        return;
+    }
+    if (!screens[index]) {
+        cb({}, QStringLiteral("screen disconnected during capture"));
+        return;
+    }
+    m_grim->captureOutput(screens[index]->name(), m_settings->includeCursor(),
+        [this, screens, index, acc, cb](const QImage &img, const QString &err) mutable {
+            if (!err.isEmpty()) {
+                qWarning() << "grim -o failed, falling back to the workspace path:" << err;
+                portalAllScreens(screens, std::move(cb), err);
+                return;
+            }
+            acc[index] = img;
+            grimScreensSerial(screens, index + 1, std::move(acc), std::move(cb));
+        });
 }
 
 void CaptureManager::kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index,

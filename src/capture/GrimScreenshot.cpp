@@ -12,11 +12,26 @@ bool GrimScreenshot::isAvailable()
 
 void GrimScreenshot::captureWorkspace(bool includeCursor, Callback cb)
 {
-    auto *proc = new QProcess(this);
     QStringList args{QStringLiteral("-t"), QStringLiteral("png")};
     if (includeCursor)
         args << QStringLiteral("-c");
     args << QStringLiteral("-"); // PNG to stdout
+    run(args, std::move(cb));
+}
+
+void GrimScreenshot::captureOutput(const QString &outputName, bool includeCursor, Callback cb)
+{
+    QStringList args{QStringLiteral("-t"), QStringLiteral("png"),
+                     QStringLiteral("-o"), outputName};
+    if (includeCursor)
+        args << QStringLiteral("-c");
+    args << QStringLiteral("-");
+    run(args, std::move(cb));
+}
+
+void GrimScreenshot::run(const QStringList &args, Callback cb)
+{
+    auto *proc = new QProcess(this);
 
     connect(proc, &QProcess::finished, this,
             [this, proc, cb](int code, QProcess::ExitStatus) {

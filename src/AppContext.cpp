@@ -562,7 +562,6 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     return notif;
 }
 
-<<<<<<< HEAD
 void AppContext::scheduleMemoryTrim()
 {
 #if defined(__GLIBC__)
@@ -576,10 +575,7 @@ void AppContext::scheduleMemoryTrim()
 #endif
 }
 
-QString AppContext::saveImageAuto(const QImage &img)
-=======
 QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 {
     return saveImageTo(img, m_settings->saveDirectory(), fileName);
 }

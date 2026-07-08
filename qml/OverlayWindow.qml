@@ -125,13 +125,16 @@ Window {
             }
         }
 
-        // Object-pick status (segmentation progress / cutout ready)
+        // Object-pick status (segmentation progress / cutout ready).
+        // Sits opposite the toolbar: with a top-anchored toolbar the pill
+        // moves to the bottom so the two never overlap.
         Rectangle {
+            readonly property bool toolbarOnTop:
+                App.settings.overlayToolbarPosition.indexOf("top") >= 0
             visible: canvas.tool === AnnotationCanvas.ObjectPick && canvas.hasSelection
                      && (canvas.segmenting || canvas.hasObjectMask)
             anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 42
+            y: toolbarOnTop ? parent.height - height - 42 : 42
             width: segText.implicitWidth + 40
             height: 36
             radius: 18

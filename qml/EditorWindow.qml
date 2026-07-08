@@ -239,6 +239,22 @@ Window {
                     ? Math.min(width / canvas.imageSize.width, height / canvas.imageSize.height, 1)
                     : 1
                 readonly property real effectiveScale: zoom > 0 ? zoom : fitScale
+                // QQuickPaintedItem's texture follows the item size × DPR:
+                // cap the zoomed item so the device-pixel texture stays under
+                // common GPU limits (blank canvas otherwise) and strokes don't
+                // repaint hundreds of MB. Fit is always allowed — a fitted
+                // item never exceeds the viewport.
+                readonly property real texCap: 6000 / Math.max(1, Screen.devicePixelRatio)
+                readonly property real maxZoom: canvas.imageSize.width > 0
+                    ? Math.max(fitScale, Math.min(4, texCap / canvas.imageSize.width,
+                                                  texCap / canvas.imageSize.height))
+                    : 4
+                // maxZoom shrinks when the image grows (crop -> zoom in ->
+                // undo): re-clamp, or the item balloons past the texture cap.
+                onMaxZoomChanged: if (zoom > 0 && zoom > maxZoom) { zoom = maxZoom; clampPan() }
+                // Lower bound below fitScale would zoom IN on huge images
+                // whose fit is already under 0.1.
+                readonly property real minZoom: Math.min(0.1, fitScale)
 
                 function clampPan() {
                     contentX = Math.max(0, Math.min(contentWidth - width, contentX))
@@ -248,7 +264,7 @@ Window {
                     // Keep the viewport center stable across the zoom step.
                     var cx = canvas.width > 0 ? (contentX + width / 2 - canvas.x) / canvas.width : 0.5
                     var cy = canvas.height > 0 ? (contentY + height / 2 - canvas.y) / canvas.height : 0.5
-                    zoom = Math.max(0.1, Math.min(4, effectiveScale * f))
+                    zoom = Math.max(minZoom, Math.min(maxZoom, effectiveScale * f))
                     contentX = canvas.x + cx * canvas.width - width / 2
                     contentY = canvas.y + cy * canvas.height - height / 2
                     clampPan()
@@ -335,8 +351,10 @@ Window {
                     visible: false
                     x: canvas.x + imgX * canvas.renderScale
                     y: canvas.y + imgY * canvas.renderScale
-                    width: 320
-                    height: 40
+                    // Scale with zoom, or the zoomed font gets clipped by a
+                    // fixed-size box.
+                    width: 320 * Math.max(1, canvas.renderScale)
+                    height: 40 * Math.max(1, canvas.renderScale)
                     z: 50
                     Rectangle {
                         anchors.fill: parent

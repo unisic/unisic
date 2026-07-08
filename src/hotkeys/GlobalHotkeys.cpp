@@ -3,6 +3,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusMetaType>
+#include <QDBusArgument>
 #include <QKeySequence>
 #include <QCoreApplication>
 #include <QDebug>
@@ -85,11 +86,11 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     ensureSignalConnected();
 }
 
-void GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendlyName,
+bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendlyName,
                                 const QString &keySequence)
 {
     if (!m_available)
-        return;
+        return false;
     const QStringList id = fullActionId(actionId, friendlyName);
 
     QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
@@ -104,14 +105,29 @@ void GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     // the OLD key. Only NoAutoloading forces the daemon to take the passed keys and
     // persist them to kglobalshortcutsrc. This was the "hotkeys set from the app UI
     // don't work, only KDE-set ones do" bug: autoloading kept clobbering our value.
+    const QList<int> wanted = keysFor(keySequence);
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
-    set << id << QVariant::fromValue(keysFor(keySequence)) << uint(0x2 | 0x4);
+    set << id << QVariant::fromValue(wanted) << uint(0x2 | 0x4);
     QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
-    if (reply.type() == QDBusMessage::ErrorMessage)
-        qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();
-
     ensureSignalConnected();
+
+    if (reply.type() == QDBusMessage::ErrorMessage) {
+        qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();
+        return false;
+    }
+    // The daemon answers with the keys actually in effect: when another
+    // component owns the requested combination it keeps/returns something
+    // else — surface that instead of pretending the bind worked.
+    if (!reply.arguments().isEmpty()) {
+        const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
+        if (actual != wanted) {
+            qWarning() << "setShortcut for" << actionId << "requested" << wanted
+                       << "but daemon kept" << actual << "(key owned elsewhere?)";
+            return false;
+        }
+    }
+    return true;
 }
 
 void GlobalHotkeys::unregisterAll()

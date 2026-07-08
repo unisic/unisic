@@ -57,10 +57,6 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     connect(&m_maxTimer, &QTimer::timeout, this, &GifRecorder::stop);
     m_elapsedTick.setInterval(250);
     connect(&m_elapsedTick, &QTimer::timeout, this, &GifRecorder::elapsedChanged);
-    // Warm the ffmpeg encoder probe off the GUI thread: without this the
-    // FIRST record/stop interaction blocks the UI for up to 5 s on the
-    // synchronous "ffmpeg -encoders" round-trip.
-    (void)QtConcurrent::run([] { (void)ffmpegEncoders(); });
 }
 
 GifRecorder::~GifRecorder()
@@ -89,6 +85,16 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 #else
     if (m_state != Idle)
         return;
+    // Warm the ffmpeg encoder probe off the GUI thread while the portal
+    // dialog / stream negotiation runs — without this the first beginEncoding
+    // blocks the UI for up to 5 s on the synchronous "ffmpeg -encoders"
+    // round-trip. Done here, not in the constructor: one-shot CLI invocations
+    // (--export-settings etc.) construct the recorder without ever recording,
+    // and the global pool would hold process exit until the probe finished.
+    if (!m_probeWarmed) {
+        m_probeWarmed = true;
+        (void)QtConcurrent::run([] { (void)ffmpegEncoders(); });
+    }
     m_state = Starting;
     m_output = output;
     m_source = source;
@@ -340,15 +346,25 @@ void GifRecorder::stop()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
-    // Flip the UI to "Encoding…" BEFORE tearing the grabber down —
-    // PipeWireGrabber::stop() joins the capture thread, and doing that first
-    // made the stop button look unresponsive for the join's duration.
     emit converting();
 #ifdef HAVE_PIPEWIRE
     if (m_grabber) {
-        m_grabber->stop();
-        m_grabber->deleteLater();
+        // Detach and stop on a worker thread: pw_thread_loop_stop JOINS the
+        // capture thread, and doing that on the GUI thread blocks the very
+        // repaint that should show the "Encoding…" state. Once detached,
+        // abort()/fail()/the destructor see m_grabber == nullptr and cannot
+        // double-stop it; only the worker touches the object until its
+        // deleteLater lands back on the GUI thread.
+        PipeWireGrabber *g = m_grabber;
         m_grabber = nullptr;
+        g->disconnect(this);
+        // Un-parent, or ~GifRecorder at app quit deletes the child on the GUI
+        // thread while the worker is still inside g->stop() (use-after-free).
+        g->setParent(nullptr);
+        (void)QtConcurrent::run([g] {
+            g->stop();
+            QMetaObject::invokeMethod(g, "deleteLater", Qt::QueuedConnection);
+        });
     }
 #endif
     if (m_session) {

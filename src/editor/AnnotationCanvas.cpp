@@ -16,6 +16,17 @@ AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
     setAcceptHoverEvents(true);
     setAntialiasing(true);
     setCursor(Qt::CrossCursor);
+    // Debounce for nudge-driven re-segmentation: arrow-key autorepeat would
+    // otherwise queue one full segmentation job per repeat.
+    m_nudgeTimer = new QTimer(this);
+    m_nudgeTimer->setSingleShot(true);
+    m_nudgeTimer->setInterval(150);
+    connect(m_nudgeTimer, &QTimer::timeout, this, &AnnotationCanvas::startSegmentation);
+}
+
+bool AnnotationCanvas::segmenting() const
+{
+    return m_segmentActive > 0 || (m_nudgeTimer && m_nudgeTimer->isActive());
 }
 
 void AnnotationCanvas::setImage(const QImage &img)
@@ -121,16 +132,34 @@ void AnnotationCanvas::setSelectionMode(bool on)
     update();
 }
 
+// Grayscale8 -> Alpha8 the only reliable way: convertToFormat routes through
+// RGB (gray becomes an opaque color) and yields an all-255 alpha image, which
+// silently turned both the cutout and its preview into no-ops. Both formats
+// are 1 byte/px, so a per-scanline copy of the gray values IS the alpha plane.
+static QImage grayToAlpha(const QImage &gray)
+{
+    QImage a(gray.size(), QImage::Format_Alpha8);
+    for (int y = 0; y < gray.height(); ++y)
+        memcpy(a.scanLine(y), gray.constScanLine(y), size_t(gray.width()));
+    return a;
+}
+
 void AnnotationCanvas::startSegmentation()
 {
-    if (m_base.isNull() || !hasSelection())
+    if (m_base.isNull() || !hasSelection()) {
+        // A pending nudge-debounce timer counted as segmenting() until this
+        // fire — notify, or the pill and a deferred confirm wait forever.
+        emit segmentingChanged();
         return;
+    }
     const QRect r = m_selection.toAlignedRect().intersected(m_base.rect());
     m_objectMask = {};
     m_objectMaskRect = {};
     m_maskOverlay = {};
+    m_segmentRect = r;
     const quint64 seq = ++m_segmentSeq; // invalidates any in-flight run
     if (r.width() < 12 || r.height() < 12) {
+        m_segmentRect = {};
         emit segmentingChanged();
         update();
         return;
@@ -142,6 +171,10 @@ void AnnotationCanvas::startSegmentation()
         const QImage mask = w->result();
         w->deleteLater();
         --m_segmentActive;
+        // A degenerate result must not poison m_segmentRect: re-clicking the
+        // same candidate should retry, not become a permanent no-op.
+        if (seq == m_segmentSeq && mask.isNull())
+            m_segmentRect = {};
         if (seq == m_segmentSeq && !mask.isNull()) {
             m_objectMask = mask;
             m_objectMaskRect = r;
@@ -152,7 +185,7 @@ void AnnotationCanvas::startSegmentation()
             m_maskOverlay.fill(QColor(23, 21, 59, 200));
             QPainter p(&m_maskOverlay);
             p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-            p.drawImage(0, 0, inv.convertToFormat(QImage::Format_Alpha8));
+            p.drawImage(0, 0, grayToAlpha(inv));
             p.end();
         }
         emit segmentingChanged();
@@ -165,11 +198,15 @@ void AnnotationCanvas::startSegmentation()
 void AnnotationCanvas::clearObjectMask()
 {
     ++m_segmentSeq; // drop any in-flight result
+    const bool wasSegmenting = segmenting();
     const bool had = !m_objectMask.isNull();
+    if (m_nudgeTimer)
+        m_nudgeTimer->stop();
     m_objectMask = {};
     m_objectMaskRect = {};
     m_maskOverlay = {};
-    if (had)
+    m_segmentRect = {};
+    if (had || wasSegmenting != segmenting())
         emit segmentingChanged();
 }
 
@@ -262,9 +299,16 @@ void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
     dy = qBound(bounds.top() - m_selection.top(), dy, bounds.bottom() - m_selection.bottom());
     m_selection.translate(dx, dy);
     emit selectionRectChanged();
-    // The mask was computed for the old rectangle — re-segment in place.
-    if (m_tool == ObjectPick)
-        startSegmentation();
+    // The mask was computed for the old rectangle — re-segment, debounced so
+    // key autorepeat runs ONE job after the burst instead of one per repeat.
+    // The pending timer counts as segmenting(), so a confirm in the window
+    // between keypress and timer fire waits instead of exporting stale state.
+    if (m_tool == ObjectPick) {
+        const bool wasIdle = !segmenting();
+        m_nudgeTimer->start();
+        if (wasIdle)
+            emit segmentingChanged();
+    }
     update();
 }
 
@@ -542,7 +586,7 @@ QImage AnnotationCanvas::renderedSelection() const
     if (m_tool == ObjectPick && !m_objectMask.isNull() && m_objectMaskRect == r) {
         QPainter p(&crop);
         p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        p.drawImage(0, 0, m_objectMask.convertToFormat(QImage::Format_Alpha8));
+        p.drawImage(0, 0, grayToAlpha(m_objectMask));
         p.end();
     }
     return crop;
@@ -580,18 +624,24 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
             // Pad the tight bounding box so the border ring the segmenter
             // treats as background actually samples background pixels.
             const int pad = qMax(6, qMax(m_hoverObject.width(), m_hoverObject.height()) / 20);
-            m_selection = QRectF(m_hoverObject.adjusted(-pad, -pad, pad, pad)
-                                     .intersected(m_base.rect()));
-            normalizeSelection();
-            emit selectionRectChanged();
-            startSegmentation();
-            update();
+            const QRect padded = m_hoverObject.adjusted(-pad, -pad, pad, pad)
+                                     .intersected(m_base.rect());
+            // Same region as the current (or in-flight) run: leave it alone.
+            // This press may be the first half of double-click-confirm, and
+            // restarting would wipe the mask right before the confirm fires.
+            if (padded != m_segmentRect) {
+                m_selection = QRectF(padded);
+                normalizeSelection();
+                emit selectionRectChanged();
+                startSegmentation();
+                update();
+            }
         } else {
-            m_drag = NewSelection;
-            clearObjectMask();
-            m_selection = QRectF(img, img);
-            emit selectionRectChanged();
-            update();
+            // Defer everything: a bare press must not destroy the selection or
+            // the mask (double-click-confirm arrives as press,press,dblclick).
+            // mouseMoveEvent promotes this to a real NewSelection once the
+            // pointer actually moves.
+            m_drag = PendingNewSelection;
         }
         e->accept();
         return;
@@ -695,6 +745,21 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
             m_current.rect.setBottomRight(img);
         update();
         break;
+    case PendingNewSelection: {
+        // Promote to a real selection only after a genuine drag (threshold in
+        // item pixels, converted to image space so it feels the same at any
+        // zoom); until then the previous selection + mask stay intact.
+        const qreal threshold = 5.0 / qMax(0.05, renderScale());
+        if (QLineF(m_dragStart, img).length() >= threshold) {
+            m_drag = NewSelection;
+            clearObjectMask();
+            m_selection = QRectF(m_dragStart, img).normalized();
+            normalizeSelection();
+            emit selectionRectChanged();
+            update();
+        }
+        break;
+    }
     case NewSelection:
         m_selection = QRectF(m_dragStart, img).normalized();
         normalizeSelection();

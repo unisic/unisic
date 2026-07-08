@@ -850,9 +850,18 @@ void AppContext::defineHotkeys()
                             m_settings->hotkeyRecord());
     // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable. Pushed
     // with setShortcut (SetPresent|NoAutoloading) on every startup, so even an
-    // edit made in KDE's Shortcuts KCM is reverted at the next launch.
-    m_hotkeys->setShortcut(QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
-                           QStringLiteral("Ctrl+Escape"));
+    // edit made in KDE's Shortcuts KCM is reverted at the next launch. Stock
+    // Plasma ships Ctrl+Esc bound to "Show System Activity" — the daemon then
+    // refuses the grab, so tell the user instead of failing silently.
+    if (m_hotkeys->available()
+        && !m_hotkeys->setShortcut(QStringLiteral("stop-recording"),
+                                   tr("Stop recording (emergency)"),
+                                   QStringLiteral("Ctrl+Escape"))) {
+        qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
+                      " component — on stock Plasma: Show System Activity)";
+        showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
+                     "(System Settings → Shortcuts to free it)"));
+    }
 }
 
 // Called when the user changes a shortcut in Unisic's own settings (or on

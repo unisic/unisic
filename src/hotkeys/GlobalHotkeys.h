@@ -18,11 +18,18 @@ public:
                       const QString &defaultKeySequence);
 
     // Push a user-chosen shortcut from Unisic's own settings to KGlobalAccel so
-    // the change propagates to the DE. Call this only when the user edits a key.
-    void setShortcut(const QString &actionId, const QString &friendlyName,
+    // the change propagates to the DE. Call this only when the user edits a key
+    // (or on startup for a deliberately forced binding). Returns false when the
+    // daemon did not take the requested keys — typically because another
+    // component already owns them (e.g. stock Plasma binds Ctrl+Esc).
+    bool setShortcut(const QString &actionId, const QString &friendlyName,
                      const QString &keySequence);
 
     void unregisterAll();
+
+    // False when org.kde.kglobalaccel is absent (non-KDE session) — callers
+    // must not report a bind "conflict" that is really just no daemon.
+    bool available() const { return m_available; }
 
 signals:
     void activated(const QString &actionId);

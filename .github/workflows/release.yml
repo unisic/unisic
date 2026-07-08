@@ -182,9 +182,11 @@ jobs:
             --plugin qt \
             --output appimage
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
-          # binary when update information is embedded — ship both.
+          # binary when update information is embedded. HARD-fail if it did
+          # not: shipping an AppImage whose embedded update info points at a
+          # .zsync that was never published breaks AppImageUpdate for users.
           mv ./*.AppImage dist/
-          mv ./*.zsync dist/ 2>/dev/null || true
+          mv ./*.zsync dist/ || { echo "::error::no .zsync produced — update information not embedded?"; exit 1; }
           ls -la dist/
 
       - uses: actions/upload-artifact@v4

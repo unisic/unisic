@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QVector>
 #include <QRect>
+#include <QTimer>
 #include <qqmlregistration.h>
 
 template <typename T> class QFutureWatcher;
@@ -74,7 +75,9 @@ public:
     bool canRedo() const { return !m_redo.isEmpty(); }
     QSize imageSize() const { return m_base.size(); }
     qreal renderScale() const;
-    bool segmenting() const { return m_segmentActive > 0; }
+    // "Segmenting" includes a pending nudge-debounce: a confirm arriving in
+    // that window must also wait, or it would export the stale/absent mask.
+    bool segmenting() const;
     bool hasObjectMask() const { return !m_objectMask.isNull(); }
 
     Q_INVOKABLE void undo();
@@ -130,7 +133,12 @@ private:
         int number = 0;             // step marker
     };
 
-    enum DragMode { NoDrag, DrawDrag, NewSelection, MoveSelection, ResizeSelection };
+    // PendingNewSelection: an ObjectPick press that did NOT hit a candidate is
+    // held back until real drag movement — a bare press must not destroy the
+    // current selection/mask, because it may be the first half of the
+    // double-click-confirm gesture.
+    enum DragMode { NoDrag, DrawDrag, NewSelection, MoveSelection, ResizeSelection,
+                    PendingNewSelection };
 
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
@@ -171,10 +179,15 @@ private:
 
     // Object-pick foreground mask for the current selection (Grayscale8 at
     // region size, 255 = keep). Computed off-thread; m_segmentSeq drops stale
-    // results, m_maskOverlay is the cached dim-the-background preview.
+    // results, m_maskOverlay is the cached dim-the-background preview,
+    // m_segmentRect is the region of the last started run (done OR in flight —
+    // re-clicking it must not restart and wipe the mask mid-double-click),
+    // m_nudgeTimer debounces re-segmentation during arrow-key autorepeat.
     QImage m_objectMask;
     QRect m_objectMaskRect;
     QImage m_maskOverlay;
+    QRect m_segmentRect;
     quint64 m_segmentSeq = 0;
     int m_segmentActive = 0;
+    QTimer *m_nudgeTimer = nullptr;
 };

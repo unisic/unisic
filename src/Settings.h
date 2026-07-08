@@ -7,6 +7,8 @@
 #include <QFile>
 #include <QDebug>
 #include <QCoreApplication>
+#include <QSet>
+#include <QHash>
 #include "ConfigPath.h"
 #include <qqmlregistration.h>
 
@@ -119,6 +121,16 @@ public:
                            << "and started fresh";
             m_s.sync(); // re-open the now-absent file cleanly
         }
+
+        // DUPLICATE-SECTION self-heal. If a SECOND unisic process (an older
+        // build with a different single-instance socket name, so the guard
+        // didn't catch it) wrote this file concurrently, QSettings can leave
+        // two "[%General]" headers — and the interleaved writes drop settings
+        // (the reported "General-tab options reset every launch"). QSettings
+        // reads the union but never rewrites a clean file on its own. Detect a
+        // repeated group header in the raw text and force a single clean
+        // rewrite from the in-memory (deduplicated) view.
+        rewriteIfDuplicated();
         // Writability probe: round-trip a marker through a fresh reader.
         m_s.setValue(QStringLiteral("_probe"), 1);
         m_s.sync();
@@ -138,6 +150,38 @@ public:
     // a warning banner so the user is not left re-configuring every launch).
     bool persistent() const { return m_writable; }
     Q_INVOKABLE QString configPath() const { return m_s.fileName(); }
+
+    // Collapse a config file that ended up with repeated group headers (from a
+    // concurrent second writer) into one clean section per group, preserving
+    // every key. QSettings reads the union already, so allKeys()->clear()->
+    // re-set->sync() rewrites a single, canonical file.
+    void rewriteIfDuplicated()
+    {
+        QFile f(m_s.fileName());
+        if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+            return;
+        QSet<QString> seenHeaders;
+        bool dup = false;
+        while (!f.atEnd()) {
+            const QByteArray line = f.readLine().trimmed();
+            if (line.startsWith('[') && line.endsWith(']')) {
+                if (seenHeaders.contains(line)) { dup = true; break; }
+                seenHeaders.insert(line);
+            }
+        }
+        f.close();
+        if (!dup)
+            return;
+        qWarning() << "Settings file had duplicate sections (concurrent writer?) — rewriting clean";
+        QHash<QString, QVariant> all;
+        const QStringList keys = m_s.allKeys();
+        for (const QString &k : keys)
+            all.insert(k, m_s.value(k));
+        m_s.clear();
+        for (auto it = all.constBegin(); it != all.constEnd(); ++it)
+            m_s.setValue(it.key(), it.value());
+        m_s.sync();
+    }
 
     static QString defaultSaveDir()
     {

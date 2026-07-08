@@ -29,17 +29,14 @@ class HistoryStore;
 // type "curl" handles ftp://, ftps://, sftp:// via the curl CLI:
 // { "name":"my-sftp", "type":"curl", "requestUrl":"sftp://host/dir/",
 //   "user":"name:pass", "publicUrlBase":"https://host/dir/" }
-<<<<<<< HEAD
+// Optional "insecure": true skips sftp host-key verification (curl builds
+// whose sftp backend cannot read known_hosts). Off by default.
 //
 // "body" selects the request encoding:
 //   absent / "multipart" -> multipart/form-data with the file part (default),
 //   "json" -> the raw string in "data" is POSTed as the body; tokens
 //     $base64$ (file bytes, base64), $filename$, $mime$ are substituted first,
 //     and Content-Type defaults to application/json unless a header overrides.
-=======
-// Optional "insecure": true skips sftp host-key verification (curl builds
-// whose sftp backend cannot read known_hosts). Off by default.
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 class UploadManager : public QObject
 {
     Q_OBJECT
@@ -97,9 +94,6 @@ private:
     QNetworkAccessManager *m_nam;
     QJsonArray m_destinations;
     bool m_busy = false;
-<<<<<<< HEAD
     QString m_lastImportError;
-=======
     int m_active = 0; // in-flight uploads; busy = m_active > 0
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 };

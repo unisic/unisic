@@ -57,6 +57,7 @@ private:
     void fail(const QString &msg);
 
     Settings *m_settings;
+    bool m_probeWarmed = false; // ffmpeg encoder probe kicked off once
     ScreenCastSession *m_session = nullptr;
     PipeWireGrabber *m_grabber = nullptr;
     QProcess *m_ffmpeg = nullptr;

@@ -134,12 +134,9 @@ private:
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
-<<<<<<< HEAD
     QTimer *m_trimTimer = nullptr;
     QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
-=======
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
     QString m_toast;
     bool m_converting = false;
     bool m_shortcutRecording = false;

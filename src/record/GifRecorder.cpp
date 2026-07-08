@@ -12,6 +12,7 @@
 #include <QScreen>
 #include <QSet>
 #include <QDebug>
+#include <QtConcurrent>
 #include <cstring>
 
 // The ffmpeg found in PATH varies: the Flatpak KDE runtime ships one without
@@ -19,13 +20,9 @@
 // intermediate and the MP4 output can pick a working fallback. An empty set
 // means the probe itself failed (no ffmpeg) — callers keep their preferred
 // encoder and the existing "ffmpeg could not be started" path reports it.
-static const QSet<QString> &ffmpegEncoders()
+static QSet<QString> probeFfmpegEncoders()
 {
-    static QSet<QString> cached;
-    static bool probed = false;
-    if (probed)
-        return cached;
-    probed = true;
+    QSet<QString> found;
     QProcess p;
     p.start(QStringLiteral("ffmpeg"),
             {QStringLiteral("-hide_banner"), QStringLiteral("-encoders")});
@@ -36,9 +33,18 @@ static const QSet<QString> &ffmpegEncoders()
             // (skip the legend line " V..... = Video")
             const QList<QByteArray> cols = line.simplified().split(' ');
             if (cols.size() >= 2 && cols[0].startsWith('V') && cols[1] != "=")
-                cached.insert(QString::fromLatin1(cols[1]));
+                found.insert(QString::fromLatin1(cols[1]));
         }
     }
+    return found;
+}
+
+// Magic-static: the first caller runs the probe, later callers get the cache,
+// concurrent callers block until the probe finishes — which makes the warm-up
+// from a worker thread in the constructor safe.
+static const QSet<QString> &ffmpegEncoders()
+{
+    static const QSet<QString> cached = probeFfmpegEncoders();
     return cached;
 }
 
@@ -79,6 +85,16 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 #else
     if (m_state != Idle)
         return;
+    // Warm the ffmpeg encoder probe off the GUI thread while the portal
+    // dialog / stream negotiation runs — without this the first beginEncoding
+    // blocks the UI for up to 5 s on the synchronous "ffmpeg -encoders"
+    // round-trip. Done here, not in the constructor: one-shot CLI invocations
+    // (--export-settings etc.) construct the recorder without ever recording,
+    // and the global pool would hold process exit until the probe finished.
+    if (!m_probeWarmed) {
+        m_probeWarmed = true;
+        (void)QtConcurrent::run([] { (void)ffmpegEncoders(); });
+    }
     m_state = Starting;
     m_output = output;
     m_source = source;
@@ -330,11 +346,25 @@ void GifRecorder::stop()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
+    emit converting();
 #ifdef HAVE_PIPEWIRE
     if (m_grabber) {
-        m_grabber->stop();
-        m_grabber->deleteLater();
+        // Detach and stop on a worker thread: pw_thread_loop_stop JOINS the
+        // capture thread, and doing that on the GUI thread blocks the very
+        // repaint that should show the "Encoding…" state. Once detached,
+        // abort()/fail()/the destructor see m_grabber == nullptr and cannot
+        // double-stop it; only the worker touches the object until its
+        // deleteLater lands back on the GUI thread.
+        PipeWireGrabber *g = m_grabber;
         m_grabber = nullptr;
+        g->disconnect(this);
+        // Un-parent, or ~GifRecorder at app quit deletes the child on the GUI
+        // thread while the worker is still inside g->stop() (use-after-free).
+        g->setParent(nullptr);
+        (void)QtConcurrent::run([g] {
+            g->stop();
+            QMetaObject::invokeMethod(g, "deleteLater", Qt::QueuedConnection);
+        });
     }
 #endif
     if (m_session) {
@@ -343,7 +373,6 @@ void GifRecorder::stop()
         m_session = nullptr;
     }
 
-    emit converting();
     if (!m_ffmpeg) {
         fail(tr("Recording encoder is not running"));
         return;

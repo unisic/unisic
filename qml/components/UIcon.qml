@@ -25,14 +25,9 @@ Image {
     }
 
     source: name === "" ? ""
-<<<<<<< HEAD
-            : "image://icon/" + name + "?color=" + _hex(color) + "&sz=" + size + "&v=" + Theme.rev
-              + (iconStyle === "" ? "" : "&src=" + iconStyle)
-    sourceSize: Qt.size(size, size)
-=======
             : "image://icon/" + name + "?color=" + _hex(color) + "&sz=" + _px + "&v=" + Theme.rev
+              + (iconStyle === "" ? "" : "&src=" + iconStyle)
     sourceSize: Qt.size(_px, _px)
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
     width: size
     height: size
     // The tint color's alpha is dropped from the URL (opaque #RRGGBB); honor it

@@ -91,6 +91,7 @@ qt_add_qml_module(unisic
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
         qml/components/ColorDot.qml
+        qml/components/MiddleScroll.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename

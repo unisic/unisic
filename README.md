@@ -42,6 +42,14 @@ Unisic captures screenshots and screen recordings, lets you annotate them before
 
 Grab the latest build from the [**Releases**](https://github.com/unisic/unisic/releases/latest) page, or [build from source](#build-from-source). Requires a Wayland session with `xdg-desktop-portal` (and a backend such as `xdg-desktop-portal-kde`); recording additionally needs PipeWire and `ffmpeg`. Silent native KWin capture is a KDE Plasma bonus — everything else works through portals on any Wayland desktop.
 
+### Updates
+
+| Package | How it updates |
+|---|---|
+| **AppImage** | Ships with embedded update information and a `.zsync` file on every release. Run [`AppImageUpdate`](https://github.com/AppImageCommunity/AppImageUpdate) (or anything built on `libappimageupdate`, e.g. AppImageLauncher's updater) on the file — it downloads only the changed blocks: `AppImageUpdate Unisic-*-x86_64.AppImage` |
+| **Flatpak** | The release bundle (`unisic.flatpak`) is a sideload — bundles have no update origin, so re-download it to update. Once Unisic lands on Flathub, `flatpak update` will handle it natively. |
+| **deb / rpm / Arch** | Installed through your package manager but not (yet) from a repository — download the new package from Releases and install it over the old one (`dnf install ./unisic-*.rpm`, `apt install ./unisic_*.deb`, `pacman -U unisic-*.pkg.tar.zst`). |
+
 ## Features
 
 ### Capture

@@ -137,7 +137,6 @@ void CaptureManager::captureWorkspace(Callback cb)
 
 void CaptureManager::captureScreen(QScreen *screen, Callback cb)
 {
-<<<<<<< HEAD
     // Snapshot the geometry now; the QScreen* must not be dereferenced inside the
     // async callbacks below (the monitor may be gone by the time they run).
     const ScreenGeom geom = snapshotScreen(screen);
@@ -146,34 +145,17 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
     if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
         m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
             [this, geom, cb](const QImage &img, const QString &err) {
-=======
-    // The portal dialog can stay open for seconds; the screen may be gone.
-    QPointer<QScreen> sp(screen);
-    if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
-        m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
-            [this, sp, cb](const QImage &img, const QString &err) {
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
                 if (!err.isEmpty()) {
                     qWarning() << "KWin captureScreen failed, portal fallback:" << err;
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
                     // Portal returns the whole workspace: crop to the screen.
-<<<<<<< HEAD
                     portalFallback([geom, cb, err](const QImage &full, const QString &e2) {
                         if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
                         QImage crop = CaptureManager::cropForScreen(full, geom);
                         if (crop.isNull()) {
                             cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
                                                  .arg(screenLabel(geom))));
-=======
-                    portalFallback([sp, cb, err](const QImage &full, const QString &e2) {
-                        if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
-                        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
-                        QImage crop = CaptureManager::cropForScreen(full, sp);
-                        if (crop.isNull()) {
-                            cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
-                                                 .arg(screenLabel(sp))));
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
                             return;
                         }
                         cb(crop, {});
@@ -185,21 +167,11 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
         return;
     }
     // Portal path: capture all and crop.
-<<<<<<< HEAD
     portalFallback([geom, hasScreen, cb](const QImage &full, const QString &err) {
         if (!err.isEmpty() || !hasScreen) { cb(full, err); return; }
         QImage crop = cropForScreen(full, geom);
         if (crop.isNull()) {
             cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(geom)));
-=======
-    const bool hadScreen = screen != nullptr;
-    portalFallback([sp, hadScreen, cb](const QImage &full, const QString &err) {
-        if (!err.isEmpty() || !hadScreen) { cb(full, err); return; }
-        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
-        QImage crop = cropForScreen(full, sp);
-        if (crop.isNull()) {
-            cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(sp)));
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
             return;
         }
         cb(crop, {});
@@ -310,19 +282,9 @@ void CaptureManager::portalAllScreens(QVector<QPointer<QScreen>> screens, MultiC
             cb({}, combinedError(previousError, err));
             return;
         }
-<<<<<<< HEAD
         QVector<QImage> out(geoms.size());
         for (int i = 0; i < geoms.size(); ++i) {
             out[i] = cropForScreen(full, geoms[i]);
-=======
-        QVector<QImage> out(screens.size());
-        for (int i = 0; i < screens.size(); ++i) {
-            if (!screens[i]) {
-                cb({}, QStringLiteral("screen disconnected during capture"));
-                return;
-            }
-            out[i] = cropForScreen(full, screens[i]);
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
             if (out[i].isNull()) {
                 cb({}, combinedError(previousError,
                                      QStringLiteral("screenshot does not contain screen %1")

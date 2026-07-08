@@ -489,14 +489,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
 {
     QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
-<<<<<<< HEAD
     bool hasContentType = false;
-    for (auto it = headers.begin(); it != headers.end(); ++it) {
-        req.setRawHeader(it.key().toUtf8(), it.value().toString().toUtf8());
-        if (it.key().compare(QLatin1String("Content-Type"), Qt::CaseInsensitive) == 0)
-            hasContentType = true;
-    }
-=======
     for (auto it = headers.begin(); it != headers.end(); ++it) {
         // An imported destinations file must not be able to inject headers.
         QByteArray key = it.key().toUtf8();
@@ -504,27 +497,9 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         key.replace('\r', "").replace('\n', "");
         val.replace('\r', "").replace('\n', "");
         req.setRawHeader(key, val);
+        if (it.key().compare(QLatin1String("Content-Type"), Qt::CaseInsensitive) == 0)
+            hasContentType = true;
     }
-
-    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-    const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
-    for (auto it = args.begin(); it != args.end(); ++it) {
-        QHttpPart part;
-        part.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QStringLiteral("form-data; name=\"%1\"").arg(it.key()));
-        part.setBody(it.value().toString().toUtf8());
-        multi->append(part);
-    }
-    QHttpPart filePart;
-    filePart.setHeader(QNetworkRequest::ContentTypeHeader, mime);
-    filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QStringLiteral("form-data; name=\"%1\"; filename=\"%2\"")
-                           .arg(sanitizeFileName(dest.value(QStringLiteral("fileFormName"))
-                                                     .toString(QStringLiteral("file"))),
-                                sanitizeFileName(fileName)));
-    filePart.setBody(data);
-    multi->append(filePart);
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 
     const QString method = dest.value(QStringLiteral("method")).toString(QStringLiteral("POST")).toUpper();
     const QString bodyType = dest.value(QStringLiteral("body")).toString().toLower();
@@ -556,7 +531,9 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         filePart.setHeader(QNetworkRequest::ContentTypeHeader, mime);
         filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
                            QStringLiteral("form-data; name=\"%1\"; filename=\"%2\"")
-                               .arg(dest.value(QStringLiteral("fileFormName")).toString(QStringLiteral("file")), fileName));
+                               .arg(sanitizeFileName(dest.value(QStringLiteral("fileFormName"))
+                                                         .toString(QStringLiteral("file"))),
+                                    sanitizeFileName(fileName)));
         filePart.setBody(data);
         multi->append(filePart);
 
@@ -644,7 +621,6 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         }
         cb(publicUrl, {}, {});
     });
-<<<<<<< HEAD
     // FailedToStart (curl missing/unlaunchable) never emits finished(): without
     // this the QProcess/temp file would leak and the wrapping done() lambda would
     // never clear m_busy, wedging the UI in a permanent "uploading" state.
@@ -655,17 +631,6 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         proc->deleteLater();
         tmp->deleteLater();
         cb({}, {}, tr("Could not run curl — is it installed? (needed for FTP/SFTP uploads)"));
-=======
-    // Without this, a missing curl binary means finished() never fires:
-    // the callback is lost and busy stays true forever.
-    connect(proc, &QProcess::errorOccurred, this,
-            [proc, tmp, cb](QProcess::ProcessError error) {
-        if (error != QProcess::FailedToStart)
-            return;
-        proc->deleteLater();
-        tmp->deleteLater();
-        cb({}, {}, tr("curl could not be started — is it installed?"));
->>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
     });
     proc->start(QStringLiteral("curl"), args);
     if (!curlConfig.isEmpty())

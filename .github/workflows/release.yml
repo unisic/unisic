@@ -157,7 +157,18 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           QML_SOURCES_PATHS: ${{ github.workspace }}/qml
+          # Embedded update information (AppImageUpdate / libappimageupdate):
+          # differential updates via the .zsync file published with each
+          # release. "latest" tracks the newest non-prerelease GitHub release.
+          LDAI_UPDATE_INFORMATION: "gh-releases-zsync|unisic|unisic|latest|Unisic-*x86_64.AppImage.zsync"
+          # Older linuxdeploy-plugin-appimage builds read the unprefixed name.
+          UPDATE_INFORMATION: "gh-releases-zsync|unisic|unisic|latest|Unisic-*x86_64.AppImage.zsync"
         run: |
+          version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+          version="${version_line#*VERSION }"
+          version="${version%% *}"
+          export VERSION="$version"
+
           mkdir -p tools dist
           curl -L -o tools/linuxdeploy-x86_64.AppImage \
             https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -170,12 +181,20 @@ jobs:
             --appdir AppDir \
             --plugin qt \
             --output appimage
+          # linuxdeploy's appimage plugin emits the matching .zsync next to the
+          # binary when update information is embedded. HARD-fail if it did
+          # not: shipping an AppImage whose embedded update info points at a
+          # .zsync that was never published breaks AppImageUpdate for users.
           mv ./*.AppImage dist/
+          mv ./*.zsync dist/ || { echo "::error::no .zsync produced — update information not embedded?"; exit 1; }
+          ls -la dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: unisic-appimage
-          path: dist/*.AppImage
+          path: |
+            dist/*.AppImage
+            dist/*.zsync
           if-no-files-found: error
 
   flatpak:

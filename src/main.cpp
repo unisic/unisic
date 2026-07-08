@@ -264,7 +264,15 @@ int main(int argc, char *argv[])
     // its D-Bus name, not XDG_CURRENT_DESKTOP — the env var is missing on
     // systemd-autostart, where gating on it would skip the authz setup on a
     // real KDE session.
-    {
+    // NOT when running as an AppImage: the user manages desktop integration
+    // with a dedicated tool (AppImageLauncher, LeverGear, Gear Lever), and the
+    // app dropping its own .desktop fights that — a duplicate menu entry whose
+    // Exec points at the transient FUSE mount path, stale the moment the
+    // AppImage moves or the mount changes. (It only ever bought silent KWin
+    // ScreenShot2 authz, which was already unreliable for an AppImage since
+    // KWin matches /proc/pid/exe against the .desktop Exec and the mount path
+    // differs every run; the portal path still works.)
+    if (qEnvironmentVariable("APPIMAGE").isEmpty()) {
         auto *bi = QDBusConnection::sessionBus().interface();
         const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
         if (kwin

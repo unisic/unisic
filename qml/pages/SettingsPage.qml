@@ -1,11 +1,18 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Dialogs
 import Unisic
 import "../components"
 
 Item {
     id: page
-    readonly property int cardWidth: Math.min(width - 2 * Theme.spacingXL, 694)
+    // paneArea is already inset by spacingXL on both sides, so don't subtract it
+    // again here (that left the cards mis-centered with a big right-hand gap).
+    readonly property int cardWidth: Math.min(paneArea.width, 694)
+    property int tab: 0
+
+    readonly property var tabNames: [qsTr("General"), qsTr("Appearance"),
+                                     qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
 
     readonly property var themeIds: ["system", "unisic", "dark", "light",
                                      "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
@@ -33,6 +40,19 @@ Item {
         if (hidden) list.push(id)
         App.settings.hiddenTools = list.join(",")
     }
+    // Per-tool freedesktop icon-name overrides (JSON map in editorToolIcons).
+    function iconOverride(id) {
+        var j = App.settings.editorToolIcons
+        if (!j) return ""
+        try { var m = JSON.parse(j); return m[id] || "" } catch (e) { return "" }
+    }
+    function setIconOverride(id, name) {
+        var j = App.settings.editorToolIcons
+        var m = {}
+        if (j) { try { m = JSON.parse(j) } catch (e) { m = {} } }
+        if (name && name !== "") m[id] = name; else delete m[id]
+        App.settings.editorToolIcons = JSON.stringify(m)
+    }
 
     component SettingRow: Item {
         property alias label: labelText.text
@@ -43,6 +63,8 @@ Item {
             id: labelText
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
+            width: slot.x - Theme.spacingM
+            elide: Text.ElideRight
             color: Theme.textPrimary
             font.pixelSize: Theme.fontM
         }
@@ -59,6 +81,24 @@ Item {
         color: Theme.textPrimary
         font.pixelSize: Theme.fontL
         font.weight: Font.DemiBold
+    }
+
+    // A scrollable settings pane: give it cards as default content.
+    component ScrollPane: Flickable {
+        id: fl
+        anchors.fill: parent
+        clip: true
+        contentWidth: width
+        contentHeight: paneCol.height + Theme.spacingXL
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        default property alias content: paneCol.data
+        Column {
+            id: paneCol
+            width: fl.width
+            spacing: Theme.spacingL
+        }
     }
 
     FileDialog {
@@ -84,64 +124,92 @@ Item {
         }
     }
 
-    Flickable {
-        anchors.fill: parent
+    // ---------------- header ----------------
+    Item {
+        id: header
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
         anchors.margins: Theme.spacingXL
-        contentHeight: col.height + Theme.spacingXL
+        anchors.bottomMargin: 0
+        height: 44
+        Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: qsTr("Settings")
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontTitle
+            font.weight: Font.Bold
+        }
+        Row {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Theme.spacingS
+            UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: importDialog.open() }
+            UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: exportDialog.open() }
+        }
+    }
+
+    // ---------------- tab bar ----------------
+    Row {
+        id: tabBar
+        anchors.top: header.bottom
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spacingXL
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingXL
+        anchors.topMargin: Theme.spacingM
+        height: 38
+        spacing: Theme.spacingS
+        Repeater {
+            model: page.tabNames
+            delegate: Rectangle {
+                required property int index
+                required property string modelData
+                width: tabLabel.implicitWidth + 28
+                height: 34
+                radius: Theme.radiusM
+                color: page.tab === index ? Theme.accent
+                     : tabMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16)
+                     : Theme.surface
+                border.width: 1
+                border.color: page.tab === index ? Theme.accent : Theme.divider
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                Text {
+                    id: tabLabel
+                    anchors.centerIn: parent
+                    text: modelData
+                    color: page.tab === index ? Theme.textOnAccent : Theme.textSecondary
+                    font.pixelSize: Theme.fontM
+                    font.weight: page.tab === index ? Font.DemiBold : Font.Normal
+                }
+                MouseArea {
+                    id: tabMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: page.tab = index
+                }
+            }
+        }
+    }
+
+    // ---------------- panes ----------------
+    Item {
+        id: paneArea
+        anchors.top: tabBar.bottom
+        anchors.topMargin: Theme.spacingM
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: Theme.spacingXL
+        anchors.rightMargin: Theme.spacingXL
+        anchors.bottomMargin: Theme.spacingL
         clip: true
 
-        Column {
-            id: col
-            width: parent.width
-            spacing: Theme.spacingL
-
-            Item {
-                width: parent.width
-                height: 44
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Settings")
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontTitle
-                    font.weight: Font.Bold
-                }
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.spacingS
-                    UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: importDialog.open() }
-                    UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: exportDialog.open() }
-                }
-            }
-
-            // ---------------- Appearance / theme ----------------
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Appearance") }
-                    SettingRow {
-                        label: qsTr("Theme")
-                        UComboBox {
-                            width: 220
-                            model: page.themeNames
-                            currentIndex: Math.max(0, page.themeIds.indexOf(ThemeController.themeName))
-                            onActivated: (i) => ThemeController.themeName = page.themeIds[i]
-                        }
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("The System theme follows your desktop's light/dark mode and accent color.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                }
-            }
-
-            // ---------------- General ----------------
+        // ===== General =====
+        ScrollPane {
+            visible: page.tab === 0
             UCard {
                 width: page.cardWidth
                 Column {
@@ -203,7 +271,6 @@ Item {
                 }
             }
 
-            // ---------------- Storage & file naming ----------------
             UCard {
                 width: page.cardWidth
                 Column {
@@ -262,7 +329,6 @@ Item {
                 }
             }
 
-            // ---------------- After capture ----------------
             UCard {
                 width: page.cardWidth
                 Column {
@@ -295,7 +361,6 @@ Item {
                 }
             }
 
-            // ---------------- After upload ----------------
             UCard {
                 width: page.cardWidth
                 Column {
@@ -312,8 +377,123 @@ Item {
                     }
                 }
             }
+        }
 
-            // ---------------- Editor defaults ----------------
+        // ===== Appearance =====
+        ScrollPane {
+            visible: page.tab === 1
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Appearance") }
+                    SettingRow {
+                        label: qsTr("Theme")
+                        UComboBox {
+                            width: 220
+                            model: page.themeNames
+                            currentIndex: Math.max(0, page.themeIds.indexOf(ThemeController.themeName))
+                            onActivated: (i) => ThemeController.themeName = page.themeIds[i]
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("The System theme follows your desktop's light/dark mode and accent color.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Window decoration") }
+                    SettingRow {
+                        label: qsTr("Use system window decoration")
+                        USwitch { checked: App.settings.useSystemDecoration; onToggled: (c) => App.settings.useSystemDecoration = c }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Off = Unisic draws its own title bar with themed minimize/maximize/close buttons.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+        }
+
+        // ===== Editor =====
+        ScrollPane {
+            visible: page.tab === 2
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor tool icons") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Choose the icon set for the drawing tools only — the main app icons stay fixed.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Icon style")
+                        UComboBox {
+                            width: 220
+                            model: [qsTr("Custom (bundled)"), qsTr("System (desktop theme)")]
+                            currentIndex: App.settings.editorIconStyle === "system" ? 1 : 0
+                            onActivated: (i) => App.settings.editorIconStyle = (i === 1 ? "system" : "custom")
+                        }
+                    }
+                    Text {
+                        visible: App.settings.editorIconStyle === "system"
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Optional: override individual tools with a freedesktop icon name.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Repeater {
+                        model: App.settings.editorIconStyle === "system"
+                               ? ToolCatalog.tools.filter(function (t) { return t.editor || t.overlay })
+                               : []
+                        delegate: Item {
+                            width: parent.width
+                            height: 44
+                            Row {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                UIcon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    name: page.iconOverride(modelData.id) || modelData.iconName
+                                    iconStyle: "system"
+                                    size: 18
+                                    color: Theme.textSecondary
+                                }
+                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            UTextField {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 200
+                                text: page.iconOverride(modelData.id)
+                                placeholder: modelData.iconName
+                                onEdited: (t) => page.setIconOverride(modelData.id, t.trim())
+                            }
+                        }
+                    }
+                }
+            }
+
             UCard {
                 width: page.cardWidth
                 Column {
@@ -342,7 +522,6 @@ Item {
                 }
             }
 
-            // ---------------- Capture overlay ----------------
             UCard {
                 width: page.cardWidth
                 Column {
@@ -361,7 +540,6 @@ Item {
                 }
             }
 
-            // ---------------- Editor tools (show/hide) ----------------
             UCard {
                 width: page.cardWidth
                 Column {
@@ -397,8 +575,11 @@ Item {
                     }
                 }
             }
+        }
 
-            // ---------------- Recording ----------------
+        // ===== Recording =====
+        ScrollPane {
+            visible: page.tab === 3
             UCard {
                 width: page.cardWidth
                 Column {
@@ -428,8 +609,11 @@ Item {
                     }
                 }
             }
+        }
 
-            // ---------------- Hotkeys ----------------
+        // ===== Hotkeys =====
+        ScrollPane {
+            visible: page.tab === 4
             UCard {
                 width: page.cardWidth
                 Column {
@@ -469,13 +653,14 @@ Item {
                         compact: true
                         onClicked: { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
                     }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Setting a shortcut here now writes it directly to KGlobalAccel — no need to configure it in KDE System Settings first.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
                 }
-            }
-
-            Text {
-                text: qsTr("Unisic 0.1 — screenshots · annotations · uploads · GIF, native on Wayland")
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontS
             }
         }
     }

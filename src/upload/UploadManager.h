@@ -29,6 +29,12 @@ class HistoryStore;
 // type "curl" handles ftp://, ftps://, sftp:// via the curl CLI:
 // { "name":"my-sftp", "type":"curl", "requestUrl":"sftp://host/dir/",
 //   "user":"name:pass", "publicUrlBase":"https://host/dir/" }
+//
+// "body" selects the request encoding:
+//   absent / "multipart" -> multipart/form-data with the file part (default),
+//   "json" -> the raw string in "data" is POSTed as the body; tokens
+//     $base64$ (file bytes, base64), $filename$, $mime$ are substituted first,
+//     and Content-Type defaults to application/json unless a header overrides.
 class UploadManager : public QObject
 {
     Q_OBJECT
@@ -52,6 +58,14 @@ public:
     Q_INVOKABLE void saveDestination(const QVariantMap &dest);
     Q_INVOKABLE void removeDestination(const QString &name);
     Q_INVOKABLE QVariantMap destination(const QString &name) const;
+
+    // Import a ShareX Custom Uploader (.sxcu) file. Accepts a plain path or a
+    // file:// URL. Returns the imported destination's name on success, or an
+    // empty string on failure (with errorOut set). Maps the common case:
+    // RequestMethod POST + Body MultipartFormData/JSON + JSON/text response.
+    Q_INVOKABLE QString importSxcu(const QString &pathOrUrl);
+    // Last import error message for the QML layer to surface.
+    Q_INVOKABLE QString lastImportError() const { return m_lastImportError; }
 
     // Settings export/import support.
     QJsonArray destinationsJson() const { return m_destinations; }
@@ -78,4 +92,5 @@ private:
     QNetworkAccessManager *m_nam;
     QJsonArray m_destinations;
     bool m_busy = false;
+    QString m_lastImportError;
 };

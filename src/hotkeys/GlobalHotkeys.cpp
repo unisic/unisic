@@ -97,11 +97,16 @@ void GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     reg << id;
     QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
 
-    // SetPresent(2), autoloading kept on → the new active key is written to
-    // kglobalshortcutsrc, so the change shows up in the DE's Shortcuts KCM.
+    // SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
+    // MUST be SetPresent|NoAutoloading (0x6). Verified live against kglobalacceld
+    // (Plasma 6): with SetPresent alone (0x2) and autoloading left ON, an action
+    // that already has a stored binding IGNORES the new keys — setShortcut returns
+    // the OLD key. Only NoAutoloading forces the daemon to take the passed keys and
+    // persist them to kglobalshortcutsrc. This was the "hotkeys set from the app UI
+    // don't work, only KDE-set ones do" bug: autoloading kept clobbering our value.
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
-    set << id << QVariant::fromValue(keysFor(keySequence)) << uint(0x2);
+    set << id << QVariant::fromValue(keysFor(keySequence)) << uint(0x2 | 0x4);
     QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
     if (reply.type() == QDBusMessage::ErrorMessage)
         qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();

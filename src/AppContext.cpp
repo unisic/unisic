@@ -40,6 +40,9 @@
 #include <QUuid>
 #include <QMetaProperty>
 #include <QDebug>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 AppContext::AppContext(QObject *parent)
     : QObject(parent)
@@ -326,6 +329,8 @@ void AppContext::onRecordingFinished(const QString &path)
             }
         });
     }
+
+    scheduleMemoryTrim();
 }
 
 // ----------------------------------------------------------- after-capture
@@ -376,6 +381,8 @@ void AppContext::finishCapture(const QImage &img)
 
     if (m_settings->openEditor())
         openEditor(img);
+
+    scheduleMemoryTrim();
 }
 
 void AppContext::afterUploadActions(const QString &url)
@@ -402,8 +409,8 @@ void AppContext::openEditor(const QImage &img)
     ctx->setContextProperty(QStringLiteral("editorSession"), session);
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
-        connect(win, &QQuickWindow::visibleChanged, session, [session, win](bool v) {
-            if (!v) { win->deleteLater(); session->deleteLater(); }
+        connect(win, &QQuickWindow::visibleChanged, session, [this, session, win](bool v) {
+            if (!v) { win->deleteLater(); session->deleteLater(); scheduleMemoryTrim(); }
         });
         win->show();
         win->requestActivate();
@@ -469,6 +476,11 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
                  :         ax + (avail.width() - cardW) / 2;
     const int py = top ? ay + margin : ay + avail.height() - cardH - margin;
 
+    // Only one popup at a time: retire the previous one so its full-resolution
+    // image and screen-sized window don't linger (matters when auto-hide is 0).
+    if (m_notifWindow)
+        m_notifWindow->close();
+
     auto *notif = new CaptureNotification(this, img, path, kind, this);
     auto *ctx = new QQmlContext(m_engine->rootContext(), notif);
     ctx->setContextProperty(QStringLiteral("notif"), notif);
@@ -485,9 +497,13 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
         return nullptr;
     }
     connect(notif, &CaptureNotification::closeRequested, win, &QQuickWindow::close);
-    connect(win, &QQuickWindow::visibleChanged, notif, [win, notif, ctx](bool v) {
-        if (!v) { win->deleteLater(); notif->deleteLater(); ctx->deleteLater(); }
+    connect(win, &QQuickWindow::visibleChanged, notif, [this, win, notif, ctx](bool v) {
+        if (!v) {
+            win->deleteLater(); notif->deleteLater(); ctx->deleteLater();
+            scheduleMemoryTrim(); // full image + popup window just went away
+        }
     });
+    m_notifWindow = win;
 
     if (screen)
         win->setScreen(screen);
@@ -499,6 +515,19 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     win->setMask(QRegion(px, py, cardW, cardH));
     win->show(); // deliberately no requestActivate() — must not steal focus
     return notif;
+}
+
+void AppContext::scheduleMemoryTrim()
+{
+#if defined(__GLIBC__)
+    if (!m_trimTimer) {
+        m_trimTimer = new QTimer(this);
+        m_trimTimer->setSingleShot(true);
+        m_trimTimer->setInterval(4000); // debounce bursts of captures
+        connect(m_trimTimer, &QTimer::timeout, this, [] { malloc_trim(0); });
+    }
+    m_trimTimer->start();
+#endif
 }
 
 QString AppContext::saveImageAuto(const QImage &img)

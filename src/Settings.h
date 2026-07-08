@@ -59,6 +59,9 @@ class Settings : public QObject
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
+    Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
+    Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
+    Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
 
 public:
     explicit Settings(QObject *parent = nullptr) : QObject(parent) {}
@@ -110,6 +113,14 @@ public:
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "general/capturePopupPosition", QStringLiteral("bottom-right"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "general/capturePopupDurationSec", 8) // 0 = stay open
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
+    // Editor/overlay tool icons only (never the main app chrome): "custom" =
+    // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
+    U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
+    // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
+    U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
+    // Main window chrome: true = system window decoration, false = the app's own
+    // custom title bar (frameless).
+    U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -130,6 +141,8 @@ public:
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
+        emit editorIconStyleChanged(); emit editorToolIconsChanged();
+        emit useSystemDecorationChanged();
     }
 
 signals:
@@ -173,6 +186,9 @@ signals:
     void capturePopupPositionChanged();
     void capturePopupDurationSecChanged();
     void ocrLanguagesChanged();
+    void editorIconStyleChanged();
+    void editorToolIconsChanged();
+    void useSystemDecorationChanged();
 
 private:
     QSettings m_s{QStringLiteral("Unisic"), QStringLiteral("unisic")};

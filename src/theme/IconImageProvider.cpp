@@ -48,6 +48,7 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
     QString name = id;
     QColor color;
     int hint = 0;
+    QString srcOverride;
     const int q = id.indexOf(QLatin1Char('?'));
     if (q >= 0) {
         name = id.left(q);
@@ -56,11 +57,16 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
         if (!c.isEmpty())
             color = QColor(c);
         hint = query.queryItemValue(QStringLiteral("sz")).toInt();
+        srcOverride = query.queryItemValue(QStringLiteral("src"));
     }
 
     const QSize target = resolveSize(requestedSize, hint);
     ThemeController *tc = m_controller ? m_controller : ThemeController::instance();
-    const bool system = tc && tc->themeName() == QLatin1String("system");
+    // src=system|custom (from the editor tool-icon selector) overrides the
+    // theme-derived choice; otherwise the "system" theme drives it.
+    const bool system = srcOverride == QLatin1String("system")
+                        || (srcOverride != QLatin1String("custom")
+                            && tc && tc->themeName() == QLatin1String("system"));
 
     if (system) {
         QIcon icon = QIcon::fromTheme(name);

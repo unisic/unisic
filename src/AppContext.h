@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QImage>
 #include <QRect>
+#include <QPointer>
 #include <functional>
 #include <qqmlregistration.h>
 
@@ -12,6 +13,8 @@
 
 class QQmlEngine;
 class QSystemTrayIcon;
+class QQuickWindow;
+class QTimer;
 class CaptureManager;
 class OverlayController;
 class GlobalHotkeys;
@@ -111,6 +114,10 @@ private:
     QByteArray encodeImage(const QImage &img, QString *mime) const;
     void afterUploadActions(const QString &url);
     GifRecorder::Output videoOutput() const;
+    // Coalesced, debounced malloc_trim(0): after a capture/record/upload cycle
+    // frees large QImage/encode buffers, hand the pages back to the OS instead of
+    // letting glibc's arena hold them for the app's whole tray lifetime.
+    void scheduleMemoryTrim();
 
     QQmlEngine *m_engine = nullptr;
     Settings *m_settings;
@@ -122,6 +129,8 @@ private:
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
+    QTimer *m_trimTimer = nullptr;
+    QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
     QString m_toast;
     bool m_converting = false;
     bool m_shortcutRecording = false;

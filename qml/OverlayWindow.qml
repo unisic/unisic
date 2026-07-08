@@ -169,7 +169,8 @@ Window {
                     Repeater {
                         model: ToolCatalog.visibleFor("overlay", App.settings.hiddenTools)
                         delegate: ToolChip {
-                            iconName: modelData.iconName
+                            iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                            iconStyle: App.settings.editorIconStyle
                             label: modelData.label
                             active: canvas.tool === modelData.tool
                             anchors.verticalCenter: parent.verticalCenter

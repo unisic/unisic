@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 import Unisic
 import "../components"
 
@@ -6,6 +7,22 @@ Item {
     id: page
 
     property var editing: null   // destination map being edited, or null
+
+    FileDialog {
+        id: sxcuDialog
+        title: qsTr("Import ShareX uploader (.sxcu)")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("ShareX custom uploader (*.sxcu *.json)"), qsTr("All files (*)")]
+        onAccepted: {
+            var name = App.uploads.importSxcu(selectedFile)
+            if (name !== "") {
+                App.settings.activeDestination = name
+                App.showToast(qsTr("Imported “%1”").arg(name))
+            } else {
+                App.showToast(App.uploads.lastImportError())
+            }
+        }
+    }
 
     function destNames() {
         var names = []
@@ -110,12 +127,19 @@ Item {
                 }
             }
 
-            UButton {
-                iconName: "list-add"; text: qsTr("Add custom destination")
-                onClicked: {
-                    page.editing = { name: "", type: "http", requestUrl: "", method: "POST",
-                                     fileFormName: "file", responseType: "json", urlPath: "$json:url$" }
-                    editSheet.open()
+            Row {
+                spacing: Theme.spacingM
+                UButton {
+                    iconName: "list-add"; text: qsTr("Add custom destination")
+                    onClicked: {
+                        page.editing = { name: "", type: "http", requestUrl: "", method: "POST",
+                                         fileFormName: "file", responseType: "json", urlPath: "$json:url$" }
+                        editSheet.open()
+                    }
+                }
+                UButton {
+                    iconName: "folder-open"; variant: "tonal"; text: qsTr("Import .sxcu")
+                    onClicked: sxcuDialog.open()
                 }
             }
         }
@@ -176,11 +200,29 @@ Item {
                                  : qsTr("Request URL (https://…)")
                     text: page.editing ? (page.editing.requestUrl || "") : ""
                 }
+                UComboBox {
+                    id: fBody; width: parent.width
+                    visible: fType.currentIndex === 0
+                    model: [qsTr("Multipart form-data (upload the file)"), qsTr("Custom JSON body")]
+                    currentIndex: page.editing && page.editing.body === "json" ? 1 : 0
+                }
                 UTextField {
                     id: fFormName; width: parent.width
-                    visible: fType.currentIndex === 0
+                    visible: fType.currentIndex === 0 && fBody.currentIndex === 0
                     placeholder: qsTr("File form field name (e.g. file)")
                     text: page.editing ? (page.editing.fileFormName || "file") : "file"
+                }
+                UTextField {
+                    id: fData; width: parent.width
+                    visible: fType.currentIndex === 0 && fBody.currentIndex === 1
+                    placeholder: qsTr("JSON body — tokens $base64$, $filename$, $mime$")
+                    text: page.editing ? (page.editing.data || "") : ""
+                }
+                UTextField {
+                    id: fArgs; width: parent.width
+                    visible: fType.currentIndex === 0 && fBody.currentIndex === 0
+                    placeholder: qsTr("Extra form fields as JSON, e.g. {\"reqtype\":\"fileupload\"}")
+                    text: page.editing && page.editing.arguments ? JSON.stringify(page.editing.arguments) : ""
                 }
                 UTextField {
                     id: fUrlPath; width: parent.width
@@ -222,11 +264,19 @@ Item {
                                 method: "POST"
                             }
                             if (d.type === "http") {
-                                d.fileFormName = fFormName.text.trim() || "file"
                                 d.urlPath = fUrlPath.text.trim() || "$text$"
                                 d.responseType = d.urlPath.indexOf("$json:") === 0 ? "json" : "text"
                                 if (fHeaders.text.trim() !== "") {
                                     try { d.headers = JSON.parse(fHeaders.text) } catch (e) {}
+                                }
+                                if (fBody.currentIndex === 1) {
+                                    d.body = "json"
+                                    d.data = fData.text
+                                } else {
+                                    d.fileFormName = fFormName.text.trim() || "file"
+                                    if (fArgs.text.trim() !== "") {
+                                        try { d.arguments = JSON.parse(fArgs.text) } catch (e) {}
+                                    }
                                 }
                             } else {
                                 if (fUser.text.trim() !== "") d.user = fUser.text.trim()

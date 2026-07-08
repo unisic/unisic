@@ -89,7 +89,8 @@ Window {
                 Repeater {
                     model: ToolCatalog.visibleFor("editor", App.settings.hiddenTools)
                     delegate: ToolChip {
-                        iconName: modelData.iconName
+                        iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                        iconStyle: App.settings.editorIconStyle
                         label: modelData.label
                         active: canvas.tool === modelData.tool
                         onClicked: canvas.tool = modelData.tool

@@ -15,6 +15,14 @@ Window {
     title: "Unisic"
     color: Theme.backgroundDeep
 
+    // System vs custom (frameless) window decoration. Toggling recreates the
+    // platform surface; the compositor re-parents the existing scene graph.
+    flags: App.settings.useSystemDecoration
+           ? Qt.Window
+           : (Qt.Window | Qt.FramelessWindowHint)
+    // Height reserved at the top for the custom title bar (0 with system decos).
+    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
+
     property int currentPage: 0
 
     onClosing: (close) => {
@@ -44,10 +52,78 @@ Window {
         }
     }
 
+    Rectangle { // custom title bar (frameless decoration)
+        id: titleBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 38
+        visible: !App.settings.useSystemDecoration
+        z: 20
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
+            GradientStop { position: 1.0; color: Theme.primary }
+        }
+
+        // Drag anywhere on the bar to move the window (Wayland system move).
+        // startSystemMove() is deferred past a small drag threshold: calling it on
+        // raw press hands the compositor a move-grab immediately and swallows the
+        // release, so onDoubleClicked (maximize) would never fire.
+        MouseArea {
+            anchors.fill: parent
+            property real pressX: 0
+            property real pressY: 0
+            property bool moving: false
+            onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+            onPositionChanged: (m) => {
+                if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                    moving = true
+                    window.startSystemMove()
+                }
+            }
+            onDoubleClicked: window.visibility === Window.Maximized ? window.showNormal()
+                                                                    : window.showMaximized()
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spacingL
+            anchors.verticalCenter: parent.verticalCenter
+            text: "Unisic"
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontM
+            font.weight: Font.DemiBold
+        }
+
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            UIconButton {
+                iconName: "minus"; iconSize: 14; width: 30; height: 30
+                tooltip: qsTr("Minimize")
+                onClicked: window.showMinimized()
+            }
+            UIconButton {
+                iconName: "window"; iconSize: 13; width: 30; height: 30
+                tooltip: qsTr("Maximize")
+                onClicked: window.visibility === Window.Maximized ? window.showNormal()
+                                                                  : window.showMaximized()
+            }
+            UIconButton {
+                iconName: "close"; iconSize: 14; width: 30; height: 30
+                tooltip: qsTr("Close")
+                onClicked: window.close()
+            }
+        }
+    }
+
     Rectangle { // sidebar
         id: sidebar
         width: 224
-        height: parent.height
+        y: window.chromeTop
+        height: parent.height - window.chromeTop
         gradient: Gradient {
             GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
             GradientStop { position: 1.0; color: Theme.primary }
@@ -150,14 +226,24 @@ Window {
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
+        anchors.topMargin: window.chromeTop
         anchors.bottom: parent.bottom
 
-        CapturePage      { anchors.fill: parent; visible: currentPage === 0 }
-        RecordPage       { anchors.fill: parent; visible: currentPage === 1 }
-        GifPage          { anchors.fill: parent; visible: currentPage === 2 }
-        HistoryPage      { anchors.fill: parent; visible: currentPage === 3 }
-        DestinationsPage { anchors.fill: parent; visible: currentPage === 4 }
-        SettingsPage     { anchors.fill: parent; visible: currentPage === 5 }
+        // Only the visible page is instantiated; leaving a page unloads it so
+        // idle RAM tracks a single page instead of all six at once.
+        Component { id: capturePage;      CapturePage {} }
+        Component { id: recordPage;       RecordPage {} }
+        Component { id: gifPage;          GifPage {} }
+        Component { id: historyPage;      HistoryPage {} }
+        Component { id: destinationsPage; DestinationsPage {} }
+        Component { id: settingsPage;     SettingsPage {} }
+
+        Loader { anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
+        Loader { anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
+        Loader { anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: gifPage }
+        Loader { anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: historyPage }
+        Loader { anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: destinationsPage }
+        Loader { anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: settingsPage }
     }
 
     // Toast

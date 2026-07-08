@@ -13,6 +13,8 @@
 #include <QProcess>
 #include <QTemporaryFile>
 #include <QMimeDatabase>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QDebug>
 
 // Imgur's anonymous image endpoint needs an "Authorization: Client-ID <id>"
@@ -204,6 +206,154 @@ void UploadManager::replaceAllDestinations(const QJsonArray &arr)
     persistDestinations();
 }
 
+// ShareX response tokens -> Unisic tokens. ShareX has used both the older
+// $json:path$ form (already ours) and the current {json:path} / {regex:...} /
+// {response} braces form. Normalise all of them to $json:...$ / $regex:...$ /
+// $text$ so extractUrl() can resolve them.
+static QString translateShareXTokens(const QString &in)
+{
+    if (in.isEmpty())
+        return in;
+    QString s = in;
+    // {response} -> $text$
+    s.replace(QLatin1String("{response}"), QLatin1String("$text$"));
+    // {json:PATH} -> $json:PATH$   ,   {regex:PATT} -> $regex:PATT$
+    static const QRegularExpression brace(QStringLiteral("\\{(json|regex):([^}]+)\\}"));
+    QString out;
+    int last = 0;
+    auto it = brace.globalMatch(s);
+    while (it.hasNext()) {
+        const auto m = it.next();
+        out += s.mid(last, m.capturedStart() - last);
+        out += QLatin1Char('$') + m.captured(1) + QLatin1Char(':') + m.captured(2) + QLatin1Char('$');
+        last = m.capturedEnd();
+    }
+    out += s.mid(last);
+    return out;
+}
+
+// Map a parsed .sxcu object to a Unisic destination object. Handles the common
+// image/file uploader shape; unknown fields are ignored.
+static QJsonObject sxcuToDestination(const QJsonObject &sx, const QString &fallbackName)
+{
+    const auto pick = [&sx](std::initializer_list<const char *> keys) -> QJsonValue {
+        for (const char *k : keys) {
+            const QString key = QString::fromLatin1(k);
+            if (sx.contains(key))
+                return sx.value(key);
+        }
+        return {};
+    };
+
+    QJsonObject dest;
+    dest.insert(QStringLiteral("type"), QStringLiteral("http"));
+
+    QString name = pick({"Name"}).toString();
+    if (name.isEmpty())
+        name = fallbackName;
+    dest.insert(QStringLiteral("name"), name);
+
+    // The request endpoint comes ONLY from RequestURL/RequestUrl. ShareX's "URL"
+    // field is the *response* template (mapped to urlPath below), so it must never
+    // be reused as the endpoint — otherwise a file missing RequestURL would be
+    // imported as a broken destination that POSTs to the literal template string.
+    QString url = pick({"RequestURL", "RequestUrl"}).toString();
+    // ShareX allows query parameters as a separate "Parameters" object.
+    const QJsonObject params = pick({"Parameters"}).toObject();
+    if (!params.isEmpty()) {
+        QUrl u(url);
+        QUrlQuery q(u);
+        for (auto it = params.begin(); it != params.end(); ++it)
+            q.addQueryItem(it.key(), it.value().toString());
+        u.setQuery(q);
+        url = u.toString();
+    }
+    dest.insert(QStringLiteral("requestUrl"), url);
+
+    QString method = pick({"RequestMethod", "RequestType"}).toString(QStringLiteral("POST")).toUpper();
+    if (method.isEmpty()) method = QStringLiteral("POST");
+    dest.insert(QStringLiteral("method"), method);
+
+    const QString body = pick({"Body"}).toString();
+    if (body.compare(QLatin1String("JSON"), Qt::CaseInsensitive) == 0) {
+        dest.insert(QStringLiteral("body"), QStringLiteral("json"));
+        dest.insert(QStringLiteral("data"), translateShareXTokens(pick({"Data"}).toString()));
+    }
+    // "MultipartFormData" and everything else use the default multipart path.
+
+    const QString fileForm = pick({"FileFormName"}).toString();
+    if (!fileForm.isEmpty())
+        dest.insert(QStringLiteral("fileFormName"), fileForm);
+
+    const QJsonObject headers = pick({"Headers"}).toObject();
+    if (!headers.isEmpty())
+        dest.insert(QStringLiteral("headers"), headers);
+
+    const QJsonObject arguments = pick({"Arguments"}).toObject();
+    if (!arguments.isEmpty())
+        dest.insert(QStringLiteral("arguments"), arguments);
+
+    const QString urlPath = translateShareXTokens(pick({"URL"}).toString());
+    // If RequestURL and URL collided (some sxcu reuse "URL" for the endpoint),
+    // only treat it as the result path when it actually carries a token.
+    if (!urlPath.isEmpty() && urlPath.contains(QLatin1Char('$')))
+        dest.insert(QStringLiteral("urlPath"), urlPath);
+    else
+        dest.insert(QStringLiteral("urlPath"), QStringLiteral("$text$"));
+
+    const QString delPath = translateShareXTokens(pick({"DeletionURL", "DeletionUrl"}).toString());
+    if (!delPath.isEmpty())
+        dest.insert(QStringLiteral("deletionUrlPath"), delPath);
+
+    dest.insert(QStringLiteral("responseType"),
+                (body.compare(QLatin1String("JSON"), Qt::CaseInsensitive) == 0
+                 || dest.value(QStringLiteral("urlPath")).toString().contains(QLatin1String("$json:")))
+                    ? QStringLiteral("json") : QStringLiteral("text"));
+    return dest;
+}
+
+QString UploadManager::importSxcu(const QString &pathOrUrl)
+{
+    m_lastImportError.clear();
+    QString path = pathOrUrl;
+    if (path.startsWith(QLatin1String("file://")))
+        path = QUrl(path).toLocalFile();
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        m_lastImportError = tr("Cannot open %1").arg(path);
+        return {};
+    }
+    QJsonParseError perr;
+    const QJsonDocument doc = QJsonDocument::fromJson(f.readAll(), &perr);
+    if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
+        m_lastImportError = tr("Not a valid .sxcu file: %1").arg(perr.errorString());
+        return {};
+    }
+
+    QFileInfo fi(path);
+    const QJsonObject src = doc.object();
+    const QJsonObject dest = sxcuToDestination(src, fi.completeBaseName());
+    if (dest.value(QStringLiteral("requestUrl")).toString().isEmpty()) {
+        m_lastImportError = tr("The .sxcu file has no RequestURL");
+        return {};
+    }
+    // ShareX RegexList-based response parsing has different semantics from our
+    // $regex:$ (which is a literal pattern). Importing it silently would resolve
+    // every URL to garbage, so reject it with a clear message instead.
+    const QString up = dest.value(QStringLiteral("urlPath")).toString();
+    const QString dp = dest.value(QStringLiteral("deletionUrlPath")).toString();
+    if (src.contains(QStringLiteral("RegexList"))
+        || up.contains(QStringLiteral("$regex:")) || dp.contains(QStringLiteral("$regex:"))) {
+        m_lastImportError = tr("This .sxcu uses ShareX RegexList response parsing, which "
+                               "Unisic can't import yet. Edit the destination's URL extractor "
+                               "to a $json:…$ or $text$ token after importing.");
+        return {};
+    }
+    saveDestination(dest.toVariantMap());
+    return dest.value(QStringLiteral("name")).toString();
+}
+
 QJsonObject UploadManager::activeDestination() const
 {
     const QString name = m_settings->activeDestination();
@@ -325,30 +475,51 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
 {
     QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
-    for (auto it = headers.begin(); it != headers.end(); ++it)
+    bool hasContentType = false;
+    for (auto it = headers.begin(); it != headers.end(); ++it) {
         req.setRawHeader(it.key().toUtf8(), it.value().toString().toUtf8());
-
-    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-    const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
-    for (auto it = args.begin(); it != args.end(); ++it) {
-        QHttpPart part;
-        part.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QStringLiteral("form-data; name=\"%1\"").arg(it.key()));
-        part.setBody(it.value().toString().toUtf8());
-        multi->append(part);
+        if (it.key().compare(QLatin1String("Content-Type"), Qt::CaseInsensitive) == 0)
+            hasContentType = true;
     }
-    QHttpPart filePart;
-    filePart.setHeader(QNetworkRequest::ContentTypeHeader, mime);
-    filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                       QStringLiteral("form-data; name=\"%1\"; filename=\"%2\"")
-                           .arg(dest.value(QStringLiteral("fileFormName")).toString(QStringLiteral("file")), fileName));
-    filePart.setBody(data);
-    multi->append(filePart);
 
     const QString method = dest.value(QStringLiteral("method")).toString(QStringLiteral("POST")).toUpper();
-    QNetworkReply *reply = (method == QLatin1String("PUT")) ? m_nam->put(req, multi)
-                                                            : m_nam->post(req, multi);
-    multi->setParent(reply);
+    const QString bodyType = dest.value(QStringLiteral("body")).toString().toLower();
+    QNetworkReply *reply = nullptr;
+
+    if (bodyType == QLatin1String("json")) {
+        // Raw JSON body from the user's template. $base64$/$filename$/$mime$ are
+        // substituted; no multipart file part is sent.
+        QString tpl = dest.value(QStringLiteral("data")).toString();
+        tpl.replace(QLatin1String("$base64$"), QString::fromLatin1(data.toBase64()));
+        tpl.replace(QLatin1String("$filename$"), fileName);
+        tpl.replace(QLatin1String("$mime$"), mime);
+        const QByteArray payload = tpl.toUtf8();
+        if (!hasContentType)
+            req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+        reply = (method == QLatin1String("PUT")) ? m_nam->put(req, payload)
+                                                  : m_nam->post(req, payload);
+    } else {
+        auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+        const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
+        for (auto it = args.begin(); it != args.end(); ++it) {
+            QHttpPart part;
+            part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                           QStringLiteral("form-data; name=\"%1\"").arg(it.key()));
+            part.setBody(it.value().toString().toUtf8());
+            multi->append(part);
+        }
+        QHttpPart filePart;
+        filePart.setHeader(QNetworkRequest::ContentTypeHeader, mime);
+        filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                           QStringLiteral("form-data; name=\"%1\"; filename=\"%2\"")
+                               .arg(dest.value(QStringLiteral("fileFormName")).toString(QStringLiteral("file")), fileName));
+        filePart.setBody(data);
+        multi->append(filePart);
+
+        reply = (method == QLatin1String("PUT")) ? m_nam->put(req, multi)
+                                                 : m_nam->post(req, multi);
+        multi->setParent(reply);
+    }
 
     connect(reply, &QNetworkReply::finished, this, [dest, reply, cb]() {
         reply->deleteLater();
@@ -411,6 +582,17 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
             publicUrl += fileName;
         }
         cb(publicUrl, {}, {});
+    });
+    // FailedToStart (curl missing/unlaunchable) never emits finished(): without
+    // this the QProcess/temp file would leak and the wrapping done() lambda would
+    // never clear m_busy, wedging the UI in a permanent "uploading" state.
+    connect(proc, &QProcess::errorOccurred, this,
+            [proc, tmp, cb](QProcess::ProcessError e) {
+        if (e != QProcess::FailedToStart)
+            return; // other errors still deliver finished(); let that path handle them
+        proc->deleteLater();
+        tmp->deleteLater();
+        cb({}, {}, tr("Could not run curl — is it installed? (needed for FTP/SFTP uploads)"));
     });
     proc->start(QStringLiteral("curl"), args);
 }

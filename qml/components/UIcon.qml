@@ -9,6 +9,10 @@ Image {
     property string name: ""
     property color color: Theme.textPrimary
     property int size: 18
+    // "" = follow the app theme (system theme -> system icons); "custom" forces
+    // the bundled glyph; "system" forces QIcon::fromTheme. Used by the editor
+    // tool-icon selector; the main app chrome never sets this.
+    property string iconStyle: ""
 
     function _hex(c) {
         function h(v) { var s = Math.round(v * 255).toString(16); return s.length < 2 ? "0" + s : s }
@@ -17,6 +21,7 @@ Image {
 
     source: name === "" ? ""
             : "image://icon/" + name + "?color=" + _hex(color) + "&sz=" + size + "&v=" + Theme.rev
+              + (iconStyle === "" ? "" : "&src=" + iconStyle)
     sourceSize: Qt.size(size, size)
     width: size
     height: size

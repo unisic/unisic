@@ -6,6 +6,7 @@ Rectangle {
     id: root
     property string icon: ""
     property string iconName: ""
+    property string iconStyle: ""   // "", "custom" or "system" (editor tools)
     property string label: ""
     property bool active: false
     signal clicked()
@@ -24,6 +25,7 @@ Rectangle {
         visible: root.iconName !== ""
         anchors.centerIn: parent
         name: root.iconName
+        iconStyle: root.iconStyle
         color: root.active ? Theme.textOnAccent : Theme.textPrimary
         size: 18
     }

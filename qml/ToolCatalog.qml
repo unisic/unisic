@@ -22,6 +22,19 @@ QtObject {
         { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         overlay: false, editor: true,  hideable: true }
     ]
 
+    // Resolve the icon name for a tool given the editor icon style and the
+    // optional per-tool freedesktop-name override map (JSON string). Overrides
+    // only apply to the "system" style; "custom" always uses the bundled glyph.
+    function toolIconName(t, style, overridesJson) {
+        if (style === "system" && overridesJson && overridesJson !== "") {
+            try {
+                var m = JSON.parse(overridesJson)
+                if (m[t.id] && m[t.id] !== "") return m[t.id]
+            } catch (e) {}
+        }
+        return t.iconName
+    }
+
     function isHidden(id, csv) {
         if (!csv || csv === "") return false
         return ("," + csv + ",").indexOf("," + id + ",") >= 0

@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QColor>
 #include <QSettings>
+#include "../ConfigPath.h"
 #include <qqmlregistration.h>
 
 // Owns the selected UI theme (persisted) and bridges the live system palette
@@ -60,5 +61,5 @@ private:
     QString m_themeName;
     int m_rev = 0;
     bool m_bumpQueued = false;
-    QSettings m_settings{QStringLiteral("Unisic"), QStringLiteral("unisic")};
+    QSettings m_settings{UnisicConfig::filePath(), QSettings::IniFormat};
 };

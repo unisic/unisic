@@ -25,6 +25,7 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QFileDialog>
 #include <QKeySequence>
 #include <QDesktopServices>
 #include <QDateTime>
@@ -867,6 +868,32 @@ void AppContext::openDirectory(const QString &path)
 }
 
 // --------------------------------------------------------- export / import
+
+void AppContext::exportSettingsDialog()
+{
+    // Native picker: QFileDialog with the platform theme (KDE plasma-integration
+    // / the portal on other DEs) is the desktop's own file dialog — the QML
+    // FileDialog fell back to the Basic-styled Qt Quick dialog here.
+    const QString path = QFileDialog::getSaveFileName(
+        nullptr, tr("Export Unisic settings"),
+        QDir::homePath() + QStringLiteral("/unisic-settings.json"),
+        tr("Unisic settings (*.json)"));
+    if (path.isEmpty())
+        return; // cancelled
+    const QString err = exportSettings(QUrl::fromLocalFile(path));
+    showToast(err.isEmpty() ? tr("Settings exported") : err, !err.isEmpty());
+}
+
+void AppContext::importSettingsDialog()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Import Unisic settings"), QDir::homePath(),
+        tr("Unisic settings (*.json)"));
+    if (path.isEmpty())
+        return; // cancelled
+    const QString err = importSettings(QUrl::fromLocalFile(path));
+    showToast(err.isEmpty() ? tr("Settings imported") : err, !err.isEmpty());
+}
 
 QString AppContext::exportSettings(const QUrl &file)
 {

@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QDebug>
 #include <QCoreApplication>
+#include "ConfigPath.h"
 #include <qqmlregistration.h>
 
 #define U_SETTING(type, name, setterName, key, defval)                                 \
@@ -84,6 +85,21 @@ public:
         if (qApp)
             connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { m_s.sync(); });
 
+        // One-time migration from the old ~/.config/Unisic/unisic.conf to the
+        // unified ~/.config/unisic/unisic.conf. Key-by-key through QSettings
+        // (NOT a raw file copy) so INI grouping/casing stays consistent —
+        // a raw copy left keys under a mismatched [General] and dropped the
+        // theme. Only when the new file is still empty.
+        if (m_s.allKeys().isEmpty() && QFile::exists(UnisicConfig::legacyFilePath())) {
+            QSettings legacy(UnisicConfig::legacyFilePath(), QSettings::IniFormat);
+            const QStringList keys = legacy.allKeys();
+            for (const QString &k : keys)
+                m_s.setValue(k, legacy.value(k));
+            m_s.sync();
+            if (m_s.status() == QSettings::NoError)
+                qInfo() << "Migrated" << keys.size() << "settings to" << m_s.fileName();
+        }
+
         // "Settings reset to defaults on every launch" has two silent causes,
         // both of which QSettings hides unless status() is checked:
         //  1. A CORRUPT file (FormatError) — every read returns the default and
@@ -108,7 +124,7 @@ public:
         m_s.sync();
         m_writable = (m_s.status() == QSettings::NoError);
         if (m_writable) {
-            QSettings check(QStringLiteral("Unisic"), QStringLiteral("unisic"));
+            QSettings check(UnisicConfig::filePath(), QSettings::IniFormat);
             m_writable = check.value(QStringLiteral("_probe")).toInt() == 1;
         }
         m_s.remove(QStringLiteral("_probe"));
@@ -252,7 +268,7 @@ signals:
     void useSystemDecorationChanged();
 
 private:
-    QSettings m_s{QStringLiteral("Unisic"), QStringLiteral("unisic")};
+    QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};
     QTimer m_syncTimer;
     bool m_writable = true;
 };

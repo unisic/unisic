@@ -106,6 +106,10 @@ public:
     Q_INVOKABLE void applyHotkey(const QString &actionId);
     Q_INVOKABLE QString exportSettings(const QUrl &file);   // "" on success, else error
     Q_INVOKABLE QString importSettings(const QUrl &file);
+    // Native (DE) file picker + export/import in one call — the QML FileDialog
+    // fell back to an ugly non-native dialog under the forced Basic style.
+    Q_INVOKABLE void exportSettingsDialog();
+    Q_INVOKABLE void importSettingsDialog();
     Q_INVOKABLE QString filenamePreview() const;
 
     // Used by EditorSession / CaptureNotification. fileName: reuse a name

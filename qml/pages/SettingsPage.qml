@@ -113,28 +113,9 @@ Item {
         MiddleScroll { flickable: fl }
     }
 
-    FileDialog {
-        id: exportDialog
-        title: qsTr("Export Unisic settings")
-        fileMode: FileDialog.SaveFile
-        nameFilters: [qsTr("Unisic settings (*.json)")]
-        defaultSuffix: "json"
-        onAccepted: {
-            var err = App.exportSettings(selectedFile)
-            if (err !== "") App.showToast(err)
-        }
-    }
-
-    FileDialog {
-        id: importDialog
-        title: qsTr("Import Unisic settings")
-        fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("Unisic settings (*.json)")]
-        onAccepted: {
-            var err = App.importSettings(selectedFile)
-            if (err !== "") App.showToast(err)
-        }
-    }
+    // Import/Export use the DESKTOP's native file picker (C++ QFileDialog via
+    // the platform theme), not a QML FileDialog — the latter fell back to the
+    // Basic-styled Qt Quick dialog here, which looked out of place.
 
     // ---------------- header ----------------
     Item {
@@ -157,8 +138,8 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.spacingS
-            UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: importDialog.open() }
-            UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: exportDialog.open() }
+            UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: App.importSettingsDialog() }
+            UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: App.exportSettingsDialog() }
         }
     }
 

@@ -177,6 +177,19 @@ With no arguments Unisic starts in the background with a tray icon and its main 
 - Save filenames come from a template with tokens `%date%`, `%time%`, `%datetime%`, `%unix%`, `%rand%` (default `Unisic_%date%_%time%`); image format is PNG, JPG, or WebP.
 - Full settings can be exported/imported as JSON (all effective values plus upload destinations and theme).
 
+## niri (and other wlroots-style compositors)
+
+- **Screenshots:** install `grim` (`dnf install grim` / `pacman -S grim`). niri's screenshot D-Bus API — which the GNOME portal's Screenshot backend merely proxies — fails with `internal error` whenever more than one monitor is connected ([niri #117](https://github.com/niri-wm/niri/issues/117)); Unisic detects niri and captures through wlr-screencopy via `grim` instead, which is silent and multi-monitor-safe.
+- **Hotkeys:** there is no KGlobalAccel and no working GlobalShortcuts portal on niri, so bind keys in `config.kdl` — a running Unisic instance picks the command up:
+
+  ```kdl
+  binds {
+      Mod+Shift+S { spawn "unisic" "--region"; }
+      Print { spawn "unisic" "--fullscreen"; }
+      Mod+Print { spawn "unisic" "--window"; }
+  }
+  ```
+
 ## Notes
 
 - On first run Unisic installs `org.unisic.Unisic.desktop` into `~/.local/share/applications` (declaring `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`) and rebuilds the KDE service cache — this is what authorizes the silent KWin capture path. Without it, captures still work through the portal, with the desktop's own consent dialog.

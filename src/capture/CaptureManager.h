@@ -8,6 +8,7 @@
 class PortalScreenshot;
 class KWinScreenShot2;
 class GnomeScreenshot;
+class GrimScreenshot;
 class Settings;
 
 // Chooses the best capture backend: KWin ScreenShot2 (silent, exact) when
@@ -62,5 +63,6 @@ private:
     PortalScreenshot *m_portal;
     KWinScreenShot2 *m_kwin;
     GnomeScreenshot *m_gnome;
+    GrimScreenshot *m_grim;
     bool m_kwinDenied = false; // remember auth failure, skip straight to portal
 };

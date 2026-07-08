@@ -623,7 +623,32 @@ Item {
         // ===== Hotkeys =====
         ScrollPane {
             visible: page.tab === 4
+
+            // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
+            // would be dead — explain the compositor-bind route instead.
             UCard {
+                visible: !App.hotkeysAvailable
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Global hotkeys unavailable on this desktop") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        textFormat: Text.MarkdownText
+                        text: qsTr("This desktop has no KGlobalAccel service, so Unisic cannot register global shortcuts itself. Bind keys in your compositor instead — a running Unisic instance picks the command up:\n\n" +
+                                   "```\nunisic --region | --fullscreen | --window | --gif\n```\n\n" +
+                                   "niri (`config.kdl`):\n\n" +
+                                   "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS + 1
+                    }
+                }
+            }
+
+            UCard {
+                visible: App.hotkeysAvailable
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -638,23 +663,23 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Full screen")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyFullScreen; onRecorded: (t) => App.settings.hotkeyFullScreen = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyFullScreen; onRecorded: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkeys() } }
                     }
                     SettingRow {
                         label: qsTr("Region")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => App.settings.hotkeyRegion = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => { App.settings.hotkeyRegion = t; App.applyHotkeys() } }
                     }
                     SettingRow {
                         label: qsTr("Window")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyWindow; onRecorded: (t) => App.settings.hotkeyWindow = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyWindow; onRecorded: (t) => { App.settings.hotkeyWindow = t; App.applyHotkeys() } }
                     }
                     SettingRow {
                         label: qsTr("Video start/stop")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRecord; onRecorded: (t) => App.settings.hotkeyRecord = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRecord; onRecorded: (t) => { App.settings.hotkeyRecord = t; App.applyHotkeys() } }
                     }
                     SettingRow {
                         label: qsTr("GIF start/stop")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => App.settings.hotkeyGif = t }
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkeys() } }
                     }
                     UButton {
                         anchors.right: parent.right

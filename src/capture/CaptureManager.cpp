@@ -2,6 +2,7 @@
 #include "PortalScreenshot.h"
 #include "KWinScreenShot2.h"
 #include "GnomeScreenshot.h"
+#include "GrimScreenshot.h"
 #include "Settings.h"
 #include <QGuiApplication>
 #include <QDBusConnection>
@@ -56,6 +57,7 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_portal(new PortalScreenshot(this))
     , m_kwin(new KWinScreenShot2(this))
     , m_gnome(new GnomeScreenshot(this))
+    , m_grim(new GrimScreenshot(this))
 {
     grantSilentScreenshotPermission();
 }
@@ -69,8 +71,13 @@ bool CaptureManager::preferGnome() const
 }
 
 // One whole-workspace capture, routing around whichever backend is broken.
-//   niri:  GNOME-direct first, portal rescue.
-//   other: portal first, GNOME-direct rescue (only if the service is present).
+//   niri + grim: grim first (wlr-screencopy — see below), GNOME/portal rescue.
+//   niri:        GNOME-direct first, portal rescue, grim rescue.
+//   other:       portal first, GNOME-direct rescue, grim rescue.
+// grim matters on niri because niri's org.gnome.Shell.Screenshot — which the
+// GNOME portal's Screenshot backend merely proxies — hard-fails with
+// "internal error" whenever more than one monitor is connected (niri #117);
+// wlr-screencopy is per-output and unaffected.
 // allowInteractive lets the single-capture paths (fullscreen/one screen) show
 // the desktop's own screenshot dialog when the SILENT portal request is denied —
 // this is the safety net that keeps capture working on a fresh/unpackaged install
@@ -80,28 +87,62 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
 {
     const bool cursor = m_settings->includeCursor();
     const bool gnomeAvail = GnomeScreenshot::isAvailable();
+    const bool niri = GnomeScreenshot::isNiriSession();
 
-    auto portalThenGnome = [this, cursor, cb, previousError, gnomeAvail, allowInteractive]() {
-        m_portal->capture(false, [this, cursor, cb, previousError, gnomeAvail]
+    // Deepest rescue: wlr-screencopy via grim. When it's absent on niri, say
+    // so — installing grim is THE fix for the multi-monitor dead end there.
+    auto grimRescue = [this, cursor, cb, niri](const QString &prevErr) {
+        if (!GrimScreenshot::isAvailable()) {
+            QString msg = prevErr;
+            if (niri)
+                msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
+                                      "fails with more than one monitor (niri issue #117)");
+            cb({}, msg);
+            return;
+        }
+        m_grim->captureWorkspace(cursor, [cb, prevErr](const QImage &img, const QString &gerr) {
+            if (gerr.isEmpty()) { cb(img, {}); return; }
+            cb({}, combinedError(prevErr, gerr));
+        });
+    };
+
+    auto portalThenGnome = [this, cursor, cb, previousError, gnomeAvail, allowInteractive,
+                            grimRescue]() {
+        m_portal->capture(false, [this, cursor, cb, previousError, gnomeAvail, grimRescue]
                           (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
-            if (!gnomeAvail) { cb({}, combinedError(previousError, err)); return; }
+            if (!gnomeAvail) { grimRescue(combinedError(previousError, err)); return; }
             qWarning() << "Portal workspace capture failed, trying org.gnome.Shell.Screenshot:" << err;
-            m_gnome->captureWorkspace(cursor, [cb, previousError, err]
+            m_gnome->captureWorkspace(cursor, [cb, previousError, err, grimRescue]
                                       (const QImage &gimg, const QString &gerr) {
-                if (!gerr.isEmpty()) { cb({}, combinedError(previousError, combinedError(err, gerr))); return; }
+                if (!gerr.isEmpty()) { grimRescue(combinedError(previousError, combinedError(err, gerr))); return; }
                 cb(gimg, {});
             });
         }, allowInteractive);
     };
 
-    if (preferGnome()) {
-        m_gnome->captureWorkspace(cursor, [cb, portalThenGnome, previousError]
+    auto gnomeFirst = [this, cursor, cb, portalThenGnome]() {
+        m_gnome->captureWorkspace(cursor, [cb, portalThenGnome]
                                   (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
             qWarning() << "niri GNOME-direct capture failed, trying portal:" << err;
             portalThenGnome();
         });
+    };
+
+    // niri with grim installed: go straight to the backend that actually
+    // works there (silent, no dialog, multi-monitor-safe).
+    if (niri && GrimScreenshot::isAvailable()) {
+        m_grim->captureWorkspace(cursor, [this, cb, gnomeFirst, portalThenGnome]
+                                 (const QImage &img, const QString &err) {
+            if (err.isEmpty()) { cb(img, {}); return; }
+            qWarning() << "grim capture failed, trying GNOME/portal chain:" << err;
+            if (preferGnome()) gnomeFirst(); else portalThenGnome();
+        });
+        return;
+    }
+    if (preferGnome()) {
+        gnomeFirst();
         return;
     }
     portalThenGnome();

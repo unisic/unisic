@@ -40,6 +40,9 @@ class AppContext : public QObject
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable CONSTANT)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
+    // KGlobalAccel present? When false (niri/sway/GNOME…) the Hotkeys settings
+    // tab explains compositor-side binds instead of showing dead recorders.
+    Q_PROPERTY(bool hotkeysAvailable READ hotkeysAvailable CONSTANT)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
 
 public:
@@ -61,6 +64,7 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool ocrAvailable() const;
+    bool hotkeysAvailable() const;
     QString toastText() const { return m_toast; }
 
     // Capture entry points (also bound to hotkeys and tray).

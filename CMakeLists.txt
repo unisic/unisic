@@ -22,6 +22,7 @@ qt_add_executable(unisic
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
+    src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp

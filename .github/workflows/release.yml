@@ -142,6 +142,11 @@ jobs:
         with:
           version: "6.8.3"
           arch: linux_gcc_64
+          # qtwayland CLIENT libs/plugins ship in the base archive; the addon
+          # provides libQt6WaylandCompositor, which linuxdeploy-plugin-qt's
+          # "waylandcompositor" deployer links against (its name is misleading —
+          # it actually deploys the client-side plugin dirs).
+          modules: qtwaylandcompositor
           cache: true
 
       - name: Build AppDir
@@ -157,6 +162,13 @@ jobs:
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           QML_SOURCES_PATHS: ${{ github.workspace }}/qml
+          # Deploy the Qt Wayland CLIENT stack — without it the AppImage falls
+          # back to XWayland ('Could not find the Qt platform plugin "wayland"').
+          # linuxdeploy-plugin-qt quirk: the module keyword for the client
+          # plugin dirs (shell-integration, graphics-integration, decorations)
+          # is "waylandcompositor" (see its WaylandcompositorPluginsDeployer).
+          EXTRA_QT_MODULES: "waylandcompositor"
+          EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
           # Embedded update information (AppImageUpdate / libappimageupdate):
           # differential updates via the .zsync file published with each
           # release. "latest" tracks the newest non-prerelease GitHub release.
@@ -177,10 +189,23 @@ jobs:
           chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
           export PATH="$PWD/tools:$PATH"
           export QMAKE="$(command -v qmake)"
+          # --exclude-library libwayland-*: never bundle the BUILD HOST's
+          # libwayland — mixing an old libwayland-client with a modern
+          # compositor breaks at symbol lookup (MuseScore#13781); every 2020+
+          # distro ships its own.
           ./tools/linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --plugin qt \
+            --exclude-library "libwayland-client*" \
+            --exclude-library "libwayland-cursor*" \
+            --exclude-library "libwayland-egl*" \
             --output appimage
+
+          # The wayland platform plugin must actually be in the AppDir — fail
+          # loudly instead of shipping another XWayland-only build.
+          test -f AppDir/usr/plugins/platforms/libqwayland-generic.so \
+            || { echo "::error::Qt wayland platform plugin was not deployed"; exit 1; }
+
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
           # binary when update information is embedded. HARD-fail if it did
           # not: shipping an AppImage whose embedded update info points at a

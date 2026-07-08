@@ -139,6 +139,11 @@ bool AppContext::ocrAvailable() const
 #endif
 }
 
+bool AppContext::hotkeysAvailable() const
+{
+    return m_hotkeys->available();
+}
+
 void AppContext::ocrImage(const QImage &img)
 {
 #ifdef HAVE_TESSERACT
@@ -838,16 +843,40 @@ QString AppContext::importSettings(const QUrl &file)
 // so a key edited in KDE's Shortcuts KCM is honored and not overwritten.
 void AppContext::defineHotkeys()
 {
-    m_hotkeys->defineAction(QStringLiteral("capture-fullscreen"), tr("Capture full screen"),
-                            m_settings->hotkeyFullScreen());
-    m_hotkeys->defineAction(QStringLiteral("capture-region"), tr("Capture region"),
-                            m_settings->hotkeyRegion());
-    m_hotkeys->defineAction(QStringLiteral("capture-window"), tr("Capture active window"),
-                            m_settings->hotkeyWindow());
-    m_hotkeys->defineAction(QStringLiteral("record-gif"), tr("Record GIF (start/stop)"),
-                            m_settings->hotkeyGif());
-    m_hotkeys->defineAction(QStringLiteral("record-video"), tr("Record video (start/stop)"),
-                            m_settings->hotkeyRecord());
+    struct Act { QString id; QString name; QString keys; };
+    const Act acts[] = {
+        {QStringLiteral("capture-fullscreen"), tr("Capture full screen"), m_settings->hotkeyFullScreen()},
+        {QStringLiteral("capture-region"), tr("Capture region"), m_settings->hotkeyRegion()},
+        {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
+        {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
+        {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
+    };
+    for (const Act &a : acts)
+        m_hotkeys->defineAction(a.id, a.name, a.keys);
+
+    // Self-heal for fresh installs: our reference kglobalacceld binds both the
+    // active and default columns on an IsDefault registration, but daemons in
+    // the field have been seen applying it to the default column only —
+    // leaving every action registered yet UNBOUND (hotkeys silently dead).
+    // Verify once per install: any action the daemon reports keyless right
+    // after registration gets its default forced (SetPresent|NoAutoloading).
+    // Never repeated afterwards, so deliberately unbinding a key in the KCM
+    // still sticks.
+    if (m_hotkeys->available()
+        && !m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
+        for (const Act &a : acts) {
+            if (!a.keys.isEmpty() && m_hotkeys->activeKeys(a.id).isEmpty()) {
+                qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
+                           << "— forcing default" << a.keys;
+                m_hotkeys->setShortcut(a.id, a.name, a.keys);
+            }
+        }
+        m_settings->raw()->setValue(QStringLiteral("hotkeys/bootstrapped"), true);
+        // Flush now: a SIGTERM/logout kill skips destructors, and losing the
+        // flag would re-force defaults on every launch (breaking deliberate
+        // KCM unbinds).
+        m_settings->raw()->sync();
+    }
     // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable. Pushed
     // with setShortcut (SetPresent|NoAutoloading) on every startup, so even an
     // edit made in KDE's Shortcuts KCM is reverted at the next launch. Stock

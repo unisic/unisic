@@ -31,6 +31,11 @@ public:
     // must not report a bind "conflict" that is really just no daemon.
     bool available() const { return m_available; }
 
+    // The action's currently ACTIVE keys as reported by the daemon (empty when
+    // unbound or the daemon is unavailable). Lets startup verify that an
+    // IsDefault registration actually resulted in a live binding.
+    QList<int> activeKeys(const QString &actionId) const;
+
 signals:
     void activated(const QString &actionId);
 

@@ -130,6 +130,36 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     return true;
 }
 
+QList<int> GlobalHotkeys::activeKeys(const QString &actionId) const
+{
+    QList<int> keys;
+    if (!m_available)
+        return keys;
+    QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("shortcutKeys"));
+    // shortcutKeys matches on [componentUnique, actionUnique] — friendly names
+    // are ignored for the lookup.
+    msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
+    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
+        return keys;
+    // Reply is a(ai): a list of key sequences, each packed as 4 ints
+    // (QKeySequence slots); zeros are empty slots.
+    const QDBusArgument arg = reply.arguments().first().value<QDBusArgument>();
+    arg.beginArray();
+    while (!arg.atEnd()) {
+        arg.beginStructure();
+        QList<int> seq;
+        arg >> seq;
+        arg.endStructure();
+        for (int k : std::as_const(seq))
+            if (k != 0)
+                keys.append(k);
+    }
+    arg.endArray();
+    return keys;
+}
+
 void GlobalHotkeys::unregisterAll()
 {
     if (!m_available)

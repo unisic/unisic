@@ -351,8 +351,21 @@ Window {
                 color: canvas.strokeColor
                 font.pixelSize: canvas.fontSize * canvas.renderScale
                 font.bold: true
-                onAccepted: root.commitTextBox()
-                Keys.onEscapePressed: root.closeTextBox()
+                // MUST accept Enter/Escape here so they do NOT bubble to the
+                // overlay root: commitTextBox() sets textEditor.visible = false,
+                // and the root handler — re-checking visibility AFTER that —
+                // would then fall through to confirmFromWindow and fire the
+                // capture. Accepting stops that propagation. (onAccepted alone
+                // did not consume the key event, which was the bug.)
+                Keys.onPressed: (e) => {
+                    if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                        root.commitTextBox()
+                        e.accepted = true
+                    } else if (e.key === Qt.Key_Escape) {
+                        root.closeTextBox()
+                        e.accepted = true
+                    }
+                }
             }
         }
     }

@@ -33,6 +33,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageChanged)
     Q_PROPERTY(qreal renderScale READ renderScale NOTIFY renderScaleChanged)
+    // Object-pick: true while the foreground segmentation runs off-thread;
+    // hasObjectMask flips once a usable mask is previewed on the selection.
+    Q_PROPERTY(bool segmenting READ segmenting NOTIFY segmentingChanged)
+    Q_PROPERTY(bool hasObjectMask READ hasObjectMask NOTIFY segmentingChanged)
 
 public:
     enum Tool {
@@ -70,6 +74,8 @@ public:
     bool canRedo() const { return !m_redo.isEmpty(); }
     QSize imageSize() const { return m_base.size(); }
     qreal renderScale() const;
+    bool segmenting() const { return m_segmentActive > 0; }
+    bool hasObjectMask() const { return !m_objectMask.isNull(); }
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
@@ -100,6 +106,7 @@ signals:
     void renderScaleChanged();
     void textRequested(qreal imgX, qreal imgY);
     void selectionConfirmed();
+    void segmentingChanged();
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -131,6 +138,8 @@ private:
     int hitHandle(const QPointF &imgPos) const; // 0..7 handles, -1 none
     void normalizeSelection();
     QColor sampleEdgeColor(const QRectF &r) const;
+    void startSegmentation();
+    void clearObjectMask();
 
     QImage m_base;
     QVector<Annot> m_items;
@@ -159,4 +168,13 @@ private:
     QVector<QRect> m_objectCandidates;
     QRect m_hoverObject;
     QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;
+
+    // Object-pick foreground mask for the current selection (Grayscale8 at
+    // region size, 255 = keep). Computed off-thread; m_segmentSeq drops stale
+    // results, m_maskOverlay is the cached dim-the-background preview.
+    QImage m_objectMask;
+    QRect m_objectMaskRect;
+    QImage m_maskOverlay;
+    quint64 m_segmentSeq = 0;
+    int m_segmentActive = 0;
 };

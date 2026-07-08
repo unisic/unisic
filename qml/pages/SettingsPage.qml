@@ -99,6 +99,7 @@ Item {
             width: fl.width
             spacing: Theme.spacingL
         }
+        MiddleScroll { flickable: fl }
     }
 
     FileDialog {
@@ -433,11 +434,7 @@ Item {
                     }
                 }
             }
-        }
 
-        // ===== Editor =====
-        ScrollPane {
-            visible: page.tab === 2
             UCard {
                 width: page.cardWidth
                 Column {
@@ -501,6 +498,11 @@ Item {
                 }
             }
 
+        }
+
+        // ===== Editor =====
+        ScrollPane {
+            visible: page.tab === 2
             UCard {
                 width: page.cardWidth
                 Column {

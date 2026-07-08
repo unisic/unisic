@@ -69,6 +69,16 @@ Window {
             selectedColor: canvas.strokeColor
             onAccepted: canvas.strokeColor = selectedColor
         }
+        ColorDialog {
+            id: overlayFillDialog
+            title: qsTr("Fill color")
+            selectedColor: canvas.shapeFillColor
+            options: ColorDialog.ShowAlphaChannel
+            onAccepted: {
+                canvas.shapeFillColor = selectedColor
+                canvas.shapeFillEnabled = true
+            }
+        }
 
         AnnotationCanvas {
             id: canvas
@@ -80,7 +90,11 @@ Window {
                 strokeColor = App.settings.editorStrokeColor
                 strokeWidth = App.settings.editorStrokeWidth
                 fontSize = App.settings.editorFontSize
+                shapeFillColor = App.settings.editorFillColor
+                shapeFillEnabled = App.settings.editorFillEnabled
             }
+            onShapeFillColorChanged: App.settings.editorFillColor = shapeFillColor
+            onShapeFillEnabledChanged: App.settings.editorFillEnabled = shapeFillEnabled
             onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
             onTextRequested: (x, y) => {
                 textEditor.imgX = x
@@ -108,6 +122,31 @@ Window {
                 color: "#FFFFFF"
                 font.pixelSize: 12
                 font.family: "monospace"
+            }
+        }
+
+        // Object-pick status (segmentation progress / cutout ready)
+        Rectangle {
+            visible: canvas.tool === AnnotationCanvas.ObjectPick && canvas.hasSelection
+                     && (canvas.segmenting || canvas.hasObjectMask)
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 42
+            width: segText.implicitWidth + 40
+            height: 36
+            radius: 18
+            color: Theme.primary
+            opacity: 0.92
+            border.width: 1
+            border.color: Theme.divider
+            Text {
+                id: segText
+                anchors.centerIn: parent
+                text: canvas.segmenting
+                      ? qsTr("Separating object from background…")
+                      : qsTr("Background removed — Enter or double-click captures the cutout")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontS + 1
             }
         }
 
@@ -196,6 +235,22 @@ Window {
                         width: 30; height: 30
                         anchors.verticalCenter: parent.verticalCenter
                         onClicked: overlayColorDialog.open()
+                    }
+
+                    Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
+
+                    ToolChip {
+                        iconName: "fill-color"
+                        label: qsTr("Fill shapes")
+                        active: canvas.shapeFillEnabled
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: canvas.shapeFillEnabled = !canvas.shapeFillEnabled
+                    }
+                    ColorDot {
+                        dotColor: canvas.shapeFillColor
+                        active: canvas.shapeFillEnabled
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: overlayFillDialog.open()
                     }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }

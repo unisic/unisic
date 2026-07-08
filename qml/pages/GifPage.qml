@@ -4,10 +4,14 @@ import "../components"
 
 Item {
     Flickable {
+        id: pageFlick
         anchors.fill: parent
         anchors.margins: Theme.spacingXL
         contentHeight: col.height
         clip: true
+        boundsBehavior: Flickable.StopAtBounds
+
+        MiddleScroll { flickable: pageFlick }
 
         Column {
             id: col

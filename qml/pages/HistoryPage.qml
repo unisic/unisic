@@ -45,6 +45,9 @@ Item {
             cellWidth: 250
             cellHeight: 210
             model: App.history
+            boundsBehavior: Flickable.StopAtBounds
+
+            MiddleScroll { flickable: grid }
 
             delegate: Item {
                 width: grid.cellWidth

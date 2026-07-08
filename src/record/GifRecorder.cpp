@@ -12,6 +12,7 @@
 #include <QScreen>
 #include <QSet>
 #include <QDebug>
+#include <QtConcurrent>
 #include <cstring>
 
 // The ffmpeg found in PATH varies: the Flatpak KDE runtime ships one without
@@ -19,13 +20,9 @@
 // intermediate and the MP4 output can pick a working fallback. An empty set
 // means the probe itself failed (no ffmpeg) — callers keep their preferred
 // encoder and the existing "ffmpeg could not be started" path reports it.
-static const QSet<QString> &ffmpegEncoders()
+static QSet<QString> probeFfmpegEncoders()
 {
-    static QSet<QString> cached;
-    static bool probed = false;
-    if (probed)
-        return cached;
-    probed = true;
+    QSet<QString> found;
     QProcess p;
     p.start(QStringLiteral("ffmpeg"),
             {QStringLiteral("-hide_banner"), QStringLiteral("-encoders")});
@@ -36,9 +33,18 @@ static const QSet<QString> &ffmpegEncoders()
             // (skip the legend line " V..... = Video")
             const QList<QByteArray> cols = line.simplified().split(' ');
             if (cols.size() >= 2 && cols[0].startsWith('V') && cols[1] != "=")
-                cached.insert(QString::fromLatin1(cols[1]));
+                found.insert(QString::fromLatin1(cols[1]));
         }
     }
+    return found;
+}
+
+// Magic-static: the first caller runs the probe, later callers get the cache,
+// concurrent callers block until the probe finishes — which makes the warm-up
+// from a worker thread in the constructor safe.
+static const QSet<QString> &ffmpegEncoders()
+{
+    static const QSet<QString> cached = probeFfmpegEncoders();
     return cached;
 }
 
@@ -51,6 +57,10 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     connect(&m_maxTimer, &QTimer::timeout, this, &GifRecorder::stop);
     m_elapsedTick.setInterval(250);
     connect(&m_elapsedTick, &QTimer::timeout, this, &GifRecorder::elapsedChanged);
+    // Warm the ffmpeg encoder probe off the GUI thread: without this the
+    // FIRST record/stop interaction blocks the UI for up to 5 s on the
+    // synchronous "ffmpeg -encoders" round-trip.
+    (void)QtConcurrent::run([] { (void)ffmpegEncoders(); });
 }
 
 GifRecorder::~GifRecorder()
@@ -330,6 +340,10 @@ void GifRecorder::stop()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
+    // Flip the UI to "Encoding…" BEFORE tearing the grabber down —
+    // PipeWireGrabber::stop() joins the capture thread, and doing that first
+    // made the stop button look unresponsive for the join's duration.
+    emit converting();
 #ifdef HAVE_PIPEWIRE
     if (m_grabber) {
         m_grabber->stop();
@@ -343,7 +357,6 @@ void GifRecorder::stop()
         m_session = nullptr;
     }
 
-    emit converting();
     if (!m_ffmpeg) {
         fail(tr("Recording encoder is not running"));
         return;

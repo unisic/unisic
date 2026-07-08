@@ -32,6 +32,7 @@ void AnnotationCanvas::setImage(const QImage &img)
     // block re-detection (setTool only detects when candidates are empty).
     m_objectCandidates.clear();
     m_hoverObject = QRect();
+    clearObjectMask();
     if (m_detectWatcher) {
         // Let the stale run finish detached; its lambda must not deliver.
         m_detectWatcher->disconnect(this);
@@ -55,8 +56,11 @@ qreal AnnotationCanvas::renderScale() const
 void AnnotationCanvas::setTool(int t)
 {
     if (m_tool == t) return;
+    const bool leftObjectPick = (m_tool == ObjectPick);
     m_tool = t;
     emit toolChanged();
+    if (leftObjectPick)
+        clearObjectMask();
     if (t == ObjectPick) {
         m_hoverObject = QRect();
         // Detect candidate objects once, off the GUI thread (a few tens of ms).
@@ -115,6 +119,58 @@ void AnnotationCanvas::setSelectionMode(bool on)
     m_selectionMode = on;
     emit selectionModeChanged();
     update();
+}
+
+void AnnotationCanvas::startSegmentation()
+{
+    if (m_base.isNull() || !hasSelection())
+        return;
+    const QRect r = m_selection.toAlignedRect().intersected(m_base.rect());
+    m_objectMask = {};
+    m_objectMaskRect = {};
+    m_maskOverlay = {};
+    const quint64 seq = ++m_segmentSeq; // invalidates any in-flight run
+    if (r.width() < 12 || r.height() < 12) {
+        emit segmentingChanged();
+        update();
+        return;
+    }
+    ++m_segmentActive;
+    emit segmentingChanged();
+    auto *w = new QFutureWatcher<QImage>(this);
+    connect(w, &QFutureWatcher<QImage>::finished, this, [this, w, seq, r] {
+        const QImage mask = w->result();
+        w->deleteLater();
+        --m_segmentActive;
+        if (seq == m_segmentSeq && !mask.isNull()) {
+            m_objectMask = mask;
+            m_objectMaskRect = r;
+            // Preview overlay: dark tint exactly where the mask removes pixels.
+            QImage inv = mask;
+            inv.invertPixels();
+            m_maskOverlay = QImage(mask.size(), QImage::Format_ARGB32_Premultiplied);
+            m_maskOverlay.fill(QColor(23, 21, 59, 200));
+            QPainter p(&m_maskOverlay);
+            p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+            p.drawImage(0, 0, inv.convertToFormat(QImage::Format_Alpha8));
+            p.end();
+        }
+        emit segmentingChanged();
+        update();
+    });
+    const QImage base = m_base; // shared copy; the worker only reads it
+    w->setFuture(QtConcurrent::run([base, r] { return ObjectDetector::segment(base, r); }));
+}
+
+void AnnotationCanvas::clearObjectMask()
+{
+    ++m_segmentSeq; // drop any in-flight result
+    const bool had = !m_objectMask.isNull();
+    m_objectMask = {};
+    m_objectMaskRect = {};
+    m_maskOverlay = {};
+    if (had)
+        emit segmentingChanged();
 }
 
 QPointF AnnotationCanvas::toImage(qreal itemX, qreal itemY) const
@@ -206,6 +262,9 @@ void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
     dy = qBound(bounds.top() - m_selection.top(), dy, bounds.bottom() - m_selection.bottom());
     m_selection.translate(dx, dy);
     emit selectionRectChanged();
+    // The mask was computed for the old rectangle — re-segment in place.
+    if (m_tool == ObjectPick)
+        startSegmentation();
     update();
 }
 
@@ -235,9 +294,10 @@ void AnnotationCanvas::applyCrop()
             p -= QPointF(r.x(), r.y());
     }
     m_selection = {};
-    // Candidates are in pre-crop coordinates now — invalidate.
+    // Candidates and masks are in pre-crop coordinates now — invalidate.
     m_objectCandidates.clear();
     m_hoverObject = QRect();
+    clearObjectMask();
     emit imageChanged();
     emit renderScaleChanged();
     emit selectionRectChanged();
@@ -435,6 +495,11 @@ void AnnotationCanvas::paint(QPainter *painter)
         painter->drawPath(full);
 
         if (hasSelection()) {
+            // Object-pick preview: dim the pixels the mask will remove so the
+            // user sees the exact cutout before confirming.
+            if (m_tool == ObjectPick && !m_maskOverlay.isNull()
+                && m_objectMaskRect == m_selection.toAlignedRect().intersected(m_base.rect()))
+                painter->drawImage(m_objectMaskRect.topLeft(), m_maskOverlay);
             QPen border(QColor(200, 172, 214), 1.5 / s); // accent
             border.setStyle(Qt::SolidLine);
             painter->setPen(border);
@@ -470,7 +535,17 @@ QImage AnnotationCanvas::renderedSelection() const
 {
     QImage full = rendered();
     if (!hasSelection()) return full;
-    return full.copy(m_selection.toAlignedRect().intersected(full.rect()));
+    const QRect r = m_selection.toAlignedRect().intersected(full.rect());
+    QImage crop = full.copy(r);
+    // Object pick: cut the segmented foreground out — everything the mask
+    // rejects becomes fully transparent (survives png/webp/clipboard).
+    if (m_tool == ObjectPick && !m_objectMask.isNull() && m_objectMaskRect == r) {
+        QPainter p(&crop);
+        p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        p.drawImage(0, 0, m_objectMask.convertToFormat(QImage::Format_Alpha8));
+        p.end();
+    }
+    return crop;
 }
 
 // ---------------------------------------------------------------- input
@@ -496,15 +571,27 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     m_dragStart = img;
 
     if (m_tool == ObjectPick) {
+        // Click on a detected candidate, or drag a rectangle around the object.
+        // Either way the foreground inside the region is segmented off-thread
+        // and previewed; the user confirms with Enter / double-click / the
+        // Capture button once the cutout looks right (a click no longer
+        // captures blindly — the whole point is seeing what gets removed).
         if (!m_hoverObject.isNull()) {
-            m_selection = QRectF(m_hoverObject);
+            // Pad the tight bounding box so the border ring the segmenter
+            // treats as background actually samples background pixels.
+            const int pad = qMax(6, qMax(m_hoverObject.width(), m_hoverObject.height()) / 20);
+            m_selection = QRectF(m_hoverObject.adjusted(-pad, -pad, pad, pad)
+                                     .intersected(m_base.rect()));
             normalizeSelection();
             emit selectionRectChanged();
+            startSegmentation();
             update();
-            // Plain click captures the object immediately; Shift+click only
-            // selects it so the user can annotate before pressing Enter.
-            if (!(e->modifiers() & Qt::ShiftModifier))
-                emit selectionConfirmed();
+        } else {
+            m_drag = NewSelection;
+            clearObjectMask();
+            m_selection = QRectF(img, img);
+            emit selectionRectChanged();
+            update();
         }
         e->accept();
         return;
@@ -650,6 +737,8 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
 
 void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
 {
+    if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
+        startSegmentation();
     if (m_drag == DrawDrag && m_drawing) {
         m_drawing = false;
         const bool tiny = m_current.type != Pen &&

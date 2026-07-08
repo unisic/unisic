@@ -57,6 +57,13 @@ AppContext::AppContext(QObject *parent)
     , m_recorder(new GifRecorder(m_settings, this))
 {
     connect(m_hotkeys, &GlobalHotkeys::activated, this, [this](const QString &action) {
+        // Emergency stop first, and NOT behind the shortcut-recorder guard:
+        // it must fire even while the settings UI is capturing a key press.
+        if (action == QLatin1String("stop-recording")) {
+            if (recording())
+                stopRecording();
+            return;
+        }
         if (m_shortcutRecording)
             return;
         if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
@@ -504,7 +511,11 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     // geometry the compositor honors (same trick as OverlayController) — with the
     // card drawn at the chosen corner and an input mask making the rest of the
     // surface click-through.
-    QScreen *screen = QGuiApplication::primaryScreen();
+    // Prefer the screen under the cursor (where the user is working); the
+    // primary screen is only the fallback when the cursor position is unknown.
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
     const QRect g = screen ? screen->geometry() : QRect(0, 0, 1920, 1080);
     const QRect avail = screen ? screen->availableGeometry() : g;
     const int cardW = 400, cardH = 150, margin = 16;
@@ -558,7 +569,13 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     // very first frame (never a moment where it blocks the whole screen).
     win->create();
     win->setMask(QRegion(px, py, cardW, cardH));
-    win->show(); // deliberately no requestActivate() — must not steal focus
+    // showFullScreen, not show(): a plain toplevel gets placed by the
+    // compositor's policy (KWin offsets it into the work area, e.g. below a
+    // top panel), which shifts the whole surface and cuts the card off at the
+    // screen edge. Fullscreen is the one state where the surface is pinned
+    // exactly to the screen origin — the same reason OverlayController uses it.
+    // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
+    win->showFullScreen();
     return notif;
 }
 
@@ -831,6 +848,11 @@ void AppContext::defineHotkeys()
                             m_settings->hotkeyGif());
     m_hotkeys->defineAction(QStringLiteral("record-video"), tr("Record video (start/stop)"),
                             m_settings->hotkeyRecord());
+    // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable. Pushed
+    // with setShortcut (SetPresent|NoAutoloading) on every startup, so even an
+    // edit made in KDE's Shortcuts KCM is reverted at the next launch.
+    m_hotkeys->setShortcut(QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
+                           QStringLiteral("Ctrl+Escape"));
 }
 
 // Called when the user changes a shortcut in Unisic's own settings (or on

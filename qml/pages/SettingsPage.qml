@@ -11,6 +11,17 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // FPS dropdown options (15/30/45/60); snap a stored value to the nearest.
+    readonly property var fpsOpts: [15, 30, 45, 60]
+    function nearestFps(v) {
+        var best = 0, bd = 1e9
+        for (var i = 0; i < fpsOpts.length; ++i) {
+            var d = Math.abs(fpsOpts[i] - v)
+            if (d < bd) { bd = d; best = i }
+        }
+        return best
+    }
+
     readonly property var tabNames: [qsTr("General"), qsTr("Appearance"),
                                      qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
 
@@ -195,10 +206,38 @@ Item {
         }
     }
 
+    // Persistence warning: the config dir isn't writable, so nothing sticks
+    // across launches. Tells the user exactly why + where to fix it.
+    Rectangle {
+        id: persistWarn
+        visible: !App.settings.persistent
+        anchors.top: tabBar.bottom
+        anchors.topMargin: Theme.spacingM
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: Theme.spacingXL
+        anchors.rightMargin: Theme.spacingXL
+        height: visible ? warnText.implicitHeight + 2 * Theme.spacingM : 0
+        radius: Theme.radiusM
+        color: Theme.alpha(Theme.danger, 0.15)
+        border.width: 1
+        border.color: Theme.danger
+        Text {
+            id: warnText
+            anchors.left: parent.left; anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.margins: Theme.spacingM
+            wrapMode: Text.WordWrap
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontS + 1
+            text: qsTr("⚠ Settings can't be saved — your config file is not writable, so changes reset every launch. Fix its permissions:\n    sudo chown -R $USER ~/.config/Unisic")
+        }
+    }
+
     // ---------------- panes ----------------
     Item {
         id: paneArea
-        anchors.top: tabBar.bottom
+        anchors.top: persistWarn.visible ? persistWarn.bottom : tabBar.bottom
         anchors.topMargin: Theme.spacingM
         anchors.left: parent.left
         anchors.right: parent.right
@@ -597,7 +636,7 @@ Item {
                     SectionTitle { text: qsTr("Recording") }
                     SettingRow {
                         label: qsTr("GIF frame rate")
-                        USpinBox { from: 1; to: 60; value: App.settings.gifFps; suffix: " fps"; onChanged: (v) => App.settings.gifFps = v }
+                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
                         label: qsTr("GIF max duration (0 = unlimited)")
@@ -614,7 +653,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("MP4 frame rate")
-                        USpinBox { from: 5; to: 60; value: App.settings.videoFps; suffix: " fps"; onChanged: (v) => App.settings.videoFps = v }
+                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
                     }
                 }
             }

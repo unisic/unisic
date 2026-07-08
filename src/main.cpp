@@ -54,20 +54,16 @@ static void installSignalHandlers(QCoreApplication *app)
 
 static QString singleInstanceServerName()
 {
-    // Scope to the graphical session: with two concurrent sessions (two
-    // seats, or Wayland+X11), `unisic --region` must trigger the instance in
-    // THIS session, not forward the capture to the other one. WAYLAND_DISPLAY
-    // first — unlike XDG_SESSION_ID it is identical for every process of one
-    // graphical session, including systemd user services (autostart) and
-    // compositor keybind spawns; keying on the session id split those into
-    // duplicate instances.
-    QString session = qEnvironmentVariable("WAYLAND_DISPLAY");
-    if (session.isEmpty())
-        session = qEnvironmentVariable("DISPLAY");
-    if (session.isEmpty())
-        session = qEnvironmentVariable("XDG_SESSION_ID");
-    session.replace(QLatin1Char('/'), QLatin1Char('_'));
-    return QStringLiteral("org.unisic.Unisic.%1.%2").arg(getuid()).arg(session);
+    // Key on UID ALONE — deliberately not on any session/display env var.
+    // Those vary between the launch contexts of ONE graphical session
+    // (systemd-autostart vs an interactive click vs a compositor keybind spawn
+    // often disagree on WAYLAND_DISPLAY/DISPLAY/XDG_SESSION_ID), splitting the
+    // app into duplicate instances: double KGlobalAccel dispatch (every hotkey
+    // fires twice) and two QSettings writers racing the same config file. One
+    // instance per user is the right guarantee; two concurrent graphical
+    // sessions of the same user (rare) sharing one instance is the far smaller
+    // cost.
+    return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
 }
 
 // Capture flag from argv, mapped to the command sent over the local socket —

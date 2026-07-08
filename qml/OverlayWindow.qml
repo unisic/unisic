@@ -58,7 +58,36 @@ Window {
             return height / 2 - toolbar.height / 2
         }
 
+        // Commit the in-place text box. Shared by TextInput.onAccepted and the
+        // Enter branch below, so a confirm works whether keyboard focus landed
+        // on the text field or stayed on the overlay root (Wayland activation
+        // is unreliable for a hotkey-spawned frameless window).
+        function commitTextBox() {
+            canvas.commitText(textEditor.imgX, textEditor.imgY, textField.text)
+            textEditor.visible = false
+            root.forceActiveFocus()
+        }
+        function closeTextBox() {
+            textEditor.visible = false
+            root.forceActiveFocus()
+        }
+
         Keys.onPressed: (e) => {
+            // While the text box is open, Enter CONFIRMS the text (never fires
+            // the capture), Escape closes the box (never cancels the session),
+            // and every other key is left for the TextInput to type.
+            if (textEditor.visible) {
+                if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                    root.commitTextBox()
+                    e.accepted = true
+                } else if (e.key === Qt.Key_Escape) {
+                    root.closeTextBox()
+                    e.accepted = true
+                } else {
+                    e.accepted = false // let the text field type it
+                }
+                return
+            }
             if (e.key === Qt.Key_Escape) {
                 overlayController.cancel()
             } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
@@ -288,13 +317,19 @@ Window {
             }
         }
 
-        // In-place text entry for the Text tool
-        Item {
+        // In-place text entry for the Text tool. FocusScope so the TextInput
+        // reliably owns the keyboard while open (a plain Item left focus
+        // ambiguous, which is how Enter reached the root capture handler).
+        FocusScope {
             id: textEditor
             property real imgX: 0
             property real imgY: 0
+            property alias text: textField.text
             visible: false
-            onVisibleChanged: overlayController.textEditing = visible
+            onVisibleChanged: {
+                overlayController.textEditing = visible
+                if (visible) textField.forceActiveFocus()
+            }
             x: imgX * canvas.renderScale
             y: imgY * canvas.renderScale
             width: 320
@@ -312,21 +347,12 @@ Window {
                 id: textField
                 anchors.fill: parent
                 anchors.margins: 8
+                focus: true
                 color: canvas.strokeColor
                 font.pixelSize: canvas.fontSize * canvas.renderScale
                 font.bold: true
-                // Return focus to root — the plain Item is no focus scope, so
-                // without this Escape/Enter/undo keys go dead after text entry
-                // and the overlay can no longer be cancelled from the keyboard.
-                onAccepted: {
-                    canvas.commitText(textEditor.imgX, textEditor.imgY, text)
-                    textEditor.visible = false
-                    root.forceActiveFocus()
-                }
-                Keys.onEscapePressed: {
-                    textEditor.visible = false
-                    root.forceActiveFocus()
-                }
+                onAccepted: root.commitTextBox()
+                Keys.onEscapePressed: root.closeTextBox()
             }
         }
     }

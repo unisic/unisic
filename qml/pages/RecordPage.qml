@@ -3,6 +3,17 @@ import Unisic
 import "../components"
 
 Item {
+    id: page
+    // FPS dropdown options (15/30/45/60): snap a stored value to the nearest.
+    readonly property var fpsOpts: [15, 30, 45, 60]
+    function nearestFps(v) {
+        var best = 0, bd = 1e9
+        for (var i = 0; i < fpsOpts.length; ++i) {
+            var d = Math.abs(fpsOpts[i] - v)
+            if (d < bd) { bd = d; best = i }
+        }
+        return best
+    }
     Flickable {
         id: pageFlick
         anchors.fill: parent
@@ -89,10 +100,13 @@ Item {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                             text: qsTr("Frame rate"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
-                        USpinBox {
+                        UComboBox {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 5; to: 60; value: App.settings.videoFps; suffix: " fps"
-                            onChanged: (v) => App.settings.videoFps = v
+                            width: 130
+                            model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]
+                            readonly property var opts: [15, 30, 45, 60]
+                            currentIndex: page.nearestFps(App.settings.videoFps)
+                            onActivated: (i) => App.settings.videoFps = opts[i]
                         }
                     }
                     Item {

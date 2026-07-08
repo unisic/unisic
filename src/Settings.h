@@ -4,6 +4,9 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QTimer>
+#include <QFile>
+#include <QDebug>
+#include <QCoreApplication>
 #include <qqmlregistration.h>
 
 #define U_SETTING(type, name, setterName, key, defval)                                 \
@@ -64,19 +67,61 @@ class Settings : public QObject
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
+    Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
     explicit Settings(QObject *parent = nullptr) : QObject(parent)
     {
         // QSettings only guarantees a flush in its destructor — any abnormal
         // exit (crash, SIGKILL, logout, Ctrl+C on a dev build) silently loses
-        // every change made since launch ("settings don't survive between
-        // builds"). Debounce a sync() after each write so changes hit disk
-        // within a second of being made.
+        // every change made since launch. Debounce a sync() after each write
+        // so changes hit disk within a second of being made.
         m_syncTimer.setSingleShot(true);
         m_syncTimer.setInterval(800);
         connect(&m_syncTimer, &QTimer::timeout, this, [this] { m_s.sync(); });
+        // Belt-and-suspenders flush on every quit path (covers exits that skip
+        // the QSettings destructor).
+        if (qApp)
+            connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { m_s.sync(); });
+
+        // "Settings reset to defaults on every launch" has two silent causes,
+        // both of which QSettings hides unless status() is checked:
+        //  1. A CORRUPT file (FormatError) — every read returns the default and
+        //     the bad file lingers. Back it up and start clean so the corruption
+        //     is not permanent.
+        //  2. A non-writable config dir (wrong owner from an old root run,
+        //     read-only/exotic mount, ephemeral HOME) — every setValue+sync
+        //     silently no-ops, so nothing ever persists. A write+readback probe
+        //     is the only way to detect it; surface it so the user is not left
+        //     wondering why nothing sticks.
+        m_s.sync();
+        if (m_s.status() == QSettings::FormatError) {
+            const QString f = m_s.fileName();
+            QFile::remove(f + QStringLiteral(".corrupt"));
+            if (QFile::rename(f, f + QStringLiteral(".corrupt")))
+                qWarning() << "Settings file was corrupt — backed up to" << (f + ".corrupt")
+                           << "and started fresh";
+            m_s.sync(); // re-open the now-absent file cleanly
+        }
+        // Writability probe: round-trip a marker through a fresh reader.
+        m_s.setValue(QStringLiteral("_probe"), 1);
+        m_s.sync();
+        m_writable = (m_s.status() == QSettings::NoError);
+        if (m_writable) {
+            QSettings check(QStringLiteral("Unisic"), QStringLiteral("unisic"));
+            m_writable = check.value(QStringLiteral("_probe")).toInt() == 1;
+        }
+        m_s.remove(QStringLiteral("_probe"));
+        m_s.sync();
+        if (!m_writable)
+            qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
+                       << "(check permissions/ownership of ~/.config/Unisic).";
     }
+
+    // False when the config file cannot actually be written back (the UI shows
+    // a warning banner so the user is not left re-configuring every launch).
+    bool persistent() const { return m_writable; }
+    Q_INVOKABLE QString configPath() const { return m_s.fileName(); }
 
     static QString defaultSaveDir()
     {
@@ -209,4 +254,5 @@ signals:
 private:
     QSettings m_s{QStringLiteral("Unisic"), QStringLiteral("unisic")};
     QTimer m_syncTimer;
+    bool m_writable = true;
 };

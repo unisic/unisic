@@ -21,6 +21,8 @@ signals:
     void ready(int pipewireFd, uint nodeId, const QSize &streamSize, const QPoint &streamPos);
     void failed(const QString &error);
     void restoreTokenChanged(const QString &token);
+    // The user stopped sharing from the system UI (portal Session Closed).
+    void sessionClosed();
 
 private:
     void createSession(bool includeCursor);

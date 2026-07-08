@@ -18,7 +18,8 @@ Rectangle {
 
     function _set(v) {
         v = Math.max(from, Math.min(to, v))
-        if (v !== value) { value = v; root.changed(v) }
+        // Emit only — assigning `value` would break the consumer's binding.
+        if (v !== value) root.changed(v)
     }
 
     UIconButton {

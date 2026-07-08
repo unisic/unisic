@@ -41,7 +41,9 @@ ScreenCastSession::~ScreenCastSession()
         QDBusMessage msg = QDBusMessage::createMethodCall(
             PORTAL_SERVICE, m_sessionHandle,
             QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
-        QDBusConnection::sessionBus().asyncCall(msg);
+        // send(): fire-and-forget that still gets flushed at app shutdown,
+        // when asyncCall's reply tracking would never run.
+        QDBusConnection::sessionBus().send(msg);
     }
 }
 
@@ -55,22 +57,37 @@ void ScreenCastSession::start(bool includeCursor, uint sourceTypes, const QStrin
 void ScreenCastSession::createSession(bool includeCursor)
 {
     const QString token = PortalRequest::nextToken();
+    // Unique per session, not just per process: two sessions in one process
+    // lifetime must not collide on the same portal session object path.
+    static int s_sessionCounter = 0;
     QDBusMessage msg = QDBusMessage::createMethodCall(PORTAL_SERVICE, PORTAL_PATH, SCREENCAST_IFACE,
                                                       QStringLiteral("CreateSession"));
     msg << QVariantMap{
         {QStringLiteral("handle_token"), token},
-        {QStringLiteral("session_handle_token"), QStringLiteral("unisic_%1").arg(QCoreApplication::applicationPid())},
+        {QStringLiteral("session_handle_token"),
+         QStringLiteral("unisic_%1_%2").arg(QCoreApplication::applicationPid()).arg(++s_sessionCounter)},
     };
     PortalRequest::send(msg, token, [this, includeCursor](uint code, const QVariantMap &results) {
         if (code != 0) {
-            emit failed(QStringLiteral("ScreenCast CreateSession failed (code %1)").arg(code));
+            const QString detail = results.value(QStringLiteral("error")).toString();
+            emit failed(QStringLiteral("ScreenCast CreateSession failed (code %1)").arg(code)
+                        + (detail.isEmpty() ? QString() : QStringLiteral(": ") + detail));
             return;
         }
-        m_sessionHandle = results.value(QStringLiteral("session_handle")).toString();
+        // Spec says `o` (object path); some portals return `s`.
+        const QVariant sh = results.value(QStringLiteral("session_handle"));
+        m_sessionHandle = sh.canConvert<QDBusObjectPath>() ? sh.value<QDBusObjectPath>().path()
+                                                           : sh.toString();
         if (m_sessionHandle.isEmpty()) {
             emit failed(QStringLiteral("Portal returned empty session handle"));
             return;
         }
+        // Surface "stopped sharing from the system UI" instead of silently
+        // recording a frozen frame forever.
+        QDBusConnection::sessionBus().connect(
+            PORTAL_SERVICE, m_sessionHandle,
+            QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
+            this, SIGNAL(sessionClosed()));
         selectSources(includeCursor);
     }, this);
 }
@@ -87,7 +104,13 @@ void ScreenCastSession::selectSources(bool includeCursor)
         {QStringLiteral("cursor_mode"), uint(includeCursor ? 2 : 1)}, // EMBEDDED : HIDDEN
     };
 
-    m_restoreTokensSupported = screenCastPortalVersion() >= 4;
+    // Blocking Properties.Get — cache it (GUI thread), but only a successful
+    // answer: caching a transient failure (0) would disable restore tokens
+    // for the whole process lifetime.
+    static uint portalVersion = 0;
+    if (portalVersion == 0)
+        portalVersion = screenCastPortalVersion();
+    m_restoreTokensSupported = portalVersion >= 4;
     if (m_restoreTokensSupported) {
         options.insert(QStringLiteral("persist_mode"), uint(2));
         if (!m_restoreToken.isEmpty())

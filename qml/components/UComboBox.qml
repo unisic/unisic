@@ -73,11 +73,18 @@ Rectangle {
         padding: 6
         closePolicy: C.Popup.CloseOnEscape
 
-        // Position under the field in overlay coordinates each time it opens.
+        // Position under the field in overlay coordinates each time it opens;
+        // clamp to the window and flip above the field when out of room below.
         onAboutToShow: {
-            var p = root.mapToItem(C.Overlay.overlay, 0, root.height + 6)
-            x = p.x
-            y = p.y
+            var overlay = C.Overlay.overlay
+            var p = root.mapToItem(overlay, 0, root.height + 6)
+            x = Math.max(0, Math.min(p.x, overlay.width - width))
+            if (p.y + height > overlay.height) {
+                var above = root.mapToItem(overlay, 0, 0).y - height - 6
+                y = above >= 0 ? above : Math.max(0, overlay.height - height)
+            } else {
+                y = p.y
+            }
         }
 
         enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animFast } }
@@ -123,8 +130,9 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    // Emit only — writing currentIndex here would destroy the
+                    // consumer's binding; the handler updates the source.
                     onClicked: {
-                        root.currentIndex = index
                         popup.close()
                         root.activated(index)
                     }

@@ -204,8 +204,15 @@ Window {
                     }
                 }
                 Text {
-                    text: App.converting ? qsTr("Encoding…")
-                                         : Qt.formatTime(new Date(0, 0, 0, 0, 0, App.recordSeconds), "mm:ss")
+                    // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes.
+                    function fmtElapsed(s) {
+                        var h = Math.floor(s / 3600)
+                        var m = Math.floor((s % 3600) / 60)
+                        var sec = s % 60
+                        function p(v) { return (v < 10 ? "0" : "") + v }
+                        return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
+                    }
+                    text: App.converting ? qsTr("Encoding…") : fmtElapsed(App.recordSeconds)
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontM
                     anchors.verticalCenter: parent.verticalCenter

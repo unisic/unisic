@@ -26,8 +26,8 @@ public:
     // Negotiated stream size (valid after formatReady).
     QSize frameSize() const { return m_size; }
 
-    // Copies the latest frame (tightly packed BGRA, frameSize()) into `out`.
-    // Returns false if no frame arrived yet.
+    // Hands out the latest frame (tightly packed BGRA, frameSize()) as a
+    // cheap implicitly-shared reference. Returns false if no frame arrived yet.
     bool latestFrame(QByteArray &out);
 
 signals:
@@ -47,9 +47,9 @@ private:
     void *m_listener = nullptr;
 
     QMutex m_mutex;
-    QByteArray m_latest;
+    QByteArray m_latest; // front buffer: replaced by swap only, never written in place
+    QByteArray m_back;   // back buffer: PipeWire thread only
     std::atomic<bool> m_haveFrame{false};
     QSize m_size;
-    int m_srcStride = 0;
     uint32_t m_format = 0;
 };

@@ -28,6 +28,17 @@ void AnnotationCanvas::setImage(const QImage &img)
     m_redo.clear();
     m_stepCounter = 0;
     m_selection = {};
+    // Object-pick state belongs to the previous image; stale rects would also
+    // block re-detection (setTool only detects when candidates are empty).
+    m_objectCandidates.clear();
+    m_hoverObject = QRect();
+    if (m_detectWatcher) {
+        // Let the stale run finish detached; its lambda must not deliver.
+        m_detectWatcher->disconnect(this);
+        connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished,
+                m_detectWatcher, &QObject::deleteLater);
+        m_detectWatcher = nullptr;
+    }
     emit imageChanged();
     emit historyChanged();
     emit selectionRectChanged();
@@ -188,8 +199,12 @@ void AnnotationCanvas::commitText(qreal imgX, qreal imgY, const QString &text)
 void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
 {
     if (!hasSelection()) return;
+    // Clamp the translation instead of normalizeSelection(): intersecting at
+    // the image edge would progressively *shrink* the selection.
+    const QRectF bounds(QPointF(0, 0), QSizeF(m_base.size()));
+    dx = qBound(bounds.left() - m_selection.left(), dx, bounds.right() - m_selection.right());
+    dy = qBound(bounds.top() - m_selection.top(), dy, bounds.bottom() - m_selection.bottom());
     m_selection.translate(dx, dy);
-    normalizeSelection();
     emit selectionRectChanged();
     update();
 }
@@ -220,6 +235,9 @@ void AnnotationCanvas::applyCrop()
             p -= QPointF(r.x(), r.y());
     }
     m_selection = {};
+    // Candidates are in pre-crop coordinates now — invalidate.
+    m_objectCandidates.clear();
+    m_hoverObject = QRect();
     emit imageChanged();
     emit renderScaleChanged();
     emit selectionRectChanged();

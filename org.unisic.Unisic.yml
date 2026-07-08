@@ -15,6 +15,9 @@ finish-args:
   - --filesystem=xdg-videos:create
   - --filesystem=xdg-config/unisic:create
   - --talk-name=org.freedesktop.portal.Desktop
+  # Self-grant the "screenshot" permission so non-interactive portal
+  # screenshots (overlay freeze) work without a dialog per capture.
+  - --talk-name=org.freedesktop.impl.portal.PermissionStore
   - --talk-name=org.kde.KWin
   - --talk-name=org.kde.kglobalaccel
 

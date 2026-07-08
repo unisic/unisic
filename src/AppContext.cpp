@@ -39,6 +39,8 @@
 #include <QRegularExpression>
 #include <QUuid>
 #include <QMetaProperty>
+#include <QStandardPaths>
+#include <QtConcurrentRun>
 #include <QDebug>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -81,13 +83,13 @@ AppContext::AppContext(QObject *parent)
         m_converting = false;
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
-            showToast(tr("Recording failed: %1").arg(e));
+            showToast(tr("Recording failed: %1").arg(e), true);
     });
 
     // A history file that could not be trashed still gets its entry removed;
     // let the user know the file is still on disk.
     connect(m_history, &HistoryStore::fileTrashFailed, this, [this](const QString &path) {
-        showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path));
+        showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
     });
 
 #ifdef HAVE_TESSERACT
@@ -98,6 +100,7 @@ AppContext::AppContext(QObject *parent)
 AppContext::~AppContext()
 {
     // Keep registered shortcuts so they survive restarts (KGlobalAccel autoloads them).
+    delete m_trayMenu; // QSystemTrayIcon::setContextMenu doesn't take ownership
 }
 
 void AppContext::initialize(QQmlEngine *engine)
@@ -158,9 +161,9 @@ void AppContext::ocrFile(const QString &path)
     ocrImage(QImage(path));
 }
 
-void AppContext::showToast(const QString &text)
+void AppContext::showToast(const QString &text, bool important)
 {
-    if (!m_settings->showNotifications())
+    if (!important && !m_settings->showNotifications())
         return;
     m_toast = text;
     emit toastChanged();
@@ -218,11 +221,15 @@ static QString captureErrorText(const QString &err)
 
 void AppContext::captureFullScreen()
 {
+    if (m_captureInFlight)
+        return; // hammering the hotkey must not stack portal requests
+    m_captureInFlight = true;
     withDelay([this] {
         m_capture->captureWorkspace([this](const QImage &img, const QString &err) {
+            m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
-                    showToast(captureErrorText(err));
+                    showToast(captureErrorText(err), true);
                 return;
             }
             finishCapture(img);
@@ -242,11 +249,15 @@ void AppContext::captureRegion()
 
 void AppContext::captureWindow()
 {
+    if (m_captureInFlight)
+        return;
+    m_captureInFlight = true;
     withDelay([this] {
         m_capture->captureActiveWindow([this](const QImage &img, const QString &err) {
+            m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
-                    showToast(captureErrorText(err));
+                    showToast(captureErrorText(err), true);
                 return;
             }
             finishCapture(img);
@@ -307,9 +318,38 @@ void AppContext::onRecordingFinished(const QString &path)
 {
     m_converting = false;
     emit recordingChanged();
-    QImage thumb(path); // first GIF frame loads fine via Qt's gif plugin
     const QString kind = path.endsWith(QLatin1String(".gif")) ? QStringLiteral("gif")
                                                               : QStringLiteral("video");
+    if (kind == QLatin1String("video")) {
+        // QImage has no mp4/webm plugin — extract a poster frame via ffmpeg,
+        // else every video gets a blank thumbnail in history and the popup.
+        const QString posterPath = path + QStringLiteral(".poster.png");
+        auto *proc = new QProcess(this);
+        connect(proc, &QProcess::finished, this, [this, proc, path, kind, posterPath](int, QProcess::ExitStatus) {
+            proc->deleteLater();
+            QImage thumb(posterPath);
+            QFile::remove(posterPath);
+            finishRecordingEntry(path, thumb, kind);
+        });
+        connect(proc, &QProcess::errorOccurred, this, [this, proc, path, kind](QProcess::ProcessError e) {
+            if (e != QProcess::FailedToStart)
+                return;
+            proc->deleteLater();
+            finishRecordingEntry(path, QImage(), kind);
+        });
+        proc->start(QStringLiteral("ffmpeg"),
+                    {QStringLiteral("-y"), QStringLiteral("-nostats"),
+                     QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-i"), path,
+                     QStringLiteral("-frames:v"), QStringLiteral("1"), posterPath});
+        return;
+    }
+    QImage thumb(path); // first GIF frame loads fine via Qt's gif plugin
+    finishRecordingEntry(path, thumb, kind);
+}
+
+void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind)
+{
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
@@ -324,7 +364,7 @@ void AppContext::onRecordingFinished(const QString &path)
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
             } else {
-                showToast(tr("Upload failed: %1").arg(err));
+                showToast(tr("Upload failed: %1").arg(err), true);
                 if (np) np->setUploading(false);
             }
         });
@@ -342,9 +382,12 @@ void AppContext::finishCapture(const QImage &img)
     if (img.isNull())
         return;
 
+    // One name per capture: save and upload must agree (a second-boundary or
+    // %rand% template would otherwise produce two different names).
+    const QString fileName = makeFileName();
     QString path;
     if (m_settings->autoSave())
-        path = saveImageAuto(img);
+        path = saveImageAuto(img, fileName);
     if (m_settings->copyToClipboard())
         copyImageToClipboard(img);
 
@@ -359,12 +402,12 @@ void AppContext::finishCapture(const QImage &img)
         if (np) np->setUploading(true);
         QString mime;
         const QByteArray data = encodeImage(img, &mime);
-        m_uploads->uploadData(data, makeFileName(), mime,
+        m_uploads->uploadData(data, fileName, mime,
             [this, path, img, np](const QString &url, const QString &del, const QString &err) {
                 if (!err.isEmpty()) {
                     if (path.isEmpty())
                         m_history->addEntry({}, img, QStringLiteral("image"));
-                    showToast(tr("Upload failed: %1").arg(err));
+                    showToast(tr("Upload failed: %1").arg(err), true);
                     if (np) np->setUploading(false);
                     return;
                 }
@@ -399,6 +442,8 @@ void AppContext::afterUploadActions(const QString &url)
 
 void AppContext::openEditor(const QImage &img)
 {
+    if (!m_engine)
+        return;
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/EditorWindow.qml")));
     if (component.isError()) {
         qWarning() << component.errorString();
@@ -431,7 +476,7 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
     m_uploads->uploadData(data, fileName, mime,
         [this, img, path, np](const QString &url, const QString &del, const QString &err) {
             if (!err.isEmpty()) {
-                showToast(tr("Upload failed: %1").arg(err));
+                showToast(tr("Upload failed: %1").arg(err), true);
                 if (np) np->setUploading(false);
                 return;
             }
@@ -517,6 +562,7 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     return notif;
 }
 
+<<<<<<< HEAD
 void AppContext::scheduleMemoryTrim()
 {
 #if defined(__GLIBC__)
@@ -531,8 +577,11 @@ void AppContext::scheduleMemoryTrim()
 }
 
 QString AppContext::saveImageAuto(const QImage &img)
+=======
+QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 {
-    return saveImageTo(img, m_settings->saveDirectory());
+    return saveImageTo(img, m_settings->saveDirectory(), fileName);
 }
 
 QString AppContext::makeFileName() const
@@ -581,12 +630,12 @@ QByteArray AppContext::encodeImage(const QImage &img, QString *mime) const
     return out;
 }
 
-QString AppContext::saveImageTo(const QImage &img, const QString &dir)
+QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName)
 {
     if (dir.isEmpty() || img.isNull())
         return {};
     QDir().mkpath(dir);
-    const QString name = makeFileName();
+    const QString name = fileName.isEmpty() ? makeFileName() : fileName;
     QString path = dir + QLatin1Char('/') + name;
     const QFileInfo fi(name);
     for (int n = 1; QFile::exists(path); ++n)
@@ -608,33 +657,60 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir)
     return path;
 }
 
+// Resolved once — the old `sh -c "command -v wl-copy"` was a blocking
+// fork/exec on the GUI thread on the hot path of every capture.
+static QString wlCopyPath()
+{
+    static const QString path = QStandardPaths::findExecutable(QStringLiteral("wl-copy"));
+    return path;
+}
+
+static void spawnWlCopy(AppContext *app, const QString &wlCopy, const QStringList &args,
+                        const QByteArray &payload)
+{
+    auto *proc = new QProcess(app);
+    QObject::connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
+    // finished() never fires on FailedToStart — without this the process
+    // object (holding the payload in its write buffer) lingers until exit.
+    QObject::connect(proc, &QProcess::errorOccurred, proc, &QObject::deleteLater);
+    proc->start(wlCopy, args);
+    proc->write(payload);
+    proc->closeWriteChannel();
+}
+
 void AppContext::copyImageToClipboard(const QImage &img)
 {
     QGuiApplication::clipboard()->setImage(img);
     // Wayland: clipboard offers can be lost when no window has focus.
     // wl-copy (if present) makes it stick regardless.
-    if (!QProcess::execute(QStringLiteral("sh"),
-                           {QStringLiteral("-c"), QStringLiteral("command -v wl-copy >/dev/null")})) {
+    const QString wlCopy = wlCopyPath();
+    if (wlCopy.isEmpty())
+        return;
+    // PNG-encoding a 4K capture takes 100+ ms — keep it off the GUI thread.
+    // QImage is implicitly shared and the worker only reads its copy.
+    QPointer<AppContext> self(this);
+    (void)QtConcurrent::run([self, img, wlCopy] {
         QByteArray png;
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
         img.save(&buf, "PNG");
-        auto *proc = new QProcess(this);
-        connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
-        proc->start(QStringLiteral("wl-copy"), {QStringLiteral("--type"), QStringLiteral("image/png")});
-        proc->write(png);
-        proc->closeWriteChannel();
-    }
+        // QProcess must live on the GUI thread.
+        QMetaObject::invokeMethod(qApp, [self, png, wlCopy] {
+            if (self)
+                spawnWlCopy(self, wlCopy, {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
+        }, Qt::QueuedConnection);
+    });
 }
 
 void AppContext::copyText(const QString &text)
 {
     QGuiApplication::clipboard()->setText(text);
-    if (!QProcess::execute(QStringLiteral("sh"),
-                           {QStringLiteral("-c"), QStringLiteral("command -v wl-copy >/dev/null")})) {
+    const QString wlCopy = wlCopyPath();
+    if (!wlCopy.isEmpty()) {
         auto *proc = new QProcess(this);
         connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
-        proc->start(QStringLiteral("wl-copy"), {});
+        connect(proc, &QProcess::errorOccurred, proc, &QObject::deleteLater);
+        proc->start(wlCopy, {});
         proc->write(text.toUtf8());
         proc->closeWriteChannel();
     }
@@ -663,7 +739,11 @@ void AppContext::openFile(const QString &path)
 
 void AppContext::openDirectory(const QString &path)
 {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(path.isEmpty() ? m_settings->saveDirectory() : path));
+    const QString dir = path.isEmpty() ? m_settings->saveDirectory() : path;
+    // On a fresh profile nothing has saved yet, so the default save dir may
+    // not exist (defaultSaveDir deliberately has no mkpath side effect).
+    QDir().mkpath(dir);
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
 // --------------------------------------------------------- export / import
@@ -779,6 +859,7 @@ void AppContext::setupTray()
         return;
     m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")), this);
     auto *menu = new QMenu;
+    m_trayMenu = menu;
     menu->addAction(tr("Capture region"), this, &AppContext::captureRegion);
     menu->addAction(tr("Capture full screen"), this, &AppContext::captureFullScreen);
     menu->addAction(tr("Capture window"), this, &AppContext::captureWindow);

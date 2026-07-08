@@ -68,8 +68,12 @@ public:
 
     static QString defaultSaveDir()
     {
-        QString d = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/Unisic";
-        QDir().mkpath(d);
+        // No mkpath here: U_SETTING evaluates the default on every read, so a
+        // side effect would run per QML binding evaluation and resurrect the
+        // directory even after the user picked a different one and deleted it.
+        // Save paths (saveImageTo, GifRecorder) mkpath right before writing.
+        static const QString d =
+            QStandardPaths::writableLocation(QStandardPaths::PicturesLocation) + "/Unisic";
         return d;
     }
 

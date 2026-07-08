@@ -4,7 +4,30 @@
 #include "GnomeScreenshot.h"
 #include "Settings.h"
 #include <QGuiApplication>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCall>
 #include <QDebug>
+
+// Inside Flatpak the KDE Screenshot portal denies non-interactive requests
+// unless the permission store answers "yes" for this app id, and the overlay
+// freeze must be silent (a dialog per capture is unusable). Self-grant the
+// permission — the manifest allows it via
+// --talk-name=org.freedesktop.impl.portal.PermissionStore.
+static void grantSilentScreenshotPermission()
+{
+    const QString appId = qEnvironmentVariable("FLATPAK_ID");
+    if (appId.isEmpty())
+        return;
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+        QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
+        QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+        QStringLiteral("SetPermission"));
+    msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
+        << appId << QStringList{QStringLiteral("yes")};
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
 
 static bool isKWinAuthError(const QString &err)
 {
@@ -34,6 +57,7 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_kwin(new KWinScreenShot2(this))
     , m_gnome(new GnomeScreenshot(this))
 {
+    grantSilentScreenshotPermission();
 }
 
 bool CaptureManager::preferGnome() const
@@ -113,6 +137,7 @@ void CaptureManager::captureWorkspace(Callback cb)
 
 void CaptureManager::captureScreen(QScreen *screen, Callback cb)
 {
+<<<<<<< HEAD
     // Snapshot the geometry now; the QScreen* must not be dereferenced inside the
     // async callbacks below (the monitor may be gone by the time they run).
     const ScreenGeom geom = snapshotScreen(screen);
@@ -121,17 +146,34 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
     if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
         m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
             [this, geom, cb](const QImage &img, const QString &err) {
+=======
+    // The portal dialog can stay open for seconds; the screen may be gone.
+    QPointer<QScreen> sp(screen);
+    if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
+        m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
+            [this, sp, cb](const QImage &img, const QString &err) {
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
                 if (!err.isEmpty()) {
                     qWarning() << "KWin captureScreen failed, portal fallback:" << err;
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
                     // Portal returns the whole workspace: crop to the screen.
+<<<<<<< HEAD
                     portalFallback([geom, cb, err](const QImage &full, const QString &e2) {
                         if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
                         QImage crop = CaptureManager::cropForScreen(full, geom);
                         if (crop.isNull()) {
                             cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
                                                  .arg(screenLabel(geom))));
+=======
+                    portalFallback([sp, cb, err](const QImage &full, const QString &e2) {
+                        if (!e2.isEmpty()) { cb({}, combinedError(err, e2)); return; }
+                        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
+                        QImage crop = CaptureManager::cropForScreen(full, sp);
+                        if (crop.isNull()) {
+                            cb({}, combinedError(err, QStringLiteral("portal screenshot does not contain screen %1")
+                                                 .arg(screenLabel(sp))));
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
                             return;
                         }
                         cb(crop, {});
@@ -143,11 +185,21 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
         return;
     }
     // Portal path: capture all and crop.
+<<<<<<< HEAD
     portalFallback([geom, hasScreen, cb](const QImage &full, const QString &err) {
         if (!err.isEmpty() || !hasScreen) { cb(full, err); return; }
         QImage crop = cropForScreen(full, geom);
         if (crop.isNull()) {
             cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(geom)));
+=======
+    const bool hadScreen = screen != nullptr;
+    portalFallback([sp, hadScreen, cb](const QImage &full, const QString &err) {
+        if (!err.isEmpty() || !hadScreen) { cb(full, err); return; }
+        if (!sp) { cb({}, QStringLiteral("screen disconnected during capture")); return; }
+        QImage crop = cropForScreen(full, sp);
+        if (crop.isNull()) {
+            cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(sp)));
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
             return;
         }
         cb(crop, {});
@@ -202,18 +254,26 @@ void CaptureManager::captureAllScreens(const QVector<QScreen *> &screens, MultiC
         cb({}, QStringLiteral("no screens"));
         return;
     }
+    QVector<QPointer<QScreen>> guarded;
+    guarded.reserve(screens.size());
+    for (QScreen *s : screens)
+        guarded.append(QPointer<QScreen>(s));
     if (!m_kwinDenied && KWinScreenShot2::isAvailable()) {
-        kwinScreensSerial(screens, 0, QVector<QImage>(screens.size()), std::move(cb));
+        kwinScreensSerial(std::move(guarded), 0, QVector<QImage>(screens.size()), std::move(cb));
         return;
     }
-    portalAllScreens(screens, std::move(cb));
+    portalAllScreens(std::move(guarded), std::move(cb));
 }
 
-void CaptureManager::kwinScreensSerial(QVector<QScreen *> screens, int index,
+void CaptureManager::kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index,
                                        QVector<QImage> acc, MultiCallback cb)
 {
     if (index >= screens.size()) {
         cb(acc, {});
+        return;
+    }
+    if (!screens[index]) {
+        cb({}, QStringLiteral("screen disconnected during capture"));
         return;
     }
     m_kwin->captureScreen(screens[index]->name(), m_settings->includeCursor(),
@@ -230,7 +290,7 @@ void CaptureManager::kwinScreensSerial(QVector<QScreen *> screens, int index,
         });
 }
 
-void CaptureManager::portalAllScreens(QVector<QScreen *> screens, MultiCallback cb,
+void CaptureManager::portalAllScreens(QVector<QPointer<QScreen>> screens, MultiCallback cb,
                                       const QString &previousError)
 {
     // Snapshot geometry up front — the QScreen*s must not be dereferenced inside
@@ -250,9 +310,19 @@ void CaptureManager::portalAllScreens(QVector<QScreen *> screens, MultiCallback 
             cb({}, combinedError(previousError, err));
             return;
         }
+<<<<<<< HEAD
         QVector<QImage> out(geoms.size());
         for (int i = 0; i < geoms.size(); ++i) {
             out[i] = cropForScreen(full, geoms[i]);
+=======
+        QVector<QImage> out(screens.size());
+        for (int i = 0; i < screens.size(); ++i) {
+            if (!screens[i]) {
+                cb({}, QStringLiteral("screen disconnected during capture"));
+                return;
+            }
+            out[i] = cropForScreen(full, screens[i]);
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
             if (out[i].isNull()) {
                 cb({}, combinedError(previousError,
                                      QStringLiteral("screenshot does not contain screen %1")

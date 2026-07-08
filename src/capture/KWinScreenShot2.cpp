@@ -10,9 +10,15 @@
 #include <QFutureWatcher>
 #include <unistd.h>
 #include <fcntl.h>
+#include <poll.h>
 
 bool KWinScreenShot2::isAvailable()
 {
+    // KWin's restricted-interface check rejects sandboxed clients even when
+    // the exported desktop file carries X-KDE-DBUS-Restricted-Interfaces —
+    // inside Flatpak, go straight to the portal instead of failing first.
+    if (qEnvironmentVariableIsSet("FLATPAK_ID"))
+        return false;
     auto *iface = QDBusConnection::sessionBus().interface();
     return iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
 }
@@ -31,7 +37,8 @@ static PipeImageResult readImageFromPipe(int fd, const QVariantMap &meta)
     const uint format = meta.value(QStringLiteral("format")).toUInt();
     const qreal scale = meta.value(QStringLiteral("scale"), 1.0).toReal();
 
-    if (!width || !height || !stride || format == QImage::Format_Invalid) {
+    if (!width || !height || !stride || format == QImage::Format_Invalid
+        || format >= QImage::NImageFormats) {
         r.error = QStringLiteral("KWin returned invalid image metadata");
         close(fd);
         return r;
@@ -43,12 +50,26 @@ static PipeImageResult readImageFromPipe(int fd, const QVariantMap &meta)
         close(fd);
         return r;
     }
+    // If the delivered stride is narrower than ours, the scanline tails would
+    // stay uninitialized (QImage buffers aren't zeroed).
+    if (qsizetype(stride) < img.bytesPerLine())
+        img.fill(0);
 
     const qsizetype rowBytes = qMin<qsizetype>(stride, img.bytesPerLine());
     QByteArray row(stride, Qt::Uninitialized);
     for (uint y = 0; y < height; ++y) {
         qsizetype got = 0;
         while (got < qsizetype(stride)) {
+            // A stalled KWin that never closes its write end would otherwise
+            // hang this worker thread (and the capture callback) forever.
+            struct pollfd pfd = {fd, POLLIN, 0};
+            const int pr = poll(&pfd, 1, 30000);
+            if (pr <= 0) {
+                if (pr < 0 && errno == EINTR) continue;
+                r.error = QStringLiteral("Timed out reading from KWin screenshot pipe");
+                close(fd);
+                return r;
+            }
             ssize_t n = read(fd, row.data() + got, stride - got);
             if (n <= 0) {
                 if (n < 0 && (errno == EINTR || errno == EAGAIN)) continue;

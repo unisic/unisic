@@ -30,6 +30,7 @@ class ThemeController : public QObject
 
 public:
     explicit ThemeController(QObject *parent = nullptr);
+    ~ThemeController() override;
 
     // Singleton factory so the app and the image provider share one instance.
     static ThemeController *instance();
@@ -58,5 +59,6 @@ private:
 
     QString m_themeName;
     int m_rev = 0;
+    bool m_bumpQueued = false;
     QSettings m_settings{QStringLiteral("Unisic"), QStringLiteral("unisic")};
 };

@@ -14,6 +14,12 @@
 OverlayController::OverlayController(AppContext *app, QObject *parent)
     : QObject(parent), m_app(app)
 {
+    // m_screens caches raw QScreen* across the async freeze round-trip;
+    // a monitor unplug would leave dangling pointers, so just cancel.
+    connect(qGuiApp, &QGuiApplication::screenRemoved, this, [this] {
+        if (active())
+            cancel();
+    });
 }
 
 void OverlayController::pickAnnotatedImage(ImageCallback cb)
@@ -40,15 +46,20 @@ void OverlayController::begin(bool annotationTools)
     m_frozen.clear();
     m_frozen.resize(m_screens.size());
 
+    // Stale-callback guard: a cancel()+retrigger must not let the previous
+    // freeze capture overwrite state and spawn a second set of windows.
+    const int gen = ++m_generation;
     m_app->captureManager()->captureAllScreens(m_screens,
-        [this](const QVector<QImage> &imgs, const QString &err) {
+        [this, gen](const QVector<QImage> &imgs, const QString &err) {
+            if (gen != m_generation)
+                return;
             if (!err.isEmpty()) {
                 qWarning() << "Freeze capture failed:" << err;
                 if (err != QLatin1String("cancelled"))
                     m_app->showToast(tr("Screen capture failed: %1. Install Unisic "
                                         "(sudo cmake --install build) and launch it from the "
                                         "application menu so KDE authorizes it — and make sure "
-                                        "xdg-desktop-portal-kde is running.").arg(err));
+                                        "xdg-desktop-portal-kde is running.").arg(err), true);
                 cancel();
                 return;
             }
@@ -81,6 +92,8 @@ void OverlayController::createWindows()
 
     for (int i = 0; i < m_screens.size(); ++i) {
         QScreen *screen = m_screens[i];
+        // Parented to the window below — a context parented to this
+        // app-lifetime controller would leak one per screen per invocation.
         auto *ctx = new QQmlContext(engine->rootContext(), this);
         ctx->setContextProperty(QStringLiteral("overlayController"), this);
         ctx->setContextProperty(QStringLiteral("annotationToolsEnabled"), m_annotationTools);
@@ -89,8 +102,10 @@ void OverlayController::createWindows()
         auto *win = qobject_cast<QQuickWindow *>(obj);
         if (!win) {
             delete obj;
+            delete ctx;
             continue;
         }
+        ctx->setParent(win);
         win->setScreen(screen);
         win->setGeometry(screen->geometry());
 
@@ -104,6 +119,9 @@ void OverlayController::createWindows()
     if (!m_windows.isEmpty()) {
         m_starting = false;
         m_windows.first()->requestActivate();
+        // Each canvas took its own copy — don't pin a second full-resolution
+        // image per monitor for the overlay's whole lifetime.
+        m_frozen.clear();
     } else {
         cancel();
     }
@@ -134,6 +152,7 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
 
 void OverlayController::cancel()
 {
+    ++m_generation;
     closeAll();
     m_imageCb = nullptr;
     m_regionCb = nullptr;

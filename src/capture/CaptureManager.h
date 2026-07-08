@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QPointer>
 #include <QScreen>
 #include <functional>
 
@@ -46,11 +47,16 @@ private:
     // org.gnome.Shell.Screenshot there and fall back to the portal; everywhere
     // else the portal is primary and GNOME-direct is the last-resort rescue.
     void portalFallback(Callback cb);
+<<<<<<< HEAD
     void workspaceFallback(Callback cb, bool allowInteractive, const QString &previousError = {});
     bool preferGnome() const;
     void kwinScreensSerial(QVector<QScreen *> screens, int index, QVector<QImage> acc,
+=======
+    // QPointer: a monitor can be unplugged while a portal dialog is open.
+    void kwinScreensSerial(QVector<QPointer<QScreen>> screens, int index, QVector<QImage> acc,
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
                            MultiCallback cb);
-    void portalAllScreens(QVector<QScreen *> screens, MultiCallback cb,
+    void portalAllScreens(QVector<QPointer<QScreen>> screens, MultiCallback cb,
                           const QString &previousError = {});
 
     static ScreenGeom snapshotScreen(QScreen *screen);

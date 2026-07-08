@@ -23,13 +23,25 @@ static QString singleInstanceServerName()
     return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
 }
 
-static bool notifyExistingInstance(const QString &serverName)
+// Capture flag from argv, mapped to the command sent over the local socket —
+// `unisic --region` with a running instance must trigger a capture there, not
+// just raise its window.
+static QByteArray cliCommand(const QStringList &args)
+{
+    if (args.contains(QLatin1String("--fullscreen"))) return "fullscreen";
+    if (args.contains(QLatin1String("--region"))) return "region";
+    if (args.contains(QLatin1String("--window"))) return "window";
+    if (args.contains(QLatin1String("--gif"))) return "gif";
+    return "show";
+}
+
+static bool notifyExistingInstance(const QString &serverName, const QByteArray &command = "show")
 {
     QLocalSocket socket;
     socket.connectToServer(serverName, QIODevice::WriteOnly);
     if (!socket.waitForConnected(200))
         return false;
-    socket.write("show\n");
+    socket.write(command + "\n");
     socket.flush();
     socket.waitForBytesWritten(500);
     socket.disconnectFromServer();
@@ -76,7 +88,12 @@ static void ensureDesktopFile()
 
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
     const QString target = dir + QStringLiteral("/org.unisic.Unisic.desktop");
-    const QByteArray execLine = "Exec=" + QCoreApplication::applicationFilePath().toUtf8() + "\n";
+    // Quote per the Desktop Entry spec — an unquoted build path with spaces
+    // yields an invalid entry and silently breaks ScreenShot2 authorization.
+    QString execPath = QCoreApplication::applicationFilePath();
+    execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
+            .replace(QLatin1Char('"'), QLatin1String("\\\""));
+    const QByteArray execLine = "Exec=\"" + execPath.toUtf8() + "\"\n";
     const QByteArray iconLine = "Icon=org.unisic.Unisic\n";
     const QByteArray restrictedLine =
         "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
@@ -113,9 +130,10 @@ static void ensureDesktopFile()
     // now so silent capture can work in this very session.
     const QString sycoca = QStandardPaths::findExecutable(QStringLiteral("kbuildsycoca6"));
     if (!sycoca.isEmpty()) {
-        QProcess p;
-        p.start(sycoca, {});
-        p.waitForFinished(5000);
+        // Detached: blocking up to 5 s here stalls first-run startup; if the
+        // rebuild isn't done for the very first capture, the KWin path just
+        // falls back to the portal once.
+        QProcess::startDetached(sycoca, {});
     }
 }
 
@@ -133,12 +151,44 @@ int main(int argc, char *argv[])
     const QStringList args = app.arguments();
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
                                    || args.contains(QLatin1String("--import-settings"));
-    const QString serverName = singleInstanceServerName();
-    if (!settingsBatchMode && notifyExistingInstance(serverName))
+
+    // Batch modes run headless and exit — never boot the tray/QML/hotkeys and
+    // never race a running instance's single-instance socket.
+    if (settingsBatchMode) {
+        // Headless: the QML engine normally instantiates the ThemeController
+        // singleton — without one, themeName would silently drop out of
+        // export/import.
+        ThemeController batchTheme;
+        AppContext batchContext;
+        const int i = args.indexOf(QLatin1String("--export-settings"));
+        const int j = args.indexOf(QLatin1String("--import-settings"));
+        QString err;
+        if (i >= 0) {
+            if (i + 1 >= args.size()) {
+                qWarning() << "--export-settings requires a file path";
+                return 2;
+            }
+            err = batchContext.exportSettings(QUrl::fromLocalFile(args[i + 1]));
+        } else if (j >= 0) {
+            if (j + 1 >= args.size()) {
+                qWarning() << "--import-settings requires a file path";
+                return 2;
+            }
+            err = batchContext.importSettings(QUrl::fromLocalFile(args[j + 1]));
+            if (err.isEmpty())
+                qInfo() << "Settings imported — restart a running Unisic instance to apply them.";
+        }
+        if (!err.isEmpty()) {
+            qWarning() << err;
+            return 1;
+        }
         return 0;
-    QLocalServer *singleInstanceServer = settingsBatchMode
-                                             ? nullptr
-                                             : createSingleInstanceServer(serverName, &app);
+    }
+
+    const QString serverName = singleInstanceServerName();
+    if (notifyExistingInstance(serverName, cliCommand(args)))
+        return 0;
+    QLocalServer *singleInstanceServer = createSingleInstanceServer(serverName, &app);
     if (singleInstanceServer) {
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });
@@ -167,9 +217,21 @@ int main(int argc, char *argv[])
                          [singleInstanceServer, &context] {
             while (QLocalSocket *socket = singleInstanceServer->nextPendingConnection()) {
                 QObject::connect(socket, &QLocalSocket::disconnected, socket, &QObject::deleteLater);
-                socket->readAll();
-                QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
-                socket->disconnectFromServer();
+                // Dispatch the forwarded CLI action (`unisic --region` with a
+                // running instance must capture, not just raise the window).
+                auto dispatch = [socket, &context] {
+                    const QByteArray cmd = socket->readAll().trimmed();
+                    if (cmd == "fullscreen") context.captureFullScreen();
+                    else if (cmd == "region") context.captureRegion();
+                    else if (cmd == "window") context.captureWindow();
+                    else if (cmd == "gif") context.startGifRegion();
+                    else QMetaObject::invokeMethod(&context, "showMainWindowRequested",
+                                                   Qt::QueuedConnection);
+                    socket->disconnectFromServer();
+                };
+                QObject::connect(socket, &QLocalSocket::readyRead, &context, dispatch);
+                if (socket->bytesAvailable() > 0)
+                    dispatch();
             }
         });
     }
@@ -184,15 +246,6 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--region"))) context.captureRegion();
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
-        else if (int i = args.indexOf(QLatin1String("--export-settings")); i >= 0 && i + 1 < args.size()) {
-            const QString err = context.exportSettings(QUrl::fromLocalFile(args[i + 1]));
-            if (!err.isEmpty()) qWarning() << err;
-            QCoreApplication::exit(err.isEmpty() ? 0 : 1);
-        } else if (int j = args.indexOf(QLatin1String("--import-settings")); j >= 0 && j + 1 < args.size()) {
-            const QString err = context.importSettings(QUrl::fromLocalFile(args[j + 1]));
-            if (!err.isEmpty()) qWarning() << err;
-            QCoreApplication::exit(err.isEmpty() ? 0 : 1);
-        }
     });
 
     return app.exec();

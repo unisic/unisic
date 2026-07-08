@@ -47,4 +47,5 @@ private:
     RegionCallback m_regionCb;
     bool m_annotationTools = true;
     bool m_starting = false;
+    int m_generation = 0; // invalidates in-flight freeze callbacks
 };

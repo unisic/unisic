@@ -87,7 +87,8 @@ jobs:
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland \
-            pipewire ffmpeg wl-clipboard xdg-desktop-portal
+            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
+            tesseract leptonica
 
       - uses: actions/checkout@v4
 
@@ -177,6 +178,28 @@ jobs:
           path: dist/*.AppImage
           if-no-files-found: error
 
+  flatpak:
+    name: Flatpak
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Flatpak bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: org.unisic.Unisic.yml
+          bundle: unisic.flatpak
+          upload-artifact: false
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-flatpak
+          path: unisic.flatpak
+          if-no-files-found: error
+
   release:
     name: GitHub Release
     runs-on: ubuntu-latest
@@ -185,6 +208,7 @@ jobs:
       - rpm
       - arch
       - appimage
+      - flatpak
     steps:
       - uses: actions/checkout@v4
 

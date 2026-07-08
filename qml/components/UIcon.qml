@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Unisic
 
 // Renders a themed icon via the C++ image://icon provider. The tint color and
@@ -14,15 +15,24 @@ Image {
     // tool-icon selector; the main app chrome never sets this.
     property string iconStyle: ""
 
+    // Request physical pixels — a logical-size raster is upscaled and blurry
+    // on HiDPI screens.
+    readonly property int _px: Math.round(size * (Screen.devicePixelRatio || 1))
+
     function _hex(c) {
         function h(v) { var s = Math.round(v * 255).toString(16); return s.length < 2 ? "0" + s : s }
         return "%23" + h(c.r) + h(c.g) + h(c.b)
     }
 
     source: name === "" ? ""
+<<<<<<< HEAD
             : "image://icon/" + name + "?color=" + _hex(color) + "&sz=" + size + "&v=" + Theme.rev
               + (iconStyle === "" ? "" : "&src=" + iconStyle)
     sourceSize: Qt.size(size, size)
+=======
+            : "image://icon/" + name + "?color=" + _hex(color) + "&sz=" + _px + "&v=" + Theme.rev
+    sourceSize: Qt.size(_px, _px)
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
     width: size
     height: size
     // The tint color's alpha is dropped from the URL (opaque #RRGGBB); honor it
@@ -32,7 +42,9 @@ Image {
     fillMode: Image.PreserveAspectFit
     smooth: true
     mipmap: true
-    cache: false
+    // Safe to cache: the URL embeds color+size+theme revision, so stale hits
+    // are impossible; without it every re-evaluation re-hits the provider.
+    cache: true
     visible: name !== ""
     // Synchronous: the C++ image://icon provider (Pixmap) uses QIcon::fromTheme
     // and qApp->palette(), which must run on the GUI thread, not the async

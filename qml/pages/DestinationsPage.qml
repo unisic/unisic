@@ -148,7 +148,21 @@ Item {
     // ------- edit sheet (modal card) -------
     Rectangle {
         id: editSheet
-        function open() { visible = true }
+        // Populate imperatively: `text:` bindings on the fields would die on
+        // the first keystroke, so reopening for another destination would
+        // show the previously typed values.
+        function open() {
+            var e = page.editing || {}
+            fName.text = e.name || ""
+            fType.currentIndex = e.type === "curl" ? 1 : 0
+            fUrl.text = e.requestUrl || ""
+            fFormName.text = e.fileFormName || "file"
+            fUrlPath.text = e.urlPath || ""
+            fHeaders.text = e.headers ? JSON.stringify(e.headers) : ""
+            fUser.text = e.user || ""
+            fPublicBase.text = e.publicUrlBase || ""
+            visible = true
+        }
         function close() { visible = false; page.editing = null }
         visible: false
         anchors.fill: parent
@@ -186,19 +200,17 @@ Item {
                 UTextField {
                     id: fName; width: parent.width
                     placeholder: qsTr("Name")
-                    text: page.editing ? (page.editing.name || "") : ""
                 }
                 UComboBox {
                     id: fType; width: parent.width
                     model: ["http", "curl"]
-                    currentIndex: page.editing && page.editing.type === "curl" ? 1 : 0
+                    onActivated: (i) => fType.currentIndex = i
                 }
                 UTextField {
                     id: fUrl; width: parent.width
                     placeholder: fType.currentIndex === 1
                                  ? qsTr("sftp://host/path/  or  ftp://host/path/")
                                  : qsTr("Request URL (https://…)")
-                    text: page.editing ? (page.editing.requestUrl || "") : ""
                 }
                 UComboBox {
                     id: fBody; width: parent.width
@@ -210,7 +222,6 @@ Item {
                     id: fFormName; width: parent.width
                     visible: fType.currentIndex === 0 && fBody.currentIndex === 0
                     placeholder: qsTr("File form field name (e.g. file)")
-                    text: page.editing ? (page.editing.fileFormName || "file") : "file"
                 }
                 UTextField {
                     id: fData; width: parent.width
@@ -228,25 +239,21 @@ Item {
                     id: fUrlPath; width: parent.width
                     visible: fType.currentIndex === 0
                     placeholder: qsTr("URL extractor: $text$, $json:files[0].url$ or $regex:…$")
-                    text: page.editing ? (page.editing.urlPath || "") : ""
                 }
                 UTextField {
                     id: fHeaders; width: parent.width
                     visible: fType.currentIndex === 0
                     placeholder: qsTr("Headers as JSON, e.g. {\"Authorization\":\"Bearer x\"}")
-                    text: page.editing && page.editing.headers ? JSON.stringify(page.editing.headers) : ""
                 }
                 UTextField {
                     id: fUser; width: parent.width
                     visible: fType.currentIndex === 1
                     placeholder: qsTr("user:password (curl -u)")
-                    text: page.editing ? (page.editing.user || "") : ""
                 }
                 UTextField {
                     id: fPublicBase; width: parent.width
                     visible: fType.currentIndex === 1
                     placeholder: qsTr("Public URL base (optional, for the copied link)")
-                    text: page.editing ? (page.editing.publicUrlBase || "") : ""
                 }
 
                 Row {
@@ -267,7 +274,12 @@ Item {
                                 d.urlPath = fUrlPath.text.trim() || "$text$"
                                 d.responseType = d.urlPath.indexOf("$json:") === 0 ? "json" : "text"
                                 if (fHeaders.text.trim() !== "") {
-                                    try { d.headers = JSON.parse(fHeaders.text) } catch (e) {}
+                                    try { d.headers = JSON.parse(fHeaders.text) }
+                                    catch (e) {
+                                        // Silently dropping the auth header would be worse.
+                                        App.showToast(qsTr("Headers are not valid JSON — fix or clear the field"))
+                                        return
+                                    }
                                 }
                                 if (fBody.currentIndex === 1) {
                                     d.body = "json"

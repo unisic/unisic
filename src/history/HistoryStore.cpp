@@ -55,11 +55,24 @@ void HistoryStore::rebuildWatches()
 
 void HistoryStore::pruneMissing()
 {
-    // Walk back-to-front so row removals don't shift the indices still to check.
+    // Batch: removeRow() persists + rebuilds watches per call — O(n²) after a
+    // bulk external deletion. Walk back-to-front so removals don't shift the
+    // indices still to check.
+    bool removed = false;
     for (int i = m_entries.size() - 1; i >= 0; --i) {
         const Entry &e = m_entries[i];
-        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath))
-            removeRow(i, /*trashFile=*/false);
+        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)) {
+            beginRemoveRows({}, i, i);
+            QFile::remove(e.thumbPath);
+            m_entries.removeAt(i);
+            endRemoveRows();
+            removed = true;
+        }
+    }
+    if (removed) {
+        persist();
+        rebuildWatches();
+        emit countChanged();
     }
 }
 
@@ -224,5 +237,6 @@ void HistoryStore::clearAll()
     m_entries.clear();
     endResetModel();
     persist();
+    rebuildWatches(); // drop stale directory watches, they'd keep firing validations
     emit countChanged();
 }

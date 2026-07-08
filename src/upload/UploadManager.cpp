@@ -391,9 +391,10 @@ void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
         return;
     }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
+    ++m_active; // concurrent uploads: busy until the last one completes
     setBusy(true);
     auto done = [this, cb](const QString &url, const QString &del, const QString &err) {
-        setBusy(false);
+        setBusy(--m_active > 0);
         cb(url, del, err);
     };
     if (type == QLatin1String("curl"))
@@ -415,7 +416,8 @@ QString UploadManager::extractToken(const QString &token, const QByteArray &resp
     if (auto m = jsonSpec.match(token); m.hasMatch()) {
         // Path syntax: a.b[0].c
         const QString path = m.captured(1);
-        QJsonValue cur = QJsonDocument::fromJson(response).object();
+        const QJsonDocument doc = QJsonDocument::fromJson(response);
+        QJsonValue cur = doc.isArray() ? QJsonValue(doc.array()) : QJsonValue(doc.object());
         static const QRegularExpression tokenRe(QStringLiteral("([^.\\[\\]]+)|\\[(\\d+)\\]"));
         auto it = tokenRe.globalMatch(path);
         while (it.hasNext()) {
@@ -425,13 +427,15 @@ QString UploadManager::extractToken(const QString &token, const QByteArray &resp
             else
                 cur = cur.toArray().at(tok.captured(2).toInt());
         }
-        return cur.toString();
+        // Numeric/bool leaves (e.g. an id) stringify too, not just strings.
+        return cur.isString() ? cur.toString() : cur.toVariant().toString();
     }
     if (auto m = regexSpec.match(token); m.hasMatch()) {
         const QRegularExpression re(m.captured(1));
         const auto match = re.match(QString::fromUtf8(response));
         if (match.hasMatch())
             return match.lastCapturedIndex() >= 1 ? match.captured(1) : match.captured(0);
+        return {}; // no match must not report the raw spec as a "URL"
     }
     return token; // literal fallback
 }
@@ -470,17 +474,57 @@ QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, c
     return url;
 }
 
+// Quotes and CR/LF in a filename would corrupt (or inject into) multipart
+// headers; path separators would change the remote path on curl targets.
+static QString sanitizeFileName(QString name)
+{
+    name.remove(QLatin1Char('"')).remove(QLatin1Char('\r')).remove(QLatin1Char('\n'));
+    name.replace(QLatin1Char('/'), QLatin1Char('_')).replace(QLatin1Char('\\'), QLatin1Char('_'));
+    name = name.trimmed();
+    return name.isEmpty() ? QStringLiteral("upload.bin") : name;
+}
+
 void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &fileName, const QString &mime, Callback cb)
 {
     QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
+<<<<<<< HEAD
     bool hasContentType = false;
     for (auto it = headers.begin(); it != headers.end(); ++it) {
         req.setRawHeader(it.key().toUtf8(), it.value().toString().toUtf8());
         if (it.key().compare(QLatin1String("Content-Type"), Qt::CaseInsensitive) == 0)
             hasContentType = true;
     }
+=======
+    for (auto it = headers.begin(); it != headers.end(); ++it) {
+        // An imported destinations file must not be able to inject headers.
+        QByteArray key = it.key().toUtf8();
+        QByteArray val = it.value().toString().toUtf8();
+        key.replace('\r', "").replace('\n', "");
+        val.replace('\r', "").replace('\n', "");
+        req.setRawHeader(key, val);
+    }
+
+    auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+    const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
+    for (auto it = args.begin(); it != args.end(); ++it) {
+        QHttpPart part;
+        part.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QStringLiteral("form-data; name=\"%1\"").arg(it.key()));
+        part.setBody(it.value().toString().toUtf8());
+        multi->append(part);
+    }
+    QHttpPart filePart;
+    filePart.setHeader(QNetworkRequest::ContentTypeHeader, mime);
+    filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                       QStringLiteral("form-data; name=\"%1\"; filename=\"%2\"")
+                           .arg(sanitizeFileName(dest.value(QStringLiteral("fileFormName"))
+                                                     .toString(QStringLiteral("file"))),
+                                sanitizeFileName(fileName)));
+    filePart.setBody(data);
+    multi->append(filePart);
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
 
     const QString method = dest.value(QStringLiteral("method")).toString(QStringLiteral("POST")).toUpper();
     const QString bodyType = dest.value(QStringLiteral("body")).toString().toLower();
@@ -552,22 +596,39 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     tmp->write(data);
     tmp->flush();
 
+    const QString safeName = sanitizeFileName(fileName);
     QString target = dest.value(QStringLiteral("requestUrl")).toString();
     if (!target.endsWith(QLatin1Char('/')))
         target += QLatin1Char('/');
-    target += fileName;
+    target += QString::fromUtf8(QUrl::toPercentEncoding(safeName));
 
     QStringList args{QStringLiteral("-sS"), QStringLiteral("--fail"),
                      QStringLiteral("-T"), tmp->fileName(), target};
+    // Credentials must never be on the command line — argv is world-readable
+    // in /proc/<pid>/cmdline for the whole transfer. Feed them as a config
+    // file on stdin instead (curl -K -).
     const QString user = dest.value(QStringLiteral("user")).toString();
-    if (!user.isEmpty())
-        args << QStringLiteral("-u") << user;
-    if (target.startsWith(QLatin1String("sftp://")))
-        args << QStringLiteral("--insecure"); // host key via known_hosts is curl-build dependent
+    QByteArray curlConfig;
+    if (!user.isEmpty()) {
+        QString escaped = user;
+        // curl parses the config line-by-line: an embedded newline would
+        // inject arbitrary options (e.g. "insecure", "output <file>").
+        escaped.remove(QLatin1Char('\r')).remove(QLatin1Char('\n'));
+        escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
+               .replace(QLatin1Char('"'), QLatin1String("\\\""));
+        curlConfig = QStringLiteral("user = \"%1\"\n").arg(escaped).toUtf8();
+        args << QStringLiteral("-K") << QStringLiteral("-");
+    }
+    // Skipping host-key verification enables silent MITM; only on explicit
+    // per-destination opt-in ("insecure": true) for curl builds whose sftp
+    // backend can't read known_hosts.
+    if (target.startsWith(QLatin1String("sftp://"))
+        && dest.value(QStringLiteral("insecure")).toBool())
+        args << QStringLiteral("--insecure");
 
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this,
-            [proc, tmp, dest, fileName, cb](int code, QProcess::ExitStatus) {
+            [proc, tmp, dest, safeName, cb](int code, QProcess::ExitStatus) {
         const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         proc->deleteLater();
         tmp->deleteLater();
@@ -579,10 +640,11 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         if (!publicUrl.isEmpty()) {
             if (!publicUrl.endsWith(QLatin1Char('/')))
                 publicUrl += QLatin1Char('/');
-            publicUrl += fileName;
+            publicUrl += QString::fromUtf8(QUrl::toPercentEncoding(safeName));
         }
         cb(publicUrl, {}, {});
     });
+<<<<<<< HEAD
     // FailedToStart (curl missing/unlaunchable) never emits finished(): without
     // this the QProcess/temp file would leak and the wrapping done() lambda would
     // never clear m_busy, wedging the UI in a permanent "uploading" state.
@@ -593,6 +655,20 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         proc->deleteLater();
         tmp->deleteLater();
         cb({}, {}, tr("Could not run curl — is it installed? (needed for FTP/SFTP uploads)"));
+=======
+    // Without this, a missing curl binary means finished() never fires:
+    // the callback is lost and busy stays true forever.
+    connect(proc, &QProcess::errorOccurred, this,
+            [proc, tmp, cb](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart)
+            return;
+        proc->deleteLater();
+        tmp->deleteLater();
+        cb({}, {}, tr("curl could not be started — is it installed?"));
+>>>>>>> 31e9bc35e277d099a51c95a810f4f9847e95bd46
     });
     proc->start(QStringLiteral("curl"), args);
+    if (!curlConfig.isEmpty())
+        proc->write(curlConfig);
+    proc->closeWriteChannel();
 }

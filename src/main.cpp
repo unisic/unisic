@@ -16,6 +16,8 @@
 #include <QProcess>
 #include <QTimer>
 #include <QDebug>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QSocketNotifier>
 #include <csignal>
 #include <sys/socket.h>
@@ -262,9 +264,18 @@ int main(int argc, char *argv[])
 
     // The desktop file exists solely for KWin's ScreenShot2 authorization —
     // skip the app-grid pollution (with an Exec that goes stale on every
-    // build-tree move / AppImage remount) on other desktops.
-    if (qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("KDE"), Qt::CaseInsensitive))
-        ensureDesktopFile();
+    // build-tree move / AppImage remount) on other desktops. Detect KWin by
+    // its D-Bus name, not XDG_CURRENT_DESKTOP — the env var is missing on
+    // systemd-autostart, where gating on it would skip the authz setup on a
+    // real KDE session.
+    {
+        auto *bi = QDBusConnection::sessionBus().interface();
+        const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+        if (kwin
+            || qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("KDE"),
+                                                                    Qt::CaseInsensitive))
+            ensureDesktopFile();
+    }
 
     // ThemeController is a module QML singleton (engine-created); the icon
     // provider shares that instance lazily via ThemeController::instance().

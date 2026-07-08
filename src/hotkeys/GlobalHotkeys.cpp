@@ -18,17 +18,24 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
     // KGlobalAccel can only grab keys under KWin. D-Bus-activating it on other
     // desktops — which happens whenever KDE libraries are installed — yields a
     // daemon that registers everything and never fires a single shortcut, so
-    // availability must be gated on the session actually being KDE, not on
-    // the service being activatable.
+    // availability must be gated on the session actually being KDE.
+    //
+    // Detect KWin by its D-Bus NAME, not only by XDG_CURRENT_DESKTOP: that env
+    // var is absent in legitimate launch contexts (systemd user-service
+    // autostart — exactly how a tray app usually starts — minimal-env
+    // launchers), and gating on it alone would silently route hotkeys to the
+    // portal (or nowhere) on a real KDE session. org.kde.KWin on the bus is
+    // the reliable, env-independent signal.
+    auto *iface = QDBusConnection::sessionBus().interface();
+    const bool kwinOnBus = iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const QStringList desktops =
         qEnvironmentVariable("XDG_CURRENT_DESKTOP").split(QLatin1Char(':'), Qt::SkipEmptyParts);
-    const bool kde = desktops.contains(QLatin1String("KDE"), Qt::CaseInsensitive)
-                     || desktops.contains(QLatin1String("plasma"), Qt::CaseInsensitive);
-    if (!kde) {
+    const bool kdeEnv = desktops.contains(QLatin1String("KDE"), Qt::CaseInsensitive)
+                        || desktops.contains(QLatin1String("plasma"), Qt::CaseInsensitive);
+    if (!kwinOnBus && !kdeEnv) {
         qInfo() << "Not a KDE session — KGlobalAccel skipped (portal/compositor binds instead)";
         return;
     }
-    auto *iface = QDBusConnection::sessionBus().interface();
     m_available = iface && (iface->isServiceRegistered(KGA_SERVICE)
                             || iface->startService(KGA_SERVICE).isValid());
     if (!m_available)

@@ -47,6 +47,7 @@
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusServiceWatcher>
+#include <QDBusConnectionInterface>
 #include <QDebug>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -588,11 +589,19 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     // wlroots a fullscreen view BLANKS the workspace beneath it after every
     // capture, and on Mutter it animates/joins alt-tab — there a small
     // compositor-placed toplevel is the sane behavior (24px transparent
-    // padding keeps the drop shadow). Session check, not
-    // KWinScreenShot2::isAvailable(): the latter is false inside Flatpak even
-    // on KDE, and the compositor is what matters here.
-    const bool fullscreenTrick = qEnvironmentVariable("XDG_CURRENT_DESKTOP")
-                                     .contains(QLatin1String("KDE"), Qt::CaseInsensitive);
+    // padding keeps the drop shadow).
+    //
+    // Detect KWin by its D-Bus name, NOT by XDG_CURRENT_DESKTOP: that env var
+    // is absent in several legitimate launch contexts (systemd user-service
+    // autostart, minimal-env launchers, some AppImage runs), and when it was,
+    // this fell to the card-sized branch — which KWin then CENTERS (Wayland
+    // ignores client positions), so the popup landed in the middle of the
+    // screen. The org.kde.KWin NAME is visible even inside Flatpak (only the
+    // restricted ScreenShot2 *interface* is access-gated), so this is reliable
+    // where KWinScreenShot2::isAvailable() (Flatpak short-circuit) is not.
+    auto *busIface = QDBusConnection::sessionBus().interface();
+    const bool fullscreenTrick =
+        busIface && busIface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const int pad = 24;
 
     const QString posName = m_settings->capturePopupPosition();

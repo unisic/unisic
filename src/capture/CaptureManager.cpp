@@ -6,6 +6,7 @@
 #include "Settings.h"
 #include <QGuiApplication>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
 #include <QDebug>
@@ -76,8 +77,25 @@ static bool sessionContains(const char *token)
     };
     return has("XDG_CURRENT_DESKTOP") || has("XDG_SESSION_DESKTOP");
 }
-static bool isKdeSession() { return sessionContains("KDE") || sessionContains("plasma"); }
-static bool isGnomeSession() { return sessionContains("GNOME"); }
+static bool serviceOnBus(const QString &name)
+{
+    auto *iface = QDBusConnection::sessionBus().interface();
+    return iface && iface->isServiceRegistered(name);
+}
+// Env vars can be missing (systemd autostart, minimal launchers); the
+// compositor's D-Bus name is the reliable signal, so treat either as proof.
+// Matters here so grim is not wrongly chosen as PRIMARY on a KWin/Mutter
+// session that merely lost XDG_CURRENT_DESKTOP (grim never works there —
+// a doomed spawn before the real backend).
+static bool isKdeSession()
+{
+    return sessionContains("KDE") || sessionContains("plasma")
+           || serviceOnBus(QStringLiteral("org.kde.KWin"));
+}
+static bool isGnomeSession()
+{
+    return sessionContains("GNOME") || serviceOnBus(QStringLiteral("org.gnome.Shell"));
+}
 
 static bool isKWinAuthError(const QString &err)
 {

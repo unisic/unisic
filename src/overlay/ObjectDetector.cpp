@@ -221,15 +221,22 @@ QImage ObjectDetector::segment(const QImage &src, const QRect &regionIn)
     if (src.isNull() || region.width() < 12 || region.height() < 12)
         return {};
 
-    // Work on a downscaled copy; the mask is upscaled back at the end.
-    QImage crop = src.copy(region).convertToFormat(QImage::Format_RGB32);
-    const int longSide = std::max(crop.width(), crop.height());
-    const double scale = longSide > 384 ? 384.0 / longSide : 1.0;
-    const QImage small =
-        scale < 1.0 ? crop.scaled(std::max(12, int(std::lround(crop.width() * scale))),
+    // Work on a downscaled copy; the mask is upscaled back at the end. The
+    // full-resolution crop lives in a nested scope so it is released before
+    // the multi-pass segmentation — it used to pin a select-all-at-4K ~33 MB
+    // buffer for the whole hundreds-of-ms run (per concurrent nudge, too).
+    // When scale == 1.0, `small` shares crop's data and keeps it alive anyway.
+    QImage small;
+    {
+        QImage crop = src.copy(region).convertToFormat(QImage::Format_RGB32);
+        const int longSide = std::max(crop.width(), crop.height());
+        const double scale = longSide > 384 ? 384.0 / longSide : 1.0;
+        small = scale < 1.0
+                    ? crop.scaled(std::max(12, int(std::lround(crop.width() * scale))),
                                   std::max(12, int(std::lround(crop.height() * scale))),
                                   Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
                     : crop;
+    }
     const int w = small.width(), h = small.height();
     const int n = w * h;
 

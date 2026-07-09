@@ -173,6 +173,13 @@ Window {
                         preview.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
                         return
                     }
+                    // Freeze the card's top-left corner: x still carries its
+                    // INITIAL binding (right-anchored, depends on width) until
+                    // the first drag breaks it — resizing through that binding
+                    // made the card grow leftward from its right edge instead
+                    // of following the grip. Self-assignment breaks it.
+                    card.x = card.x
+                    card.y = card.y
                     const p = mapToItem(root, m.x, m.y)
                     pressRootX = p.x
                     startW = card.width

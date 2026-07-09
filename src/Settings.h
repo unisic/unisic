@@ -70,6 +70,7 @@ class Settings : public QObject
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
+    Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
@@ -242,6 +243,8 @@ public:
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
+    // default. Applied live via QSystemTrayIcon::setIcon in AppContext.
+    U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -264,6 +267,7 @@ public:
         emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit useSystemDecorationChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
 
 signals:
@@ -310,9 +314,11 @@ signals:
     void editorIconStyleChanged();
     void editorToolIconsChanged();
     void useSystemDecorationChanged();
+    void trayIconPathChanged();
 
 private:
     QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};
     QTimer m_syncTimer;
     bool m_writable = true;
 };
+

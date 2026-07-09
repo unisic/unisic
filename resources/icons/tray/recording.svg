@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Record indicator (macOS menu-bar style): thin ring + solid centre. -->
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="12" cy="12" r="8.25" fill="none" stroke="#1c1c1c" stroke-width="1.7"/>
+  <circle cx="12" cy="12" r="3.5" fill="#1c1c1c"/>
+</svg>

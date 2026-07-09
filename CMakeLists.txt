@@ -118,6 +118,14 @@ qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
+# Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
+# show up in Settings > Appearance > System tray icon (re-run cmake after adding).
+file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+     resources/icons/tray/*.svg resources/icons/tray/*.png)
+if(UNISIC_TRAY_ICONS)
+    qt_add_resources(unisic "tray_icons" PREFIX "/" FILES ${UNISIC_TRAY_ICONS})
+endif()
+
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES resources/org.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/org.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)

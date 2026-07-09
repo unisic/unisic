@@ -15,6 +15,7 @@ class QQmlEngine;
 class QMenu;
 class QSystemTrayIcon;
 class QDBusServiceWatcher;
+class QFileSystemWatcher;
 class QQuickWindow;
 class QTimer;
 class CaptureManager;
@@ -44,6 +45,14 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
+    // the settings gallery lists these as pickable presets (live via a watcher).
+    Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
+    // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
+    Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // Contrast colour for the (monochrome) bundled presets: light on a dark
+    // system scheme, dark on a light one. Follows the OS light/dark, live.
+    Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
@@ -82,6 +91,9 @@ public:
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    QStringList trayIconPresets() const;  // image files in trayIconsDir()
+    QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
     QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
@@ -117,6 +129,18 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     Q_INVOKABLE QString filenamePreview() const;
+    // Custom tray icon. pickTrayIcon = native file picker; selectTrayIcon =
+    // pick a known path (gallery tile; "" reverts to default); clear = default.
+    // trayIconsDir = the folder the user drops their own icons into.
+    Q_INVOKABLE void pickTrayIcon();
+    Q_INVOKABLE void addTrayIcon();   // pick a file, COPY it into trayIconsDir(), select it
+    Q_INVOKABLE void selectTrayIcon(const QString &path);
+    Q_INVOKABLE void clearTrayIcon();
+    Q_INVOKABLE QString trayIconsDir() const;
+    // Recolored PNG data: URL of a bundled monochrome preset for the gallery
+    // thumbnail (so the preview matches the recolored tray icon). color is
+    // passed in (App.trayContrastColor) so the binding refreshes on a scheme flip.
+    Q_INVOKABLE QString trayIconThumb(const QString &path, const QColor &color) const;
 
     // Used by EditorSession / CaptureNotification. fileName: reuse a name
     // computed once per capture (save and upload must agree); empty = generate.
@@ -141,8 +165,14 @@ signals:
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void editorWindowsOpenChanged();
+    void trayIconPresetsChanged();
+    void trayContrastColorChanged();
 
 private:
+    bool systemIsDark() const;                        // OS light/dark scheme
+    QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
+    QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
+    void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     struct HotkeyAction {
         QString id;
         QString name;
@@ -189,6 +219,7 @@ private:
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
+    QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
     QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame

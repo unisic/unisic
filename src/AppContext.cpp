@@ -25,6 +25,10 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QPainter>
+#include <QImageReader>
+#include <QStyleHints>
+#include <QFileSystemWatcher>
 #include <QFileDialog>
 #include <QKeySequence>
 #include <QDesktopServices>
@@ -95,6 +99,18 @@ AppContext::AppContext(QObject *parent)
         showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
     });
 
+    // an import that rewrites trayIconPath).
+    connect(m_settings, &Settings::trayIconPathChanged, this, &AppContext::applyTrayIcon);
+
+    // Follow the OS light/dark scheme: recolor the (monochrome) bundled preset
+    // in the tray, and let the settings gallery re-render its thumbnails.
+    if (auto *hints = QGuiApplication::styleHints()) {
+        connect(hints, &QStyleHints::colorSchemeChanged, this, [this] {
+            emit trayContrastColorChanged();
+            applyTrayIcon();
+        });
+    }
+
 #ifdef HAVE_TESSERACT
     m_ocr = new OcrEngine(this);
 #endif
@@ -110,6 +126,15 @@ void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
     setupTray();
+    QDir().mkpath(trayIconsDir());
+    m_trayIconsWatcher = new QFileSystemWatcher(this);
+    m_trayIconsWatcher->addPath(trayIconsDir());
+    connect(m_trayIconsWatcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+        emit trayIconPresetsChanged();
+        // If the currently-selected custom icon was just deleted, trayIcon()
+        // now re-validates to the bundled default — refresh the live tray too.
+        applyTrayIcon();
+    });
     // Deferred to the first event-loop pass: hotkey registration is a burst of
     // blocking D-Bus round-trips (2 s timeout each) — after the QML engine has
     // loaded the window instead of before it, and late enough that startup
@@ -1287,7 +1312,7 @@ void AppContext::setupTray()
         m_trayWatcher->deleteLater();
         m_trayWatcher = nullptr;
     }
-    m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")), this);
+    m_tray = new QSystemTrayIcon(trayIcon(), this);
     auto *menu = new QMenu;
     m_trayMenu = menu;
     menu->addAction(tr("Capture region"), this, &AppContext::captureRegion);
@@ -1310,4 +1335,206 @@ void AppContext::setupTray()
     m_tray->show();
     emit trayAvailableChanged();
 }
+// Render an image (SVG included) at `size` and flat-recolor it to `color`
+// (SourceIn keeps the alpha shape, replaces every colour) — same recipe the
+// tool-icon provider uses for monochrome glyphs.
+static QPixmap recolorPixmap(const QString &path, const QColor &color, const QSize &size)
+{
+    QImageReader reader(path);
+    reader.setScaledSize(size);
+    QImage img = reader.read();
+    if (img.isNull())
+        return {};
+    img = img.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (color.isValid()) {
+        QPainter p(&img);
+        p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        p.fillRect(img.rect(), color);
+        p.end();
+    }
+    return QPixmap::fromImage(img);
+}
+
+// Bundled presets live in the read-only qrc tree; treat those as monochrome and
+// recolor them. User-dropped files (arbitrary logos) are used as-is.
+static bool isBundledTrayIcon(const QString &path)
+{
+    return path.startsWith(QLatin1String(":/resources/icons/tray/"));
+}
+
+bool AppContext::systemIsDark() const
+{
+    if (auto *h = QGuiApplication::styleHints()) {
+        const Qt::ColorScheme s = h->colorScheme();
+        if (s == Qt::ColorScheme::Dark) return true;
+        if (s == Qt::ColorScheme::Light) return false;
+    }
+    // Unknown scheme: fall back to the window background's lightness.
+    return qApp->palette().color(QPalette::Window).lightness() < 128;
+}
+
+QColor AppContext::trayContrastColor() const
+{
+    // Near-white on dark, near-black on light — strong contrast against whatever
+    // panel the tray sits in, without banking on the exact system text colour.
+    return systemIsDark() ? QColor(0xEC, 0xEC, 0xEC) : QColor(0x2B, 0x2B, 0x2B);
+}
+
+QIcon AppContext::recoloredTrayIcon(const QString &path) const
+{
+    const QColor c = trayContrastColor();
+    QIcon icon;
+    // A spread of sizes so the StatusNotifier host picks a crisp one.
+    for (int s : {16, 22, 24, 32, 48, 64}) {
+        const QPixmap pm = recolorPixmap(path, c, QSize(s, s));
+        if (!pm.isNull())
+            icon.addPixmap(pm);
+    }
+    return icon;
+}
+
+QIcon AppContext::trayIcon() const
+{
+    const QString path = m_settings->trayIconPath();
+    if (!path.isEmpty()) {
+        if (isBundledTrayIcon(path)) {
+            const QIcon recolored = recoloredTrayIcon(path);
+            if (!recolored.isNull())
+                return recolored;
+        }
+        QIcon custom(path);
+        // availableSizes() is EMPTY for scalable SVGs (no discrete sizes) — gate
+        // on whether a pixmap actually renders instead, so .svg works too.
+        if (!custom.isNull() && !custom.pixmap(QSize(64, 64)).isNull())
+            return custom;
+    }
+    return QIcon(QStringLiteral(":/resources/icons/unisic.svg"));
+}
+
+QString AppContext::trayIconThumb(const QString &path, const QColor &color) const
+{
+    const QPixmap pm = recolorPixmap(path, color.isValid() ? color : trayContrastColor(),
+                                     QSize(76, 76));
+    if (pm.isNull())
+        return {};
+    QByteArray bytes;
+    QBuffer buf(&bytes);
+    buf.open(QIODevice::WriteOnly);
+    pm.save(&buf, "PNG");
+    return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(bytes.toBase64());
+}
+
+void AppContext::applyTrayIcon()
+{
+    if (m_tray)
+        m_tray->setIcon(trayIcon());
+}
+
+void AppContext::pickTrayIcon()
+{
+    // Native (DE) picker — same reasoning as the settings export/import dialogs.
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Choose tray icon"), trayIconsDir(),
+        tr("Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)"));
+    if (path.isEmpty())
+        return; // cancelled
+    selectTrayIcon(path);
+}
+
+void AppContext::addTrayIcon()
+{
+    const QString start = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Add a tray icon"), start.isEmpty() ? QDir::homePath() : start,
+        tr("Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)"));
+    if (path.isEmpty())
+        return; // cancelled
+    QIcon test(path);
+    if (test.isNull() || test.pixmap(QSize(64, 64)).isNull()) {
+        showToast(tr("Could not load that image as an icon"), true);
+        return;
+    }
+
+    const QString dir = trayIconsDir();
+    QDir().mkpath(dir);
+    const QFileInfo src(path);
+    // Picked a file that already lives in the folder → just select it, no copy.
+    if (src.absolutePath() == QDir(dir).absolutePath()) {
+        selectTrayIcon(src.absoluteFilePath());
+        return;
+    }
+    // Copy in under a non-clobbering name (never overwrite an existing preset).
+    QString dest = dir + QLatin1Char('/') + src.fileName();
+    for (int n = 1; QFile::exists(dest); ++n) {
+        dest = dir + QLatin1Char('/') + src.completeBaseName()
+             + QStringLiteral("-%1").arg(n)
+             + (src.suffix().isEmpty() ? QString() : QLatin1Char('.') + src.suffix());
+    }
+    if (!QFile::copy(path, dest)) {
+        showToast(tr("Could not copy the icon into %1").arg(dir), true);
+        return;
+    }
+    // Selecting it rebuilds the gallery (the preset scan is live) and the folder
+    // watcher fires too; both show the new tile, already highlighted.
+    selectTrayIcon(dest);
+    showToast(tr("Icon added to your tray icons"));
+}
+
+void AppContext::selectTrayIcon(const QString &path)
+{
+    if (path.isEmpty()) {
+        m_settings->setTrayIconPath(QString()); // default
+        return;
+    }
+    QIcon test(path);
+    // Render check, not availableSizes(): scalable SVGs report zero discrete
+    // sizes but render fine — an availableSizes() gate rejects every .svg.
+    if (test.isNull() || test.pixmap(QSize(64, 64)).isNull()) {
+        showToast(tr("Could not load that image as an icon"), true);
+        return;
+    }
+    m_settings->setTrayIconPath(path); // → trayIconPathChanged → applyTrayIcon()
+}
+
+void AppContext::clearTrayIcon()
+{
+    m_settings->setTrayIconPath(QString()); // → applyTrayIcon() reverts to default
+}
+
+QString AppContext::trayIconsDir() const
+{
+    // A drop-in folder beside the config file (~/.config/unisic/tray-icons):
+    // anything the user puts here shows up in the settings icon gallery.
+    return QFileInfo(UnisicConfig::filePath()).absolutePath()
+           + QStringLiteral("/tray-icons");
+}
+
+QStringList AppContext::trayIconPresets() const
+{
+    QDir d(trayIconsDir());
+    if (!d.exists())
+        return {};
+    static const QStringList filters{
+        QStringLiteral("*.png"), QStringLiteral("*.svg"), QStringLiteral("*.svgz"),
+        QStringLiteral("*.xpm"), QStringLiteral("*.ico"), QStringLiteral("*.jpg"),
+        QStringLiteral("*.jpeg"), QStringLiteral("*.webp")};
+    QStringList out;
+    const auto files = d.entryInfoList(filters, QDir::Files, QDir::Name);
+    for (const QFileInfo &fi : files)
+        out << fi.absoluteFilePath();
+    return out;
+}
+
+QStringList AppContext::bundledTrayIcons() const
+{
+    // The Qt resource filesystem is listable via QDir. Paths come back as
+    // ":/resources/icons/tray/<name>", which QIcon and QML Image both accept.
+    QDir d(QStringLiteral(":/resources/icons/tray"));
+    QStringList out;
+    const auto files = d.entryList(QDir::Files, QDir::Name);
+    for (const QString &f : files)
+        out << QStringLiteral(":/resources/icons/tray/") + f;
+    return out;
+}
+
 

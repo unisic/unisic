@@ -25,11 +25,14 @@ Window {
                                          (maxH - 40) / imgSize.height)
     readonly property int cardW: Math.max(280, Math.round(imgSize.width * fit))
     readonly property int cardH: Math.round(imgSize.height * fit) + 40
+    readonly property real imgAspect: imgSize.height > 0 ? imgSize.width / imgSize.height : 1.6
 
     // Layer mode: the compositor sizes the surface (fullscreen anchors); these
     // initial values only matter for the non-layer fallback.
     width: cardW
     height: cardH
+    minimumWidth: layerMode ? 0 : 280
+    minimumHeight: layerMode ? 0 : 160
     color: "transparent"
     title: qsTr("Unisic — Preview")
 
@@ -52,8 +55,11 @@ Window {
         // no window-opacity protocol, setOpacity is silently ignored there.
         Rectangle {
             id: card
-            width: preview.cardW
-            height: preview.cardH
+            // Fallback mode: the card IS the window, so it follows the window
+            // size (system resize). Layer mode: the resize grip writes width/
+            // height directly (breaking these initial bindings — intended).
+            width: preview.layerMode ? preview.cardW : root.width
+            height: preview.layerMode ? preview.cardH : root.height
             x: preview.layerMode ? Math.max(0, root.width - width - 64) : 0
             y: preview.layerMode ? Math.min(64, Math.max(0, root.height - height)) : 0
             radius: Theme.radiusM
@@ -147,6 +153,61 @@ Window {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
+            }
+
+            // Bottom-right resize grip. Layer mode resizes the card item
+            // directly (aspect-locked to the image); fallback hands the
+            // compositor a system resize. Deltas are measured in ROOT
+            // coordinates — the handle's own coords shift as the card grows.
+            MouseArea {
+                id: resizeGrip
+                width: 22; height: 22
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                cursorShape: Qt.SizeFDiagCursor
+                preventStealing: true
+                property real pressRootX: 0
+                property real startW: 0
+                onPressed: (m) => {
+                    if (!preview.layerMode) {
+                        preview.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
+                        return
+                    }
+                    const p = mapToItem(root, m.x, m.y)
+                    pressRootX = p.x
+                    startW = card.width
+                }
+                onPositionChanged: (m) => {
+                    if (!preview.layerMode || !pressed)
+                        return
+                    const p = mapToItem(root, m.x, m.y)
+                    // Aspect-locked: height always follows the image ratio, so
+                    // one axis (width) fully determines the size.
+                    let w = Math.round(startW + (p.x - pressRootX))
+                    const maxW = root.width - card.x
+                    const maxWfromH = Math.round((root.height - card.y - bar.height) * preview.imgAspect)
+                    w = Math.max(280, Math.min(w, maxW, maxWfromH))
+                    card.width = w
+                    card.height = bar.height + Math.round(w / preview.imgAspect)
+                }
+
+                Canvas {
+                    anchors.fill: parent
+                    opacity: resizeGrip.pressed ? 1.0 : 0.55
+                    onPaint: {
+                        const c = getContext("2d")
+                        c.clearRect(0, 0, width, height)
+                        c.strokeStyle = Theme.textTertiary
+                        c.lineWidth = 1.5
+                        c.lineCap = "round"
+                        for (let i = 1; i <= 3; i++) {
+                            c.beginPath()
+                            c.moveTo(width - 3, height - 3 - i * 5)
+                            c.lineTo(width - 3 - i * 5, height - 3)
+                            c.stroke()
+                        }
+                    }
+                }
             }
         }
     }

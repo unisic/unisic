@@ -144,6 +144,7 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
                                                       QStringLiteral("doRegister"));
     reg << id;
     QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+    m_registered.insert(actionId);
 
     // KGlobalAccel SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
     // We register with IsDefault (8) + autoloading (no NoAutoloading). Verified
@@ -173,6 +174,26 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     ensureSignalConnected();
 }
 
+void GlobalHotkeys::releaseShortcut(const QString &actionId, const QString &friendlyName)
+{
+    if (!m_available)
+        return;
+    // Fire-and-forget async unbind (used by the quick-copy grace window and the
+    // startup stale-grab clear): the caller never inspects the result, so two
+    // blocking round-trips (2 s timeout each) on the GUI thread bought nothing.
+    // D-Bus messages on one connection stay ordered, so doRegister lands first.
+    const QStringList id = fullActionId(actionId, friendlyName);
+    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("doRegister"));
+    reg << id;
+    QDBusConnection::sessionBus().asyncCall(reg);
+    QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("setShortcut"));
+    set << id << QVariant::fromValue(QList<int>()) << uint(0x2 | 0x4);
+    QDBusConnection::sessionBus().asyncCall(set);
+    ensureSignalConnected();
+}
+
 bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendlyName,
                                 const QString &keySequence)
 {
@@ -180,10 +201,16 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
         return false;
     const QStringList id = fullActionId(actionId, friendlyName);
 
-    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
-                                                      QStringLiteral("doRegister"));
-    reg << id;
-    QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+    // doRegister is idempotent and per-process registration only needs to
+    // happen once per action — skip the extra blocking round-trip on repeats
+    // (the quick-copy path re-arms on every capture).
+    if (!m_registered.contains(actionId)) {
+        QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                          QStringLiteral("doRegister"));
+        reg << id;
+        QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+        m_registered.insert(actionId);
+    }
 
     // SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
     // MUST be SetPresent|NoAutoloading (0x6). Verified live against kglobalacceld

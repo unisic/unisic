@@ -4,6 +4,7 @@
 #include <QVector>
 #include <QVariantMap>
 #include <QDBusObjectPath>
+#include <functional>
 
 // Global hotkeys via org.freedesktop.portal.GlobalShortcuts — the portable
 // path on desktops without KGlobalAccel (GNOME 48+, Hyprland; KDE also
@@ -35,6 +36,11 @@ public:
     // is hardwired to org.gnome.Shell and fails on niri), so treat this as a
     // pre-filter and the CreateSession/BindShortcuts response as the truth.
     static bool interfacePresent();
+    // Async variant: the Get may D-Bus-ACTIVATE the portal at cold session
+    // start (multi-hundred-ms), so the blocking form stalls the GUI thread at
+    // startup. `done(present)` is delivered on ctx's thread; dropped if ctx
+    // is destroyed first.
+    static void probeInterface(QObject *ctx, std::function<void(bool)> done);
 
     // Convert a QKeySequence portable string ("Ctrl+Shift+S") to the
     // freedesktop Shortcuts spec trigger ("CTRL+SHIFT+s"). Empty on no-parse.

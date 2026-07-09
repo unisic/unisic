@@ -123,6 +123,9 @@ public:
     bool capNativeNotification() const;
     bool capCustomNotification() const { return m_layerShellAvailable; }
     bool capRecordBorder() const;
+    // True when the compositor exposes wlr-layer-shell — the selection overlay
+    // uses it so it can appear ABOVE a fullscreen application.
+    bool layerShellAvailable() const { return m_layerShellAvailable; }
     // Developer smoke-test: sequentially exercises the main app paths and logs
     // pass/fail/skip. Bound to F8 (dev build only) and the Settings > Developer
     // button. smokeTestLog is the running transcript shown in the debug panel.

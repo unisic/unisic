@@ -264,8 +264,16 @@ Item {
         clip: true
 
         // ===== General =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 0
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -474,10 +482,19 @@ Item {
             }
 
         }
+        }
 
         // ===== Appearance =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 1
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -704,10 +721,19 @@ Item {
             }
 
         }
+        }
 
         // ===== Editor =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 2
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -794,10 +820,19 @@ Item {
                 }
             }
         }
+        }
 
         // ===== Recording =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 3
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -852,10 +887,19 @@ Item {
                 }
             }
         }
+        }
 
         // ===== Hotkeys =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 4
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
 
             // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
             // would be dead — explain the compositor-bind route instead.
@@ -934,10 +978,19 @@ Item {
                 }
             }
         }
+        }
 
         // ===== Developer (dev build only, tab 5) =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 5
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -1036,6 +1089,7 @@ Item {
                     }
                 }
             }
+        }
         }
     }
 }

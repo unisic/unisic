@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Unisic
 import "../components"
 
@@ -80,6 +81,11 @@ Item {
                                 source: thumbnail !== "" ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                // Thumbs are 480x300 on disk but display ~230x120;
+                                // with both dims set + PreserveAspectCrop, Qt decodes
+                                // the smallest covering image — ~4x less texture RAM.
+                                sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
+                                sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
                             }
                             Rectangle {
                                 visible: kind !== "image"

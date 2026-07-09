@@ -284,6 +284,13 @@ private:
     void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
+    // encodeImage off the GUI thread (a 4K PNG encode is 100+ ms): settings are
+    // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
+    // delivered back on the GUI thread (dropped if AppContext died meanwhile).
+    void encodeImageAsync(const QImage &img,
+                          std::function<void(const QByteArray &, const QString &)> done);
+    // Continuation of openPreview after the worker-thread PNG save.
+    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
     void afterUploadActions(const QString &url);
     GifRecorder::Output videoOutput() const;
     // Coalesced, debounced malloc_trim(0): after a capture/record/upload cycle

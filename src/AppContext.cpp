@@ -909,24 +909,29 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
 
     if (uploading) {
         if (np) np->setUploading(true);
-        QString mime;
-        const QByteArray data = encodeImage(img, &mime);
-        m_uploads->uploadData(data, fileName, mime,
-            [this, path, img, np](const QString &url, const QString &del, const QString &err) {
-                if (!err.isEmpty()) {
-                    if (path.isEmpty())
-                        m_history->addEntry({}, img, QStringLiteral("image"));
-                    showToast(tr("Upload failed: %1").arg(err), true);
-                    if (np) np->setUploading(false);
-                    return;
-                }
-                if (!path.isEmpty())
-                    m_history->setUrl(path, url, del);
-                else
-                    m_history->addEntry({}, img, QStringLiteral("image"), url, del);
-                afterUploadActions(url);
-                if (np) np->setUrl(url);
-            });
+        // Encode off-thread (100+ ms at 4K), start the upload in the GUI-thread
+        // continuation. The callback retains the image ONLY when the history
+        // entry can actually need it (nothing saved to disk) — otherwise the
+        // 30-60 MB buffer would stay pinned for the whole network transfer.
+        encodeImageAsync(img, [this, path, np, fileName,
+                               img = path.isEmpty() ? img : QImage()](const QByteArray &data, const QString &mime) {
+            m_uploads->uploadData(data, fileName, mime,
+                [this, path, img, np](const QString &url, const QString &del, const QString &err) {
+                    if (!err.isEmpty()) {
+                        if (path.isEmpty())
+                            m_history->addEntry({}, img, QStringLiteral("image"));
+                        showToast(tr("Upload failed: %1").arg(err), true);
+                        if (np) np->setUploading(false);
+                        return;
+                    }
+                    if (!path.isEmpty())
+                        m_history->setUrl(path, url, del);
+                    else
+                        m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                    afterUploadActions(url);
+                    if (np) np->setUrl(url);
+                });
+        });
     } else if (!path.isEmpty()) {
         showToast(tr("Saved %1").arg(path));
     }
@@ -971,8 +976,9 @@ void AppContext::disarmQuickCopy()
         m_quickCopyTimer->stop();
     if (m_quickCopyArmed) {
         // Release the global Ctrl+C grab so normal copy works everywhere again.
-        m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
-                               tr("Copy last capture"), QString());
+        // Async fire-and-forget: the result is never inspected and the blocking
+        // variant stalled the GUI thread twice per capture.
+        m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
         m_quickCopyArmed = false;
     }
     m_quickCopyImage = QImage();
@@ -1045,21 +1051,55 @@ bool AppContext::openPreview(const QImage &img)
 {
     if (!m_engine || img.isNull())
         return false;
+    // A crash/SIGKILL with a preview open leaves its temp PNG behind — in /tmp
+    // that's tmpfs, i.e. RAM until reboot. Sweep stale ones once per process
+    // (never per call: another still-open preview owns its own temp file).
+    static bool sweptStale = false;
+    if (!sweptStale) {
+        sweptStale = true;
+        QDir tmpDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
+        const QStringList stale = tmpDir.entryList({QStringLiteral("unisic-preview-*.png")}, QDir::Files);
+        for (const QString &f : stale)
+            QFile::remove(tmpDir.filePath(f));
+    }
     // Persist a full-res copy the tool window loads by path — keeps that window
-    // trivial (no image provider) — and remove it when the window closes.
+    // trivial (no image provider) — and remove it when the window closes. The
+    // PNG encode is 100+ ms at 4K, so it runs on a worker; the window is built
+    // in the GUI-thread continuation.
     const QString tmp = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
                             .filePath(QStringLiteral("unisic-preview-") +
                                       QUuid::createUuid().toString(QUuid::WithoutBraces) +
                                       QStringLiteral(".png"));
-    if (!img.save(tmp)) {
+    QPointer<AppContext> self(this);
+    QPointer<QCoreApplication> application(qApp);
+    (void)QtConcurrent::run([self, application, img, tmp] {
+        const bool ok = img.save(tmp);
+        if (!application) {
+            QFile::remove(tmp);
+            return;
+        }
+        QMetaObject::invokeMethod(application.data(), [self, tmp, ok, size = img.size()] {
+            if (self)
+                self->finishOpenPreview(ok, tmp, size);
+            else
+                QFile::remove(tmp);
+        }, Qt::QueuedConnection);
+    });
+    return true;
+}
+
+void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize)
+{
+    if (!saved || !m_engine) {
+        QFile::remove(tmp);
         showToast(tr("Couldn't open preview"), true);
-        return false;
+        return;
     }
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/PreviewWindow.qml")));
     if (component.isError()) {
         qWarning() << component.errorString();
         QFile::remove(tmp);
-        return false;
+        return;
     }
     // Create the controller BEFORE the component so QML resolves `previewCtl`
     // to the real object at bind time (a late setContextProperty wouldn't reach
@@ -1067,7 +1107,7 @@ bool AppContext::openPreview(const QImage &img)
     auto *ctl = new PreviewController(m_layerShellAvailable, this);
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("previewImagePath"), QUrl::fromLocalFile(tmp).toString());
-    ctx->setContextProperty(QStringLiteral("previewImageSize"), img.size());
+    ctx->setContextProperty(QStringLiteral("previewImageSize"), imgSize);
     ctx->setContextProperty(QStringLiteral("previewCtl"), ctl);
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
@@ -1081,14 +1121,17 @@ bool AppContext::openPreview(const QImage &img)
                 win->deleteLater();
             }
         });
+        // Belt-and-braces for exit paths where visibleChanged(false) never
+        // fires (deleteLater is idempotent-safe here: remove of a gone file).
+        connect(win, &QObject::destroyed, qApp, [tmp] { QFile::remove(tmp); });
         win->show();
         win->requestActivate();
-        return true;
+        return;
     }
     delete obj;
     delete ctl;
+    delete ctx; // parented to AppContext — would otherwise outlive every failure
     QFile::remove(tmp);
-    return false;
 }
 
 void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path)
@@ -1096,23 +1139,25 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
     QPointer<CaptureNotification> np(n);
     if (n)
         n->setUploading(true);
-    QString mime;
-    const QByteArray data = encodeImage(img, &mime);
     const QString fileName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
-    m_uploads->uploadData(data, fileName, mime,
-        [this, img, path, np](const QString &url, const QString &del, const QString &err) {
-            if (!err.isEmpty()) {
-                showToast(tr("Upload failed: %1").arg(err), true);
-                if (np) np->setUploading(false);
-                return;
-            }
-            if (!path.isEmpty())
-                m_history->setUrl(path, url, del);
-            else
-                m_history->addEntry({}, img, QStringLiteral("image"), url, del);
-            afterUploadActions(url);
-            if (np) np->setUrl(url);
-        });
+    // Same off-thread encode + conditional image retention as finishCapture.
+    encodeImageAsync(img, [this, path, np, fileName,
+                           img = path.isEmpty() ? img : QImage()](const QByteArray &data, const QString &mime) {
+        m_uploads->uploadData(data, fileName, mime,
+            [this, img, path, np](const QString &url, const QString &del, const QString &err) {
+                if (!err.isEmpty()) {
+                    showToast(tr("Upload failed: %1").arg(err), true);
+                    if (np) np->setUploading(false);
+                    return;
+                }
+                if (!path.isEmpty())
+                    m_history->setUrl(path, url, del);
+                else
+                    m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                afterUploadActions(url);
+                if (np) np->setUrl(url);
+            });
+    });
 }
 
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
@@ -1188,6 +1233,38 @@ QString AppContext::makeFileName() const
 QString AppContext::filenamePreview() const
 {
     return makeFileName();
+}
+
+void AppContext::encodeImageAsync(const QImage &img,
+                                  std::function<void(const QByteArray &, const QString &)> done)
+{
+    // Snapshot the settings on the GUI thread; the worker must not touch them.
+    const QString fmt = m_settings->imageFormat().toLower();
+    const int q = qBound(1, m_settings->imageQuality(), 100);
+    QPointer<AppContext> self(this);
+    QPointer<QCoreApplication> application(qApp);
+    (void)QtConcurrent::run([self, application, img, fmt, q, done = std::move(done)] {
+        QByteArray out;
+        QString mime;
+        QBuffer buf(&out);
+        buf.open(QIODevice::WriteOnly);
+        if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg")) && img.save(&buf, "JPG", q)) {
+            mime = QStringLiteral("image/jpeg");
+        } else if (fmt == QLatin1String("webp") && img.save(&buf, "WEBP", q)) {
+            mime = QStringLiteral("image/webp");
+        } else {
+            out.clear();
+            buf.seek(0);
+            img.save(&buf, "PNG");
+            mime = QStringLiteral("image/png");
+        }
+        if (!application)
+            return;
+        QMetaObject::invokeMethod(application.data(), [self, out, mime, done] {
+            if (self)
+                done(out, mime);
+        }, Qt::QueuedConnection);
+    });
 }
 
 QByteArray AppContext::encodeImage(const QImage &img, QString *mime) const
@@ -1308,17 +1385,18 @@ void AppContext::copyText(const QString &text)
 // Editor flow: upload the composited image only (saving is a separate action).
 void AppContext::uploadImage(const QImage &img, UploadDone done)
 {
-    QString mime;
-    const QByteArray data = encodeImage(img, &mime);
-    m_uploads->uploadData(data, makeFileName(), mime,
-        [this, img, done](const QString &url, const QString &del, const QString &err) {
-            if (err.isEmpty()) {
-                m_history->addEntry({}, img, QStringLiteral("image"), url, del);
-                afterUploadActions(url);
-            }
-            if (done)
-                done(url, err);
-        });
+    const QString fileName = makeFileName();
+    encodeImageAsync(img, [this, img, fileName, done](const QByteArray &data, const QString &mime) {
+        m_uploads->uploadData(data, fileName, mime,
+            [this, img, done](const QString &url, const QString &del, const QString &err) {
+                if (err.isEmpty()) {
+                    m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                    afterUploadActions(url);
+                }
+                if (done)
+                    done(url, err);
+            });
+    });
 }
 
 void AppContext::openFile(const QString &path)
@@ -1545,8 +1623,7 @@ void AppContext::defineHotkeys()
         // The quick-copy grab is set with NoAutoloading, so a crash/quit inside
         // the 2s window would leave Ctrl+C bound to us persistently. Clear it on
         // every startup so a stale grab can't hijack the user's Ctrl+C.
-        m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
-                               tr("Copy last capture"), QString());
+        m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
         // The daemon may have autoloaded KCM-edited keys that differ from our
         // stored strings — reflect reality in the UI (from the registration
         // replies; no extra queries). An error/timeout must never be treated
@@ -1566,7 +1643,14 @@ void AppContext::defineHotkeys()
     // Non-KDE: the GlobalShortcuts portal (GNOME 48+, Hyprland, …). The
     // interface can be present yet backed by a broken impl (xdp-gnome's is
     // hardwired to org.gnome.Shell), so the bind response is the real test.
-    if (PortalGlobalShortcuts::interfacePresent()) {
+    // Async probe: the blocking one D-Bus-activated the portal and could stall
+    // startup by hundreds of ms on a cold session.
+    PortalGlobalShortcuts::probeInterface(this, [this](bool present) {
+        if (!present) {
+            m_hotkeyBackend.clear();
+            emit hotkeysAvailableChanged();
+            return;
+        }
         m_portalHotkeys = new PortalGlobalShortcuts(this);
         connect(m_portalHotkeys, &PortalGlobalShortcuts::activated,
                 this, &AppContext::dispatchHotkey);
@@ -1586,11 +1670,7 @@ void AppContext::defineHotkeys()
         m_hotkeyBackend = QStringLiteral("portal");
         emit hotkeysAvailableChanged();
         bindPortalHotkeys();
-        return;
-    }
-
-    m_hotkeyBackend.clear();
-    emit hotkeysAvailableChanged();
+    });
 }
 
 void AppContext::bindPortalHotkeys()

@@ -153,6 +153,14 @@ Window {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
+                // The card can never exceed the screen, so decoding beyond
+                // screen-physical pixels only wastes RAM + GPU texture memory
+                // (a multi-monitor capture would otherwise decode at full size).
+                sourceSize: Qt.size(Math.ceil(Screen.width * Screen.devicePixelRatio),
+                                    Math.ceil(Screen.height * Screen.devicePixelRatio))
+                // Unique temp file per preview, deleted on close — a pixmap-cache
+                // entry can never be reused, it would only delay reclamation.
+                cache: false
             }
 
             // Bottom-right resize grip. Layer mode resizes the card item

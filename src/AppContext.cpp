@@ -13,6 +13,8 @@
 #include "notify/DesktopNotifier.h"
 #ifdef HAVE_LAYERSHELL
 #include "notify/LayerShellNotifier.h"
+#include <LayerShellQt/window.h>
+#include <QMargins>
 #endif
 #include "theme/ThemeController.h"
 #ifdef HAVE_TESSERACT
@@ -146,11 +148,12 @@ void AppContext::initialize(QQmlEngine *engine)
     refreshAutostartIfStale();
 
 #ifdef HAVE_LAYERSHELL
-    // Prefer the on-top custom card when the compositor actually implements
-    // layer-shell (KWin/wlroots). Elsewhere (GNOME, X11) m_layerNotifier stays
-    // null and showCaptureNotification falls back to the native notification.
-    if (QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
-        && LayerShellNotifier::compositorSupportsLayerShell())
+    // Detect layer-shell ONCE — it drives the on-top custom capture card, the
+    // record-region border (so it works beyond KWin: wlroots, COSMIC…), and the
+    // preview window. Elsewhere (GNOME, X11) these fall back or are unsupported.
+    m_layerShellAvailable = QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
+                            && LayerShellNotifier::compositorSupportsLayerShell();
+    if (m_layerShellAvailable)
         m_layerNotifier = new LayerShellNotifier(this, this);
 #endif
 
@@ -460,19 +463,25 @@ void AppContext::stopRecording()
     m_recorder->stop();
 }
 
+bool AppContext::capNativeNotification() const
+{
+    return DesktopNotifier::available();
+}
+
+bool AppContext::capRecordBorder() const
+{
+    if (m_layerShellAvailable)
+        return true; // layer-shell overlay: KWin, wlroots, COSMIC…
+    // KWin can still host the fullscreen-transparent border without layer-shell.
+    auto *bi = QDBusConnection::sessionBus().interface();
+    return bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+}
+
 void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
 {
     hideRecordBorder(); // retire any stale frame first
-    if (!m_engine || !screen || physRegion.isEmpty())
-        return;
-
-    // KWin-only, for the same reason as showCaptureNotification(): the
-    // fullscreen-transparent trick is the one geometry Wayland honors, but on
-    // wlroots a fullscreen surface blanks the workspace and on Mutter it joins
-    // alt-tab. Elsewhere recording still works — just without the marker.
-    auto *busIface = QDBusConnection::sessionBus().interface();
-    if (!busIface || !busIface->isServiceRegistered(QStringLiteral("org.kde.KWin")))
-        return;
+    if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
+        return; // capRecordBorder(): layer-shell (KWin/wlroots/COSMIC) or KWin trick
 
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/RecordBorder.qml")));
     if (component.isError()) {
@@ -514,10 +523,33 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
     }
     ctx->setParent(win);
     win->setScreen(screen);
+
+#ifdef HAVE_LAYERSHELL
+    if (m_layerShellAvailable) {
+        // Fullscreen click-through OVERLAY layer surface — works beyond KWin
+        // (wlroots, COSMIC). The QML window is WindowTransparentForInput, so
+        // clicks pass through; anchoring all four edges fills the output.
+        win->resize(screen->geometry().size());
+        if (auto *ls = LayerShellQt::Window::get(win)) {
+            using LW = LayerShellQt::Window;
+            ls->setLayer(LW::LayerOverlay);
+            ls->setScope(QStringLiteral("unisic-record-border"));
+            ls->setExclusiveZone(-1); // cover the whole output, ignore panels
+            ls->setKeyboardInteractivity(LW::KeyboardInteractivityNone);
+            ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
+                                       | LW::AnchorLeft | LW::AnchorRight));
+            ls->setMargins(QMargins(0, 0, 0, 0));
+        }
+        win->show();
+        m_recordBorderWindow = win;
+        return;
+    }
+#endif
+    // KWin fullscreen-transparent fallback (no layer-shell build/support).
+    // showFullScreen pins the surface to the screen origin (see the popup); the
+    // window is input-transparent so it never steals focus or clicks.
     win->setGeometry(screen->geometry());
     win->create();
-    // showFullScreen pins the surface to the screen origin (see the popup);
-    // the window is input-transparent so it never steals focus or clicks.
     win->showFullScreen();
     m_recordBorderWindow = win;
 }

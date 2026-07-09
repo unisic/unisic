@@ -58,6 +58,21 @@ target_compile_definitions(unisic PRIVATE
     UNISIC_VERSION="${PROJECT_VERSION}"
     UNISIC_BUILD="${UNISIC_BUILD}")
 
+# Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
+# options editable in Settings. A CI build (UNISIC_BUILD carries a run number, not
+# "dev") defaults to a RELEASE build, where unsupported options are shown greyed-out
+# with an explanation instead. Override explicitly with -DUNISIC_DEV_BUILD=ON/OFF.
+if(UNISIC_BUILD STREQUAL "dev")
+    set(_unisic_dev_default ON)
+else()
+    set(_unisic_dev_default OFF)
+endif()
+option(UNISIC_DEV_BUILD "Developer build (F8 smoke test + editable capability toggles)" ${_unisic_dev_default})
+if(UNISIC_DEV_BUILD)
+    target_compile_definitions(unisic PRIVATE UNISIC_DEV_BUILD)
+    message(STATUS "Developer build: UNISIC_DEV_BUILD=ON (F8 smoke test enabled)")
+endif()
+
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
     target_link_libraries(unisic PRIVATE PkgConfig::PIPEWIRE)

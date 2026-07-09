@@ -54,6 +54,16 @@ class AppContext : public QObject
     // rather than as a native notification — lets the UI expose card-only options
     // (e.g. corner position, which a native notification server controls itself).
     Q_PROPERTY(bool layerShellActive READ layerShellActive CONSTANT)
+    // Developer build (F8 smoke test; capability options stay editable). False in
+    // a release build, where unsupported options are shown greyed-out instead.
+    Q_PROPERTY(bool devBuild READ devBuild CONSTANT)
+    // Compositor capabilities, resolved once at startup. The UI uses them to
+    // enable/grey the matching options. capCustomNotification/capRecordBorder ride
+    // on layer-shell (KWin/wlroots/COSMIC); capNativeNotification on a running
+    // notification server (absent on e.g. a bare Sway).
+    Q_PROPERTY(bool capNativeNotification READ capNativeNotification CONSTANT)
+    Q_PROPERTY(bool capCustomNotification READ capCustomNotification CONSTANT)
+    Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
     // or removes that file (Exec carries --tray-only so login starts hidden).
     Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
@@ -100,6 +110,17 @@ public:
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
     bool layerShellActive() const { return m_layerNotifier != nullptr; }
+    bool devBuild() const
+    {
+#ifdef UNISIC_DEV_BUILD
+        return true;
+#else
+        return false;
+#endif
+    }
+    bool capNativeNotification() const;
+    bool capCustomNotification() const { return m_layerShellAvailable; }
+    bool capRecordBorder() const;
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
@@ -251,6 +272,7 @@ private:
     QTimer *m_trimTimer = nullptr;
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
+    bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
     QPointer<QScreen> m_pendingRecordScreen;

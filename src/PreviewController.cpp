@@ -6,9 +6,14 @@
 #include <QMargins>
 #endif
 
-PreviewController::PreviewController(QQuickWindow *win, bool layerShell, QObject *parent)
-    : QObject(parent), m_win(win), m_layerShell(layerShell)
+PreviewController::PreviewController(bool layerShell, QObject *parent)
+    : QObject(parent), m_layerShell(layerShell)
 {
+}
+
+void PreviewController::setWindow(QQuickWindow *win)
+{
+    m_win = win;
 }
 
 void PreviewController::attach()

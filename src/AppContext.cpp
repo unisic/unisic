@@ -1044,16 +1044,19 @@ void AppContext::openPreview(const QImage &img)
         QFile::remove(tmp);
         return;
     }
+    // Create the controller BEFORE the component so QML resolves `previewCtl`
+    // to the real object at bind time (a late setContextProperty wouldn't reach
+    // handlers reliably — that left move/close as no-ops).
+    auto *ctl = new PreviewController(m_layerShellAvailable, this);
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("previewImagePath"), QUrl::fromLocalFile(tmp).toString());
     ctx->setContextProperty(QStringLiteral("previewImageSize"), img.size());
-    // Placeholder so the QML binds; replaced with the real controller below.
-    ctx->setContextProperty(QStringLiteral("previewCtl"), QVariant());
+    ctx->setContextProperty(QStringLiteral("previewCtl"), ctl);
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
         ctx->setParent(win);
-        auto *ctl = new PreviewController(win, m_layerShellAvailable, win);
-        ctx->setContextProperty(QStringLiteral("previewCtl"), ctl);
+        ctl->setParent(win);
+        ctl->setWindow(win);
         ctl->attach();   // configure layer-shell / flags before the window shows
         // The passthrough hotkey targets whichever preview is active/newest.
         m_activePreview = ctl;
@@ -1071,6 +1074,7 @@ void AppContext::openPreview(const QImage &img)
         win->requestActivate();
     } else {
         delete obj;
+        delete ctl;
         QFile::remove(tmp);
     }
 }

@@ -24,7 +24,11 @@ class PreviewController : public QObject
     Q_PROPERTY(bool layerShell READ layerShell CONSTANT)
 
 public:
-    PreviewController(QQuickWindow *win, bool layerShell, QObject *parent = nullptr);
+    PreviewController(bool layerShell, QObject *parent = nullptr);
+
+    // Bind the window after the QML component is created (the controller must
+    // already exist as a context property before create() so QML resolves it).
+    void setWindow(QQuickWindow *win);
 
     bool pinned() const { return m_pinned; }
     bool passthrough() const { return m_passthrough; }

@@ -244,6 +244,20 @@ Window {
                 }
             }
         }
+
+        // Version / build footer — hidden while the recording pill occupies the bottom.
+        Text {
+            visible: !App.recording && !App.converting
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.spacingM
+            anchors.horizontalCenter: parent.horizontalCenter
+            horizontalAlignment: Text.AlignHCenter
+            text: "v" + App.appVersion + (App.buildNumber === "dev"
+                    ? " · dev"
+                    : " · build " + App.buildNumber)
+            color: Theme.textTertiary
+            font.pixelSize: Theme.fontS
+        }
     }
 
     Item { // content

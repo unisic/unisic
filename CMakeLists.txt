@@ -40,7 +40,16 @@ qt_add_executable(unisic
 )
 
 # Single source of the app version string, exported to C++ from the project() call.
-target_compile_definitions(unisic PRIVATE UNISIC_VERSION="${PROJECT_VERSION}")
+# UNISIC_BUILD carries the CI build number (GITHUB_RUN_NUMBER, set in the release
+# workflow) when built in CI, or "dev" for local builds. Shown in the sidebar footer.
+if(DEFINED ENV{UNISIC_BUILD_NUMBER} AND NOT "$ENV{UNISIC_BUILD_NUMBER}" STREQUAL "")
+    set(UNISIC_BUILD "$ENV{UNISIC_BUILD_NUMBER}")
+else()
+    set(UNISIC_BUILD "dev")
+endif()
+target_compile_definitions(unisic PRIVATE
+    UNISIC_VERSION="${PROJECT_VERSION}"
+    UNISIC_BUILD="${UNISIC_BUILD}")
 
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)

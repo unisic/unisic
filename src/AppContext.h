@@ -54,6 +54,10 @@ class AppContext : public QObject
     // "kglobalaccel" | "portal" | "" — lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
+    // Baked in at compile time (CMake): semantic version + CI build number
+    // ("dev" for local builds). Shown in the sidebar footer.
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
 
 public:
     using UploadDone = std::function<void(const QString &url, const QString &error)>;
@@ -79,6 +83,8 @@ public:
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
     QString toastText() const { return m_toast; }
+    QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
+    QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
 
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();

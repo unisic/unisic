@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.2.0 LANGUAGES CXX)
+project(unisic VERSION 0.2.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -187,3 +187,25 @@ set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
 
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    qt_add_executable(unisic_object_detector_test
+        tests/ObjectDetectorTest.cpp
+        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    )
+    target_link_libraries(unisic_object_detector_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_object_detector_test PRIVATE src/overlay)
+    add_test(NAME unisic_object_detector_test COMMAND unisic_object_detector_test)
+
+    qt_add_executable(unisic_annotation_canvas_test
+        tests/AnnotationCanvasTest.cpp
+        src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    )
+    target_link_libraries(unisic_annotation_canvas_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+    target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor src/overlay)
+    add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
+    set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()

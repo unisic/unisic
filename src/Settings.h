@@ -66,6 +66,7 @@ class Settings : public QObject
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
+    Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
@@ -226,6 +227,10 @@ public:
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
+    // Skip the capture card while notifications are inhibited (a fullscreen app,
+    // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
+    // for your own deliberate capture, so it should normally show regardless.
+    U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
@@ -258,7 +263,7 @@ public:
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
-        emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
+        emit capturePopupDurationSecChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
@@ -305,6 +310,7 @@ signals:
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
     void capturePopupDurationSecChanged();
+    void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();

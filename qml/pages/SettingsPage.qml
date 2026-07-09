@@ -276,6 +276,12 @@ Item {
                         USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
                     }
                     SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Hide it during fullscreen / Do Not Disturb")
+                        USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
+                    }
+                    SettingRow {
                         visible: App.ocrAvailable
                         height: App.ocrAvailable ? 44 : 0
                         label: qsTr("OCR languages")

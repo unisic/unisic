@@ -768,11 +768,12 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     auto *notif = new CaptureNotification(this, img, path, kind, nullptr);
 #ifdef HAVE_LAYERSHELL
     if (m_layerNotifier) {
-        // The layer card draws above everything, so honour KDE's suppression
-        // (fullscreen app / DND / screen sharing) sampled when THIS capture
-        // began — but NOT our own selection overlay, which flips it only after
-        // that sample. Inhibited → skip the card (save/copy/upload still ran).
-        if (inhibited) {
+        // The layer card draws above everything. Only when the user opted in
+        // (muteOnFullscreen) do we honour KDE's inhibition — which conflates a
+        // fullscreen app, Do-Not-Disturb, AND stuck third-party inhibitors, so
+        // auto-suppressing by default wrongly killed the user's own capture
+        // feedback. sampled when THIS capture began (before our own overlay).
+        if (inhibited && m_settings->muteOnFullscreen()) {
             notif->deleteLater();
             return nullptr;
         }

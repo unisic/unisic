@@ -127,6 +127,12 @@ public:
     // pass/fail/skip. Bound to F8 (dev build only) and the Settings > Developer
     // button. smokeTestLog is the running transcript shown in the debug panel.
     Q_INVOKABLE void runSmokeTest();
+    // Per-action manual triggers for the Developer tab (dev build only): each
+    // exercises ONE path in isolation. Capture/record reuse the public entry
+    // points; these three cover the non-capture paths with a throwaway image.
+    Q_INVOKABLE void devTestNotification();
+    Q_INVOKABLE void devTestEditor();
+    Q_INVOKABLE void devTestHistory();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }

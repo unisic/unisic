@@ -33,8 +33,14 @@ Item {
         return best
     }
 
-    readonly property var tabNames: [qsTr("General"), qsTr("Appearance"),
-                                     qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
+    // The Developer tab (index 5) only exists in a dev build.
+    readonly property var tabNames: {
+        var t = [qsTr("General"), qsTr("Appearance"), qsTr("Editor"),
+                 qsTr("Recording"), qsTr("Hotkeys")]
+        if (App.devBuild)
+            t.push(qsTr("Developer"))
+        return t
+    }
 
     readonly property var themeIds: ["system", "unisic", "dark", "light",
                                      "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
@@ -429,73 +435,6 @@ Item {
                 }
             }
 
-            // Developer tools — only in a dev build (UNISIC_DEV_BUILD).
-            UCard {
-                visible: App.devBuild
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Developer") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Dev build. F8 (or the button below) runs a smoke test of the main paths. Compositor capabilities detected here:")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Native notifications")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
-                               color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
-                    }
-                    SettingRow {
-                        label: qsTr("Custom card (layer-shell)")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
-                               color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
-                    }
-                    SettingRow {
-                        label: qsTr("Recording border")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
-                               color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
-                    }
-                    Row {
-                        spacing: Theme.spacingS
-                        UButton {
-                            compact: true; variant: "tonal"
-                            text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run smoke test (F8)")
-                            enabled: !App.smokeTestRunning
-                            onClicked: App.runSmokeTest()
-                        }
-                    }
-                    Rectangle {
-                        visible: App.smokeTestLog !== ""
-                        width: parent.width
-                        height: 180
-                        radius: Theme.radiusM
-                        color: Theme.background
-                        border.width: 1
-                        border.color: Theme.divider
-                        clip: true
-                        Flickable {
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            contentWidth: width
-                            contentHeight: logText.height
-                            boundsBehavior: Flickable.StopAtBounds
-                            Text {
-                                id: logText
-                                width: parent.width
-                                text: App.smokeTestLog
-                                color: Theme.textSecondary
-                                font.family: "monospace"
-                                font.pixelSize: Theme.fontS
-                                wrapMode: Text.WrapAnywhere
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // ===== Appearance =====
@@ -949,6 +888,105 @@ Item {
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings — an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+        }
+
+        // ===== Developer (dev build only, tab 5) =====
+        ScrollPane {
+            visible: page.tab === 5
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Developer") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Dev build. Compositor capabilities detected on this system. F8 (or the button) runs the full smoke test.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Native notifications")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
+                               color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Custom card (layer-shell)")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
+                               color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording border")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
+                               color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    UButton {
+                        compact: true; variant: "tonal"
+                        text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run full smoke test (F8)")
+                        enabled: !App.smokeTestRunning
+                        onClicked: App.runSmokeTest()
+                    }
+                    Rectangle {
+                        visible: App.smokeTestLog !== ""
+                        width: parent.width
+                        height: 200
+                        radius: Theme.radiusM
+                        color: Theme.background
+                        border.width: 1
+                        border.color: Theme.divider
+                        clip: true
+                        Flickable {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            contentWidth: width
+                            contentHeight: logText.height
+                            boundsBehavior: Flickable.StopAtBounds
+                            Text {
+                                id: logText
+                                width: parent.width
+                                text: App.smokeTestLog
+                                color: Theme.textSecondary
+                                font.family: "monospace"
+                                font.pixelSize: Theme.fontS
+                                wrapMode: Text.WrapAnywhere
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Run a single action") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Trigger each path on its own to verify it by hand. Every new feature must add its trigger here and to the smoke test.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture fullscreen"); onClicked: App.captureFullScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (screen)"); onClicked: App.startVideoScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (region)"); onClicked: App.startVideoRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (window)"); onClicked: App.startVideoWindow() }
+                        UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                     }
                 }
             }

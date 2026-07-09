@@ -477,6 +477,35 @@ void AppContext::smokeLog(const QString &line)
     emit smokeTestChanged();
 }
 
+static QImage devTestImage()
+{
+    QImage img(320, 200, QImage::Format_ARGB32);
+    img.fill(QColor(0x2E, 0x23, 0x6C));
+    return img;
+}
+
+void AppContext::devTestNotification()
+{
+    if (!devBuild())
+        return;
+    showCaptureNotification(devTestImage(), QString(), QStringLiteral("image"), false);
+}
+
+void AppContext::devTestEditor()
+{
+    if (!devBuild())
+        return;
+    openEditor(devTestImage());
+}
+
+void AppContext::devTestHistory()
+{
+    if (!devBuild())
+        return;
+    m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
+    showToast(tr("Dev: added a test history entry"));
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {

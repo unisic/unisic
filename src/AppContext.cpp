@@ -217,6 +217,8 @@ void AppContext::dispatchHotkey(const QString &action)
     } else if (action == QLatin1String("record-video")) {
         if (recording()) stopRecording();
         else startVideoRegion();
+    } else if (action == QLatin1String("smoke-test")) {
+        if (devBuild()) runSmokeTest();
     }
 }
 
@@ -466,6 +468,125 @@ void AppContext::stopRecording()
 bool AppContext::capNativeNotification() const
 {
     return DesktopNotifier::available();
+}
+
+void AppContext::smokeLog(const QString &line)
+{
+    qInfo().noquote() << "[smoke]" << line;
+    m_smokeLog += line + QLatin1Char('\n');
+    emit smokeTestChanged();
+}
+
+void AppContext::smokeNext()
+{
+    if (m_smokeIdx >= m_smokeSteps.size()) {
+        m_smokeRunning = false;
+        smokeLog(QStringLiteral("=== smoke test done ==="));
+        m_smokeSteps.clear();
+        emit smokeTestChanged();
+        return;
+    }
+    m_smokeSteps[m_smokeIdx++]();
+}
+
+void AppContext::runSmokeTest()
+{
+    if (m_smokeRunning)
+        return;
+    m_smokeRunning = true;
+    m_smokeLog.clear();
+    m_smokeIdx = 0;
+    m_smokeSteps.clear();
+    smokeLog(QStringLiteral("=== Unisic smoke test ==="));
+    emit smokeTestChanged();
+
+    // 1) capability / availability snapshot (synchronous)
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("build: ") + (devBuild() ? QStringLiteral("dev") : QStringLiteral("release")));
+        smokeLog(QStringLiteral("capture backend: ") + (m_capture ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        smokeLog(QStringLiteral("recording: ") + (recordingAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no PipeWire/portal)")));
+        smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
+                 .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
+                      (capNativeNotification() || capCustomNotification()) ? "PASS" : "FAIL"));
+        smokeLog(QStringLiteral("record border: ") + (capRecordBorder() ? QStringLiteral("PASS") : QStringLiteral("n/a on this compositor")));
+        smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
+        smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
+        smokeLog(QStringLiteral("OCR: ") + (ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)")));
+        smokeNext();
+    });
+
+    // 2) real fullscreen capture -> save -> history
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("capture (fullscreen)…"));
+        m_capture->captureWorkspace([this](const QImage &img, const QString &err) {
+            if (!err.isEmpty())
+                smokeLog(QStringLiteral("  capture: FAIL (%1)").arg(err));
+            else if (img.isNull())
+                smokeLog(QStringLiteral("  capture: FAIL (null image)"));
+            else {
+                smokeLog(QStringLiteral("  capture: PASS (%1x%2)").arg(img.width()).arg(img.height()));
+                const QString p = saveImageAuto(img, QStringLiteral("smoketest.png"));
+                if (!p.isEmpty())
+                    m_history->addEntry(p, img, QStringLiteral("image"));
+                smokeLog(QStringLiteral("  save + history: ") + (p.isEmpty() ? QStringLiteral("FAIL") : QStringLiteral("PASS")));
+            }
+            smokeNext();
+        });
+    });
+
+    // 3) post-capture editor open
+    m_smokeSteps.append([this] {
+        const int before = m_editorWindows;
+        QImage t(64, 64, QImage::Format_ARGB32);
+        t.fill(QColor(0x2E, 0x23, 0x6C));
+        openEditor(t);
+        smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
+                 ? QStringLiteral("PASS (close the window manually)") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 4) short GIF recording (fullscreen, ~3s, auto-stop)
+    m_smokeSteps.append([this] {
+        if (!recordingAvailable()) {
+            smokeLog(QStringLiteral("recording: SKIP"));
+            smokeNext();
+            return;
+        }
+        smokeLog(QStringLiteral("recording (GIF fullscreen, ~3s)…"));
+        auto done = std::make_shared<QMetaObject::Connection>();
+        auto fail = std::make_shared<QMetaObject::Connection>();
+        *done = connect(m_recorder, &GifRecorder::finished, this, [this, done, fail](const QString &f) {
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  recording: PASS (%1)").arg(f));
+            smokeNext();
+        });
+        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, done, fail](const QString &e) {
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  recording: FAIL (%1)").arg(e));
+            smokeNext();
+        });
+        startGifFullScreen();
+        QTimer::singleShot(3000, this, [this] { if (recording()) stopRecording(); });
+    });
+
+    // 5) capture notification
+    m_smokeSteps.append([this] {
+        QImage t(48, 48, QImage::Format_ARGB32);
+        t.fill(QColor(0xC8, 0xAC, 0xD6));
+        auto *n = showCaptureNotification(t, QString(), QStringLiteral("image"), false);
+        smokeLog(QStringLiteral("notification: ") + (n ? QStringLiteral("PASS (shown)")
+                 : QStringLiteral("SKIP (disabled or no server/layer-shell)")));
+        smokeNext();
+    });
+
+    // 6) upload (needs a real destination + a public target — left manual)
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("upload: SKIP — active destination '%1'; run a real upload manually")
+                 .arg(m_settings->activeDestination()));
+        smokeNext();
+    });
+
+    smokeNext();
 }
 
 bool AppContext::capRecordBorder() const
@@ -1176,6 +1297,11 @@ void AppContext::defineHotkeys()
             showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
                          "(System Settings → Shortcuts to free it)"));
         }
+#ifdef UNISIC_DEV_BUILD
+        // Dev-only: F8 runs the smoke test. Fixed key (not user-configurable).
+        m_hotkeys->setShortcut(QStringLiteral("smoke-test"),
+                               tr("Developer smoke test"), QStringLiteral("F8"));
+#endif
         // The daemon may have autoloaded KCM-edited keys that differ from our
         // stored strings — reflect reality in the UI (from the registration
         // replies; no extra queries). An error/timeout must never be treated

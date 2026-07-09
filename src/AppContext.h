@@ -64,6 +64,8 @@ class AppContext : public QObject
     Q_PROPERTY(bool capNativeNotification READ capNativeNotification CONSTANT)
     Q_PROPERTY(bool capCustomNotification READ capCustomNotification CONSTANT)
     Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
+    Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
+    Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
     // or removes that file (Exec carries --tray-only so login starts hidden).
     Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
@@ -121,6 +123,12 @@ public:
     bool capNativeNotification() const;
     bool capCustomNotification() const { return m_layerShellAvailable; }
     bool capRecordBorder() const;
+    // Developer smoke-test: sequentially exercises the main app paths and logs
+    // pass/fail/skip. Bound to F8 (dev build only) and the Settings > Developer
+    // button. smokeTestLog is the running transcript shown in the debug panel.
+    Q_INVOKABLE void runSmokeTest();
+    QString smokeTestLog() const { return m_smokeLog; }
+    bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
@@ -201,6 +209,7 @@ signals:
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void editorWindowsOpenChanged();
+    void smokeTestChanged();
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
     void trayContrastColorChanged();
@@ -283,6 +292,13 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    // Developer smoke-test runner state (sequential async steps).
+    void smokeNext();
+    void smokeLog(const QString &line);
+    QString m_smokeLog;
+    bool m_smokeRunning = false;
+    QVector<std::function<void()>> m_smokeSteps;
+    int m_smokeIdx = 0;
     bool m_recordInhibited = false; // inhibit state at record start (recordings are exclusive)
 };
 

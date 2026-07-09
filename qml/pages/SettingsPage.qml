@@ -428,6 +428,74 @@ Item {
                     }
                 }
             }
+
+            // Developer tools — only in a dev build (UNISIC_DEV_BUILD).
+            UCard {
+                visible: App.devBuild
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Developer") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Dev build. F8 (or the button below) runs a smoke test of the main paths. Compositor capabilities detected here:")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Native notifications")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
+                               color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Custom card (layer-shell)")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
+                               color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording border")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
+                               color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    Row {
+                        spacing: Theme.spacingS
+                        UButton {
+                            compact: true; variant: "tonal"
+                            text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run smoke test (F8)")
+                            enabled: !App.smokeTestRunning
+                            onClicked: App.runSmokeTest()
+                        }
+                    }
+                    Rectangle {
+                        visible: App.smokeTestLog !== ""
+                        width: parent.width
+                        height: 180
+                        radius: Theme.radiusM
+                        color: Theme.background
+                        border.width: 1
+                        border.color: Theme.divider
+                        clip: true
+                        Flickable {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            contentWidth: width
+                            contentHeight: logText.height
+                            boundsBehavior: Flickable.StopAtBounds
+                            Text {
+                                id: logText
+                                width: parent.width
+                                text: App.smokeTestLog
+                                color: Theme.textSecondary
+                                font.family: "monospace"
+                                font.pixelSize: Theme.fontS
+                                wrapMode: Text.WrapAnywhere
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         // ===== Appearance =====

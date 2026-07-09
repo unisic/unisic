@@ -11,6 +11,17 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Local absolute path -> file URL. Per-segment encode: encodeURI leaves
+    // '#'/'?' unescaped, so a filename containing them would be parsed as a URL
+    // fragment/query and the thumbnail would fail to load.
+    function fileUrl(p) {
+        return "file://" + p.split("/").map(encodeURIComponent).join("/")
+    }
+    // Tooltip label from a path: basename without the image extension.
+    function iconLabel(p) {
+        return p.split("/").pop().replace(/\.(svg|svgz|png|jpe?g|webp|xpm|ico)$/i, "")
+    }
+
     // FPS dropdown options (15/30/45/60); snap a stored value to the nearest.
     readonly property var fpsOpts: [15, 30, 45, 60]
     function nearestFps(v) {
@@ -242,13 +253,15 @@ Item {
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
-                        label: qsTr("Show capture preview popup")
+                        label: qsTr("Show capture notification")
                         USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
                     }
                     SettingRow {
-                        visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Popup position")
+                        // Corner only matters for the layer-shell card we position
+                        // ourselves; a native notification is placed by the server.
+                        visible: App.settings.showCapturePopup && App.layerShellActive
+                        height: (App.settings.showCapturePopup && App.layerShellActive) ? 44 : 0
+                        label: qsTr("Notification position")
                         UComboBox {
                             width: 180
                             model: page.popupPosNames
@@ -259,7 +272,7 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Popup auto-hide (0 = keep open)")
+                        label: qsTr("Notification auto-hide (0 = keep open)")
                         USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
                     }
                     SettingRow {
@@ -276,6 +289,10 @@ Item {
                     SettingRow {
                         label: qsTr("Closing the window minimizes to tray")
                         USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Start at login (minimized to tray)")
+                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
                     }
                     SettingRow {
                         label: qsTr("Open file after saving")
@@ -451,6 +468,123 @@ Item {
                         text: qsTr("Off = Unisic draws its own title bar with themed minimize/maximize/close buttons.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingM
+                    SectionTitle { text: qsTr("System tray icon") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Click an icon to use it in the system tray. Drop your own .png/.svg files into the icons folder and they appear here automatically.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+
+                    Flow {
+                        width: parent.width
+                        spacing: Theme.spacingS
+
+                        Repeater {
+                            // Rebuilds whenever the drop-in folder or the current
+                            // selection changes (both referenced below).
+                            model: {
+                                // Referenced so the thumbnails re-render when the
+                                // OS light/dark scheme flips.
+                                var color = App.trayContrastColor
+                                var bundled = App.bundledTrayIcons
+                                var presets = App.trayIconPresets
+                                var cur = App.settings.trayIconPath
+                                var arr = [{ path: "", label: qsTr("Default"),
+                                             src: "qrc:/resources/icons/unisic.svg" }]
+                                // App-shipped presets are monochrome — recolor the
+                                // preview to contrast the scheme, like the tray.
+                                for (var b = 0; b < bundled.length; b++)
+                                    arr.push({ path: bundled[b],
+                                               label: page.iconLabel(bundled[b]),
+                                               src: App.trayIconThumb(bundled[b], color) })
+                                for (var i = 0; i < presets.length; i++)
+                                    arr.push({ path: presets[i],
+                                               label: page.iconLabel(presets[i]),
+                                               src: page.fileUrl(presets[i]) })
+                                // A file picked from elsewhere still gets a tile so
+                                // the current choice is always visible/selected.
+                                if (cur !== "" && presets.indexOf(cur) === -1
+                                        && bundled.indexOf(cur) === -1)
+                                    arr.push({ path: cur, label: page.iconLabel(cur),
+                                               src: page.fileUrl(cur) })
+                                return arr
+                            }
+                            delegate: Rectangle {
+                                id: tile
+                                required property var modelData
+                                readonly property bool sel: App.settings.trayIconPath === modelData.path
+                                width: 62; height: 62
+                                radius: Theme.radiusM
+                                color: sel ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                            : Theme.surfaceHi
+                                border.width: sel ? 2 : 1
+                                border.color: sel ? Theme.accent : Theme.divider
+                                Image {
+                                    anchors.centerIn: parent
+                                    width: 38; height: 38
+                                    source: tile.modelData.src
+                                    fillMode: Image.PreserveAspectFit
+                                    sourceSize.width: 76; sourceSize.height: 76
+                                    smooth: true
+                                    asynchronous: true
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: App.selectTrayIcon(tile.modelData.path)
+                                    ToolTip.text: tile.modelData.label
+                                    ToolTip.visible: containsMouse && tile.modelData.path !== ""
+                                    ToolTip.delay: 500
+                                }
+                            }
+                        }
+
+                        // "+" tile — pick an image; it is copied into the icons
+                        // folder and selected.
+                        Rectangle {
+                            width: 62; height: 62
+                            radius: Theme.radiusM
+                            color: Theme.surfaceHi
+                            border.width: 1
+                            border.color: Theme.divider
+                            Text {
+                                anchors.centerIn: parent
+                                text: "+"
+                                color: Theme.textSecondary
+                                font.pixelSize: 30
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: App.addTrayIcon()
+                                ToolTip.text: qsTr("Add an icon (copies it here)")
+                                ToolTip.visible: containsMouse
+                                ToolTip.delay: 500
+                            }
+                        }
+                    }
+
+                    Row {
+                        spacing: Theme.spacingS
+                        UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Open folder with icons"); onClicked: App.openDirectory(App.trayIconsDir()) }
+                        UButton {
+                            compact: true; variant: "ghost"; text: qsTr("Reset")
+                            visible: App.settings.trayIconPath !== ""
+                            onClicked: App.clearTrayIcon()
+                        }
                     }
                 }
             }
@@ -638,6 +772,30 @@ Item {
                     }
                 }
             }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Audio") }
+                    SettingRow {
+                        label: qsTr("Record system audio")
+                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Record microphone")
+                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Applies to video recordings (MP4/WebM) — GIFs have no audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
         }
 
         // ===== Hotkeys =====
@@ -723,3 +881,4 @@ Item {
         }
     }
 }
+

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- "Screen is recording": a monitor with a record dot on it. -->
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <rect x="2.75" y="4.25" width="18.5" height="12.5" rx="2.4" fill="none" stroke="#1c1c1c" stroke-width="1.7"/>
+  <path d="M12 16.75 V19.4 M8.4 19.9 H15.6" fill="none" stroke="#1c1c1c" stroke-width="1.7" stroke-linecap="round"/>
+  <circle cx="12" cy="10.5" r="2.55" fill="#1c1c1c"/>
+</svg>

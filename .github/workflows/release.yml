@@ -15,10 +15,42 @@ defaults:
 
 env:
   BUILD_TYPE: Release
+  # Baked into the binary by CMake and shown in the sidebar footer.
+  UNISIC_BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:
+  check:
+    name: Version check
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      should_release: ${{ steps.v.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        name: Read version and decide whether to release
+        run: |
+          version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+          version="${version_line#*VERSION }"
+          version="${version%% *}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Release only when this version has not been tagged yet — i.e. the
+          # version in CMakeLists.txt was bumped. Plain pushes to main (docs,
+          # refactors without a bump) build nothing and cut no release.
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag v${version} already exists — no version bump, skipping release."
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Releasing v${version}."
+          fi
+
   deb:
     name: Debian package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: debian:trixie
     steps:
@@ -50,6 +82,8 @@ jobs:
 
   rpm:
     name: RPM package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
@@ -78,6 +112,8 @@ jobs:
 
   arch:
     name: Arch package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
@@ -122,6 +158,8 @@ jobs:
 
   appimage:
     name: AppImage
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -233,6 +271,8 @@ jobs:
 
   flatpak:
     name: Flatpak
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
@@ -255,53 +295,46 @@ jobs:
 
   release:
     name: GitHub Release
-    runs-on: ubuntu-latest
     needs:
+      - check
       - deb
       - rpm
       - arch
       - appimage
       - flatpak
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog can diff against the previous
+          # release and find the last clean semver tag.
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
           path: dist
 
+      - name: Generate changelog
+        run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version_line=""
-          while IFS= read -r line; do
-            if [[ "$line" == project\(unisic\ VERSION* ]]; then
-              version_line="$line"
-              break
-            fi
-          done < CMakeLists.txt
-          if [[ -z "$version_line" ]]; then
-            printf 'Could not read project version from CMakeLists.txt\n' >&2
-            exit 1
-          fi
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
-          tag="v${version}-build.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-          short_sha="${GITHUB_SHA::7}"
-
           shopt -s globstar nullglob
           assets=()
           for path in dist/**/*; do
-            if [[ -f "$path" ]]; then
-              assets+=("$path")
-            fi
+            [[ -f "$path" ]] && assets+=("$path")
           done
           if [[ ${#assets[@]} -eq 0 ]]; then
             printf 'No release assets found\n' >&2
             exit 1
           fi
 
-          gh release create "$tag" "${assets[@]}" \
+          gh release create "v${VERSION}" "${assets[@]}" \
             --target "$GITHUB_SHA" \
-            --title "Unisic ${version} build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
-            --notes "Automated release from main at commit ${short_sha}."
+            --title "Unisic ${VERSION}" \
+            --notes-file NOTES.md

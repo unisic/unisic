@@ -10,11 +10,16 @@
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
 #include "notify/CaptureNotification.h"
+#include "notify/DesktopNotifier.h"
+#ifdef HAVE_LAYERSHELL
+#include "notify/LayerShellNotifier.h"
+#endif
 #include "theme/ThemeController.h"
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
 #endif
 #include <QGuiApplication>
+#include <QtMath>
 #include <QScreen>
 #include <QRegion>
 #include <QPointer>
@@ -25,6 +30,13 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QIcon>
+#include <QSize>
+#include <QColor>
+#include <QPainter>
+#include <QImageReader>
+#include <QStyleHints>
+#include <QFileSystemWatcher>
 #include <QFileDialog>
 #include <QKeySequence>
 #include <QDesktopServices>
@@ -64,21 +76,34 @@ AppContext::AppContext(QObject *parent)
     , m_hotkeys(new GlobalHotkeys(this))
     , m_recorder(new GifRecorder(m_settings, this))
 {
+    m_notifier = new DesktopNotifier(this, this);
+
     connect(m_hotkeys, &GlobalHotkeys::activated, this, &AppContext::dispatchHotkey);
     // Live two-way sync: a KCM edit updates the app's stored/displayed key.
     connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    connect(m_recorder, &GifRecorder::started, this, [this] {
+        // Region recordings carry a pending rect. Gate on the LIVE recording
+        // actually being a Region one: a stale pending rect (set by a region
+        // callback whose start() no-op'd because another recording had already
+        // begun) must never frame a full-screen/window recording — that frame
+        // would be baked into the output.
+        if (m_recorder->sourceType() == GifRecorder::Region && !m_pendingRecordRegion.isEmpty())
+            showRecordBorder(m_pendingRecordRegion, m_pendingRecordScreen);
+    });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
         m_converting = true;
+        hideRecordBorder(); // capture is over; the frame must not linger over encoding
         emit recordingChanged();
         showToast(tr("Encoding…"));
     });
     connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
+        hideRecordBorder();
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
             showToast(tr("Recording failed: %1").arg(e), true);
@@ -89,6 +114,19 @@ AppContext::AppContext(QObject *parent)
     connect(m_history, &HistoryStore::fileTrashFailed, this, [this](const QString &path) {
         showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
     });
+
+    // Live-apply a custom tray icon the moment the setting changes (also covers
+    // an import that rewrites trayIconPath).
+    connect(m_settings, &Settings::trayIconPathChanged, this, &AppContext::applyTrayIcon);
+
+    // Follow the OS light/dark scheme: recolor the (monochrome) bundled preset
+    // in the tray, and let the settings gallery re-render its thumbnails.
+    if (auto *hints = QGuiApplication::styleHints()) {
+        connect(hints, &QStyleHints::colorSchemeChanged, this, [this] {
+            emit trayContrastColorChanged();
+            applyTrayIcon();
+        });
+    }
 
 #ifdef HAVE_TESSERACT
     m_ocr = new OcrEngine(this);
@@ -105,6 +143,28 @@ void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
     setupTray();
+    refreshAutostartIfStale();
+
+#ifdef HAVE_LAYERSHELL
+    // Prefer the on-top custom card when the compositor actually implements
+    // layer-shell (KWin/wlroots). Elsewhere (GNOME, X11) m_layerNotifier stays
+    // null and showCaptureNotification falls back to the native notification.
+    if (QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
+        && LayerShellNotifier::compositorSupportsLayerShell())
+        m_layerNotifier = new LayerShellNotifier(this, this);
+#endif
+
+    // Drop-in tray-icon folder: create it so it's discoverable and watch it so
+    // the settings gallery live-updates when the user adds/removes an icon.
+    QDir().mkpath(trayIconsDir());
+    m_trayIconsWatcher = new QFileSystemWatcher(this);
+    m_trayIconsWatcher->addPath(trayIconsDir());
+    connect(m_trayIconsWatcher, &QFileSystemWatcher::directoryChanged, this, [this] {
+        emit trayIconPresetsChanged();
+        // If the currently-selected custom icon was just deleted, trayIcon()
+        // now re-validates to the bundled default — refresh the live tray too.
+        applyTrayIcon();
+    });
     // Deferred to the first event-loop pass: hotkey registration is a burst of
     // blocking D-Bus round-trips (2 s timeout each) — after the QML engine has
     // loaded the window instead of before it, and late enough that startup
@@ -285,30 +345,37 @@ QString AppContext::captureErrorGuidance(const QString &err)
     return text;
 }
 
+bool AppContext::nowInhibited() const
+{
+    return m_notifier && m_notifier->inhibited();
+}
+
 void AppContext::captureFullScreen()
 {
     if (m_captureInFlight)
         return; // hammering the hotkey must not stack portal requests
+    const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    withDelay([this] {
-        m_capture->captureWorkspace([this](const QImage &img, const QString &err) {
+    withDelay([this, inhibited] {
+        m_capture->captureWorkspace([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
                     showToast(captureErrorGuidance(err), true);
                 return;
             }
-            finishCapture(img);
+            finishCapture(img, inhibited);
         });
     });
 }
 
 void AppContext::captureRegion()
 {
-    withDelay([this] {
-        m_overlay->pickAnnotatedImage([this](const QImage &img) {
+    const bool inhibited = nowInhibited(); // before the fullscreen overlay opens
+    withDelay([this, inhibited] {
+        m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             if (!img.isNull())
-                finishCapture(img);
+                finishCapture(img, inhibited);
         });
     });
 }
@@ -317,16 +384,17 @@ void AppContext::captureWindow()
 {
     if (m_captureInFlight)
         return;
+    const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    withDelay([this] {
-        m_capture->captureActiveWindow([this](const QImage &img, const QString &err) {
+    withDelay([this, inhibited] {
+        m_capture->captureActiveWindow([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
                     showToast(captureErrorGuidance(err), true);
                 return;
             }
-            finishCapture(img);
+            finishCapture(img, inhibited);
         });
     });
 }
@@ -336,8 +404,11 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
+        m_pendingRecordRegion = phys;
+        m_pendingRecordScreen = screen;
         m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen);
     });
 }
@@ -345,6 +416,8 @@ void AppContext::startGifRegion()
 void AppContext::startGifFullScreen()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
+    m_pendingRecordRegion = QRect();
     m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
 }
 
@@ -357,14 +430,19 @@ GifRecorder::Output AppContext::videoOutput() const
 void AppContext::startVideoScreen()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
+    m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Screen);
 }
 
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
+        m_pendingRecordRegion = phys;
+        m_pendingRecordScreen = screen;
         m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen);
     });
 }
@@ -372,12 +450,86 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
+    m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Window);
 }
 
 void AppContext::stopRecording()
 {
     m_recorder->stop();
+}
+
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
+{
+    hideRecordBorder(); // retire any stale frame first
+    if (!m_engine || !screen || physRegion.isEmpty())
+        return;
+
+    // KWin-only, for the same reason as showCaptureNotification(): the
+    // fullscreen-transparent trick is the one geometry Wayland honors, but on
+    // wlroots a fullscreen surface blanks the workspace and on Mutter it joins
+    // alt-tab. Elsewhere recording still works — just without the marker.
+    auto *busIface = QDBusConnection::sessionBus().interface();
+    if (!busIface || !busIface->isServiceRegistered(QStringLiteral("org.kde.KWin")))
+        return;
+
+    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/RecordBorder.qml")));
+    if (component.isError()) {
+        qWarning() << component.errorString();
+        return;
+    }
+
+    // physRegion is screen-local physical pixels; the fullscreen window works in
+    // logical pixels, so scale down. Snap OUTWARD (floor origin / ceil far edge)
+    // so the frame's inner hole always ⊇ the true region, then pad 1px more on
+    // every side. The extra pad matters under fractional scaling: beginEncoding()
+    // rescales the crop by streamSize/expected and rounds x and w independently,
+    // which can inflate the crop's trailing edge by a pixel and collapse a plain
+    // floor/ceil margin to sub-pixel. The 1px slack keeps a full-physical-pixel
+    // gap so no frame pixel can ever land inside the ffmpeg crop; it only shifts
+    // the (already-outside-the-region) frame one logical pixel further out.
+    const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const int left   = qFloor(physRegion.x() / dpr);
+    const int top    = qFloor(physRegion.y() / dpr);
+    const int right  = qCeil((physRegion.x() + physRegion.width()) / dpr);
+    const int bottom = qCeil((physRegion.y() + physRegion.height()) / dpr);
+    const int rx = left - 1;
+    const int ry = top - 1;
+    const int rw = (right - left) + 2;
+    const int rh = (bottom - top) + 2;
+
+    auto *ctx = new QQmlContext(m_engine->rootContext(), this);
+    ctx->setContextProperty(QStringLiteral("regionX"), rx);
+    ctx->setContextProperty(QStringLiteral("regionY"), ry);
+    ctx->setContextProperty(QStringLiteral("regionW"), rw);
+    ctx->setContextProperty(QStringLiteral("regionH"), rh);
+
+    QObject *obj = component.create(ctx);
+    auto *win = qobject_cast<QQuickWindow *>(obj);
+    if (!win) {
+        delete obj;
+        delete ctx;
+        return;
+    }
+    ctx->setParent(win);
+    win->setScreen(screen);
+    win->setGeometry(screen->geometry());
+    win->create();
+    // showFullScreen pins the surface to the screen origin (see the popup);
+    // the window is input-transparent so it never steals focus or clicks.
+    win->showFullScreen();
+    m_recordBorderWindow = win;
+}
+
+void AppContext::hideRecordBorder()
+{
+    m_pendingRecordRegion = QRect();
+    if (m_recordBorderWindow) {
+        m_recordBorderWindow->close();
+        m_recordBorderWindow->deleteLater();
+        m_recordBorderWindow = nullptr;
+    }
 }
 
 void AppContext::onRecordingFinished(const QString &path)
@@ -419,7 +571,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
-    auto *notif = showCaptureNotification(thumb, path, kind);
+    auto *notif = showCaptureNotification(thumb, path, kind, m_recordInhibited);
     QPointer<CaptureNotification> np(notif);
 
     if (m_settings->uploadAfterCapture()) {
@@ -443,7 +595,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
 
 // Every enabled action runs immediately and independently the moment the
 // capture lands — the editor no longer swallows the pipeline.
-void AppContext::finishCapture(const QImage &img)
+void AppContext::finishCapture(const QImage &img, bool inhibited)
 {
     if (img.isNull())
         return;
@@ -461,7 +613,7 @@ void AppContext::finishCapture(const QImage &img)
     if (!uploading || !path.isEmpty())
         m_history->addEntry(path, img, QStringLiteral("image"));
 
-    auto *notif = showCaptureNotification(img, path, QStringLiteral("image"));
+    auto *notif = showCaptureNotification(img, path, QStringLiteral("image"), inhibited);
     QPointer<CaptureNotification> np(notif);
 
     if (uploading) {
@@ -562,122 +714,32 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
 }
 
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
-                                                         const QString &kind)
+                                                         const QString &kind, bool inhibited)
 {
-    if (!m_settings->showCapturePopup() || !m_engine)
+    if (!m_settings->showCapturePopup())
         return nullptr;
-    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/NotificationPopup.qml")));
-    if (component.isError()) {
-        qWarning() << component.errorString();
-        return nullptr;
-    }
-    // Wayland ignores client-set positions for ordinary toplevels (KWin centers
-    // them), so the popup is a transparent window that FILLS the screen — the one
-    // geometry the compositor honors (same trick as OverlayController) — with the
-    // card drawn at the chosen corner and an input mask making the rest of the
-    // surface click-through.
-    // Prefer the screen under the cursor (where the user is working); the
-    // primary screen is only the fallback when the cursor position is unknown.
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
-    const QRect g = screen ? screen->geometry() : QRect(0, 0, 1920, 1080);
-    const QRect avail = screen ? screen->availableGeometry() : g;
-    const int cardW = 400, cardH = 150, margin = 16;
-
-    // The fullscreen-transparent-window trick is KWin-only: KWin honors the
-    // input mask and composits the transparent remainder invisibly. On
-    // wlroots a fullscreen view BLANKS the workspace beneath it after every
-    // capture, and on Mutter it animates/joins alt-tab — there a small
-    // compositor-placed toplevel is the sane behavior (24px transparent
-    // padding keeps the drop shadow).
-    //
-    // Detect KWin by its D-Bus name, NOT by XDG_CURRENT_DESKTOP: that env var
-    // is absent in several legitimate launch contexts (systemd user-service
-    // autostart, minimal-env launchers, some AppImage runs), and when it was,
-    // this fell to the card-sized branch — which KWin then CENTERS (Wayland
-    // ignores client positions), so the popup landed in the middle of the
-    // screen. The org.kde.KWin NAME is visible even inside Flatpak (only the
-    // restricted ScreenShot2 *interface* is access-gated), so this is reliable
-    // where KWinScreenShot2::isAvailable() (Flatpak short-circuit) is not.
-    auto *busIface = QDBusConnection::sessionBus().interface();
-    const bool fullscreenTrick =
-        busIface && busIface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
-    const int pad = 24;
-
-    const QString posName = m_settings->capturePopupPosition();
-    const bool top = posName.startsWith(QLatin1String("top"));
-    const bool left = posName.endsWith(QLatin1String("left"));
-    const bool right = posName.endsWith(QLatin1String("right"));
-    // Card position in window-local coords (window origin == screen top-left),
-    // kept inside the available area so it clears panels.
-    const int ax = avail.x() - g.x(), ay = avail.y() - g.y();
-    const int px = !fullscreenTrick ? pad
-                 : left  ? ax + margin
-                 : right ? ax + avail.width() - cardW - margin
-                 :         ax + (avail.width() - cardW) / 2;
-    const int py = !fullscreenTrick ? pad
-                 : top ? ay + margin
-                 :       ay + avail.height() - cardH - margin;
-
-    // Only one popup at a time: retire the previous one so its full-resolution
-    // image and screen-sized window don't linger (matters when auto-hide is 0).
-    if (m_notifWindow)
-        m_notifWindow->close();
-
-    auto *notif = new CaptureNotification(this, img, path, kind, this);
-    auto *ctx = new QQmlContext(m_engine->rootContext(), notif);
-    ctx->setContextProperty(QStringLiteral("notif"), notif);
-    ctx->setContextProperty(QStringLiteral("popupX"), px);
-    ctx->setContextProperty(QStringLiteral("popupY"), py);
-    ctx->setContextProperty(QStringLiteral("popupW"), cardW);
-    ctx->setContextProperty(QStringLiteral("popupH"), cardH);
-    QObject *obj = component.create(ctx);
-    auto *win = qobject_cast<QQuickWindow *>(obj);
-    if (!win) {
-        delete obj;
-        notif->deleteLater();
-        ctx->deleteLater();
-        return nullptr;
-    }
-    connect(notif, &CaptureNotification::closeRequested, win, &QQuickWindow::close);
-    connect(win, &QQuickWindow::visibleChanged, notif, [this, win, notif, ctx](bool v) {
-        if (!v) {
-            win->deleteLater(); notif->deleteLater(); ctx->deleteLater();
-            scheduleMemoryTrim(); // full image + popup window just went away
+    // A real desktop notification (org.freedesktop.Notifications) with an inline
+    // thumbnail and Open/Copy/Upload/Delete action buttons. The notification
+    // server draws it, so it is always above other windows on every desktop —
+    // unlike the old client-drawn fullscreen card, which Wayland would not keep
+    // on top (a click elsewhere raised another window over it). The notifier
+    // owns the returned object; callers may still poke its upload state.
+    auto *notif = new CaptureNotification(this, img, path, kind, nullptr);
+#ifdef HAVE_LAYERSHELL
+    if (m_layerNotifier) {
+        // The layer card draws above everything, so honour KDE's suppression
+        // (fullscreen app / DND / screen sharing) sampled when THIS capture
+        // began — but NOT our own selection overlay, which flips it only after
+        // that sample. Inhibited → skip the card (save/copy/upload still ran).
+        if (inhibited) {
+            notif->deleteLater();
+            return nullptr;
         }
-    });
-    m_notifWindow = win;
-
-    if (screen)
-        win->setScreen(screen);
-    if (fullscreenTrick) {
-        win->setGeometry(g);
-        // Create the platform surface up front so the input mask is applied
-        // BEFORE the window is mapped — the transparent remainder is
-        // click-through from the very first frame.
-        win->create();
-        win->setMask(QRegion(px, py, cardW, cardH));
-        // showFullScreen, not show(): a plain toplevel gets placed by the
-        // compositor's policy (KWin offsets it into the work area, e.g. below
-        // a top panel), which shifts the whole surface and cuts the card off
-        // at the screen edge. Fullscreen is the one state where the surface is
-        // pinned exactly to the screen origin — the same trick as the overlay.
-        // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
-        win->showFullScreen();
-    } else {
-        // Card-sized toplevel; the compositor decides placement. FIXED size:
-        // sway/i3-style tilers float fixed-size windows instead of tiling a
-        // half-screen transparent surface into the user's layout. The input
-        // mask keeps the 24px shadow ring click-through.
-        const QSize cardWin(cardW + 2 * pad, cardH + 2 * pad);
-        win->setMinimumSize(cardWin);
-        win->setMaximumSize(cardWin);
-        win->resize(cardWin);
-        win->create();
-        win->setMask(QRegion(pad, pad, cardW, cardH));
-        win->show();
+        m_layerNotifier->show(notif); // on-top custom card (layer-shell)
+        return notif;
     }
+#endif
+    m_notifier->show(notif);          // native desktop notification
     return notif;
 }
 
@@ -1218,7 +1280,7 @@ void AppContext::setupTray()
         m_trayWatcher->deleteLater();
         m_trayWatcher = nullptr;
     }
-    m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")), this);
+    m_tray = new QSystemTrayIcon(trayIcon(), this);
     auto *menu = new QMenu;
     m_trayMenu = menu;
     menu->addAction(tr("Capture region"), this, &AppContext::captureRegion);
@@ -1241,3 +1303,289 @@ void AppContext::setupTray()
     m_tray->show();
     emit trayAvailableChanged();
 }
+
+// Render an image (SVG included) at `size` and flat-recolor it to `color`
+// (SourceIn keeps the alpha shape, replaces every colour) — same recipe the
+// tool-icon provider uses for monochrome glyphs.
+static QPixmap recolorPixmap(const QString &path, const QColor &color, const QSize &size)
+{
+    QImageReader reader(path);
+    reader.setScaledSize(size);
+    QImage img = reader.read();
+    if (img.isNull())
+        return {};
+    img = img.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    if (color.isValid()) {
+        QPainter p(&img);
+        p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        p.fillRect(img.rect(), color);
+        p.end();
+    }
+    return QPixmap::fromImage(img);
+}
+
+// Bundled presets live in the read-only qrc tree; treat those as monochrome and
+// recolor them. User-dropped files (arbitrary logos) are used as-is.
+static bool isBundledTrayIcon(const QString &path)
+{
+    return path.startsWith(QLatin1String(":/resources/icons/tray/"));
+}
+
+bool AppContext::systemIsDark() const
+{
+    if (auto *h = QGuiApplication::styleHints()) {
+        const Qt::ColorScheme s = h->colorScheme();
+        if (s == Qt::ColorScheme::Dark) return true;
+        if (s == Qt::ColorScheme::Light) return false;
+    }
+    // Unknown scheme: fall back to the window background's lightness.
+    return qApp->palette().color(QPalette::Window).lightness() < 128;
+}
+
+QColor AppContext::trayContrastColor() const
+{
+    // Near-white on dark, near-black on light — strong contrast against whatever
+    // panel the tray sits in, without banking on the exact system text colour.
+    return systemIsDark() ? QColor(0xEC, 0xEC, 0xEC) : QColor(0x2B, 0x2B, 0x2B);
+}
+
+QIcon AppContext::recoloredTrayIcon(const QString &path) const
+{
+    const QColor c = trayContrastColor();
+    QIcon icon;
+    // A spread of sizes so the StatusNotifier host picks a crisp one.
+    for (int s : {16, 22, 24, 32, 48, 64}) {
+        const QPixmap pm = recolorPixmap(path, c, QSize(s, s));
+        if (!pm.isNull())
+            icon.addPixmap(pm);
+    }
+    return icon;
+}
+
+QIcon AppContext::trayIcon() const
+{
+    const QString path = m_settings->trayIconPath();
+    if (!path.isEmpty()) {
+        if (isBundledTrayIcon(path)) {
+            const QIcon recolored = recoloredTrayIcon(path);
+            if (!recolored.isNull())
+                return recolored;
+        }
+        QIcon custom(path);
+        // availableSizes() is EMPTY for scalable SVGs (no discrete sizes) — gate
+        // on whether a pixmap actually renders instead, so .svg works too.
+        if (!custom.isNull() && !custom.pixmap(QSize(64, 64)).isNull())
+            return custom;
+    }
+    return QIcon(QStringLiteral(":/resources/icons/unisic.svg"));
+}
+
+QString AppContext::trayIconThumb(const QString &path, const QColor &color) const
+{
+    const QPixmap pm = recolorPixmap(path, color.isValid() ? color : trayContrastColor(),
+                                     QSize(76, 76));
+    if (pm.isNull())
+        return {};
+    QByteArray bytes;
+    QBuffer buf(&bytes);
+    buf.open(QIODevice::WriteOnly);
+    pm.save(&buf, "PNG");
+    return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(bytes.toBase64());
+}
+
+void AppContext::applyTrayIcon()
+{
+    if (m_tray)
+        m_tray->setIcon(trayIcon());
+}
+
+void AppContext::pickTrayIcon()
+{
+    // Native (DE) picker — same reasoning as the settings export/import dialogs.
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Choose tray icon"), trayIconsDir(),
+        tr("Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)"));
+    if (path.isEmpty())
+        return; // cancelled
+    selectTrayIcon(path);
+}
+
+void AppContext::addTrayIcon()
+{
+    const QString start = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Add a tray icon"), start.isEmpty() ? QDir::homePath() : start,
+        tr("Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)"));
+    if (path.isEmpty())
+        return; // cancelled
+    QIcon test(path);
+    if (test.isNull() || test.pixmap(QSize(64, 64)).isNull()) {
+        showToast(tr("Could not load that image as an icon"), true);
+        return;
+    }
+
+    const QString dir = trayIconsDir();
+    QDir().mkpath(dir);
+    const QFileInfo src(path);
+    // Picked a file that already lives in the folder → just select it, no copy.
+    if (src.absolutePath() == QDir(dir).absolutePath()) {
+        selectTrayIcon(src.absoluteFilePath());
+        return;
+    }
+    // Copy in under a non-clobbering name (never overwrite an existing preset).
+    QString dest = dir + QLatin1Char('/') + src.fileName();
+    for (int n = 1; QFile::exists(dest); ++n) {
+        dest = dir + QLatin1Char('/') + src.completeBaseName()
+             + QStringLiteral("-%1").arg(n)
+             + (src.suffix().isEmpty() ? QString() : QLatin1Char('.') + src.suffix());
+    }
+    if (!QFile::copy(path, dest)) {
+        showToast(tr("Could not copy the icon into %1").arg(dir), true);
+        return;
+    }
+    // Selecting it rebuilds the gallery (the preset scan is live) and the folder
+    // watcher fires too; both show the new tile, already highlighted.
+    selectTrayIcon(dest);
+    showToast(tr("Icon added to your tray icons"));
+}
+
+void AppContext::selectTrayIcon(const QString &path)
+{
+    if (path.isEmpty()) {
+        m_settings->setTrayIconPath(QString()); // default
+        return;
+    }
+    QIcon test(path);
+    // Render check, not availableSizes(): scalable SVGs report zero discrete
+    // sizes but render fine — an availableSizes() gate rejects every .svg.
+    if (test.isNull() || test.pixmap(QSize(64, 64)).isNull()) {
+        showToast(tr("Could not load that image as an icon"), true);
+        return;
+    }
+    m_settings->setTrayIconPath(path); // → trayIconPathChanged → applyTrayIcon()
+}
+
+void AppContext::clearTrayIcon()
+{
+    m_settings->setTrayIconPath(QString()); // → applyTrayIcon() reverts to default
+}
+
+QString AppContext::trayIconsDir() const
+{
+    // A drop-in folder beside the config file (~/.config/unisic/tray-icons):
+    // anything the user puts here shows up in the settings icon gallery.
+    return QFileInfo(UnisicConfig::filePath()).absolutePath()
+           + QStringLiteral("/tray-icons");
+}
+
+QStringList AppContext::trayIconPresets() const
+{
+    QDir d(trayIconsDir());
+    if (!d.exists())
+        return {};
+    static const QStringList filters{
+        QStringLiteral("*.png"), QStringLiteral("*.svg"), QStringLiteral("*.svgz"),
+        QStringLiteral("*.xpm"), QStringLiteral("*.ico"), QStringLiteral("*.jpg"),
+        QStringLiteral("*.jpeg"), QStringLiteral("*.webp")};
+    QStringList out;
+    const auto files = d.entryInfoList(filters, QDir::Files, QDir::Name);
+    for (const QFileInfo &fi : files)
+        out << fi.absoluteFilePath();
+    return out;
+}
+
+QStringList AppContext::bundledTrayIcons() const
+{
+    // The Qt resource filesystem is listable via QDir. Paths come back as
+    // ":/resources/icons/tray/<name>", which QIcon and QML Image both accept.
+    QDir d(QStringLiteral(":/resources/icons/tray"));
+    QStringList out;
+    const auto files = d.entryList(QDir::Files, QDir::Name);
+    for (const QString &f : files)
+        out << QStringLiteral(":/resources/icons/tray/") + f;
+    return out;
+}
+
+QString AppContext::autostartFilePath() const
+{
+    // XDG autostart: $XDG_CONFIG_HOME/autostart (ConfigLocation == ~/.config).
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+           + QStringLiteral("/autostart/org.unisic.Unisic.desktop");
+}
+
+bool AppContext::autostartEnabled() const
+{
+    return QFile::exists(autostartFilePath());
+}
+
+QByteArray AppContext::autostartExecLine() const
+{
+    // Exec must point at a STABLE path. For an AppImage that is $APPIMAGE (the
+    // outer file), not applicationFilePath() (the transient FUSE mount, gone on
+    // the next run). --tray-only makes the login launch start hidden in the tray.
+    QString execPath = qEnvironmentVariable("APPIMAGE");
+    if (execPath.isEmpty())
+        execPath = QCoreApplication::applicationFilePath();
+    // Desktop Entry spec: backslash and quote need escaping inside a quoted arg;
+    // '%' is a field-code introducer and must be doubled.
+    execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
+            .replace(QLatin1Char('"'), QLatin1String("\\\""))
+            .replace(QLatin1Char('%'), QLatin1String("%%"));
+    return "Exec=\"" + execPath.toUtf8() + "\" --tray-only\n";
+}
+
+bool AppContext::writeAutostartFile()
+{
+    const QString path = autostartFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return false;
+    f.write("[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=Unisic\n"
+            "Comment=Screenshots, annotations, uploads and GIF recording\n"
+            + autostartExecLine() +
+            "Icon=org.unisic.Unisic\n"
+            "Terminal=false\n"
+            "Categories=Utility;Graphics;\n"
+            "X-GNOME-Autostart-enabled=true\n");
+    f.close();
+    return true;
+}
+
+void AppContext::refreshAutostartIfStale()
+{
+    // Self-heal a stale Exec (binary rebuilt to a new path / AppImage moved),
+    // mirroring ensureDesktopFile() — otherwise the toggle reads "on" while
+    // login autostart silently launches nothing.
+    const QString path = autostartFilePath();
+    if (!QFile::exists(path))
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QByteArray data = f.readAll();
+    f.close();
+    if (!data.contains(autostartExecLine()))
+        writeAutostartFile();
+}
+
+void AppContext::setAutostartEnabled(bool on)
+{
+    if (on == autostartEnabled())
+        return;
+    const QString path = autostartFilePath();
+    if (!on) {
+        if (!QFile::remove(path) && QFile::exists(path))
+            showToast(tr("Could not disable autostart — cannot remove %1").arg(path), true);
+        emit autostartEnabledChanged(); // reflect the real (post-remove) state
+        return;
+    }
+    if (!writeAutostartFile()) {
+        showToast(tr("Could not enable autostart — cannot write %1").arg(path), true);
+        return; // state unchanged; the switch snaps back on the next read
+    }
+    emit autostartEnabledChanged();
+}
+

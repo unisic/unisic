@@ -8,11 +8,12 @@ import "components"
 // recording; `notif` (CaptureNotification) is injected as a context property.
 Window {
     id: popup
-    // Fills the screen (geometry set from C++); only the card takes input via a
-    // window mask. Frameless + tool + non-focusable so it never steals focus.
-    flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
+    // Card-sized window placed on the wlr-layer-shell OVERLAY layer by C++
+    // (LayerShellNotifier) — the layer surface handles stacking (always on top)
+    // and focus, so no window-manager flags are needed beyond frameless.
+    flags: Qt.FramelessWindowHint
     color: "transparent"
-    visible: false   // AppContext sizes then show()s it
+    visible: false   // AppContext sizes, layers, then show()s it
 
     // 0 = stay open until manually closed.
     readonly property int autoHideSec: App.settings.capturePopupDurationSec

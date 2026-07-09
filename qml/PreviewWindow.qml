@@ -61,23 +61,28 @@ Window {
             visible: !preview.passthrough
 
             MouseArea {
+                id: dragArea
                 anchors.fill: parent
                 property real pressX: 0
                 property real pressY: 0
                 property bool moving: false
+                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
                 onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
                 onPositionChanged: (m) => {
-                    if (!previewCtl)
-                        return
-                    if (previewCtl.layerShell) {
-                        // A layer surface can't be system-moved; nudge via
-                        // margins. The window chases the grab point, so the
-                        // item-relative delta self-corrects each event.
-                        previewCtl.moveBy(Math.round(m.x - pressX), Math.round(m.y - pressY))
-                    } else if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                    if (previewCtl && !previewCtl.layerShell
+                        && !moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
                         moving = true
                         previewCtl.startMove()
                     }
+                }
+                // Layer surface: it can't be system-moved and repositioning it
+                // per-move-event diverges (the compositor lags the events), so
+                // the window stays put while dragging and the full delta is
+                // applied once on release. Item coordinates are exact for that
+                // very reason — the window never moves mid-drag.
+                onReleased: (m) => {
+                    if (previewCtl && previewCtl.layerShell && !moving)
+                        previewCtl.moveBy(Math.round(m.x - pressX), Math.round(m.y - pressY))
                 }
             }
 

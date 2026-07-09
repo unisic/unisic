@@ -10,6 +10,7 @@
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDBusServiceWatcher>
 #include <QUrl>
 #include <QVariantMap>
 
@@ -30,6 +31,21 @@ DesktopNotifier::DesktopNotifier(AppContext *app, QObject *parent)
     bus.connect(kService, kPath, QStringLiteral("org.freedesktop.DBus.Properties"),
                 QStringLiteral("PropertiesChanged"), this,
                 SLOT(onPropertiesChanged(QString,QVariantMap,QStringList)));
+    // A notification-server restart (plasmashell crash, dunst restart) never
+    // delivers NotificationClosed for outstanding ids — each orphaned entry
+    // would pin a full-res capture image forever. Purge on owner change.
+    auto *sw = new QDBusServiceWatcher(kService, bus,
+                                       QDBusServiceWatcher::WatchForOwnerChange, this);
+    connect(sw, &QDBusServiceWatcher::serviceOwnerChanged, this,
+            [this](const QString &, const QString &oldOwner, const QString &) {
+        if (oldOwner.isEmpty())
+            return; // service appeared — nothing outstanding to lose
+        const auto orphaned = std::move(m_active);
+        m_active.clear();
+        for (auto it = orphaned.cbegin(); it != orphaned.cend(); ++it)
+            if (CaptureNotification *n = it.value())
+                retire(n);
+    });
     // Seed the initial value asynchronously — a blocking QDBusInterface ctor
     // (Introspect) + Get on the GUI thread would stall startup if the server is
     // slow. PropertiesChanged keeps it current thereafter.
@@ -73,18 +89,11 @@ void DesktopNotifier::show(CaptureNotification *n)
         n->deleteLater();
         return;
     }
-    const uint id = sendNotify(n);
-    if (id == 0) { // Notify failed — don't leak the backing object
-        n->deleteLater();
-        return;
-    }
-    m_active.insert(id, n);
+    sendNotify(n);
 }
 
-uint DesktopNotifier::sendNotify(CaptureNotification *n)
+void DesktopNotifier::sendNotify(CaptureNotification *n)
 {
-    QDBusInterface iface(kService, kPath, kIface, QDBusConnection::sessionBus());
-
     // [key, label, key, label, …]. Keys are stable; labels localized. Servers
     // that advertise the "actions" capability render these as buttons.
     const QStringList actions{
@@ -113,13 +122,37 @@ uint DesktopNotifier::sendNotify(CaptureNotification *n)
     const QString summary = tr("Capture ready");
     const QString body = n->fileName();
 
-    QDBusReply<uint> reply = iface.call(
-        QStringLiteral("Notify"),
-        QStringLiteral("Unisic"),             // app_name
-        0u,                                   // replaces_id (0 = new)
-        QStringLiteral("org.unisic.Unisic"),  // app_icon
-        summary, body, actions, hints, timeout);
-    return reply.isValid() ? reply.value() : 0u;
+    // createMethodCall + asyncCall: the old QDBusInterface ctor did a blocking
+    // Introspect and iface.call() a blocking Notify round-trip — two GUI-thread
+    // stalls per capture on a busy/hung server. The id -> object mapping is
+    // registered when the reply arrives (the same ordered bus connection also
+    // carries NotificationClosed, so the reply always precedes a close).
+    QDBusMessage msg = QDBusMessage::createMethodCall(kService, kPath, kIface,
+                                                      QStringLiteral("Notify"));
+    msg << QStringLiteral("Unisic")             // app_name
+        << 0u                                   // replaces_id (0 = new)
+        << QStringLiteral("org.unisic.Unisic")  // app_icon
+        << summary << body << actions << hints << timeout;
+    QPointer<CaptureNotification> np(n);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, np](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        const QDBusPendingReply<uint> reply = *w;
+        if (!np)
+            return;
+        const uint id = reply.isError() ? 0u : reply.value();
+        if (id == 0) { // Notify failed — don't leak the backing object
+            retire(np.data());
+            return;
+        }
+        // An id collision after a server restart must not orphan the previous
+        // object (server ids restart from 1).
+        if (CaptureNotification *old = m_active.take(id))
+            retire(old);
+        m_active.insert(id, np.data());
+    });
 }
 
 void DesktopNotifier::onActionInvoked(uint id, const QString &key)

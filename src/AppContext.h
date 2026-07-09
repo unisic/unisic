@@ -140,6 +140,7 @@ public:
     Q_INVOKABLE void devTestEditFromHistory();
     Q_INVOKABLE void devTestQuickCopy();
     Q_INVOKABLE void devTestPreview();
+    Q_INVOKABLE void devTestPreviewFromHistory();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -211,6 +212,8 @@ public:
     bool openPreview(const QImage &img);
     // Re-open a saved capture from history; editor save() overwrites it in place.
     Q_INVOKABLE void editFromHistory(const QString &filePath);
+    // Open a saved capture from history in the floating pinned preview.
+    Q_INVOKABLE void previewFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.

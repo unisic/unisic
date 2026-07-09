@@ -554,6 +554,20 @@ void AppContext::devTestPreview()
     openPreview(devTestImage());
 }
 
+void AppContext::devTestPreviewFromHistory()
+{
+    if (!devBuild())
+        return;
+    // Same path the History pin button drives: file on disk -> preview.
+    const QString p = saveImageAuto(devTestImage(), QStringLiteral("devtest-preview.png"));
+    if (p.isEmpty()) {
+        showToast(tr("Dev: couldn't save the test image"), true);
+        return;
+    }
+    m_history->addEntry(p, devTestImage(), QStringLiteral("image"));
+    previewFromHistory(p);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -984,6 +998,16 @@ void AppContext::editFromHistory(const QString &filePath)
         return;
     }
     openEditor(img, filePath);
+}
+
+void AppContext::previewFromHistory(const QString &filePath)
+{
+    QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 for preview").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    openPreview(img);
 }
 
 void AppContext::openEditor(const QImage &img, const QString &overwritePath)

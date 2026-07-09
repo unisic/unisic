@@ -130,6 +130,12 @@ Item {
                                 onClicked: App.editFromHistory(filePath)
                             }
                             UIconButton {
+                                iconName: "window-pin"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Pin as floating preview")
+                                visible: kind === "image" && filePath !== ""
+                                onClicked: App.previewFromHistory(filePath)
+                            }
+                            UIconButton {
                                 iconName: "ocr"; iconSize: 16; width: 30; height: 30
                                 tooltip: qsTr("Copy text (OCR)")
                                 visible: App.ocrAvailable && kind === "image" && filePath !== ""

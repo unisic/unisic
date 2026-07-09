@@ -148,6 +148,32 @@ Window {
             }
         }
 
+        // Optional crosshair guides from the cursor to the screen edges (Settings
+        // > Editor > Capture overlay). Passive HoverHandler — never grabs, so the
+        // canvas keeps its own mouse handling for the selection.
+        HoverHandler {
+            id: guideHover
+            enabled: App.settings.selectionGuides
+        }
+        Rectangle { // vertical guide
+            visible: App.settings.selectionGuides && guideHover.hovered
+            x: Math.round(guideHover.point.position.x)
+            y: 0
+            width: 1
+            height: parent.height
+            color: "#C8ACD6"
+            opacity: 0.45
+        }
+        Rectangle { // horizontal guide
+            visible: App.settings.selectionGuides && guideHover.hovered
+            x: 0
+            y: Math.round(guideHover.point.position.y)
+            width: parent.width
+            height: 1
+            color: "#C8ACD6"
+            opacity: 0.45
+        }
+
         // Dimension readout — follows the selection
         Rectangle {
             visible: canvas.hasSelection

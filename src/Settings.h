@@ -56,6 +56,7 @@ class Settings : public QObject
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
+    Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
     Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
@@ -216,6 +217,9 @@ public:
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
     U_SETTING(QString, hiddenTools, setHiddenTools, "editor/hiddenTools", QString())
     U_SETTING(QString, overlayToolbarPosition, setOverlayToolbarPosition, "capture/overlayToolbarPosition", QStringLiteral("follow"))
+    // Crosshair guide lines from the cursor to the screen edges while selecting a
+    // region (screenshot AND recording overlay). Off by default.
+    U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
@@ -258,7 +262,7 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
-        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged();
+        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
@@ -300,6 +304,7 @@ signals:
     void recentColorsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
+    void selectionGuidesChanged();
     void videoFpsChanged();
     void videoFormatChanged();
     void videoQualityChanged();

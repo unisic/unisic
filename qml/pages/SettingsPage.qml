@@ -713,6 +713,10 @@ Item {
                             onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Show alignment guides while selecting")
+                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
+                    }
                 }
             }
 

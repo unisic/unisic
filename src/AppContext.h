@@ -1,8 +1,10 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QColor>
 #include <QRect>
 #include <QPointer>
+#include <QStringList>
 #include <functional>
 #include <qqmlregistration.h>
 
@@ -13,6 +15,7 @@
 
 class QQmlEngine;
 class QMenu;
+class QIcon;
 class QSystemTrayIcon;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
@@ -25,6 +28,8 @@ class PortalGlobalShortcuts;
 class GifRecorder;
 class OcrEngine;
 class CaptureNotification;
+class DesktopNotifier;
+class LayerShellNotifier;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -45,6 +50,10 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // True when the capture card is shown on the layer-shell overlay (KWin/wlroots)
+    // rather than as a native notification — lets the UI expose card-only options
+    // (e.g. corner position, which a native notification server controls itself).
+    Q_PROPERTY(bool layerShellActive READ layerShellActive CONSTANT)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
     // or removes that file (Exec carries --tray-only so login starts hidden).
     Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
@@ -90,6 +99,7 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
+    bool layerShellActive() const { return m_layerNotifier != nullptr; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
@@ -194,13 +204,21 @@ private:
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
 
-    void finishCapture(const QImage &img);
+    void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
-                                                 const QString &kind);
+                                                 const QString &kind, bool inhibited);
+    // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
+    // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
+    // overlay opens, so the overlay can't self-suppress the resulting card — and
+    // threaded per-operation to the card (never a shared member: a screenshot
+    // during a recording would otherwise clobber the recording's value).
+    // Consulted by the layer-shell card only (the native path is server-suppressed).
+    bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
+    // Region recording marker: a transparent, click-through fullscreen window
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame
     // landing inside the ffmpeg crop. KWin-only, like the capture popup.
@@ -231,7 +249,8 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
+    DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
+    LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
     QPointer<QScreen> m_pendingRecordScreen;
@@ -242,5 +261,6 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    bool m_recordInhibited = false; // inhibit state at record start (recordings are exclusive)
 };
 

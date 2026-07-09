@@ -11,6 +11,9 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Local absolute path -> file URL. Per-segment encode: encodeURI leaves
+    // '#'/'?' unescaped, so a filename containing them would be parsed as a URL
+    // fragment/query and the thumbnail would fail to load.
     function fileUrl(p) {
         return "file://" + p.split("/").map(encodeURIComponent).join("/")
     }
@@ -250,13 +253,15 @@ Item {
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
-                        label: qsTr("Show capture preview popup")
+                        label: qsTr("Show capture notification")
                         USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
                     }
                     SettingRow {
-                        visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Popup position")
+                        // Corner only matters for the layer-shell card we position
+                        // ourselves; a native notification is placed by the server.
+                        visible: App.settings.showCapturePopup && App.layerShellActive
+                        height: (App.settings.showCapturePopup && App.layerShellActive) ? 44 : 0
+                        label: qsTr("Notification position")
                         UComboBox {
                             width: 180
                             model: page.popupPosNames
@@ -267,7 +272,7 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Popup auto-hide (0 = keep open)")
+                        label: qsTr("Notification auto-hide (0 = keep open)")
                         USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
                     }
                     SettingRow {
@@ -285,6 +290,7 @@ Item {
                         label: qsTr("Closing the window minimizes to tray")
                         USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
                     }
+                    SettingRow {
                         label: qsTr("Start at login (minimized to tray)")
                         USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
                     }
@@ -466,6 +472,11 @@ Item {
                 }
             }
 
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingM
                     SectionTitle { text: qsTr("System tray icon") }
                     Text {
                         width: parent.width
@@ -761,6 +772,12 @@ Item {
                     }
                 }
             }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Audio") }
                     SettingRow {
                         label: qsTr("Record system audio")

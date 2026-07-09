@@ -10,11 +10,16 @@
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
 #include "notify/CaptureNotification.h"
+#include "notify/DesktopNotifier.h"
+#ifdef HAVE_LAYERSHELL
+#include "notify/LayerShellNotifier.h"
+#endif
 #include "theme/ThemeController.h"
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
 #endif
 #include <QGuiApplication>
+#include <QtMath>
 #include <QScreen>
 #include <QRegion>
 #include <QPointer>
@@ -25,6 +30,9 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QIcon>
+#include <QSize>
+#include <QColor>
 #include <QPainter>
 #include <QImageReader>
 #include <QStyleHints>
@@ -68,12 +76,20 @@ AppContext::AppContext(QObject *parent)
     , m_hotkeys(new GlobalHotkeys(this))
     , m_recorder(new GifRecorder(m_settings, this))
 {
+    m_notifier = new DesktopNotifier(this, this);
+
     connect(m_hotkeys, &GlobalHotkeys::activated, this, &AppContext::dispatchHotkey);
     // Live two-way sync: a KCM edit updates the app's stored/displayed key.
     connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    connect(m_recorder, &GifRecorder::started, this, [this] {
+        // Region recordings carry a pending rect. Gate on the LIVE recording
+        // actually being a Region one: a stale pending rect (set by a region
+        // callback whose start() no-op'd because another recording had already
+        // begun) must never frame a full-screen/window recording — that frame
+        // would be baked into the output.
         if (m_recorder->sourceType() == GifRecorder::Region && !m_pendingRecordRegion.isEmpty())
             showRecordBorder(m_pendingRecordRegion, m_pendingRecordScreen);
     });
@@ -99,6 +115,7 @@ AppContext::AppContext(QObject *parent)
         showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
     });
 
+    // Live-apply a custom tray icon the moment the setting changes (also covers
     // an import that rewrites trayIconPath).
     connect(m_settings, &Settings::trayIconPathChanged, this, &AppContext::applyTrayIcon);
 
@@ -128,6 +145,17 @@ void AppContext::initialize(QQmlEngine *engine)
     setupTray();
     refreshAutostartIfStale();
 
+#ifdef HAVE_LAYERSHELL
+    // Prefer the on-top custom card when the compositor actually implements
+    // layer-shell (KWin/wlroots). Elsewhere (GNOME, X11) m_layerNotifier stays
+    // null and showCaptureNotification falls back to the native notification.
+    if (QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
+        && LayerShellNotifier::compositorSupportsLayerShell())
+        m_layerNotifier = new LayerShellNotifier(this, this);
+#endif
+
+    // Drop-in tray-icon folder: create it so it's discoverable and watch it so
+    // the settings gallery live-updates when the user adds/removes an icon.
     QDir().mkpath(trayIconsDir());
     m_trayIconsWatcher = new QFileSystemWatcher(this);
     m_trayIconsWatcher->addPath(trayIconsDir());
@@ -317,30 +345,37 @@ QString AppContext::captureErrorGuidance(const QString &err)
     return text;
 }
 
+bool AppContext::nowInhibited() const
+{
+    return m_notifier && m_notifier->inhibited();
+}
+
 void AppContext::captureFullScreen()
 {
     if (m_captureInFlight)
         return; // hammering the hotkey must not stack portal requests
+    const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    withDelay([this] {
-        m_capture->captureWorkspace([this](const QImage &img, const QString &err) {
+    withDelay([this, inhibited] {
+        m_capture->captureWorkspace([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
                     showToast(captureErrorGuidance(err), true);
                 return;
             }
-            finishCapture(img);
+            finishCapture(img, inhibited);
         });
     });
 }
 
 void AppContext::captureRegion()
 {
-    withDelay([this] {
-        m_overlay->pickAnnotatedImage([this](const QImage &img) {
+    const bool inhibited = nowInhibited(); // before the fullscreen overlay opens
+    withDelay([this, inhibited] {
+        m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             if (!img.isNull())
-                finishCapture(img);
+                finishCapture(img, inhibited);
         });
     });
 }
@@ -349,16 +384,17 @@ void AppContext::captureWindow()
 {
     if (m_captureInFlight)
         return;
+    const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    withDelay([this] {
-        m_capture->captureActiveWindow([this](const QImage &img, const QString &err) {
+    withDelay([this, inhibited] {
+        m_capture->captureActiveWindow([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
                 if (err != QLatin1String("cancelled"))
                     showToast(captureErrorGuidance(err), true);
                 return;
             }
-            finishCapture(img);
+            finishCapture(img, inhibited);
         });
     });
 }
@@ -368,6 +404,7 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -379,6 +416,7 @@ void AppContext::startGifRegion()
 void AppContext::startGifFullScreen()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
 }
@@ -392,6 +430,7 @@ GifRecorder::Output AppContext::videoOutput() const
 void AppContext::startVideoScreen()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Screen);
 }
@@ -399,6 +438,7 @@ void AppContext::startVideoScreen()
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -410,6 +450,7 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
+    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Window);
 }
@@ -423,6 +464,14 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
 {
     hideRecordBorder(); // retire any stale frame first
     if (!m_engine || !screen || physRegion.isEmpty())
+        return;
+
+    // KWin-only, for the same reason as showCaptureNotification(): the
+    // fullscreen-transparent trick is the one geometry Wayland honors, but on
+    // wlroots a fullscreen surface blanks the workspace and on Mutter it joins
+    // alt-tab. Elsewhere recording still works — just without the marker.
+    auto *busIface = QDBusConnection::sessionBus().interface();
+    if (!busIface || !busIface->isServiceRegistered(QStringLiteral("org.kde.KWin")))
         return;
 
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/RecordBorder.qml")));
@@ -522,7 +571,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
-    auto *notif = showCaptureNotification(thumb, path, kind);
+    auto *notif = showCaptureNotification(thumb, path, kind, m_recordInhibited);
     QPointer<CaptureNotification> np(notif);
 
     if (m_settings->uploadAfterCapture()) {
@@ -546,7 +595,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
 
 // Every enabled action runs immediately and independently the moment the
 // capture lands — the editor no longer swallows the pipeline.
-void AppContext::finishCapture(const QImage &img)
+void AppContext::finishCapture(const QImage &img, bool inhibited)
 {
     if (img.isNull())
         return;
@@ -564,7 +613,7 @@ void AppContext::finishCapture(const QImage &img)
     if (!uploading || !path.isEmpty())
         m_history->addEntry(path, img, QStringLiteral("image"));
 
-    auto *notif = showCaptureNotification(img, path, QStringLiteral("image"));
+    auto *notif = showCaptureNotification(img, path, QStringLiteral("image"), inhibited);
     QPointer<CaptureNotification> np(notif);
 
     if (uploading) {
@@ -665,115 +714,32 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
 }
 
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
-                                                         const QString &kind)
+                                                         const QString &kind, bool inhibited)
 {
-    if (!m_settings->showCapturePopup() || !m_engine)
+    if (!m_settings->showCapturePopup())
         return nullptr;
-    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/NotificationPopup.qml")));
-    if (component.isError()) {
-        qWarning() << component.errorString();
-        return nullptr;
-    }
-    // Wayland ignores client-set positions for ordinary toplevels (KWin centers
-    // them), so the popup is a transparent window that FILLS the screen — the one
-    // geometry the compositor honors (same trick as OverlayController) — with the
-    // card drawn at the chosen corner and an input mask making the rest of the
-    // surface click-through.
-    // Prefer the screen under the cursor (where the user is working); the
-    // primary screen is only the fallback when the cursor position is unknown.
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
-    const QRect g = screen ? screen->geometry() : QRect(0, 0, 1920, 1080);
-    const QRect avail = screen ? screen->availableGeometry() : g;
-    const int cardW = 400, cardH = 150, margin = 16;
-
-    // The fullscreen-transparent-window trick is KWin-only: KWin honors the
-    // input mask and composits the transparent remainder invisibly. On
-    // wlroots a fullscreen view BLANKS the workspace beneath it after every
-    // capture, and on Mutter it animates/joins alt-tab — there a small
-    // compositor-placed toplevel is the sane behavior (24px transparent
-    // padding keeps the drop shadow).
-    //
-    // Detect KWin by its D-Bus name, NOT by XDG_CURRENT_DESKTOP: that env var
-    // is absent in several legitimate launch contexts (systemd user-service
-    const bool fullscreenTrick =
-        busIface && busIface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
-    const int pad = 24;
-
-    const QString posName = m_settings->capturePopupPosition();
-    const bool top = posName.startsWith(QLatin1String("top"));
-    const bool left = posName.endsWith(QLatin1String("left"));
-    const bool right = posName.endsWith(QLatin1String("right"));
-    // Card position in window-local coords (window origin == screen top-left),
-    // kept inside the available area so it clears panels.
-    const int ax = avail.x() - g.x(), ay = avail.y() - g.y();
-    const int px = !fullscreenTrick ? pad
-                 : left  ? ax + margin
-                 : right ? ax + avail.width() - cardW - margin
-                 :         ax + (avail.width() - cardW) / 2;
-    const int py = !fullscreenTrick ? pad
-                 : top ? ay + margin
-                 :       ay + avail.height() - cardH - margin;
-
-    // Only one popup at a time: retire the previous one so its full-resolution
-    // image and screen-sized window don't linger (matters when auto-hide is 0).
-    if (m_notifWindow)
-        m_notifWindow->close();
-
-    auto *notif = new CaptureNotification(this, img, path, kind, this);
-    auto *ctx = new QQmlContext(m_engine->rootContext(), notif);
-    ctx->setContextProperty(QStringLiteral("notif"), notif);
-    ctx->setContextProperty(QStringLiteral("popupX"), px);
-    ctx->setContextProperty(QStringLiteral("popupY"), py);
-    ctx->setContextProperty(QStringLiteral("popupW"), cardW);
-    ctx->setContextProperty(QStringLiteral("popupH"), cardH);
-    QObject *obj = component.create(ctx);
-    auto *win = qobject_cast<QQuickWindow *>(obj);
-    if (!win) {
-        delete obj;
-        notif->deleteLater();
-        ctx->deleteLater();
-        return nullptr;
-    }
-    connect(notif, &CaptureNotification::closeRequested, win, &QQuickWindow::close);
-    connect(win, &QQuickWindow::visibleChanged, notif, [this, win, notif, ctx](bool v) {
-        if (!v) {
-            win->deleteLater(); notif->deleteLater(); ctx->deleteLater();
-            scheduleMemoryTrim(); // full image + popup window just went away
+    // A real desktop notification (org.freedesktop.Notifications) with an inline
+    // thumbnail and Open/Copy/Upload/Delete action buttons. The notification
+    // server draws it, so it is always above other windows on every desktop —
+    // unlike the old client-drawn fullscreen card, which Wayland would not keep
+    // on top (a click elsewhere raised another window over it). The notifier
+    // owns the returned object; callers may still poke its upload state.
+    auto *notif = new CaptureNotification(this, img, path, kind, nullptr);
+#ifdef HAVE_LAYERSHELL
+    if (m_layerNotifier) {
+        // The layer card draws above everything, so honour KDE's suppression
+        // (fullscreen app / DND / screen sharing) sampled when THIS capture
+        // began — but NOT our own selection overlay, which flips it only after
+        // that sample. Inhibited → skip the card (save/copy/upload still ran).
+        if (inhibited) {
+            notif->deleteLater();
+            return nullptr;
         }
-    });
-    m_notifWindow = win;
-
-    if (screen)
-        win->setScreen(screen);
-    if (fullscreenTrick) {
-        win->setGeometry(g);
-        // Create the platform surface up front so the input mask is applied
-        // BEFORE the window is mapped — the transparent remainder is
-        // click-through from the very first frame.
-        win->create();
-        win->setMask(QRegion(px, py, cardW, cardH));
-        // showFullScreen, not show(): a plain toplevel gets placed by the
-        // compositor's policy (KWin offsets it into the work area, e.g. below
-        // a top panel), which shifts the whole surface and cuts the card off
-        // at the screen edge. Fullscreen is the one state where the surface is
-        // pinned exactly to the screen origin — the same trick as the overlay.
-        // Focus is still never stolen: WindowDoesNotAcceptFocus is set in QML.
-        win->showFullScreen();
-    } else {
-        // Card-sized toplevel; the compositor decides placement. FIXED size:
-        // sway/i3-style tilers float fixed-size windows instead of tiling a
-        // half-screen transparent surface into the user's layout. The input
-        // mask keeps the 24px shadow ring click-through.
-        const QSize cardWin(cardW + 2 * pad, cardH + 2 * pad);
-        win->setMinimumSize(cardWin);
-        win->setMaximumSize(cardWin);
-        win->resize(cardWin);
-        win->create();
-        win->setMask(QRegion(pad, pad, cardW, cardH));
-        win->show();
+        m_layerNotifier->show(notif); // on-top custom card (layer-shell)
+        return notif;
     }
+#endif
+    m_notifier->show(notif);          // native desktop notification
     return notif;
 }
 
@@ -1330,6 +1296,7 @@ void AppContext::setupTray()
     m_tray->show();
     emit trayAvailableChanged();
 }
+
 // Render an image (SVG included) at `size` and flat-recolor it to `color`
 // (SourceIn keeps the alpha shape, replaces every colour) — same recipe the
 // tool-icon provider uses for monochrome glyphs.

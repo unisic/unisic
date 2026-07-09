@@ -83,14 +83,23 @@ Item {
     }
 
     component SettingRow: Item {
+        id: settingRow
         property alias label: labelText.text
+        // Capability gating: unavailable options are greyed out (not hidden) with
+        // a one-line reason, so a release build still shows what it can't do.
+        property bool available: true
+        property string hint: ""
         default property alias control: slot.data
         width: parent.width
-        height: 44
+        height: 44 + (hintLabel.visible ? hintLabel.implicitHeight + 4 : 0)
+        opacity: available ? 1.0 : 0.45
+        enabled: available
         Text {
             id: labelText
             anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
+            height: 44
+            verticalAlignment: Text.AlignVCenter
             width: slot.x - Theme.spacingM
             elide: Text.ElideRight
             color: Theme.textPrimary
@@ -99,9 +108,18 @@ Item {
         Item {
             id: slot
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
             width: childrenRect.width
-            height: parent.height
+            height: 44
+        }
+        Text {
+            id: hintLabel
+            visible: settingRow.hint !== ""
+            anchors { left: parent.left; right: parent.right; top: slot.bottom }
+            wrapMode: Text.WordWrap
+            text: settingRow.hint
+            color: Theme.textTertiary
+            font.pixelSize: Theme.fontS
         }
     }
 
@@ -265,8 +283,10 @@ Item {
                     SettingRow {
                         // Corner only matters for the layer-shell card we position
                         // ourselves; a native notification is placed by the server.
-                        visible: App.settings.showCapturePopup && App.layerShellActive
-                        height: (App.settings.showCapturePopup && App.layerShellActive) ? 44 : 0
+                        visible: App.settings.showCapturePopup
+                        available: App.layerShellActive
+                        hint: App.layerShellActive ? ""
+                              : qsTr("Position is set by the system notification server here — this compositor has no layer-shell card to place.")
                         label: qsTr("Notification position")
                         UComboBox {
                             width: 180
@@ -288,8 +308,9 @@ Item {
                         USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
                     }
                     SettingRow {
-                        visible: App.ocrAvailable
-                        height: App.ocrAvailable ? 44 : 0
+                        available: App.ocrAvailable
+                        hint: App.ocrAvailable ? ""
+                              : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
                         label: qsTr("OCR languages")
                         UTextField {
                             width: 150

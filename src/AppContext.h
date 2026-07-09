@@ -161,6 +161,11 @@ private:
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
+    // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
+    // px on screen) so the user sees what is being captured without the frame
+    // landing inside the ffmpeg crop. KWin-only, like the capture popup.
+    void showRecordBorder(QRect physRegion, QScreen *screen);
+    void hideRecordBorder();
     void withDelay(std::function<void()> fn);
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
@@ -186,6 +191,9 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QTimer *m_trimTimer = nullptr;
     QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
+    QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
+    QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_screenCastPortalPresent = true; // optimistic until the async probe answers
@@ -194,3 +202,4 @@ private:
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
 };
+

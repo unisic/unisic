@@ -70,15 +70,20 @@ AppContext::AppContext(QObject *parent)
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+        if (m_recorder->sourceType() == GifRecorder::Region && !m_pendingRecordRegion.isEmpty())
+            showRecordBorder(m_pendingRecordRegion, m_pendingRecordScreen);
+    });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
         m_converting = true;
+        hideRecordBorder(); // capture is over; the frame must not linger over encoding
         emit recordingChanged();
         showToast(tr("Encoding…"));
     });
     connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
+        hideRecordBorder();
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
             showToast(tr("Recording failed: %1").arg(e), true);
@@ -338,6 +343,8 @@ void AppContext::startGifRegion()
     if (recording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
+        m_pendingRecordRegion = phys;
+        m_pendingRecordScreen = screen;
         m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen);
     });
 }
@@ -345,6 +352,7 @@ void AppContext::startGifRegion()
 void AppContext::startGifFullScreen()
 {
     if (recording()) return;
+    m_pendingRecordRegion = QRect();
     m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
 }
 
@@ -357,6 +365,7 @@ GifRecorder::Output AppContext::videoOutput() const
 void AppContext::startVideoScreen()
 {
     if (recording()) return;
+    m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Screen);
 }
 
@@ -365,6 +374,8 @@ void AppContext::startVideoRegion()
     if (recording()) return;
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
+        m_pendingRecordRegion = phys;
+        m_pendingRecordScreen = screen;
         m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen);
     });
 }
@@ -372,12 +383,77 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
+    m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Window);
 }
 
 void AppContext::stopRecording()
 {
     m_recorder->stop();
+}
+
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
+{
+    hideRecordBorder(); // retire any stale frame first
+    if (!m_engine || !screen || physRegion.isEmpty())
+        return;
+
+    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/RecordBorder.qml")));
+    if (component.isError()) {
+        qWarning() << component.errorString();
+        return;
+    }
+
+    // physRegion is screen-local physical pixels; the fullscreen window works in
+    // logical pixels, so scale down. Snap OUTWARD (floor origin / ceil far edge)
+    // so the frame's inner hole always ⊇ the true region, then pad 1px more on
+    // every side. The extra pad matters under fractional scaling: beginEncoding()
+    // rescales the crop by streamSize/expected and rounds x and w independently,
+    // which can inflate the crop's trailing edge by a pixel and collapse a plain
+    // floor/ceil margin to sub-pixel. The 1px slack keeps a full-physical-pixel
+    // gap so no frame pixel can ever land inside the ffmpeg crop; it only shifts
+    // the (already-outside-the-region) frame one logical pixel further out.
+    const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const int left   = qFloor(physRegion.x() / dpr);
+    const int top    = qFloor(physRegion.y() / dpr);
+    const int right  = qCeil((physRegion.x() + physRegion.width()) / dpr);
+    const int bottom = qCeil((physRegion.y() + physRegion.height()) / dpr);
+    const int rx = left - 1;
+    const int ry = top - 1;
+    const int rw = (right - left) + 2;
+    const int rh = (bottom - top) + 2;
+
+    auto *ctx = new QQmlContext(m_engine->rootContext(), this);
+    ctx->setContextProperty(QStringLiteral("regionX"), rx);
+    ctx->setContextProperty(QStringLiteral("regionY"), ry);
+    ctx->setContextProperty(QStringLiteral("regionW"), rw);
+    ctx->setContextProperty(QStringLiteral("regionH"), rh);
+
+    QObject *obj = component.create(ctx);
+    auto *win = qobject_cast<QQuickWindow *>(obj);
+    if (!win) {
+        delete obj;
+        delete ctx;
+        return;
+    }
+    ctx->setParent(win);
+    win->setScreen(screen);
+    win->setGeometry(screen->geometry());
+    win->create();
+    // showFullScreen pins the surface to the screen origin (see the popup);
+    // the window is input-transparent so it never steals focus or clicks.
+    win->showFullScreen();
+    m_recordBorderWindow = win;
+}
+
+void AppContext::hideRecordBorder()
+{
+    m_pendingRecordRegion = QRect();
+    if (m_recordBorderWindow) {
+        m_recordBorderWindow->close();
+        m_recordBorderWindow->deleteLater();
+        m_recordBorderWindow = nullptr;
+    }
 }
 
 void AppContext::onRecordingFinished(const QString &path)
@@ -1234,3 +1310,4 @@ void AppContext::setupTray()
     m_tray->show();
     emit trayAvailableChanged();
 }
+

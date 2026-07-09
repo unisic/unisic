@@ -83,6 +83,7 @@ qt_add_qml_module(unisic
         qml/OverlayWindow.qml
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
+        qml/RecordBorder.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -161,3 +162,4 @@ set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, 
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
+

@@ -27,6 +27,7 @@ public:
     ~GifRecorder() override;
 
     bool recording() const { return m_state != Idle; }
+    SourceType sourceType() const { return m_source; } // valid while recording
     int elapsedSeconds() const;
 
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
@@ -82,3 +83,4 @@ private:
     QString m_palettePath;
     QString m_outPath;
 };
+

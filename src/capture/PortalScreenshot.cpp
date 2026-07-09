@@ -4,6 +4,7 @@
 #include <QUrl>
 #include <QFile>
 #include <QGuiApplication>
+#include <QPointer>
 #include <QtConcurrentRun>
 #include <QDebug>
 
@@ -50,10 +51,13 @@ void PortalScreenshot::requestOnce(bool interactive, Callback cb)
         // Decode off-thread: a 4K/multi-monitor PNG takes 50-200 ms — too long
         // for the GUI thread. Remove the portal's file (dropped in ~/Pictures)
         // on every path, or failures leave orphans behind.
-        (void)QtConcurrent::run([file, uriStr = uri.toString(), cb] {
+        QPointer<QCoreApplication> application(qApp);
+        (void)QtConcurrent::run([file, uriStr = uri.toString(), cb, application] {
             QImage img(file);
             QFile::remove(file);
-            QMetaObject::invokeMethod(qApp, [img, uriStr, cb] {
+            if (!application)
+                return;
+            QMetaObject::invokeMethod(application.data(), [img, uriStr, cb] {
                 if (img.isNull())
                     cb({}, QStringLiteral("Could not load screenshot from %1").arg(uriStr));
                 else

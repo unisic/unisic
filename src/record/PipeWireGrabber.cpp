@@ -44,6 +44,10 @@ PipeWireGrabber::PipeWireGrabber(QObject *parent) : QObject(parent)
 PipeWireGrabber::~PipeWireGrabber()
 {
     stop();
+    // pw_init() is process-global. Balance every recording grabber's
+    // initialization so repeated start/stop cycles do not retain PipeWire
+    // global resources for the rest of the tray application's lifetime.
+    pw_deinit();
 }
 
 bool PipeWireGrabber::start(int pipewireFd, uint nodeId)

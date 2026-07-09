@@ -739,9 +739,14 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
 
     switch (m_drag) {
     case DrawDrag:
-        if (m_current.type == Pen)
-            m_current.points.append(img);
-        else
+        if (m_current.type == Pen) {
+            // Retain enough detail for a smooth path while coalescing
+            // sub-pixel duplicate samples from high-frequency mice/tablets.
+            const qreal minDistance = qMax(0.75, m_current.width / 3.0);
+            if (m_current.points.isEmpty()
+                || QLineF(m_current.points.constLast(), img).length() >= minDistance)
+                m_current.points.append(img);
+        } else
             m_current.rect.setBottomRight(img);
         update();
         break;
@@ -805,6 +810,13 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
         startSegmentation();
     if (m_drag == DrawDrag && m_drawing) {
+        // Preserve the stroke endpoint even when it falls within the sampling
+        // threshold used while the pointer is moving.
+        if (m_current.type == Pen && !m_current.points.isEmpty()) {
+            const QPointF releasePoint = toImage(e->position().x(), e->position().y());
+            if (QLineF(m_current.points.constLast(), releasePoint).length() > 0.0)
+                m_current.points.append(releasePoint);
+        }
         m_drawing = false;
         const bool tiny = m_current.type != Pen &&
                           QLineF(m_current.rect.topLeft(), m_current.rect.bottomRight()).length() < 3;

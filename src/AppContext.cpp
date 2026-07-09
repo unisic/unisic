@@ -560,6 +560,15 @@ void AppContext::onRecordingFinished(const QString &path)
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), path,
                      QStringLiteral("-frames:v"), QStringLiteral("1"), posterPath});
+        // Poster extraction should take a fraction of a second. Do not leave a
+        // stuck ffmpeg process and its QProcess alive forever if a malformed
+        // media file or a broken decoder blocks here.
+        QTimer::singleShot(30000, proc, [proc] {
+            if (proc->state() != QProcess::NotRunning) {
+                qWarning() << "Timed out extracting video poster frame";
+                proc->kill();
+            }
+        });
         return;
     }
     QImage thumb(path); // first GIF frame loads fine via Qt's gif plugin
@@ -870,13 +879,16 @@ void AppContext::copyImageToClipboard(const QImage &img)
     // PNG-encoding a 4K capture takes 100+ ms — keep it off the GUI thread.
     // QImage is implicitly shared and the worker only reads its copy.
     QPointer<AppContext> self(this);
-    (void)QtConcurrent::run([self, img, wlCopy] {
+    QPointer<QCoreApplication> application(qApp);
+    (void)QtConcurrent::run([self, application, img, wlCopy] {
         QByteArray png;
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
         img.save(&buf, "PNG");
         // QProcess must live on the GUI thread.
-        QMetaObject::invokeMethod(qApp, [self, png, wlCopy] {
+        if (!application)
+            return;
+        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy] {
             if (self)
                 spawnWlCopy(self, wlCopy, {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
         }, Qt::QueuedConnection);
@@ -1588,4 +1600,3 @@ void AppContext::setAutostartEnabled(bool on)
     }
     emit autostartEnabledChanged();
 }
-

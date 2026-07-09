@@ -79,6 +79,13 @@ void CaptureNotification::edit()
     dismiss();
 }
 
+void CaptureNotification::preview()
+{
+    // Preview outlives the popup — don't dismiss, the user may still want the
+    // action buttons while the floating preview is up.
+    m_app->openPreview(m_image);
+}
+
 void CaptureNotification::copyImage()
 {
     m_app->copyImageToClipboard(m_image);

@@ -38,7 +38,9 @@ private slots:
                              const QStringList &invalidated);
 
 private:
-    uint sendNotify(CaptureNotification *n);
+    // Async: builds the Notify call without a blocking Introspect round-trip
+    // and registers the id -> object mapping when the reply lands.
+    void sendNotify(CaptureNotification *n);
     void retire(CaptureNotification *n);
 
     AppContext *m_app;

@@ -33,8 +33,14 @@ Item {
         return best
     }
 
-    readonly property var tabNames: [qsTr("General"), qsTr("Appearance"),
-                                     qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
+    // The Developer tab (index 5) only exists in a dev build.
+    readonly property var tabNames: {
+        var t = [qsTr("General"), qsTr("Appearance"), qsTr("Editor"),
+                 qsTr("Recording"), qsTr("Hotkeys")]
+        if (App.devBuild)
+            t.push(qsTr("Developer"))
+        return t
+    }
 
     readonly property var themeIds: ["system", "unisic", "dark", "light",
                                      "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
@@ -77,14 +83,23 @@ Item {
     }
 
     component SettingRow: Item {
+        id: settingRow
         property alias label: labelText.text
+        // Capability gating: unavailable options are greyed out (not hidden) with
+        // a one-line reason, so a release build still shows what it can't do.
+        property bool available: true
+        property string hint: ""
         default property alias control: slot.data
         width: parent.width
-        height: 44
+        height: 44 + (hintLabel.visible ? hintLabel.implicitHeight + 4 : 0)
+        opacity: available ? 1.0 : 0.45
+        enabled: available
         Text {
             id: labelText
             anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
+            height: 44
+            verticalAlignment: Text.AlignVCenter
             width: slot.x - Theme.spacingM
             elide: Text.ElideRight
             color: Theme.textPrimary
@@ -93,9 +108,18 @@ Item {
         Item {
             id: slot
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.top: parent.top
             width: childrenRect.width
-            height: parent.height
+            height: 44
+        }
+        Text {
+            id: hintLabel
+            visible: settingRow.hint !== ""
+            anchors { left: parent.left; right: parent.right; top: slot.bottom }
+            wrapMode: Text.WordWrap
+            text: settingRow.hint
+            color: Theme.textTertiary
+            font.pixelSize: Theme.fontS
         }
     }
 
@@ -240,8 +264,16 @@ Item {
         clip: true
 
         // ===== General =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 0
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -259,8 +291,10 @@ Item {
                     SettingRow {
                         // Corner only matters for the layer-shell card we position
                         // ourselves; a native notification is placed by the server.
-                        visible: App.settings.showCapturePopup && App.layerShellActive
-                        height: (App.settings.showCapturePopup && App.layerShellActive) ? 44 : 0
+                        visible: App.settings.showCapturePopup
+                        available: App.layerShellActive
+                        hint: App.layerShellActive ? ""
+                              : qsTr("Position is set by the system notification server here — this compositor has no layer-shell card to place.")
                         label: qsTr("Notification position")
                         UComboBox {
                             width: 180
@@ -276,8 +310,15 @@ Item {
                         USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
                     }
                     SettingRow {
-                        visible: App.ocrAvailable
-                        height: App.ocrAvailable ? 44 : 0
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Hide it during fullscreen / Do Not Disturb")
+                        USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
+                    }
+                    SettingRow {
+                        available: App.ocrAvailable
+                        hint: App.ocrAvailable ? ""
+                              : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
                         label: qsTr("OCR languages")
                         UTextField {
                             width: 150
@@ -392,6 +433,23 @@ Item {
                         USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
                     }
                     SettingRow {
+                        label: qsTr("Grab Ctrl+C for 2s after a capture")
+                        enabled: !App.settings.copyToClipboard
+                        USwitch {
+                            checked: App.settings.quickCopyAfterCapture
+                            onToggled: (c) => App.settings.quickCopyAfterCapture = c
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: !App.settings.copyToClipboard
+                              ? qsTr("When auto-copy is off, press Ctrl+C within 2 seconds of a capture to copy it. KDE only.")
+                              : qsTr("Only used when “Copy image to clipboard” is off.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
                         label: qsTr("Save to disk automatically")
                         USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
                     }
@@ -422,11 +480,21 @@ Item {
                     }
                 }
             }
+
+        }
         }
 
         // ===== Appearance =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 1
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -653,10 +721,19 @@ Item {
             }
 
         }
+        }
 
         // ===== Editor =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 2
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -700,6 +777,10 @@ Item {
                             onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Show alignment guides while selecting")
+                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
+                    }
                 }
             }
 
@@ -739,10 +820,19 @@ Item {
                 }
             }
         }
+        }
 
         // ===== Recording =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 3
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
                 Column {
@@ -797,10 +887,19 @@ Item {
                 }
             }
         }
+        }
 
         // ===== Hotkeys =====
-        ScrollPane {
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
             visible: page.tab === 4
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
 
             // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
             // would be dead — explain the compositor-bind route instead.
@@ -878,6 +977,119 @@ Item {
                     }
                 }
             }
+        }
+        }
+
+        // ===== Developer (dev build only, tab 5) =====
+        // Lazily built on first visit, then kept alive (preserves scroll
+        // position). Six always-instantiated panes made opening Settings
+        // build hundreds of controls for tabs never shown.
+        Loader {
+            anchors.fill: parent
+            visible: page.tab === 5
+            property bool touched: false
+            active: touched || visible
+            onLoaded: touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Developer") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Dev build. Compositor capabilities detected on this system. F8 (or the button) runs the full smoke test.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Native notifications")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
+                               color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Custom card (layer-shell)")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
+                               color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording border")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
+                               color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    UButton {
+                        compact: true; variant: "tonal"
+                        text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run full smoke test (F8)")
+                        enabled: !App.smokeTestRunning
+                        onClicked: App.runSmokeTest()
+                    }
+                    Rectangle {
+                        visible: App.smokeTestLog !== ""
+                        width: parent.width
+                        height: 200
+                        radius: Theme.radiusM
+                        color: Theme.background
+                        border.width: 1
+                        border.color: Theme.divider
+                        clip: true
+                        Flickable {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            contentWidth: width
+                            contentHeight: logText.height
+                            boundsBehavior: Flickable.StopAtBounds
+                            Text {
+                                id: logText
+                                width: parent.width
+                                text: App.smokeTestLog
+                                color: Theme.textSecondary
+                                font.family: "monospace"
+                                font.pixelSize: Theme.fontS
+                                wrapMode: Text.WrapAnywhere
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Run a single action") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Trigger each path on its own to verify it by hand. Every new feature must add its trigger here and to the smoke test.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Flow {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture fullscreen"); onClicked: App.captureFullScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (screen)"); onClicked: App.startVideoScreen() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (region)"); onClicked: App.startVideoRegion() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (window)"); onClicked: App.startVideoWindow() }
+                        UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Arm quick-copy (Ctrl+C)"); onClicked: App.devTestQuickCopy() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
+                    }
+                }
+            }
+        }
         }
     }
 }

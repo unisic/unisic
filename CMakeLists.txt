@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.2.1 LANGUAGES CXX)
+project(unisic VERSION 0.2.2 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -23,6 +23,7 @@ qt_policy(SET QTP0001 NEW)
 qt_add_executable(unisic
     src/main.cpp
     src/AppContext.h src/AppContext.cpp
+    src/PreviewController.h src/PreviewController.cpp
     src/Settings.h src/Settings.cpp
     src/capture/PortalRequest.h src/capture/PortalRequest.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
@@ -57,6 +58,21 @@ endif()
 target_compile_definitions(unisic PRIVATE
     UNISIC_VERSION="${PROJECT_VERSION}"
     UNISIC_BUILD="${UNISIC_BUILD}")
+
+# Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
+# options editable in Settings. A CI build (UNISIC_BUILD carries a run number, not
+# "dev") defaults to a RELEASE build, where unsupported options are shown greyed-out
+# with an explanation instead. Override explicitly with -DUNISIC_DEV_BUILD=ON/OFF.
+if(UNISIC_BUILD STREQUAL "dev")
+    set(_unisic_dev_default ON)
+else()
+    set(_unisic_dev_default OFF)
+endif()
+option(UNISIC_DEV_BUILD "Developer build (F8 smoke test + editable capability toggles)" ${_unisic_dev_default})
+if(UNISIC_DEV_BUILD)
+    target_compile_definitions(unisic PRIVATE UNISIC_DEV_BUILD)
+    message(STATUS "Developer build: UNISIC_DEV_BUILD=ON (F8 smoke test enabled)")
+endif()
 
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
@@ -100,6 +116,7 @@ qt_add_qml_module(unisic
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
+        qml/PreviewWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -155,7 +172,8 @@ install(FILES resources/icons/unisic.svg
 set(CPACK_PACKAGE_NAME "unisic")
 set(CPACK_PACKAGE_VENDOR "Unisic")
 set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ShareX-like screenshot and screen-recording tool for Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
@@ -181,7 +199,7 @@ set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "LicenseRef-Unknown")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 

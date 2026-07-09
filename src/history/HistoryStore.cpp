@@ -1,5 +1,6 @@
 #include "HistoryStore.h"
 #include <QStandardPaths>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -8,8 +9,21 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QUuid>
 #include <QSet>
+
+// Thumbnail scale in two steps: a cheap nearest-neighbour pass to ~2x the
+// target first, so the smooth pass works on ~0.5 MP instead of a full 8+ MP
+// capture (~10x cheaper on the GUI thread, visually identical at 480x300).
+// The guard keeps the fast pass downscale-only.
+static QImage makeThumb(const QImage &src)
+{
+    QImage s = src;
+    if (s.width() > 960 || s.height() > 600)
+        s = s.scaled(960, 600, Qt::KeepAspectRatio, Qt::FastTransformation);
+    return s.scaled(480, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
 
 HistoryStore::HistoryStore(QObject *parent) : QAbstractListModel(parent)
 {
@@ -17,20 +31,41 @@ HistoryStore::HistoryStore(QObject *parent) : QAbstractListModel(parent)
 
     // External-deletion sync: watch the directories the captures live in (a
     // handful even at 500 entries) rather than 500 individual files. Our own
-    // saves also fire directoryChanged, so validation is debounced and only
-    // does a cheap existence check.
+    // saves also fire directoryChanged, so validation is debounced, only does a
+    // cheap existence check, and only over entries in the dirs that changed.
     m_watcher = new QFileSystemWatcher(this);
     m_validateTimer.setSingleShot(true);
     m_validateTimer.setInterval(250);
     connect(&m_validateTimer, &QTimer::timeout, this, [this] {
-        pruneMissing();
+        // Swap first: events arriving during the prune re-arm cleanly.
+        const QSet<QString> dirs = std::move(m_changedDirs);
+        m_changedDirs.clear();
+        pruneMissing(&dirs);
         rebuildWatches();
     });
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, this,
-            [this] { m_validateTimer.start(); });
+            [this](const QString &dir) {
+        m_changedDirs.insert(dir);
+        m_validateTimer.start();
+    });
+
+    m_persistTimer.setSingleShot(true);
+    m_persistTimer.setInterval(500);
+    connect(&m_persistTimer, &QTimer::timeout, this, &HistoryStore::persistNow);
+    // A SIGTERM/logout kill skips destructors — flush pending writes on quit.
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
+        if (m_persistTimer.isActive())
+            persistNow();
+    });
 
     pruneMissing();   // catch deletions that happened while Unisic was closed
     rebuildWatches();
+}
+
+HistoryStore::~HistoryStore()
+{
+    if (m_persistTimer.isActive())
+        persistNow();
 }
 
 void HistoryStore::rebuildWatches()
@@ -53,7 +88,7 @@ void HistoryStore::rebuildWatches()
         m_watcher->addPaths(wanted);
 }
 
-void HistoryStore::pruneMissing()
+void HistoryStore::pruneMissing(const QSet<QString> *dirFilter)
 {
     // Batch: removeRow() persists + rebuilds watches per call — O(n²) after a
     // bulk external deletion. Walk back-to-front so removals don't shift the
@@ -61,6 +96,9 @@ void HistoryStore::pruneMissing()
     bool removed = false;
     for (int i = m_entries.size() - 1; i >= 0; --i) {
         const Entry &e = m_entries[i];
+        if (dirFilter && !e.filePath.isEmpty()
+            && !dirFilter->contains(QFileInfo(e.filePath).absolutePath()))
+            continue;
         if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)) {
             beginRemoveRows({}, i, i);
             QFile::remove(e.thumbPath);
@@ -106,6 +144,12 @@ void HistoryStore::load()
 
 void HistoryStore::persist()
 {
+    m_persistTimer.start();   // coalesce bursts (addEntry + setUrl per capture)
+}
+
+void HistoryStore::persistNow()
+{
+    m_persistTimer.stop();
     QJsonArray arr;
     for (const Entry &e : m_entries) {
         arr.append(QJsonObject{
@@ -117,9 +161,13 @@ void HistoryStore::persist()
             {QStringLiteral("ts"), e.timestamp.toString(Qt::ISODate)},
         });
     }
-    QFile f(dataDir() + "/history.json");
-    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    // QSaveFile: atomic rename-replace — a crash mid-write can no longer
+    // truncate history.json to garbage.
+    QSaveFile f(dataDir() + "/history.json");
+    if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        f.commit();
+    }
 }
 
 int HistoryStore::rowCount(const QModelIndex &parent) const
@@ -162,8 +210,7 @@ void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
     if (!thumbSource.isNull()) {
         thumbPath = dataDir() + "/thumbs/" +
                     QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
-        thumbSource.scaled(480, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation)
-            .save(thumbPath, "PNG");
+        makeThumb(thumbSource).save(thumbPath, "PNG");
     }
     beginInsertRows({}, 0, 0);
     m_entries.prepend({filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
@@ -192,6 +239,27 @@ void HistoryStore::setUrl(const QString &filePath, const QString &url, const QSt
     }
 }
 
+void HistoryStore::refreshEntry(const QString &filePath, const QImage &img)
+{
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].filePath != filePath)
+            continue;
+        const QString oldThumb = m_entries[i].thumbPath;
+        const QString newThumb = dataDir() + "/thumbs/" +
+                                 QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
+        if (!img.isNull() && makeThumb(img).save(newThumb, "PNG")) {
+            m_entries[i].thumbPath = newThumb;
+            if (!oldThumb.isEmpty())
+                QFile::remove(oldThumb);
+        }
+        emit dataChanged(index(i), index(i), {ThumbnailRole});
+        persist();
+        return;
+    }
+    // File wasn't tracked (edited something outside history) — record it.
+    addEntry(filePath, img, QStringLiteral("image"));
+}
+
 void HistoryStore::removeRow(int row, bool trashFile)
 {
     if (row < 0 || row >= m_entries.size())
@@ -207,7 +275,7 @@ void HistoryStore::removeRow(int row, bool trashFile)
     QFile::remove(e.thumbPath);
     m_entries.removeAt(row);
     endRemoveRows();
-    persist();
+    persistNow();   // explicit delete — never resurrectable by a crash
     rebuildWatches();
     emit countChanged();
 }
@@ -236,7 +304,7 @@ void HistoryStore::clearAll()
         QFile::remove(e.thumbPath);
     m_entries.clear();
     endResetModel();
-    persist();
+    persistNow();   // explicit clear — flush immediately
     rebuildWatches(); // drop stale directory watches, they'd keep firing validations
     emit countChanged();
 }

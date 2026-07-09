@@ -20,10 +20,26 @@ Window {
     minimumWidth: 820
     minimumHeight: 480
     visible: true
-    title: qsTr("Unisic — Editor")
+    title: editorSession.overwriteMode ? qsTr("Unisic — Editing saved image")
+                                       : qsTr("Unisic — Editor")
     color: Theme.background
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
+
+    // Editing an existing capture (from history) overwrites the original file, so
+    // confirm first; a normal capture saves straight to a fresh file.
+    function doSave() {
+        if (editorSession.overwriteMode) overwriteConfirm.open()
+        else editorSession.save()
+    }
+
+    MessageDialog {
+        id: overwriteConfirm
+        title: qsTr("Overwrite file?")
+        text: qsTr("This replaces the original saved image with your edited version. This can't be undone.")
+        buttons: MessageDialog.Save | MessageDialog.Cancel
+        onAccepted: editorSession.save()
+    }
 
     function recentList() {
         var s = App.settings.recentColors
@@ -60,7 +76,7 @@ Window {
             if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Z) {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorSession.save()
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) editorSession.copyToClipboard()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) editorSession.upload()
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
@@ -431,7 +447,11 @@ Window {
                 spacing: Theme.spacingS
 
                 UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: editorSession.copyToClipboard() }
-                UButton { iconName: "document-save"; text: qsTr("Save"); variant: "tonal"; onClicked: editorSession.save() }
+                UButton {
+                    iconName: "document-save"
+                    text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
+                    variant: "tonal"; onClicked: editorWindow.doSave()
+                }
                 UButton {
                     iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
                     enabled: !App.uploads.busy

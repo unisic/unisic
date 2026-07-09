@@ -84,6 +84,13 @@ Window {
                         font.pixelSize: 9; font.bold: true
                     }
                 }
+                // Click the thumbnail to pop out a floating, pinnable preview.
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: notif.kind === "image"
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: notif.preview()
+                }
             }
 
             Column {

@@ -217,7 +217,10 @@ Window {
                     color: Theme.danger
                     anchors.verticalCenter: parent.verticalCenter
                     SequentialAnimation on opacity {
-                        running: App.recording
+                        // Gate on window visibility too: with the window hidden to
+                        // tray during a long recording, an infinite animation keeps
+                        // the GUI thread waking ~60x/s for an invisible dot.
+                        running: App.recording && window.visible
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.2; duration: 600 }
                         NumberAnimation { to: 1.0; duration: 600 }

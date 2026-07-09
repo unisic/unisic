@@ -6,6 +6,8 @@
 #include <QDBusArgument>
 #include <QDBusObjectPath>
 #include <QDBusMetaType>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDBusServiceWatcher>
 #include <QKeySequence>
 #include <QDebug>
@@ -73,6 +75,24 @@ bool PortalGlobalShortcuts::interfacePresent()
     msg << GS_IFACE << QStringLiteral("version");
     const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 3000);
     return reply.type() == QDBusMessage::ReplyMessage;
+}
+
+void PortalGlobalShortcuts::probeInterface(QObject *ctx, std::function<void(bool)> done)
+{
+    // Same probe (and activation caveat) as interfacePresent(), but awaited
+    // asynchronously — the blocking form stalled the GUI thread for however
+    // long D-Bus took to spin the portal up at cold session start.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        PORTAL_SERVICE, PORTAL_PATH,
+        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    msg << GS_IFACE << QStringLiteral("version");
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg, 3000), ctx);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, ctx,
+                     [done = std::move(done)](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        done(!w->isError());
+    });
 }
 
 QString PortalGlobalShortcuts::toPortalTrigger(const QString &portableKeySequence)

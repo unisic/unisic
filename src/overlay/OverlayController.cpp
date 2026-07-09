@@ -12,6 +12,10 @@
 #include <QPointer>
 #include <QDebug>
 #include <memory>
+#ifdef HAVE_LAYERSHELL
+#include <LayerShellQt/window.h>
+#include <QMargins>
+#endif
 
 OverlayController::OverlayController(AppContext *app, QObject *parent)
     : QObject(parent), m_app(app)
@@ -112,7 +116,31 @@ void OverlayController::createWindows()
             QImage img = m_frozen[i];
             canvas->setImage(img);
         }
-        win->showFullScreen();
+
+        bool shown = false;
+#ifdef HAVE_LAYERSHELL
+        // A fullscreen toplevel can't sit above a fullscreen application on
+        // Wayland, so region/window selection over a fullscreen game/video
+        // failed. A layer-shell OVERLAY surface can — with exclusive keyboard so
+        // Escape/Enter and the text tool still receive input.
+        if (m_app->layerShellAvailable()) {
+            win->resize(screen->geometry().size());
+            if (auto *ls = LayerShellQt::Window::get(win)) {
+                using LW = LayerShellQt::Window;
+                ls->setLayer(LW::LayerOverlay);
+                ls->setScope(QStringLiteral("unisic-overlay"));
+                ls->setExclusiveZone(-1);
+                ls->setKeyboardInteractivity(LW::KeyboardInteractivityExclusive);
+                ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
+                                           | LW::AnchorLeft | LW::AnchorRight));
+                ls->setMargins(QMargins(0, 0, 0, 0));
+            }
+            win->show();
+            shown = true;
+        }
+#endif
+        if (!shown)
+            win->showFullScreen();
         m_windows.append(win);
     }
     if (!m_windows.isEmpty()) {

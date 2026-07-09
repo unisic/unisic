@@ -146,6 +146,43 @@ Window {
                 textField.text = ""
                 textField.forceActiveFocus()
             }
+
+            // Crosshair guides from the cursor to the screen edges. The handler
+            // lives INSIDE the canvas: the canvas item receives the pointer, so a
+            // sibling handler on root would report hovered only where the canvas
+            // isn't (e.g. over the toolbar) — the exact "only shows over toolbar"
+            // bug. As a child it tracks the pointer across the whole overlay.
+            HoverHandler {
+                id: guideHover
+                enabled: App.settings.selectionGuides
+            }
+        }
+
+        // Each guide: a dark underlay + bright accent core, so the line stays
+        // legible over both the dimmed backdrop and the bright selected region.
+        // Position comes from canvas.hoverPoint (C++), which — unlike a QML
+        // HoverHandler — keeps updating while the selection is being dragged.
+        Item { // vertical guide
+            visible: App.settings.selectionGuides && guideHover.hovered
+            x: Math.round(canvas.hoverPoint.x) - 1
+            y: 0; width: 3; height: parent.height
+            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle {
+                width: 1; height: parent.height
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: "#C8ACD6"; opacity: 0.95
+            }
+        }
+        Item { // horizontal guide
+            visible: App.settings.selectionGuides && guideHover.hovered
+            x: 0; y: Math.round(canvas.hoverPoint.y) - 1
+            width: parent.width; height: 3
+            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle {
+                width: parent.width; height: 1
+                anchors.verticalCenter: parent.verticalCenter
+                color: "#C8ACD6"; opacity: 0.95
+            }
         }
 
         // Dimension readout — follows the selection

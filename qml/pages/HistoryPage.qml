@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Unisic
 import "../components"
 
@@ -80,6 +81,11 @@ Item {
                                 source: thumbnail !== "" ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
+                                // Thumbs are 480x300 on disk but display ~230x120;
+                                // with both dims set + PreserveAspectCrop, Qt decodes
+                                // the smallest covering image — ~4x less texture RAM.
+                                sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
+                                sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
                             }
                             Rectangle {
                                 visible: kind !== "image"
@@ -122,6 +128,18 @@ Item {
                                 iconName: "folder-open"; iconSize: 16; width: 30; height: 30
                                 enabled: filePath !== ""
                                 onClicked: App.openFile(filePath)
+                            }
+                            UIconButton {
+                                iconName: "document-edit"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Edit (overwrites the file on save)")
+                                visible: kind === "image" && filePath !== ""
+                                onClicked: App.editFromHistory(filePath)
+                            }
+                            UIconButton {
+                                iconName: "window-pin"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Pin as floating preview")
+                                visible: kind === "image" && filePath !== ""
+                                onClicked: App.previewFromHistory(filePath)
                             }
                             UIconButton {
                                 iconName: "ocr"; iconSize: 16; width: 30; height: 30

@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QHash>
+#include <QSet>
 
 class QDBusMessage;
 
@@ -31,6 +32,9 @@ public:
     // component already owns them (e.g. stock Plasma binds Ctrl+Esc).
     bool setShortcut(const QString &actionId, const QString &friendlyName,
                      const QString &keySequence);
+    // Fire-and-forget async unbind (empty key, SetPresent|NoAutoloading). For
+    // callers that never inspect the result — avoids blocking the GUI thread.
+    void releaseShortcut(const QString &actionId, const QString &friendlyName);
 
     void unregisterAll();
 
@@ -70,4 +74,5 @@ private:
     static constexpr const char *COMPONENT = "unisic";
     bool m_available = false;
     bool m_signalConnected = false;
+    QSet<QString> m_registered; // actions doRegister'ed this process (idempotent skip)
 };

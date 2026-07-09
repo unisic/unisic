@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QProcess>
 #include <QTemporaryFile>
+#include <QTimer>
 #include <QMimeDatabase>
 #include <QUrl>
 #include <QUrlQuery>
@@ -28,6 +29,12 @@ UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
 {
     m_nam->setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
+    // Inactivity timeout (restarts whenever bytes flow, so slow-but-progressing
+    // transfers are unaffected). Without it a server that accepts the connection
+    // and stalls pins the reply + the full multipart payload forever and wedges
+    // the busy state. Surfaces as OperationCanceledError through the existing
+    // finished handler. (int overload: the chrono one needs Qt 6.7.)
+    m_nam->setTransferTimeout(120000);
     loadDestinations();
     ensureBuiltins();
 }
@@ -372,18 +379,28 @@ void UploadManager::setBusy(bool b)
 
 void UploadManager::uploadFile(const QString &filePath, Callback cb)
 {
-    QFile f(filePath);
-    if (!f.open(QIODevice::ReadOnly)) {
-        cb({}, {}, tr("Cannot read %1").arg(filePath));
-        return;
+    {
+        // Early readability check only — the payload itself is streamed from
+        // disk (a saved recording can be hundreds of MB; readAll() used to pin
+        // it in RAM for the whole transfer, twice on the curl path).
+        QFile f(filePath);
+        if (!f.open(QIODevice::ReadOnly)) {
+            cb({}, {}, tr("Cannot read %1").arg(filePath));
+            return;
+        }
     }
-    const QByteArray data = f.readAll();
     const QString mime = QMimeDatabase().mimeTypeForFile(filePath).name();
-    uploadData(data, QFileInfo(filePath).fileName(), mime, std::move(cb));
+    startUpload({}, filePath, QFileInfo(filePath).fileName(), mime, std::move(cb));
 }
 
 void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
                                const QString &mime, Callback cb)
+{
+    startUpload(data, {}, fileName, mime, std::move(cb));
+}
+
+void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
+                                const QString &fileName, const QString &mime, Callback cb)
 {
     const QJsonObject dest = activeDestination();
     if (dest.isEmpty()) {
@@ -398,9 +415,9 @@ void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
         cb(url, del, err);
     };
     if (type == QLatin1String("curl"))
-        curlUpload(dest, data, fileName, done);
+        curlUpload(dest, data, srcPath, fileName, done);
     else
-        httpUpload(dest, data, fileName, mime, done);
+        httpUpload(dest, data, srcPath, fileName, mime, done);
 }
 
 // Resolve a single $text$/$json:...$/$regex:...$ token against the response.
@@ -485,7 +502,8 @@ static QString sanitizeFileName(QString name)
 }
 
 void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
-                               const QString &fileName, const QString &mime, Callback cb)
+                               const QString &srcPath, const QString &fileName,
+                               const QString &mime, Callback cb)
 {
     QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
@@ -507,12 +525,34 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
 
     if (bodyType == QLatin1String("json")) {
         // Raw JSON body from the user's template. $base64$/$filename$/$mime$ are
-        // substituted; no multipart file part is sent.
-        QString tpl = dest.value(QStringLiteral("data")).toString();
-        tpl.replace(QLatin1String("$base64$"), QString::fromLatin1(data.toBase64()));
-        tpl.replace(QLatin1String("$filename$"), fileName);
-        tpl.replace(QLatin1String("$mime$"), mime);
-        const QByteArray payload = tpl.toUtf8();
+        // substituted; no multipart file part is sent. $base64$ requires the
+        // bytes in memory even for a file source.
+        QByteArray bytes = data;
+        if (bytes.isEmpty() && !srcPath.isEmpty()) {
+            QFile f(srcPath);
+            if (!f.open(QIODevice::ReadOnly)) {
+                cb({}, {}, tr("Cannot read %1").arg(srcPath));
+                return;
+            }
+            bytes = f.readAll();
+        }
+        // Assemble the payload as QByteArray: the old QString::replace of a
+        // multi-MB base64 blob peaked at ~8x the payload in live allocations
+        // (UTF-16 copies of the blob + the template). Split on $base64$ first,
+        // substitute the small tokens per part (same order as before), then
+        // join with the raw base64 — byte-identical output, ~2x peak.
+        const QByteArray b64 = bytes.toBase64();
+        const QStringList parts = dest.value(QStringLiteral("data")).toString()
+                                      .split(QLatin1String("$base64$"));
+        QByteArray payload;
+        for (int i = 0; i < parts.size(); ++i) {
+            QString part = parts[i];
+            part.replace(QLatin1String("$filename$"), fileName);
+            part.replace(QLatin1String("$mime$"), mime);
+            if (i > 0)
+                payload += b64;
+            payload += part.toUtf8();
+        }
         if (!hasContentType)
             req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
         reply = (method == QLatin1String("PUT")) ? m_nam->put(req, payload)
@@ -534,7 +574,21 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
                                .arg(sanitizeFileName(dest.value(QStringLiteral("fileFormName"))
                                                          .toString(QStringLiteral("file"))),
                                     sanitizeFileName(fileName)));
-        filePart.setBody(data);
+        if (!srcPath.isEmpty()) {
+            // Stream from disk: QHttpMultiPart reads the device on demand, so
+            // a multi-hundred-MB recording never sits in RAM.
+            auto *file = new QFile(srcPath);
+            if (!file->open(QIODevice::ReadOnly)) {
+                delete file;
+                delete multi;
+                cb({}, {}, tr("Cannot read %1").arg(srcPath));
+                return;
+            }
+            file->setParent(multi); // multi is parented to the reply below
+            filePart.setBodyDevice(file);
+        } else {
+            filePart.setBody(data);
+        }
         multi->append(filePart);
 
         reply = (method == QLatin1String("PUT")) ? m_nam->put(req, multi)
@@ -562,16 +616,23 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
 }
 
 void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
-                               const QString &fileName, Callback cb)
+                               const QString &srcPath, const QString &fileName, Callback cb)
 {
-    auto *tmp = new QTemporaryFile(this);
-    if (!tmp->open()) {
-        delete tmp;
-        cb({}, {}, tr("Cannot create temp file"));
-        return;
+    // File source: hand curl the original path directly — copying a recording
+    // into a QTemporaryFile doubled both the RAM (readAll upstream) and disk.
+    QTemporaryFile *tmp = nullptr;
+    QString uploadPath = srcPath;
+    if (srcPath.isEmpty()) {
+        tmp = new QTemporaryFile(this);
+        if (!tmp->open()) {
+            delete tmp;
+            cb({}, {}, tr("Cannot create temp file"));
+            return;
+        }
+        tmp->write(data);
+        tmp->flush();
+        uploadPath = tmp->fileName();
     }
-    tmp->write(data);
-    tmp->flush();
 
     const QString safeName = sanitizeFileName(fileName);
     QString target = dest.value(QStringLiteral("requestUrl")).toString();
@@ -579,8 +640,16 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         target += QLatin1Char('/');
     target += QString::fromUtf8(QUrl::toPercentEncoding(safeName));
 
+    // Stall protection: without it a server that accepts the connection and
+    // then hangs leaks the curl process, temp file and busy state forever.
+    // --speed-* aborts only below 1 byte/s for 60 s — progressing uploads of
+    // any length are unaffected; a stall exits non-zero into the normal
+    // finished cleanup path.
     QStringList args{QStringLiteral("-sS"), QStringLiteral("--fail"),
-                     QStringLiteral("-T"), tmp->fileName(), target};
+                     QStringLiteral("--connect-timeout"), QStringLiteral("30"),
+                     QStringLiteral("--speed-time"), QStringLiteral("60"),
+                     QStringLiteral("--speed-limit"), QStringLiteral("1"),
+                     QStringLiteral("-T"), uploadPath, target};
     // Credentials must never be on the command line — argv is world-readable
     // in /proc/<pid>/cmdline for the whole transfer. Feed them as a config
     // file on stdin instead (curl -K -).
@@ -608,7 +677,8 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
             [proc, tmp, dest, safeName, cb](int code, QProcess::ExitStatus) {
         const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         proc->deleteLater();
-        tmp->deleteLater();
+        if (tmp)
+            tmp->deleteLater();
         if (code != 0) {
             cb({}, {}, errOut.isEmpty() ? QStringLiteral("curl exited with code %1").arg(code) : errOut);
             return;
@@ -629,10 +699,19 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         if (e != QProcess::FailedToStart)
             return; // other errors still deliver finished(); let that path handle them
         proc->deleteLater();
-        tmp->deleteLater();
+        if (tmp)
+            tmp->deleteLater();
         cb({}, {}, tr("Could not run curl — is it installed? (needed for FTP/SFTP uploads)"));
     });
     proc->start(QStringLiteral("curl"), args);
+    // Absolute watchdog on top of --speed-*: some curl builds don't apply the
+    // low-speed check while stuck in non-transfer protocol states (e.g. an SFTP
+    // handshake). Parented to proc, so it auto-cancels on normal completion;
+    // kill() delivers finished() and the standard cleanup path runs.
+    QTimer::singleShot(30 * 60 * 1000, proc, [proc] {
+        if (proc->state() != QProcess::NotRunning)
+            proc->kill();
+    });
     if (!curlConfig.isEmpty())
         proc->write(curlConfig);
     proc->closeWriteChannel();

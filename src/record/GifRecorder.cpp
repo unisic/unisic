@@ -103,6 +103,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_encodeSize = {};
     m_targetScreen = screen;
     m_lastFrame.clear();
+    m_lastSampledSeq = 0;
 
     m_session = new ScreenCastSession(this);
     connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
@@ -342,23 +343,33 @@ void GifRecorder::sampleFrame()
     const qsizetype expected = qsizetype(m_streamSize.width()) * m_streamSize.height() * 4;
     QByteArray frame;
     QByteArray encoded;
-    if (m_grabber->latestFrame(frame) && frame.size() == expected) {
-        if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
-            encoded = frame;
+    quint64 seq = 0;
+    if (m_grabber->latestFrame(frame, &seq) && frame.size() == expected) {
+        if (seq == m_lastSampledSeq && !m_lastFrame.isEmpty()) {
+            // Compositor streams are damage-driven: on a static screen no new
+            // frame arrives, and re-cropping the identical buffer every tick
+            // (alloc + row-by-row memcpy at the sample rate) produced byte-
+            // identical output. Reuse the previous sample.
+            encoded = m_lastFrame;
         } else {
-            encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
-            const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
-            const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
-            const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
-                              + qsizetype(m_encodeCrop.x()) * 4;
-            char *dst = encoded.data();
-            for (int y = 0; y < m_encodeSize.height(); ++y) {
-                memcpy(dst, src, dstStride);
-                src += srcStride;
-                dst += dstStride;
+            if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
+                encoded = frame;
+            } else {
+                encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
+                const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
+                const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
+                const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
+                                  + qsizetype(m_encodeCrop.x()) * 4;
+                char *dst = encoded.data();
+                for (int y = 0; y < m_encodeSize.height(); ++y) {
+                    memcpy(dst, src, dstStride);
+                    src += srcStride;
+                    dst += dstStride;
+                }
             }
+            m_lastFrame = encoded;
+            m_lastSampledSeq = seq;
         }
-        m_lastFrame = encoded;
     } else {
         encoded = m_lastFrame; // no frame yet / renegotiated size: sample-and-hold
     }
@@ -623,15 +634,24 @@ void GifRecorder::stopProcess(QProcess *&process)
     QProcess *p = process;
     process = nullptr;
     QObject::disconnect(p, nullptr, this, nullptr);
-    if (p->state() != QProcess::NotRunning) {
-        p->closeWriteChannel();
-        p->terminate();
-        if (!p->waitForFinished(1000)) {
-            p->kill();
-            p->waitForFinished(3000);
-        }
+    if (p->state() == QProcess::NotRunning) {
+        p->deleteLater();
+        return;
     }
-    p->deleteLater();
+    // Non-blocking escalation: the old terminate + waitForFinished(1000) +
+    // kill + waitForFinished(3000) froze the GUI for up to 4 s per process on
+    // every cancel/failure (ffmpeg can be slow to flush after SIGTERM). The
+    // detached process reaps itself via finished -> deleteLater; removing the
+    // temp files right after stays correct on Linux (ffmpeg keeps writing to
+    // the unlinked inode, the space is reclaimed when it exits). The singleShot
+    // is parented to p, so it auto-cancels if the process dies sooner.
+    connect(p, &QProcess::finished, p, &QObject::deleteLater);
+    p->closeWriteChannel();
+    p->terminate();
+    QTimer::singleShot(1000, p, [p] {
+        if (p->state() != QProcess::NotRunning)
+            p->kill();
+    });
 }
 
 void GifRecorder::abort()

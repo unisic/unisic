@@ -1,10 +1,10 @@
 pkgname=unisic
 pkgver=${UNISIC_PKGVER:-0.2.0}
 pkgrel=1
-pkgdesc='ShareX-like screenshot and screen-recording tool for Linux Wayland'
+pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
-license=('LicenseRef-Unknown')
+license=('GPL-3.0-or-later')
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal')
 makedepends=('cmake' 'ninja' 'pkgconf' 'tesseract' 'leptonica')
 optdepends=('curl: FTP/SFTP upload destinations'

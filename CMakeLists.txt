@@ -170,7 +170,8 @@ install(FILES resources/icons/unisic.svg
 set(CPACK_PACKAGE_NAME "unisic")
 set(CPACK_PACKAGE_VENDOR "Unisic")
 set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ShareX-like screenshot and screen-recording tool for Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
 set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
@@ -196,7 +197,7 @@ set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "LicenseRef-Unknown")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 

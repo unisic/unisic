@@ -2,17 +2,34 @@
 <component type="desktop-application">
   <id>org.unisic.Unisic</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-Unknown</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>Unisic</name>
   <developer id="org.unisic">
     <name>Unisic maintainers</name>
   </developer>
-  <summary>Screenshot and screen recording tool for Linux Wayland</summary>
+  <summary>Capture, annotate, record and share your screen on Linux Wayland</summary>
   <description>
     <p>
-      Unisic captures screenshots and screen recordings on Wayland, with KDE-first
-      silent capture support, portal fallback, annotation tools, upload destinations
-      and GIF recording.
+      Most screenshot tools hand you a rectangle of pixels and walk away. Unisic
+      covers the whole workflow that starts the moment you press the hotkey:
+      annotate directly on the selection overlay before the shot is even taken,
+      keep editing afterwards, record the same region as a GIF or video, and push
+      the result wherever it belongs — clipboard, disk, or a custom upload
+      destination with the link ready to paste.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Capture full screen (multi-monitor), an interactive region, or a specific window</li>
+      <li>Annotate on the overlay before the capture is finalized — ShareX-style</li>
+      <li>Post-capture editor: arrows, shapes, freehand, text, blur/pixelate, crop, numbered steps, highlight, object cutout with background removal, undo/redo</li>
+      <li>Record a region or the full screen to GIF, MP4 or WebM, with optional system and microphone audio</li>
+      <li>Modular upload destinations (custom HTTP/FTP/SFTP/API), auto-copy the link, upload history</li>
+      <li>Tray icon, configurable global hotkeys, and optional OCR to copy text out of a capture</li>
+    </ul>
+    <p>
+      Built for Wayland on legitimate APIs only (xdg-desktop-portal, KWin
+      ScreenShot2, PipeWire, KGlobalAccel). KDE Plasma gets the fully silent
+      native capture path; other desktops work through portals. Zero telemetry.
     </p>
   </description>
   <launchable type="desktop-id">org.unisic.Unisic.desktop</launchable>
@@ -25,6 +42,7 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.2.1" date="2026-07-09" />
     <release version="0.2.0" date="2026-07-07" />
     <release version="0.1.0" date="2026-07-07" />
   </releases>

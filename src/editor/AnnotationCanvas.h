@@ -137,6 +137,15 @@ private:
         QString text;
         int fontSize = 18;
         int number = 0;             // step marker
+        // Blur/Pixelate patch cache: recomputing the smooth down/up-scale of the
+        // base region on EVERY repaint (i.e. every drag mouse-move) burned
+        // milliseconds per patch for byte-identical output. Keyed on the base's
+        // cacheKey (changes whenever the shared data is swapped or detached),
+        // the rect and the width. mutable: drawAnnot is const.
+        mutable QImage fxPatch;
+        mutable qint64 fxBaseKey = -1;
+        mutable QRectF fxRect;
+        mutable qreal fxWidth = -1;
     };
 
     // PendingNewSelection: an ObjectPick press that did NOT hit a candidate is
@@ -149,6 +158,9 @@ private:
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
     void drawAll(QPainter &p) const;
+    // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
+    // to repaint only the dirty region while drag-drawing.
+    QRectF annotBoundsImg(const Annot &a) const;
     int hitHandle(const QPointF &imgPos) const; // 0..7 handles, -1 none
     void normalizeSelection();
     QColor sampleEdgeColor(const QRectF &r) const;
@@ -171,6 +183,7 @@ private:
     bool m_selectionMode = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
+    QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
     DragMode m_drag = NoDrag;
     int m_resizeHandle = -1;
     QPointF m_dragStart;      // image coords

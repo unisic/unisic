@@ -14,8 +14,14 @@ EditorSession::EditorSession(AppContext *app, const QImage &image,
 void EditorSession::bindCanvas(AnnotationCanvas *canvas)
 {
     m_canvas = canvas;
-    if (m_canvas)
+    if (m_canvas) {
         m_canvas->setImage(m_image);
+        // setImage converts to premultiplied ARGB32, detaching into a NEW
+        // buffer — keeping the original here pinned TWO full-res copies for
+        // the editor window's lifetime. Re-share the canvas's buffer instead
+        // (pixel-identical; only the internal format differs).
+        m_image = m_canvas->image();
+    }
 }
 
 QImage EditorSession::composited() const

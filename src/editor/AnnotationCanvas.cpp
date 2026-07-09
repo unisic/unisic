@@ -438,24 +438,38 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
     case Blur: {
         const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
         if (r.width() > 4 && r.height() > 4) {
-            QImage region = m_base.copy(r);
-            const int f = 10;
-            QImage small = region.scaled(qMax(1, r.width() / f), qMax(1, r.height() / f),
-                                         Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            small = small.scaled(qMax(1, r.width() / (f / 2)), qMax(1, r.height() / (f / 2)),
-                                 Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            p.drawImage(r, small.scaled(r.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
+            // Cached patch: identical inputs (base data, rect, width) produce a
+            // byte-identical patch, so only recompute when one of them changed.
+            if (a.fxBaseKey != m_base.cacheKey() || a.fxRect != a.rect || a.fxWidth != a.width) {
+                QImage region = m_base.copy(r);
+                const int f = 10;
+                QImage small = region.scaled(qMax(1, r.width() / f), qMax(1, r.height() / f),
+                                             Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                small = small.scaled(qMax(1, r.width() / (f / 2)), qMax(1, r.height() / (f / 2)),
+                                     Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                a.fxPatch = small.scaled(r.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                a.fxBaseKey = m_base.cacheKey();
+                a.fxRect = a.rect;
+                a.fxWidth = a.width;
+            }
+            p.drawImage(r, a.fxPatch);
         }
         break;
     }
     case Pixelate: {
         const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
         if (r.width() > 4 && r.height() > 4) {
-            const int px = qMax(8, int(a.width) * 3);
-            QImage region = m_base.copy(r);
-            QImage small = region.scaled(qMax(1, r.width() / px), qMax(1, r.height() / px),
-                                         Qt::IgnoreAspectRatio, Qt::FastTransformation);
-            p.drawImage(r, small.scaled(r.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+            if (a.fxBaseKey != m_base.cacheKey() || a.fxRect != a.rect || a.fxWidth != a.width) {
+                const int px = qMax(8, int(a.width) * 3);
+                QImage region = m_base.copy(r);
+                QImage small = region.scaled(qMax(1, r.width() / px), qMax(1, r.height() / px),
+                                             Qt::IgnoreAspectRatio, Qt::FastTransformation);
+                a.fxPatch = small.scaled(r.size(), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+                a.fxBaseKey = m_base.cacheKey();
+                a.fxRect = a.rect;
+                a.fxWidth = a.width;
+            }
+            p.drawImage(r, a.fxPatch);
         }
         break;
     }
@@ -495,6 +509,22 @@ void AnnotationCanvas::drawAll(QPainter &p) const
         drawAnnot(p, a);
     if (m_drawing)
         drawAnnot(p, m_current);
+}
+
+QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
+{
+    QRectF r;
+    if (!a.points.isEmpty()) {
+        r = QRectF(a.points.first(), QSizeF(0, 0));
+        for (const QPointF &pt : a.points)
+            r |= QRectF(pt, QSizeF(0, 0));
+    } else {
+        r = a.rect.normalized();
+    }
+    // Stroke width + the arrow head (largest overdraw any tool does) + slack
+    // for antialiasing; over-estimating only repaints a few extra pixels.
+    const qreal pad = a.width / 2.0 + arrowHeadLen(a.width) + 4.0;
+    return r.adjusted(-pad, -pad, pad, pad);
 }
 
 void AnnotationCanvas::paint(QPainter *painter)
@@ -577,17 +607,26 @@ QImage AnnotationCanvas::rendered() const
 
 QImage AnnotationCanvas::renderedSelection() const
 {
-    QImage full = rendered();
-    if (!hasSelection()) return full;
-    const QRect r = m_selection.toAlignedRect().intersected(full.rect());
-    QImage crop = full.copy(r);
+    if (!hasSelection()) return rendered();
+    // Render straight into the crop instead of compositing the whole frame and
+    // throwing it away: rendered() detached a full ~33 MB copy of a 4K base and
+    // rasterized every annotation across it just to keep a small region.
+    const QRect r = m_selection.toAlignedRect().intersected(m_base.rect());
+    if (r.isEmpty()) return QImage();
+    QImage crop = m_base.copy(r);
+    QPainter p(&crop);
+    p.setRenderHint(QPainter::Antialiasing);
+    // Same image-space coordinates as a full-frame render, clipped to the crop.
+    p.translate(-r.topLeft());
+    drawAll(p);
+    p.end();
     // Object pick: cut the segmented foreground out — everything the mask
     // rejects becomes fully transparent (survives png/webp/clipboard).
     if (m_tool == ObjectPick && !m_objectMask.isNull() && m_objectMaskRect == r) {
-        QPainter p(&crop);
-        p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        p.drawImage(0, 0, grayToAlpha(m_objectMask));
-        p.end();
+        QPainter pm(&crop);
+        pm.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+        pm.drawImage(0, 0, grayToAlpha(m_objectMask));
+        pm.end();
     }
     return crop;
 }
@@ -691,6 +730,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         m_drag = DrawDrag;
         m_drawing = true;
         m_current = {};
+        m_lastDragBoundsImg = QRectF();
         m_current.type = Tool(m_tool);
         m_current.color = m_color;
         m_current.fillColor = m_fillColor;
@@ -742,7 +782,7 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
 
     switch (m_drag) {
-    case DrawDrag:
+    case DrawDrag: {
         if (m_current.type == Pen) {
             // Retain enough detail for a smooth path while coalescing
             // sub-pixel duplicate samples from high-frequency mice/tablets.
@@ -752,8 +792,17 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
                 m_current.points.append(img);
         } else
             m_current.rect.setBottomRight(img);
-        update();
+        // Repaint only the union of the annotation's old and new bounds — a
+        // bare update() re-rasterized the whole 4K base every mouse-move.
+        const QRectF nowB = annotBoundsImg(m_current);
+        const QRectF dirtyImg = nowB.united(m_lastDragBoundsImg);
+        m_lastDragBoundsImg = nowB;
+        const qreal s = renderScale();
+        update(QRectF(dirtyImg.x() * s, dirtyImg.y() * s,
+                      dirtyImg.width() * s, dirtyImg.height() * s)
+                   .toAlignedRect().adjusted(-2, -2, 2, 2));
         break;
+    }
     case PendingNewSelection: {
         // Promote to a real selection only after a genuine drag (threshold in
         // item pixels, converted to image space so it feels the same at any

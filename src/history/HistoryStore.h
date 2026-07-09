@@ -34,6 +34,10 @@ public:
     void addEntry(const QString &filePath, const QImage &thumbSource,
                   const QString &kind, const QString &url = {}, const QString &deleteUrl = {});
     void setUrl(const QString &filePath, const QString &url, const QString &deleteUrl);
+    // Regenerate the thumbnail of an existing entry (after editing it in place);
+    // adds a new entry if the file wasn't tracked. A fresh thumb path is used so
+    // the QML Image, keyed by URL, actually reloads.
+    void refreshEntry(const QString &filePath, const QImage &img);
 
     // Removes the entry at row and moves its capture file to the trash.
     Q_INVOKABLE void remove(int row);

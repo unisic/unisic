@@ -192,6 +192,28 @@ void HistoryStore::setUrl(const QString &filePath, const QString &url, const QSt
     }
 }
 
+void HistoryStore::refreshEntry(const QString &filePath, const QImage &img)
+{
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].filePath != filePath)
+            continue;
+        const QString oldThumb = m_entries[i].thumbPath;
+        const QString newThumb = dataDir() + "/thumbs/" +
+                                 QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
+        if (!img.isNull() &&
+            img.scaled(480, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation).save(newThumb, "PNG")) {
+            m_entries[i].thumbPath = newThumb;
+            if (!oldThumb.isEmpty())
+                QFile::remove(oldThumb);
+        }
+        emit dataChanged(index(i), index(i), {ThumbnailRole});
+        persist();
+        return;
+    }
+    // File wasn't tracked (edited something outside history) — record it.
+    addEntry(filePath, img, QStringLiteral("image"));
+}
+
 void HistoryStore::removeRow(int row, bool trashFile)
 {
     if (row < 0 || row >= m_entries.size())

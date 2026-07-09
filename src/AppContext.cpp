@@ -508,6 +508,21 @@ void AppContext::devTestHistory()
     showToast(tr("Dev: added a test history entry"));
 }
 
+void AppContext::devTestEditFromHistory()
+{
+    if (!devBuild())
+        return;
+    // Persist a throwaway image, register it in history, then open it in the
+    // overwrite editor — the exact path the History "Edit" button drives.
+    const QString p = saveImageAuto(devTestImage(), QStringLiteral("devtest-edit.png"));
+    if (p.isEmpty()) {
+        showToast(tr("Dev: couldn't save the test image"), true);
+        return;
+    }
+    m_history->addEntry(p, devTestImage(), QStringLiteral("image"));
+    editFromHistory(p);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -573,6 +588,22 @@ void AppContext::runSmokeTest()
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS (close the window manually)") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 3b) edit an existing capture from history (overwrite editor path)
+    m_smokeSteps.append([this] {
+        const QString p = saveImageAuto(devTestImage(), QStringLiteral("smoketest-edit.png"));
+        if (p.isEmpty()) {
+            smokeLog(QStringLiteral("edit from history: FAIL (couldn't save source)"));
+            smokeNext();
+            return;
+        }
+        m_history->addEntry(p, devTestImage(), QStringLiteral("image"));
+        const int before = m_editorWindows;
+        editFromHistory(p);
+        smokeLog(QStringLiteral("edit from history: ") + (m_editorWindows > before
+                 ? QStringLiteral("PASS (overwrite editor — close manually)") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -851,7 +882,17 @@ void AppContext::afterUploadActions(const QString &url)
         QDesktopServices::openUrl(QUrl(url));
 }
 
-void AppContext::openEditor(const QImage &img)
+void AppContext::editFromHistory(const QString &filePath)
+{
+    QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 for editing").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    openEditor(img, filePath);
+}
+
+void AppContext::openEditor(const QImage &img, const QString &overwritePath)
 {
     if (!m_engine)
         return;
@@ -860,7 +901,7 @@ void AppContext::openEditor(const QImage &img)
         qWarning() << component.errorString();
         return;
     }
-    auto *session = new EditorSession(this, img, this);
+    auto *session = new EditorSession(this, img, overwritePath, this);
     auto *ctx = new QQmlContext(m_engine->rootContext(), session);
     ctx->setContextProperty(QStringLiteral("editorSession"), session);
     QObject *obj = component.create(ctx);

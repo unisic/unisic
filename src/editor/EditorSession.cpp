@@ -3,9 +3,11 @@
 #include "AppContext.h"
 #include <QPointer>
 #include <QUrl>
+#include <QFileInfo>
 
-EditorSession::EditorSession(AppContext *app, const QImage &image, QObject *parent)
-    : QObject(parent), m_app(app), m_image(image)
+EditorSession::EditorSession(AppContext *app, const QImage &image,
+                             const QString &overwritePath, QObject *parent)
+    : QObject(parent), m_app(app), m_image(image), m_overwritePath(overwritePath)
 {
 }
 
@@ -30,6 +32,18 @@ void EditorSession::setStatus(const QString &s)
 QString EditorSession::save()
 {
     const QImage img = composited();
+    // Editing an existing capture from history: overwrite the original file in
+    // place and refresh its history thumbnail, rather than making a new file.
+    if (!m_overwritePath.isEmpty()) {
+        if (img.save(m_overwritePath)) {
+            m_lastSavedPath = m_overwritePath;
+            m_app->history()->refreshEntry(m_overwritePath, img);
+            setStatus(tr("Saved (overwrote %1)").arg(QFileInfo(m_overwritePath).fileName()));
+            return m_overwritePath;
+        }
+        setStatus(tr("Save failed"));
+        return {};
+    }
     const QString path = m_app->saveImageAuto(img);
     if (!path.isEmpty()) {
         m_lastSavedPath = path;

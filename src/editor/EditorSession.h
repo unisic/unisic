@@ -17,13 +17,18 @@ class EditorSession : public QObject
 
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
     Q_PROPERTY(QString lastSavedPath READ lastSavedPath NOTIFY statusTextChanged)
+    // True when editing an existing capture from history: save() OVERWRITES that
+    // file instead of creating a new one. The UI shows an overwrite confirmation.
+    Q_PROPERTY(bool overwriteMode READ overwriteMode CONSTANT)
 
 public:
-    explicit EditorSession(AppContext *app, const QImage &image, QObject *parent = nullptr);
+    explicit EditorSession(AppContext *app, const QImage &image,
+                           const QString &overwritePath = {}, QObject *parent = nullptr);
 
     QImage image() const { return m_image; }
     QString statusText() const { return m_status; }
     QString lastSavedPath() const { return m_lastSavedPath; }
+    bool overwriteMode() const { return !m_overwritePath.isEmpty(); }
 
     Q_INVOKABLE void bindCanvas(AnnotationCanvas *canvas);
     Q_INVOKABLE QString save();               // returns saved path ("" on failure)
@@ -41,6 +46,7 @@ private:
 
     AppContext *m_app;
     QImage m_image;
+    QString m_overwritePath;       // non-empty when editing an existing file
     AnnotationCanvas *m_canvas = nullptr;
     QString m_status;
     QString m_lastSavedPath;

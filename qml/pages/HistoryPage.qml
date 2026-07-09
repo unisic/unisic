@@ -124,6 +124,12 @@ Item {
                                 onClicked: App.openFile(filePath)
                             }
                             UIconButton {
+                                iconName: "document-edit"; iconSize: 16; width: 30; height: 30
+                                tooltip: qsTr("Edit (overwrites the file on save)")
+                                visible: kind === "image" && filePath !== ""
+                                onClicked: App.editFromHistory(filePath)
+                            }
+                            UIconButton {
                                 iconName: "ocr"; iconSize: 16; width: 30; height: 30
                                 tooltip: qsTr("Copy text (OCR)")
                                 visible: App.ocrAvailable && kind === "image" && filePath !== ""

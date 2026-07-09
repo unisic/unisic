@@ -208,6 +208,16 @@ void AppContext::dispatchHotkey(const QString &action)
             stopRecording();
         return;
     }
+    // Quick-copy grace window: time-sensitive and unrelated to captures, so it
+    // fires even mid shortcut-recording.
+    if (action == QLatin1String("quick-copy")) {
+        if (m_quickCopyArmed && !m_quickCopyImage.isNull()) {
+            copyImageToClipboard(m_quickCopyImage);
+            showToast(tr("Copied to clipboard"));
+        }
+        disarmQuickCopy();
+        return;
+    }
     if (m_shortcutRecording)
         return;
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
@@ -523,6 +533,19 @@ void AppContext::devTestEditFromHistory()
     editFromHistory(p);
 }
 
+void AppContext::devTestQuickCopy()
+{
+    if (!devBuild())
+        return;
+    if (!m_hotkeys->available()) {
+        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE) — unavailable here"), true);
+        return;
+    }
+    armQuickCopy(devTestImage());
+    showToast(m_quickCopyArmed ? tr("Dev: press Ctrl+C within 2s to copy the test image")
+                               : tr("Dev: couldn't grab Ctrl+C (key owned elsewhere)"), true);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -604,6 +627,20 @@ void AppContext::runSmokeTest()
         editFromHistory(p);
         smokeLog(QStringLiteral("edit from history: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS (overwrite editor — close manually)") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 3c) quick-copy grab (Ctrl+C grace window) — arm, verify, release
+    m_smokeSteps.append([this] {
+        if (!m_hotkeys->available()) {
+            smokeLog(QStringLiteral("quick-copy: SKIP (no KGlobalAccel)"));
+            smokeNext();
+            return;
+        }
+        armQuickCopy(devTestImage());
+        smokeLog(QStringLiteral("quick-copy grab: ") + (m_quickCopyArmed
+                 ? QStringLiteral("PASS") : QStringLiteral("FAIL (Ctrl+C owned elsewhere?)")));
+        disarmQuickCopy();
         smokeNext();
     });
 
@@ -867,7 +904,48 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
     if (m_settings->openEditor())
         openEditor(img);
 
+    // When the user hasn't opted into auto-copy, still let them grab it with a
+    // reflexive Ctrl+C right after the shot (2s window), then get their key back.
+    if (!m_settings->copyToClipboard() && m_settings->quickCopyAfterCapture())
+        armQuickCopy(img);
+
     scheduleMemoryTrim();
+}
+
+void AppContext::armQuickCopy(const QImage &img)
+{
+    // KGlobalAccel-only: it's the one backend that can grab Ctrl+C on demand and
+    // release it. The GlobalShortcuts portal binds are fixed at session config.
+    if (!m_hotkeys->available() || img.isNull())
+        return;
+    m_quickCopyImage = img;
+    if (!m_quickCopyTimer) {
+        m_quickCopyTimer = new QTimer(this);
+        m_quickCopyTimer->setSingleShot(true);
+        connect(m_quickCopyTimer, &QTimer::timeout, this, &AppContext::disarmQuickCopy);
+    }
+    // Grab Ctrl+C globally for the grace window. If the daemon refuses (another
+    // component owns it) there's simply no quick-copy this time.
+    if (!m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
+                                tr("Copy last capture"), QStringLiteral("Ctrl+C"))) {
+        m_quickCopyImage = QImage();
+        return;
+    }
+    m_quickCopyArmed = true;
+    m_quickCopyTimer->start(2000);
+}
+
+void AppContext::disarmQuickCopy()
+{
+    if (m_quickCopyTimer)
+        m_quickCopyTimer->stop();
+    if (m_quickCopyArmed) {
+        // Release the global Ctrl+C grab so normal copy works everywhere again.
+        m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
+                               tr("Copy last capture"), QString());
+        m_quickCopyArmed = false;
+    }
+    m_quickCopyImage = QImage();
 }
 
 void AppContext::afterUploadActions(const QString &url)
@@ -1374,6 +1452,11 @@ void AppContext::defineHotkeys()
         m_hotkeys->setShortcut(QStringLiteral("smoke-test"),
                                tr("Developer smoke test"), QStringLiteral("F8"));
 #endif
+        // The quick-copy grab is set with NoAutoloading, so a crash/quit inside
+        // the 2s window would leave Ctrl+C bound to us persistently. Clear it on
+        // every startup so a stale grab can't hijack the user's Ctrl+C.
+        m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
+                               tr("Copy last capture"), QString());
         // The daemon may have autoloaded KCM-edited keys that differ from our
         // stored strings — reflect reality in the UI (from the registration
         // replies; no extra queries). An error/timeout must never be treated

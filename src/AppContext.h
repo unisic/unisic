@@ -137,6 +137,7 @@ public:
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestEditFromHistory();
+    Q_INVOKABLE void devTestQuickCopy();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -268,6 +269,11 @@ private:
     void showRecordBorder(QRect physRegion, QScreen *screen);
     void hideRecordBorder();
     void withDelay(std::function<void()> fn);
+    // "Quick copy" grace window: when auto-copy-to-clipboard is off, the last
+    // capture is held for a couple of seconds and Ctrl+C (grabbed globally via
+    // KGlobalAccel for exactly that window) copies it, then the grab is released.
+    void armQuickCopy(const QImage &img);
+    void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
     void afterUploadActions(const QString &url);
@@ -292,6 +298,9 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
+    QImage m_quickCopyImage;                       // held during the quick-copy window
+    QTimer *m_quickCopyTimer = nullptr;            // releases the Ctrl+C grab after ~2s
+    bool m_quickCopyArmed = false;
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1

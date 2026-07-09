@@ -11,7 +11,10 @@ Window {
     height: 700
     minimumWidth: 880
     minimumHeight: 560
-    visible: true
+    // Normally shown at launch; `unisic --tray-only` (autostart) boots hidden
+    // into the tray. startHidden is a context property set from C++ (always
+    // defined, so this binding never hits an undefined reference).
+    visible: !startHidden
     title: "Unisic"
     color: Theme.backgroundDeep
 
@@ -243,6 +246,20 @@ Window {
                     onClicked: App.stopRecording()
                 }
             }
+        }
+
+        // Version / build footer — hidden while the recording pill occupies the bottom.
+        Text {
+            visible: !App.recording && !App.converting
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.spacingM
+            anchors.horizontalCenter: parent.horizontalCenter
+            horizontalAlignment: Text.AlignHCenter
+            text: "v" + App.appVersion + (App.buildNumber === "dev"
+                    ? " · dev"
+                    : " · build " + App.buildNumber)
+            color: Theme.textTertiary
+            font.pixelSize: Theme.fontS
         }
     }
 

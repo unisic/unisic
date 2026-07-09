@@ -34,6 +34,8 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    QString kindText() const { return m_kind; }
+    QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
 
     void setUrl(const QString &url);
     void setUploading(bool on);
@@ -42,6 +44,7 @@ public:
     Q_INVOKABLE void copyImage();
     Q_INVOKABLE void copyUrl();
     Q_INVOKABLE void showInFolder();
+    Q_INVOKABLE void openCapture();   // open the saved file (saving first if needed)
     Q_INVOKABLE void save();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void deleteCapture();

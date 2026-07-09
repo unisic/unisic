@@ -1,8 +1,10 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QColor>
 #include <QRect>
 #include <QPointer>
+#include <QStringList>
 #include <functional>
 #include <qqmlregistration.h>
 
@@ -13,8 +15,10 @@
 
 class QQmlEngine;
 class QMenu;
+class QIcon;
 class QSystemTrayIcon;
 class QDBusServiceWatcher;
+class QFileSystemWatcher;
 class QQuickWindow;
 class QTimer;
 class CaptureManager;
@@ -24,6 +28,8 @@ class PortalGlobalShortcuts;
 class GifRecorder;
 class OcrEngine;
 class CaptureNotification;
+class DesktopNotifier;
+class LayerShellNotifier;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -44,6 +50,21 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // True when the capture card is shown on the layer-shell overlay (KWin/wlroots)
+    // rather than as a native notification — lets the UI expose card-only options
+    // (e.g. corner position, which a native notification server controls itself).
+    Q_PROPERTY(bool layerShellActive READ layerShellActive CONSTANT)
+    // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
+    // or removes that file (Exec carries --tray-only so login starts hidden).
+    Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
+    // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
+    // the settings gallery lists these as pickable presets (live via a watcher).
+    Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
+    // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
+    Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // Contrast colour for the (monochrome) bundled presets: light on a dark
+    // system scheme, dark on a light one. Follows the OS light/dark, live.
+    Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
@@ -54,6 +75,10 @@ class AppContext : public QObject
     // "kglobalaccel" | "portal" | "" — lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
+    // Baked in at compile time (CMake): semantic version + CI build number
+    // ("dev" for local builds). Shown in the sidebar footer.
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
 
 public:
     using UploadDone = std::function<void(const QString &url, const QString &error)>;
@@ -74,11 +99,19 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
+    bool layerShellActive() const { return m_layerNotifier != nullptr; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    bool autostartEnabled() const;
+    void setAutostartEnabled(bool on);
+    QStringList trayIconPresets() const;  // image files in trayIconsDir()
+    QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
+    QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
+    QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
 
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();
@@ -111,6 +144,18 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     Q_INVOKABLE QString filenamePreview() const;
+    // Custom tray icon. pickTrayIcon = native file picker; selectTrayIcon =
+    // pick a known path (gallery tile; "" reverts to default); clear = default.
+    // trayIconsDir = the folder the user drops their own icons into.
+    Q_INVOKABLE void pickTrayIcon();
+    Q_INVOKABLE void addTrayIcon();   // pick a file, COPY it into trayIconsDir(), select it
+    Q_INVOKABLE void selectTrayIcon(const QString &path);
+    Q_INVOKABLE void clearTrayIcon();
+    Q_INVOKABLE QString trayIconsDir() const;
+    // Recolored PNG data: URL of a bundled monochrome preset for the gallery
+    // thumbnail (so the preview matches the recolored tray icon). color is
+    // passed in (App.trayContrastColor) so the binding refreshes on a scheme flip.
+    Q_INVOKABLE QString trayIconThumb(const QString &path, const QColor &color) const;
 
     // Used by EditorSession / CaptureNotification. fileName: reuse a name
     // computed once per capture (save and upload must agree); empty = generate.
@@ -135,8 +180,19 @@ signals:
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void editorWindowsOpenChanged();
+    void autostartEnabledChanged();
+    void trayIconPresetsChanged();
+    void trayContrastColorChanged();
 
 private:
+    bool systemIsDark() const;                        // OS light/dark scheme
+    QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
+    QString autostartFilePath() const;
+    QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
+    bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
+    void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
+    QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
+    void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     struct HotkeyAction {
         QString id;
         QString name;
@@ -148,13 +204,26 @@ private:
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
 
-    void finishCapture(const QImage &img);
+    void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
-                                                 const QString &kind);
+                                                 const QString &kind, bool inhibited);
+    // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
+    // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
+    // overlay opens, so the overlay can't self-suppress the resulting card — and
+    // threaded per-operation to the card (never a shared member: a screenshot
+    // during a recording would otherwise clobber the recording's value).
+    // Consulted by the layer-shell card only (the native path is server-suppressed).
+    bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
+    // Region recording marker: a transparent, click-through fullscreen window
+    // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
+    // px on screen) so the user sees what is being captured without the frame
+    // landing inside the ffmpeg crop. KWin-only, like the capture popup.
+    void showRecordBorder(QRect physRegion, QScreen *screen);
+    void hideRecordBorder();
     void withDelay(std::function<void()> fn);
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
@@ -178,8 +247,13 @@ private:
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
+    QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
+    DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
+    LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
+    QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
+    QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_screenCastPortalPresent = true; // optimistic until the async probe answers
@@ -187,4 +261,6 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    bool m_recordInhibited = false; // inhibit state at record start (recordings are exclusive)
 };
+

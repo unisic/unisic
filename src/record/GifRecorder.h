@@ -80,6 +80,7 @@ private:
     QSize m_encodeSize;
     QPointer<QScreen> m_targetScreen;
     QByteArray m_lastFrame;
+    quint64 m_lastSampledSeq = 0; // grabber seq of m_lastFrame (skip re-crop when unchanged)
     QString m_tempPath;
     QString m_palettePath;
     QString m_outPath;

@@ -221,9 +221,15 @@ void PipeWireGrabber::onProcess()
 
         // Convert into the back buffer WITHOUT the lock — a 4K copy/swizzle
         // takes milliseconds and must never block the GUI thread's
-        // latestFrame(). m_back is touched only on this (PipeWire) thread;
-        // resize()/data() detach it if a consumer still shares the old block.
-        m_back.resize(qsizetype(rowBytes) * h);
+        // latestFrame(). m_back is touched only on this (PipeWire) thread.
+        // NOT resize(): the consumer usually still shares the previous block
+        // (sampleFrame's m_lastFrame), and resize() on a shared buffer
+        // detaches by memcpy-ing the FULL stale frame first — a wasted
+        // full-frame copy on most stream frames. A fresh uninitialized
+        // allocation skips that copy; the loop below overwrites every byte.
+        const qsizetype need = qsizetype(rowBytes) * h;
+        if (m_back.size() != need || !m_back.isDetached())
+            m_back = QByteArray(need, Qt::Uninitialized);
         char *dst = m_back.data();
         const bool swapRB = (m_format == SPA_VIDEO_FORMAT_RGBx || m_format == SPA_VIDEO_FORMAT_RGBA);
         const bool hasAlpha = (m_format == SPA_VIDEO_FORMAT_BGRA || m_format == SPA_VIDEO_FORMAT_RGBA);
@@ -248,13 +254,14 @@ void PipeWireGrabber::onProcess()
         {
             QMutexLocker lock(&m_mutex);
             m_latest.swap(m_back);
+            ++m_seq;
         }
         m_haveFrame.store(true, std::memory_order_release);
     }
     pw_stream_queue_buffer(m_stream, b);
 }
 
-bool PipeWireGrabber::latestFrame(QByteArray &out)
+bool PipeWireGrabber::latestFrame(QByteArray &out, quint64 *seq)
 {
     if (!m_haveFrame.load(std::memory_order_acquire))
         return false;
@@ -262,5 +269,7 @@ bool PipeWireGrabber::latestFrame(QByteArray &out)
     // Cheap shared reference: the front buffer is only ever *replaced* by the
     // swap in onProcess(), never written in place, so no deep copy is needed.
     out = m_latest;
+    if (seq)
+        *seq = m_seq;
     return true;
 }

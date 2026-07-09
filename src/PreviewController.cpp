@@ -83,6 +83,7 @@ void PreviewController::applyLayer()
         ls->setLayer(m_pinned ? LW::LayerOverlay : LW::LayerTop);
         ls->setKeyboardInteractivity(m_passthrough ? LW::KeyboardInteractivityNone
                                                    : LW::KeyboardInteractivityOnDemand);
+        m_win->requestUpdate(); // flush with a commit (see moveBy)
     }
 #endif
 }
@@ -117,6 +118,9 @@ void PreviewController::moveBy(int dx, int dy)
     m_marginTop = qMax(0, m_marginTop + dy);
     if (auto *ls = LayerShellQt::Window::get(m_win))
         ls->setMargins(QMargins(0, m_marginTop, m_marginRight, 0));
+    // Layer-shell properties reach the compositor with the next surface commit;
+    // a static preview renders no new frames, so force one or the drag is inert.
+    m_win->requestUpdate();
 #else
     Q_UNUSED(dx) Q_UNUSED(dy)
 #endif

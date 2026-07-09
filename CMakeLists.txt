@@ -115,6 +115,7 @@ qt_add_qml_module(unisic
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
+        qml/PreviewWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml

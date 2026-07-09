@@ -218,6 +218,13 @@ void AppContext::dispatchHotkey(const QString &action)
         disarmQuickCopy();
         return;
     }
+    // Toggle click-through on the active preview window. Must work even while
+    // that window is transparent-for-input (it can't receive the key itself).
+    if (action == QLatin1String("preview-passthrough")) {
+        if (m_activePreview)
+            QMetaObject::invokeMethod(m_activePreview, "togglePassthrough");
+        return;
+    }
     if (m_shortcutRecording)
         return;
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
@@ -546,6 +553,13 @@ void AppContext::devTestQuickCopy()
                                : tr("Dev: couldn't grab Ctrl+C (key owned elsewhere)"), true);
 }
 
+void AppContext::devTestPreview()
+{
+    if (!devBuild())
+        return;
+    openPreview(devTestImage());
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -641,6 +655,14 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("quick-copy grab: ") + (m_quickCopyArmed
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL (Ctrl+C owned elsewhere?)")));
         disarmQuickCopy();
+        smokeNext();
+    });
+
+    // 3d) floating preview window (pin/opacity/click-through)
+    m_smokeSteps.append([this] {
+        openPreview(devTestImage());
+        smokeLog(QStringLiteral("preview window: ") + (m_activePreview
+                 ? QStringLiteral("PASS (close it manually)") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -998,6 +1020,52 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
     } else {
         delete obj;
         session->deleteLater();
+    }
+}
+
+void AppContext::openPreview(const QImage &img)
+{
+    if (!m_engine || img.isNull())
+        return;
+    // Persist a full-res copy the tool window loads by path — keeps that window
+    // trivial (no image provider) — and remove it when the window closes.
+    const QString tmp = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+                            .filePath(QStringLiteral("unisic-preview-") +
+                                      QUuid::createUuid().toString(QUuid::WithoutBraces) +
+                                      QStringLiteral(".png"));
+    if (!img.save(tmp)) {
+        showToast(tr("Couldn't open preview"), true);
+        return;
+    }
+    QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/PreviewWindow.qml")));
+    if (component.isError()) {
+        qWarning() << component.errorString();
+        QFile::remove(tmp);
+        return;
+    }
+    auto *ctx = new QQmlContext(m_engine->rootContext(), this);
+    ctx->setContextProperty(QStringLiteral("previewImagePath"), QUrl::fromLocalFile(tmp).toString());
+    ctx->setContextProperty(QStringLiteral("previewImageSize"), img.size());
+    QObject *obj = component.create(ctx);
+    if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
+        ctx->setParent(win);
+        // The passthrough hotkey targets whichever preview is active/newest.
+        m_activePreview = win;
+        connect(win, &QQuickWindow::activeChanged, this, [this, win] {
+            if (win->isActive())
+                m_activePreview = win;
+        });
+        connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
+            if (!v) {
+                QFile::remove(tmp);
+                win->deleteLater();
+            }
+        });
+        win->show();
+        win->requestActivate();
+    } else {
+        delete obj;
+        QFile::remove(tmp);
     }
 }
 
@@ -1361,6 +1429,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
+        {QStringLiteral("preview-passthrough"), tr("Preview: toggle click-through"), m_settings->hotkeyPreviewPassthrough()},
     };
 }
 
@@ -1373,6 +1442,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
+    else if (actionId == QLatin1String("preview-passthrough")) m_settings->setHotkeyPreviewPassthrough(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

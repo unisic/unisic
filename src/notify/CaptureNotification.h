@@ -41,6 +41,7 @@ public:
     void setUploading(bool on);
 
     Q_INVOKABLE void edit();
+    Q_INVOKABLE void preview();       // open the floating pinnable preview window
     Q_INVOKABLE void copyImage();
     Q_INVOKABLE void copyUrl();
     Q_INVOKABLE void showInFolder();

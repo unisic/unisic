@@ -916,6 +916,10 @@ Item {
                         label: qsTr("GIF start/stop")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
                     }
+                    SettingRow {
+                        label: qsTr("Preview: toggle click-through")
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyPreviewPassthrough; onRecorded: (t) => { App.settings.hotkeyPreviewPassthrough = t; App.applyHotkey("preview-passthrough") } }
+                    }
                     UButton {
                         anchors.right: parent.right
                         text: qsTr("Apply hotkeys")
@@ -1030,6 +1034,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Arm quick-copy (Ctrl+C)"); onClicked: App.devTestQuickCopy() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                     }
                 }

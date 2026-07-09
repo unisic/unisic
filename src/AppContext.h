@@ -231,6 +231,7 @@ private:
     bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
     void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
+    QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     struct HotkeyAction {
         QString id;

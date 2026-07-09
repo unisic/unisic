@@ -86,6 +86,8 @@ AppContext::AppContext(QObject *parent)
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    // Badge/unbadge the tray icon as recording starts and stops.
+    connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
     connect(m_recorder, &GifRecorder::started, this, [this] {
         // Region recordings carry a pending rect. Gate on the LIVE recording
         // actually being a Region one: a stale pending rect (set by a region
@@ -1593,10 +1595,32 @@ QString AppContext::trayIconThumb(const QString &path, const QColor &color) cons
     return QStringLiteral("data:image/png;base64,") + QString::fromLatin1(bytes.toBase64());
 }
 
+QIcon AppContext::trayIconBadged() const
+{
+    QPixmap pm = trayIcon().pixmap(QSize(64, 64));
+    if (pm.isNull())
+        return trayIcon();
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+    const int d = qRound(pm.width() * 0.44);           // recording dot
+    const int m = qRound(pm.width() * 0.04);
+    const QRect dot(pm.width() - d - m, pm.height() - d - m, d, d);
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0x17, 0x15, 0x3B));              // dark ring for contrast
+    p.drawEllipse(dot.adjusted(-2, -2, 2, 2));
+    p.setBrush(QColor(0xE7, 0x4C, 0x3C));              // recording red
+    p.drawEllipse(dot);
+    p.end();
+    return QIcon(pm);
+}
+
 void AppContext::applyTrayIcon()
 {
-    if (m_tray)
-        m_tray->setIcon(trayIcon());
+    if (!m_tray)
+        return;
+    // Badge the tray while ACTIVELY recording (not during encoding) so it's an
+    // at-a-glance "recording now" and clears the instant the user stops.
+    m_tray->setIcon(recording() && !converting() ? trayIconBadged() : trayIcon());
 }
 
 void AppContext::pickTrayIcon()

@@ -1,6 +1,7 @@
 #pragma once
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QSet>
 #include <QTimer>
 #include <qqmlregistration.h>
 
@@ -26,6 +27,7 @@ public:
     };
 
     explicit HistoryStore(QObject *parent = nullptr);
+    ~HistoryStore() override;   // flushes a pending debounced persist
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -62,13 +64,24 @@ private:
         QDateTime timestamp;
     };
     void load();
+    // Debounced persistence: at the 500-entry cap a persist is a ~100 KB JSON
+    // rebuild + full rewrite, and the capture path used to do it twice per shot
+    // (addEntry + setUrl). persist() coalesces; persistNow() writes atomically
+    // (QSaveFile) and is used for explicit destructive actions + shutdown flush.
     void persist();
+    void persistNow();
     QString dataDir() const;
     void removeRow(int row, bool trashFile);
     void rebuildWatches();   // watch the parent directories of all capture files
-    void pruneMissing();     // drop entries whose capture file vanished on disk
+    // Drop entries whose capture file vanished on disk. With dirFilter non-null
+    // only entries living in one of those directories are stat()ed — the
+    // directory watcher knows exactly which dirs changed, so a capture save no
+    // longer triggers an existence sweep over all 500 entries.
+    void pruneMissing(const QSet<QString> *dirFilter = nullptr);
 
     QVector<Entry> m_entries;
     QFileSystemWatcher *m_watcher = nullptr;
     QTimer m_validateTimer;
+    QTimer m_persistTimer;
+    QSet<QString> m_changedDirs; // dirs reported by the watcher since last validation
 };

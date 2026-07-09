@@ -761,6 +761,24 @@ Item {
                     }
                 }
             }
+                    SectionTitle { text: qsTr("Audio") }
+                    SettingRow {
+                        label: qsTr("Record system audio")
+                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Record microphone")
+                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Applies to video recordings (MP4/WebM) — GIFs have no audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
         }
 
         // ===== Hotkeys =====

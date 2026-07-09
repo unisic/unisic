@@ -71,6 +71,7 @@ private:
     State m_state = Idle;
     Output m_output = Gif;
     SourceType m_source = Screen;
+    bool m_hasAudio = false; // pulse audio captured into the temp (video only)
     int m_fps = 15;
     qint64 m_framesWritten = 0; // wall-clock pacing (see sampleFrame)
     QRect m_crop;

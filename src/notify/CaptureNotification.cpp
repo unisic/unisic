@@ -54,11 +54,15 @@ QString CaptureNotification::fileName() const
 
 void CaptureNotification::setUrl(const QString &url)
 {
+    // Always emit when leaving the uploading state, even if the URL is unchanged
+    // (an FTP/SFTP destination with no public URL completes with an empty url) —
+    // DesktopNotifier::retire() frees this object on that very transition, so a
+    // dropped signal here leaks the notification and its cached thumbnail.
+    const bool changed = (m_url != url) || m_uploading;
     m_uploading = false;
-    if (m_url == url)
-        return;
     m_url = url;
-    emit stateChanged();
+    if (changed)
+        emit stateChanged();
 }
 
 void CaptureNotification::setUploading(bool on)
@@ -107,6 +111,14 @@ void CaptureNotification::showInFolder()
         save();
     if (!m_filePath.isEmpty())
         m_app->openDirectory(QFileInfo(m_filePath).absolutePath());
+}
+
+void CaptureNotification::openCapture()
+{
+    if (m_filePath.isEmpty())
+        save();
+    if (!m_filePath.isEmpty())
+        m_app->openFile(m_filePath);
 }
 
 void CaptureNotification::upload()

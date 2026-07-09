@@ -10,6 +10,12 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControl
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
 pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
+# Optional: on-top custom capture card via wlr-layer-shell (KWin/wlroots). Needs
+# both LayerShellQt (to make the window a layer surface) and wayland-client (to
+# probe at runtime whether the compositor actually exposes zwlr_layer_shell_v1;
+# GNOME/Mutter don't, and there we fall back to the native desktop notification).
+find_package(LayerShellQt QUIET)
+pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
@@ -36,11 +42,21 @@ qt_add_executable(unisic
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
+    src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
 )
 
 # Single source of the app version string, exported to C++ from the project() call.
-target_compile_definitions(unisic PRIVATE UNISIC_VERSION="${PROJECT_VERSION}")
+# UNISIC_BUILD carries the CI build number (GITHUB_RUN_NUMBER, set in the release
+# workflow) when built in CI, or "dev" for local builds. Shown in the sidebar footer.
+if(DEFINED ENV{UNISIC_BUILD_NUMBER} AND NOT "$ENV{UNISIC_BUILD_NUMBER}" STREQUAL "")
+    set(UNISIC_BUILD "$ENV{UNISIC_BUILD_NUMBER}")
+else()
+    set(UNISIC_BUILD "dev")
+endif()
+target_compile_definitions(unisic PRIVATE
+    UNISIC_VERSION="${PROJECT_VERSION}"
+    UNISIC_BUILD="${UNISIC_BUILD}")
 
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
@@ -56,6 +72,15 @@ if(TESSERACT_FOUND)
     target_compile_definitions(unisic PRIVATE HAVE_TESSERACT)
 else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
+endif()
+
+if(LayerShellQt_FOUND AND WAYLAND_CLIENT_FOUND)
+    target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp)
+    target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
+    target_compile_definitions(unisic PRIVATE HAVE_LAYERSHELL)
+    message(STATUS "Layer-shell on-top capture card: enabled")
+else()
+    message(STATUS "Layer-shell on-top capture card: disabled (needs layer-shell-qt-devel + wayland-client) — native notification only")
 endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -74,6 +99,7 @@ qt_add_qml_module(unisic
         qml/OverlayWindow.qml
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
+        qml/RecordBorder.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -107,6 +133,14 @@ qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 
 file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
+
+# Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
+# show up in Settings > Appearance > System tray icon (re-run cmake after adding).
+file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+     resources/icons/tray/*.svg resources/icons/tray/*.png)
+if(UNISIC_TRAY_ICONS)
+    qt_add_resources(unisic "tray_icons" PREFIX "/" FILES ${UNISIC_TRAY_ICONS})
+endif()
 
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES resources/org.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
@@ -152,3 +186,4 @@ set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, 
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
+

@@ -209,7 +209,25 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                      QStringLiteral("-video_size"),
                      QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
                      QStringLiteral("-framerate"), QString::number(fps),
+                     QStringLiteral("-thread_queue_size"), QStringLiteral("512"),
                      QStringLiteral("-i"), QStringLiteral("-")};
+
+    // Optional audio — video output only (GIF has none). Each enabled source is
+    // a live pulse capture indexed after the video (input 0): @DEFAULT_MONITOR@
+    // is the default sink's monitor (system sound), "default" is the mic.
+    m_hasAudio = false;
+    QStringList audioSources;
+    if (m_output != Gif) {
+        if (m_settings->recordSystemAudio())
+            audioSources << QStringLiteral("@DEFAULT_MONITOR@");
+        if (m_settings->recordMicrophone())
+            audioSources << QStringLiteral("default");
+    }
+    for (const QString &dev : audioSources) {
+        args << QStringLiteral("-f") << QStringLiteral("pulse")
+             << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
+             << QStringLiteral("-i") << dev;
+    }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
     // x264, else utvideo (fast intra-only RGB), else FFV1 — both ship in the
@@ -223,6 +241,26 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         args << QStringLiteral("-c:v") << QStringLiteral("utvideo");
     } else {
         args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
+    }
+
+    // Audio mux: one source maps straight through, two are mixed. Stored as
+    // lossless FLAC in the intermediate (convertVideo re-encodes to AAC/Opus).
+    // -shortest ends the file when the video (pipe) stops so the live pulse
+    // captures — which never EOF on their own — don't hang the encoder.
+    if (audioSources.size() == 1) {
+        args << QStringLiteral("-map") << QStringLiteral("0:v")
+             << QStringLiteral("-map") << QStringLiteral("1:a")
+             << QStringLiteral("-c:a") << QStringLiteral("flac")
+             << QStringLiteral("-shortest");
+        m_hasAudio = true;
+    } else if (audioSources.size() >= 2) {
+        args << QStringLiteral("-filter_complex")
+             << QStringLiteral("[1:a][2:a]amix=inputs=2:duration=longest:normalize=0[aout]")
+             << QStringLiteral("-map") << QStringLiteral("0:v")
+             << QStringLiteral("-map") << QStringLiteral("[aout]")
+             << QStringLiteral("-c:a") << QStringLiteral("flac")
+             << QStringLiteral("-shortest");
+        m_hasAudio = true;
     }
     args << m_tempPath;
 
@@ -528,6 +566,18 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     }
+    // Carry the FLAC intermediate audio into the shareable container: Opus for
+    // WebM, AAC for MP4. The '?' keeps it a no-op if no audio was recorded.
+    if (m_hasAudio) {
+        args << QStringLiteral("-map") << QStringLiteral("0:v:0")
+             << QStringLiteral("-map") << QStringLiteral("0:a:0?");
+        if (m_output == WebM)
+            args << QStringLiteral("-c:a") << QStringLiteral("libopus")
+                 << QStringLiteral("-b:a") << QStringLiteral("128k");
+        else
+            args << QStringLiteral("-c:a") << QStringLiteral("aac")
+                 << QStringLiteral("-b:a") << QStringLiteral("192k");
+    }
     args << m_outPath;
 
     auto *conv = new QProcess(this);
@@ -624,6 +674,7 @@ void GifRecorder::cleanup()
     m_encodeCrop = {};
     m_encodeSize = {};
     m_targetScreen = nullptr;
+    m_hasAudio = false;
     m_lastFrame.clear();
     m_elapsed.invalidate();
     emit elapsedChanged();

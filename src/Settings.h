@@ -62,6 +62,8 @@ class Settings : public QObject
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
     Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
+    Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
+    Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
@@ -70,6 +72,7 @@ class Settings : public QObject
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
+    Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
@@ -122,6 +125,11 @@ public:
             m_s.sync(); // re-open the now-absent file cleanly
         }
 
+        // Move the legacy "general/" group off QSettings' reserved [General]
+        // section (Qt escaped it to [%General], which two writers then split and
+        // dropped keys from — the "settings reset every run" bug). Do this BEFORE
+        // the self-heal so any leftover duplicate section is cleaned afterwards.
+        migrateGeneralGroup();
         // DUPLICATE-SECTION self-heal. If a SECOND unisic process (an older
         // build with a different single-instance socket name, so the guard
         // didn't catch it) wrote this file concurrently, QSettings can leave
@@ -150,6 +158,47 @@ public:
     // a warning banner so the user is not left re-configuring every launch).
     bool persistent() const { return m_writable; }
     Q_INVOKABLE QString configPath() const { return m_s.fileName(); }
+
+    // One-time move of the old "general/" keys to the collision-free "app/"
+    // group. "general" matches QSettings' reserved [General] section
+    // case-insensitively, so Qt wrote those keys to an escaped [%General]
+    // section; with two QSettings objects on one file (Settings + ThemeController)
+    // the escaped section could not be reconciled on sync and got duplicated /
+    // truncated — losing the General-tab settings on the next run. Prefer the
+    // value the app actually used ("general/X" -> [%General]) over any stray
+    // ungrouped copy ("X" -> [General]); then delete both old spellings so the
+    // colliding sections disappear. A no-op once nothing under "general/" remains.
+    void migrateGeneralGroup()
+    {
+        static const char *const names[] = {
+            "saveDirectory", "autoSave", "copyToClipboard", "openEditor",
+            "uploadAfterCapture", "includeCursor", "captureDelayMs", "showNotifications",
+            "minimizeToTrayOnClose", "openAfterSave", "showCapturePopup",
+            "capturePopupPosition", "capturePopupDurationSec"};
+        bool changed = false;
+        for (const char *name : names) {
+            const QString newKey = QLatin1String("app/") + QLatin1String(name);
+            // The escaped [%General] section reads back CAPITALISED ("General/X"),
+            // the reserved default section reads back bare ("X"), and a lowercase
+            // "general/X" may exist too — check all three. Prefer the on-disk
+            // escaped value (what the app actually wrote) over the stray copies.
+            const QString capKey  = QLatin1String("General/") + QLatin1String(name);
+            const QString lowKey  = QLatin1String("general/") + QLatin1String(name);
+            const QString bareKey = QLatin1String(name);
+            QVariant v;
+            if (m_s.contains(capKey))       v = m_s.value(capKey);
+            else if (m_s.contains(lowKey))  v = m_s.value(lowKey);
+            else if (m_s.contains(bareKey)) v = m_s.value(bareKey);
+            if (v.isValid() && !m_s.contains(newKey)) {
+                m_s.setValue(newKey, v);
+                changed = true;
+            }
+            for (const QString &k : {capKey, lowKey, bareKey})
+                if (m_s.contains(k)) { m_s.remove(k); changed = true; }
+        }
+        if (changed)
+            m_s.sync();
+    }
 
     // Collapse a config file that ended up with repeated group headers (from a
     // concurrent second writer) into one clean section per group, preserving
@@ -194,13 +243,13 @@ public:
         return d;
     }
 
-    U_SETTING(QString, saveDirectory, setSaveDirectory, "general/saveDirectory", defaultSaveDir())
-    U_SETTING(bool, autoSave, setAutoSave, "general/autoSave", true)
-    U_SETTING(bool, copyToClipboard, setCopyToClipboard, "general/copyToClipboard", true)
-    U_SETTING(bool, openEditor, setOpenEditor, "general/openEditor", true)
-    U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "general/uploadAfterCapture", false)
-    U_SETTING(bool, includeCursor, setIncludeCursor, "general/includeCursor", false)
-    U_SETTING(int, captureDelayMs, setCaptureDelayMs, "general/captureDelayMs", 200)
+    U_SETTING(QString, saveDirectory, setSaveDirectory, "app/saveDirectory", defaultSaveDir())
+    U_SETTING(bool, autoSave, setAutoSave, "app/autoSave", true)
+    U_SETTING(bool, copyToClipboard, setCopyToClipboard, "app/copyToClipboard", true)
+    U_SETTING(bool, openEditor, setOpenEditor, "app/openEditor", true)
+    U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "app/uploadAfterCapture", false)
+    U_SETTING(bool, includeCursor, setIncludeCursor, "app/includeCursor", false)
+    U_SETTING(int, captureDelayMs, setCaptureDelayMs, "app/captureDelayMs", 200)
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -212,9 +261,9 @@ public:
     U_SETTING(QString, imageFormat, setImageFormat, "image/format", QStringLiteral("png"))
     U_SETTING(int, imageQuality, setImageQuality, "image/quality", 90)
     U_SETTING(QString, filenameTemplate, setFilenameTemplate, "image/filenameTemplate", QStringLiteral("Unisic_%date%_%time%"))
-    U_SETTING(bool, showNotifications, setShowNotifications, "general/showNotifications", true)
-    U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "general/minimizeToTrayOnClose", true)
-    U_SETTING(bool, openAfterSave, setOpenAfterSave, "general/openAfterSave", false)
+    U_SETTING(bool, showNotifications, setShowNotifications, "app/showNotifications", true)
+    U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "app/minimizeToTrayOnClose", true)
+    U_SETTING(bool, openAfterSave, setOpenAfterSave, "app/openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
     U_SETTING(bool, afterUploadOpenInBrowser, setAfterUploadOpenInBrowser, "upload/afterUploadOpenInBrowser", false)
     U_SETTING(QString, editorStrokeColor, setEditorStrokeColor, "editor/strokeColor", QStringLiteral("#FF4757"))
@@ -229,10 +278,13 @@ public:
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
     U_SETTING(int, videoMaxDurationSec, setVideoMaxDurationSec, "video/maxDurationSec", 0)
+    // Video recording audio (never GIF). Both OFF by default.
+    U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
+    U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
-    U_SETTING(bool, showCapturePopup, setShowCapturePopup, "general/showCapturePopup", true)
-    U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "general/capturePopupPosition", QStringLiteral("bottom-right"))
-    U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "general/capturePopupDurationSec", 8) // 0 = stay open
+    U_SETTING(bool, showCapturePopup, setShowCapturePopup, "app/showCapturePopup", true)
+    U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "app/capturePopupPosition", QStringLiteral("bottom-right"))
+    U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "app/capturePopupDurationSec", 8) // 0 = stay open
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
@@ -242,6 +294,9 @@ public:
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
+    // Custom system-tray icon (absolute path to a .png/.svg). Empty = bundled
+    // default. Applied live via QSystemTrayIcon::setIcon in AppContext.
+    U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -260,10 +315,11 @@ public:
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
+        emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
-        emit useSystemDecorationChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
 
 signals:
@@ -302,6 +358,8 @@ signals:
     void videoFormatChanged();
     void videoQualityChanged();
     void videoMaxDurationSecChanged();
+    void recordSystemAudioChanged();
+    void recordMicrophoneChanged();
     void hotkeyRecordChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
@@ -310,9 +368,11 @@ signals:
     void editorIconStyleChanged();
     void editorToolIconsChanged();
     void useSystemDecorationChanged();
+    void trayIconPathChanged();
 
 private:
     QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};
     QTimer m_syncTimer;
     bool m_writable = true;
 };
+

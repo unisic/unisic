@@ -916,10 +916,6 @@ Item {
                         label: qsTr("GIF start/stop")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
                     }
-                    SettingRow {
-                        label: qsTr("Preview: toggle click-through")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyPreviewPassthrough; onRecorded: (t) => { App.settings.hotkeyPreviewPassthrough = t; App.applyHotkey("preview-passthrough") } }
-                    }
                     UButton {
                         anchors.right: parent.right
                         text: qsTr("Apply hotkeys")

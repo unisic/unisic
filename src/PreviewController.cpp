@@ -33,7 +33,7 @@ void PreviewController::attach()
             ls->setDesiredSize(QSize(0, 0));
             ls->setExclusiveZone(-1); // may float over panels
             // OnDemand: the card takes keyboard focus when clicked but doesn't
-            // steal it, so global shortcuts (incl. the passthrough toggle) work.
+            // steal it, so global shortcuts keep working.
             ls->setKeyboardInteractivity(LW::KeyboardInteractivityOnDemand);
         }
         applyLayer();
@@ -55,23 +55,6 @@ void PreviewController::setPinned(bool on)
     emit pinnedChanged();
 }
 
-void PreviewController::setPassthrough(bool on)
-{
-    if (m_passthrough == on)
-        return;
-    m_passthrough = on;
-    // Click-through only makes sense floating above other windows.
-    if (on && !m_pinned) {
-        m_pinned = true;
-        emit pinnedChanged();
-    }
-    if (m_win)
-        m_win->setFlag(Qt::WindowTransparentForInput, on); // empty wl input region
-    if (m_layerShell)
-        applyLayer();
-    emit passthroughChanged();
-}
-
 void PreviewController::applyLayer()
 {
 #ifdef HAVE_LAYERSHELL
@@ -80,11 +63,8 @@ void PreviewController::applyLayer()
     if (auto *ls = LayerShellQt::Window::get(m_win)) {
         using LW = LayerShellQt::Window;
         // Pinned → overlay (above panels & fullscreen). Unpinned → top (still
-        // above normal windows, but yields to fullscreen). Click-through drops
-        // keyboard grab so it can't hold focus while transparent to input.
+        // above normal windows, but yields to fullscreen).
         ls->setLayer(m_pinned ? LW::LayerOverlay : LW::LayerTop);
-        ls->setKeyboardInteractivity(m_passthrough ? LW::KeyboardInteractivityNone
-                                                   : LW::KeyboardInteractivityOnDemand);
         // Layer-shell properties reach the compositor with the next surface
         // commit; a static preview renders no new frames, so force one.
         m_win->requestUpdate();
@@ -115,7 +95,6 @@ void PreviewController::setInputRect(int x, int y, int w, int h)
 {
     if (!m_win || !m_layerShell)
         return;
-    // qtwayland turns the mask into the wl_surface input region (and the
-    // TransparentForInput flag overrides it with an empty one in passthrough).
+    // qtwayland turns the mask into the wl_surface input region.
     m_win->setMask(QRegion(x, y, w, h));
 }

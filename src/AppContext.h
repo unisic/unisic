@@ -206,9 +206,9 @@ public:
     void copyImageToClipboard(const QImage &img);
     void uploadImage(const QImage &img, UploadDone done);
     void openEditor(const QImage &img, const QString &overwritePath = {});
-    // Floating, pinnable, translucent preview of a capture (Qt.Tool window). A
-    // global hotkey toggles its click-through mode; see dispatchHotkey.
-    void openPreview(const QImage &img);
+    // Floating, pinnable, translucent preview of a capture. Returns false when
+    // the window could not be created.
+    bool openPreview(const QImage &img);
     // Re-open a saved capture from history; editor save() overwrites it in place.
     Q_INVOKABLE void editFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
@@ -303,7 +303,6 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QPointer<PreviewController> m_activePreview;   // target of the passthrough hotkey
     QImage m_quickCopyImage;                       // held during the quick-copy window
     QTimer *m_quickCopyTimer = nullptr;            // releases the Ctrl+C grab after ~2s
     bool m_quickCopyArmed = false;

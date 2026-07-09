@@ -8,10 +8,8 @@ import "components"
 // (previewCtl.setInputRect — same pattern as the capture popup): the card is
 // a plain movable item, so dragging is pure scene-graph and perfectly smooth.
 // Without layer-shell it's a normal frameless window sized to the card, moved
-// with startSystemMove. The card can be faded (still clickable) and flipped
-// into click-through mode — toggled back by a global hotkey
-// (App.settings.hotkeyPreviewPassthrough), since a click-through surface
-// can't click its own controls.
+// with startSystemMove. The card can be faded with the opacity slider while
+// staying fully clickable.
 Window {
     id: preview
 
@@ -20,7 +18,6 @@ Window {
     property size imgSize: (typeof previewImageSize !== "undefined" && previewImageSize.width > 0)
                            ? previewImageSize : Qt.size(640, 400)
     readonly property bool layerMode: previewCtl ? previewCtl.layerShell : false
-    readonly property bool passthrough: previewCtl ? previewCtl.passthrough : false
 
     readonly property int maxW: Screen.desktopAvailableWidth * 0.7
     readonly property int maxH: Screen.desktopAvailableHeight * 0.7
@@ -37,12 +34,8 @@ Window {
     title: qsTr("Unisic — Preview")
 
     // Static flags (no dependencies → evaluated once): PreviewController adds
-    // stays-on-top / transparent-for-input imperatively, so a rebinding here
-    // can't clobber them.
+    // stays-on-top imperatively, so a rebinding here can't clobber it.
     flags: Qt.Window | Qt.FramelessWindowHint
-
-    // Kept for the C++ passthrough hotkey (invokeMethod by name).
-    function togglePassthrough() { if (previewCtl) previewCtl.togglePassthrough() }
 
     Item {
         id: root
@@ -65,8 +58,8 @@ Window {
             y: preview.layerMode ? Math.min(64, Math.max(0, root.height - height)) : 0
             radius: Theme.radiusM
             color: Theme.background
-            border.width: preview.passthrough ? 2 : 1
-            border.color: preview.passthrough ? Theme.accent : Theme.divider
+            border.width: 1
+            border.color: Theme.divider
             clip: true
 
             onXChanged: root.updateMask()
@@ -85,9 +78,6 @@ Window {
                 anchors.right: parent.right
                 height: 40
                 color: Theme.surface
-                // Hidden in click-through mode (non-interactive anyway) so the
-                // preview is a clean image while you trace over what's below.
-                visible: !preview.passthrough
 
                 MouseArea {
                     id: dragArea
@@ -125,18 +115,6 @@ Window {
                     width: 30; height: 30; iconSize: 16
                     onClicked: if (previewCtl) previewCtl.pinned = !previewCtl.pinned
                 }
-                UIconButton {
-                    id: passBtn
-                    iconName: "view-transparent"
-                    tooltip: qsTr("Click-through (trace over the window) — %1 to toggle back")
-                             .arg(App.settings.hotkeyPreviewPassthrough)
-                    active: preview.passthrough
-                    anchors.left: pinBtn.right
-                    anchors.leftMargin: 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 30; height: 30; iconSize: 16
-                    onClicked: preview.togglePassthrough()
-                }
 
                 UIconButton {
                     id: closeBtn
@@ -161,7 +139,7 @@ Window {
             }
 
             Image {
-                anchors.top: bar.visible ? bar.bottom : parent.top
+                anchors.top: bar.bottom
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
@@ -169,27 +147,6 @@ Window {
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 smooth: true
-            }
-
-            // A faint hint that the card is currently transparent to input,
-            // plus the hotkey that brings it back.
-            Rectangle {
-                visible: preview.passthrough
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.top: parent.top
-                anchors.topMargin: 8
-                width: hintText.implicitWidth + 16
-                height: 22
-                radius: 11
-                color: Theme.accent
-                opacity: 0.85
-                Text {
-                    id: hintText
-                    anchors.centerIn: parent
-                    text: qsTr("click-through · %1").arg(App.settings.hotkeyPreviewPassthrough)
-                    color: Theme.textOnAccent
-                    font.pixelSize: 10; font.bold: true
-                }
             }
         }
     }

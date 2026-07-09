@@ -219,13 +219,6 @@ void AppContext::dispatchHotkey(const QString &action)
         disarmQuickCopy();
         return;
     }
-    // Toggle click-through on the active preview window. Must work even while
-    // that window is transparent-for-input (it can't receive the key itself).
-    if (action == QLatin1String("preview-passthrough")) {
-        if (m_activePreview)
-            QMetaObject::invokeMethod(m_activePreview, "togglePassthrough");
-        return;
-    }
     if (m_shortcutRecording)
         return;
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
@@ -659,10 +652,10 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // 3d) floating preview window (pin/opacity/click-through)
+    // 3d) floating preview window (pin/opacity/drag)
     m_smokeSteps.append([this] {
-        openPreview(devTestImage());
-        smokeLog(QStringLiteral("preview window: ") + (m_activePreview
+        const bool ok = openPreview(devTestImage());
+        smokeLog(QStringLiteral("preview window: ") + (ok
                  ? QStringLiteral("PASS (close it manually)") : QStringLiteral("FAIL")));
         smokeNext();
     });
@@ -1024,10 +1017,10 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
     }
 }
 
-void AppContext::openPreview(const QImage &img)
+bool AppContext::openPreview(const QImage &img)
 {
     if (!m_engine || img.isNull())
-        return;
+        return false;
     // Persist a full-res copy the tool window loads by path — keeps that window
     // trivial (no image provider) — and remove it when the window closes.
     const QString tmp = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
@@ -1036,13 +1029,13 @@ void AppContext::openPreview(const QImage &img)
                                       QStringLiteral(".png"));
     if (!img.save(tmp)) {
         showToast(tr("Couldn't open preview"), true);
-        return;
+        return false;
     }
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/PreviewWindow.qml")));
     if (component.isError()) {
         qWarning() << component.errorString();
         QFile::remove(tmp);
-        return;
+        return false;
     }
     // Create the controller BEFORE the component so QML resolves `previewCtl`
     // to the real object at bind time (a late setContextProperty wouldn't reach
@@ -1058,12 +1051,6 @@ void AppContext::openPreview(const QImage &img)
         ctl->setParent(win);
         ctl->setWindow(win);
         ctl->attach();   // configure layer-shell / flags before the window shows
-        // The passthrough hotkey targets whichever preview is active/newest.
-        m_activePreview = ctl;
-        connect(win, &QQuickWindow::activeChanged, this, [this, win, ctl] {
-            if (win->isActive())
-                m_activePreview = ctl;
-        });
         connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
             if (!v) {
                 QFile::remove(tmp);
@@ -1072,11 +1059,12 @@ void AppContext::openPreview(const QImage &img)
         });
         win->show();
         win->requestActivate();
-    } else {
-        delete obj;
-        delete ctl;
-        QFile::remove(tmp);
+        return true;
     }
+    delete obj;
+    delete ctl;
+    QFile::remove(tmp);
+    return false;
 }
 
 void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path)
@@ -1439,7 +1427,6 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
-        {QStringLiteral("preview-passthrough"), tr("Preview: toggle click-through"), m_settings->hotkeyPreviewPassthrough()},
     };
 }
 
@@ -1452,7 +1439,6 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
-    else if (actionId == QLatin1String("preview-passthrough")) m_settings->setHotkeyPreviewPassthrough(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

@@ -65,7 +65,6 @@ class Settings : public QObject
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
-    Q_PROPERTY(QString hotkeyPreviewPassthrough READ hotkeyPreviewPassthrough WRITE setHotkeyPreviewPassthrough NOTIFY hotkeyPreviewPassthroughChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
@@ -231,7 +230,6 @@ public:
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
-    U_SETTING(QString, hotkeyPreviewPassthrough, setHotkeyPreviewPassthrough, "hotkeys/previewPassthrough", QStringLiteral("Meta+Shift+P"))
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
@@ -270,7 +268,6 @@ public:
         emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
-        emit hotkeyPreviewPassthroughChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
@@ -319,7 +316,6 @@ signals:
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
     void hotkeyRecordChanged();
-    void hotkeyPreviewPassthroughChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
     void capturePopupDurationSecChanged();

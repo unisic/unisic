@@ -19,7 +19,6 @@ class PreviewController : public QObject
     QML_ELEMENT
     QML_UNCREATABLE("Created by AppContext")
     Q_PROPERTY(bool pinned READ pinned WRITE setPinned NOTIFY pinnedChanged)
-    Q_PROPERTY(bool passthrough READ passthrough WRITE setPassthrough NOTIFY passthroughChanged)
     // True when the fullscreen-surface + input-mask mode is active; QML uses it
     // to pick the card layout (movable item vs. fills-the-window) and the drag
     // strategy (item drag vs. compositor system-move).
@@ -33,17 +32,14 @@ public:
     void setWindow(QQuickWindow *win);
 
     bool pinned() const { return m_pinned; }
-    bool passthrough() const { return m_passthrough; }
     bool layerShell() const { return m_layerShell; }
 
     void setPinned(bool on);
-    void setPassthrough(bool on);
 
     // Configure the surface just before the window is shown. Must run while the
     // platform window can still be created as a layer surface.
     void attach();
 
-    Q_INVOKABLE void togglePassthrough() { setPassthrough(!m_passthrough); }
     Q_INVOKABLE void closeWindow();
     Q_INVOKABLE void startMove();               // non-layer: hand a move-grab to the compositor
     // Layer mode: clip pointer input to the card's rect (logical px in window
@@ -52,14 +48,12 @@ public:
 
 signals:
     void pinnedChanged();
-    void passthroughChanged();
 
 private:
-    void applyLayer();          // push the pinned/passthrough state onto the surface
+    void applyLayer();          // push the pinned state onto the surface
     void applyWindowFlags();    // non-layer fallback
 
     QPointer<QQuickWindow> m_win;
     bool m_layerShell;
     bool m_pinned = true;
-    bool m_passthrough = false;
 };

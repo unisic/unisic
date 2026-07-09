@@ -6,12 +6,13 @@
 class QQuickWindow;
 
 // Per-window backend for the floating capture preview. Owns the Wayland-legit
-// "always on top" behaviour: where wlr-layer-shell is available it puts the
-// window on the overlay layer (a plain xdg-toplevel's stays-on-top hint is
-// advisory and KWin/wlroots ignore it), else it falls back to the Qt window
-// flag. Also drives click-through, dragging and close so QML never touches
-// window flags directly (rebinding them mid-life was resetting opacity and
-// eating the close button).
+// "always on top" behaviour: where wlr-layer-shell is available the preview is
+// a FULLSCREEN overlay-layer surface whose input region is masked down to the
+// visible card (same pattern as the capture popup) — the card then moves as a
+// plain scene-graph item, which is the only way to get smooth dragging on a
+// layer surface (they can't be system-moved, and repositioning one per pointer
+// event diverges against compositor lag). Without layer-shell it falls back to
+// a normal window: stays-on-top hint + startSystemMove.
 class PreviewController : public QObject
 {
     Q_OBJECT
@@ -19,8 +20,9 @@ class PreviewController : public QObject
     QML_UNCREATABLE("Created by AppContext")
     Q_PROPERTY(bool pinned READ pinned WRITE setPinned NOTIFY pinnedChanged)
     Q_PROPERTY(bool passthrough READ passthrough WRITE setPassthrough NOTIFY passthroughChanged)
-    // True when real always-on-top is available (layer-shell); QML uses it to
-    // pick the drag strategy (margin nudging vs. compositor system-move).
+    // True when the fullscreen-surface + input-mask mode is active; QML uses it
+    // to pick the card layout (movable item vs. fills-the-window) and the drag
+    // strategy (item drag vs. compositor system-move).
     Q_PROPERTY(bool layerShell READ layerShell CONSTANT)
 
 public:
@@ -44,7 +46,9 @@ public:
     Q_INVOKABLE void togglePassthrough() { setPassthrough(!m_passthrough); }
     Q_INVOKABLE void closeWindow();
     Q_INVOKABLE void startMove();               // non-layer: hand a move-grab to the compositor
-    Q_INVOKABLE void moveBy(int dx, int dy);    // layer: nudge the surface via margins
+    // Layer mode: clip pointer input to the card's rect (logical px in window
+    // coords) so everything outside it clicks through to the desktop.
+    Q_INVOKABLE void setInputRect(int x, int y, int w, int h);
 
 signals:
     void pinnedChanged();
@@ -58,6 +62,4 @@ private:
     bool m_layerShell;
     bool m_pinned = true;
     bool m_passthrough = false;
-    int m_marginTop = 64;
-    int m_marginRight = 64;
 };

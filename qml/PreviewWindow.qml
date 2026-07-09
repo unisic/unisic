@@ -3,12 +3,15 @@ import QtQuick.Window
 import Unisic
 import "components"
 
-// Floating capture preview: a frameless window kept above other windows by
-// PreviewController (layer-shell where available — a plain window's stays-on-top
-// hint is ignored on Wayland). It can be faded with the opacity slider (still
-// fully clickable), and flipped into a click-through "trace over the window"
-// mode. Because click-through eats its own controls, the mode is also toggled by
-// a global hotkey (App.settings.hotkeyPreviewPassthrough) via previewCtl.
+// Floating capture preview. With layer-shell the window is a FULLSCREEN
+// overlay surface whose input region is masked to the visible card
+// (previewCtl.setInputRect — same pattern as the capture popup): the card is
+// a plain movable item, so dragging is pure scene-graph and perfectly smooth.
+// Without layer-shell it's a normal frameless window sized to the card, moved
+// with startSystemMove. The card can be faded (still clickable) and flipped
+// into click-through mode — toggled back by a global hotkey
+// (App.settings.hotkeyPreviewPassthrough), since a click-through surface
+// can't click its own controls.
 Window {
     id: preview
 
@@ -16,14 +19,20 @@ Window {
     // previewCtl (the C++ PreviewController).
     property size imgSize: (typeof previewImageSize !== "undefined" && previewImageSize.width > 0)
                            ? previewImageSize : Qt.size(640, 400)
+    readonly property bool layerMode: previewCtl ? previewCtl.layerShell : false
     readonly property bool passthrough: previewCtl ? previewCtl.passthrough : false
 
-    readonly property int maxW: Screen.desktopAvailableWidth * 0.9
-    readonly property int maxH: Screen.desktopAvailableHeight * 0.9
+    readonly property int maxW: Screen.desktopAvailableWidth * 0.7
+    readonly property int maxH: Screen.desktopAvailableHeight * 0.7
     readonly property real fit: Math.min(1.0, maxW / imgSize.width,
                                          (maxH - 40) / imgSize.height)
-    width: Math.max(280, Math.round(imgSize.width * fit))
-    height: Math.round(imgSize.height * fit) + 40
+    readonly property int cardW: Math.max(280, Math.round(imgSize.width * fit))
+    readonly property int cardH: Math.round(imgSize.height * fit) + 40
+
+    // Layer mode: the compositor sizes the surface (fullscreen anchors); these
+    // initial values only matter for the non-layer fallback.
+    width: cardW
+    height: cardH
     color: "transparent"
     title: qsTr("Unisic — Preview")
 
@@ -35,133 +44,152 @@ Window {
     // Kept for the C++ passthrough hotkey (invokeMethod by name).
     function togglePassthrough() { if (previewCtl) previewCtl.togglePassthrough() }
 
-    // Fading is done on the CONTENT, not Window.opacity — qtwayland has no
-    // window-opacity protocol, setOpacity is silently ignored there.
-    Rectangle {
-        id: content
+    Item {
+        id: root
         anchors.fill: parent
-        radius: Theme.radiusM
-        color: Theme.background
-        border.width: preview.passthrough ? 2 : 1
-        border.color: preview.passthrough ? Theme.accent : Theme.divider
-        clip: true
 
-        // Top control bar (doubles as the drag handle). Controls are anchored
-        // directly (NOT in a Row: an anchored child turns a Row off entirely —
-        // that broke the slider/close side before).
+        function updateMask() {
+            if (preview.layerMode && previewCtl)
+                previewCtl.setInputRect(card.x, card.y, card.width, card.height)
+        }
+
+        // The visible preview card. In layer mode it floats inside the
+        // fullscreen surface (starts top-right); in fallback mode it IS the
+        // window. Fading targets this item, not Window.opacity — qtwayland has
+        // no window-opacity protocol, setOpacity is silently ignored there.
         Rectangle {
-            id: bar
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 40
-            color: Theme.surface
-            // Hidden in click-through mode (non-interactive anyway) so the
-            // preview is a clean image while you trace over the window below.
-            visible: !preview.passthrough
+            id: card
+            width: preview.cardW
+            height: preview.cardH
+            x: preview.layerMode ? Math.max(0, root.width - width - 64) : 0
+            y: preview.layerMode ? Math.min(64, Math.max(0, root.height - height)) : 0
+            radius: Theme.radiusM
+            color: Theme.background
+            border.width: preview.passthrough ? 2 : 1
+            border.color: preview.passthrough ? Theme.accent : Theme.divider
+            clip: true
 
-            MouseArea {
-                id: dragArea
-                anchors.fill: parent
-                property real pressX: 0
-                property real pressY: 0
-                property bool moving: false
-                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
-                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
-                onPositionChanged: (m) => {
-                    if (previewCtl && !previewCtl.layerShell
-                        && !moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
-                        moving = true
-                        previewCtl.startMove()
+            onXChanged: root.updateMask()
+            onYChanged: root.updateMask()
+            onWidthChanged: root.updateMask()
+            onHeightChanged: root.updateMask()
+            Component.onCompleted: root.updateMask()
+
+            // Top control bar (doubles as the drag handle). Controls are
+            // anchored directly (NOT in a Row: an anchored child turns a Row
+            // off entirely — that broke the slider/close side before).
+            Rectangle {
+                id: bar
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                height: 40
+                color: Theme.surface
+                // Hidden in click-through mode (non-interactive anyway) so the
+                // preview is a clean image while you trace over what's below.
+                visible: !preview.passthrough
+
+                MouseArea {
+                    id: dragArea
+                    anchors.fill: parent
+                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                    property real pressX: 0
+                    property real pressY: 0
+                    property bool moving: false
+                    // Layer mode: drag the card item directly — synchronous
+                    // scene-graph movement, no compositor round-trips.
+                    drag.target: preview.layerMode ? card : undefined
+                    drag.minimumX: 0
+                    drag.maximumX: Math.max(0, root.width - card.width)
+                    drag.minimumY: 0
+                    drag.maximumY: Math.max(0, root.height - card.height)
+                    onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                    onPositionChanged: (m) => {
+                        if (previewCtl && !preview.layerMode
+                            && !moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                            moving = true
+                            previewCtl.startMove()
+                        }
                     }
                 }
-                // Layer surface: it can't be system-moved and repositioning it
-                // per-move-event diverges (the compositor lags the events), so
-                // the window stays put while dragging and the full delta is
-                // applied once on release. Item coordinates are exact for that
-                // very reason — the window never moves mid-drag.
-                onReleased: (m) => {
-                    if (previewCtl && previewCtl.layerShell && !moving)
-                        previewCtl.moveBy(Math.round(m.x - pressX), Math.round(m.y - pressY))
+
+                UIconButton {
+                    id: pinBtn
+                    iconName: "window-pin"
+                    tooltip: (previewCtl && previewCtl.pinned) ? qsTr("Unpin (drop below fullscreen)")
+                                                               : qsTr("Pin on top")
+                    active: previewCtl ? previewCtl.pinned : true
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 30; height: 30; iconSize: 16
+                    onClicked: if (previewCtl) previewCtl.pinned = !previewCtl.pinned
+                }
+                UIconButton {
+                    id: passBtn
+                    iconName: "view-transparent"
+                    tooltip: qsTr("Click-through (trace over the window) — %1 to toggle back")
+                             .arg(App.settings.hotkeyPreviewPassthrough)
+                    active: preview.passthrough
+                    anchors.left: pinBtn.right
+                    anchors.leftMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 30; height: 30; iconSize: 16
+                    onClicked: preview.togglePassthrough()
+                }
+
+                UIconButton {
+                    id: closeBtn
+                    iconName: "close"
+                    tooltip: qsTr("Close")
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 30; height: 30; iconSize: 16
+                    onClicked: preview.close()
+                }
+                USlider {
+                    id: opacitySlider
+                    width: 110; height: 30
+                    anchors.right: closeBtn.left
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    from: 0.2; to: 1.0; stepSize: 0.01
+                    value: card.opacity
+                    onMoved: (v) => card.opacity = v
                 }
             }
 
-            UIconButton {
-                id: pinBtn
-                iconName: "window-pin"
-                tooltip: (previewCtl && previewCtl.pinned) ? qsTr("Unpin (drop below fullscreen)")
-                                                           : qsTr("Pin on top")
-                active: previewCtl ? previewCtl.pinned : true
+            Image {
+                anchors.top: bar.visible ? bar.bottom : parent.top
                 anchors.left: parent.left
-                anchors.leftMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30; height: 30; iconSize: 16
-                onClicked: if (previewCtl) previewCtl.pinned = !previewCtl.pinned
-            }
-            UIconButton {
-                id: passBtn
-                iconName: "view-transparent"
-                tooltip: qsTr("Click-through (trace over the window) — %1 to toggle back")
-                         .arg(App.settings.hotkeyPreviewPassthrough)
-                active: preview.passthrough
-                anchors.left: pinBtn.right
-                anchors.leftMargin: 4
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30; height: 30; iconSize: 16
-                onClicked: preview.togglePassthrough()
-            }
-
-            UIconButton {
-                id: closeBtn
-                iconName: "close"
-                tooltip: qsTr("Close")
                 anchors.right: parent.right
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                width: 30; height: 30; iconSize: 16
-                onClicked: preview.close()
+                anchors.bottom: parent.bottom
+                source: (typeof previewImagePath !== "undefined") ? previewImagePath : ""
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                smooth: true
             }
-            USlider {
-                id: opacitySlider
-                width: 110; height: 30
-                anchors.right: closeBtn.left
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                from: 0.2; to: 1.0; stepSize: 0.01
-                value: content.opacity
-                onMoved: (v) => content.opacity = v
-            }
-        }
 
-        Image {
-            anchors.top: bar.visible ? bar.bottom : parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            source: (typeof previewImagePath !== "undefined") ? previewImagePath : ""
-            fillMode: Image.PreserveAspectFit
-            asynchronous: true
-            smooth: true
-        }
-
-        // A faint hint that the window is currently transparent to input, plus
-        // the hotkey to bring it back.
-        Rectangle {
-            visible: preview.passthrough
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 8
-            width: hintText.implicitWidth + 16
-            height: 22
-            radius: 11
-            color: Theme.accent
-            opacity: 0.85
-            Text {
-                id: hintText
-                anchors.centerIn: parent
-                text: qsTr("click-through · %1").arg(App.settings.hotkeyPreviewPassthrough)
-                color: Theme.textOnAccent
-                font.pixelSize: 10; font.bold: true
+            // A faint hint that the card is currently transparent to input,
+            // plus the hotkey that brings it back.
+            Rectangle {
+                visible: preview.passthrough
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 8
+                width: hintText.implicitWidth + 16
+                height: 22
+                radius: 11
+                color: Theme.accent
+                opacity: 0.85
+                Text {
+                    id: hintText
+                    anchors.centerIn: parent
+                    text: qsTr("click-through · %1").arg(App.settings.hotkeyPreviewPassthrough)
+                    color: Theme.textOnAccent
+                    font.pixelSize: 10; font.bold: true
+                }
             }
         }
     }

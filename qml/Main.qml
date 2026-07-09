@@ -11,7 +11,10 @@ Window {
     height: 700
     minimumWidth: 880
     minimumHeight: 560
-    visible: true
+    // Normally shown at launch; `unisic --tray-only` (autostart) boots hidden
+    // into the tray. startHidden is a context property set from C++ (always
+    // defined, so this binding never hits an undefined reference).
+    visible: !startHidden
     title: "Unisic"
     color: Theme.backgroundDeep
 

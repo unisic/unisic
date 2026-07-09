@@ -285,6 +285,9 @@ Item {
                         label: qsTr("Closing the window minimizes to tray")
                         USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
                     }
+                        label: qsTr("Start at login (minimized to tray)")
+                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
+                    }
                     SettingRow {
                         label: qsTr("Open file after saving")
                         USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }

@@ -45,6 +45,9 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
+    // or removes that file (Exec carries --tray-only so login starts hidden).
+    Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
     // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
     // the settings gallery lists these as pickable presets (live via a watcher).
     Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
@@ -91,6 +94,8 @@ public:
     bool ocrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    bool autostartEnabled() const;
+    void setAutostartEnabled(bool on);
     QStringList trayIconPresets() const;  // image files in trayIconsDir()
     QStringList bundledTrayIcons() const; // qrc-bundled preset icons
     QColor trayContrastColor() const;
@@ -165,12 +170,17 @@ signals:
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void editorWindowsOpenChanged();
+    void autostartEnabledChanged();
     void trayIconPresetsChanged();
     void trayContrastColorChanged();
 
 private:
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
+    QString autostartFilePath() const;
+    QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
+    bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
+    void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     struct HotkeyAction {

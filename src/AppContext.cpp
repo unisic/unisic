@@ -126,6 +126,8 @@ void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
     setupTray();
+    refreshAutostartIfStale();
+
     QDir().mkpath(trayIconsDir());
     m_trayIconsWatcher = new QFileSystemWatcher(this);
     m_trayIconsWatcher->addPath(trayIconsDir());
@@ -695,13 +697,6 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     //
     // Detect KWin by its D-Bus name, NOT by XDG_CURRENT_DESKTOP: that env var
     // is absent in several legitimate launch contexts (systemd user-service
-    // autostart, minimal-env launchers, some AppImage runs), and when it was,
-    // this fell to the card-sized branch — which KWin then CENTERS (Wayland
-    // ignores client positions), so the popup landed in the middle of the
-    // screen. The org.kde.KWin NAME is visible even inside Flatpak (only the
-    // restricted ScreenShot2 *interface* is access-gated), so this is reliable
-    // where KWinScreenShot2::isAvailable() (Flatpak short-circuit) is not.
-    auto *busIface = QDBusConnection::sessionBus().interface();
     const bool fullscreenTrick =
         busIface && busIface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const int pad = 24;
@@ -1537,4 +1532,86 @@ QStringList AppContext::bundledTrayIcons() const
     return out;
 }
 
+QString AppContext::autostartFilePath() const
+{
+    // XDG autostart: $XDG_CONFIG_HOME/autostart (ConfigLocation == ~/.config).
+    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+           + QStringLiteral("/autostart/org.unisic.Unisic.desktop");
+}
+
+bool AppContext::autostartEnabled() const
+{
+    return QFile::exists(autostartFilePath());
+}
+
+QByteArray AppContext::autostartExecLine() const
+{
+    // Exec must point at a STABLE path. For an AppImage that is $APPIMAGE (the
+    // outer file), not applicationFilePath() (the transient FUSE mount, gone on
+    // the next run). --tray-only makes the login launch start hidden in the tray.
+    QString execPath = qEnvironmentVariable("APPIMAGE");
+    if (execPath.isEmpty())
+        execPath = QCoreApplication::applicationFilePath();
+    // Desktop Entry spec: backslash and quote need escaping inside a quoted arg;
+    // '%' is a field-code introducer and must be doubled.
+    execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
+            .replace(QLatin1Char('"'), QLatin1String("\\\""))
+            .replace(QLatin1Char('%'), QLatin1String("%%"));
+    return "Exec=\"" + execPath.toUtf8() + "\" --tray-only\n";
+}
+
+bool AppContext::writeAutostartFile()
+{
+    const QString path = autostartFilePath();
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return false;
+    f.write("[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=Unisic\n"
+            "Comment=Screenshots, annotations, uploads and GIF recording\n"
+            + autostartExecLine() +
+            "Icon=org.unisic.Unisic\n"
+            "Terminal=false\n"
+            "Categories=Utility;Graphics;\n"
+            "X-GNOME-Autostart-enabled=true\n");
+    f.close();
+    return true;
+}
+
+void AppContext::refreshAutostartIfStale()
+{
+    // Self-heal a stale Exec (binary rebuilt to a new path / AppImage moved),
+    // mirroring ensureDesktopFile() — otherwise the toggle reads "on" while
+    // login autostart silently launches nothing.
+    const QString path = autostartFilePath();
+    if (!QFile::exists(path))
+        return;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QByteArray data = f.readAll();
+    f.close();
+    if (!data.contains(autostartExecLine()))
+        writeAutostartFile();
+}
+
+void AppContext::setAutostartEnabled(bool on)
+{
+    if (on == autostartEnabled())
+        return;
+    const QString path = autostartFilePath();
+    if (!on) {
+        if (!QFile::remove(path) && QFile::exists(path))
+            showToast(tr("Could not disable autostart — cannot remove %1").arg(path), true);
+        emit autostartEnabledChanged(); // reflect the real (post-remove) state
+        return;
+    }
+    if (!writeAutostartFile()) {
+        showToast(tr("Could not enable autostart — cannot write %1").arg(path), true);
+        return; // state unchanged; the switch snaps back on the next read
+    }
+    emit autostartEnabledChanged();
+}
 

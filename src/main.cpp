@@ -75,6 +75,9 @@ static QByteArray cliCommand(const QStringList &args)
     if (args.contains(QLatin1String("--region"))) return "region";
     if (args.contains(QLatin1String("--window"))) return "window";
     if (args.contains(QLatin1String("--gif"))) return "gif";
+    // Autostart path: if an instance is somehow already running, do nothing
+    // (never raise its window) — the flag only shapes a FRESH launch.
+    if (args.contains(QLatin1String("--tray-only"))) return "tray";
     return "show";
 }
 
@@ -287,6 +290,11 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconImageProvider(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);
+    // Autostart path: `unisic --tray-only` boots straight into the tray with no
+    // main window (Main.qml binds `visible: !startHidden`). A manual `unisic`
+    // still shows the window. Set BEFORE load so there is no visible flash.
+    const bool trayOnly = args.contains(QLatin1String("--tray-only"));
+    engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), trayOnly);
     context.initialize(&engine);
 
     if (singleInstanceServer) {
@@ -304,6 +312,7 @@ int main(int argc, char *argv[])
                     else if (cmd == "region") context.captureRegion();
                     else if (cmd == "window") context.captureWindow();
                     else if (cmd == "gif") context.startGifRegion();
+                    else if (cmd == "tray") { /* already running — stay in tray */ }
                     else QMetaObject::invokeMethod(&context, "showMainWindowRequested",
                                                    Qt::QueuedConnection);
                     socket->disconnectFromServer();
@@ -326,6 +335,31 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
     });
+
+    // Safety net for --tray-only: if this desktop has no system-tray host AT ALL
+    // (GNOME without AppIndicator, bare wlroots), a hidden start would be
+    // unreachable, so reveal the window. But a cold-boot login — exactly when
+    // autostart fires — can take many seconds for plasmashell/waybar to register
+    // the StatusNotifier host, and setupTray()'s watcher waits for it. So DON'T
+    // reveal on a short fixed delay (that popped the window mid-login); use a
+    // generous deadline AND cancel it the moment a tray actually appears.
+    if (trayOnly && !context.trayAvailable()) {
+        auto *reveal = new QTimer(&context);
+        reveal->setSingleShot(true);
+        reveal->setInterval(30000);
+        QObject::connect(reveal, &QTimer::timeout, &context, [&context, reveal] {
+            reveal->deleteLater();
+            if (!context.trayAvailable())
+                QMetaObject::invokeMethod(&context, "showMainWindowRequested",
+                                          Qt::QueuedConnection);
+        });
+        // Tray showed up in time — no reveal needed.
+        QObject::connect(&context, &AppContext::trayAvailableChanged, reveal, [reveal] {
+            reveal->stop();
+            reveal->deleteLater();
+        });
+        reveal->start();
+    }
 
     return app.exec();
 }

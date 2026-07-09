@@ -30,6 +30,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
+    // Latest pointer position in ITEM coordinates, updated on hover AND while
+    // dragging (a QML HoverHandler stops firing during a button grab). Drives
+    // the overlay's selection guides so they track the cursor mid-drag.
+    Q_PROPERTY(QPointF hoverPoint READ hoverPoint NOTIFY hoverPointChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageChanged)
@@ -71,6 +75,7 @@ public:
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
+    QPointF hoverPoint() const { return m_hoverPoint; }
     bool canUndo() const { return !m_undo.isEmpty(); }
     bool canRedo() const { return !m_redo.isEmpty(); }
     QSize imageSize() const { return m_base.size(); }
@@ -104,6 +109,7 @@ signals:
     void fontSizeChanged();
     void selectionModeChanged();
     void selectionRectChanged();
+    void hoverPointChanged();
     void historyChanged();
     void imageChanged();
     void renderScaleChanged();
@@ -164,6 +170,7 @@ private:
 
     bool m_selectionMode = false;
     QRectF m_selection;
+    QPointF m_hoverPoint;
     DragMode m_drag = NoDrag;
     int m_resizeHandle = -1;
     QPointF m_dragStart;      // image coords

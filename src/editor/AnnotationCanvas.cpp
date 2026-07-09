@@ -611,6 +611,8 @@ int AnnotationCanvas::hitHandle(const QPointF &imgPos) const
 
 void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
 {
+    m_hoverPoint = e->position();
+    emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
     m_dragStart = img;
 
@@ -735,6 +737,8 @@ QColor AnnotationCanvas::sampleEdgeColor(const QRectF &rf) const
 
 void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
 {
+    m_hoverPoint = e->position();
+    emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
 
     switch (m_drag) {
@@ -843,6 +847,8 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
 
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
 {
+    m_hoverPoint = e->position();
+    emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
     if (m_tool == ObjectPick) {
         // Candidates are sorted smallest-first, so the first hit is the

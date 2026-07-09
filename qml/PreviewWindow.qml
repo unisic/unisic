@@ -3,42 +3,37 @@ import QtQuick.Window
 import Unisic
 import "components"
 
-// Floating capture preview: a lightweight frameless tool window that stays out
-// of the taskbar/alt-tab. It can be pinned always-on-top, faded with an opacity
-// slider (still fully clickable), and flipped into a click-through "trace over
-// the window" mode. Because click-through eats its own controls, the mode is
-// also toggled by a global hotkey (App.settings.hotkeyPreviewPassthrough),
-// dispatched from C++ via togglePassthrough().
+// Floating capture preview: a frameless window kept above other windows by
+// PreviewController (layer-shell where available — a plain window's stays-on-top
+// hint is ignored on Wayland). It can be faded with the opacity slider (still
+// fully clickable), and flipped into a click-through "trace over the window"
+// mode. Because click-through eats its own controls, the mode is also toggled by
+// a global hotkey (App.settings.hotkeyPreviewPassthrough) via previewCtl.
 Window {
     id: preview
 
-    // previewImagePath / previewImageSize are injected via the per-window context.
+    // Injected via the per-window context: previewImagePath, previewImageSize,
+    // previewCtl (the C++ PreviewController).
     property size imgSize: (typeof previewImageSize !== "undefined" && previewImageSize.width > 0)
                            ? previewImageSize : Qt.size(640, 400)
-    property bool pinned: true
-    property bool passthrough: false
-
-    // C++ (the global hotkey) calls this; keep the name stable.
-    function togglePassthrough() {
-        passthrough = !passthrough
-        // Click-through only makes sense floating above other windows.
-        if (passthrough)
-            pinned = true
-    }
+    readonly property bool passthrough: previewCtl ? previewCtl.passthrough : false
 
     readonly property int maxW: Screen.desktopAvailableWidth * 0.9
     readonly property int maxH: Screen.desktopAvailableHeight * 0.9
     readonly property real fit: Math.min(1.0, maxW / imgSize.width,
                                          (maxH - 40) / imgSize.height)
-    width: Math.max(260, Math.round(imgSize.width * fit))
+    width: Math.max(280, Math.round(imgSize.width * fit))
     height: Math.round(imgSize.height * fit) + bar.height
     color: "transparent"
     title: qsTr("Unisic — Preview")
 
-    // Frameless tool window; optionally always-on-top and/or transparent to input.
-    flags: Qt.Window | Qt.FramelessWindowHint | Qt.Tool
-           | (pinned ? Qt.WindowStaysOnTopHint : 0)
-           | (passthrough ? Qt.WindowTransparentForInput : 0)
+    // Static flags (no dependencies → evaluated once): PreviewController adds
+    // stays-on-top / transparent-for-input imperatively, so a rebinding here
+    // can't clobber them.
+    flags: Qt.Window | Qt.FramelessWindowHint
+
+    // Kept for the C++ passthrough hotkey (invokeMethod by name).
+    function togglePassthrough() { if (previewCtl) previewCtl.togglePassthrough() }
 
     Rectangle {
         anchors.fill: parent
@@ -56,8 +51,8 @@ Window {
             anchors.right: parent.right
             height: 40
             color: Theme.surface
-            // Hidden in click-through mode (it's non-interactive anyway) so the
-            // preview is pure image while you trace over the window below.
+            // Hidden in click-through mode (non-interactive anyway) so the
+            // preview is a clean image while you trace over the window below.
             visible: !preview.passthrough
 
             MouseArea {
@@ -65,11 +60,18 @@ Window {
                 property real pressX: 0
                 property real pressY: 0
                 property bool moving: false
-                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                property real lastX: 0
+                property real lastY: 0
+                onPressed: (m) => { pressX = m.x; pressY = m.y; lastX = m.x; lastY = m.y; moving = false }
                 onPositionChanged: (m) => {
-                    if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                    if (!previewCtl)
+                        return
+                    if (previewCtl.layerShell) {
+                        // Layer surfaces can't be system-moved; nudge via margins.
+                        previewCtl.moveBy(Math.round(m.x - lastX), Math.round(m.y - lastY))
+                    } else if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
                         moving = true
-                        preview.startSystemMove()
+                        previewCtl.startMove()
                     }
                 }
             }
@@ -82,11 +84,11 @@ Window {
 
                 UIconButton {
                     iconName: "window-pin"
-                    tooltip: preview.pinned ? qsTr("Unpin (allow behind other windows)")
-                                            : qsTr("Pin on top")
-                    active: preview.pinned
+                    tooltip: (previewCtl && previewCtl.pinned) ? qsTr("Unpin (drop below fullscreen)")
+                                                               : qsTr("Pin on top")
+                    active: previewCtl ? previewCtl.pinned : true
                     width: 30; height: 30; iconSize: 16
-                    onClicked: preview.pinned = !preview.pinned
+                    onClicked: if (previewCtl) previewCtl.pinned = !previewCtl.pinned
                 }
                 UIconButton {
                     iconName: "view-transparent"
@@ -108,7 +110,7 @@ Window {
                     id: opacitySlider
                     width: 110
                     anchors.verticalCenter: parent.verticalCenter
-                    from: 0.15; to: 1.0; stepSize: 0.01
+                    from: 0.2; to: 1.0; stepSize: 0.01
                     value: preview.opacity
                     onMoved: (v) => preview.opacity = v
                 }
@@ -116,7 +118,7 @@ Window {
                     iconName: "close"
                     tooltip: qsTr("Close")
                     width: 30; height: 30; iconSize: 16
-                    onClicked: preview.close()
+                    onClicked: if (previewCtl) previewCtl.closeWindow(); else preview.close()
                 }
             }
         }
@@ -132,7 +134,8 @@ Window {
             smooth: true
         }
 
-        // A faint hint that the window is currently transparent to input.
+        // A faint hint that the window is currently transparent to input, plus
+        // the hotkey to bring it back.
         Rectangle {
             visible: preview.passthrough
             anchors.horizontalCenter: parent.horizontalCenter

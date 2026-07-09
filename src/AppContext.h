@@ -29,6 +29,7 @@ class GifRecorder;
 class OcrEngine;
 class CaptureNotification;
 class DesktopNotifier;
+class PreviewController;
 class LayerShellNotifier;
 
 // Application facade exposed to QML as the "App" context property.
@@ -302,7 +303,7 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QPointer<QQuickWindow> m_activePreview;        // target of the passthrough hotkey
+    QPointer<PreviewController> m_activePreview;   // target of the passthrough hotkey
     QImage m_quickCopyImage;                       // held during the quick-copy window
     QTimer *m_quickCopyTimer = nullptr;            // releases the Ctrl+C grab after ~2s
     bool m_quickCopyArmed = false;

@@ -23,6 +23,7 @@ qt_policy(SET QTP0001 NEW)
 qt_add_executable(unisic
     src/main.cpp
     src/AppContext.h src/AppContext.cpp
+    src/PreviewController.h src/PreviewController.cpp
     src/Settings.h src/Settings.cpp
     src/capture/PortalRequest.h src/capture/PortalRequest.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp

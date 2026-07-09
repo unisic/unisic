@@ -9,6 +9,7 @@
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
+#include "PreviewController.h"
 #include "notify/CaptureNotification.h"
 #include "notify/DesktopNotifier.h"
 #ifdef HAVE_LAYERSHELL
@@ -1046,14 +1047,19 @@ void AppContext::openPreview(const QImage &img)
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("previewImagePath"), QUrl::fromLocalFile(tmp).toString());
     ctx->setContextProperty(QStringLiteral("previewImageSize"), img.size());
+    // Placeholder so the QML binds; replaced with the real controller below.
+    ctx->setContextProperty(QStringLiteral("previewCtl"), QVariant());
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
         ctx->setParent(win);
+        auto *ctl = new PreviewController(win, m_layerShellAvailable, win);
+        ctx->setContextProperty(QStringLiteral("previewCtl"), ctl);
+        ctl->attach();   // configure layer-shell / flags before the window shows
         // The passthrough hotkey targets whichever preview is active/newest.
-        m_activePreview = win;
-        connect(win, &QQuickWindow::activeChanged, this, [this, win] {
+        m_activePreview = ctl;
+        connect(win, &QQuickWindow::activeChanged, this, [this, win, ctl] {
             if (win->isActive())
-                m_activePreview = win;
+                m_activePreview = ctl;
         });
         connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
             if (!v) {

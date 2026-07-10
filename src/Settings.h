@@ -226,7 +226,9 @@ public:
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
     // Region overlay: a plain CLICK selects the detected object (window,
     // panel, image) under the cursor; dragging still draws a manual rect.
-    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", true)
+    // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
+    // window/element reliably without heavy vision libraries.
+    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", false)
     U_SETTING(bool, quickCopyAfterCapture, setQuickCopyAfterCapture, "capture/quickCopyAfterCapture", true)
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))

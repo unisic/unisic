@@ -1078,9 +1078,9 @@ Item {
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
                     SettingRow {
-                        label: qsTr("Smart pick")
-                        help: qsTr("Click once during region selection to pick the detected object (window, panel, image) under the cursor.")
-                        helpDetail: qsTr("With Smart pick on, the region overlay highlights the element under your cursor — a single click selects its rectangle, no press-and-drag needed. Detection is purely visual (pixels, no ML, no network) and finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen — the badge above the highlight shows size and level. Dragging still draws a manual rectangle, and the selection stays adjustable afterwards.")
+                        label: qsTr("Smart pick (experimental)")
+                        help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
+                        helpDetail: qsTr("EXPERIMENTAL — detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor — a single click selects its rectangle, no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen — the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
                         USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
                     }
                 }

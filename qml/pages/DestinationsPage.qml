@@ -233,7 +233,7 @@ Item {
                 UTextField {
                     id: fData; width: parent.width
                     visible: fType.currentIndex === 0 && fBody.currentIndex === 1
-                    placeholder: qsTr("JSON body — tokens $base64$, $filename$, $mime$")
+                    placeholder: qsTr("JSON body. Tokens: $base64$, $filename$, $mime$")
                 }
                 UTextField {
                     id: fArgs; width: parent.width
@@ -288,7 +288,7 @@ Item {
                                     try { d.headers = JSON.parse(fHeaders.text) }
                                     catch (e) {
                                         // Silently dropping the auth header would be worse.
-                                        App.showToast(qsTr("Headers are not valid JSON — fix or clear the field"))
+                                        App.showToast(qsTr("Headers are not valid JSON. Fix or clear the field"))
                                         return
                                     }
                                 } else {
@@ -306,7 +306,7 @@ Item {
                                     if (fArgs.text.trim() !== "") {
                                         try { d.arguments = JSON.parse(fArgs.text) }
                                         catch (e) {
-                                            App.showToast(qsTr("Extra form fields are not valid JSON — fix or clear the field"))
+                                            App.showToast(qsTr("Extra form fields are not valid JSON. Fix or clear the field"))
                                             return
                                         }
                                     } else {

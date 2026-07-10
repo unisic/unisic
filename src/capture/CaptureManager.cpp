@@ -195,8 +195,8 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
                 // grim missing on a session where it is likely the ONLY
                 // working backend — say so.
                 if (niri)
-                    msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
-                                          "fails with more than one monitor (niri issue #117)");
+                    msg += QStringLiteral("; install 'grim', because niri's own screenshot D-Bus "
+                                          "API fails with more than one monitor (niri issue #117)");
                 else if (!isX11Session() && !isKdeSession() && !isGnomeSession()
                          && !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
                     msg += QStringLiteral("; installing 'grim' usually fixes capture on this "

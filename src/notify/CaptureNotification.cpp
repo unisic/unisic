@@ -114,7 +114,7 @@ void CaptureNotification::save()
         m_app->showToast(tr("Saved %1").arg(path));
         emit stateChanged();
     } else {
-        m_app->showToast(tr("Could not save the capture — check the save folder in Settings"),
+        m_app->showToast(tr("Could not save the capture. Check the save folder in Settings"),
                          true);
     }
 }
@@ -145,7 +145,7 @@ void CaptureNotification::deleteCapture()
     // removeByFile refuses starred entries — surface that instead of
     // dismissing the card as if the file were gone.
     if (!m_filePath.isEmpty() && m_app->history()->fileIsFavorite(m_filePath)) {
-        m_app->showToast(tr("Not deleted — this capture is starred in History (un-star it first)"),
+        m_app->showToast(tr("Not deleted: this capture is starred in History (unstar it first)"),
                          true);
         return;
     }

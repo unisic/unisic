@@ -75,8 +75,8 @@ OcrResult runOcr(QImage img, QString langs, std::shared_ptr<std::atomic_bool> ca
         }
     }
     if (!ok) {
-        r.error = QObject::tr("OCR language data for \"%1\" not found — "
-                              "install the Tesseract language packs").arg(langs);
+        r.error = QObject::tr("OCR language data for \"%1\" not found. "
+                              "Install the Tesseract language packs").arg(langs);
         return r;
     }
     const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);

@@ -20,8 +20,8 @@ Window {
     minimumWidth: 820
     minimumHeight: 480
     visible: true
-    title: editorSession.overwriteMode ? qsTr("Unisic — Editing saved image")
-                                       : qsTr("Unisic — Editor")
+    title: editorSession.overwriteMode ? qsTr("Unisic Editor (editing saved image)")
+                                       : qsTr("Unisic Editor")
     color: Theme.background
     // Same decoration policy as the main window: the stylized frameless title
     // bar unless the user opted into system decorations (Appearance).

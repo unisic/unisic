@@ -38,7 +38,7 @@ Window {
     minimumWidth: layerMode ? 0 : 280
     minimumHeight: layerMode ? 0 : 160
     color: "transparent"
-    title: qsTr("Unisic — Preview")
+    title: qsTr("Unisic Preview")
 
     // Static flags (no dependencies → evaluated once): PreviewController adds
     // stays-on-top imperatively, so a rebinding here can't clobber it.

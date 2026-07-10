@@ -32,7 +32,7 @@ Item {
             UConfirmDialog {
                 id: clearAllConfirm
                 title: qsTr("Clear the whole history?")
-                text: qsTr("This removes every history entry AND moves the capture files to the trash.\n\nStarred (favorite) captures are kept — entry and file.")
+                text: qsTr("This removes every history entry AND moves the capture files to the trash.\n\nStarred (favorite) captures are kept, both the entry and the file.")
                 confirmText: qsTr("Clear all")
                 destructive: true
                 onAccepted: App.history.clearAll()
@@ -41,7 +41,7 @@ Item {
 
         Text {
             visible: App.history.count === 0
-            text: qsTr("Nothing here yet — captures and recordings will appear with thumbnails.")
+            text: qsTr("Nothing here yet. Captures and recordings will appear here with thumbnails.")
             color: Theme.textTertiary
             font.pixelSize: Theme.fontM
         }
@@ -180,7 +180,7 @@ Item {
                             UIconButton {
                                 iconName: "edit-delete"; iconSize: 16; width: 30; height: 30
                                 enabled: !favorite
-                                tooltip: favorite ? qsTr("Starred — unstar to delete")
+                                tooltip: favorite ? qsTr("Starred. Unstar to allow deleting")
                                                   : qsTr("Delete (moves file to trash)")
                                 onClicked: App.history.remove(index)
                             }

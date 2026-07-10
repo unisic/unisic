@@ -382,7 +382,7 @@ Item {
             // Remedy points at the REAL config dir (lowercase ~/.config/unisic,
             // also correct under a custom XDG_CONFIG_HOME) — the legacy
             // capital-U path would fix nothing on a case-sensitive filesystem.
-            text: qsTr("⚠ Settings can't be saved — your config file is not writable, so changes reset every launch. Fix its permissions:\n    sudo chown -R $USER %1")
+            text: qsTr("⚠ Settings can't be saved. Your config file is not writable, so changes reset every launch. Fix its permissions:\n    sudo chown -R $USER %1")
                   .arg(App.settings.configPath().replace(/\/[^\/]+$/, ""))
         }
     }
@@ -496,7 +496,7 @@ Item {
                     SettingRow {
                         label: qsTr("Show notifications")
                         help: qsTr("Master switch for all app notifications.")
-                        helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent — captures, uploads and errors produce no visual feedback outside the main window.")
+                        helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
@@ -511,7 +511,7 @@ Item {
                         visible: App.settings.showCapturePopup
                         available: App.layerShellActive
                         hint: App.layerShellActive ? ""
-                              : qsTr("Position is set by the system notification server here — this compositor has no layer-shell card to place.")
+                              : qsTr("The system notification server decides the position here, because this compositor has no layer-shell card to place.")
                         label: qsTr("Notification position")
                         help: qsTr("Screen corner where the capture card appears.")
                         helpDetail: qsTr("Only applies to the layer-shell card, which Unisic positions itself. Native desktop notifications are placed by the system notification server and ignore this.")
@@ -541,12 +541,12 @@ Item {
                     SettingRow {
                         available: App.ocrAvailable
                         hint: App.ocrAvailable ? ""
-                              : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
+                              : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: (App.qrAvailable
-                                     ? qsTr("Combine languages with “+”, e.g. “pol+eng” — each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
-                                     : qsTr("Combine languages with “+”, e.g. “pol+eng” — each needs its Tesseract langpack installed."))
+                                     ? qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
+                                     : qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed."))
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
@@ -569,7 +569,7 @@ Item {
                     SettingRow {
                         label: qsTr("Open file after saving")
                         help: qsTr("Opens each capture in your image viewer after saving.")
-                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor — this simply opens the saved file.")
+                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
                         USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
                     }
                     SettingRow {
@@ -617,7 +617,7 @@ Item {
                     SettingRow {
                         label: qsTr("Quality (JPEG/WebP): %1").arg(App.settings.imageQuality)
                         help: qsTr("Compression quality for lossy formats.")
-                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this — it is always lossless.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless.")
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -629,7 +629,7 @@ Item {
                         width: parent.width
                         spacing: 4
                         Text {
-                            text: qsTr("Filename template — tokens: %date%, %time%, %datetime%, %unix%, %rand%")
+                            text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
@@ -665,7 +665,7 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Each enabled action runs immediately when the region is dropped — the editor opens alongside them.")
+                        text: qsTr("Each enabled action runs immediately when the region is dropped. The editor opens alongside the others without blocking them.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -681,12 +681,12 @@ Item {
                         // desktops, so grey the row out there with the reason.
                         available: App.hotkeyBackend === "kglobalaccel" && !App.settings.copyToClipboard
                         hint: App.hotkeyBackend !== "kglobalaccel"
-                              ? qsTr("Needs KGlobalAccel's on-demand key grabbing — KDE Plasma only.")
+                              ? qsTr("Needs KGlobalAccel's on-demand key grabbing, so it works on KDE Plasma only.")
                               : App.settings.copyToClipboard
-                                ? qsTr("Not used while “Copy image to clipboard” is on — the capture is copied automatically anyway.")
+                                ? qsTr("Not used while “Copy image to clipboard” is on, since the capture is already copied automatically.")
                                 : ""
                         help: qsTr("Reflexive Ctrl+C right after a capture copies it.")
-                        helpDetail: qsTr("For 2 seconds after each capture, Ctrl+C is grabbed globally and copies the fresh capture to the clipboard (including the wl-copy mirror); afterwards the key returns to normal. KDE only — it needs KGlobalAccel's on-demand key grabbing.")
+                        helpDetail: qsTr("For 2 seconds after each capture, Ctrl+C is grabbed globally and copies the fresh capture to the clipboard (including the wl-copy mirror); afterwards the key returns to normal. KDE only, as it needs KGlobalAccel's on-demand key grabbing.")
                         USwitch {
                             checked: App.settings.quickCopyAfterCapture
                             onToggled: (c) => App.settings.quickCopyAfterCapture = c
@@ -707,7 +707,7 @@ Item {
                     SettingRow {
                         label: qsTr("Open the editor")
                         help: qsTr("Opens every capture in the annotation editor.")
-                        helpDetail: qsTr("The editor never blocks other after-capture actions — saving, copying and uploading run independently at the same time.")
+                        helpDetail: qsTr("The editor never blocks other after-capture actions: saving, copying and uploading run independently at the same time.")
                         USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
                     }
                 }
@@ -775,10 +775,10 @@ Item {
                         visible: App.settings.showCapturePopup
                         available: App.layerShellActive
                         hint: App.layerShellActive ? ""
-                              : qsTr("The style only applies to the layer-shell card — a native notification is drawn by the system server.")
+                              : qsTr("The style only applies to the layer-shell card; a native notification is drawn by the system server.")
                         label: qsTr("Notification style")
-                        help: qsTr("How the capture card looks — from full card to a tiny pill.")
-                        helpDetail: qsTr("Casual: the full card — large thumbnail, title and a row of action buttons.\nCompact: a tighter card — medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename — clicking it opens the floating preview.\nThumbnail: image-first — the capture fills the card, actions appear on hover.\n\nApplies to the next capture.")
+                        help: qsTr("How the capture card looks, from full card to tiny pill.")
+                        helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
                         UComboBox {
                             width: 180
                             model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
@@ -944,7 +944,7 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Choose the icon set for the drawing tools only — the main app icons stay fixed.")
+                        text: qsTr("Choose the icon set for the drawing tools only; the main app icons stay fixed.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -1063,7 +1063,7 @@ Item {
                     SettingRow {
                         label: qsTr("Toolbar position")
                         help: qsTr("Where the annotation toolbar sits on the selection overlay.")
-                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge — useful when it keeps covering what you select.")
+                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
                         UComboBox {
                             width: 200
                             model: page.toolbarPosNames
@@ -1074,13 +1074,13 @@ Item {
                     SettingRow {
                         label: qsTr("Show alignment guides while selecting")
                         help: qsTr("Crosshair lines from the cursor to the screen edges.")
-                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual — never captured into the image.")
+                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
                     SettingRow {
                         label: qsTr("Smart pick (experimental)")
                         help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
-                        helpDetail: qsTr("EXPERIMENTAL — detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor — a single click selects its rectangle, no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen — the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
+                        helpDetail: qsTr("EXPERIMENTAL: detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor, so a single click selects its rectangle with no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen; the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
                         USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
                     }
                 }
@@ -1095,7 +1095,7 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Hide tools you don't use — they disappear from the editor and the capture overlay.")
+                        text: qsTr("Hide tools you don't use; they disappear from the editor and the capture overlay.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -1156,7 +1156,7 @@ Item {
                     SettingRow {
                         label: qsTr("GIF max duration (0 = unlimited)")
                         help: qsTr("Auto-stops GIF recording after this many seconds.")
-                        helpDetail: qsTr("A safety cap — GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
+                        helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
                         USpinBox { from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
                     }
                     SettingRow {
@@ -1200,7 +1200,7 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Applies to video recordings (MP4/WebM) — GIFs have no audio.")
+                        text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -1240,7 +1240,7 @@ Item {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         textFormat: Text.MarkdownText
-                        text: qsTr("This desktop has no KGlobalAccel service, so Unisic cannot register global shortcuts itself. Bind keys in your compositor instead — a running Unisic instance picks the command up:\n\n" +
+                        text: qsTr("This desktop has no KGlobalAccel service, so Unisic cannot register global shortcuts itself. Bind keys in your compositor instead; a running Unisic instance picks the command up:\n\n" +
                                    "```\nunisic --region | --fullscreen | --window | --gif\n```\n\n" +
                                    "niri (`config.kdl`):\n\n" +
                                    "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
@@ -1275,7 +1275,7 @@ Item {
                     SettingRow {
                         label: qsTr("Region")
                         help: qsTr("Hotkey: capture a selected region.")
-                        helpDetail: qsTr("Opens the selection overlay with annotation tools — draw on the frozen screen before the capture is finalized.")
+                        helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") } }
                     }
                     SettingRow {
@@ -1300,11 +1300,11 @@ Item {
                         label: qsTr("OCR region (copy text)")
                         available: App.ocrAvailable
                         hint: App.ocrAvailable ? ""
-                              : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
+                              : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
                         helpDetail: (App.qrAvailable
-                                     ? qsTr("Opens the region selector and runs OCR on the crop — nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
-                                     : qsTr("Opens the region selector and runs OCR on the crop — nothing is saved and no notification is shown; the recognized text is simply copied."))
+                                     ? qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                                     : qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied."))
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyOcr; onRecorded: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
                     }
                     UButton {
@@ -1317,8 +1317,8 @@ Item {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: App.hotkeyBackend === "portal"
-                              ? qsTr("Keys recorded here are suggestions passed to the portal — the system dialog confirms or adjusts them.")
-                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings — an edit made there shows up here too.")
+                              ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
+                              : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }

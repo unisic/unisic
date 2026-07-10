@@ -26,7 +26,7 @@ Item {
                 font.weight: Font.Bold
             }
             Text {
-                text: qsTr("Screenshots land in the editor — annotate, then save, copy or upload.")
+                text: qsTr("Screenshots land in the editor, where you can annotate, then save, copy or upload.")
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontM
             }

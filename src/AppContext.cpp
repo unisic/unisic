@@ -120,7 +120,7 @@ AppContext::AppContext(QObject *parent)
     // A history file that could not be trashed still gets its entry removed;
     // let the user know the file is still on disk.
     connect(m_history, &HistoryStore::fileTrashFailed, this, [this](const QString &path) {
-        showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
+        showToast(tr("Could not move %1 to trash; the file is still on disk").arg(path), true);
     });
 
     // Live-apply a custom tray icon the moment the setting changes (also covers
@@ -347,16 +347,16 @@ QString AppContext::captureErrorGuidance(const QString &err)
         return text;
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
     if (desktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
-        text += tr(" — install Unisic (sudo cmake --install build) and launch it from the "
+        text += tr(". Install Unisic (sudo cmake --install build) and launch it from the "
                    "application menu so KDE authorizes it, and check that "
                    "xdg-desktop-portal-kde is running.");
     else if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
-        text += tr(" — allow screenshots for Unisic in GNOME Settings → Apps, and check that "
+        text += tr(". Allow screenshots for Unisic in GNOME Settings → Apps, and check that "
                    "xdg-desktop-portal-gnome is running.");
     else if (!err.contains(QLatin1String("grim")))
         // The capture chain's own rescue may already carry grim advice
         // (with per-desktop rationale) — don't tell the user twice.
-        text += tr(" — install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
+        text += tr(". Install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
                    "xdg-desktop-portal backend for your desktop.");
     return text;
 }
@@ -543,7 +543,7 @@ void AppContext::devTestSmartPick()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: smart pick detect — %1").arg(smartPickDetectCheck()));
+    showToast(tr("Dev: smart pick detect: %1").arg(smartPickDetectCheck()));
 }
 
 void AppContext::devTestNotification()
@@ -591,7 +591,7 @@ void AppContext::devTestFavoriteHistory()
         return;
     m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
     m_history->setFavorite(0, true);
-    showToast(tr("Dev: added a STARRED history entry — try Clear all / delete on it"));
+    showToast(tr("Dev: added a STARRED history entry; try Clear all / delete on it"));
 }
 
 void AppContext::devTestEditFromHistory()
@@ -614,7 +614,7 @@ void AppContext::devTestQuickCopy()
     if (!devBuild())
         return;
     if (!m_hotkeys->available()) {
-        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE) — unavailable here"), true);
+        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE), unavailable here"), true);
         return;
     }
     armQuickCopy(devTestImage());
@@ -687,7 +687,7 @@ void AppContext::devTestSettingsRoundTrip()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: settings round-trip — %1").arg(settingsRoundTripCheck()));
+    showToast(tr("Dev: settings round-trip: %1").arg(settingsRoundTripCheck()));
 }
 
 void AppContext::devTestUpload()
@@ -697,9 +697,9 @@ void AppContext::devTestUpload()
     showToast(tr("Dev: uploading a test image to '%1'…").arg(m_settings->activeDestination()));
     uploadImage(devTestImage(), [this](const QString &url, const QString &err) {
         if (err.isEmpty())
-            showToast(tr("Dev: upload OK — %1").arg(url));
+            showToast(tr("Dev: upload OK: %1").arg(url));
         else
-            showToast(tr("Dev: upload failed — %1").arg(err), true);
+            showToast(tr("Dev: upload failed: %1").arg(err), true);
     });
 }
 
@@ -717,7 +717,7 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
         } else if (actual.isEmpty() && !a.keys.isEmpty()) {
             ++bad;
             if (heal && m_hotkeys->setShortcut(a.id, a.name, a.keys))
-                lines << a.id + QStringLiteral(": was unbound — re-asserted ") + a.keys;
+                lines << a.id + QStringLiteral(": was unbound, re-asserted ") + a.keys;
             else
                 lines << a.id + QStringLiteral(": UNBOUND (stored ") + a.keys + QLatin1Char(')');
         } else {
@@ -749,7 +749,7 @@ void AppContext::devTestHotkeyBinds()
     if (bad == 0)
         showToast(tr("Hotkeys: all %1 bound in the daemon").arg(lines.size()));
     else
-        showToast(tr("Hotkeys: %1 of %2 were unbound — re-asserted (details in the log)")
+        showToast(tr("Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)")
                       .arg(bad).arg(lines.size()), true);
 }
 
@@ -1002,7 +1002,7 @@ void AppContext::runSmokeTest()
 
     // 6) upload (needs a real destination + a public target — left manual)
     m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("upload: SKIP — active destination '%1'; run a real upload manually")
+        smokeLog(QStringLiteral("upload: SKIP (active destination '%1'); run a real upload manually")
                  .arg(m_settings->activeDestination()));
         smokeNext();
     });
@@ -1211,7 +1211,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
         // capture still exists in memory/history), but silently pretending it
         // was persisted loses data on unplugged/read-only/full save targets.
         if (path.isEmpty())
-            showToast(tr("Could not save to %1 — check the save folder in Settings")
+            showToast(tr("Could not save to %1. Check the save folder in Settings")
                           .arg(m_settings->saveDirectory()), true);
     }
     if (m_settings->copyToClipboard())
@@ -1308,7 +1308,7 @@ void AppContext::afterUploadActions(const QString &url)
 {
     if (m_settings->afterUploadCopyLink()) {
         copyText(url);
-        showToast(tr("Uploaded — link copied"));
+        showToast(tr("Uploaded, link copied"));
     } else {
         showToast(tr("Uploaded: %1").arg(url));
     }
@@ -1939,7 +1939,7 @@ void AppContext::defineHotkeys()
                                     QStringLiteral("Ctrl+Escape"))) {
             qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
                           " component — on stock Plasma: Show System Activity)";
-            showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
+            showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
                          "(System Settings → Shortcuts to free it)"));
         }
 #ifdef UNISIC_DEV_BUILD
@@ -2033,7 +2033,7 @@ void AppContext::applyHotkey(const QString &actionId)
         if (a.id != actionId)
             continue;
         if (!m_hotkeys->setShortcut(a.id, a.name, a.keys)) {
-            showToast(tr("Could not bind %1 — the key is taken by another shortcut").arg(a.keys),
+            showToast(tr("Could not bind %1; the key is taken by another shortcut").arg(a.keys),
                       true);
             // Show what is actually bound instead of the refused wish.
             bool ok = false;
@@ -2060,7 +2060,7 @@ void AppContext::applyHotkeys()
     for (const HotkeyAction &a : acts)
         allOk &= m_hotkeys->setShortcut(a.id, a.name, a.keys);
     if (!allOk) {
-        showToast(tr("Some hotkeys could not be bound (keys taken) — showing the actual state"),
+        showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
                   true);
         syncAllHotkeysFromDaemon();
     }
@@ -2426,12 +2426,12 @@ void AppContext::setAutostartEnabled(bool on)
     const QString path = autostartFilePath();
     if (!on) {
         if (!QFile::remove(path) && QFile::exists(path))
-            showToast(tr("Could not disable autostart — cannot remove %1").arg(path), true);
+            showToast(tr("Could not disable autostart: cannot remove %1").arg(path), true);
         emit autostartEnabledChanged(); // reflect the real (post-remove) state
         return;
     }
     if (!writeAutostartFile()) {
-        showToast(tr("Could not enable autostart — cannot write %1").arg(path), true);
+        showToast(tr("Could not enable autostart: cannot write %1").arg(path), true);
         return; // state unchanged; the switch snaps back on the next read
     }
     emit autostartEnabledChanged();

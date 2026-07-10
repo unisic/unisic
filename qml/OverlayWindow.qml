@@ -263,7 +263,7 @@ Window {
                 anchors.centerIn: parent
                 text: canvas.segmenting
                       ? qsTr("Separating object from background…")
-                      : qsTr("Background removed — Enter or double-click captures the cutout")
+                      : qsTr("Background removed. Enter or double-click captures the cutout")
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1
             }

@@ -637,7 +637,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         reply->deleteLater();
         const QByteArray body = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            cb({}, {}, QStringLiteral("%1 — %2").arg(reply->errorString(),
+            cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(),
                                                      QString::fromUtf8(body.left(300))));
             return;
         }
@@ -742,7 +742,7 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         proc->deleteLater();
         if (tmp)
             tmp->deleteLater();
-        cb({}, {}, tr("Could not run curl — is it installed? (needed for FTP/SFTP uploads)"));
+        cb({}, {}, tr("Could not run curl. Is it installed? (needed for FTP/SFTP uploads)"));
     });
     proc->start(QStringLiteral("curl"), args);
     // Absolute watchdog on top of --speed-*: some curl builds don't apply the

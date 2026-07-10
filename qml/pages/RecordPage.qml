@@ -113,7 +113,7 @@ Item {
                         width: parent.width; height: 44
                         Text {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Quality (CRF %1 — lower is better)").arg(App.settings.videoQuality)
+                            text: qsTr("Quality (CRF %1, lower is better)").arg(App.settings.videoQuality)
                             color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
                         USlider {

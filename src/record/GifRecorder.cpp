@@ -90,7 +90,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 {
 #ifndef HAVE_PIPEWIRE
     Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen)
-    emit failed(tr("Unisic was built without PipeWire support — recording unavailable"));
+    emit failed(tr("Unisic was built without PipeWire support, so recording is unavailable"));
     return;
 #else
     if (m_state != Idle)
@@ -284,7 +284,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     m_ffmpeg->setProcessChannelMode(QProcess::MergedChannels);
     connect(m_ffmpeg, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if ((m_state == Recording || m_state == Starting) && error == QProcess::FailedToStart)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     connect(m_ffmpeg, &QProcess::finished, this,
             [this](int code, QProcess::ExitStatus status) {
@@ -322,7 +322,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         // errorOccurred may already have fired fail() synchronously (state now
         // Idle); guard so we don't emit failed() twice.
         if (m_ffmpeg == encoder && m_state == Starting)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
         return;
     }
     if (m_ffmpeg != encoder)
@@ -495,7 +495,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -506,7 +506,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -542,7 +542,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -555,7 +555,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -631,14 +631,14 @@ void GifRecorder::convertVideo()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"), args);
     if (!conv->waitForStarted(3000) && m_converter == conv) {
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 

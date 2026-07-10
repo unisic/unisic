@@ -43,7 +43,7 @@ Window {
             // unsaved annotations.
             if (App.recording || App.converting) {
                 close.accepted = false
-                App.showToast(qsTr("Recording in progress — stop it before closing"), true)
+                App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             } else if (App.editorWindowsOpen > 0) {
                 window.hide()
                 close.accepted = false

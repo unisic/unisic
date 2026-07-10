@@ -2,6 +2,10 @@
 #include <QtConcurrent>
 #include <QFutureWatcher>
 #include <tesseract/baseapi.h>
+#ifdef HAVE_ZXING
+#include <ZXing/ReadBarcode.h>
+#include <ZXing/Version.h>
+#endif
 
 namespace {
 struct OcrResult { QString text; QString error; };
@@ -14,6 +18,29 @@ OcrResult runOcr(QImage img, QString langs)
         r.error = QObject::tr("No image to recognize");
         return r;
     }
+#ifdef HAVE_ZXING
+    // Barcode pass first: a QR (or other code) in the region means the user
+    // wants its PAYLOAD — OCR-ing the code's pixels yields garbage. Grayscale
+    // keeps the ImageView format portable across zxing-cpp versions.
+    {
+        const QImage gray = img.convertToFormat(QImage::Format_Grayscale8);
+        ZXing::ImageView view(gray.constBits(), gray.width(), gray.height(),
+                              ZXing::ImageFormat::Lum, int(gray.bytesPerLine()));
+#if ZXING_VERSION_MAJOR > 2 || (ZXING_VERSION_MAJOR == 2 && ZXING_VERSION_MINOR >= 2)
+        ZXing::ReaderOptions opts;   // DecodeHints was renamed in 2.2
+#else
+        ZXing::DecodeHints opts;
+#endif
+        opts.setTryHarder(true);
+        opts.setTryRotate(true);
+        const auto res = ZXing::ReadBarcode(view, opts);
+        if (res.isValid()) {
+            r.text = QString::fromStdString(res.text()).trimmed();
+            if (!r.text.isEmpty())
+                return r;
+        }
+    }
+#endif
     tesseract::TessBaseAPI api;
     // Init returns non-zero when any requested language's data is missing.
     if (api.Init(nullptr, langs.toUtf8().constData()) != 0) {

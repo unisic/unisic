@@ -66,7 +66,7 @@ jobs:
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
             libpipewire-0.3-dev \
-            libtesseract-dev libleptonica-dev \
+            libtesseract-dev libleptonica-dev libzxing-dev \
             liblayershellqtinterface-dev libwayland-dev
 
       - uses: actions/checkout@v4
@@ -102,7 +102,7 @@ jobs:
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
             pipewire-devel \
-            tesseract-devel leptonica-devel \
+            tesseract-devel leptonica-devel zxing-cpp-devel \
             layer-shell-qt-devel wayland-devel
 
       - uses: actions/checkout@v4
@@ -135,7 +135,7 @@ jobs:
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
-            tesseract leptonica layer-shell-qt wayland
+            tesseract leptonica layer-shell-qt wayland zxing-cpp
 
       - uses: actions/checkout@v4
 
@@ -218,6 +218,15 @@ jobs:
             -DBUILD_TESTING=OFF
           cmake --build build-lsq --parallel
           cmake --install build-lsq
+          # zxing-cpp (QR in OCR): Ubuntu 22.04 has no modern package — same
+          # best-effort source build into the same local prefix.
+          git clone --depth 1 --branch v2.2.1 https://github.com/zxing-cpp/zxing-cpp.git
+          cmake -S zxing-cpp -B build-zxing -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
+          cmake --build build-zxing --parallel
+          cmake --install build-zxing
 
       - name: Build AppDir
         run: |

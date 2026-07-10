@@ -1,7 +1,6 @@
 #include "WindowRects.h"
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
-#include <QDBusInterface>
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusReply>
@@ -9,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QPointer>
+#include <QProcess>
 #include <QFile>
 #include <QSaveFile>
 #include <QStandardPaths>
@@ -16,6 +16,8 @@
 #include <QUuid>
 #include <QCoreApplication>
 #include <QDebug>
+
+// ------------------------------------------------------------------- KWin
 
 // The script reports through callDBus straight back at our unique bus name.
 // It is defensive on purpose: any thrown error would otherwise fail silently
@@ -45,29 +47,15 @@ callDBus("%1", "%2", "org.unisic.WindowRects", "pushWindows", JSON.stringify(rec
 )JS").arg(service, path);
 }
 
-void WindowRects::query(QObject *context, Callback cb)
+void WindowRects::startKWin()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
-    auto *iface = bus.interface();
-    if (!iface || !iface->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
-        if (cb)
-            cb({});
-        return;
-    }
-
-    auto *self = new WindowRects();
     const QString token = QUuid::createUuid().toString(QUuid::WithoutBraces).left(8);
-    self->m_dbusPath = QStringLiteral("/unisic/windowrects_") + token;
-    self->m_pluginName = QStringLiteral("unisic-winrects-") + token;
-    QPointer<QObject> guard(context);
-    self->m_cb = [cb, guard](const QVector<QRect> &r) {
-        if (guard && cb)
-            cb(r);
-    };
-    if (!bus.registerObject(self->m_dbusPath, self,
-                            QDBusConnection::ExportScriptableSlots)) {
+    m_dbusPath = QStringLiteral("/unisic/windowrects_") + token;
+    m_pluginName = QStringLiteral("unisic-winrects-") + token;
+    if (!bus.registerObject(m_dbusPath, this, QDBusConnection::ExportScriptableSlots)) {
         qWarning() << "WindowRects: cannot register D-Bus receiver";
-        self->finish({});
+        finish({});
         return;
     }
 
@@ -77,45 +65,33 @@ void WindowRects::query(QObject *context, Callback cb)
     {
         QSaveFile f(file);
         if (!f.open(QIODevice::WriteOnly)) {
-            self->finish({});
+            finish({});
             return;
         }
-        f.write(kwinScript(bus.baseService(), self->m_dbusPath).toUtf8());
+        f.write(kwinScript(bus.baseService(), m_dbusPath).toUtf8());
         f.commit();
     }
-
-    // Give up quietly when the compositor never answers (kwin busy, scripting
-    // disabled) — smart pick then simply runs without window priors.
-    auto *timeout = new QTimer(self);
-    timeout->setSingleShot(true);
-    timeout->setInterval(500);
-    QObject::connect(timeout, &QTimer::timeout, self, [self, file] {
-        QFile::remove(file);
-        self->finish({});
-    });
-    timeout->start();
 
     QDBusMessage load = QDBusMessage::createMethodCall(
         QStringLiteral("org.kde.KWin"), QStringLiteral("/Scripting"),
         QStringLiteral("org.kde.kwin.Scripting"), QStringLiteral("loadScript"));
-    load << file << self->m_pluginName;
-    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(load), self);
-    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, self,
-                     [self, file](QDBusPendingCallWatcher *w) {
+    load << file << m_pluginName;
+    auto *watcher = new QDBusPendingCallWatcher(bus.asyncCall(load), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, file](QDBusPendingCallWatcher *w) {
         w->deleteLater();
         const QDBusPendingReply<int> reply = *w;
         if (reply.isError()) {
             qWarning() << "WindowRects: loadScript failed:" << reply.error().message();
             QFile::remove(file);
-            self->finish({});
+            finish({});
             return;
         }
-        const int id = reply.value();
         // Plasma 6 exposes the loaded script at /Scripting/Script<id>; run()
         // executes it, and the script reports back via pushWindows.
         QDBusMessage run = QDBusMessage::createMethodCall(
             QStringLiteral("org.kde.KWin"),
-            QStringLiteral("/Scripting/Script%1").arg(id),
+            QStringLiteral("/Scripting/Script%1").arg(reply.value()),
             QStringLiteral("org.kde.kwin.Script"), QStringLiteral("run"));
         QDBusConnection::sessionBus().asyncCall(run);
         // The temp file is only needed until run() parsed it; sweep a little
@@ -141,19 +117,181 @@ void WindowRects::pushWindows(const QString &json)
     finish(rects);
 }
 
+// ------------------------------------------------------------------ GNOME
+
+void WindowRects::startGnome()
+{
+    // org.gnome.Shell.Introspect.GetWindows — the API the GNOME portal itself
+    // uses. Stock GNOME restricts it to allowlisted callers unless
+    // "unsafe mode" is on, so a denial here is EXPECTED and just falls back.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.gnome.Shell"),
+        QStringLiteral("/org/gnome/Shell/Introspect"),
+        QStringLiteral("org.gnome.Shell.Introspect"), QStringLiteral("GetWindows"));
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        const QDBusPendingReply<QVariantMap> reply = *w;
+        if (reply.isError()) {
+            finish({});
+            return;
+        }
+        QVector<QRect> rects;
+        const QVariantMap windows = reply.value();
+        for (auto it = windows.cbegin(); it != windows.cend(); ++it) {
+            const QVariantMap props = qdbus_cast<QVariantMap>(it.value());
+            if (props.value(QStringLiteral("is-hidden")).toBool())
+                continue;
+            const QVariantList fr = qdbus_cast<QVariantList>(
+                props.value(QStringLiteral("frame-rect")));
+            if (fr.size() == 4) {
+                const QRect r(fr[0].toInt(), fr[1].toInt(), fr[2].toInt(), fr[3].toInt());
+                if (r.width() >= 8 && r.height() >= 8)
+                    rects.append(r);
+            }
+        }
+        finish(rects);
+    });
+}
+
+// -------------------------------------------------- process-JSON backends
+
+void WindowRects::startProcess(const QString &program, const QStringList &args,
+                               std::function<QVector<QRect>(const QByteArray &)> parse)
+{
+    auto *proc = new QProcess(this);
+    connect(proc, &QProcess::finished, this,
+            [this, proc, parse](int code, QProcess::ExitStatus st) {
+        const QByteArray out = proc->readAllStandardOutput();
+        proc->deleteLater();
+        if (code != 0 || st != QProcess::NormalExit) {
+            finish({});
+            return;
+        }
+        finish(parse(out));
+    });
+    connect(proc, &QProcess::errorOccurred, this, [this, proc] {
+        proc->deleteLater();
+        finish({});
+    });
+    proc->start(program, args);
+}
+
+// sway: walk the layout tree; visible con/floating_con nodes carry their
+// frame in "rect" (global logical coordinates).
+static QVector<QRect> parseSwayTree(const QByteArray &json)
+{
+    QVector<QRect> rects;
+    std::function<void(const QJsonObject &)> walk = [&](const QJsonObject &node) {
+        const QString type = node.value(QStringLiteral("type")).toString();
+        if ((type == QLatin1String("con") || type == QLatin1String("floating_con"))
+            && node.value(QStringLiteral("visible")).toBool()
+            && !node.value(QStringLiteral("name")).isNull()) {
+            const QJsonObject r = node.value(QStringLiteral("rect")).toObject();
+            const QRect rect(r.value(QStringLiteral("x")).toInt(),
+                             r.value(QStringLiteral("y")).toInt(),
+                             r.value(QStringLiteral("width")).toInt(),
+                             r.value(QStringLiteral("height")).toInt());
+            if (rect.width() >= 8 && rect.height() >= 8)
+                rects.append(rect);
+        }
+        for (const auto &key : {QStringLiteral("nodes"), QStringLiteral("floating_nodes")}) {
+            const QJsonArray kids = node.value(key).toArray();
+            for (const auto &k : kids)
+                walk(k.toObject());
+        }
+    };
+    walk(QJsonDocument::fromJson(json).object());
+    return rects;
+}
+
+// Hyprland: flat client list; rects on other workspaces vanish later when
+// OverlayController clips them to each screen.
+static QVector<QRect> parseHyprlandClients(const QByteArray &json)
+{
+    QVector<QRect> rects;
+    const QJsonArray arr = QJsonDocument::fromJson(json).array();
+    for (const auto &v : arr) {
+        const QJsonObject o = v.toObject();
+        if (!o.value(QStringLiteral("mapped")).toBool()
+            || o.value(QStringLiteral("hidden")).toBool())
+            continue;
+        const QJsonArray at = o.value(QStringLiteral("at")).toArray();
+        const QJsonArray size = o.value(QStringLiteral("size")).toArray();
+        if (at.size() == 2 && size.size() == 2) {
+            const QRect r(at[0].toInt(), at[1].toInt(), size[0].toInt(), size[1].toInt());
+            if (r.width() >= 8 && r.height() >= 8)
+                rects.append(r);
+        }
+    }
+    return rects;
+}
+
+// ---------------------------------------------------------------- dispatch
+
+void WindowRects::query(QObject *context, Callback cb)
+{
+    auto *self = new WindowRects();
+    QPointer<QObject> guard(context);
+    self->m_cb = [cb, guard](const QVector<QRect> &r, const QString &backend) {
+        if (guard && cb)
+            cb(r, backend);
+    };
+
+    // Give up quietly when the backend never answers — smart pick then simply
+    // runs without window priors.
+    auto *timeout = new QTimer(self);
+    timeout->setSingleShot(true);
+    timeout->setInterval(500);
+    connect(timeout, &QTimer::timeout, self, [self] { self->finish({}); });
+    timeout->start();
+
+    auto *iface = QDBusConnection::sessionBus().interface();
+    const bool kwin = iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+    const bool gnome = iface && iface->isServiceRegistered(QStringLiteral("org.gnome.Shell"));
+    const QString swaySock = qEnvironmentVariable("SWAYSOCK");
+    const bool hypr = !qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE").isEmpty();
+
+    if (kwin) {
+        self->m_backend = QStringLiteral("kwin");
+        self->startKWin();
+    } else if (hypr && !QStandardPaths::findExecutable(QStringLiteral("hyprctl")).isEmpty()) {
+        self->m_backend = QStringLiteral("hyprland");
+        self->startProcess(QStringLiteral("hyprctl"),
+                           {QStringLiteral("-j"), QStringLiteral("clients")},
+                           parseHyprlandClients);
+    } else if (!swaySock.isEmpty()
+               && !QStandardPaths::findExecutable(QStringLiteral("swaymsg")).isEmpty()) {
+        self->m_backend = QStringLiteral("sway");
+        self->startProcess(QStringLiteral("swaymsg"),
+                           {QStringLiteral("-t"), QStringLiteral("get_tree")},
+                           parseSwayTree);
+    } else if (gnome) {
+        self->m_backend = QStringLiteral("gnome");
+        self->startGnome();
+    } else {
+        self->m_backend.clear();
+        self->finish({});
+    }
+}
+
 void WindowRects::finish(const QVector<QRect> &rects)
 {
     if (m_done)
         return;
     m_done = true;
-    // Unload the one-shot script; harmless if load never succeeded.
-    QDBusMessage unload = QDBusMessage::createMethodCall(
-        QStringLiteral("org.kde.KWin"), QStringLiteral("/Scripting"),
-        QStringLiteral("org.kde.kwin.Scripting"), QStringLiteral("unloadScript"));
-    unload << m_pluginName;
-    QDBusConnection::sessionBus().asyncCall(unload);
-    QDBusConnection::sessionBus().unregisterObject(m_dbusPath);
+    if (!m_pluginName.isEmpty()) {
+        // Unload the one-shot KWin script; harmless if load never succeeded.
+        QDBusMessage unload = QDBusMessage::createMethodCall(
+            QStringLiteral("org.kde.KWin"), QStringLiteral("/Scripting"),
+            QStringLiteral("org.kde.kwin.Scripting"), QStringLiteral("unloadScript"));
+        unload << m_pluginName;
+        QDBusConnection::sessionBus().asyncCall(unload);
+        QDBusConnection::sessionBus().unregisterObject(m_dbusPath);
+    }
     if (m_cb)
-        m_cb(rects);
+        m_cb(rects, rects.isEmpty() ? QString() : m_backend);
     deleteLater();
 }

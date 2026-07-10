@@ -148,10 +148,29 @@ void AnnotationCanvas::rebuildPickList()
     m_pickList.clear();
     for (const QRect &r : std::as_const(m_windowCandidates))
         m_pickList.append({r, true});
-    // Pixel-detected rects fill in what the compositor can't know (elements
-    // INSIDE windows); one that basically re-detects a window is dropped —
-    // the compositor's frame wins.
+    // Pixel-detected rects fill in what the compositor can't know: elements
+    // INSIDE windows. With compositor truth available they are filtered hard:
+    // (a) a rect mostly OUTSIDE every window is line-detector noise (desktop
+    //     bands, spans crossing two windows) — hovering the desktop must not
+    //     grab phantom shapes;
+    // (b) a rect nearly identical to a window frame (IoU > 0.90) is dropped
+    //     for the exact compositor one. The threshold is deliberately high:
+    //     a browser's page area covers ~85% of its window and must SURVIVE
+    //     as a distinct inner element.
     for (const QRect &d : std::as_const(m_objectCandidates)) {
+        if (!m_windowCandidates.isEmpty() && d != m_base.rect()) {
+            bool inside = false;
+            const qint64 da = qint64(d.width()) * d.height();
+            for (const QRect &wr : std::as_const(m_windowCandidates)) {
+                const QRect inter = d.intersected(wr);
+                if (qint64(inter.width()) * inter.height() * 4 >= da * 3) {
+                    inside = true; // >= 75% of the rect lies in this window
+                    break;
+                }
+            }
+            if (!inside)
+                continue;
+        }
         bool dupOfWindow = false;
         for (const QRect &wr : std::as_const(m_windowCandidates)) {
             const QRect inter = d.intersected(wr);
@@ -160,7 +179,7 @@ void AnnotationCanvas::rebuildPickList()
             const double ia = double(inter.width()) * inter.height();
             const double ua = double(d.width()) * d.height()
                               + double(wr.width()) * wr.height() - ia;
-            if (ua > 0 && ia / ua > 0.75) { dupOfWindow = true; break; }
+            if (ua > 0 && ia / ua > 0.90) { dupOfWindow = true; break; }
         }
         if (!dupOfWindow)
             m_pickList.append({d, false});

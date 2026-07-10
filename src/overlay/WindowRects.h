@@ -5,24 +5,24 @@
 #include <functional>
 
 // Real window frame geometries from the compositor. Pixel analysis can only
-// GUESS where windows are — the compositor knows. KDE-specific enhancement
-// (KWin scripting API over D-Bus, same spirit as KWinScreenShot2); non-KDE
-// sessions call back with an empty list and callers keep the pure
-// pixel-detection candidates.
+// GUESS where windows are — the compositor knows. Backends, picked by
+// session: KWin scripting (KDE), GNOME Shell Introspect, sway (swaymsg),
+// Hyprland (hyprctl). Anything else calls back with an empty list and
+// callers keep the pure pixel-detection candidates, so smart pick works
+// everywhere — just with less precision where the compositor tells nothing.
 class WindowRects : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "org.unisic.WindowRects")
 public:
-    using Callback = std::function<void(const QVector<QRect> &globalLogicalRects)>;
+    using Callback = std::function<void(const QVector<QRect> &globalLogicalRects,
+                                        const QString &backend)>;
 
-    // One-shot, async: registers a temporary D-Bus receiver on this app's
-    // connection, loads+runs a KWin script that reports every un-minimized
-    // normal/dialog/dock window on the current desktop (bottom to top,
-    // frameGeometry in GLOBAL LOGICAL coordinates), then unloads the script.
-    // Falls back to an empty list after 500 ms or on any D-Bus failure.
-    // `context` scopes the callback: if it dies first, the callback is
-    // dropped.
+    // One-shot, async: dispatches to the session's backend and calls back
+    // with frame rects in GLOBAL LOGICAL coordinates plus the backend name
+    // ("" when none matched). Falls back to an empty list after 500 ms or on
+    // any failure. `context` scopes the callback: if it dies first, the
+    // callback is dropped.
     static void query(QObject *context, Callback cb);
 
 public slots:
@@ -32,9 +32,14 @@ public slots:
 private:
     explicit WindowRects(QObject *parent = nullptr) : QObject(parent) {}
     void finish(const QVector<QRect> &rects);
+    void startKWin();
+    void startGnome();
+    void startProcess(const QString &program, const QStringList &args,
+                      std::function<QVector<QRect>(const QByteArray &)> parse);
 
     Callback m_cb;
-    QString m_dbusPath;
-    QString m_pluginName;
+    QString m_backend;
+    QString m_dbusPath;      // KWin backend only
+    QString m_pluginName;    // KWin backend only
     bool m_done = false;
 };

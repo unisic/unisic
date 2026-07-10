@@ -545,11 +545,11 @@ void AppContext::devTestSmartPick()
     if (!devBuild())
         return;
     showToast(tr("Dev: smart pick detect — %1").arg(smartPickDetectCheck()));
-    // Second half of smart pick: the compositor window query (KDE only).
-    WindowRects::query(this, [this](const QVector<QRect> &rects) {
+    // Second half of smart pick: the compositor window query.
+    WindowRects::query(this, [this](const QVector<QRect> &rects, const QString &backend) {
         showToast(rects.isEmpty()
-                      ? tr("Dev: KWin window rects — none (non-KDE or scripting off)")
-                      : tr("Dev: KWin window rects — %1 windows").arg(rects.size()));
+                      ? tr("Dev: window rects — none (no compositor backend answered)")
+                      : tr("Dev: window rects — %1 windows via %2").arg(rects.size()).arg(backend));
     });
 }
 
@@ -900,12 +900,14 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // 3e3) smart pick window priors: live compositor query (KDE only).
+    // 3e3) smart pick window priors: live compositor query (KWin scripting,
+    // GNOME Introspect, sway, Hyprland — whichever this session offers).
     m_smokeSteps.append([this] {
-        WindowRects::query(this, [this](const QVector<QRect> &rects) {
+        WindowRects::query(this, [this](const QVector<QRect> &rects, const QString &backend) {
             smokeLog(rects.isEmpty()
-                         ? QStringLiteral("kwin window rects: SKIP (none reported — non-KDE?)")
-                         : QStringLiteral("kwin window rects: PASS (%1 windows)").arg(rects.size()));
+                         ? QStringLiteral("window rects: SKIP (no compositor backend answered)")
+                         : QStringLiteral("window rects: PASS (%1 windows via %2)")
+                               .arg(rects.size()).arg(backend));
             smokeNext();
         });
     });

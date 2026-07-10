@@ -63,7 +63,7 @@ void OverlayController::begin(bool annotationTools)
     // applyWindowRects(); querying BEFORE our own overlay windows exist also
     // keeps them out of the list.
     m_windowRects.clear();
-    WindowRects::query(this, [this, gen](const QVector<QRect> &rects) {
+    WindowRects::query(this, [this, gen](const QVector<QRect> &rects, const QString &) {
         if (gen != m_generation)
             return;
         m_windowRects = rects;

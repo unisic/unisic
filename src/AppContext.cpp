@@ -517,6 +517,15 @@ void AppContext::devTestHistory()
     showToast(tr("Dev: added a test history entry"));
 }
 
+void AppContext::devTestFavoriteHistory()
+{
+    if (!devBuild())
+        return;
+    m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
+    m_history->setFavorite(0, true);
+    showToast(tr("Dev: added a STARRED history entry — try Clear all / delete on it"));
+}
+
 void AppContext::devTestEditFromHistory()
 {
     if (!devBuild())
@@ -669,6 +678,17 @@ void AppContext::runSmokeTest()
         const bool ok = openPreview(devTestImage());
         smokeLog(QStringLiteral("preview window: ") + (ok
                  ? QStringLiteral("PASS (close it manually)") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 3e) history favorite round-trip (star -> role reads back -> unstar)
+    m_smokeSteps.append([this] {
+        m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
+        m_history->setFavorite(0, true);
+        const bool fav = m_history->data(m_history->index(0), HistoryStore::FavoriteRole).toBool();
+        smokeLog(QStringLiteral("history favorite: ") + (fav ? QStringLiteral("PASS")
+                                                             : QStringLiteral("FAIL")));
+        m_history->setFavorite(0, false);
         smokeNext();
     });
 

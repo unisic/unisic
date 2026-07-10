@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Dialogs
 import QtQuick.Window
 import Unisic
 import "../components"
@@ -27,7 +28,14 @@ Item {
                 variant: "ghost"
                 compact: true
                 enabled: App.history.count > 0
-                onClicked: App.history.clearAll()
+                onClicked: clearAllConfirm.open()
+            }
+            MessageDialog {
+                id: clearAllConfirm
+                title: qsTr("Clear the whole history?")
+                text: qsTr("This removes every history entry AND moves the capture files to the trash.\n\nStarred (favorite) captures are kept — entry and file.")
+                buttons: MessageDialog.Ok | MessageDialog.Cancel
+                onAccepted: App.history.clearAll()
             }
         }
 
@@ -119,6 +127,14 @@ Item {
                         Row {
                             spacing: 4
                             UIconButton {
+                                iconName: favorite ? "star-filled" : "star"
+                                iconSize: 16; width: 30; height: 30
+                                tooltip: favorite ? qsTr("Unstar (allows deletion again)")
+                                                  : qsTr("Star — survives Clear all and can't be deleted")
+                                active: favorite
+                                onClicked: App.history.setFavorite(index, !favorite)
+                            }
+                            UIconButton {
                                 iconName: "edit-copy"; iconSize: 16; tooltip: qsTr("Copy link")
                                 width: 30; height: 30
                                 enabled: url !== ""
@@ -149,7 +165,9 @@ Item {
                             }
                             UIconButton {
                                 iconName: "edit-delete"; iconSize: 16; width: 30; height: 30
-                                tooltip: qsTr("Delete (moves file to trash)")
+                                enabled: !favorite
+                                tooltip: favorite ? qsTr("Starred — unstar to delete")
+                                                  : qsTr("Delete (moves file to trash)")
                                 onClicked: App.history.remove(index)
                             }
                         }

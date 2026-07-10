@@ -24,6 +24,7 @@ public:
         DeleteUrlRole,
         KindRole,       // "image" | "gif"
         TimestampRole,
+        FavoriteRole,   // starred: survives Clear all, delete is blocked
     };
 
     explicit HistoryStore(QObject *parent = nullptr);
@@ -42,11 +43,15 @@ public:
     void refreshEntry(const QString &filePath, const QImage &img);
 
     // Removes the entry at row and moves its capture file to the trash.
+    // Favorited entries are protected — un-star first.
     Q_INVOKABLE void remove(int row);
     // Removes the entry whose capture is filePath (and trashes the file).
     Q_INVOKABLE void removeByFile(const QString &filePath);
-    // Clears all history entries but keeps the capture files on disk.
+    // Clears the history AND moves the capture files to the trash — except
+    // favorited entries, which are kept (entry + file).
     Q_INVOKABLE void clearAll();
+    // Star/un-star an entry (see FavoriteRole).
+    Q_INVOKABLE void setFavorite(int row, bool favorite);
 
 signals:
     void countChanged();
@@ -62,6 +67,7 @@ private:
         QString deleteUrl;
         QString kind;
         QDateTime timestamp;
+        bool favorite = false;
     };
     void load();
     // Debounced persistence: at the 500-entry cap a persist is a ~100 KB JSON

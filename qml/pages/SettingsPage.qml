@@ -434,20 +434,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Grab Ctrl+C for 2s after a capture")
-                        enabled: !App.settings.copyToClipboard
+                        available: !App.settings.copyToClipboard
+                        hint: !App.settings.copyToClipboard
+                              ? qsTr("When auto-copy is off, press Ctrl+C within 2 seconds of a capture to copy it. KDE only.")
+                              : qsTr("Not used while “Copy image to clipboard” is on — the capture is copied automatically anyway.")
                         USwitch {
                             checked: App.settings.quickCopyAfterCapture
                             onToggled: (c) => App.settings.quickCopyAfterCapture = c
                         }
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: !App.settings.copyToClipboard
-                              ? qsTr("When auto-copy is off, press Ctrl+C within 2 seconds of a capture to copy it. KDE only.")
-                              : qsTr("Only used when “Copy image to clipboard” is off.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
                     }
                     SettingRow {
                         label: qsTr("Save to disk automatically")
@@ -1086,6 +1080,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                     }
                 }
             }

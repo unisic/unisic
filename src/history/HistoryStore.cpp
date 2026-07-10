@@ -138,6 +138,7 @@ void HistoryStore::load()
             o.value(QStringLiteral("deleteUrl")).toString(),
             o.value(QStringLiteral("kind")).toString(QStringLiteral("image")),
             QDateTime::fromString(o.value(QStringLiteral("ts")).toString(), Qt::ISODate),
+            o.value(QStringLiteral("fav")).toBool(),
         });
     }
 }
@@ -159,6 +160,7 @@ void HistoryStore::persistNow()
             {QStringLiteral("deleteUrl"), e.deleteUrl},
             {QStringLiteral("kind"), e.kind},
             {QStringLiteral("ts"), e.timestamp.toString(Qt::ISODate)},
+            {QStringLiteral("fav"), e.favorite},
         });
     }
     // QSaveFile: atomic rename-replace — a crash mid-write can no longer
@@ -187,6 +189,7 @@ QVariant HistoryStore::data(const QModelIndex &index, int role) const
     case DeleteUrlRole: return e.deleteUrl;
     case KindRole: return e.kind;
     case TimestampRole: return e.timestamp;
+    case FavoriteRole: return e.favorite;
     }
     return {};
 }
@@ -200,6 +203,7 @@ QHash<int, QByteArray> HistoryStore::roleNames() const
         {DeleteUrlRole, "deleteUrl"},
         {KindRole, "kind"},
         {TimestampRole, "timestamp"},
+        {FavoriteRole, "favorite"},
     };
 }
 
@@ -216,9 +220,16 @@ void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
     m_entries.prepend({filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
     endInsertRows();
     while (m_entries.size() > 500) {
-        beginRemoveRows({}, m_entries.size() - 1, m_entries.size() - 1);
-        QFile::remove(m_entries.last().thumbPath);
-        m_entries.removeLast();
+        // Cap eviction spares favorites: evict the oldest non-favorite.
+        int victim = -1;
+        for (int i = m_entries.size() - 1; i >= 0; --i) {
+            if (!m_entries[i].favorite) { victim = i; break; }
+        }
+        if (victim < 0)
+            break; // everything is starred — let the list exceed the cap
+        beginRemoveRows({}, victim, victim);
+        QFile::remove(m_entries[victim].thumbPath);
+        m_entries.removeAt(victim);
         endRemoveRows();
     }
     persist();
@@ -282,7 +293,20 @@ void HistoryStore::removeRow(int row, bool trashFile)
 
 void HistoryStore::remove(int row)
 {
+    // Starred entries are protected — the UI disables the button too, but the
+    // model is the actual gate (a favorite must be un-starred to be deleted).
+    if (row >= 0 && row < m_entries.size() && m_entries[row].favorite)
+        return;
     removeRow(row, /*trashFile=*/true);
+}
+
+void HistoryStore::setFavorite(int row, bool favorite)
+{
+    if (row < 0 || row >= m_entries.size() || m_entries[row].favorite == favorite)
+        return;
+    m_entries[row].favorite = favorite;
+    emit dataChanged(index(row), index(row), {FavoriteRole});
+    persist();
 }
 
 void HistoryStore::removeByFile(const QString &filePath)
@@ -299,10 +323,23 @@ void HistoryStore::removeByFile(const QString &filePath)
 
 void HistoryStore::clearAll()
 {
+    // Clears entries AND trashes their capture files (the History page shows a
+    // warning dialog first). Favorites survive untouched — entry and file.
+    // Trash, never hard-delete: recoverable, and failures are surfaced.
     beginResetModel();
-    for (const Entry &e : m_entries)
+    QVector<Entry> kept;
+    for (const Entry &e : m_entries) {
+        if (e.favorite) {
+            kept.append(e);
+            continue;
+        }
+        if (!e.filePath.isEmpty() && QFile::exists(e.filePath)) {
+            if (!QFile::moveToTrash(e.filePath))
+                emit fileTrashFailed(e.filePath);
+        }
         QFile::remove(e.thumbPath);
-    m_entries.clear();
+    }
+    m_entries = kept;
     endResetModel();
     persistNow();   // explicit clear — flush immediately
     rebuildWatches(); // drop stale directory watches, they'd keep firing validations

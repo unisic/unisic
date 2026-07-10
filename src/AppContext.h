@@ -137,6 +137,7 @@ public:
     Q_INVOKABLE void devTestNotification();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestHistory();
+    Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
     Q_INVOKABLE void devTestQuickCopy();
     Q_INVOKABLE void devTestPreview();

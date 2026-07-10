@@ -64,10 +64,15 @@ void LayerShellNotifier::show(CaptureNotification *n)
     }
 
     // Card + a small transparent pad so the drop shadow isn't clipped.
-    // "compact" is a single slim row; "casual" the full card with thumbnail.
-    const bool compact = m_app->settings()->capturePopupStyle() == QLatin1String("compact");
-    const int cardW = compact ? 380 : 400;
-    const int cardH = compact ? 52 : 150;
+    // Style -> surface size; the QML picks the matching layout (see the
+    // style table in NotificationPopup.qml). Unknown values fall back to
+    // casual on both sides.
+    const QString style = m_app->settings()->capturePopupStyle();
+    int cardW = 400, cardH = 150;                       // casual
+    if (style == QLatin1String("compact"))   { cardW = 380; cardH = 96;  }
+    else if (style == QLatin1String("small"))     { cardW = 380; cardH = 52;  }
+    else if (style == QLatin1String("minimal"))   { cardW = 300; cardH = 36;  }
+    else if (style == QLatin1String("thumbnail")) { cardW = 240; cardH = 150; }
     const int pad = 16, edge = 8;
 
     auto *ctx = new QQmlContext(engine->rootContext(), this);

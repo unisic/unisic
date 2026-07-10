@@ -742,13 +742,13 @@ Item {
                         hint: App.layerShellActive ? ""
                               : qsTr("The style only applies to the layer-shell card — a native notification is drawn by the system server.")
                         label: qsTr("Notification style")
-                        help: qsTr("Casual is the full card; Compact a single slim row.")
-                        helpDetail: qsTr("Casual shows a large thumbnail, title and action buttons on a tall card. Compact fits the thumbnail, filename and the same actions into one slim row — less screen space, same functionality. Applies to the next capture.")
+                        help: qsTr("How the capture card looks — from full card to a tiny pill.")
+                        helpDetail: qsTr("Casual: the full card — large thumbnail, title and a row of action buttons.\nCompact: a tighter card — medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename — clicking it opens the floating preview.\nThumbnail: image-first — the capture fills the card, actions appear on hover.\n\nApplies to the next capture.")
                         UComboBox {
                             width: 180
-                            model: [qsTr("Casual"), qsTr("Compact")]
-                            currentIndex: App.settings.capturePopupStyle === "compact" ? 1 : 0
-                            onActivated: (i) => App.settings.capturePopupStyle = (i === 1 ? "compact" : "casual")
+                            model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
+                            currentIndex: Math.max(0, ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(App.settings.capturePopupStyle))
+                            onActivated: (i) => App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
                         }
                     }
                     Text {

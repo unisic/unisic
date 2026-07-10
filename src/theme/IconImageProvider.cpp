@@ -20,6 +20,24 @@ static QSize resolveSize(const QSize &requested, int hint)
     return QSize(s, s);
 }
 
+// Flatten a monochrome glyph to `color` via SourceIn. Used for the bundled
+// SVGs AND for QIcon::fromTheme results: a system icon otherwise keeps the
+// SYSTEM scheme's tint, so on a custom app theme (e.g. dark system + the
+// unisic purple theme) it rendered near-white on a light surface — barely
+// visible. Tinting to the requested app-theme colour keeps every icon,
+// whatever its source, consistent with the selected theme.
+static QPixmap tintPixmap(QPixmap pm, const QColor &color)
+{
+    if (pm.isNull() || !color.isValid())
+        return pm;
+    QImage img = pm.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QPainter p(&img);
+    p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    p.fillRect(img.rect(), color);
+    p.end();
+    return QPixmap::fromImage(img);
+}
+
 QPixmap IconImageProvider::tintedBundled(const QString &name, const QColor &color, const QSize &size) const
 {
     const QString path = QStringLiteral(":/resources/icons/sym/%1.svg").arg(name);
@@ -83,7 +101,11 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
     if (system) {
         QIcon icon = QIcon::fromTheme(name);
         if (!icon.isNull()) {
-            QPixmap pm = icon.pixmap(target);
+            // Tint the system glyph to the requested app-theme colour: the raw
+            // fromTheme pixmap follows the SYSTEM scheme and clashes with (or
+            // vanishes on) a custom app theme. On the actual "system" theme the
+            // colour IS the system text colour, so this is a no-op there.
+            QPixmap pm = tintPixmap(icon.pixmap(target), color);
             if (!pm.isNull()) {
                 if (size) *size = pm.size();
                 m_cache.insert(cacheKey, pm);
@@ -102,9 +124,9 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     QPixmap pm = tintedBundled(name, color, target);
     if (pm.isNull()) {
-        // last resort: still try the desktop theme
+        // last resort: still try the desktop theme, tinted to the app colour.
         QIcon icon = QIcon::fromTheme(name);
-        pm = icon.pixmap(target);
+        pm = tintPixmap(icon.pixmap(target), color);
     }
     if (size) *size = pm.isNull() ? target : pm.size();
     m_cache.insert(cacheKey, pm);

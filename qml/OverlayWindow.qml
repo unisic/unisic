@@ -138,6 +138,9 @@ Window {
             // Smart pick: click = select the detected object under the cursor;
             // drag still draws a manual rectangle (Settings > Capture).
             smartPick: App.settings.smartPick
+            // Selection chrome follows the selected app theme (was fixed purple).
+            uiAccent: Theme.accent
+            uiScrim: Theme.primary
             Component.onCompleted: {
                 strokeColor = App.settings.editorStrokeColor
                 strokeWidth = App.settings.editorStrokeWidth
@@ -179,7 +182,7 @@ Window {
             Rectangle {
                 width: 1; height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: "#C8ACD6"; opacity: 0.95
+                color: Theme.accent; opacity: 0.95
             }
         }
         Item { // horizontal guide
@@ -190,7 +193,7 @@ Window {
             Rectangle {
                 width: parent.width; height: 1
                 anchors.verticalCenter: parent.verticalCenter
-                color: "#C8ACD6"; opacity: 0.95
+                color: Theme.accent; opacity: 0.95
             }
         }
 

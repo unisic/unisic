@@ -230,7 +230,7 @@ void AnnotationCanvas::startSegmentation()
             QImage inv = mask;
             inv.invertPixels();
             m_maskOverlay = QImage(mask.size(), QImage::Format_ARGB32_Premultiplied);
-            m_maskOverlay.fill(QColor(23, 21, 59, 200));
+            { QColor sc = m_uiScrim; sc.setAlpha(200); m_maskOverlay.fill(sc); }
             QPainter p(&m_maskOverlay);
             p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
             p.drawImage(0, 0, grayToAlpha(inv));
@@ -616,15 +616,16 @@ void AnnotationCanvas::paint(QPainter *painter)
             QPainterPath hole;
             hole.addRect(QRectF(m_hoverObject));
             full = full.subtracted(hole);
+            QColor scrim = m_uiScrim; scrim.setAlpha(150);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor(23, 21, 59, 150));
+            painter->setBrush(scrim);
             painter->drawPath(full);
             painter->setBrush(Qt::NoBrush);
             // White halo under the accent line: keeps the highlight readable
             // over dark and light content alike.
             painter->setPen(QPen(QColor(255, 255, 255, 160), 4.0 / s));
             painter->drawRect(QRectF(m_hoverObject));
-            painter->setPen(QPen(QColor(200, 172, 214), 2.0 / s)); // accent
+            painter->setPen(QPen(m_uiAccent, 2.0 / s)); // themed accent
             painter->drawRect(QRectF(m_hoverObject));
         }
     } else if (m_selectionMode) {
@@ -636,8 +637,9 @@ void AnnotationCanvas::paint(QPainter *painter)
             sel.addRect(m_selection);
             full = full.subtracted(sel);
         }
+        QColor scrim = m_uiScrim; scrim.setAlpha(150);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(23, 21, 59, 150)); // primary tint dim
+        painter->setBrush(scrim); // themed dim tint
         painter->drawPath(full);
 
         if (hasSelection()) {
@@ -646,14 +648,14 @@ void AnnotationCanvas::paint(QPainter *painter)
             if (m_tool == ObjectPick && !m_maskOverlay.isNull()
                 && m_objectMaskRect == m_selection.toAlignedRect().intersected(m_base.rect()))
                 painter->drawImage(m_objectMaskRect.topLeft(), m_maskOverlay);
-            QPen border(QColor(200, 172, 214), 1.5 / s); // accent
+            QPen border(m_uiAccent, 1.5 / s); // themed accent
             border.setStyle(Qt::SolidLine);
             painter->setPen(border);
             painter->setBrush(Qt::NoBrush);
             painter->drawRect(m_selection);
             // Handles
-            painter->setBrush(QColor(200, 172, 214));
-            painter->setPen(QPen(QColor(23, 21, 59), 1.0 / s));
+            painter->setBrush(m_uiAccent);
+            painter->setPen(QPen(m_uiScrim, 1.0 / s));
             const qreal hs = 5.0 / s;
             const QRectF r = m_selection;
             const QPointF pts[8] = {

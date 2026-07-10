@@ -426,6 +426,8 @@ Window {
                     x: Math.max(0, (canvasFlick.width - width) / 2)
                     y: Math.max(0, (canvasFlick.height - height) / 2)
                     selectionMode: canvas.tool === AnnotationCanvas.Crop
+                    uiAccent: Theme.accent
+                    uiScrim: Theme.primary
                     Component.onCompleted: {
                         strokeColor = App.settings.editorStrokeColor
                         strokeWidth = App.settings.editorStrokeWidth

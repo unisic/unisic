@@ -22,6 +22,11 @@ class AnnotationCanvas : public QQuickPaintedItem
 
     Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged)
     Q_PROPERTY(QColor strokeColor READ strokeColor WRITE setStrokeColor NOTIFY strokeColorChanged)
+    // Theme colours for the selection chrome (border, handles, smart-pick
+    // highlight, dim-outside scrim). Bound to Theme.accent / Theme.primary so
+    // the overlay follows the SELECTED app theme instead of a fixed purple.
+    Q_PROPERTY(QColor uiAccent READ uiAccent WRITE setUiAccent NOTIFY uiChromeChanged)
+    Q_PROPERTY(QColor uiScrim READ uiScrim WRITE setUiScrim NOTIFY uiChromeChanged)
     // True while the current color came from the automatic highlighter
     // red<->yellow swap (not a user pick) — consumers must not persist it.
     Q_PROPERTY(bool strokeColorIsAuto READ strokeColorIsAuto NOTIFY strokeColorChanged)
@@ -80,6 +85,10 @@ public:
     QColor strokeColor() const { return m_color; }
     bool strokeColorIsAuto() const { return m_strokeAuto; }
     void setStrokeColor(const QColor &c);
+    QColor uiAccent() const { return m_uiAccent; }
+    void setUiAccent(const QColor &c) { if (m_uiAccent == c) return; m_uiAccent = c; emit uiChromeChanged(); update(); }
+    QColor uiScrim() const { return m_uiScrim; }
+    void setUiScrim(const QColor &c) { if (m_uiScrim == c) return; m_uiScrim = c; emit uiChromeChanged(); update(); }
     QColor shapeFillColor() const { return m_fillColor; }
     void setShapeFillColor(const QColor &c);
     bool shapeFillEnabled() const { return m_fillEnabled; }
@@ -127,6 +136,7 @@ public:
 signals:
     void toolChanged();
     void strokeColorChanged();
+    void uiChromeChanged();
     void shapeFillColorChanged();
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
@@ -208,6 +218,8 @@ private:
 
     int m_tool = None;
     QColor m_color = QColor(QStringLiteral("#FF4757"));
+    QColor m_uiAccent = QColor(200, 172, 214); // #C8ACD6 default (unisic accent)
+    QColor m_uiScrim = QColor(23, 21, 59);     // #17153B default (unisic primary)
     // An explicit color pick disables the highlighter's automatic yellow
     // default (see setTool) — the chosen color is then always drawn as-is.
     bool m_strokeColorTouched = false;

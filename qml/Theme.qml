@@ -23,8 +23,8 @@ QtObject {
             text: "#F3F0FA", textOnAccent: "#1B1834", isDark: true
         },
         "dark": {
-            primary: "#17171C", secondary: "#212127", tertiary: "#2E2E36", accent: "#7C9CF5",
-            bg: "#121216", surface: "#1D1D22", text: "#ECECEF", textOnAccent: "#0C1220", isDark: true
+            primary: "#17171C", secondary: "#212127", tertiary: "#2E2E36", accent: "#C8ACD6",
+            bg: "#121216", surface: "#1D1D22", text: "#ECECEF", textOnAccent: "#241C2B", isDark: true
         },
         "light": {
             primary: "#FFFFFF", secondary: "#EEEEF2", tertiary: "#E1E1E8", accent: "#4C6EF5",

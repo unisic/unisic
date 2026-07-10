@@ -14,7 +14,7 @@ jobs:
   - job: copr_build
     trigger: release
     owner: deandark
-    project: unisic
+    project: Unisic
     targets:
       - fedora-43-x86_64
       - fedora-44-x86_64

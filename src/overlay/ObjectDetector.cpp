@@ -176,9 +176,9 @@ static QVector<uchar> dilate(const QVector<uchar> &mask, int w, int h, int r)
 
 } // namespace
 
-QVector<QRect> ObjectDetector::detect(const QImage &src)
+QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage &src)
 {
-    struct Scored { QRect r; double q; };
+    struct Scored { QRect r; double q; CandidateKind kind; };
     QVector<Scored> scored;
     if (src.isNull() || src.width() < 16 || src.height() < 16)
         return {};
@@ -216,8 +216,9 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
     //    the vertical gradient dominates, and vice versa. Adaptive threshold
     //    from the combined magnitude (mean + sigma).
     QVector<uchar> hEdge(w * h, 0), vEdge(w * h, 0);
+    QVector<int> gxs(w * h, 0), gys(w * h, 0);
+    int edgeThreshold = 0;
     {
-        QVector<int> gxs(w * h, 0), gys(w * h, 0);
         double sum = 0.0, sumSq = 0.0;
         for (int y = 1; y < h - 1; ++y) {
             for (int x = 1; x < w - 1; ++x) {
@@ -240,6 +241,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
         // UI border elsewhere of edge pixels — a panel edge of ~20 gray
         // levels is mag ~80, so the usable band is narrow.
         const int thresh = std::clamp(int(mean + std::sqrt(var)), 24, 110);
+        edgeThreshold = thresh;
         if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG"))
             qInfo() << "det: mean" << mean << "sigma" << std::sqrt(var) << "thresh" << thresh;
         for (int i = 0; i < w * h; ++i) {
@@ -252,9 +254,27 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
         }
     }
 
+    // Layout borders are often deliberately subtle (for example a 1 px dark
+    // splitter between two tiled apps). They disappear behind the adaptive
+    // high-contrast threshold above whenever one window shows a photo/video.
+    // Keep a second, low-threshold edge map exclusively for LARGE closed
+    // frames. It is never used for tiny controls, so text and image detail
+    // cannot flood the normal element detector with false positives.
+    QVector<uchar> hLayoutEdge(w * h, 0), vLayoutEdge(w * h, 0);
+    {
+        const int layoutThreshold = std::max(10, edgeThreshold / 5);
+        for (int i = 0; i < w * h; ++i) {
+            hLayoutEdge[i] = gys[i] > layoutThreshold && gys[i] * 4 >= gxs[i] * 3 ? 1 : 0;
+            vLayoutEdge[i] = gxs[i] > layoutThreshold && gxs[i] * 4 >= gys[i] * 3 ? 1 : 0;
+        }
+    }
+
     // 3. Long segments (border candidates), deduped across line thickness and
     //    capped by length so text rows can't flood the pair search.
-    const int minSide = 20;                 // downscaled px (~50 real at 2560)
+    // Ten analysis pixels is ~25 physical pixels on a 2560-wide screen.  That
+    // includes compact toolbar buttons while still being too large for a text
+    // glyph. Small rects must pass the stricter coverage check below.
+    const int minSide = 10;
     QVector<Seg> hSegs = mergeCollinear(extractSegments(hEdge, w, h, true, minSide, 3));
     QVector<Seg> vSegs = mergeCollinear(extractSegments(vEdge, w, h, false, minSide, 3));
     const int cap = 224;
@@ -268,21 +288,47 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
     hSegs.append({0, 0, w - 1});
     hSegs.append({h - 1, 0, w - 1});
 
+    // Long runs from the relaxed map are candidates for window/pane borders,
+    // not generic elements. Their minimum span scales with the screen, which
+    // filters code rows, captions and image texture before the pair search.
+    const int layoutMinH = std::max(32, w / 8);
+    const int layoutMinV = std::max(32, h / 8);
+    QVector<Seg> hLayoutSegs = mergeCollinear(
+        extractSegments(hLayoutEdge, w, h, true, layoutMinH, 10));
+    QVector<Seg> vLayoutSegs = mergeCollinear(
+        extractSegments(vLayoutEdge, w, h, false, layoutMinV, 10));
+    const int layoutCap = 96;
+    if (hLayoutSegs.size() > layoutCap) hLayoutSegs.resize(layoutCap);
+    if (vLayoutSegs.size() > layoutCap) vLayoutSegs.resize(layoutCap);
+    hLayoutSegs.append({0, 0, w - 1});
+    hLayoutSegs.append({h - 1, 0, w - 1});
+    vLayoutSegs.append({0, 0, h - 1});
+    vLayoutSegs.append({w - 1, 0, h - 1});
+
     if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG"))
         qInfo() << "det: img" << w << "x" << h << "scale" << scale
-                 << "hSegs" << hSegs.size() << "vSegs" << vSegs.size();
+                 << "hSegs" << hSegs.size() << "vSegs" << vSegs.size()
+                 << "hLayoutSegs" << hLayoutSegs.size()
+                 << "vLayoutSegs" << vLayoutSegs.size();
 
     // 4. Per-row/per-column prefix sums for O(1) side-coverage checks.
     QVector<int> hPre((w + 1) * h, 0), vPre((h + 1) * w, 0);
+    QVector<int> hLayoutPre((w + 1) * h, 0), vLayoutPre((h + 1) * w, 0);
     for (int y = 0; y < h; ++y) {
         int *row = hPre.data() + qsizetype(y) * (w + 1);
-        for (int x = 0; x < w; ++x)
+        int *layoutRow = hLayoutPre.data() + qsizetype(y) * (w + 1);
+        for (int x = 0; x < w; ++x) {
             row[x + 1] = row[x] + hEdge[y*w + x];
+            layoutRow[x + 1] = layoutRow[x] + hLayoutEdge[y*w + x];
+        }
     }
     for (int x = 0; x < w; ++x) {
         int *col = vPre.data() + qsizetype(x) * (h + 1);
-        for (int y = 0; y < h; ++y)
+        int *layoutCol = vLayoutPre.data() + qsizetype(x) * (h + 1);
+        for (int y = 0; y < h; ++y) {
             col[y + 1] = col[y] + vEdge[y*w + x];
+            layoutCol[y + 1] = layoutCol[y] + vLayoutEdge[y*w + x];
+        }
     }
     // Coverage of a horizontal line at y over [x0,x1], best row in a ±2 band.
     auto hCov = [&](int y, int x0, int x1) -> double {
@@ -301,6 +347,26 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             const int xx = x + dx;
             if (xx < 0 || xx >= w) continue;
             const int *col = vPre.constData() + qsizetype(xx) * (h + 1);
+            best = std::max(best, double(col[y1 + 1] - col[y0]) / (y1 - y0 + 1));
+        }
+        return best;
+    };
+    auto hLayoutCov = [&](int y, int x0, int x1) -> double {
+        double best = 0;
+        for (int dy = -3; dy <= 3; ++dy) {
+            const int yy = y + dy;
+            if (yy < 0 || yy >= h) continue;
+            const int *row = hLayoutPre.constData() + qsizetype(yy) * (w + 1);
+            best = std::max(best, double(row[x1 + 1] - row[x0]) / (x1 - x0 + 1));
+        }
+        return best;
+    };
+    auto vLayoutCov = [&](int x, int y0, int y1) -> double {
+        double best = 0;
+        for (int dx = -3; dx <= 3; ++dx) {
+            const int xx = x + dx;
+            if (xx < 0 || xx >= w) continue;
+            const int *col = vLayoutPre.constData() + qsizetype(xx) * (h + 1);
             best = std::max(best, double(col[y1 + 1] - col[y0]) / (y1 - y0 + 1));
         }
         return best;
@@ -383,6 +449,11 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                     + side(cR, R.pos <= 1 || R.pos >= w - 2)
                     + side(hCovB(y0, L.pos, R.pos), y0 <= 1 || y0 >= h - 2)
                     + side(hCovB(y1, L.pos, R.pos), y1 <= 1 || y1 >= h - 2);
+                // A compact element needs clearer evidence than a window:
+                // otherwise letters, eyelashes or a single bright detail in a
+                // photo can accidentally form four short edge segments.
+                if ((R.pos - L.pos < 18 || y1 - y0 < 18) && quality < 2.9)
+                    continue;
                 QRect r(int(L.pos * scale), int(y0 * scale),
                         int((R.pos - L.pos + 1) * scale), int((y1 - y0 + 1) * scale));
                 r = r.intersected(QRect(0, 0, src.width(), src.height()));
@@ -408,8 +479,171 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                 // Near-full-screen hypotheses would duplicate the explicit
                 // whole-image candidate appended below.
                 if (qint64(r.width()) * r.height()
-                    < qint64(src.width()) * src.height() * 96 / 100)
-                    scored.append({r, quality});
+                    < qint64(src.width()) * src.height() * 96 / 100) {
+                    // A well-traced frame of meaningful size is an actual
+                    // window candidate, rather than merely a generic panel.
+                    // Smaller frames remain containers so tabs/cards/buttons
+                    // keep their natural position in the nesting chain.
+                    const bool window = quality >= 3.0
+                        && r.width() >= src.width() / 5 && r.height() >= src.height() / 5;
+                    scored.append({r, quality,
+                                   window ? CandidateKind::Window : CandidateKind::Container});
+                }
+            }
+        }
+    }
+
+    // 5a. LAYOUT FRAMES. The relaxed edge map above is allowed to contribute
+    // only here, with a minimum 1/8-screen width/height and four sustained
+    // sides. This recovers tiled/fullscreen-window boundaries that are softer
+    // than syntax highlighting, video or page content inside the window.
+    {
+        const int minWindowW = std::max(48, w / 8);
+        const int minWindowH = std::max(40, h / 8);
+        int added = 0;
+        for (int i = 0; i < vLayoutSegs.size() && added < 160; ++i) {
+            for (int j = 0; j < vLayoutSegs.size() && added < 160; ++j) {
+                const Seg &left = vLayoutSegs[i];
+                const Seg &right = vLayoutSegs[j];
+                if (right.pos - left.pos < minWindowW)
+                    continue;
+                QVector<int> sides;
+                for (const Seg &line : std::as_const(hLayoutSegs)) {
+                    const int span = std::min(line.b, right.pos) - std::max(line.a, left.pos) + 1;
+                    if (span >= (right.pos - left.pos + 1) * 82 / 100
+                        && hLayoutCov(line.pos, left.pos, right.pos) >= 0.58)
+                        sides.append(line.pos);
+                }
+                if (sides.size() < 2)
+                    continue;
+                std::sort(sides.begin(), sides.end());
+                sides.erase(std::unique(sides.begin(), sides.end(),
+                                        [](int a, int b) { return b - a <= 3; }),
+                            sides.end());
+                QVector<QPair<int, int>> pairs;
+                if (sides.size() <= 12) {
+                    for (int a = 0; a < sides.size(); ++a)
+                        for (int b = a + 1; b < sides.size(); ++b)
+                            pairs.append({sides[a], sides[b]});
+                } else {
+                    pairs.append({sides.first(), sides.last()});
+                    for (int k = 0; k + 1 < sides.size(); ++k)
+                        pairs.append({sides[k], sides[k + 1]});
+                }
+                for (const auto &pair : std::as_const(pairs)) {
+                    const int top = pair.first, bottom = pair.second;
+                    if (bottom - top < minWindowH)
+                        continue;
+                    if (left.a > top + 3 || left.b < bottom - 3
+                        || right.a > top + 3 || right.b < bottom - 3)
+                        continue;
+                    const double cLeft = (left.pos <= 1 || left.pos >= w - 2)
+                        ? 1.0 : vLayoutCov(left.pos, top, bottom);
+                    const double cRight = (right.pos <= 1 || right.pos >= w - 2)
+                        ? 1.0 : vLayoutCov(right.pos, top, bottom);
+                    const double cTop = (top <= 1 || top >= h - 2)
+                        ? 1.0 : hLayoutCov(top, left.pos, right.pos);
+                    const double cBottom = (bottom <= 1 || bottom >= h - 2)
+                        ? 1.0 : hLayoutCov(bottom, left.pos, right.pos);
+                    if (cLeft < 0.58 || cRight < 0.58 || cTop < 0.58 || cBottom < 0.58)
+                        continue;
+                    QRect r(int(left.pos * scale), int(top * scale),
+                            int((right.pos - left.pos + 1) * scale),
+                            int((bottom - top + 1) * scale));
+                    r = r.intersected(QRect(0, 0, src.width(), src.height()));
+                    if (qint64(r.width()) * r.height()
+                        >= qint64(src.width()) * src.height() * 90 / 100)
+                        continue;
+                    const int pad = int(std::ceil(scale)) + 2;
+                    const int margin = std::min(r.width(), r.height()) / 8;
+                    const int nL = r.left() <= 2 ? r.left()
+                        : snapLine(grayFull, true, r.left(), pad, r.top() + margin, r.bottom() - margin);
+                    const int nR = r.right() >= src.width() - 3 ? r.right()
+                        : snapLine(grayFull, true, r.right(), pad, r.top() + margin, r.bottom() - margin);
+                    const int nT = r.top() <= 2 ? r.top()
+                        : snapLine(grayFull, false, r.top(), pad, r.left() + margin, r.right() - margin);
+                    const int nB = r.bottom() >= src.height() - 3 ? r.bottom()
+                        : snapLine(grayFull, false, r.bottom(), pad, r.left() + margin, r.right() - margin);
+                    if (nR - nL >= 8 && nB - nT >= 8)
+                        r = QRect(QPoint(nL, nT), QPoint(nR, nB));
+                    // Snapping can pull a relaxed layout side onto a nearby
+                    // content edge. Do not let that turn a large-frame
+                    // hypothesis into a thin fake window.
+                    if (r.width() < int(minWindowW * scale * 0.85)
+                        || r.height() < int(minWindowH * scale * 0.85))
+                        continue;
+                    const double evidence = (cLeft + cRight + cTop + cBottom) / 4.0;
+                    // A relaxed separator is weaker evidence than the normal
+                    // four-side pass. Its job is to recover low-contrast
+                    // tiled windows, never to outrank a crisp real frame.
+                    scored.append({r, 2.1 + evidence, CandidateKind::Window});
+                    ++added;
+                }
+            }
+        }
+    }
+
+    // 5aa. SPLIT COMPOSITE FRAMES. A tiled desktop may expose only one strong
+    // outer frame (for example the whole lower half of the screen) plus a
+    // subtle divider between apps. Split those proven large frames on a long
+    // interior layout seam; the parent remains available as a group level,
+    // while the child rectangles become the default window candidates.
+    {
+        const QVector<Scored> bases = scored;
+        const qint64 screenArea = qint64(src.width()) * src.height();
+        int added = 0;
+        for (const Scored &base : std::as_const(bases)) {
+            if (added >= 96
+                || (base.kind != CandidateKind::Container && base.kind != CandidateKind::Window)
+                || base.q < 2.8)
+                continue;
+            const QRect &r = base.r;
+            if (qint64(r.width()) * r.height() < screenArea / 5)
+                continue;
+            // This pass is for a composite tiled area, not for an ordinary
+            // card around a large image. At least one dimension must span
+            // nearly the whole screen; otherwise an object's own edges can
+            // split the surrounding background into fake "windows".
+            if (r.width() < src.width() * 9 / 10 && r.height() < src.height() * 9 / 10)
+                continue;
+            const int x0 = qBound(0, int(std::floor(r.left() / scale)), w - 1);
+            const int x1 = qBound(0, int(std::ceil(r.right() / scale)), w - 1);
+            const int y0 = qBound(0, int(std::floor(r.top() / scale)), h - 1);
+            const int y1 = qBound(0, int(std::ceil(r.bottom() / scale)), h - 1);
+            const int pad = int(std::ceil(scale)) + 2;
+            const int margin = std::min(r.width(), r.height()) / 8;
+
+            for (const Seg &line : std::as_const(vLayoutSegs)) {
+                if (added >= 96 || line.pos <= x0 + 3 || line.pos >= x1 - 3
+                    || line.a > y0 + 3 || line.b < y1 - 3
+                    || vLayoutCov(line.pos, y0, y1) < 0.68)
+                    continue;
+                const int raw = int(std::lround(line.pos * scale));
+                const int divider = snapLine(grayFull, true, raw, pad,
+                                             r.top() + margin, r.bottom() - margin);
+                if (divider - r.left() < r.width() / 6 || r.right() - divider < r.width() / 6)
+                    continue;
+                scored.append({QRect(r.left(), r.top(), divider - r.left() + 1, r.height()),
+                               std::max(3.45, base.q * 0.95), CandidateKind::Window});
+                scored.append({QRect(divider, r.top(), r.right() - divider + 1, r.height()),
+                               std::max(3.45, base.q * 0.95), CandidateKind::Window});
+                added += 2;
+            }
+            for (const Seg &line : std::as_const(hLayoutSegs)) {
+                if (added >= 96 || line.pos <= y0 + 3 || line.pos >= y1 - 3
+                    || line.a > x0 + 3 || line.b < x1 - 3
+                    || hLayoutCov(line.pos, x0, x1) < 0.68)
+                    continue;
+                const int raw = int(std::lround(line.pos * scale));
+                const int divider = snapLine(grayFull, false, raw, pad,
+                                             r.left() + margin, r.right() - margin);
+                if (divider - r.top() < r.height() / 6 || r.bottom() - divider < r.height() / 6)
+                    continue;
+                scored.append({QRect(r.left(), r.top(), r.width(), divider - r.top() + 1),
+                               std::max(3.45, base.q * 0.95), CandidateKind::Window});
+                scored.append({QRect(r.left(), divider, r.width(), r.bottom() - divider + 1),
+                               std::max(3.45, base.q * 0.95), CandidateKind::Window});
+                added += 2;
             }
         }
     }
@@ -454,21 +688,25 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             }
             ++next;
             const int bw = maxx - minx + 1, bh = maxy - miny + 1;
-            if (bw < 12 || bh < 12 || count < 96)
+            if (bw < 8 || bh < 8 || count < 48)
                 continue;
             if (bw > w * 0.95 && bh > h * 0.95)
                 continue;
             // Solid patches only: a sprawling low-density web (anti-aliased
             // text lattice, gradients leaking around content) is not an
             // element — its bbox would be arbitrary.
-            if (double(count) / (double(bw) * bh) < 0.55)
+            // A flat UI control fills its box.  A looser threshold was
+            // excellent at finding random pieces of video/photo content but
+            // poor at smart selection because those pieces became the default
+            // target under the pointer.
+            if (double(count) / (double(bw) * bh) < 0.70)
                 continue;
             QRect r(int(minx * scale), int(miny * scale), int(bw * scale), int(bh * scale));
             r = r.intersected(QRect(0, 0, src.width(), src.height()));
             if (r.width() >= 8 && r.height() >= 8
                 && qint64(r.width()) * r.height()
                        < qint64(src.width()) * src.height() * 96 / 100) {
-                scored.append({r, 2.9}); // below a full 4-side bordered rect
+                scored.append({r, 2.9, CandidateKind::Element});
                 ++added;
             }
         }
@@ -491,7 +729,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             open[i] = !sealed[i];
         // density >= 0.65: interiors are rectangular rooms; the sprawling
         // desktop "sea" around/behind windows is L-shaped and dies here.
-        const QVector<QRect> rooms = maskComponents(open, w, h, 14, 0.92, 0.65);
+        const QVector<QRect> rooms = maskComponents(open, w, h, 10, 0.92, 0.72);
         for (const QRect &room : rooms) {
             // Cover the border the room is inscribed in (and undo the seal).
             const QRect grown = room.adjusted(-2, -2, 2, 2)
@@ -502,7 +740,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             if (r.width() >= 8 && r.height() >= 8
                 && qint64(r.width()) * r.height()
                        < qint64(src.width()) * src.height() * 96 / 100)
-                scored.append({r, 3.3}); // precise — above regions and smears
+                scored.append({r, 3.3, CandidateKind::Element}); // precise — above regions and smears
         }
     }
 
@@ -548,7 +786,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             if (r.width() >= 8 && r.height() >= 8
                 && qint64(r.width()) * r.height()
                        < qint64(src.width()) * src.height() * 96 / 100)
-                scored.append({r, 2.5});
+                scored.append({r, 2.5, CandidateKind::Group});
         }
     }
 
@@ -565,32 +803,75 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
     });
     if (scored.size() > 1500)
         scored.resize(1500); // O(n^2) dedup below — the tail is lowest-quality anyway
-    QVector<QRect> merged;
+    QVector<Scored> merged;
     for (const Scored &sc : std::as_const(scored)) {
         const QRect &r = sc.r;
         bool dup = false;
-        for (const QRect &m : std::as_const(merged)) {
-            const QRect inter = r.intersected(m);
+        for (const Scored &m : std::as_const(merged)) {
+            const QRect inter = r.intersected(m.r);
             if (inter.isEmpty()) continue;
             const double ia = double(inter.width()) * inter.height();
-            const double ua = double(r.width()) * r.height()
-                              + double(m.width()) * m.height() - ia;
-            if (ua > 0 && ia / ua > 0.75) { dup = true; break; }
+            const double ra = double(r.width()) * r.height();
+            const double ma = double(m.r.width()) * m.r.height();
+            const double ua = ra + ma - ia;
+            const double smallerCoverage = ia / std::min(ra, ma);
+            const double sizeRatio = std::min(ra, ma) / std::max(ra, ma);
+            // Besides classic IoU, fold together only *same-kind* near
+            // containments. This removes the 2–4 px alternatives of one UI
+            // row while retaining a button inside its card and a group inside
+            // a window as separately scrollable selection levels.
+            if (ua > 0 && (ia / ua > 0.72
+                           || (sc.kind == m.kind && smallerCoverage > 0.88 && sizeRatio > 0.65))) {
+                dup = true;
+                break;
+            }
         }
         if (!dup)
-            merged.append(r);
+            merged.append(sc);
         if (merged.size() >= 400)
             break; // hover does a linear scan per move — keep it bounded
     }
 
     // 8. The whole image is always the outermost candidate: scrolling the
     //    nesting level up ends at "this entire screen".
-    merged.append(QRect(0, 0, src.width(), src.height()));
+    merged.append({QRect(0, 0, src.width(), src.height()), 1.0, CandidateKind::Screen});
 
-    std::sort(merged.begin(), merged.end(), [](const QRect &a, const QRect &b) {
-        return qint64(a.width()) * a.height() < qint64(b.width()) * b.height();
+    std::sort(merged.begin(), merged.end(), [](const Scored &a, const Scored &b) {
+        return qint64(a.r.width()) * a.r.height() < qint64(b.r.width()) * b.r.height();
     });
-    return merged;
+    QVector<Candidate> out;
+    out.reserve(merged.size());
+    for (const Scored &sc : std::as_const(merged)) {
+        const float confidence = sc.kind == CandidateKind::Screen
+            ? 1.0f
+            : float(std::clamp(sc.q / 4.0, 0.0, 1.0));
+        out.append({sc.r, confidence, sc.kind});
+    }
+    if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG")) {
+        auto kindName = [](CandidateKind kind) {
+            switch (kind) {
+            case CandidateKind::Element: return "element";
+            case CandidateKind::Group: return "group";
+            case CandidateKind::Container: return "container";
+            case CandidateKind::Window: return "window";
+            case CandidateKind::Screen: return "screen";
+            }
+            return "unknown";
+        };
+        for (const Candidate &candidate : std::as_const(out))
+            qInfo() << "det:" << kindName(candidate.kind) << candidate.confidence << candidate.rect;
+    }
+    return out;
+}
+
+QVector<QRect> ObjectDetector::detect(const QImage &src)
+{
+    const QVector<Candidate> candidates = detectCandidates(src);
+    QVector<QRect> rects;
+    rects.reserve(candidates.size());
+    for (const Candidate &candidate : candidates)
+        rects.append(candidate.rect);
+    return rects;
 }
 
 // ------------------------------------------------------------- segmentation

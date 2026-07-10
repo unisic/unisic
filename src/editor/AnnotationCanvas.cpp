@@ -9,6 +9,8 @@
 #include <QtMath>
 #include <QtConcurrent>
 #include <QFutureWatcher>
+#include <algorithm>
+#include <cmath>
 
 AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
     : QQuickPaintedItem(parent)
@@ -46,6 +48,7 @@ void AnnotationCanvas::setImage(const QImage &img)
     m_hoverChain.clear();
     m_pickOffset = 0;
     m_hoverObject = QRect();
+    m_hoverObjectKind.clear();
     clearObjectMask();
     if (m_detectWatcher) {
         // Let the stale run finish detached; its lambda must not deliver.
@@ -94,6 +97,7 @@ void AnnotationCanvas::setTool(int t)
         clearObjectMask();
     if (t == ObjectPick) {
         m_hoverObject = QRect();
+        m_hoverObjectKind.clear();
         ensureObjectCandidates();
     }
     update();
@@ -103,8 +107,8 @@ void AnnotationCanvas::ensureObjectCandidates()
 {
     // Detect candidate objects once, off the GUI thread (a few tens of ms).
     if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
-        m_detectWatcher = new QFutureWatcher<QVector<QRect>>(this);
-        connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished, this, [this] {
+        m_detectWatcher = new QFutureWatcher<QVector<ObjectDetector::Candidate>>(this);
+        connect(m_detectWatcher, &QFutureWatcher<QVector<ObjectDetector::Candidate>>::finished, this, [this] {
             m_objectCandidates = m_detectWatcher->result();
             m_detectWatcher->deleteLater();
             m_detectWatcher = nullptr;
@@ -112,7 +116,7 @@ void AnnotationCanvas::ensureObjectCandidates()
                 updateHoverObject(m_lastHoverImg);
             update();
         });
-        m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
+        m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detectCandidates, m_base));
     }
 }
 
@@ -404,6 +408,7 @@ void AnnotationCanvas::applyCrop()
     m_hoverChain.clear();
     m_pickOffset = 0;
     m_hoverObject = QRect();
+    m_hoverObjectKind.clear();
     clearObjectMask();
     emit imageChanged();
     emit renderScaleChanged();
@@ -933,7 +938,7 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
         startSegmentation();
     // Smart pick: the press never moved (still pending), so this is a CLICK —
-    // select the innermost detected object under it. No candidate = no-op,
+    // select the evidence-ranked detected object under it. No candidate = no-op,
     // exactly like today's empty click. (An ObjectPick pending click keeps
     // its existing no-op semantics.)
     if (m_drag == PendingNewSelection && m_selectionMode && m_tool == None && m_smartPick) {
@@ -944,6 +949,7 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             m_selection = QRectF(m_hoverObject);
             normalizeSelection();
             m_hoverObject = QRect();
+            m_hoverObjectKind.clear();
             m_hoverChain.clear();
             emit hoverObjectChanged();
             emit selectionRectChanged();
@@ -985,22 +991,79 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
 void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
 {
     m_lastHoverImg = imgPos;
-    QVector<QRect> chain;
-    for (const QRect &r : std::as_const(m_objectCandidates))
-        if (r.contains(imgPos))
-            chain.append(r); // candidates are area-sorted -> chain is inner→outer
-    if (chain.isEmpty())
+    QVector<ObjectDetector::Candidate> chain;
+    for (const ObjectDetector::Candidate &candidate : std::as_const(m_objectCandidates))
+        if (candidate.rect.contains(imgPos))
+            chain.append(candidate); // candidates are area-sorted -> chain is inner→outer
+
+    const auto sameChain = [](const QVector<ObjectDetector::Candidate> &a,
+                              const QVector<ObjectDetector::Candidate> &b) {
+        if (a.size() != b.size())
+            return false;
+        for (qsizetype i = 0; i < a.size(); ++i)
+            if (a[i].rect != b[i].rect || a[i].kind != b[i].kind)
+                return false;
+        return true;
+    };
+    const bool chainChanged = !sameChain(chain, m_hoverChain);
+    if (chain.isEmpty()) {
         m_pickOffset = 0;
+        m_hoverDefaultIndex = 0;
+    } else if (chainChanged) {
+        // An element's visual evidence matters as much as its size. The old
+        // "smallest bounding box always wins" rule regularly picked a bright
+        // speck in a photo/video over the actual panel beneath the cursor.
+        // Prefer a high-confidence, specific candidate, while preserving all
+        // other candidates as scrollable levels.
+        const double imageArea = qMax<qint64>(1, qint64(m_base.width()) * m_base.height());
+        double best = -1.0;
+        m_hoverDefaultIndex = 0;
+        for (qsizetype i = 0; i < chain.size(); ++i) {
+            const ObjectDetector::Candidate &candidate = chain[i];
+            const double area = qint64(candidate.rect.width()) * candidate.rect.height();
+            const double specificity = 1.0 - std::sqrt(std::min(1.0, area / imageArea));
+            double kindBonus = 0.0;
+            switch (candidate.kind) {
+            case ObjectDetector::CandidateKind::Element: kindBonus = 0.025; break;
+            case ObjectDetector::CandidateKind::Group: kindBonus = 0.01; break;
+            case ObjectDetector::CandidateKind::Container: break;
+            case ObjectDetector::CandidateKind::Window: kindBonus = 0.04; break;
+            case ObjectDetector::CandidateKind::Screen: kindBonus = -0.20; break;
+            }
+            // Confidence intentionally dominates specificity. A small region
+            // in a video is often more specific, but its colour/edge evidence
+            // is weaker than the clear frame of the app or content panel.
+            const double score = candidate.confidence * 0.90 + specificity * 0.10 + kindBonus;
+            if (score > best) {
+                best = score;
+                m_hoverDefaultIndex = int(i);
+            }
+        }
+        m_pickOffset = 0;
+    }
     const int idx = chain.isEmpty()
         ? 0
-        : qBound(0, m_pickOffset, int(chain.size()) - 1);
-    const QRect found = chain.isEmpty() ? QRect() : chain.at(idx);
+        : qBound(0, m_hoverDefaultIndex + m_pickOffset, int(chain.size()) - 1);
+    const QRect found = chain.isEmpty() ? QRect() : chain.at(idx).rect;
+    const QString foundKind = [&] {
+        if (chain.isEmpty())
+            return QString();
+        switch (chain.at(idx).kind) {
+        case ObjectDetector::CandidateKind::Element: return tr("Element");
+        case ObjectDetector::CandidateKind::Group: return tr("Group");
+        case ObjectDetector::CandidateKind::Container: return tr("Panel");
+        case ObjectDetector::CandidateKind::Window: return tr("Window");
+        case ObjectDetector::CandidateKind::Screen: return tr("Screen");
+        }
+        return QString();
+    }();
     const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size())
-                         || (idx != m_hoverIndex);
+                         || (idx != m_hoverIndex) || (foundKind != m_hoverObjectKind);
     m_hoverChain = chain;
     m_hoverIndex = idx;
     if (changed) {
         m_hoverObject = found;
+        m_hoverObjectKind = foundKind;
         emit hoverObjectChanged();
         update();
     }

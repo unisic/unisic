@@ -11,6 +11,9 @@ class ObjectDetectorTest : public QObject
 private slots:
     void detectsHighContrastObject();
     void detectsNestedRects();
+    void reportsCandidateEvidence();
+    void detectsLowContrastTiledWindows();
+    void detectsExternalImageWhenRequested();
     void segmentsCenteredObject();
     void rejectsInvalidSegmentationRegion();
 };
@@ -69,6 +72,80 @@ void ObjectDetectorTest::detectsNestedRects()
     for (int i = 1; i < chain.size(); ++i)
         QVERIFY(qint64(chain[i].width()) * chain[i].height()
                 >= qint64(chain[i-1].width()) * chain[i-1].height());
+}
+
+void ObjectDetectorTest::reportsCandidateEvidence()
+{
+    QImage image(320, 200, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    QPainter painter(&image);
+    painter.fillRect(QRect(80, 50, 150, 100), QColor(30, 60, 90));
+    painter.end();
+
+    const QVector<ObjectDetector::Candidate> candidates = ObjectDetector::detectCandidates(image);
+    QVERIFY(!candidates.isEmpty());
+    QCOMPARE(candidates.last().rect, image.rect());
+    QCOMPARE(candidates.last().kind, ObjectDetector::CandidateKind::Screen);
+
+    const auto it = std::find_if(candidates.cbegin(), candidates.cend(), [](const auto &candidate) {
+        return candidate.kind == ObjectDetector::CandidateKind::Window
+            && qAbs(candidate.rect.left() - 80) <= 4
+            && qAbs(candidate.rect.top() - 50) <= 4
+            && qAbs(candidate.rect.right() - 229) <= 4
+            && qAbs(candidate.rect.bottom() - 149) <= 4;
+    });
+    QVERIFY(it != candidates.cend());
+    QVERIFY(it->confidence > 0.9f);
+}
+
+void ObjectDetectorTest::detectsLowContrastTiledWindows()
+{
+    // The dividers are intentionally too subtle for the regular UI-edge
+    // threshold. They model a tiled desktop where a vivid window's contents
+    // would otherwise hide the dark 1 px splitters between apps.
+    QImage image(640, 400, QImage::Format_RGB32);
+    QPainter painter(&image);
+    painter.fillRect(QRect(0, 0, 320, 200), QColor(35, 38, 42));
+    painter.fillRect(QRect(320, 0, 320, 200), QColor(41, 44, 48));
+    painter.fillRect(QRect(0, 200, 320, 200), QColor(47, 50, 54));
+    painter.fillRect(QRect(320, 200, 320, 200), QColor(53, 56, 60));
+    painter.end();
+
+    const QVector<ObjectDetector::Candidate> candidates = ObjectDetector::detectCandidates(image);
+    const auto hasWindowNear = [&](const QRect &want) {
+        return std::any_of(candidates.cbegin(), candidates.cend(), [&](const auto &candidate) {
+            return candidate.kind == ObjectDetector::CandidateKind::Window
+                && qAbs(candidate.rect.left() - want.left()) <= 7
+                && qAbs(candidate.rect.top() - want.top()) <= 7
+                && qAbs(candidate.rect.right() - want.right()) <= 7
+                && qAbs(candidate.rect.bottom() - want.bottom()) <= 7;
+        });
+    };
+    QVERIFY(hasWindowNear(QRect(0, 0, 320, 200)));
+    QVERIFY(hasWindowNear(QRect(320, 200, 320, 200)));
+}
+
+void ObjectDetectorTest::detectsExternalImageWhenRequested()
+{
+    const QString path = qEnvironmentVariable("UNISIC_DETECTOR_TEST_IMAGE");
+    if (path.isEmpty())
+        QSKIP("Set UNISIC_DETECTOR_TEST_IMAGE to exercise a local screenshot");
+
+    const QImage image(path);
+    QVERIFY2(!image.isNull(), qPrintable(QStringLiteral("Could not load %1").arg(path)));
+    const QVector<ObjectDetector::Candidate> candidates = ObjectDetector::detectCandidates(image);
+    const auto countKind = [&](ObjectDetector::CandidateKind kind) {
+        return std::count_if(candidates.cbegin(), candidates.cend(),
+                             [kind](const auto &candidate) { return candidate.kind == kind; });
+    };
+    qInfo() << "External image candidates:" << candidates.size()
+            << "elements" << countKind(ObjectDetector::CandidateKind::Element)
+            << "groups" << countKind(ObjectDetector::CandidateKind::Group)
+            << "containers" << countKind(ObjectDetector::CandidateKind::Container)
+            << "windows" << countKind(ObjectDetector::CandidateKind::Window);
+    QVERIFY(!candidates.isEmpty());
+    QCOMPARE(candidates.last().rect, image.rect());
+    QCOMPARE(candidates.last().kind, ObjectDetector::CandidateKind::Screen);
 }
 
 void ObjectDetectorTest::segmentsCenteredObject()

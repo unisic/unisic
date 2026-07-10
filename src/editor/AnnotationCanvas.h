@@ -6,6 +6,7 @@
 #include <QRect>
 #include <QTimer>
 #include <qqmlregistration.h>
+#include "overlay/ObjectDetector.h"
 
 template <typename T> class QFutureWatcher;
 
@@ -40,6 +41,7 @@ class AnnotationCanvas : public QQuickPaintedItem
     // position — hoverDepth-th of hoverDepthCount rects under the cursor
     // (inner→outer, scroll wheel cycles). QML draws the size/level badge.
     Q_PROPERTY(QRectF hoverObjectRect READ hoverObjectRect NOTIFY hoverObjectChanged)
+    Q_PROPERTY(QString hoverObjectKind READ hoverObjectKind NOTIFY hoverObjectChanged)
     Q_PROPERTY(int hoverDepth READ hoverDepth NOTIFY hoverObjectChanged)
     Q_PROPERTY(int hoverDepthCount READ hoverDepthCount NOTIFY hoverObjectChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
@@ -90,6 +92,7 @@ public:
     bool smartPick() const { return m_smartPick; }
     void setSmartPick(bool on);
     QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
+    QString hoverObjectKind() const { return m_hoverObjectKind; }
     int hoverDepth() const { return m_hoverIndex; }
     int hoverDepthCount() const { return int(m_hoverChain.size()); }
     void setSelectionMode(bool on);
@@ -194,7 +197,8 @@ private:
     // m_objectCandidates — shared by the ObjectPick tool and smart pick.
     void ensureObjectCandidates();
     // Rebuild the containing-candidates chain for imgPos and pick the
-    // m_pickDepth-th (clamped); emits hoverObjectChanged + repaints on change.
+    // evidence-weighted default plus m_pickOffset (clamped); emits
+    // hoverObjectChanged + repaints on change.
     void updateHoverObject(const QPoint &imgPos);
 
     QImage m_base;
@@ -228,14 +232,16 @@ private:
 
     // Object-pick mode (overlay): detected candidate rects + the one under the
     // cursor. Detection runs off-thread the first time the tool is selected.
-    QVector<QRect> m_objectCandidates;
-    QVector<QRect> m_hoverChain; // candidates containing the cursor, inner→outer
-    // Scroll offset relative to the default level (the innermost candidate).
+    QVector<ObjectDetector::Candidate> m_objectCandidates;
+    QVector<ObjectDetector::Candidate> m_hoverChain; // candidates containing the cursor, inner→outer
+    // Scroll offset relative to the evidence-weighted default candidate.
     int m_pickOffset = 0;
+    int m_hoverDefaultIndex = 0;
     int m_hoverIndex = 0; // resolved chain index (for the QML badge)
     QPoint m_lastHoverImg;
     QRect m_hoverObject;
-    QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;
+    QString m_hoverObjectKind;
+    QFutureWatcher<QVector<ObjectDetector::Candidate>> *m_detectWatcher = nullptr;
 
     // Object-pick foreground mask for the current selection (Grayscale8 at
     // region size, 255 = keep). Computed off-thread; m_segmentSeq drops stale

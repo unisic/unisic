@@ -133,6 +133,16 @@ void AnnotationCanvas::setSmartPick(bool on)
     update();
 }
 
+void AnnotationCanvas::setColorPicking(bool on)
+{
+    if (m_colorPicking == on)
+        return;
+    m_colorPicking = on;
+    setCursor(on ? Qt::CrossCursor : Qt::ArrowCursor);
+    emit colorPickingChanged();
+    update();
+}
+
 void AnnotationCanvas::setStrokeColor(const QColor &c)
 {
     if (m_color == c) return;
@@ -729,6 +739,16 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
     m_dragStart = img;
 
+    if (m_colorPicking) {
+        // Sample the pixel under the cursor from the frozen screenshot.
+        const QPoint p = img.toPoint();
+        if (m_base.rect().contains(p))
+            emit colorPicked(m_base.pixelColor(p));
+        setColorPicking(false);
+        e->accept();
+        return;
+    }
+
     if (m_tool == ObjectPick) {
         // Click on a detected candidate, or drag a rectangle around the object.
         // Either way the foreground inside the region is segmented off-thread
@@ -1109,6 +1129,11 @@ void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
     m_hoverPoint = e->position();
     emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
+    if (m_colorPicking) {
+        setCursor(Qt::CrossCursor);
+        e->accept();
+        return;
+    }
     if (m_tool == ObjectPick) {
         updateHoverObject(img.toPoint());
         setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);

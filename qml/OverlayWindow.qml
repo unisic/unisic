@@ -97,6 +97,19 @@ Window {
                 }
                 return
             }
+            // Screen colour-pick in progress: Escape backs out of picking and
+            // reopens the popup, without cancelling the whole capture.
+            if (canvas.colorPicking) {
+                if (e.key === Qt.Key_Escape) {
+                    canvas.colorPicking = false
+                    if (root.pendingColorPopup) {
+                        root.pendingColorPopup.open()
+                        root.pendingColorPopup = null
+                    }
+                    e.accepted = true
+                }
+                return
+            }
             if (e.key === Qt.Key_Escape) {
                 overlayController.cancel()
             } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter
@@ -122,14 +135,20 @@ Window {
         // top-level window, and under this overlay's layer-shell surface (with
         // an exclusive keyboard grab) it never receives input — it froze the
         // whole capture screen. UColorPopup is a Popup in the same scene.
+        // Which popup asked to sample a colour from the screen — reopened with
+        // the sampled pixel once the canvas reports it.
+        property var pendingColorPopup: null
+
         UColorPopup {
             id: overlayColorDialog
             onPicked: (c) => canvas.strokeColor = c
+            onRequestScreenPick: { root.pendingColorPopup = overlayColorDialog; canvas.colorPicking = true }
         }
         UColorPopup {
             id: overlayFillDialog
             showAlpha: true
             onPicked: (c) => { canvas.shapeFillColor = c; canvas.shapeFillEnabled = true }
+            onRequestScreenPick: { root.pendingColorPopup = overlayFillDialog; canvas.colorPicking = true }
         }
 
         AnnotationCanvas {
@@ -154,6 +173,14 @@ Window {
             onShapeFillColorChanged: App.settings.editorFillColor = shapeFillColor
             onShapeFillEnabledChanged: App.settings.editorFillEnabled = shapeFillEnabled
             onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
+            // Screen eyedropper result → reopen the popup that requested it,
+            // seeded with the sampled colour.
+            onColorPicked: (c) => {
+                if (root.pendingColorPopup) {
+                    root.pendingColorPopup.openWith(c)
+                    root.pendingColorPopup = null
+                }
+            }
             onTextRequested: (x, y) => {
                 textEditor.imgX = x
                 textEditor.imgY = y

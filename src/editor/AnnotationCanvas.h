@@ -27,6 +27,7 @@ class AnnotationCanvas : public QQuickPaintedItem
     // the overlay follows the SELECTED app theme instead of a fixed purple.
     Q_PROPERTY(QColor uiAccent READ uiAccent WRITE setUiAccent NOTIFY uiChromeChanged)
     Q_PROPERTY(QColor uiScrim READ uiScrim WRITE setUiScrim NOTIFY uiChromeChanged)
+    Q_PROPERTY(bool colorPicking READ colorPicking WRITE setColorPicking NOTIFY colorPickingChanged)
     // True while the current color came from the automatic highlighter
     // red<->yellow swap (not a user pick) — consumers must not persist it.
     Q_PROPERTY(bool strokeColorIsAuto READ strokeColorIsAuto NOTIFY strokeColorChanged)
@@ -89,6 +90,11 @@ public:
     void setUiAccent(const QColor &c) { if (m_uiAccent == c) return; m_uiAccent = c; emit uiChromeChanged(); update(); }
     QColor uiScrim() const { return m_uiScrim; }
     void setUiScrim(const QColor &c) { if (m_uiScrim == c) return; m_uiScrim = c; emit uiChromeChanged(); update(); }
+    // Screen colour-pick mode: the next click samples the pixel under the
+    // cursor from the frozen base image and emits colorPicked, instead of
+    // drawing or selecting. Enabled by the colour popup's eyedropper.
+    bool colorPicking() const { return m_colorPicking; }
+    void setColorPicking(bool on);
     QColor shapeFillColor() const { return m_fillColor; }
     void setShapeFillColor(const QColor &c);
     bool shapeFillEnabled() const { return m_fillEnabled; }
@@ -137,6 +143,9 @@ signals:
     void toolChanged();
     void strokeColorChanged();
     void uiChromeChanged();
+    void colorPickingChanged();
+    // A pixel was sampled in screen colour-pick mode.
+    void colorPicked(const QColor &c);
     void shapeFillColorChanged();
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
@@ -220,6 +229,7 @@ private:
     QColor m_color = QColor(QStringLiteral("#FF4757"));
     QColor m_uiAccent = QColor(200, 172, 214); // #C8ACD6 default (unisic accent)
     QColor m_uiScrim = QColor(23, 21, 59);     // #17153B default (unisic primary)
+    bool m_colorPicking = false;
     // An explicit color pick disables the highlighter's automatic yellow
     // default (see setTool) — the chosen color is then always drawn as-is.
     bool m_strokeColorTouched = false;

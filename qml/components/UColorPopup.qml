@@ -19,6 +19,19 @@ Popup {
     // Emitted continuously as the user drags (live preview) and once more on
     // Done — consumers just assign it to their colour property.
     signal picked(color c)
+    // The eyedropper button asks the host to start screen colour-picking; the
+    // host samples a pixel and calls setColor(c) to resume with it.
+    signal requestScreenPick()
+
+    // Set h/s/v/a from an arbitrary colour (used by the hex field and the
+    // screen eyedropper result).
+    function setColor(c) {
+        hue = c.hsvHue >= 0 ? c.hsvHue : hue
+        sat = c.hsvSaturation
+        val = c.hsvValue
+        if (root.showAlpha)
+            alpha = c.a
+    }
 
     // HSV state in [0,1]; `col` is the composed result.
     property real hue: 0
@@ -206,36 +219,54 @@ Popup {
             }
         }
 
-        // ---- preview + done ----
-        Item {
+        // ---- eyedropper + editable hex ----
+        Row {
             width: parent.width
-            height: 34
+            spacing: Theme.spacingS
+            UIconButton {
+                iconName: "color-picker"; iconSize: 16
+                width: 34; height: 34
+                anchors.verticalCenter: parent.verticalCenter
+                tooltip: qsTr("Pick a colour from the screen")
+                onClicked: { root.close(); root.requestScreenPick() }
+            }
             Rectangle {
-                id: preview
                 width: 34; height: 34; radius: Theme.radiusS
                 color: root.col
                 border.width: 1; border.color: Theme.divider
-                anchors.left: parent.left
-            }
-            Text {
-                anchors.left: preview.right
-                anchors.leftMargin: Theme.spacingM
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.showAlpha
-                      ? root.col.toString().toUpperCase()
-                      : ("#" + root.col.toString().slice(1, 7).toUpperCase())
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontS
-                font.family: "monospace"
             }
-            UButton {
-                anchors.right: parent.right
+            UTextField {
+                id: hexField
+                width: parent.width - 34 * 2 - Theme.spacingS * 2
                 anchors.verticalCenter: parent.verticalCenter
-                text: qsTr("Done")
-                variant: "filled"
-                compact: true
-                onClicked: { root.picked(root.col); root.close() }
+                placeholder: root.showAlpha ? "#AARRGGBB" : "#RRGGBB"
+                // Reflect the live colour unless the user is editing the field.
+                text: activeFocus ? text
+                    : (root.showAlpha
+                       ? "#" + root.col.toString().slice(1).toUpperCase()
+                       : "#" + root.col.toString().slice(1, 7).toUpperCase())
+                function applyHex() {
+                    let t = text.trim()
+                    if (t.length > 0 && t[0] !== "#") t = "#" + t
+                    // #RGB / #RRGGBB / #AARRGGBB only.
+                    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(t)) {
+                        const c = Qt.color(t)
+                        if (c.a !== undefined) root.setColor(c)
+                    }
+                }
+                onAccepted: applyHex()
+                onActiveFocusChanged: if (!activeFocus) applyHex()
             }
+        }
+
+        // ---- done ----
+        UButton {
+            anchors.right: parent.right
+            text: qsTr("Done")
+            variant: "filled"
+            compact: true
+            onClicked: { root.picked(root.col); root.close() }
         }
     }
 }

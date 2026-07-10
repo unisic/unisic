@@ -54,6 +54,14 @@ class Settings : public QObject
     Q_PROPERTY(int editorFontSize READ editorFontSize WRITE setEditorFontSize NOTIFY editorFontSizeChanged)
     Q_PROPERTY(QString editorFillColor READ editorFillColor WRITE setEditorFillColor NOTIFY editorFillColorChanged)
     Q_PROPERTY(bool editorFillEnabled READ editorFillEnabled WRITE setEditorFillEnabled NOTIFY editorFillEnabledChanged)
+    Q_PROPERTY(QString editorFontFamily READ editorFontFamily WRITE setEditorFontFamily NOTIFY editorFontFamilyChanged)
+    Q_PROPERTY(bool editorFontBold READ editorFontBold WRITE setEditorFontBold NOTIFY editorFontBoldChanged)
+    Q_PROPERTY(bool editorFontItalic READ editorFontItalic WRITE setEditorFontItalic NOTIFY editorFontItalicChanged)
+    Q_PROPERTY(bool editorFontUnderline READ editorFontUnderline WRITE setEditorFontUnderline NOTIFY editorFontUnderlineChanged)
+    Q_PROPERTY(bool editorTextOutline READ editorTextOutline WRITE setEditorTextOutline NOTIFY editorTextOutlineChanged)
+    Q_PROPERTY(QString editorTextOutlineColor READ editorTextOutlineColor WRITE setEditorTextOutlineColor NOTIFY editorTextOutlineColorChanged)
+    Q_PROPERTY(bool editorTextBackground READ editorTextBackground WRITE setEditorTextBackground NOTIFY editorTextBackgroundChanged)
+    Q_PROPERTY(QString editorTextBgColor READ editorTextBgColor WRITE setEditorTextBgColor NOTIFY editorTextBgColorChanged)
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
@@ -74,8 +82,10 @@ class Settings : public QObject
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
+    Q_PROPERTY(bool useU2Net READ useU2Net WRITE setUseU2Net NOTIFY useU2NetChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
+    Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
@@ -222,6 +232,15 @@ public:
     U_SETTING(int, editorFontSize, setEditorFontSize, "editor/fontSize", 22)
     U_SETTING(QString, editorFillColor, setEditorFillColor, "editor/fillColor", QStringLiteral("#66C8ACD6"))
     U_SETTING(bool, editorFillEnabled, setEditorFillEnabled, "editor/fillEnabled", false)
+    // Text-tool styling defaults (empty family = default UI font).
+    U_SETTING(QString, editorFontFamily, setEditorFontFamily, "editor/fontFamily", QString())
+    U_SETTING(bool, editorFontBold, setEditorFontBold, "editor/fontBold", true)
+    U_SETTING(bool, editorFontItalic, setEditorFontItalic, "editor/fontItalic", false)
+    U_SETTING(bool, editorFontUnderline, setEditorFontUnderline, "editor/fontUnderline", false)
+    U_SETTING(bool, editorTextOutline, setEditorTextOutline, "editor/textOutline", false)
+    U_SETTING(QString, editorTextOutlineColor, setEditorTextOutlineColor, "editor/textOutlineColor", QStringLiteral("#000000"))
+    U_SETTING(bool, editorTextBackground, setEditorTextBackground, "editor/textBackground", false)
+    U_SETTING(QString, editorTextBgColor, setEditorTextBgColor, "editor/textBgColor", QStringLiteral("#B3000000"))
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
     U_SETTING(QString, hiddenTools, setHiddenTools, "editor/hiddenTools", QString())
     U_SETTING(QString, overlayToolbarPosition, setOverlayToolbarPosition, "capture/overlayToolbarPosition", QStringLiteral("follow"))
@@ -253,11 +272,18 @@ public:
     // for your own deliberate capture, so it should normally show regardless.
     U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
+    // Use U-2-Net for object cutout / background removal when the model is
+    // available (only consulted in builds with onnxruntime). Default on.
+    U_SETTING(bool, useU2Net, setUseU2Net, "segment/useU2Net", true)
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
+    // UI language: "system" follows the OS locale, "en" forces English, "pl"
+    // forces Polish. BARE top-level key (never a "general" group — see the
+    // constructor's key-folding + AGENTS.md). Applied via QTranslator swap.
+    U_SETTING(QString, uiLanguage, setUiLanguage, "uiLanguage", QStringLiteral("system"))
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
@@ -279,6 +305,9 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
+        emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
+        emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
+        emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
         emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
@@ -287,7 +316,9 @@ public:
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit useU2NetChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
+        emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
 
@@ -321,6 +352,14 @@ signals:
     void editorFontSizeChanged();
     void editorFillColorChanged();
     void editorFillEnabledChanged();
+    void editorFontFamilyChanged();
+    void editorFontBoldChanged();
+    void editorFontItalicChanged();
+    void editorFontUnderlineChanged();
+    void editorTextOutlineChanged();
+    void editorTextOutlineColorChanged();
+    void editorTextBackgroundChanged();
+    void editorTextBgColorChanged();
     void recentColorsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
@@ -341,8 +380,10 @@ signals:
     void capturePopupDurationSecChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
+    void useU2NetChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();
+    void uiLanguageChanged();
     void useSystemDecorationChanged();
     void trayIconPathChanged();
 

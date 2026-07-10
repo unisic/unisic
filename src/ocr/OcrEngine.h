@@ -2,9 +2,11 @@
 #include <QObject>
 #include <QImage>
 #include <QString>
+#include <QVector>
 #include <atomic>
 #include <functional>
 #include <memory>
+#include "OcrWord.h"
 
 // Optional Tesseract-backed OCR. This whole translation unit is only compiled
 // when HAVE_TESSERACT is defined (see CMakeLists). Recognition runs on a worker
@@ -14,11 +16,17 @@ class OcrEngine : public QObject
     Q_OBJECT
 public:
     using Result = std::function<void(const QString &text, const QString &error)>;
+    // Word-boxes result for the editor's selectable-text overlay.
+    using BoxResult = std::function<void(const QVector<OcrWord> &words, const QString &error)>;
     explicit OcrEngine(QObject *parent = nullptr);
     ~OcrEngine() override;
 
     // langs is a Tesseract language spec, e.g. "pol+eng".
     void recognize(const QImage &img, const QString &langs, Result cb);
+    // Same recognition, but returns per-word bounding boxes (image pixels)
+    // instead of one blob. Skips the QR/barcode short-circuit (a payload has
+    // no word geometry). Mirrors recognize()'s threading + cancellation.
+    void recognizeBoxes(const QImage &img, const QString &langs, BoxResult cb);
 
 private:
     // Flipped by the destructor so an in-flight worker aborts at its next

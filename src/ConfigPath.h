@@ -29,4 +29,15 @@ inline QString legacyFilePath()
            + QStringLiteral("/Unisic/unisic.conf");
 }
 
+// User-provided capture-sound files. Lives in the config dir (next to
+// destinations.json) so dropping a .wav in manually is a documented way to
+// extend the default set.
+inline QString soundsDir()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+                        + QStringLiteral("/unisic/sounds");
+    QDir().mkpath(dir);
+    return dir;
+}
+
 } // namespace UnisicConfig

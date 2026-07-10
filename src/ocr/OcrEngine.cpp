@@ -17,6 +17,88 @@ using ZXingOptions = ZXing::DecodeHints;
 
 namespace {
 struct OcrResult { QString text; QString error; };
+struct OcrBoxResult { QVector<OcrWord> words; QString error; };
+
+// Runs on a worker thread. Recognizes and walks the result iterator at SYMBOL
+// (glyph) granularity so the editor overlay can select individual letters,
+// tracking the text-line index (for per-line underlines) and word boundaries
+// (so a copied range keeps its spaces). No barcode short-circuit — a QR
+// payload has no glyph geometry.
+OcrBoxResult runOcrBoxes(QImage img, QString langs, std::shared_ptr<std::atomic_bool> cancelled)
+{
+    OcrBoxResult r;
+    if (img.isNull()) {
+        r.error = QObject::tr("No image to recognize");
+        return r;
+    }
+    if (cancelled->load())
+        return r;
+    tesseract::TessBaseAPI api;
+    bool ok = api.Init(nullptr, langs.toUtf8().constData()) == 0;
+    if (!ok && qEnvironmentVariableIsEmpty("TESSDATA_PREFIX")) {
+        static const char *const kTessData[] = {
+            "/usr/share/tesseract/tessdata",
+            "/usr/share/tessdata",
+            "/usr/share/tesseract-ocr/5/tessdata",
+            "/usr/share/tesseract-ocr/4.00/tessdata",
+        };
+        for (const char *dir : kTessData) {
+            if (QDir(QString::fromLatin1(dir)).exists()
+                && api.Init(dir, langs.toUtf8().constData()) == 0) {
+                ok = true;
+                break;
+            }
+        }
+    }
+    if (!ok) {
+        r.error = QObject::tr("OCR language data for \"%1\" not found. "
+                              "Install the Tesseract language packs").arg(langs);
+        return r;
+    }
+    const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
+    api.SetImage(rgba.constBits(), rgba.width(), rgba.height(), 4,
+                 static_cast<int>(rgba.bytesPerLine()));
+    api.SetSourceResolution(96);
+    using namespace tesseract;
+    ETEXT_DESC monitor;
+    monitor.cancel = [](void *that, int) { return static_cast<std::atomic_bool *>(that)->load(); };
+    monitor.cancel_this = cancelled.get();
+    if (api.Recognize(&monitor) != 0 || cancelled->load()) {
+        api.End();
+        return r;
+    }
+    tesseract::ResultIterator *it = api.GetIterator();
+    const tesseract::PageIteratorLevel level = tesseract::RIL_SYMBOL;
+    int line = -1;
+    if (it) {
+        do {
+            if (it->IsAtBeginningOf(tesseract::RIL_TEXTLINE))
+                ++line;
+            // A new word that is NOT also the start of a line follows a space.
+            const bool wordStart = it->IsAtBeginningOf(tesseract::RIL_WORD);
+            const bool lineStart = it->IsAtBeginningOf(tesseract::RIL_TEXTLINE);
+            char *w = it->GetUTF8Text(level);
+            if (w) {
+                const QString text = QString::fromUtf8(w);
+                delete[] w;
+                int x1, y1, x2, y2;
+                if (!text.trimmed().isEmpty()
+                    && it->BoundingBox(level, &x1, &y1, &x2, &y2)) {
+                    OcrWord ow;
+                    ow.rect = QRect(QPoint(x1, y1), QPoint(x2, y2));
+                    ow.text = text;
+                    ow.line = qMax(0, line);
+                    ow.confidence = it->Confidence(level);
+                    ow.spaceBefore = wordStart && !lineStart;
+                    r.words.append(ow);
+                }
+            }
+        } while (it->Next(level));
+        delete it;
+    }
+    api.End();
+    return r;
+}
 
 // Runs on a worker thread. A fresh TessBaseAPI per call keeps this reentrant.
 // `cancelled` is flipped by ~OcrEngine so a job in flight aborts at its next
@@ -120,4 +202,15 @@ void OcrEngine::recognize(const QImage &img, const QString &langs, Result cb)
         cb(r.text, r.error);
     });
     fw->setFuture(QtConcurrent::run(runOcr, img, langs, m_cancelled));
+}
+
+void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, BoxResult cb)
+{
+    auto *fw = new QFutureWatcher<OcrBoxResult>(this);
+    connect(fw, &QFutureWatcher<OcrBoxResult>::finished, this, [fw, cb]() {
+        const OcrBoxResult r = fw->result();
+        fw->deleteLater();
+        cb(r.words, r.error);
+    });
+    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, m_cancelled));
 }

@@ -115,6 +115,9 @@ void OverlayController::createWindows()
         if (auto *canvas = win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas"))) {
             QImage img = m_frozen[i];
             canvas->setImage(img);
+            // Upgrade the object-cutout segmentation to U-2-Net when available
+            // (no-op / heuristic fallback otherwise).
+            m_app->installSegmenter(canvas);
         }
 
         bool shown = false;

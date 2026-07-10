@@ -36,10 +36,22 @@ Unisic is in **early developer access**. It works, but you *will* run into rough
 
 Grab the latest build from [**Releases**](https://github.com/unisic/unisic/releases/latest) (AppImage, Flatpak bundle, deb, rpm, Arch package) or [build from source](#build-from-source). Requires a Wayland session with `xdg-desktop-portal` + a backend; recording additionally needs PipeWire and `ffmpeg`.
 
+### Fedora (COPR)
+
+On Fedora, install from the [`deandark/Unisic`](https://copr.fedorainfracloud.org/coprs/deandark/Unisic/) COPR repository — you get automatic updates through `dnf`:
+
+```sh
+sudo dnf copr enable deandark/Unisic
+sudo dnf install unisic
+```
+
+The COPR build pulls in the optional deps (PipeWire, Tesseract, onnxruntime) so recording, OCR and U-2-Net background removal all work out of the box.
+
 ## Updates
 
 | Package | How it updates |
 |---|---|
+| **COPR (Fedora)** | `sudo dnf upgrade` — the repo ships new builds like any other `dnf` package. |
 | **AppImage** | Embedded update info + `.zsync` on every release — run [`AppImageUpdate`](https://github.com/AppImageCommunity/AppImageUpdate) on the file for a differential update. |
 | **Flatpak** | The release bundle is a sideload — re-download to update (native `flatpak update` once Unisic lands on Flathub). |
 | **deb / rpm / Arch** | Download the new package from Releases and install it over the old one. |
@@ -54,6 +66,7 @@ Grab the latest build from [**Releases**](https://github.com/unisic/unisic/relea
 - **Upload** — custom HTTP destinations (multipart or raw JSON body), `.sxcu` (ShareX uploader) import, FTP/SFTP via curl, built-ins (catbox, 0x0.st, Imgur…); link auto-copied.
 - **History** — every capture with thumbnails; deleting moves the file to the trash; external deletions are picked up automatically.
 - **Tray + hotkeys + 9 themes** — system light/dark following included; icons themable per tool.
+- **Languages** — English and Polish; pick one in Settings → General (or follow the system locale).
 
 ## Default hotkeys
 
@@ -100,7 +113,7 @@ cmake --build build
 ./build/unisic
 ```
 
-PipeWire and Tesseract dev packages are optional at build time — without them the app builds with recording/OCR disabled.
+PipeWire, Tesseract and onnxruntime dev packages are optional at build time — without them the app builds with recording / OCR / U-2-Net background removal disabled (the dependency-free heuristic object cutout still works). To enable AI background removal install `onnxruntime-devel` (Fedora) or `onnxruntime` (Arch) and rebuild; the ~4.5 MB U-2-Net model is fetched on first use.
 
 ## Run
 
@@ -115,6 +128,7 @@ No arguments = background start with tray + main window. A second invocation for
 
 - Settings/destinations: `~/.config/unisic/` · history: `~/.local/share/unisic/`.
 - Filename template tokens: `%date%`, `%time%`, `%datetime%`, `%unix%`, `%rand%`; formats PNG/JPG/WebP.
+- Custom capture sounds: drop `.wav`/`.ogg` files into `~/.config/unisic/sounds/` (or use *Add custom sound* in Settings → General) and pick them in the capture-sound list.
 - Full settings export/import as JSON.
 
 ## niri and other wlroots compositors
@@ -128,6 +142,10 @@ No arguments = background start with tray + main window. A second invocation for
       Print { spawn "unisic" "--fullscreen"; }
   }
   ```
+
+## Development
+
+Unisic is developed with agentic AI assistance (see [`AGENTS.md`](AGENTS.md) for the contributor guide those agents follow). Every generated change is read line by line and reviewed by the maintainer before it lands — the tooling speeds things up, but nothing merges unread, so the codebase stays free of unreviewed machine output and its usual mistakes. Bug reports are still the best safety net: if something slipped through, please [file an issue](https://github.com/unisic/unisic/issues).
 
 ## Notes
 

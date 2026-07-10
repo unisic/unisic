@@ -323,6 +323,9 @@ int main(int argc, char *argv[])
     // ThemeController is a module QML singleton (engine-created); the icon
     // provider shares that instance lazily via ThemeController::instance().
     AppContext context;
+    // Install the UI-language translators BEFORE the engine loads, so every
+    // qsTr in the QML is resolved against the chosen language on first paint.
+    context.applyLanguage();
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconImageProvider(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);

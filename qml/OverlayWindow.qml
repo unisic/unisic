@@ -67,26 +67,65 @@ Window {
             return height / 2 - toolbar.height / 2
         }
 
+        // ---- tool grouping (Shapes) — same model as the editor top bar ----
+        readonly property var shapesTools: ToolCatalog.groupTools("shapes", "overlay", App.settings.hiddenTools)
+        readonly property bool shapesActive: ToolCatalog.groupForEnum(canvas.tool) === "shapes"
+        property string currentShapeId: "rect"
+        function toggleShapesGroup() {
+            if (shapesActive) { canvas.tool = AnnotationCanvas.None; return }
+            var pick = null
+            for (var i = 0; i < shapesTools.length; ++i)
+                if (shapesTools[i].id === currentShapeId) pick = shapesTools[i]
+            if (!pick && shapesTools.length > 0) pick = shapesTools[0]
+            if (pick) canvas.tool = pick.tool
+        }
+        function mainRowModel() {
+            var out = []
+            var seen = {}
+            var ts = ToolCatalog.visibleFor("overlay", App.settings.hiddenTools)
+            for (var i = 0; i < ts.length; ++i) {
+                var t = ts[i]
+                if (t.group) {
+                    if (!seen[t.group]) {
+                        seen[t.group] = true
+                        for (var g = 0; g < ToolCatalog.groups.length; ++g)
+                            if (ToolCatalog.groups[g].id === t.group)
+                                out.push({ kind: "group", group: ToolCatalog.groups[g] })
+                    }
+                } else {
+                    out.push({ kind: "tool", tool: t })
+                }
+            }
+            return out
+        }
+
         // Commit the in-place text box. Shared by TextInput.onAccepted and the
         // Enter branch below, so a confirm works whether keyboard focus landed
         // on the text field or stayed on the overlay root (Wayland activation
         // is unreliable for a hotkey-spawned frameless window).
         function commitTextBox() {
-            canvas.commitText(textEditor.imgX, textEditor.imgY, textField.text)
+            if (textEditor.editingExisting)
+                canvas.commitTextEdit(textField.text)
+            else
+                canvas.commitText(textEditor.imgX, textEditor.imgY, textField.text)
             textEditor.visible = false
+            textEditor.editingExisting = false
             root.forceActiveFocus()
         }
         function closeTextBox() {
             textEditor.visible = false
+            textEditor.editingExisting = false
             root.forceActiveFocus()
         }
 
         Keys.onPressed: (e) => {
-            // While the text box is open, Enter CONFIRMS the text (never fires
-            // the capture), Escape closes the box (never cancels the session),
-            // and every other key is left for the TextInput to type.
+            // While the text box is open, Ctrl+Enter CONFIRMS the text (plain
+            // Enter types a new line — the field is multi-line now), Escape
+            // closes the box (never cancels the session), and every other key
+            // is left for the text field to type.
             if (textEditor.visible) {
-                if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
+                        && (e.modifiers & Qt.ControlModifier)) {
                     root.commitTextBox()
                     e.accepted = true
                 } else if (e.key === Qt.Key_Escape) {
@@ -109,6 +148,21 @@ Window {
                     e.accepted = true
                 }
                 return
+            }
+            // Edit tool with a shape selected: Delete removes it, arrows nudge
+            // it, Escape deselects (never cancels the capture on the first press).
+            if (canvas.hasAnnotSelection) {
+                if (e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) {
+                    canvas.removeSelectedAnnot(); e.accepted = true; return
+                }
+                if (e.key === Qt.Key_Escape) {
+                    canvas.clearAnnotSelection(); e.accepted = true; return
+                }
+                var st = (e.modifiers & Qt.ShiftModifier) ? 10 : 1
+                if (e.key === Qt.Key_Left)  { canvas.nudgeSelectedAnnot(-st, 0); e.accepted = true; return }
+                if (e.key === Qt.Key_Right) { canvas.nudgeSelectedAnnot(st, 0);  e.accepted = true; return }
+                if (e.key === Qt.Key_Up)    { canvas.nudgeSelectedAnnot(0, -st); e.accepted = true; return }
+                if (e.key === Qt.Key_Down)  { canvas.nudgeSelectedAnnot(0, st);  e.accepted = true; return }
             }
             if (e.key === Qt.Key_Escape) {
                 overlayController.cancel()
@@ -150,6 +204,17 @@ Window {
             onPicked: (c) => { canvas.shapeFillColor = c; canvas.shapeFillEnabled = true }
             onRequestScreenPick: { root.pendingColorPopup = overlayFillDialog; canvas.colorPicking = true }
         }
+        UColorPopup {
+            id: overlayOutlineDialog
+            onPicked: (c) => { canvas.textOutlineColor = c; canvas.textOutline = true }
+            onRequestScreenPick: { root.pendingColorPopup = overlayOutlineDialog; canvas.colorPicking = true }
+        }
+        UColorPopup {
+            id: overlayTextBgDialog
+            showAlpha: true
+            onPicked: (c) => { canvas.textBackgroundColor = c; canvas.textBackground = true }
+            onRequestScreenPick: { root.pendingColorPopup = overlayTextBgDialog; canvas.colorPicking = true }
+        }
 
         AnnotationCanvas {
             id: canvas
@@ -169,9 +234,27 @@ Window {
                 fontSize = App.settings.editorFontSize
                 shapeFillColor = App.settings.editorFillColor
                 shapeFillEnabled = App.settings.editorFillEnabled
+                fontFamily = App.settings.editorFontFamily
+                fontBold = App.settings.editorFontBold
+                fontItalic = App.settings.editorFontItalic
+                fontUnderline = App.settings.editorFontUnderline
+                textOutline = App.settings.editorTextOutline
+                textOutlineColor = App.settings.editorTextOutlineColor
+                textBackground = App.settings.editorTextBackground
+                textBackgroundColor = App.settings.editorTextBgColor
             }
-            onShapeFillColorChanged: App.settings.editorFillColor = shapeFillColor
-            onShapeFillEnabledChanged: App.settings.editorFillEnabled = shapeFillEnabled
+            // A selected placed shape (Edit tool) is being restyled — don't
+            // overwrite the saved "next shape" defaults.
+            onShapeFillColorChanged: if (!hasAnnotSelection) App.settings.editorFillColor = shapeFillColor
+            onShapeFillEnabledChanged: if (!hasAnnotSelection) App.settings.editorFillEnabled = shapeFillEnabled
+            onFontFamilyChanged: if (!hasAnnotSelection) App.settings.editorFontFamily = fontFamily
+            onFontBoldChanged: if (!hasAnnotSelection) App.settings.editorFontBold = fontBold
+            onFontItalicChanged: if (!hasAnnotSelection) App.settings.editorFontItalic = fontItalic
+            onFontUnderlineChanged: if (!hasAnnotSelection) App.settings.editorFontUnderline = fontUnderline
+            onTextOutlineChanged: if (!hasAnnotSelection) App.settings.editorTextOutline = textOutline
+            onTextOutlineColorChanged: if (!hasAnnotSelection) App.settings.editorTextOutlineColor = String(textOutlineColor)
+            onTextBackgroundChanged: if (!hasAnnotSelection) App.settings.editorTextBackground = textBackground
+            onTextBackgroundColorChanged: if (!hasAnnotSelection) App.settings.editorTextBgColor = String(textBackgroundColor)
             onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
             // Screen eyedropper result → reopen the popup that requested it,
             // seeded with the sampled colour.
@@ -182,11 +265,21 @@ Window {
                 }
             }
             onTextRequested: (x, y) => {
+                textEditor.editingExisting = false
                 textEditor.imgX = x
                 textEditor.imgY = y
                 textEditor.visible = true
                 textField.text = ""
                 textField.forceActiveFocus()
+            }
+            onTextEditRequested: (x, y, t) => {
+                textEditor.editingExisting = true
+                textEditor.imgX = x
+                textEditor.imgY = y
+                textEditor.visible = true
+                textField.text = t
+                textField.forceActiveFocus()
+                textField.selectAll()
             }
 
             // Crosshair guides from the cursor to the screen edges. The handler
@@ -333,14 +426,17 @@ Window {
             }
         }
 
-        // Floating toolbar (position configurable; default follows the selection)
+        // Floating toolbar (position configurable; default follows the selection).
+        // Main row: tools (with the Shapes group chip) + capture/close. Sub-row:
+        // the active group's tools and the active tool's property controls —
+        // contextual, so the pill stays compact with the plain selection tool.
         Rectangle {
             id: toolbar
             visible: canvas.hasSelection
             x: root.toolbarX()
             y: root.toolbarY()
-            width: toolRow.implicitWidth + 24
-            height: 54
+            width: toolColumn.implicitWidth + 24
+            height: toolColumn.implicitHeight + 14
             radius: 27
             gradient: Gradient {
                 GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.25) }
@@ -355,77 +451,102 @@ Window {
                 shadowBlur: 1.0; shadowVerticalOffset: 5; shadowOpacity: 0.6
             }
 
-            Row {
-                id: toolRow
+            Column {
+                id: toolColumn
                 anchors.centerIn: parent
-                spacing: 5
+                spacing: 4
 
                 Row {
+                    id: toolRow
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 5
+
+                    Row {
+                        visible: annotationToolsEnabled
+                        spacing: 5
+
+                        Repeater {
+                            model: root.mainRowModel()
+                            delegate: ToolChip {
+                                iconName: modelData.kind === "group"
+                                          ? modelData.group.iconName
+                                          : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
+                                label: modelData.kind === "group" ? modelData.group.label : modelData.tool.label
+                                active: modelData.kind === "group"
+                                        ? root.shapesActive
+                                        : canvas.tool === modelData.tool.tool
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: modelData.kind === "group"
+                                           ? root.toggleShapesGroup()
+                                           : canvas.tool = modelData.tool.tool
+                            }
+                        }
+                        ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.undo() }
+                        ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.redo() }
+
+                        Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
+                    }
+
+                    UButton {
+                        compact: true
+                        iconName: "checkmark"
+                        text: annotationToolsEnabled ? qsTr("Capture") : qsTr("Start")
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: overlayController.confirmFromWindow(overlayWindow)
+                    }
+                    UIconButton {
+                        iconName: "close"; iconSize: 15
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: overlayController.cancel()
+                    }
+                }
+
+                Row {
+                    id: overlaySubBar
+                    readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
                     visible: annotationToolsEnabled
+                             && (root.shapesActive || ctxProps.length > 0
+                                 || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection))
+                    anchors.horizontalCenter: parent.horizontalCenter
                     spacing: 5
 
                     Repeater {
-                        model: ToolCatalog.visibleFor("overlay", App.settings.hiddenTools)
+                        model: root.shapesActive ? root.shapesTools : []
                         delegate: ToolChip {
                             iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                             iconStyle: App.settings.editorIconStyle
                             label: modelData.label
                             active: canvas.tool === modelData.tool
                             anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.tool = modelData.tool
+                            onClicked: {
+                                canvas.tool = modelData.tool
+                                root.currentShapeId = modelData.id
+                            }
                         }
                     }
-                    ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.undo() }
-                    ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.redo() }
-
-                    Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
-
-                    Repeater {
-                        model: Theme.swatches
-                        delegate: ColorDot {
-                            dotColor: modelData
-                            active: Qt.colorEqual(canvas.strokeColor, modelData)
-                            anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.strokeColor = modelData
-                        }
-                    }
-                    UIconButton {
-                        iconName: "color-picker"; iconSize: 15
-                        width: 30; height: 30
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayColorDialog.openWith(canvas.strokeColor)
-                    }
-
-                    Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
-
                     ToolChip {
-                        iconName: "fill-color"
-                        label: qsTr("Fill shapes")
-                        active: canvas.shapeFillEnabled
+                        visible: canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection
+                        iconName: "edit-delete"
+                        label: qsTr("Delete shape")
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: canvas.shapeFillEnabled = !canvas.shapeFillEnabled
+                        onClicked: canvas.removeSelectedAnnot()
                     }
-                    ColorDot {
-                        dotColor: canvas.shapeFillColor
-                        active: canvas.shapeFillEnabled
+                    Rectangle {
+                        visible: root.shapesActive
+                                 || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                        width: 1; height: 28; color: Theme.divider
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayFillDialog.openWith(canvas.shapeFillColor)
                     }
-
-                    Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
-                }
-
-                UButton {
-                    compact: true
-                    iconName: "checkmark"
-                    text: annotationToolsEnabled ? qsTr("Capture") : qsTr("Start")
-                    anchors.verticalCenter: parent.verticalCenter
-                    onClicked: overlayController.confirmFromWindow(overlayWindow)
-                }
-                UIconButton {
-                    iconName: "close"; iconSize: 15
-                    anchors.verticalCenter: parent.verticalCenter
-                    onClicked: overlayController.cancel()
+                    ToolPropsBar {
+                        canvas: canvas
+                        props: overlaySubBar.ctxProps
+                        anchors.verticalCenter: parent.verticalCenter
+                        onStrokePickerRequested: overlayColorDialog.openWith(canvas.strokeColor)
+                        onFillPickerRequested: overlayFillDialog.openWith(canvas.shapeFillColor)
+                        onTextOutlinePickerRequested: overlayOutlineDialog.openWith(canvas.textOutlineColor)
+                        onTextBackgroundPickerRequested: overlayTextBgDialog.openWith(canvas.textBackgroundColor)
+                    }
                 }
             }
         }
@@ -437,6 +558,7 @@ Window {
             id: textEditor
             property real imgX: 0
             property real imgY: 0
+            property bool editingExisting: false
             property alias text: textField.text
             visible: false
             onVisibleChanged: {
@@ -445,8 +567,8 @@ Window {
             }
             x: imgX * canvas.renderScale
             y: imgY * canvas.renderScale
-            width: 320
-            height: 40
+            width: 360
+            height: Math.max(40, textField.implicitHeight + 16)
             z: 300
 
             Rectangle {
@@ -456,22 +578,27 @@ Window {
                 border.width: 1
                 border.color: Theme.accent
             }
-            TextInput {
+            // TextEdit (multi-line): Enter types a new line, Ctrl+Enter commits.
+            TextEdit {
                 id: textField
                 anchors.fill: parent
                 anchors.margins: 8
                 focus: true
                 color: canvas.strokeColor
+                font.family: canvas.fontFamily === "" ? Qt.application.font.family : canvas.fontFamily
                 font.pixelSize: canvas.fontSize * canvas.renderScale
-                font.bold: true
-                // MUST accept Enter/Escape here so they do NOT bubble to the
-                // overlay root: commitTextBox() sets textEditor.visible = false,
-                // and the root handler — re-checking visibility AFTER that —
-                // would then fall through to confirmFromWindow and fire the
-                // capture. Accepting stops that propagation. (onAccepted alone
-                // did not consume the key event, which was the bug.)
+                font.bold: canvas.fontBold
+                font.italic: canvas.fontItalic
+                font.underline: canvas.fontUnderline
+                // MUST accept Ctrl+Enter/Escape here so they do NOT bubble to
+                // the overlay root: commitTextBox() sets textEditor.visible =
+                // false, and the root handler — re-checking visibility AFTER
+                // that — would then fall through to confirmFromWindow and fire
+                // the capture. Accepting stops that propagation. (onAccepted
+                // alone did not consume the key event, which was the bug.)
                 Keys.onPressed: (e) => {
-                    if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+                    if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
+                            && (e.modifiers & Qt.ControlModifier)) {
                         root.commitTextBox()
                         e.accepted = true
                     } else if (e.key === Qt.Key_Escape) {
@@ -479,6 +606,15 @@ Window {
                         e.accepted = true
                     }
                 }
+            }
+            Text {
+                visible: textField.text === ""
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: 8
+                text: qsTr("Text… (Ctrl+Enter finishes)")
+                color: Theme.textTertiary
+                font.pixelSize: canvas.fontSize * canvas.renderScale
             }
         }
     }

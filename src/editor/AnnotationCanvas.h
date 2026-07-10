@@ -2,11 +2,15 @@
 #include <QQuickPaintedItem>
 #include <QImage>
 #include <QColor>
+#include <QFont>
 #include <QVector>
 #include <QRect>
 #include <QTimer>
+#include <QElapsedTimer>
+#include <functional>
 #include <qqmlregistration.h>
 #include "overlay/ObjectDetector.h"
+#include "ocr/OcrWord.h"
 
 template <typename T> class QFutureWatcher;
 
@@ -37,6 +41,15 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool shapeFillEnabled READ shapeFillEnabled WRITE setShapeFillEnabled NOTIFY shapeFillEnabledChanged)
     Q_PROPERTY(int strokeWidth READ strokeWidth WRITE setStrokeWidth NOTIFY strokeWidthChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
+    // Text styling for NEW text annotations (empty family = default UI font).
+    Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
+    Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
+    Q_PROPERTY(bool fontItalic READ fontItalic WRITE setFontItalic NOTIFY fontItalicChanged)
+    Q_PROPERTY(bool fontUnderline READ fontUnderline WRITE setFontUnderline NOTIFY fontUnderlineChanged)
+    Q_PROPERTY(bool textOutline READ textOutline WRITE setTextOutline NOTIFY textOutlineChanged)
+    Q_PROPERTY(QColor textOutlineColor READ textOutlineColor WRITE setTextOutlineColor NOTIFY textOutlineColorChanged)
+    Q_PROPERTY(bool textBackground READ textBackground WRITE setTextBackground NOTIFY textBackgroundChanged)
+    Q_PROPERTY(QColor textBackgroundColor READ textBackgroundColor WRITE setTextBackgroundColor NOTIFY textBackgroundColorChanged)
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
     // Overlay smart pick: with the plain selection tool (None), hovering
     // highlights the detected object under the cursor and a CLICK (no drag)
@@ -64,13 +77,27 @@ class AnnotationCanvas : public QQuickPaintedItem
     // hasObjectMask flips once a usable mask is previewed on the selection.
     Q_PROPERTY(bool segmenting READ segmenting NOTIFY segmentingChanged)
     Q_PROPERTY(bool hasObjectMask READ hasObjectMask NOTIFY segmentingChanged)
+    // EditShapes tool: index into m_items of the currently selected annotation
+    // (-1 = none). selectedAnnotTool is that annotation's Tool enum (or -1) so
+    // the QML props bar can show the right controls; hasAnnotSelection gates
+    // the settings write-back guard (restyling a shape must not overwrite the
+    // saved "next shape" defaults).
+    Q_PROPERTY(bool hasAnnotSelection READ hasAnnotSelection NOTIFY selectedAnnotChanged)
+    Q_PROPERTY(int selectedAnnotTool READ selectedAnnotTool NOTIFY selectedAnnotChanged)
+    // OCR text-pick mode (editor): recognized words are highlighted and the
+    // user clicks / rubber-bands to select them, then copies. ocrBusy is true
+    // while recognition runs; hasOcrSelection gates the "Copy selection" button.
+    Q_PROPERTY(bool ocrMode READ ocrMode WRITE setOcrMode NOTIFY ocrChanged)
+    Q_PROPERTY(bool ocrBusy READ ocrBusy NOTIFY ocrChanged)
+    Q_PROPERTY(bool hasOcrSelection READ hasOcrSelection NOTIFY ocrChanged)
 
 public:
     enum Tool {
         None = 0, Pen, Line, Arrow, Rect, Ellipse, Text,
         Blur, Pixelate, Highlight, Step, Crop,
         SmartErase,
-        ObjectPick   // 13 — overlay-only: hover to highlight a detected object, click to capture it
+        ObjectPick,  // 13 — overlay-only: hover to highlight a detected object, click to capture it
+        EditShapes   // 14 — select a placed annotation to move/resize/restyle/delete it
     };
     Q_ENUM(Tool)
 
@@ -103,6 +130,22 @@ public:
     void setStrokeWidth(int w);
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
+    QString fontFamily() const { return m_fontFamily; }
+    void setFontFamily(const QString &f);
+    bool fontBold() const { return m_fontBold; }
+    void setFontBold(bool on);
+    bool fontItalic() const { return m_fontItalic; }
+    void setFontItalic(bool on);
+    bool fontUnderline() const { return m_fontUnderline; }
+    void setFontUnderline(bool on);
+    bool textOutline() const { return m_textOutline; }
+    void setTextOutline(bool on);
+    QColor textOutlineColor() const { return m_textOutlineColor; }
+    void setTextOutlineColor(const QColor &c);
+    bool textBackground() const { return m_textBackground; }
+    void setTextBackground(bool on);
+    QColor textBackgroundColor() const { return m_textBgColor; }
+    void setTextBackgroundColor(const QColor &c);
     bool selectionMode() const { return m_selectionMode; }
     bool smartPick() const { return m_smartPick; }
     void setSmartPick(bool on);
@@ -122,17 +165,57 @@ public:
     // that window must also wait, or it would export the stale/absent mask.
     bool segmenting() const;
     bool hasObjectMask() const { return !m_objectMask.isNull(); }
+    bool hasAnnotSelection() const { return m_selectedAnnot >= 0; }
+    int selectedAnnotTool() const {
+        return (m_selectedAnnot >= 0 && m_selectedAnnot < m_items.size())
+                   ? int(m_items[m_selectedAnnot].type) : -1;
+    }
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     Q_INVOKABLE void clearAnnotations();
     Q_INVOKABLE void commitText(qreal imgX, qreal imgY, const QString &text);
+    // EditShapes: delete the selected annotation, nudge it by whole image
+    // pixels, or replace a selected Text annotation's string (double-click
+    // re-edit). No-ops when nothing / a non-Text shape is selected.
+    Q_INVOKABLE void removeSelectedAnnot();
+    Q_INVOKABLE void nudgeSelectedAnnot(qreal dx, qreal dy);
+    Q_INVOKABLE void clearAnnotSelection();
+    Q_INVOKABLE void commitTextEdit(const QString &text);
+    // Select the topmost annotation at the given image-space point (-1 → none).
+    Q_INVOKABLE void selectAnnotAt(qreal imgX, qreal imgY);
+    Q_INVOKABLE int annotCount() const { return int(m_items.size()); }
+
+    // OCR text-pick mode.
+    bool ocrMode() const { return m_ocrMode; }
+    void setOcrMode(bool on);
+    bool ocrBusy() const { return m_ocrBusy; }
+    void setOcrBusy(bool on);
+    bool hasOcrSelection() const;
+    // Called from the OCR callback with the recognized words (image px).
+    void setOcrWords(const QVector<OcrWord> &words);
+    int ocrWordCount() const { return int(m_ocrWords.size()); }
+    Q_INVOKABLE void ocrSelectAll();
+    Q_INVOKABLE void clearOcrMode();
+    // Selected words joined in reading order (spaces within a line, newlines
+    // between lines).
+    Q_INVOKABLE QString ocrSelectedText() const;
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
     Q_INVOKABLE QRectF selectionInItemCoords() const;
+
+    // Install an external foreground segmenter (U-2-Net). Called on a worker
+    // thread inside startSegmentation; must be thread-safe and return a
+    // Grayscale8 keep-mask the size of the region, or a null image to fall back
+    // to the built-in heuristic. Also used by applyBaseMask via the app.
+    using Segmenter = std::function<QImage(const QImage &, const QRect &)>;
+    void setExternalSegmenter(Segmenter s) { m_externalSegmenter = std::move(s); }
+    // Composite a keep-mask (255 = keep) into the base image's alpha, making
+    // the rejected pixels transparent. Undoable. Used by "Remove background".
+    Q_INVOKABLE void applyBaseMask(const QImage &mask);
 
     // Final composite at full image resolution (annotations burnt in).
     QImage rendered() const;
@@ -150,6 +233,14 @@ signals:
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
     void fontSizeChanged();
+    void fontFamilyChanged();
+    void fontBoldChanged();
+    void fontItalicChanged();
+    void fontUnderlineChanged();
+    void textOutlineChanged();
+    void textOutlineColorChanged();
+    void textBackgroundChanged();
+    void textBackgroundColorChanged();
     void selectionModeChanged();
     void smartPickChanged();
     void hoverObjectChanged();
@@ -159,8 +250,14 @@ signals:
     void imageChanged();
     void renderScaleChanged();
     void textRequested(qreal imgX, qreal imgY);
+    // EditShapes: a Text annotation was double-clicked — QML reopens the
+    // floating editor at (imgX,imgY) prefilled with `text`; commitTextEdit
+    // writes the result back into the selected annotation.
+    void textEditRequested(qreal imgX, qreal imgY, const QString &text);
     void selectionConfirmed();
     void segmentingChanged();
+    void selectedAnnotChanged();
+    void ocrChanged();
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -180,8 +277,16 @@ private:
         QColor fillColor;           // shape fill (when filled)
         bool filled = false;
         qreal width = 3;
-        QString text;
+        QString text;               // Text tool: may contain '\n' (multi-line)
         int fontSize = 18;
+        QString fontFamily;         // empty = default UI font
+        bool bold = true;
+        bool italic = false;
+        bool underline = false;
+        bool outlined = false;      // stroke each glyph with outlineColor
+        QColor outlineColor = QColor(0, 0, 0);
+        bool textBg = false;        // rounded box behind the text
+        QColor textBgColor = QColor(0, 0, 0, 179);
         int number = 0;             // step marker
         // Blur/Pixelate patch cache: recomputing the smooth down/up-scale of the
         // base region on EVERY repaint (i.e. every drag mouse-move) burned
@@ -198,8 +303,12 @@ private:
     // held back until real drag movement — a bare press must not destroy the
     // current selection/mask, because it may be the first half of the
     // double-click-confirm gesture.
+    // MoveAnnot/ResizeAnnot: drag the selected placed annotation (EditShapes).
+    // PendingMoveAnnot: a press that selected/re-hit a shape but has not yet
+    // moved — a bare click just selects; a real drag promotes it to MoveAnnot.
     enum DragMode { NoDrag, DrawDrag, NewSelection, MoveSelection, ResizeSelection,
-                    PendingNewSelection };
+                    PendingNewSelection,
+                    PendingMoveAnnot, MoveAnnot, ResizeAnnot };
 
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
@@ -207,8 +316,30 @@ private:
     // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
     // to repaint only the dirty region while drag-drawing.
     QRectF annotBoundsImg(const Annot &a) const;
+    // Tight multi-line bounds of a Text annotation (no padding/outline slack).
+    QRectF textBoundsImg(const Annot &a) const;
+    QFont annotFontFor(const Annot &a) const;
     int hitHandle(const QPointF &imgPos) const; // 0..7 handles, -1 none
     void normalizeSelection();
+    // EditShapes helpers. annotAt: reverse-z-order hit-test over m_items,
+    // returns the topmost index under imgPos (-1 none). The handle helpers
+    // operate on the selected annotation: handlesForSelected fills up to 8
+    // handle points (rect-like) or 2 endpoints (line/arrow) and returns the
+    // count (0 = move-only: pen/text/step); hitAnnotHandle returns the handle
+    // index under imgPos (-1 none). selectAnnot copies the shape's style into
+    // the canvas "current" props so the props bar reflects it, then emits.
+    int annotAt(const QPointF &imgPos) const;
+    int handlesForSelected(QPointF out[8]) const;
+    int hitAnnotHandle(const QPointF &imgPos) const;
+    void selectAnnot(int index);
+    void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
+    // A style property setter calls this AFTER updating the "current" prop: when
+    // a shape is selected it coalesces an undo entry, copies the props onto the
+    // selected annotation and repaints. propId groups repeats for coalescing.
+    void routeToSelected(int propId);
+    // Undo coalescing for a repeated edit of the same (shape, property) within
+    // a short window — a slider drag becomes one undo entry, not dozens.
+    void pushUndoCoalesced(int propId);
     QColor sampleEdgeColor(const QRectF &r) const;
     void startSegmentation();
     void clearObjectMask();
@@ -238,6 +369,14 @@ private:
     bool m_fillEnabled = false;
     int m_strokeWidth = 4;
     int m_fontSize = 22;
+    QString m_fontFamily;
+    bool m_fontBold = true;
+    bool m_fontItalic = false;
+    bool m_fontUnderline = false;
+    bool m_textOutline = false;
+    QColor m_textOutlineColor = QColor(0, 0, 0);
+    bool m_textBackground = false;
+    QColor m_textBgColor = QColor(0, 0, 0, 179);
     int m_stepCounter = 0;
 
     bool m_selectionMode = false;
@@ -251,6 +390,35 @@ private:
     QRectF m_selStart;
     Annot m_current;
     bool m_drawing = false;
+
+    // EditShapes selection.
+    int m_selectedAnnot = -1;
+    QRectF m_annotStartRect;               // rect at the start of a move/resize
+    QVector<QPointF> m_annotStartPoints;   // pen points at the start of a move
+    bool m_suppressStyleToSelected = false;// true while selectAnnot seeds props
+    bool m_resizeUndoPending = false;      // push one undo on the resize's first move
+
+    // OCR text-pick mode. Glyphs are in reading order; the selection is a
+    // contiguous index range [min(anchor,caret) .. max] (letter-granular),
+    // dragged like a text cursor. -1 = no selection.
+    bool m_ocrMode = false;
+    bool m_ocrBusy = false;
+    QVector<OcrWord> m_ocrWords;
+    int m_ocrSelAnchor = -1;
+    int m_ocrSelCaret = -1;
+    bool m_ocrDragging = false;
+    int m_ocrHoverGlyph = -1;   // glyph whose line is hover-highlighted (-1 none)
+    bool m_ocrDidDrag = false;  // a press-drag passed the letter-select threshold
+    // Nearest glyph index to an image-space point (-1 when there are none).
+    int ocrGlyphAt(const QPointF &imgPos) const;
+    // Expand a glyph index to the inclusive [lo..hi] range of its whole word
+    // (word boundary = OcrWord::spaceBefore) or whole text line.
+    void ocrExpandWord(int i, int &lo, int &hi) const;
+    void ocrExpandLine(int i, int &lo, int &hi) const;
+    // Coalesce-window bookkeeping (see pushUndoCoalesced).
+    int m_lastCoalesceProp = -1;
+    int m_lastCoalesceIndex = -1;
+    QElapsedTimer m_coalesceTimer;
 
     // Object-pick mode (overlay): detected candidate rects + the one under the
     // cursor. Detection runs off-thread the first time the tool is selected.
@@ -271,6 +439,7 @@ private:
     // m_segmentRect is the region of the last started run (done OR in flight —
     // re-clicking it must not restart and wipe the mask mid-double-click),
     // m_nudgeTimer debounces re-segmentation during arrow-key autorepeat.
+    Segmenter m_externalSegmenter;
     QImage m_objectMask;
     QRect m_objectMaskRect;
     QImage m_maskOverlay;

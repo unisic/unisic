@@ -571,6 +571,18 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("General") }
                     SettingRow {
+                        label: qsTr("Language")
+                        help: qsTr("Language of the Unisic interface.")
+                        helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
+                        UComboBox {
+                            width: 180
+                            property var ids: ["system", "en", "pl"]
+                            model: [qsTr("System"), qsTr("English"), qsTr("Polski")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
+                            onActivated: (i) => App.settings.uiLanguage = ids[i]
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Show notifications")
                         help: qsTr("Master switch for all app notifications.")
                         helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
@@ -664,14 +676,24 @@ Item {
                     SettingRow {
                         label: qsTr("Capture sound")
                         help: qsTr("Plays a short sound when a screenshot is taken.")
-                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a cue — Shutter, Click, Beep, Ding or Pop — or Off. The sound plays through the system audio (pw-play/paplay/aplay).")
+                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
+                                id: soundCombo
                                 width: 160
                                 anchors.verticalCenter: parent.verticalCenter
-                                model: [qsTr("Off"), qsTr("Shutter"), qsTr("Click"), qsTr("Beep"), qsTr("Ding"), qsTr("Pop")]
-                                property var ids: ["off", "shutter", "click", "beep", "ding", "pop"]
+                                property var ids: App.captureSoundIds()
+                                function labelFor(sid) {
+                                    if (sid === "off") return qsTr("Off")
+                                    if (sid === "shutter") return qsTr("Shutter")
+                                    if (sid === "click") return qsTr("Click")
+                                    if (sid === "beep") return qsTr("Beep")
+                                    if (sid === "ding") return qsTr("Ding")
+                                    if (sid === "pop") return qsTr("Pop")
+                                    return sid
+                                }
+                                model: ids.map(labelFor)
                                 currentIndex: Math.max(0, ids.indexOf(App.settings.captureSound))
                                 onActivated: (i) => App.settings.captureSound = ids[i]
                             }
@@ -682,6 +704,19 @@ Item {
                                 tooltip: qsTr("Preview")
                                 enabled: App.settings.captureSound !== "off"
                                 onClicked: App.previewCaptureSound()
+                            }
+                            UIconButton {
+                                iconName: "list-add"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Add custom sound")
+                                onClicked: {
+                                    var id = App.addCustomSound()
+                                    if (id !== "") {
+                                        App.settings.captureSound = id
+                                        soundCombo.ids = App.captureSoundIds()
+                                    }
+                                }
                             }
                         }
                     }
@@ -1192,6 +1227,61 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Smart background removal") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: !App.u2netAvailable
+                        text: qsTr("This build was compiled without onnxruntime, so AI background removal (U-2-Net) is unavailable — the built-in heuristic object cutout still works. Install onnxruntime and rebuild to enable it.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        available: App.u2netAvailable
+                        label: qsTr("Use U-2-Net for object cutout")
+                        help: qsTr("Use the U-2-Net neural model (when downloaded) for the object-pick cutout and the editor's Remove background action.")
+                        helpDetail: qsTr("When off, or the model is not downloaded, cutout falls back to the dependency-free heuristic segmenter. Runs fully offline once the model is fetched.")
+                        USwitch {
+                            checked: App.settings.useU2Net
+                            enabled: App.u2netAvailable
+                            onToggled: (c) => App.settings.useU2Net = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model")
+                        help: qsTr("The U-2-Net model file (~4.5 MB) is downloaded once and stored locally.")
+                        Row {
+                            spacing: Theme.spacingS
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: App.u2netModelReady ? qsTr("Downloaded") : qsTr("Not downloaded")
+                                color: App.u2netModelReady ? Theme.textSecondary : Theme.textTertiary
+                                font.pixelSize: Theme.fontS
+                            }
+                            UButton {
+                                compact: true; variant: "tonal"
+                                visible: !App.u2netModelReady
+                                text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
+                                enabled: !App.u2netBusy
+                                onClicked: App.downloadU2NetModel()
+                            }
+                            UButton {
+                                compact: true; variant: "danger"
+                                visible: App.u2netModelReady
+                                text: qsTr("Delete")
+                                onClicked: App.deleteU2NetModel()
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Editor tools") }
                     Text {
                         width: parent.width
@@ -1563,6 +1653,11 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("U-2-Net segment"); enabled: App.u2netAvailable; onClicked: App.devTestU2Net() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                     }
                 }
             }

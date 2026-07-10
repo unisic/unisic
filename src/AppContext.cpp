@@ -20,8 +20,13 @@
 #include <QMargins>
 #endif
 #include "theme/ThemeController.h"
+#include "editor/AnnotationCanvas.h"
+#include "ConfigPath.h"
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
+#endif
+#ifdef HAVE_ONNX
+#include "segment/U2NetSegmenter.h"
 #endif
 #include <QGuiApplication>
 #include <QtMath>
@@ -30,6 +35,9 @@
 #include <QPointer>
 #include <QClipboard>
 #include <QQmlEngine>
+#include <QTranslator>
+#include <QLibraryInfo>
+#include <QLocale>
 #include <QQmlComponent>
 #include <QQmlContext>
 #include <QQuickWindow>
@@ -139,6 +147,9 @@ AppContext::AppContext(QObject *parent)
 #ifdef HAVE_TESSERACT
     m_ocr = new OcrEngine(this);
 #endif
+#ifdef HAVE_ONNX
+    m_u2net = new U2NetSegmenter(this);
+#endif
 }
 
 AppContext::~AppContext()
@@ -152,6 +163,10 @@ void AppContext::initialize(QQmlEngine *engine)
     m_engine = engine;
     setupTray();
     refreshAutostartIfStale();
+    // Re-apply the UI language live when the setting changes (retranslate QML +
+    // rebuild the tray menu). The initial install happens in main() before the
+    // engine loads.
+    connect(m_settings, &Settings::uiLanguageChanged, this, &AppContext::applyLanguage);
 
 #ifdef HAVE_LAYERSHELL
     // Detect layer-shell ONCE — it drives the on-top custom capture card, the
@@ -305,6 +320,159 @@ void AppContext::ocrImage(const QImage &img)
 void AppContext::ocrFile(const QString &path)
 {
     ocrImage(QImage(path));
+}
+
+void AppContext::ocrBoxes(const QImage &img,
+                          std::function<void(const QVector<OcrWord> &, const QString &)> cb)
+{
+#ifdef HAVE_TESSERACT
+    if (img.isNull()) {
+        cb({}, tr("Nothing to recognize"));
+        return;
+    }
+    m_ocr->recognizeBoxes(img, m_settings->ocrLanguages(), std::move(cb));
+#else
+    Q_UNUSED(img);
+    cb({}, tr("OCR is not available in this build"));
+#endif
+}
+
+// ---------------------------------------------------------------- language
+
+void AppContext::applyLanguage()
+{
+    const QString pref = m_settings->uiLanguage();
+    QString code; // "" = English (source strings, no translator)
+    if (pref == QLatin1String("pl"))
+        code = QStringLiteral("pl");
+    else if (pref == QLatin1String("en"))
+        code = QString();
+    else { // "system"
+        const QString sys = QLocale::system().name(); // e.g. "pl_PL"
+        if (sys.startsWith(QLatin1String("pl")))
+            code = QStringLiteral("pl");
+    }
+
+    if (m_appTranslator) {
+        qApp->removeTranslator(m_appTranslator);
+        delete m_appTranslator;
+        m_appTranslator = nullptr;
+    }
+    if (m_qtTranslator) {
+        qApp->removeTranslator(m_qtTranslator);
+        delete m_qtTranslator;
+        m_qtTranslator = nullptr;
+    }
+#ifdef HAVE_TRANSLATIONS
+    if (!code.isEmpty()) {
+        auto *appTr = new QTranslator(this);
+        if (appTr->load(QStringLiteral(":/i18n/unisic_%1.qm").arg(code))) {
+            qApp->installTranslator(appTr);
+            m_appTranslator = appTr;
+        } else {
+            delete appTr;
+        }
+        // Qt's own dialog strings for the locale (from the system Qt install).
+        auto *qtTr = new QTranslator(this);
+        if (qtTr->load(QLocale(code), QStringLiteral("qtbase"), QStringLiteral("_"),
+                       QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
+            qApp->installTranslator(qtTr);
+            m_qtTranslator = qtTr;
+        } else {
+            delete qtTr;
+        }
+    }
+#endif
+    // Live refresh (no-op before the engine has loaded): re-evaluate every qsTr
+    // binding, and rebuild the C++-constructed tray menu.
+    if (m_engine)
+        m_engine->retranslate();
+    if (m_tray)
+        setupTray();
+}
+
+// ---------------------------------------------------------------- U-2-Net
+
+bool AppContext::u2netAvailable() const
+{
+#ifdef HAVE_ONNX
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool AppContext::u2netModelReady() const
+{
+#ifdef HAVE_ONNX
+    return m_u2net && m_u2net->modelReady();
+#else
+    return false;
+#endif
+}
+
+void AppContext::downloadU2NetModel()
+{
+#ifdef HAVE_ONNX
+    if (!m_u2net || m_u2netBusy)
+        return;
+    m_u2netBusy = true;
+    emit u2netChanged();
+    showToast(tr("Downloading background-removal model (~5 MB)…"));
+    m_u2net->downloadModel([this](bool ok, const QString &message) {
+        m_u2netBusy = false;
+        emit u2netChanged();
+        showToast(ok ? tr("Background-removal model ready") : message, !ok);
+    });
+#else
+    showToast(tr("Background removal is not available in this build"));
+#endif
+}
+
+void AppContext::deleteU2NetModel()
+{
+#ifdef HAVE_ONNX
+    QFile::remove(U2NetSegmenter::modelPath());
+    emit u2netChanged();
+    showToast(tr("Removed the background-removal model"));
+#endif
+}
+
+void AppContext::installSegmenter(AnnotationCanvas *canvas)
+{
+#ifdef HAVE_ONNX
+    if (!canvas || !m_u2net)
+        return;
+    U2NetSegmenter *seg = m_u2net;
+    Settings *settings = m_settings;
+    canvas->setExternalSegmenter([seg, settings](const QImage &img, const QRect &r) -> QImage {
+        if (!settings->useU2Net() || !seg->modelReady())
+            return {}; // fall back to the heuristic segmenter
+        return seg->segmentSync(img, r);
+    });
+#else
+    Q_UNUSED(canvas);
+#endif
+}
+
+void AppContext::segmentForeground(const QImage &img, const QRect &region,
+                                   std::function<void(const QImage &, const QString &)> cb)
+{
+#ifdef HAVE_ONNX
+    if (!m_u2net) {
+        cb({}, tr("Background removal is not available in this build"));
+        return;
+    }
+    if (!m_u2net->modelReady()) {
+        cb({}, tr("The background-removal model is not downloaded yet"));
+        return;
+    }
+    m_u2net->segment(img, region, cb);
+#else
+    Q_UNUSED(img);
+    Q_UNUSED(region);
+    cb({}, tr("Background removal is not available in this build"));
+#endif
 }
 
 void AppContext::showToast(const QString &text, bool important)
@@ -507,6 +675,36 @@ void AppContext::smokeLog(const QString &line)
     emit smokeTestChanged();
 }
 
+// Detect the player once (PipeWire → Pulse → ALSA); shelling out keeps
+// QtMultimedia off the dependency list.
+static QString soundPlayer()
+{
+    static const QString player = [] {
+        for (const QString &p : {QStringLiteral("pw-play"), QStringLiteral("paplay"),
+                                 QStringLiteral("aplay")}) {
+            const QString found = QStandardPaths::findExecutable(p);
+            if (!found.isEmpty())
+                return found;
+        }
+        return QString();
+    }();
+    return player;
+}
+
+static const QStringList &bundledSoundIds()
+{
+    static const QStringList ids{QStringLiteral("shutter"), QStringLiteral("click"),
+                                 QStringLiteral("beep"), QStringLiteral("ding"),
+                                 QStringLiteral("pop")};
+    return ids;
+}
+
+// aplay decodes WAV only; OGG needs pw-play/paplay.
+static bool soundPlayerTakesOgg()
+{
+    return QFileInfo(soundPlayer()).fileName() != QLatin1String("aplay");
+}
+
 static QImage devTestImage()
 {
     QImage img(320, 200, QImage::Format_ARGB32);
@@ -537,6 +735,166 @@ static QString smartPickDetectCheck()
             return QStringLiteral("PASS (%1 candidates, rect within ±6 px)").arg(rects.size());
     }
     return QStringLiteral("FAIL (%1 candidates, none matches the drawn rect)").arg(rects.size());
+}
+
+// Text-annotation render check: a multi-line, italic, underlined, outlined
+// and backgrounded text composited onto a known base must actually change a
+// meaningful number of pixels (dev button + smoke step).
+static QString textRenderCheck()
+{
+    AnnotationCanvas c;
+    QImage base(320, 160, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setFontSize(28);
+    c.setFontItalic(true);
+    c.setFontUnderline(true);
+    c.setTextOutline(true);
+    c.setTextBackground(true);
+    c.commitText(20, 30, QStringLiteral("multi\nline"));
+    const QImage out = c.rendered();
+    if (out.size() != base.size())
+        return QStringLiteral("FAIL (size changed)");
+    int diff = 0;
+    for (int y = 0; y < out.height(); y += 4)
+        for (int x = 0; x < out.width(); x += 4)
+            if (out.pixel(x, y) != base.pixel(x, y))
+                ++diff;
+    return diff > 20 ? QStringLiteral("PASS (%1 sampled pixels changed)").arg(diff)
+                     : QStringLiteral("FAIL (render left the base blank)");
+}
+
+void AppContext::devTestTextRender()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: text render: %1").arg(textRenderCheck()));
+}
+
+// EditShapes round-trip: place a text shape, select it, restyle + move it,
+// assert the item changed and one undo restores it.
+static QString shapeEditCheck()
+{
+    AnnotationCanvas c;
+    QImage base(200, 120, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.commitText(40, 40, QStringLiteral("hi"));
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (text not placed)");
+    c.setTool(AnnotationCanvas::EditShapes);
+    c.selectAnnotAt(45, 45);
+    if (!c.hasAnnotSelection())
+        return QStringLiteral("FAIL (hit-test missed the text)");
+    const QImage before = c.rendered();
+    c.setStrokeColor(QColor(Qt::blue));
+    c.nudgeSelectedAnnot(15, 0);
+    const QImage after = c.rendered();
+    if (before == after)
+        return QStringLiteral("FAIL (restyle/move did not change the render)");
+    c.undo(); // undoes the nudge...
+    c.undo(); // ...and the color change (coalesced separately)
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (undo lost the shape)");
+    return QStringLiteral("PASS (select, restyle, move, undo)");
+}
+
+void AppContext::devTestShapeEdit()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: shape edit: %1").arg(shapeEditCheck()));
+}
+
+// Renders two words and asserts recognizeBoxes returns ≥2 boxes with sane
+// geometry — the selectable-text overlay's data source.
+static QImage ocrBoxTestImage()
+{
+    QImage t(400, 120, QImage::Format_ARGB32);
+    t.fill(Qt::white);
+    QPainter p(&t);
+    p.setPen(Qt::black);
+    QFont f;
+    f.setPixelSize(56);
+    f.setBold(true);
+    p.setFont(f);
+    p.drawText(QRect(20, 20, 170, 80), Qt::AlignCenter, QStringLiteral("1234"));
+    p.drawText(QRect(210, 20, 170, 80), Qt::AlignCenter, QStringLiteral("5678"));
+    return t;
+}
+
+// Loads the bundled Polish .qm and checks a known string translates.
+static QString languageCheck()
+{
+#ifdef HAVE_TRANSLATIONS
+    QTranslator tr;
+    if (!tr.load(QStringLiteral(":/i18n/unisic_pl.qm")))
+        return QStringLiteral("FAIL (unisic_pl.qm not loadable)");
+    const QString q = tr.translate("AppContext", "Quit");
+    if (q.isEmpty() || q == QLatin1String("Quit"))
+        return QStringLiteral("FAIL ('Quit' not translated)");
+    return QStringLiteral("PASS ('Quit' → '%1')").arg(q);
+#else
+    return QStringLiteral("SKIP (built without Qt LinguistTools)");
+#endif
+}
+
+void AppContext::devTestLanguage()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: language: %1").arg(languageCheck()));
+}
+
+void AppContext::devTestU2Net()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_ONNX
+    if (!u2netModelReady()) {
+        showToast(tr("Dev: U-2-Net: SKIP (model not downloaded)"));
+        return;
+    }
+    // A light disc on a dark field: the model should keep the center and drop
+    // the corners. Runs synchronously off the GUI thread would be ideal, but a
+    // dev button can afford the blocking call on a small image.
+    QImage t(200, 200, QImage::Format_ARGB32);
+    t.fill(QColor(20, 20, 20));
+    { QPainter p(&t); p.setBrush(QColor(240, 240, 240)); p.setPen(Qt::NoPen);
+      p.drawEllipse(QPoint(100, 100), 60, 60); }
+    m_u2net->segment(t, t.rect(), [this](const QImage &mask, const QString &err) {
+        if (mask.isNull()) {
+            showToast(tr("Dev: U-2-Net: FAIL (%1)").arg(err), true);
+            return;
+        }
+        const QImage g = mask.convertToFormat(QImage::Format_Grayscale8);
+        const int center = qGray(g.pixel(100, 100));
+        const int corner = qGray(g.pixel(6, 6));
+        showToast(tr("Dev: U-2-Net: %1 (center=%2 corner=%3)")
+                      .arg(center > corner + 40 ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                      .arg(center).arg(corner));
+    });
+#else
+    showToast(tr("Dev: U-2-Net: SKIP (built without onnxruntime)"));
+#endif
+}
+
+void AppContext::devTestOcrBoxes()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_TESSERACT
+    ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+        if (!err.isEmpty())
+            showToast(tr("Dev: OCR boxes: FAIL (%1)").arg(err), true);
+        else
+            showToast(tr("Dev: OCR boxes: %1 (%2 glyphs)")
+                          .arg(words.size() >= 4 ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                          .arg(words.size()));
+    });
+#else
+    showToast(tr("Dev: OCR boxes: SKIP (built without tesseract)"));
+#endif
 }
 
 void AppContext::devTestCaptureSound()
@@ -955,6 +1313,18 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e3b) text annotations: multi-line + styling must render into the composite.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("text render: ") + textRenderCheck());
+        smokeNext();
+    });
+
+    // 3e3c) editable shapes: select / restyle / move / undo round-trip.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("shape edit: ") + shapeEditCheck());
+        smokeNext();
+    });
+
     // 3e4) capture sound: a player must exist and the WAV must extract.
     m_smokeSteps.append([this] {
         const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
@@ -963,8 +1333,12 @@ void AppContext::runSmokeTest()
         if (!player) {
             smokeLog(QStringLiteral("capture sound: SKIP (no pw-play/paplay/aplay)"));
         } else {
+            const QString id = m_settings->captureSound();
+            const QString source = (id == QLatin1String("off") || bundledSoundIds().contains(id))
+                                       ? QStringLiteral("bundled")
+                                       : QStringLiteral("custom");
             playCaptureSound();
-            smokeLog(QStringLiteral("capture sound: PASS (played '%1')").arg(m_settings->captureSound()));
+            smokeLog(QStringLiteral("capture sound: PASS (played '%1', %2)").arg(id, source));
         }
         smokeNext();
     });
@@ -995,6 +1369,62 @@ void AppContext::runSmokeTest()
         });
 #else
         smokeLog(QStringLiteral("ocr recognize: SKIP (built without tesseract)"));
+        smokeNext();
+#endif
+    });
+
+    // 3f1a) UI translations: the bundled .qm loads and a known string translates.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("language: ") + languageCheck());
+        smokeNext();
+    });
+
+    // 3f1b) U-2-Net background removal (skips without lib or model).
+    m_smokeSteps.append([this] {
+#ifdef HAVE_ONNX
+        if (!u2netModelReady()) {
+            smokeLog(QStringLiteral("u2net segment: SKIP (model not downloaded)"));
+            smokeNext();
+        } else {
+            QImage t(200, 200, QImage::Format_ARGB32);
+            t.fill(QColor(20, 20, 20));
+            { QPainter p(&t); p.setBrush(QColor(240, 240, 240)); p.setPen(Qt::NoPen);
+              p.drawEllipse(QPoint(100, 100), 60, 60); }
+            m_u2net->segment(t, t.rect(), [this](const QImage &mask, const QString &err) {
+                if (mask.isNull()) {
+                    smokeLog(QStringLiteral("u2net segment: FAIL (%1)").arg(err));
+                } else {
+                    const QImage g = mask.convertToFormat(QImage::Format_Grayscale8);
+                    const int center = qGray(g.pixel(100, 100));
+                    const int corner = qGray(g.pixel(6, 6));
+                    smokeLog(center > corner + 40
+                                 ? QStringLiteral("u2net segment: PASS")
+                                 : QStringLiteral("u2net segment: FAIL (center=%1 corner=%2)")
+                                       .arg(center).arg(corner));
+                }
+                smokeNext();
+            });
+        }
+#else
+        smokeLog(QStringLiteral("u2net segment: SKIP (built without onnxruntime)"));
+        smokeNext();
+#endif
+    });
+
+    // 3f2) OCR word boxes — the selectable-text overlay's data source.
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+            if (!err.isEmpty())
+                smokeLog(QStringLiteral("ocr boxes: FAIL (%1)").arg(err));
+            else if (words.size() >= 4)
+                smokeLog(QStringLiteral("ocr boxes: PASS (%1 glyphs)").arg(words.size()));
+            else
+                smokeLog(QStringLiteral("ocr boxes: FAIL (%1 glyphs)").arg(words.size()));
+            smokeNext();
+        });
+#else
+        smokeLog(QStringLiteral("ocr boxes: SKIP (built without tesseract)"));
         smokeNext();
 #endif
     });
@@ -1420,41 +1850,76 @@ void AppContext::playCaptureSound()
     const QString id = m_settings->captureSound();
     if (id.isEmpty() || id == QLatin1String("off"))
         return;
-    // Only bundled ids (guards against a hand-edited config injecting a path).
-    static const QStringList known{QStringLiteral("shutter"), QStringLiteral("click"),
-                                   QStringLiteral("beep"), QStringLiteral("ding"),
-                                   QStringLiteral("pop")};
-    if (!known.contains(id))
-        return;
-
-    // A player takes a filesystem path, not a qrc URL — extract the WAV to the
-    // cache once, then reuse it. Detect the player once (PipeWire → Pulse →
-    // ALSA); shelling out keeps QtMultimedia off the dependency list.
-    static QString player = [] {
-        for (const QString &p : {QStringLiteral("pw-play"), QStringLiteral("paplay"),
-                                 QStringLiteral("aplay")}) {
-            const QString found = QStandardPaths::findExecutable(p);
-            if (!found.isEmpty())
-                return found;
-        }
-        return QString();
-    }();
+    const QString player = soundPlayer();
     if (player.isEmpty())
         return;
 
-    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
-                        + QStringLiteral("/sounds");
-    QDir().mkpath(dir);
-    const QString wav = dir + QLatin1Char('/') + id + QStringLiteral(".wav");
-    if (!QFile::exists(wav))
-        QFile::copy(QStringLiteral(":/resources/sounds/%1.wav").arg(id), wav);
-    if (!QFile::exists(wav))
+    QString file;
+    if (bundledSoundIds().contains(id)) {
+        // A player takes a filesystem path, not a qrc URL — extract the WAV to
+        // the cache once, then reuse it.
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                            + QStringLiteral("/sounds");
+        QDir().mkpath(dir);
+        file = dir + QLatin1Char('/') + id + QStringLiteral(".wav");
+        if (!QFile::exists(file))
+            QFile::copy(QStringLiteral(":/resources/sounds/%1.wav").arg(id), file);
+    } else {
+        // User cue from ~/.config/unisic/sounds. Only a bare file name is
+        // accepted — a hand-edited config must not smuggle an arbitrary path
+        // to the player.
+        if (QFileInfo(id).fileName() != id)
+            return;
+        file = UnisicConfig::soundsDir() + QLatin1Char('/') + id;
+    }
+    if (!QFile::exists(file))
         return;
 
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
     connect(proc, &QProcess::errorOccurred, proc, &QObject::deleteLater);
-    proc->start(player, {wav});
+    proc->start(player, {file});
+}
+
+QStringList AppContext::captureSoundIds() const
+{
+    QStringList ids{QStringLiteral("off")};
+    ids += bundledSoundIds();
+    QStringList exts{QStringLiteral("*.wav")};
+    if (soundPlayerTakesOgg())
+        exts << QStringLiteral("*.ogg") << QStringLiteral("*.oga");
+    const QDir dir(UnisicConfig::soundsDir());
+    ids += dir.entryList(exts, QDir::Files | QDir::Readable, QDir::Name);
+    return ids;
+}
+
+QString AppContext::addCustomSound()
+{
+    const QString filter = soundPlayerTakesOgg() ? tr("Sounds (*.wav *.ogg *.oga)")
+                                                 : tr("Sounds (*.wav)");
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Add capture sound"), QDir::homePath(), filter);
+    if (path.isEmpty())
+        return {}; // cancelled
+    const QFileInfo src(path);
+    static const QStringList okExt{QStringLiteral("wav"), QStringLiteral("ogg"),
+                                   QStringLiteral("oga")};
+    if (!okExt.contains(src.suffix().toLower())) {
+        showToast(tr("Unsupported sound format (use WAV or OGG)"), true);
+        return {};
+    }
+    const QString destDir = UnisicConfig::soundsDir();
+    QString dest = destDir + QLatin1Char('/') + src.fileName();
+    for (int i = 1; QFile::exists(dest); ++i)
+        dest = destDir + QLatin1Char('/') + src.completeBaseName()
+               + QStringLiteral("-%1.").arg(i) + src.suffix();
+    if (!QFile::copy(path, dest)) {
+        showToast(tr("Could not copy the sound file"), true);
+        return {};
+    }
+    const QString id = QFileInfo(dest).fileName();
+    showToast(tr("Added capture sound \"%1\"").arg(id));
+    return id;
 }
 
 void AppContext::copyImageFromHistory(const QString &filePath)
@@ -1787,6 +2252,23 @@ QByteArray AppContext::encodeImage(const QImage &img, QString *mime) const
     return out;
 }
 
+// True when the image actually contains transparent pixels (not merely an
+// alpha-capable format). Sampled — a save-time scan of every pixel of a 4K
+// frame is wasteful and transparency comes in contiguous regions.
+static bool imageHasTransparency(const QImage &img)
+{
+    if (!img.hasAlphaChannel())
+        return false;
+    const QImage a = img.convertToFormat(QImage::Format_ARGB32);
+    const int stepY = qMax(1, a.height() / 256);
+    const int stepX = qMax(1, a.width() / 256);
+    for (int y = 0; y < a.height(); y += stepY)
+        for (int x = 0; x < a.width(); x += stepX)
+            if (qAlpha(a.pixel(x, y)) < 255)
+                return true;
+    return false;
+}
+
 QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName)
 {
     if (dir.isEmpty() || img.isNull())
@@ -1799,7 +2281,18 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
         path = dir + QLatin1Char('/') + fi.completeBaseName()
                + QStringLiteral("-%1.").arg(n) + fi.suffix();
 
-    const QString fmt = m_settings->imageFormat().toLower();
+    QString fmt = m_settings->imageFormat().toLower();
+    // JPEG can't hold an alpha channel — a transparent cutout (object pick /
+    // background removal) would flatten to black. Auto-switch such saves to PNG
+    // (and fix the path's extension) instead of silently losing transparency.
+    if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
+        && imageHasTransparency(img)) {
+        fmt = QStringLiteral("png");
+        if (path.endsWith(QLatin1String(".jpg"), Qt::CaseInsensitive)
+            || path.endsWith(QLatin1String(".jpeg"), Qt::CaseInsensitive))
+            path = path.left(path.lastIndexOf(QLatin1Char('.'))) + QStringLiteral(".png");
+        showToast(tr("Saved as PNG to keep transparency"));
+    }
     bool ok;
     if (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
         ok = img.save(path, "JPG", qBound(1, m_settings->imageQuality(), 100));

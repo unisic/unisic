@@ -15,7 +15,7 @@ Window {
                     Screen.desktopAvailableWidth * 0.9)
     height: Math.min(Math.max(minimumHeight,
                               canvas.imageSize.height / Screen.devicePixelRatio
-                              + topBar.height + bottomBar.height + 88 + chromeTop),
+                              + reservedTopBar + reservedBottomBar + 88 + chromeTop),
                      Screen.desktopAvailableHeight * 0.9)
     minimumWidth: 820
     minimumHeight: 480
@@ -29,6 +29,13 @@ Window {
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
     readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
+    // Constant chrome allowance for the window-size math, sized for the worst
+    // case (2 toolbar rows: ToolChip = 40px each + Column spacing + topBar's 18px
+    // padding). Reserving the 2-row height means toggling the Shapes sub-bar
+    // never resizes the window — canvasFrame (topBar.bottom..bottomBar.top)
+    // absorbs the delta instead of the whole Window growing.
+    readonly property int reservedTopBar: 2 * 40 + Theme.spacingS + 18   // = 104
+    readonly property int reservedBottomBar: 64                          // == bottomBar.height
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
 
@@ -37,8 +44,12 @@ Window {
     // result is exactly what's rendered (empty text is a safe no-op).
     function commitPendingText() {
         if (editorTextInput.visible) {
-            canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, editorTextField.text)
+            if (editorTextInput.editingExisting)
+                canvas.commitTextEdit(editorTextField.text)
+            else
+                canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, editorTextField.text)
             editorTextInput.visible = false
+            editorTextInput.editingExisting = false
             shortcutScope.forceActiveFocus()
         }
     }
@@ -63,6 +74,41 @@ Window {
         var s = App.settings.recentColors
         return s ? s.split(",").filter(function (x) { return x.length > 0 }) : []
     }
+
+    // ---- tool grouping (Shapes) ----
+    readonly property var shapesTools: ToolCatalog.groupTools("shapes", "editor", App.settings.hiddenTools)
+    readonly property bool shapesActive: ToolCatalog.groupForEnum(canvas.tool) === "shapes"
+    // Last shape picked from the sub-bar; the group chip re-selects it.
+    property string currentShapeId: "rect"
+    function toggleShapesGroup() {
+        if (shapesActive) { canvas.tool = AnnotationCanvas.None; return }
+        var pick = null
+        for (var i = 0; i < shapesTools.length; ++i)
+            if (shapesTools[i].id === currentShapeId) pick = shapesTools[i]
+        if (!pick && shapesTools.length > 0) pick = shapesTools[0]
+        if (pick) canvas.tool = pick.tool
+    }
+    // Main-row model: ungrouped tools in catalog order, with each group's chip
+    // inserted at its first member's position.
+    function mainRowModel() {
+        var out = []
+        var seen = {}
+        var ts = ToolCatalog.visibleFor("editor", App.settings.hiddenTools)
+        for (var i = 0; i < ts.length; ++i) {
+            var t = ts[i]
+            if (t.group) {
+                if (!seen[t.group]) {
+                    seen[t.group] = true
+                    for (var g = 0; g < ToolCatalog.groups.length; ++g)
+                        if (ToolCatalog.groups[g].id === t.group)
+                            out.push({ kind: "group", group: ToolCatalog.groups[g] })
+                }
+            } else {
+                out.push({ kind: "tool", tool: t })
+            }
+        }
+        return out
+    }
     function addRecent(hex) {
         var list = recentList()
         hex = String(hex)
@@ -85,6 +131,26 @@ Window {
         selectedColor: canvas.shapeFillColor
         onAccepted: { canvas.shapeFillColor = selectedColor; canvas.shapeFillEnabled = true }
     }
+    ColorDialog {
+        id: outlineDialog
+        title: qsTr("Text outline color")
+        selectedColor: canvas.textOutlineColor
+        onAccepted: { canvas.textOutlineColor = selectedColor; canvas.textOutline = true }
+    }
+    ColorDialog {
+        id: textBgDialog
+        title: qsTr("Text background color")
+        options: ColorDialog.ShowAlphaChannel
+        selectedColor: canvas.textBackgroundColor
+        onAccepted: { canvas.textBackgroundColor = selectedColor; canvas.textBackground = true }
+    }
+    UConfirmDialog {
+        id: u2netDownloadConfirm
+        title: qsTr("Download background-removal model?")
+        text: qsTr("Smart background removal needs a one-time ~5 MB model download (U-2-Net). It is stored locally and reused. Download now?")
+        confirmText: qsTr("Download")
+        onAccepted: App.downloadU2NetModel()
+    }
 
     Item {
         id: shortcutScope
@@ -95,15 +161,35 @@ Window {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+            // Ctrl+C copies the OCR text selection while in OCR mode, else the image.
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) {
+                if (canvas.ocrMode) editorSession.copyOcrSelection()
+                else { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+            }
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_A && canvas.ocrMode) canvas.ocrSelectAll()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) { editorWindow.commitPendingText(); editorSession.upload() }
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Minus) canvasFlick.zoomBy(1 / 1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_0) canvasFlick.zoom = 0
-            // Escape cancels an active crop selection first; only a second
-            // press (nothing pending) closes the editor.
+            // Delete / Backspace removes the selected shape (Edit tool).
+            else if ((e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) && canvas.hasAnnotSelection)
+                canvas.removeSelectedAnnot()
+            // Arrow keys nudge the selected shape (Shift = ×10).
+            else if (canvas.hasAnnotSelection && (e.key === Qt.Key_Left || e.key === Qt.Key_Right
+                     || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
+                var step = (e.modifiers & Qt.ShiftModifier) ? 10 : 1
+                if (e.key === Qt.Key_Left) canvas.nudgeSelectedAnnot(-step, 0)
+                else if (e.key === Qt.Key_Right) canvas.nudgeSelectedAnnot(step, 0)
+                else if (e.key === Qt.Key_Up) canvas.nudgeSelectedAnnot(0, -step)
+                else canvas.nudgeSelectedAnnot(0, step)
+            }
+            // Escape exits OCR pick mode first, then deselects a shape, then
+            // cancels a crop selection; only a press with nothing pending
+            // closes the editor.
             else if (e.key === Qt.Key_Escape) {
-                if (canvas.hasSelection) canvas.clearSelection()
+                if (canvas.ocrMode) canvas.clearOcrMode()
+                else if (canvas.hasAnnotSelection) canvas.clearAnnotSelection()
+                else if (canvas.hasSelection) canvas.clearSelection()
                 else editorWindow.close()
             }
             else return
@@ -174,8 +260,11 @@ Window {
         }
 
         // ---------- top toolbar ----------
-        // The two control groups live in a Flow: when the window is too narrow
-        // for one row they wrap instead of overlapping, and the bar grows.
+        // Main row: ungrouped tools + one chip per tool group (Shapes) + undo/
+        // redo. Sub-bar below: the active group's tools and/or the properties
+        // relevant to the active tool (ToolPropsBar) — shown contextually
+        // instead of the old always-visible flat properties row. Each row is a
+        // Flow so a narrow window wraps instead of overlapping.
         Rectangle {
             id: topBar
             anchors.top: parent.top
@@ -183,7 +272,7 @@ Window {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: Theme.spacingM
-            height: barFlow.implicitHeight + 18
+            height: barColumn.implicitHeight + 18
             radius: Theme.radiusL
             gradient: Gradient {
                 GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.22) }
@@ -197,110 +286,107 @@ Window {
                 shadowBlur: 0.8; shadowVerticalOffset: 4; shadowOpacity: 0.5
             }
 
-            Flow {
-                id: barFlow
+            Column {
+                id: barColumn
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.leftMargin: Theme.spacingM
                 anchors.rightMargin: Theme.spacingM
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingL
+                spacing: Theme.spacingS
 
-                Row {
-                    spacing: 4
+                Flow {
+                    width: parent.width
+                    spacing: Theme.spacingL
 
-                    Repeater {
-                        model: ToolCatalog.visibleFor("editor", App.settings.hiddenTools)
-                        delegate: ToolChip {
-                            iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                            iconStyle: App.settings.editorIconStyle
-                            label: modelData.label
-                            active: canvas.tool === modelData.tool
-                            onClicked: canvas.tool = modelData.tool
+                    Row {
+                        spacing: 4
+
+                        Repeater {
+                            model: editorWindow.mainRowModel()
+                            delegate: ToolChip {
+                                iconName: modelData.kind === "group"
+                                          ? modelData.group.iconName
+                                          : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                // The group glyph has no freedesktop equivalent — always bundled.
+                                iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
+                                label: modelData.kind === "group" ? modelData.group.label : modelData.tool.label
+                                active: modelData.kind === "group"
+                                        ? editorWindow.shapesActive
+                                        : canvas.tool === modelData.tool.tool
+                                onClicked: modelData.kind === "group"
+                                           ? editorWindow.toggleShapesGroup()
+                                           : canvas.tool = modelData.tool.tool
+                            }
                         }
-                    }
 
-                    Rectangle { width: 1; height: 30; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
+                        Rectangle { width: 1; height: 30; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
 
-                    ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
-                    ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
+                        ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
+                        ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
 
-                    UButton {
-                        visible: canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection
-                        compact: true
-                        text: qsTr("Apply crop")
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: canvas.applyCrop()
+                        UButton {
+                            visible: canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection
+                            compact: true
+                            text: qsTr("Apply crop")
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: canvas.applyCrop()
+                        }
                     }
                 }
 
-                Row {
-                    spacing: 6
-                    height: 40
+                Flow {
+                    id: editorSubBar
+                    width: parent.width
+                    spacing: Theme.spacingL
+                    // Props follow the active tool, or the SELECTED shape when
+                    // the Edit tool is active.
+                    readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
+                    visible: editorWindow.shapesActive || ctxProps.length > 0
+                             || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
 
-                    // Fill toggle (applies to rectangle/ellipse)
-                    ToolChip {
-                        iconName: "fill-color"
-                        label: qsTr("Fill shapes")
-                        active: canvas.shapeFillEnabled
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: canvas.shapeFillEnabled = !canvas.shapeFillEnabled
-                    }
-                    ColorDot {
-                        dotColor: canvas.shapeFillColor
-                        active: canvas.shapeFillEnabled
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: fillDialog.open()
-                    }
+                    Row {
+                        spacing: 6
 
-                    Rectangle { width: 1; height: 30; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
+                        Repeater {
+                            model: editorWindow.shapesActive ? editorWindow.shapesTools : []
+                            delegate: ToolChip {
+                                iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: App.settings.editorIconStyle
+                                label: modelData.label
+                                active: canvas.tool === modelData.tool
+                                onClicked: {
+                                    canvas.tool = modelData.tool
+                                    editorWindow.currentShapeId = modelData.id
+                                }
+                            }
+                        }
 
-                    // Stroke color presets
-                    Repeater {
-                        model: Theme.swatches
-                        delegate: ColorDot {
-                            dotColor: modelData
-                            active: Qt.colorEqual(canvas.strokeColor, modelData)
+                        // Delete affordance for the selected shape (Edit tool).
+                        ToolChip {
+                            visible: canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection
+                            iconName: "edit-delete"
+                            label: qsTr("Delete shape")
                             anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.strokeColor = modelData
+                            onClicked: canvas.removeSelectedAnnot()
                         }
-                    }
-                    // Recent colors
-                    Repeater {
-                        model: editorWindow.recentList()
-                        delegate: ColorDot {
-                            dotColor: modelData
-                            active: Qt.colorEqual(canvas.strokeColor, modelData)
+
+                        Rectangle {
+                            visible: editorWindow.shapesActive
+                                     || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                            width: 1; height: 30; color: Theme.divider
                             anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.strokeColor = modelData
                         }
-                    }
-                    // Custom color picker
-                    UIconButton {
-                        iconName: "color-picker"
-                        iconSize: 16
-                        width: 30; height: 30
-                        tooltip: qsTr("More colors")
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: strokeDialog.open()
-                    }
 
-                    Rectangle { width: 1; height: 30; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
-
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-                        Text {
-                            text: qsTr("Stroke %1").arg(canvas.strokeWidth)
-                            color: Theme.textTertiary
-                            font.pixelSize: 10
-                            anchors.horizontalCenter: parent.horizontalCenter
-                        }
-                        USlider {
-                            width: 100
-                            from: 1; to: 16
-                            value: canvas.strokeWidth
-                            onMoved: (v) => canvas.strokeWidth = Math.round(v)
+                        ToolPropsBar {
+                            canvas: canvas
+                            props: editorSubBar.ctxProps
+                            recentColors: editorWindow.recentList()
+                            anchors.verticalCenter: parent.verticalCenter
+                            onStrokePickerRequested: strokeDialog.open()
+                            onFillPickerRequested: fillDialog.open()
+                            onTextOutlinePickerRequested: outlineDialog.open()
+                            onTextBackgroundPickerRequested: textBgDialog.open()
                         }
                     }
                 }
@@ -434,20 +520,55 @@ Window {
                         fontSize = App.settings.editorFontSize
                         shapeFillColor = App.settings.editorFillColor
                         shapeFillEnabled = App.settings.editorFillEnabled
+                        fontFamily = App.settings.editorFontFamily
+                        fontBold = App.settings.editorFontBold
+                        fontItalic = App.settings.editorFontItalic
+                        fontUnderline = App.settings.editorFontUnderline
+                        textOutline = App.settings.editorTextOutline
+                        textOutlineColor = App.settings.editorTextOutlineColor
+                        textBackground = App.settings.editorTextBackground
+                        textBackgroundColor = App.settings.editorTextBgColor
                     }
                     // The automatic highlighter red<->yellow swap must not leak
                     // into the saved default — persist only real user picks.
-                    onStrokeColorChanged: if (!strokeColorIsAuto) App.settings.editorStrokeColor = String(strokeColor)
-                    onStrokeWidthChanged: App.settings.editorStrokeWidth = strokeWidth
-                    onFontSizeChanged: App.settings.editorFontSize = fontSize
-                    onShapeFillColorChanged: App.settings.editorFillColor = String(shapeFillColor)
-                    onShapeFillEnabledChanged: App.settings.editorFillEnabled = shapeFillEnabled
+                    // While a placed shape is selected (Edit tool), a property
+                    // change restyles THAT shape and must NOT overwrite the
+                    // saved "next shape" defaults.
+                    onStrokeColorChanged: if (!strokeColorIsAuto && !hasAnnotSelection) App.settings.editorStrokeColor = String(strokeColor)
+                    onStrokeWidthChanged: if (!hasAnnotSelection) App.settings.editorStrokeWidth = strokeWidth
+                    onFontSizeChanged: if (!hasAnnotSelection) App.settings.editorFontSize = fontSize
+                    onShapeFillColorChanged: if (!hasAnnotSelection) App.settings.editorFillColor = String(shapeFillColor)
+                    onShapeFillEnabledChanged: if (!hasAnnotSelection) App.settings.editorFillEnabled = shapeFillEnabled
+                    onFontFamilyChanged: if (!hasAnnotSelection) App.settings.editorFontFamily = fontFamily
+                    onFontBoldChanged: if (!hasAnnotSelection) App.settings.editorFontBold = fontBold
+                    onFontItalicChanged: if (!hasAnnotSelection) App.settings.editorFontItalic = fontItalic
+                    onFontUnderlineChanged: if (!hasAnnotSelection) App.settings.editorFontUnderline = fontUnderline
+                    onTextOutlineChanged: if (!hasAnnotSelection) App.settings.editorTextOutline = textOutline
+                    onTextOutlineColorChanged: if (!hasAnnotSelection) App.settings.editorTextOutlineColor = String(textOutlineColor)
+                    onTextBackgroundChanged: if (!hasAnnotSelection) App.settings.editorTextBackground = textBackground
+                    onTextBackgroundColorChanged: if (!hasAnnotSelection) App.settings.editorTextBgColor = String(textBackgroundColor)
                     onTextRequested: (x, y) => {
+                        // Reposition while a text box is open: keep what was
+                        // typed instead of silently discarding it.
+                        editorWindow.commitPendingText()
+                        editorTextInput.editingExisting = false
                         editorTextInput.imgX = x
                         editorTextInput.imgY = y
                         editorTextInput.visible = true
                         editorTextField.text = ""
                         editorTextField.forceActiveFocus()
+                    }
+                    // Double-clicking a placed Text shape (Edit tool) reopens
+                    // the editor prefilled; commit replaces the shape's text.
+                    onTextEditRequested: (x, y, t) => {
+                        editorWindow.commitPendingText()
+                        editorTextInput.editingExisting = true
+                        editorTextInput.imgX = x
+                        editorTextInput.imgY = y
+                        editorTextInput.visible = true
+                        editorTextField.text = t
+                        editorTextField.forceActiveFocus()
+                        editorTextField.selectAll()
                     }
                 }
 
@@ -455,13 +576,15 @@ Window {
                     id: editorTextInput
                     property real imgX: 0
                     property real imgY: 0
+                    property bool editingExisting: false
                     visible: false
                     x: canvas.x + imgX * canvas.renderScale
                     y: canvas.y + imgY * canvas.renderScale
                     // Scale with zoom, or the zoomed font gets clipped by a
-                    // fixed-size box.
-                    width: 320 * Math.max(1, canvas.renderScale)
-                    height: 40 * Math.max(1, canvas.renderScale)
+                    // fixed-size box; grow with the typed lines.
+                    width: 360 * Math.max(1, canvas.renderScale)
+                    height: Math.max(40 * Math.max(1, canvas.renderScale),
+                                     editorTextField.implicitHeight + 16)
                     z: 50
                     Rectangle {
                         anchors.fill: parent
@@ -470,26 +593,56 @@ Window {
                         border.width: 1
                         border.color: Theme.accent
                     }
-                    TextInput {
+                    // TextEdit (multi-line): Enter = new line, Ctrl+Enter (or
+                    // any export/click-away via commitPendingText) commits.
+                    TextEdit {
                         id: editorTextField
                         anchors.fill: parent
                         anchors.margins: 8
                         color: canvas.strokeColor
+                        font.family: canvas.fontFamily === "" ? Qt.application.font.family : canvas.fontFamily
                         font.pixelSize: Math.max(10, canvas.fontSize * canvas.renderScale)
-                        font.bold: true
+                        font.bold: canvas.fontBold
+                        font.italic: canvas.fontItalic
+                        font.underline: canvas.fontUnderline
                         // Return focus to the shortcut scope, else Ctrl+Z/S/C/U
                         // and Escape stay dead after using the text tool.
-                        onAccepted: {
-                            canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, text)
-                            editorTextInput.visible = false
-                            shortcutScope.forceActiveFocus()
-                        }
-                        Keys.onEscapePressed: {
-                            editorTextInput.visible = false
-                            shortcutScope.forceActiveFocus()
+                        Keys.onPressed: (e) => {
+                            if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
+                                    && (e.modifiers & Qt.ControlModifier)) {
+                                editorWindow.commitPendingText()
+                                e.accepted = true
+                            } else if (e.key === Qt.Key_Escape) {
+                                editorTextInput.visible = false
+                                editorTextInput.editingExisting = false
+                                shortcutScope.forceActiveFocus()
+                                e.accepted = true
+                            }
                         }
                     }
+                    Text {
+                        visible: editorTextField.text === ""
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.margins: 8
+                        text: qsTr("Text… (Ctrl+Enter finishes)")
+                        color: Theme.textTertiary
+                        font.pixelSize: Math.max(10, canvas.fontSize * canvas.renderScale)
+                    }
                 }
+            }
+
+            // OCR mode hint — persistent on-canvas guidance so the user isn't
+            // left with a dimmed image and a greyed "Copy selection" button.
+            Text {
+                visible: canvas.ocrMode && !canvas.ocrBusy && !canvas.hasOcrSelection
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: Theme.spacingM
+                z: 60
+                text: qsTr("Click a line · double-click a word · drag for letters")
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontS
             }
         }
 
@@ -518,7 +671,7 @@ Window {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.spacingL
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.right: actionRow.left
+                anchors.right: actionScroll.left
                 anchors.rightMargin: Theme.spacingM
                 text: editorSession.statusText !== ""
                       ? editorSession.statusText
@@ -530,10 +683,28 @@ Window {
                 elide: Text.ElideMiddle
             }
 
-            Row {
-                id: actionRow
+            // Scroll the action buttons horizontally inside the fixed bar rather
+            // than letting a right-anchored Row grow left over the status text /
+            // off the window. Width is capped to the room left of a 160px status
+            // area — keyed off parent.width (not the status Text's live width) so
+            // there is no binding loop.
+            Flickable {
+                id: actionScroll
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.spacingM
+                anchors.verticalCenter: parent.verticalCenter
+                height: 42
+                width: Math.min(actionRow.implicitWidth,
+                                parent.width - 2 * Theme.spacingM - 160)
+                contentWidth: actionRow.implicitWidth
+                contentHeight: 42
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                interactive: contentWidth > width
+                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+
+            Row {
+                id: actionRow
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
 
@@ -549,11 +720,48 @@ Window {
                     onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                 }
                 UButton {
-                    visible: App.ocrAvailable
-                    iconName: "ocr"; text: qsTr("Copy text"); variant: "tonal"
+                    visible: App.ocrAvailable && !canvas.ocrMode
+                    iconName: "ocr"; text: qsTr("Copy all text"); variant: "tonal"
                     onClicked: editorSession.ocrCopyText()
                 }
-                UButton { iconName: "close"; text: qsTr("Close"); variant: "ghost"; onClicked: editorWindow.close() }
+                // Selectable-text mode: recognize words, then let the user pick.
+                UButton {
+                    visible: App.ocrAvailable && !canvas.ocrMode
+                    iconName: "select"; text: qsTr("Select text"); variant: "tonal"
+                    onClicked: editorSession.startOcrPick()
+                }
+                // U-2-Net background removal → transparent PNG/WebP.
+                UButton {
+                    visible: App.u2netAvailable && !canvas.ocrMode
+                    iconName: "object-pick"
+                    text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Remove background")
+                    variant: "tonal"
+                    enabled: !App.u2netBusy
+                    onClicked: {
+                        if (App.u2netModelReady) editorSession.removeBackground()
+                        else u2netDownloadConfirm.open()
+                    }
+                }
+                UButton {
+                    visible: canvas.ocrMode
+                    iconName: "edit-copy"
+                    text: canvas.ocrBusy ? qsTr("Recognizing…") : qsTr("Copy selection")
+                    enabled: canvas.hasOcrSelection
+                    onClicked: editorSession.copyOcrSelection()
+                }
+                UButton {
+                    visible: canvas.ocrMode
+                    text: qsTr("Select all"); variant: "tonal"
+                    enabled: !canvas.ocrBusy
+                    onClicked: canvas.ocrSelectAll()
+                }
+                UButton {
+                    visible: canvas.ocrMode
+                    iconName: "close"; text: qsTr("Done"); variant: "ghost"
+                    onClicked: canvas.clearOcrMode()
+                }
+                UButton { visible: !canvas.ocrMode; iconName: "close"; text: qsTr("Close"); variant: "ghost"; onClicked: editorWindow.close() }
+            }
             }
         }
     }

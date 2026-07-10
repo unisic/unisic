@@ -36,6 +36,12 @@ public:
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
+    // Enter the canvas's OCR text-pick mode: recognize words asynchronously and
+    // hand them to the canvas so the user can select + copy a subset.
+    Q_INVOKABLE void startOcrPick();
+    Q_INVOKABLE void copyOcrSelection();      // copy the canvas's selected words
+    // Remove the background from the whole image (U-2-Net) → transparent PNG.
+    Q_INVOKABLE void removeBackground();
 
 signals:
     void statusTextChanged();

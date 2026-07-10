@@ -21,6 +21,7 @@ class AnnotationCanvasTest : public QObject
 private slots:
     void penStrokeKeepsReleaseEndpoint();
     void smartPickPrefersTiledWindow();
+    void editShapesSelectMoveDelete();
 };
 
 void AnnotationCanvasTest::penStrokeKeepsReleaseEndpoint()
@@ -77,6 +78,57 @@ void AnnotationCanvasTest::smartPickPrefersTiledWindow()
     const QRectF rect = canvas.hoverObjectRect();
     QVERIFY(qAbs(rect.left()) <= 7 && qAbs(rect.top()) <= 7);
     QVERIFY(qAbs(rect.right() - 319) <= 7 && qAbs(rect.bottom() - 199) <= 7);
+}
+
+void AnnotationCanvasTest::editShapesSelectMoveDelete()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    // Draw a filled rectangle (50,50)-(150,150) with the Rect tool.
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    QMouseEvent p1(QEvent::MouseButtonPress, QPointF(50, 50), QPointF(50, 50),
+                   Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&p1);
+    QMouseEvent m1(QEvent::MouseMove, QPointF(150, 150), QPointF(150, 150),
+                   Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&m1);
+    QMouseEvent r1(QEvent::MouseButtonRelease, QPointF(150, 150), QPointF(150, 150),
+                   Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&r1);
+    QCOMPARE(canvas.annotCount(), 1);
+
+    // Edit tool: click inside selects it.
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(100, 100);
+    QVERIFY(canvas.hasAnnotSelection());
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::Rect));
+
+    // Drag from inside the shape moves it right by 20 px.
+    QMouseEvent p2(QEvent::MouseButtonPress, QPointF(100, 100), QPointF(100, 100),
+                   Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&p2);
+    QMouseEvent m2(QEvent::MouseMove, QPointF(120, 100), QPointF(120, 100),
+                   Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&m2);
+    QMouseEvent r2(QEvent::MouseButtonRelease, QPointF(120, 100), QPointF(120, 100),
+                   Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&r2);
+    // The shape's left edge (was 50) should have moved toward 70; sample a
+    // pixel that is now inside but was outside the original rect.
+    QVERIFY2(canvas.rendered().pixelColor(165, 100).lightness() < 250,
+             "the moved rectangle should cover pixels past its original right edge");
+
+    // Delete removes it; undo brings it back.
+    canvas.removeSelectedAnnot();
+    QCOMPARE(canvas.annotCount(), 0);
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 1);
 }
 
 int main(int argc, char *argv[])

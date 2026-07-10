@@ -10,6 +10,8 @@ finish-args:
   - --share=network
   - --socket=wayland
   - --socket=fallback-x11
+  # Capture sound cue (General > Capture sound): audio out for pw-play/paplay.
+  - --socket=pulseaudio
   - --device=dri
   - --filesystem=xdg-pictures:create
   - --filesystem=xdg-videos:create

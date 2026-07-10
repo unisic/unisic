@@ -539,6 +539,14 @@ static QString smartPickDetectCheck()
     return QStringLiteral("FAIL (%1 candidates, none matches the drawn rect)").arg(rects.size());
 }
 
+void AppContext::devTestCaptureSound()
+{
+    if (!devBuild())
+        return;
+    playCaptureSound();
+    showToast(tr("Dev: played capture sound '%1'").arg(m_settings->captureSound()));
+}
+
 void AppContext::devTestSmartPick()
 {
     if (!devBuild())
@@ -947,6 +955,20 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e4) capture sound: a player must exist and the WAV must extract.
+    m_smokeSteps.append([this] {
+        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
+        if (!player) {
+            smokeLog(QStringLiteral("capture sound: SKIP (no pw-play/paplay/aplay)"));
+        } else {
+            playCaptureSound();
+            smokeLog(QStringLiteral("capture sound: PASS (played '%1')").arg(m_settings->captureSound()));
+        }
+        smokeNext();
+    });
+
     // 3f) OCR recognition — a real tesseract run on a rendered known token
     // (digits: language-neutral, works with any installed traineddata).
     m_smokeSteps.append([this] {
@@ -1254,6 +1276,10 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
     if (img.isNull())
         return;
 
+    // Audible cue: a fullscreen capture is otherwise invisible (no overlay
+    // flash), so play the shutter/selected sound the moment it lands.
+    playCaptureSound();
+
     // One name per capture: save and upload must agree (a second-boundary or
     // %rand% template would otherwise produce two different names).
     const QString fileName = makeFileName();
@@ -1387,6 +1413,48 @@ void AppContext::previewFromHistory(const QString &filePath)
         return;
     }
     openPreview(img);
+}
+
+void AppContext::playCaptureSound()
+{
+    const QString id = m_settings->captureSound();
+    if (id.isEmpty() || id == QLatin1String("off"))
+        return;
+    // Only bundled ids (guards against a hand-edited config injecting a path).
+    static const QStringList known{QStringLiteral("shutter"), QStringLiteral("click"),
+                                   QStringLiteral("beep"), QStringLiteral("ding"),
+                                   QStringLiteral("pop")};
+    if (!known.contains(id))
+        return;
+
+    // A player takes a filesystem path, not a qrc URL — extract the WAV to the
+    // cache once, then reuse it. Detect the player once (PipeWire → Pulse →
+    // ALSA); shelling out keeps QtMultimedia off the dependency list.
+    static QString player = [] {
+        for (const QString &p : {QStringLiteral("pw-play"), QStringLiteral("paplay"),
+                                 QStringLiteral("aplay")}) {
+            const QString found = QStandardPaths::findExecutable(p);
+            if (!found.isEmpty())
+                return found;
+        }
+        return QString();
+    }();
+    if (player.isEmpty())
+        return;
+
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                        + QStringLiteral("/sounds");
+    QDir().mkpath(dir);
+    const QString wav = dir + QLatin1Char('/') + id + QStringLiteral(".wav");
+    if (!QFile::exists(wav))
+        QFile::copy(QStringLiteral(":/resources/sounds/%1.wav").arg(id), wav);
+    if (!QFile::exists(wav))
+        return;
+
+    auto *proc = new QProcess(this);
+    connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
+    connect(proc, &QProcess::errorOccurred, proc, &QObject::deleteLater);
+    proc->start(player, {wav});
 }
 
 void AppContext::copyImageFromHistory(const QString &filePath)

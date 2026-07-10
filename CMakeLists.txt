@@ -208,6 +208,14 @@ include(CPack)
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    qt_add_executable(unisic_shortcut_format_test
+        tests/ShortcutFormatTest.cpp
+        src/hotkeys/ShortcutFormat.h
+    )
+    target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
+    add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
     qt_add_executable(unisic_object_detector_test
         tests/ObjectDetectorTest.cpp
         src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp

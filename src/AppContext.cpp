@@ -6,6 +6,7 @@
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
+#include "hotkeys/ShortcutFormat.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
@@ -304,24 +305,9 @@ void AppContext::showToast(const QString &text, bool important)
 
 QString AppContext::formatShortcut(int key, int modifiers) const
 {
-    switch (key) {
-    case Qt::Key_Control:
-    case Qt::Key_Shift:
-    case Qt::Key_Alt:
-    case Qt::Key_Meta:
-    case Qt::Key_AltGr:
-    case Qt::Key_Super_L:
-    case Qt::Key_Super_R:
-    case Qt::Key_Hyper_L:
-    case Qt::Key_Hyper_R:
-        return {};
-    default:
-        break;
-    }
-
-    const auto allowed = Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
-    const Qt::KeyboardModifiers mods = Qt::KeyboardModifiers(modifiers) & allowed;
-    return QKeySequence(mods.toInt() | key).toString(QKeySequence::PortableText);
+    // Header-only helper so the Shift+digit unshift logic is unit-testable
+    // (see tests/ShortcutFormatTest.cpp).
+    return ShortcutFormat::portable(key, modifiers);
 }
 
 void AppContext::setShortcutRecording(bool recording)

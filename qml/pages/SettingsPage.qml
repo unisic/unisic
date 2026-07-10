@@ -480,21 +480,6 @@ Item {
                         USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
                     }
                     SettingRow {
-                        visible: App.settings.showCapturePopup
-                        available: App.layerShellActive
-                        hint: App.layerShellActive ? ""
-                              : qsTr("The style only applies to the layer-shell card — a native notification is drawn by the system server.")
-                        label: qsTr("Notification style")
-                        help: qsTr("Casual is the full card; Compact a single slim row.")
-                        helpDetail: qsTr("Casual shows a large thumbnail, title and action buttons on a tall card. Compact fits the thumbnail, filename and the same actions into one slim row — less screen space, same functionality. Applies to the next capture.")
-                        UComboBox {
-                            width: 180
-                            model: [qsTr("Casual"), qsTr("Compact")]
-                            currentIndex: App.settings.capturePopupStyle === "compact" ? 1 : 0
-                            onActivated: (i) => App.settings.capturePopupStyle = (i === 1 ? "compact" : "casual")
-                        }
-                    }
-                    SettingRow {
                         // Corner only matters for the layer-shell card we position
                         // ourselves; a native notification is placed by the server.
                         visible: App.settings.showCapturePopup
@@ -749,6 +734,21 @@ Item {
                             model: page.themeNames
                             currentIndex: Math.max(0, page.themeIds.indexOf(ThemeController.themeName))
                             onActivated: (i) => ThemeController.themeName = page.themeIds[i]
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        available: App.layerShellActive
+                        hint: App.layerShellActive ? ""
+                              : qsTr("The style only applies to the layer-shell card — a native notification is drawn by the system server.")
+                        label: qsTr("Notification style")
+                        help: qsTr("Casual is the full card; Compact a single slim row.")
+                        helpDetail: qsTr("Casual shows a large thumbnail, title and action buttons on a tall card. Compact fits the thumbnail, filename and the same actions into one slim row — less screen space, same functionality. Applies to the next capture.")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Casual"), qsTr("Compact")]
+                            currentIndex: App.settings.capturePopupStyle === "compact" ? 1 : 0
+                            onActivated: (i) => App.settings.capturePopupStyle = (i === 1 ? "compact" : "casual")
                         }
                     }
                     Text {

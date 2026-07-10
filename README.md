@@ -23,20 +23,6 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
 
 </div>
 
-## Table of contents
-
-1. [What is Unisic](#what-is-unisic)
-2. [Early developer access](#early-developer-access)
-3. [Install](#install)
-4. [Updates](#updates)
-5. [Features](#features)
-6. [Default hotkeys](#default-hotkeys)
-7. [Build from source](#build-from-source)
-8. [Run](#run)
-9. [Configuration](#configuration)
-10. [niri and other wlroots compositors](#niri-and-other-wlroots-compositors)
-11. [Notes](#notes)
-
 ## What is Unisic
 
 Most screenshot utilities on Linux give you a rectangle of pixels and walk away. Unisic covers the whole workflow the moment after you press the hotkey: annotate **on the selection overlay before the shot is even taken**, edit afterwards (blur, pixelate, numbered steps, crop, object cutout with background removal), record the same region as a GIF or video, and push the result wherever it belongs — clipboard, disk, or a custom upload destination with the link ready to paste.

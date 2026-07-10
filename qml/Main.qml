@@ -35,11 +35,12 @@ Window {
         if (App.settings.minimizeToTrayOnClose && App.trayAvailable) {
             close.accepted = false
             window.hide()
-        } else if (!App.trayAvailable) {
-            // quitOnLastWindowClosed is false (tray lifetime) — without a tray
-            // an accepted close would leave a hidden resident process. Quit —
-            // but never kill an in-flight recording/encode or open editors
-            // with unsaved annotations.
+        } else {
+            // Hide-to-tray is off (or there's no tray at all).
+            // quitOnLastWindowClosed is false (tray lifetime), so an accepted
+            // close would just leave a hidden resident process. Quit — but
+            // never kill an in-flight recording/encode or open editors with
+            // unsaved annotations.
             if (App.recording || App.converting) {
                 close.accepted = false
                 App.showToast(qsTr("Recording in progress — stop it before closing"), true)

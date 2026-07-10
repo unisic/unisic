@@ -170,7 +170,7 @@ public:
         m_s.sync();
         if (!m_writable)
             qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
-                       << "(check permissions/ownership of ~/.config/Unisic).";
+                       << "(check permissions/ownership of ~/.config/unisic).";
     }
 
     // False when the config file cannot actually be written back (the UI shows

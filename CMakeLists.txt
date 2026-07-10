@@ -19,6 +19,9 @@ pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
+# QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
+# pages/) so tooling resolves them; also silences the configure warning.
+qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(unisic
     src/main.cpp
@@ -159,7 +162,7 @@ target_link_libraries(unisic PRIVATE
 
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 
-file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
+file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
 # Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
@@ -211,7 +214,11 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
+# "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
+# stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
+# GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
+# a package-name Requires would make the RPM uninstallable on stock Fedora.
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)

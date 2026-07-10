@@ -36,6 +36,10 @@ public:
     bool uploading() const { return m_uploading; }
     QString kindText() const { return m_kind; }
     QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
+    // The history entry created for this capture (0 = none). Save/upload use
+    // it to address exactly this entry — never "the newest pathless one".
+    quint64 historyId() const { return m_historyId; }
+    void setHistoryId(quint64 id) { m_historyId = id; }
 
     void setUrl(const QString &url);
     void setUploading(bool on);
@@ -63,6 +67,7 @@ private:
     QString m_kind;
     QString m_url;
     QString m_thumbSource;
-    QString m_thumbFile;    // cached on-disk thumbnail, removed in the destructor
+    QString m_thumbFile;
+    quint64 m_historyId = 0;    // cached on-disk thumbnail, removed in the destructor
     bool m_uploading = false;
 };

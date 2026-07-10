@@ -28,6 +28,18 @@ Item {
         highlightTimer.restart()
         tab = result.tab
         searchQuery = ""
+        // Scroll the row's pane so the highlighted match is actually on
+        // screen — panes keep their last scroll position, so without this
+        // the 4s label tint can flash entirely below the fold.
+        if (result.row) Qt.callLater(function () {
+            var fl = result.row.parent
+            while (fl && fl.contentY === undefined)
+                fl = fl.parent
+            if (!fl)
+                return
+            var y = result.row.mapToItem(fl.contentItem, 0, 0).y
+            fl.contentY = Math.max(0, Math.min(y - Theme.spacingXL, fl.contentHeight - fl.height))
+        })
     }
     function rebuildSearch() {
         if (!searchActive) { searchResults = []; return }
@@ -60,11 +72,15 @@ Item {
     }
 
     function collectRows(obj, tabIdx, q, out) {
-        if (!obj)
+        // Skip invisible subtrees (rows/cards whose own gate is off, e.g.
+        // "Notification position" with the capture popup disabled) — listing
+        // them would produce dead-end jumps. Works because the panes stay
+        // effectively visible (transparent + inert) while searching.
+        if (!obj || obj.visible === false)
             return
         if (obj.isSettingRow === true && obj.label !== undefined && obj.label.length > 0
             && obj.label.toLowerCase().indexOf(q) >= 0)
-            out.push({ label: obj.label, tab: tabIdx })
+            out.push({ label: obj.label, tab: tabIdx, row: obj })
         var kids = obj.children
         for (var i = 0; kids && i < kids.length; ++i)
             collectRows(kids[i], tabIdx, q, out)
@@ -363,7 +379,11 @@ Item {
             wrapMode: Text.WordWrap
             color: Theme.textPrimary
             font.pixelSize: Theme.fontS + 1
-            text: qsTr("⚠ Settings can't be saved — your config file is not writable, so changes reset every launch. Fix its permissions:\n    sudo chown -R $USER ~/.config/Unisic")
+            // Remedy points at the REAL config dir (lowercase ~/.config/unisic,
+            // also correct under a custom XDG_CONFIG_HOME) — the legacy
+            // capital-U path would fix nothing on a case-sensitive filesystem.
+            text: qsTr("⚠ Settings can't be saved — your config file is not writable, so changes reset every launch. Fix its permissions:\n    sudo chown -R $USER %1")
+                  .arg(App.settings.configPath().replace(/\/[^\/]+$/, ""))
         }
     }
 
@@ -383,6 +403,8 @@ Item {
         // ===== search results (shown instead of the panes while typing) =====
         Flickable {
             visible: page.searchActive
+            // Above the panes, which stay visible-but-transparent during search.
+            z: 1
             anchors.fill: parent
             contentWidth: width
             contentHeight: resultsCol.height + Theme.spacingXL
@@ -455,7 +477,11 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 0
-            visible: page.tab === 0 && !page.searchActive
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: page.tab === 0 || page.searchActive
+            opacity: (page.tab === 0 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 0 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
@@ -550,7 +576,7 @@ Item {
                         label: qsTr("Capture delay")
                         help: qsTr("Waits this long before taking the capture.")
                         helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
-                        USpinBox { from: 0; to: 5000; value: App.settings.captureDelayMs; suffix: " ms"; onChanged: (v) => App.settings.captureDelayMs = v }
+                        USpinBox { from: 0; to: 5000; step: 50; value: App.settings.captureDelayMs; suffix: " ms"; onChanged: (v) => App.settings.captureDelayMs = v }
                     }
                     SettingRow {
                         label: qsTr("Include mouse cursor")
@@ -651,9 +677,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Grab Ctrl+C for 2s after a capture")
-                        available: !App.settings.copyToClipboard
-                        hint: !App.settings.copyToClipboard ? ""
-                              : qsTr("Not used while “Copy image to clipboard” is on — the capture is copied automatically anyway.")
+                        // KGlobalAccel-only: armQuickCopy is a no-op on other
+                        // desktops, so grey the row out there with the reason.
+                        available: App.hotkeyBackend === "kglobalaccel" && !App.settings.copyToClipboard
+                        hint: App.hotkeyBackend !== "kglobalaccel"
+                              ? qsTr("Needs KGlobalAccel's on-demand key grabbing — KDE Plasma only.")
+                              : App.settings.copyToClipboard
+                                ? qsTr("Not used while “Copy image to clipboard” is on — the capture is copied automatically anyway.")
+                                : ""
                         help: qsTr("Reflexive Ctrl+C right after a capture copies it.")
                         helpDetail: qsTr("For 2 seconds after each capture, Ctrl+C is grabbed globally and copies the fresh capture to the clipboard (including the wl-copy mirror); afterwards the key returns to normal. KDE only — it needs KGlobalAccel's on-demand key grabbing.")
                         USwitch {
@@ -713,7 +744,11 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 1
-            visible: page.tab === 1 && !page.searchActive
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: page.tab === 1 || page.searchActive
+            opacity: (page.tab === 1 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 1 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
@@ -975,7 +1010,11 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 2
-            visible: page.tab === 2 && !page.searchActive
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: page.tab === 2 || page.searchActive
+            opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 2 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
@@ -1086,7 +1125,11 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 3
-            visible: page.tab === 3 && !page.searchActive
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: page.tab === 3 || page.searchActive
+            opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 3 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
@@ -1108,7 +1151,7 @@ Item {
                         label: qsTr("GIF max duration (0 = unlimited)")
                         help: qsTr("Auto-stops GIF recording after this many seconds.")
                         helpDetail: qsTr("A safety cap — GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
-                        USpinBox { from: 0; to: 600; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
+                        USpinBox { from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
                     }
                     SettingRow {
                         label: qsTr("GIF quality")
@@ -1167,7 +1210,11 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 4
-            visible: page.tab === 4 && !page.searchActive
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: page.tab === 4 || page.searchActive
+            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 4 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
@@ -1281,10 +1328,17 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 5
-            visible: page.tab === 5 && !page.searchActive
+            // Gated on App.devBuild: in a release build the pane must never
+            // instantiate, or the search would list its rows and jumping to
+            // one would expose the smoke-test buttons on a hidden tab.
+            // Visible-but-inert while searching: per-row `visible:` gates keep
+            // their real values so collectRows can skip hidden rows.
+            visible: App.devBuild && (page.tab === 5 || page.searchActive)
+            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
-            active: touched || visible || page.searchActive
+            active: App.devBuild && (touched || visible || page.searchActive)
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -1385,6 +1439,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Arm quick-copy (Ctrl+C)"); onClicked: App.devTestQuickCopy() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }

@@ -8,7 +8,9 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QFile>
+#include <QSaveFile>
 #include <QFileInfo>
+#include <QDateTime>
 #include <QDir>
 #include <QProcess>
 #include <QTemporaryFile>
@@ -49,18 +51,36 @@ QString UploadManager::configPath() const
 void UploadManager::loadDestinations()
 {
     QFile f(configPath());
-    if (f.open(QIODevice::ReadOnly)) {
-        const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-        if (doc.isArray())
-            m_destinations = doc.array();
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QByteArray raw = f.readAll();
+    f.close();
+    const QJsonDocument doc = QJsonDocument::fromJson(raw);
+    if (doc.isArray()) {
+        m_destinations = doc.array();
+        return;
     }
+    if (raw.trimmed().isEmpty())
+        return;
+    // Unparseable but non-empty (hand-edit typo, truncation): move it aside
+    // instead of proceeding — ensureBuiltins() would otherwise rewrite the
+    // file with only the builtins, silently destroying every custom
+    // destination (including stored SFTP credentials).
+    const QString bak = configPath() + QStringLiteral(".broken-")
+                        + QString::number(QDateTime::currentSecsSinceEpoch());
+    QFile::rename(configPath(), bak);
+    qWarning() << "destinations.json unparseable, preserved as" << bak;
 }
 
 void UploadManager::persistDestinations()
 {
-    QFile f(configPath());
-    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    // Atomic write — a crash mid-write must never truncate the file (same
+    // QSaveFile pattern as HistoryStore).
+    QSaveFile f(configPath());
+    if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(m_destinations).toJson(QJsonDocument::Indented));
+        f.commit();
+    }
     emit destinationsChanged();
 }
 
@@ -464,16 +484,22 @@ QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, c
         return {};
 
     QString url;
+    static const QRegularExpression tokenRe(
+        QStringLiteral("\\$(?:text|json:[^$]+|regex:[^$]+)\\$"));
     // Whole-spec token: keeps exact legacy behaviour, incl. regex specs that
-    // themselves contain '$' (which inline scanning could not handle).
+    // themselves contain '$' (which inline scanning could not handle). But the
+    // anchored greedy match would also swallow a multi-token template like
+    // "$json:a$/$json:b$" — two or more complete inline tokens means the spec
+    // is a template, so route it to the inline branch instead.
     static const QRegularExpression wholeToken(QStringLiteral("^\\$(?:text|json:.+|regex:.+)\\$$"));
-    if (wholeToken.match(spec).hasMatch()) {
+    int inlineTokens = 0;
+    for (auto it = tokenRe.globalMatch(spec); it.hasNext() && inlineTokens < 2; it.next())
+        ++inlineTokens;
+    if (wholeToken.match(spec).hasMatch() && inlineTokens < 2) {
         url = extractToken(spec, response);
     } else {
         // Inline templating: replace each embedded token in place, leaving the
         // surrounding literal text untouched. No tokens -> spec returned as-is.
-        static const QRegularExpression tokenRe(
-            QStringLiteral("\\$(?:text|json:[^$]+|regex:[^$]+)\\$"));
         int last = 0;
         auto it = tokenRe.globalMatch(spec);
         while (it.hasNext()) {
@@ -519,7 +545,14 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
             hasContentType = true;
     }
 
-    const QString method = dest.value(QStringLiteral("method")).toString(QStringLiteral("POST")).toUpper();
+    QString method = dest.value(QStringLiteral("method")).toString(QStringLiteral("POST")).toUpper();
+    // Strict HTTP-token check: the verb comes from an imported destinations
+    // file and goes RAW into the request line via sendCustomRequest — CR/LF
+    // or spaces there are request-line injection (the header sanitization
+    // below would be pointless with an unchecked verb).
+    static const QRegularExpression verbRe(QStringLiteral("^[A-Z]{1,16}$"));
+    if (!verbRe.match(method).hasMatch())
+        method = QStringLiteral("POST");
     const QString bodyType = dest.value(QStringLiteral("body")).toString().toLower();
     QNetworkReply *reply = nullptr;
 
@@ -555,8 +588,11 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         }
         if (!hasContentType)
             req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
-        reply = (method == QLatin1String("PUT")) ? m_nam->put(req, payload)
-                                                  : m_nam->post(req, payload);
+        // Honor the stored verb (imported .sxcu may use PATCH/GET/DELETE),
+        // not just PUT-vs-POST.
+        reply = (method == QLatin1String("PUT"))  ? m_nam->put(req, payload)
+              : (method == QLatin1String("POST")) ? m_nam->post(req, payload)
+              : m_nam->sendCustomRequest(req, method.toUtf8(), payload);
     } else {
         auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
         const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
@@ -591,8 +627,9 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         }
         multi->append(filePart);
 
-        reply = (method == QLatin1String("PUT")) ? m_nam->put(req, multi)
-                                                 : m_nam->post(req, multi);
+        reply = (method == QLatin1String("PUT"))  ? m_nam->put(req, multi)
+              : (method == QLatin1String("POST")) ? m_nam->post(req, multi)
+              : m_nam->sendCustomRequest(req, method.toUtf8(), multi);
         multi->setParent(reply);
     }
 
@@ -649,7 +686,7 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
                      QStringLiteral("--connect-timeout"), QStringLiteral("30"),
                      QStringLiteral("--speed-time"), QStringLiteral("60"),
                      QStringLiteral("--speed-limit"), QStringLiteral("1"),
-                     QStringLiteral("-T"), uploadPath, target};
+                     QStringLiteral("-T"), uploadPath};
     // Credentials must never be on the command line — argv is world-readable
     // in /proc/<pid>/cmdline for the whole transfer. Feed them as a config
     // file on stdin instead (curl -K -).
@@ -671,6 +708,10 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     if (target.startsWith(QLatin1String("sftp://"))
         && dest.value(QStringLiteral("insecure")).toBool())
         args << QStringLiteral("--insecure");
+    // The URL goes last, after end-of-options: a destination-controlled
+    // requestUrl starting with '-' must never be parsed as curl options
+    // (e.g. "-K<file>" reads an arbitrary config file).
+    args << QStringLiteral("--") << target;
 
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this,

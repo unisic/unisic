@@ -20,6 +20,14 @@ finish-args:
   - --talk-name=org.freedesktop.impl.portal.PermissionStore
   - --talk-name=org.kde.KWin
   - --talk-name=org.kde.kglobalaccel
+  # Tray icon (StatusNotifierItem) and native capture notifications: the
+  # filtered session bus hides these names by default, which would leave the
+  # flatpak with no tray icon and no notification feedback.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Bundled tesseract resolves its language data from /app/share/tessdata
+  # (installed by the tessdata module below); pin it for robustness.
+  - --env=TESSDATA_PREFIX=/app/share/tessdata
 
 cleanup:
   - /include
@@ -55,6 +63,22 @@ modules:
         url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz
         sha256: f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11
 
+  # Language data for the bundled tesseract (default ocrLanguages "pol+eng"):
+  # the sandbox cannot see host langpacks and /app is read-only at runtime, so
+  # without shipping the .traineddata here OCR always fails in the flatpak.
+  - name: tessdata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
+      - install -Dm644 pol.traineddata /app/share/tessdata/pol.traineddata
+    sources:
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/pol.traineddata
+        sha256: c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2
+
   - name: zxing-cpp
     buildsystem: cmake-ninja
     config-opts:
@@ -79,9 +103,19 @@ modules:
 
   - name: unisic
     buildsystem: cmake-ninja
+    # flatpak-builder runs cmake in a cleaned sandbox environment: the release
+    # workflow's UNISIC_BUILD_NUMBER host env var never reaches it, so force
+    # the release default explicitly — otherwise CMakeLists.txt would flip
+    # UNISIC_DEV_BUILD to ON and ship the Developer tab + F8 smoke-test grab.
+    # The workflow seds the empty placeholder below to the real run number so
+    # the sidebar footer shows a build number instead of "dev".
+    build-options:
+      env:
+        UNISIC_BUILD_NUMBER: ""
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
+      - -DUNISIC_DEV_BUILD=OFF
     sources:
       - type: dir
         path: .

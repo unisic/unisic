@@ -91,10 +91,12 @@ void DesktopNotifier::show(CaptureNotification *n)
 {
     if (!n)
         return;
-    if (!available()) {
-        n->deleteLater();
-        return;
-    }
+    // No available() gate here: a D-Bus-activatable server (mako/dunst as a
+    // systemd dbus service) is NOT registered until first use, and dropping
+    // the notification would silently eat the user's capture feedback. The
+    // async Notify call auto-starts such a server; if none can be activated,
+    // the reply-error path retires the notification. (The constructor's gate
+    // stays — it only avoids spawning a daemon at startup to read Inhibited.)
     sendNotify(n);
 }
 

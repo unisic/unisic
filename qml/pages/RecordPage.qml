@@ -131,7 +131,7 @@ Item {
                         }
                         USpinBox {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 0; to: 3600; value: App.settings.videoMaxDurationSec; suffix: " s"
+                            from: 0; to: 3600; step: 10; value: App.settings.videoMaxDurationSec; suffix: " s"
                             onChanged: (v) => App.settings.videoMaxDurationSec = v
                         }
                     }

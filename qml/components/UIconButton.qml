@@ -8,6 +8,8 @@ Rectangle {
     property string tooltip: ""
     property bool active: false
     property int iconSize: 18
+    // Press state for hold-to-repeat consumers (USpinBox).
+    readonly property alias pressed: mouse.pressed
     signal clicked()
 
     width: 38; height: 38

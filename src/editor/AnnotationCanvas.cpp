@@ -68,8 +68,24 @@ void AnnotationCanvas::setTool(int t)
 {
     if (m_tool == t) return;
     const bool leftObjectPick = (m_tool == ObjectPick);
+    const bool leftHighlight = (m_tool == Highlight);
     m_tool = t;
     emit toolChanged();
+    // Until the user explicitly picks a color, the highlighter defaults to
+    // yellow instead of the stock red. Flip the live color both ways so the
+    // toolbar dot always shows exactly what a stroke will draw — and an
+    // explicit pick (including re-clicking the red swatch) is honored as-is.
+    if (!m_strokeColorTouched) {
+        if (t == Highlight && m_color == QColor(QStringLiteral("#FF4757"))) {
+            m_color = QColor(255, 234, 112); // sensible default for highlighter
+            m_strokeAuto = true;             // not a user pick — never persisted
+            emit strokeColorChanged();
+        } else if (leftHighlight && m_color == QColor(255, 234, 112)) {
+            m_color = QColor(QStringLiteral("#FF4757"));
+            m_strokeAuto = true;
+            emit strokeColorChanged();
+        }
+    }
     if (leftObjectPick)
         clearObjectMask();
     if (t == ObjectPick) {
@@ -92,6 +108,10 @@ void AnnotationCanvas::setTool(int t)
 void AnnotationCanvas::setStrokeColor(const QColor &c)
 {
     if (m_color == c) return;
+    // Only a real change counts as a user pick — restoring the identical
+    // default from settings at startup early-returns on the guard above.
+    m_strokeColorTouched = true;
+    m_strokeAuto = false;
     m_color = c;
     emit strokeColorChanged();
 }
@@ -315,6 +335,23 @@ void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
 void AnnotationCanvas::selectAll()
 {
     m_selection = QRectF(QPointF(0, 0), QSizeF(m_base.size()));
+    // Any object mask was computed for the old rect — drop it, or the status
+    // pill keeps promising a cutout that renderedSelection() would skip. No
+    // auto re-segment: select-all is a change of intent and a full-frame
+    // segmentation is costly; clicking a candidate re-segments as before.
+    if (m_tool == ObjectPick)
+        clearObjectMask();
+    emit selectionRectChanged();
+    update();
+}
+
+// Escape-cancel for an in-progress selection: drops the rect (and any object
+// mask computed for it) without touching annotations or the base image.
+void AnnotationCanvas::clearSelection()
+{
+    m_selection = {};
+    if (m_tool == ObjectPick)
+        clearObjectMask();
     emit selectionRectChanged();
     update();
 }
@@ -740,8 +777,6 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         m_current.rect = QRectF(img, img);
         if (m_tool == Pen)
             m_current.points = {img};
-        if (m_tool == Highlight && m_current.color == QColor(QStringLiteral("#FF4757")))
-            m_current.color = QColor(255, 234, 112); // sensible default for highlighter
         update();
     }
     e->accept();

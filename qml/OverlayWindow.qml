@@ -106,17 +106,22 @@ Window {
             e.accepted = true
         }
 
+        // DontUseNativeDialog: a native color dialog is an xdg toplevel, which stacks
+        // BELOW our layer-shell OVERLAY surface — it would open invisible/unreachable
+        // (hits e.g. sway/hyprland with the gtk3 platform theme). The in-scene QML
+        // dialog renders inside the overlay window itself.
         ColorDialog {
             id: overlayColorDialog
             title: qsTr("Stroke color")
             selectedColor: canvas.strokeColor
+            options: ColorDialog.DontUseNativeDialog
             onAccepted: canvas.strokeColor = selectedColor
         }
         ColorDialog {
             id: overlayFillDialog
             title: qsTr("Fill color")
             selectedColor: canvas.shapeFillColor
-            options: ColorDialog.ShowAlphaChannel
+            options: ColorDialog.ShowAlphaChannel | ColorDialog.DontUseNativeDialog
             onAccepted: {
                 canvas.shapeFillColor = selectedColor
                 canvas.shapeFillEnabled = true

@@ -10,6 +10,7 @@
 #include <QStyleHints>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
@@ -102,6 +103,15 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     if (server->listen(serverName))
         return server;
 
+    // Serialize the recovery below across near-simultaneous spawns (autostart
+    // plus a compositor-keybind `unisic --region`): unguarded, one process can
+    // removeServer() — an unconditional unlink — the socket another just
+    // bound, booting two full instances. QLockFile auto-breaks locks held by
+    // dead PIDs, so a crash mid-recovery can't wedge future launches; a failed
+    // tryLock (broken tmp) just degrades to the old unserialized behavior.
+    QLockFile recoveryLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
+    recoveryLock.tryLock(2000);
+
     // If a peer appeared between our probe and listen(), hand off to it — with
     // the REAL command, and signal main() to exit: continuing would boot a
     // duplicate instance with duplicate hotkey registrations (every press
@@ -115,6 +125,15 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     if (server->listen(serverName))
         return server;
 
+    // Still can't bind — most likely a live peer took the name meanwhile, so
+    // hand off instead of continuing as an unguarded duplicate. Only the
+    // genuinely environmental no-peer case (broken runtime dir) falls through
+    // to warn-and-continue.
+    if (notifyExistingInstance(serverName, command)) {
+        *handedOff = true;
+        delete server;
+        return nullptr;
+    }
     qWarning() << "Could not create single-instance server:" << server->errorString();
     delete server;
     return nullptr;
@@ -260,6 +279,20 @@ int main(int argc, char *argv[])
     const bool dark = QGuiApplication::styleHints()
                       && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     QIcon::setFallbackThemeName(dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze"));
+    // Re-pin on runtime light/dark flips — a fallback frozen at startup keeps
+    // serving the old scheme's glyphs (dark-on-dark = invisible icons) even
+    // though ThemeController bumps rev and every icon re-fetches. Direct
+    // connection runs during signal emission, BEFORE ThemeController's queued
+    // rev bump, so the re-fetch resolves against the corrected fallback
+    // (setFallbackThemeName also flushes Qt's icon-loader cache).
+    if (auto *hints = QGuiApplication::styleHints()) {
+        QObject::connect(hints, &QStyleHints::colorSchemeChanged, &app,
+                         [](Qt::ColorScheme scheme) {
+            QIcon::setFallbackThemeName(scheme == Qt::ColorScheme::Dark
+                                            ? QStringLiteral("breeze-dark")
+                                            : QStringLiteral("breeze"));
+        });
+    }
 
     // The desktop file exists solely for KWin's ScreenShot2 authorization —
     // skip the app-grid pollution (with an Exec that goes stale on every

@@ -52,6 +52,7 @@
 #include <QPainter>
 #include <QFile>
 #include <QFileInfo>
+#include <QTemporaryFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -313,11 +314,11 @@ void AppContext::showToast(const QString &text, bool important)
     emit toastChanged();
 }
 
-QString AppContext::formatShortcut(int key, int modifiers) const
+QString AppContext::formatShortcut(int key, int modifiers, int nativeScanCode) const
 {
     // Header-only helper so the Shift+digit unshift logic is unit-testable
     // (see tests/ShortcutFormatTest.cpp).
-    return ShortcutFormat::portable(key, modifiers);
+    return ShortcutFormat::portable(key, modifiers, nativeScanCode);
 }
 
 void AppContext::setShortcutRecording(bool recording)
@@ -366,11 +367,21 @@ bool AppContext::nowInhibited() const
 
 void AppContext::captureFullScreen()
 {
-    if (m_captureInFlight)
-        return; // hammering the hotkey must not stack portal requests
+    // In-flight guard: hammering the hotkey must not stack portal requests.
+    // Overlay guard: with the region-selection overlay open, a stray
+    // fullscreen/window hotkey would capture the overlay's own dimming and
+    // toolbar and push that garbage through the whole after-capture pipeline.
+    if (m_captureInFlight || m_overlay->active())
+        return;
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     withDelay([this, inhibited] {
+        // Re-check: with a capture delay configured, the region overlay may
+        // have opened between the keypress and this deferred fire.
+        if (m_overlay->active()) {
+            m_captureInFlight = false;
+            return;
+        }
         m_capture->captureWorkspace([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
@@ -406,11 +417,15 @@ void AppContext::captureRegionOcr()
 
 void AppContext::captureWindow()
 {
-    if (m_captureInFlight)
+    if (m_captureInFlight || m_overlay->active()) // see captureFullScreen
         return;
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     withDelay([this, inhibited] {
+        if (m_overlay->active()) { // re-check after the capture delay
+            m_captureInFlight = false;
+            return;
+        }
         m_capture->captureActiveWindow([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
@@ -428,7 +443,6 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -440,7 +454,6 @@ void AppContext::startGifRegion()
 void AppContext::startGifFullScreen()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
 }
@@ -454,7 +467,6 @@ GifRecorder::Output AppContext::videoOutput() const
 void AppContext::startVideoScreen()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Screen);
 }
@@ -462,7 +474,6 @@ void AppContext::startVideoScreen()
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -474,7 +485,6 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Window);
 }
@@ -510,6 +520,11 @@ void AppContext::devTestNotification()
     // Full parity with a real capture — including the gates. A dev test that
     // bypassed them "worked" while every real capture card was suppressed,
     // which made the suppression look like a notification bug. Explain instead.
+    if (!m_settings->showNotifications()) {
+        showToast(tr("Dev: ALL notifications are disabled in Settings "
+                     "(General → Show notifications)"), true);
+        return;
+    }
     if (!m_settings->showCapturePopup()) {
         showToast(tr("Dev: capture notification is DISABLED in Settings "
                      "(General → Show capture notification)"), true);
@@ -595,6 +610,66 @@ void AppContext::devTestPreviewFromHistory()
     previewFromHistory(p);
 }
 
+QString AppContext::settingsRoundTripCheck()
+{
+    // Export -> parse -> verify every writable Settings property serialized ->
+    // import the file back. Importing the just-exported effective config is a
+    // no-op for values while exercising the whole read path.
+    // QTemporaryFile: unique name + 0600 — the export embeds destination
+    // secrets (API keys), which must not sit world-readable in shared /tmp.
+    QTemporaryFile tmp(QDir::tempPath() + QStringLiteral("/unisic-smoketest-XXXXXX.json"));
+    if (!tmp.open())
+        return QStringLiteral("FAIL (cannot create a temp file)");
+    const QString path = tmp.fileName();
+    tmp.close(); // exportSettings rewrites it in place; 0600 perms survive
+    const QString exportErr = exportSettings(QUrl::fromLocalFile(path));
+    if (!exportErr.isEmpty())
+        return QStringLiteral("FAIL (export: %1)").arg(exportErr);
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return QStringLiteral("FAIL (cannot re-read %1)").arg(path);
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    const QJsonObject s = root.value(QStringLiteral("settings")).toObject();
+    QStringList missing;
+    const QMetaObject *mo = m_settings->metaObject();
+    for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
+        const QMetaProperty p = mo->property(i);
+        if (p.isWritable() && !s.contains(QString::fromLatin1(p.name())))
+            missing << QString::fromLatin1(p.name());
+    }
+    if (!missing.isEmpty())
+        return QStringLiteral("FAIL (not serialized: %1)").arg(missing.join(QLatin1String(", ")));
+
+    const QString importErr = importSettings(QUrl::fromLocalFile(path));
+    if (!importErr.isEmpty())
+        return QStringLiteral("FAIL (import: %1)").arg(importErr);
+    return QStringLiteral("PASS (%1 settings + %2 destinations)")
+        .arg(s.size())
+        .arg(root.value(QStringLiteral("destinations")).toArray().size());
+}
+
+void AppContext::devTestSettingsRoundTrip()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: settings round-trip — %1").arg(settingsRoundTripCheck()));
+}
+
+void AppContext::devTestUpload()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: uploading a test image to '%1'…").arg(m_settings->activeDestination()));
+    uploadImage(devTestImage(), [this](const QString &url, const QString &err) {
+        if (err.isEmpty())
+            showToast(tr("Dev: upload OK — %1").arg(url));
+        else
+            showToast(tr("Dev: upload failed — %1").arg(err), true);
+    });
+}
+
 QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
 {
     QStringList lines;
@@ -659,7 +734,9 @@ void AppContext::smokeNext()
 
 void AppContext::runSmokeTest()
 {
-    if (m_smokeRunning)
+    // Dev-only, defense in depth: the F8 dispatch and the QML pane already
+    // check, but the invokable itself must not be reachable in a release.
+    if (!devBuild() || m_smokeRunning)
         return;
     m_smokeRunning = true;
     m_smokeLog.clear();
@@ -775,6 +852,36 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3f) OCR recognition — a real tesseract run on a rendered known token
+    // (digits: language-neutral, works with any installed traineddata).
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        QImage t(320, 120, QImage::Format_ARGB32);
+        t.fill(Qt::white);
+        {
+            QPainter p(&t);
+            p.setPen(Qt::black);
+            QFont f;
+            f.setPixelSize(64);
+            f.setBold(true);
+            p.setFont(f);
+            p.drawText(t.rect(), Qt::AlignCenter, QStringLiteral("1234"));
+        }
+        m_ocr->recognize(t, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+            if (!err.isEmpty())
+                smokeLog(QStringLiteral("ocr recognize: FAIL (%1)").arg(err));
+            else if (text.contains(QLatin1String("1234")))
+                smokeLog(QStringLiteral("ocr recognize: PASS"));
+            else
+                smokeLog(QStringLiteral("ocr recognize: FAIL (got '%1')").arg(text.simplified()));
+            smokeNext();
+        });
+#else
+        smokeLog(QStringLiteral("ocr recognize: SKIP (built without tesseract)"));
+        smokeNext();
+#endif
+    });
+
     // 4) short GIF recording (fullscreen, ~3s, auto-stop)
     m_smokeSteps.append([this] {
         if (!recordingAvailable()) {
@@ -783,20 +890,55 @@ void AppContext::runSmokeTest()
             return;
         }
         smokeLog(QStringLiteral("recording (GIF fullscreen, ~3s)…"));
+        // `live` dies with THIS smoke recording: without it the 3s auto-stop
+        // outlives an early failure (e.g. portal dialog cancelled) and would
+        // kill an unrelated recording the user starts right after.
+        auto live = std::make_shared<bool>(true);
         auto done = std::make_shared<QMetaObject::Connection>();
         auto fail = std::make_shared<QMetaObject::Connection>();
-        *done = connect(m_recorder, &GifRecorder::finished, this, [this, done, fail](const QString &f) {
+        *done = connect(m_recorder, &GifRecorder::finished, this, [this, live, done, fail](const QString &f) {
+            *live = false;
             disconnect(*done); disconnect(*fail);
             smokeLog(QStringLiteral("  recording: PASS (%1)").arg(f));
             smokeNext();
         });
-        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, done, fail](const QString &e) {
+        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, live, done, fail](const QString &e) {
+            *live = false;
             disconnect(*done); disconnect(*fail);
             smokeLog(QStringLiteral("  recording: FAIL (%1)").arg(e));
             smokeNext();
         });
         startGifFullScreen();
-        QTimer::singleShot(3000, this, [this] { if (recording()) stopRecording(); });
+        QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
+    });
+
+    // 4b) short video recording (MP4 fullscreen, ~3s, auto-stop) — the video
+    // pipeline (format selection, convertVideo, poster extraction) is distinct
+    // from the GIF path and needs its own pass/fail line.
+    m_smokeSteps.append([this] {
+        if (!recordingAvailable()) {
+            smokeLog(QStringLiteral("video recording: SKIP"));
+            smokeNext();
+            return;
+        }
+        smokeLog(QStringLiteral("recording (video fullscreen, ~3s)…"));
+        auto live = std::make_shared<bool>(true);
+        auto done = std::make_shared<QMetaObject::Connection>();
+        auto fail = std::make_shared<QMetaObject::Connection>();
+        *done = connect(m_recorder, &GifRecorder::finished, this, [this, live, done, fail](const QString &f) {
+            *live = false;
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  video recording: PASS (%1)").arg(f));
+            smokeNext();
+        });
+        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, live, done, fail](const QString &e) {
+            *live = false;
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  video recording: FAIL (%1)").arg(e));
+            smokeNext();
+        });
+        startVideoScreen();
+        QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
     });
 
     // 5) capture notification
@@ -806,6 +948,13 @@ void AppContext::runSmokeTest()
         auto *n = showCaptureNotification(t, QString(), QStringLiteral("image"), false);
         smokeLog(QStringLiteral("notification: ") + (n ? QStringLiteral("PASS (shown)")
                  : QStringLiteral("SKIP (disabled or no server/layer-shell)")));
+        smokeNext();
+    });
+
+    // 5b) settings export/import round-trip (metaobject serialization has
+    // regression history — the [%General] key folding).
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
         smokeNext();
     });
 
@@ -963,7 +1112,10 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
-    auto *notif = showCaptureNotification(thumb, path, kind, m_recordInhibited);
+    // Inhibition is sampled NOW, not at recording start: a recording can run
+    // for minutes, and muteOnFullscreen must reflect what is on screen when
+    // the card would appear (e.g. the recorded app went fullscreen mid-run).
+    auto *notif = showCaptureNotification(thumb, path, kind, nowInhibited());
     QPointer<CaptureNotification> np(notif);
 
     if (m_settings->uploadAfterCapture()) {
@@ -996,17 +1148,27 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
     // %rand% template would otherwise produce two different names).
     const QString fileName = makeFileName();
     QString path;
-    if (m_settings->autoSave())
+    if (m_settings->autoSave()) {
         path = saveImageAuto(img, fileName);
+        // A failed save must be LOUD: the rest of the pipeline continues (the
+        // capture still exists in memory/history), but silently pretending it
+        // was persisted loses data on unplugged/read-only/full save targets.
+        if (path.isEmpty())
+            showToast(tr("Could not save to %1 — check the save folder in Settings")
+                          .arg(m_settings->saveDirectory()), true);
+    }
     if (m_settings->copyToClipboard())
         copyImageToClipboard(img);
 
     const bool uploading = m_settings->uploadAfterCapture();
+    quint64 historyId = 0;
     if (!uploading || !path.isEmpty())
-        m_history->addEntry(path, img, QStringLiteral("image"));
+        historyId = m_history->addEntry(path, img, QStringLiteral("image"));
 
     auto *notif = showCaptureNotification(img, path, QStringLiteral("image"), inhibited);
     QPointer<CaptureNotification> np(notif);
+    if (notif)
+        notif->setHistoryId(historyId); // Save/upload address exactly this entry
 
     if (uploading) {
         if (np) np->setUploading(true);
@@ -1240,6 +1402,22 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
     QPointer<CaptureNotification> np(n);
     if (n)
         n->setUploading(true);
+    // A recording's card carries the POSTER FRAME as its image — uploading
+    // that would ship a still PNG instead of the GIF/video. Upload the media
+    // file itself, exactly like finishRecordingEntry's auto-upload does.
+    if (n && n->kind() != QLatin1String("image") && !path.isEmpty()) {
+        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
+            if (!err.isEmpty()) {
+                showToast(tr("Upload failed: %1").arg(err), true);
+                if (np) np->setUploading(false);
+                return;
+            }
+            m_history->setUrl(path, url, del);
+            afterUploadActions(url);
+            if (np) np->setUrl(url);
+        });
+        return;
+    }
     const QString fileName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
     // Same off-thread encode + conditional image retention as finishCapture.
     encodeImageAsync(img, [this, path, np, fileName,
@@ -1253,7 +1431,10 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
                 }
                 if (!path.isEmpty())
                     m_history->setUrl(path, url, del);
-                else
+                // Unsaved capture: finishCapture already added a pathless
+                // entry for it — attach the URL to exactly that entry (by the
+                // card's history id). Fallback add only if it was evicted.
+                else if (!np || !m_history->setUrlById(np->historyId(), url, del))
                     m_history->addEntry({}, img, QStringLiteral("image"), url, del);
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
@@ -1264,7 +1445,9 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
                                                          const QString &kind, bool inhibited)
 {
-    if (!m_settings->showCapturePopup())
+    // The master "Show notifications" switch promises complete silence — it
+    // must cover capture cards (layer-shell AND native) exactly like toasts.
+    if (!m_settings->showCapturePopup() || !m_settings->showNotifications())
         return nullptr;
     // A real desktop notification (org.freedesktop.Notifications) with an inline
     // thumbnail and Open/Copy/Upload/Delete action buttons. The notification
@@ -1450,9 +1633,14 @@ void AppContext::copyImageToClipboard(const QImage &img)
         return;
     // PNG-encoding a 4K capture takes 100+ ms — keep it off the GUI thread.
     // QImage is implicitly shared and the worker only reads its copy.
+    // The deferred wl-copy must not land STALE: two rapid captures can finish
+    // encoding out of order, and the user may copy something else during the
+    // encode — only the newest copy request may take the Wayland selection
+    // (all m_clipboardSeq writers run on the GUI thread; no atomics needed).
+    const quint64 seq = ++m_clipboardSeq;
     QPointer<AppContext> self(this);
     QPointer<QCoreApplication> application(qApp);
-    (void)QtConcurrent::run([self, application, img, wlCopy] {
+    (void)QtConcurrent::run([self, application, img, wlCopy, seq] {
         QByteArray png;
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
@@ -1460,8 +1648,8 @@ void AppContext::copyImageToClipboard(const QImage &img)
         // QProcess must live on the GUI thread.
         if (!application)
             return;
-        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy] {
-            if (self)
+        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy, seq] {
+            if (self && self->m_clipboardSeq == seq)
                 spawnWlCopy(self, wlCopy, {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
         }, Qt::QueuedConnection);
     });
@@ -1472,6 +1660,7 @@ void AppContext::copyText(const QString &text)
     QGuiApplication::clipboard()->setText(text);
     if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
         return;
+    ++m_clipboardSeq; // a newer text copy invalidates any in-flight image mirror
     const QString wlCopy = wlCopyPath();
     if (!wlCopy.isEmpty()) {
         auto *proc = new QProcess(this);

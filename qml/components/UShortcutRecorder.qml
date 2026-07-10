@@ -68,7 +68,9 @@ Rectangle {
             return
         }
 
-        const value = App.formatShortcut(event.key, event.modifiers)
+        // nativeScanCode lets the Shift+symbol remap check the PHYSICAL key
+        // (layout-independent) — see ShortcutFormat.h.
+        const value = App.formatShortcut(event.key, event.modifiers, event.nativeScanCode)
         if (value.length > 0) {
             root.recorded(value)
             root.endRecording()

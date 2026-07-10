@@ -179,8 +179,13 @@ jobs:
         run: |
           sudo apt-get update
           # libtesseract-dev/libleptonica-dev: OCR is a compile-time optional
-          # (HAVE_TESSERACT) — linuxdeploy bundles the linked libs, language
-          # data is picked up from the user's system at runtime.
+          # (HAVE_TESSERACT) — linuxdeploy bundles the linked libs. Language
+          # data comes from the user's system at runtime, but the bundled
+          # Ubuntu libtesseract bakes in the Debian tessdata path
+          # (/usr/share/tesseract-ocr/4.00/tessdata), so on Fedora
+          # (/usr/share/tesseract/tessdata) or Arch (/usr/share/tessdata)
+          # hosts OCR needs TESSDATA_PREFIX set until OcrEngine probes the
+          # common distro paths itself.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl file desktop-file-utils patchelf libfuse2 \
             cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
@@ -208,18 +213,39 @@ jobs:
         # card, the overlay-over-fullscreen capture and the preview pin. No
         # Ubuntu package matches the aqt-installed Qt, so build the small KDE
         # lib from source. Best-effort: on failure the app still builds, with
-        # layer-shell features compiled out (as before).
+        # layer-shell features compiled out (the Build AppDir step warns).
         continue-on-error: true
         run: |
+          # layer-shell-qt 6.3.x hard-requires ECM >= 6.10 and jammy ships
+          # 5.92, so first install the matching ECM (script-only, seconds)
+          # into the same local prefix.
+          # BUILD_DOC=OFF matters: ECM auto-enables man/html docs when the
+          # runner happens to have sphinx-build, and those install rules
+          # reference files only a `cmake --build` would generate — the
+          # build-less install below would then hard-fail the whole step.
+          git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/extra-cmake-modules.git
+          cmake -S extra-cmake-modules -B build-ecm -G Ninja \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
+            -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
+          cmake --install build-ecm
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DBUILD_TESTING=OFF
           cmake --build build-lsq --parallel
           cmake --install build-lsq
-          # zxing-cpp (QR in OCR): Ubuntu 22.04 has no modern package — same
-          # best-effort source build into the same local prefix.
+
+      - name: Build zxing-cpp (against the aqt Qt)
+        # zxing-cpp (QR in OCR, HAVE_ZXING): Ubuntu 22.04 has no modern
+        # package — same best-effort source build into the same local prefix.
+        # Deliberately its OWN continue-on-error step: sharing a step with
+        # layer-shell-qt would let a layer-shell configure failure (bash -e)
+        # silently skip this build too.
+        continue-on-error: true
+        run: |
           git clone --depth 1 --branch v2.2.1 https://github.com/zxing-cpp/zxing-cpp.git
           cmake -S zxing-cpp -B build-zxing -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -230,6 +256,12 @@ jobs:
 
       - name: Build AppDir
         run: |
+          # The two optional builds above are continue-on-error — surface a
+          # missing component loudly instead of silently shipping without it.
+          find lsq-prefix -name 'LayerShellQtConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::layer-shell-qt build failed — AppImage ships without HAVE_LAYERSHELL (on-top card, preview pin)"
+          find lsq-prefix -name 'ZXingConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
@@ -325,6 +357,17 @@ jobs:
       options: --privileged
     steps:
       - uses: actions/checkout@v4
+
+      - name: Inject build number into manifest
+        # flatpak-builder runs module builds in a cleaned bwrap sandbox — the
+        # workflow-level UNISIC_BUILD_NUMBER env var is NOT inherited there,
+        # so patch it into the unisic module's build-options env (the manifest
+        # ships an empty placeholder). The manifest also pins
+        # -DUNISIC_DEV_BUILD=OFF, so this only affects the footer build label.
+        run: |
+          sed -i "s/UNISIC_BUILD_NUMBER: \"\"/UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"/" org.unisic.Unisic.yml
+          grep -q "UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"" org.unisic.Unisic.yml \
+            || { echo "::error::failed to inject UNISIC_BUILD_NUMBER into the flatpak manifest"; exit 1; }
 
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6

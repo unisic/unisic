@@ -28,6 +28,7 @@ static QImage makeThumb(const QImage &src)
 HistoryStore::HistoryStore(QObject *parent) : QAbstractListModel(parent)
 {
     load();
+    sweepThumbs();
 
     // External-deletion sync: watch the directories the captures live in (a
     // handful even at 500 entries) rather than 500 individual files. Our own
@@ -99,7 +100,12 @@ void HistoryStore::pruneMissing(const QSet<QString> *dirFilter)
         if (dirFilter && !e.filePath.isEmpty()
             && !dirFilter->contains(QFileInfo(e.filePath).absolutePath()))
             continue;
-        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)) {
+        // Missing file + present parent dir = actually deleted. If the whole
+        // directory is gone (unmounted removable/network volume) keep the
+        // entry — it revalidates on the next launch/change after remount
+        // instead of being destroyed while the capture file still exists.
+        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)
+            && QFileInfo(e.filePath).dir().exists()) {
             beginRemoveRows({}, i, i);
             QFile::remove(e.thumbPath);
             m_entries.removeAt(i);
@@ -111,6 +117,30 @@ void HistoryStore::pruneMissing(const QSet<QString> *dirFilter)
         persist();
         rebuildWatches();
         emit countChanged();
+    }
+}
+
+void HistoryStore::sweepThumbs()
+{
+    // Crash reconciliation: thumb PNGs are written/deleted immediately while
+    // the JSON index is persisted up to 500 ms later, so a hard kill in that
+    // window leaves orphaned PNGs in thumbs/ (nothing else ever reclaims them)
+    // or entries pointing at an already-deleted thumb. Runs once at startup,
+    // before the model is exposed — no change notifications needed.
+    QSet<QString> referenced;
+    for (Entry &e : m_entries) {
+        if (e.thumbPath.isEmpty())
+            continue;
+        if (QFile::exists(e.thumbPath))
+            referenced.insert(QFileInfo(e.thumbPath).absoluteFilePath());
+        else
+            e.thumbPath.clear();   // dangling — show a clean no-thumb tile
+    }
+    const QFileInfoList thumbs = QDir(dataDir() + "/thumbs")
+        .entryInfoList({QStringLiteral("*.png")}, QDir::Files);
+    for (const QFileInfo &fi : thumbs) {
+        if (!referenced.contains(fi.absoluteFilePath()))
+            QFile::remove(fi.absoluteFilePath());
     }
 }
 
@@ -132,6 +162,7 @@ void HistoryStore::load()
     for (const auto &v : arr) {
         const QJsonObject o = v.toObject();
         m_entries.append({
+            m_nextId++, // runtime-only id; fresh every load
             o.value(QStringLiteral("file")).toString(),
             o.value(QStringLiteral("thumb")).toString(),
             o.value(QStringLiteral("url")).toString(),
@@ -207,8 +238,8 @@ QHash<int, QByteArray> HistoryStore::roleNames() const
     };
 }
 
-void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
-                            const QString &kind, const QString &url, const QString &deleteUrl)
+quint64 HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
+                               const QString &kind, const QString &url, const QString &deleteUrl)
 {
     QString thumbPath;
     if (!thumbSource.isNull()) {
@@ -216,8 +247,9 @@ void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
                     QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
         makeThumb(thumbSource).save(thumbPath, "PNG");
     }
+    const quint64 id = m_nextId++;
     beginInsertRows({}, 0, 0);
-    m_entries.prepend({filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
+    m_entries.prepend({id, filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
     endInsertRows();
     while (m_entries.size() > 500) {
         // Cap eviction spares favorites: evict the oldest non-favorite.
@@ -235,6 +267,7 @@ void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
     persist();
     rebuildWatches();
     emit countChanged();
+    return id;
 }
 
 void HistoryStore::setUrl(const QString &filePath, const QString &url, const QString &deleteUrl)
@@ -248,6 +281,54 @@ void HistoryStore::setUrl(const QString &filePath, const QString &url, const QSt
             return;
         }
     }
+}
+
+bool HistoryStore::setUrlById(quint64 id, const QString &url, const QString &deleteUrl)
+{
+    // Attach an upload URL to exactly the capture's own entry: with several
+    // unsaved cards on screen a "newest pathless" heuristic would attach the
+    // URL to a different capture.
+    if (id == 0)
+        return false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].id == id) {
+            m_entries[i].url = url;
+            m_entries[i].deleteUrl = deleteUrl;
+            emit dataChanged(index(i), index(i), {UrlRole, DeleteUrlRole});
+            persist();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HistoryStore::setFilePathById(quint64 id, const QString &filePath)
+{
+    // The capture card's Save button persists an until-now unsaved capture:
+    // point its own entry (by id — see setUrlById) at the file so path-keyed
+    // lookups (Delete, upload URL) find it.
+    if (id == 0 || filePath.isEmpty())
+        return false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].id == id) {
+            m_entries[i].filePath = filePath;
+            emit dataChanged(index(i), index(i), {FilePathRole});
+            persist();
+            rebuildWatches();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HistoryStore::fileIsFavorite(const QString &filePath) const
+{
+    if (filePath.isEmpty())
+        return false;
+    for (const Entry &e : m_entries)
+        if (e.favorite && e.filePath == filePath)
+            return true;
+    return false;
 }
 
 void HistoryStore::refreshEntry(const QString &filePath, const QImage &img)
@@ -315,6 +396,11 @@ void HistoryStore::removeByFile(const QString &filePath)
         return;
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].filePath == filePath) {
+            // Same gate as remove(): starred entries must be un-starred before
+            // they can be deleted — this path is reachable from the capture
+            // notification's Delete button, which has no favorite check.
+            if (m_entries[i].favorite)
+                return;
             removeRow(i, /*trashFile=*/true);
             return;
         }

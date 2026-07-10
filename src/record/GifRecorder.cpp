@@ -51,6 +51,16 @@ static const QSet<QString> &ffmpegEncoders()
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
 {
+    // The lossless intermediates live in ~/.cache/unisic (disk-backed — see
+    // beginEncoding), which unlike /tmp is never reclaimed by a reboot: sweep
+    // recordings orphaned by a crash/SIGKILL (multi-GB each) once at startup.
+    // The recorder is constructed before any recording can start, so nothing
+    // live can be swept.
+    QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+    const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
+    for (const QString &f : stale)
+        cache.remove(f);
+
     m_sampler.setTimerType(Qt::PreciseTimer);
     connect(&m_sampler, &QTimer::timeout, this, &GifRecorder::sampleFrame);
     m_maxTimer.setSingleShot(true);
@@ -196,8 +206,13 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                          : QStringLiteral("mp4");
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
     QDir().mkpath(m_settings->saveDirectory());
-    m_tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                 + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
+    // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
+    // /tmp is tmpfs on Fedora and in Flatpak, and minutes of lossless 4K would
+    // exhaust RAM (max duration defaults to unlimited) and lose the recording
+    // when ffmpeg's write hits ENOSPC.
+    const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(tmpBase);
+    m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
     m_outPath = m_settings->saveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
@@ -702,6 +717,12 @@ void GifRecorder::cleanup()
 
 void GifRecorder::fail(const QString &msg)
 {
+    // Single-fire: a streamError/formatReady queued from the PipeWire thread
+    // just before abort() is still delivered after it (disconnect/deleteLater
+    // don't cancel already-posted queued calls) — without this guard a cancel
+    // during Starting could re-enter here and emit a second failed().
+    if (m_state == Idle)
+        return;
     qWarning() << "GifRecorder:" << msg;
     abort();
     emit failed(msg);

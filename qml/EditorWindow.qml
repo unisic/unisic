@@ -26,9 +26,21 @@ Window {
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
 
+    // Text still being typed in the floating input is visible on the canvas but
+    // only becomes an annotation on Enter — commit it before any export so the
+    // result is exactly what's rendered (empty text is a safe no-op).
+    function commitPendingText() {
+        if (editorTextInput.visible) {
+            canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, editorTextField.text)
+            editorTextInput.visible = false
+            shortcutScope.forceActiveFocus()
+        }
+    }
+
     // Editing an existing capture (from history) overwrites the original file, so
     // confirm first; a normal capture saves straight to a fresh file.
     function doSave() {
+        commitPendingText()
         if (editorSession.overwriteMode) overwriteConfirm.open()
         else editorSession.save()
     }
@@ -77,12 +89,17 @@ Window {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) editorSession.copyToClipboard()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) editorSession.upload()
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) { editorWindow.commitPendingText(); editorSession.upload() }
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Minus) canvasFlick.zoomBy(1 / 1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_0) canvasFlick.zoom = 0
-            else if (e.key === Qt.Key_Escape) editorWindow.close()
+            // Escape cancels an active crop selection first; only a second
+            // press (nothing pending) closes the editor.
+            else if (e.key === Qt.Key_Escape) {
+                if (canvas.hasSelection) canvas.clearSelection()
+                else editorWindow.close()
+            }
             else return
             e.accepted = true
         }
@@ -346,7 +363,9 @@ Window {
                         shapeFillColor = App.settings.editorFillColor
                         shapeFillEnabled = App.settings.editorFillEnabled
                     }
-                    onStrokeColorChanged: App.settings.editorStrokeColor = String(strokeColor)
+                    // The automatic highlighter red<->yellow swap must not leak
+                    // into the saved default — persist only real user picks.
+                    onStrokeColorChanged: if (!strokeColorIsAuto) App.settings.editorStrokeColor = String(strokeColor)
                     onStrokeWidthChanged: App.settings.editorStrokeWidth = strokeWidth
                     onFontSizeChanged: App.settings.editorFontSize = fontSize
                     onShapeFillColorChanged: App.settings.editorFillColor = String(shapeFillColor)
@@ -446,7 +465,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
 
-                UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: editorSession.copyToClipboard() }
+                UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() } }
                 UButton {
                     iconName: "document-save"
                     text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
@@ -455,7 +474,7 @@ Window {
                 UButton {
                     iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
                     enabled: !App.uploads.busy
-                    onClicked: editorSession.upload()
+                    onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                 }
                 UButton {
                     visible: App.ocrAvailable

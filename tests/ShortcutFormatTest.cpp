@@ -51,6 +51,24 @@ private slots:
         QCOMPARE(ShortcutFormat::portable(Qt::Key_Meta, int(Qt::MetaModifier)), QString());
         QCOMPARE(ShortcutFormat::portable(Qt::Key_Control, int(Qt::ControlModifier)), QString());
     }
+
+    void scanCodeGatesRemap()
+    {
+        const int mods = int(Qt::MetaModifier | Qt::ShiftModifier);
+        // Matching scancode (US position): symbol unshifts to the digit.
+        // XKB digit row: 1..0 = keycodes 10..19.
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Exclam, mods, 10),
+                 QStringLiteral("Meta+Shift+1"));
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Asterisk, mods, 17),
+                 QStringLiteral("Meta+Shift+8"));
+        // Foreign scancode (e.g. German '*' = Shift+Plus, keycode 35): the
+        // symbol must be recorded as-is, NOT bound to the digit-8 key.
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Asterisk, mods, 35),
+                 QStringLiteral("Meta+Shift+*"));
+        // Unknown scancode (0) keeps the unconditional legacy mapping.
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Asterisk, mods, 0),
+                 QStringLiteral("Meta+Shift+8"));
+    }
 };
 
 QTEST_APPLESS_MAIN(ShortcutFormatTest)

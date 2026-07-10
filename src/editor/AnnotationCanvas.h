@@ -21,6 +21,9 @@ class AnnotationCanvas : public QQuickPaintedItem
 
     Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged)
     Q_PROPERTY(QColor strokeColor READ strokeColor WRITE setStrokeColor NOTIFY strokeColorChanged)
+    // True while the current color came from the automatic highlighter
+    // red<->yellow swap (not a user pick) — consumers must not persist it.
+    Q_PROPERTY(bool strokeColorIsAuto READ strokeColorIsAuto NOTIFY strokeColorChanged)
     // "shapeFill*" — QQuickPaintedItem already has a fillColor property (the
     // item background); reusing that name shadows it and breaks both.
     Q_PROPERTY(QColor shapeFillColor READ shapeFillColor WRITE setShapeFillColor NOTIFY shapeFillColorChanged)
@@ -62,6 +65,7 @@ public:
     int tool() const { return m_tool; }
     void setTool(int t);
     QColor strokeColor() const { return m_color; }
+    bool strokeColorIsAuto() const { return m_strokeAuto; }
     void setStrokeColor(const QColor &c);
     QColor shapeFillColor() const { return m_fillColor; }
     void setShapeFillColor(const QColor &c);
@@ -91,6 +95,7 @@ public:
     Q_INVOKABLE void commitText(qreal imgX, qreal imgY, const QString &text);
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
+    Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
     Q_INVOKABLE QRectF selectionInItemCoords() const;
@@ -174,6 +179,10 @@ private:
 
     int m_tool = None;
     QColor m_color = QColor(QStringLiteral("#FF4757"));
+    // An explicit color pick disables the highlighter's automatic yellow
+    // default (see setTool) — the chosen color is then always drawn as-is.
+    bool m_strokeColorTouched = false;
+    bool m_strokeAuto = false; // current color set by the auto-swap, not the user
     QColor m_fillColor = QColor(255, 71, 87, 60);
     bool m_fillEnabled = false;
     int m_strokeWidth = 4;

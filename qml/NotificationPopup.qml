@@ -25,10 +25,15 @@ Window {
 
     // 0 = stay open until manually closed.
     readonly property int autoHideSec: App.settings.capturePopupDurationSec
-    readonly property string style: {
+    // Latched ONCE at creation, not live-bound: C++ sized the surface and the
+    // input mask for the creation-time style, so an open card switching layout
+    // mid-flight would overflow/clip the fixed window. New cards pick up the
+    // changed setting because LayerShellNotifier re-reads it per show().
+    property string style: "casual"
+    Component.onCompleted: {
         const s = App.settings.capturePopupStyle
-        return ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(s) >= 0
-               ? s : "casual"
+        if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(s) >= 0)
+            style = s
     }
 
     // Auto-dismiss, paused while the pointer is over the card.

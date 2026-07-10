@@ -144,6 +144,8 @@ public:
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
+    Q_INVOKABLE void devTestUpload();
+    Q_INVOKABLE void devTestSettingsRoundTrip();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -180,7 +182,7 @@ public:
     // must not vanish silently).
     Q_INVOKABLE void showToast(const QString &text, bool important = false);
     Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
-    Q_INVOKABLE QString formatShortcut(int key, int modifiers) const;
+    Q_INVOKABLE QString formatShortcut(int key, int modifiers, int nativeScanCode = 0) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);
     Q_INVOKABLE void applyHotkeys();
     // Push ONE just-edited action — never re-asserts the app's possibly-stale
@@ -264,6 +266,9 @@ private:
     // Query each action's live daemon binding; with heal, re-assert stored
     // keys on actions the daemon reports unbound. Lines for smoke/dev output.
     QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // Export -> verify all properties serialized -> import back. Returns a
+    // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
+    QString settingsRoundTripCheck();
 
     void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
@@ -338,6 +343,9 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    // Monotonic copy-request id: the deferred wl-copy mirror only fires when
+    // its request is still the newest (GUI-thread only, no atomics).
+    quint64 m_clipboardSeq = 0;
     // Developer smoke-test runner state (sequential async steps).
     void smokeNext();
     void smokeLog(const QString &line);
@@ -345,6 +353,5 @@ private:
     bool m_smokeRunning = false;
     QVector<std::function<void()>> m_smokeSteps;
     int m_smokeIdx = 0;
-    bool m_recordInhibited = false; // inhibit state at record start (recordings are exclusive)
 };
 

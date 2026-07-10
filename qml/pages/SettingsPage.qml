@@ -1080,7 +1080,7 @@ Item {
                     SettingRow {
                         label: qsTr("Smart pick")
                         help: qsTr("Click once during region selection to pick the detected object (window, panel, image) under the cursor.")
-                        helpDetail: qsTr("With Smart pick on, the region overlay highlights the interface element under your cursor — a single click selects its rectangle, no press-and-drag needed. Dragging still draws a manual rectangle, and the selection can be adjusted with the handles or arrow keys afterwards. Detection is a fast local edge-analysis pass (no ML, no network).")
+                        helpDetail: qsTr("With Smart pick on, the region overlay highlights the interface element under your cursor — a single click selects its rectangle, no press-and-drag needed. The scroll wheel changes the nesting level: from the innermost element, through its containers, up to the whole screen (the badge above the highlight shows size and level). Dragging still draws a manual rectangle, and the selection can be adjusted with the handles or arrow keys afterwards. Detection is a fast local edge-analysis pass (no ML, no network).")
                         USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
                     }
                 }

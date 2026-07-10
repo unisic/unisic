@@ -528,10 +528,15 @@ static QString smartPickDetectCheck()
         p.drawRect(QRect(120, 80, 160, 100));
     }
     const QVector<QRect> rects = ObjectDetector::detect(img);
-    for (const QRect &r : rects)
-        if (r.contains(QPoint(200, 130)))
-            return QStringLiteral("PASS (%1 candidates)").arg(rects.size());
-    return QStringLiteral("FAIL (%1 candidates, none under the probe point)").arg(rects.size());
+    // The whole image is always a candidate now, so "contains the point" is
+    // trivially true — assert the drawn rect was found with ACCURATE edges.
+    const QRect want(120, 80, 160, 100);
+    for (const QRect &r : rects) {
+        if (qAbs(r.left() - want.left()) <= 6 && qAbs(r.top() - want.top()) <= 6
+            && qAbs(r.right() - want.right()) <= 6 && qAbs(r.bottom() - want.bottom()) <= 6)
+            return QStringLiteral("PASS (%1 candidates, rect within ±6 px)").arg(rects.size());
+    }
+    return QStringLiteral("FAIL (%1 candidates, none matches the drawn rect)").arg(rects.size());
 }
 
 void AppContext::devTestSmartPick()

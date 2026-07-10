@@ -193,6 +193,34 @@ Window {
             }
         }
 
+        // Smart-pick hover badge: highlighted object's size + nesting level
+        // (scroll cycles inner element ⇄ container ⇄ whole screen).
+        Rectangle {
+            visible: !canvas.hasSelection && canvas.hoverObjectRect.width > 0
+            readonly property real hx: canvas.hoverObjectRect.x * canvas.renderScale
+            readonly property real hy: canvas.hoverObjectRect.y * canvas.renderScale
+            readonly property real hw: canvas.hoverObjectRect.width * canvas.renderScale
+            x: Math.max(4, Math.min(hx + hw / 2 - width / 2, parent.width - width - 8))
+            y: Math.max(4, hy - height - 10)
+            width: hoverDimText.implicitWidth + 22
+            height: 28
+            radius: 14
+            color: "#000000"
+            opacity: 0.8
+            Text {
+                id: hoverDimText
+                anchors.centerIn: parent
+                text: Math.round(canvas.hoverObjectRect.width) + " × "
+                      + Math.round(canvas.hoverObjectRect.height)
+                      + (canvas.hoverDepthCount > 1
+                         ? "   " + (canvas.hoverDepth + 1) + "/" + canvas.hoverDepthCount + " ↕"
+                         : "")
+                color: "#FFFFFF"
+                font.pixelSize: 12
+                font.family: "monospace"
+            }
+        }
+
         // Dimension readout — follows the selection
         Rectangle {
             visible: canvas.hasSelection
@@ -259,7 +287,7 @@ Window {
                 anchors.centerIn: parent
                 text: {
                     const drag = App.settings.smartPick
-                               ? qsTr("Click an object or drag to select")
+                               ? qsTr("Click an object (scroll = level) or drag to select")
                                : qsTr("Drag to select")
                     return annotationToolsEnabled
                            ? drag + qsTr(" · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")

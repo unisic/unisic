@@ -5,20 +5,64 @@
 #include <cmath>
 #include <limits>
 
+namespace {
+
+// Strongest-gradient refinement of one rect side at FULL resolution: the
+// detection pass runs downscaled, so a mapped-back edge can sit several real
+// pixels off the true border. Scores every candidate line within ±pad by its
+// summed cross-line contrast (sampled along the side's span) and returns the
+// winner — the input position when nothing beats it.
+int snapLine(const QImage &gray, bool vertical, int pos, int pad, int spanA, int spanB)
+{
+    const int limit = vertical ? gray.width() : gray.height();
+    spanA = std::max(spanA, 0);
+    spanB = std::min(spanB, (vertical ? gray.height() : gray.width()) - 1);
+    if (spanB - spanA < 4 || limit < 4)
+        return pos;
+    const int step = std::max(1, (spanB - spanA) / 64);
+    int best = pos;
+    qint64 bestScore = -1;
+    const int lo = std::max(1, pos - pad), hi = std::min(limit - 2, pos + pad);
+    for (int c = lo; c <= hi; ++c) {
+        qint64 score = 0;
+        if (vertical) {
+            for (int y = spanA; y <= spanB; y += step)
+                score += std::abs(int(gray.constScanLine(y)[c + 1])
+                                  - int(gray.constScanLine(y)[c - 1]));
+        } else {
+            const uchar *up = gray.constScanLine(c - 1);
+            const uchar *dn = gray.constScanLine(c + 1);
+            for (int x = spanA; x <= spanB; x += step)
+                score += std::abs(int(dn[x]) - int(up[x]));
+        }
+        if (score > bestScore) { bestScore = score; best = c; }
+    }
+    return best;
+}
+
+} // namespace
+
 QVector<QRect> ObjectDetector::detect(const QImage &src)
 {
     QVector<QRect> result;
     if (src.isNull() || src.width() < 16 || src.height() < 16)
         return result;
 
-    // 1. Downscale for speed; remember the factor to map rects back.
-    const int maxDim = 640;
+    // 1. Downscale for speed — to 1024, not 640: on a 2560-wide screen the old
+    //    ceiling meant 4x scale, so every edge was up to ±4 real px off and
+    //    anything under ~96 px fell below minSide. Detection stays off the GUI
+    //    thread, so the ~2.5x extra work is invisible; a full-res grayscale is
+    //    kept for the edge-snap refinement pass at the end.
+    const int maxDim = 1024;
     const int longest = std::max(src.width(), src.height());
     const double scale = longest > maxDim ? double(longest) / maxDim : 1.0;
     const int sw = std::max(3, int(std::lround(src.width() / scale)));
     const int sh = std::max(3, int(std::lround(src.height() / scale)));
-    const QImage gray = src.scaled(sw, sh, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-                            .convertToFormat(QImage::Format_Grayscale8);
+    const QImage grayFull = src.convertToFormat(QImage::Format_Grayscale8);
+    const QImage gray = scale > 1.0
+                            ? grayFull.scaled(sw, sh, Qt::IgnoreAspectRatio,
+                                              Qt::SmoothTransformation)
+                            : grayFull;
     const int w = gray.width();
     const int h = gray.height();
     if (w < 3 || h < 3)
@@ -47,7 +91,9 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
     const int thresh = int(mean + std::sqrt(var));
 
     // 3. Binary edge map, then a single 3x3 dilation to bridge 1px gaps so an
-    //    object's outline reads as one connected component.
+    //    object's outline reads as one connected component. The RAW map is
+    //    kept: the rectangularity filter below must measure the true outline,
+    //    not the dilated smear.
     QVector<uchar> edge(w * h, 0);
     for (int i = 0; i < w * h; ++i)
         edge[i] = mag[i] > thresh ? 1 : 0;
@@ -63,11 +109,35 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                 }
         }
 
+    // Fraction of one bbox side covered by RAW edge pixels (±1 px band).
+    auto sideCoverage = [&](int x0, int x1, int y0, int y1, bool horizontal) -> double {
+        int hits = 0, len = 0;
+        if (horizontal) {
+            const int y = y0;
+            for (int x = x0; x <= x1; ++x, ++len)
+                for (int dy = -1; dy <= 1; ++dy) {
+                    const int yy = y + dy;
+                    if (yy >= 0 && yy < h && edge[yy*w + x]) { ++hits; break; }
+                }
+        } else {
+            const int x = x0;
+            for (int y = y0; y <= y1; ++y, ++len)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int xx = x + dx;
+                    if (xx >= 0 && xx < w && edge[y*w + xx]) { ++hits; break; }
+                }
+        }
+        return len ? double(hits) / len : 0.0;
+    };
+
     // 4. Connected components (8-connectivity); a component's bounding box
-    //    approximates the object it outlines.
+    //    approximates the object it outlines. UI elements are axis-aligned
+    //    RECTANGLES though — so a bbox only survives if its perimeter is
+    //    actually traced by edges (per-side coverage), which kills the sloppy
+    //    merged-content blobs that used to produce arbitrary boxes.
     QVector<uchar> seen(w * h, 0);
     QStack<int> stack;
-    const int minSide = 24; // downscaled px
+    const int minSide = 16; // downscaled px (~40 real px at 2560-wide)
     for (int start = 0; start < w * h; ++start) {
         if (!dil[start] || seen[start])
             continue;
@@ -93,14 +163,36 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
         }
         const int bw = maxx - minx + 1, bh = maxy - miny + 1;
         if (bw < minSide || bh < minSide) continue;
-        if (bw > w * 0.97 && bh > h * 0.97) continue; // whole screen, not useful
+        if (bw > w * 0.97 && bh > h * 0.97) continue; // whole screen added explicitly below
+        const double top    = sideCoverage(minx, maxx, miny, miny, true);
+        const double bottom = sideCoverage(minx, maxx, maxy, maxy, true);
+        const double left   = sideCoverage(minx, minx, miny, maxy, false);
+        const double right  = sideCoverage(maxx, maxx, miny, maxy, false);
+        const double avg = (top + bottom + left + right) / 4.0;
+        // Rounded corners and title-bar buttons eat a little coverage; real
+        // window/panel/card outlines still trace well over half their box.
+        if (avg < 0.55 || std::min(std::min(top, bottom), std::min(left, right)) < 0.30)
+            continue;
+
+        // 5. Map back to full resolution and snap each side onto the strongest
+        //    nearby gradient line — pixel-accurate borders instead of
+        //    scale-quantized ones.
         QRect r(int(minx * scale), int(miny * scale), int(bw * scale), int(bh * scale));
         r = r.intersected(QRect(0, 0, src.width(), src.height()));
-        if (r.width() >= 8 && r.height() >= 8)
-            result.append(r);
+        if (r.width() < 8 || r.height() < 8)
+            continue;
+        const int pad = int(std::ceil(scale)) + 2;
+        const int margin = std::min(r.width(), r.height()) / 8;
+        const int newL = snapLine(grayFull, true,  r.left(),   pad, r.top() + margin,  r.bottom() - margin);
+        const int newR = snapLine(grayFull, true,  r.right(),  pad, r.top() + margin,  r.bottom() - margin);
+        const int newT = snapLine(grayFull, false, r.top(),    pad, r.left() + margin, r.right() - margin);
+        const int newB = snapLine(grayFull, false, r.bottom(), pad, r.left() + margin, r.right() - margin);
+        if (newR - newL >= 8 && newB - newT >= 8)
+            r = QRect(QPoint(newL, newT), QPoint(newR, newB));
+        result.append(r);
     }
 
-    // 5. Drop near-duplicates (IoU > 0.8), keeping the larger of each pair.
+    // 6. Drop near-duplicates (IoU > 0.75), keeping the larger of each pair.
     std::sort(result.begin(), result.end(), [](const QRect &a, const QRect &b) {
         return qint64(a.width()) * a.height() > qint64(b.width()) * b.height();
     });
@@ -113,11 +205,18 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             const double ia = double(inter.width()) * inter.height();
             const double ua = double(r.width()) * r.height()
                               + double(m.width()) * m.height() - ia;
-            if (ua > 0 && ia / ua > 0.8) { dup = true; break; }
+            if (ua > 0 && ia / ua > 0.75) { dup = true; break; }
         }
         if (!dup)
             merged.append(r);
+        if (merged.size() >= 400)
+            break; // hover does a linear scan per move — keep it bounded
     }
+
+    // 7. The whole image is always the outermost candidate: scrolling the
+    //    nesting level up ends at "this entire screen".
+    merged.append(QRect(0, 0, src.width(), src.height()));
+
     std::sort(merged.begin(), merged.end(), [](const QRect &a, const QRect &b) {
         return qint64(a.width()) * a.height() < qint64(b.width()) * b.height();
     });

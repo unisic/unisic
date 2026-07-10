@@ -35,6 +35,13 @@ class AnnotationCanvas : public QQuickPaintedItem
     // highlights the detected object under the cursor and a CLICK (no drag)
     // selects its rect; dragging still draws a manual rectangle.
     Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
+    // Hover state for the pick modes (smart pick / ObjectPick): the currently
+    // highlighted object rect (image px; null when none), plus the nesting
+    // position — hoverDepth-th of hoverDepthCount rects under the cursor
+    // (inner→outer, scroll wheel cycles). QML draws the size/level badge.
+    Q_PROPERTY(QRectF hoverObjectRect READ hoverObjectRect NOTIFY hoverObjectChanged)
+    Q_PROPERTY(int hoverDepth READ hoverDepth NOTIFY hoverObjectChanged)
+    Q_PROPERTY(int hoverDepthCount READ hoverDepthCount NOTIFY hoverObjectChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -82,6 +89,9 @@ public:
     bool selectionMode() const { return m_selectionMode; }
     bool smartPick() const { return m_smartPick; }
     void setSmartPick(bool on);
+    QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
+    int hoverDepth() const { return m_pickDepth; }
+    int hoverDepthCount() const { return int(m_hoverChain.size()); }
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -120,6 +130,7 @@ signals:
     void fontSizeChanged();
     void selectionModeChanged();
     void smartPickChanged();
+    void hoverObjectChanged();
     void selectionRectChanged();
     void hoverPointChanged();
     void historyChanged();
@@ -135,6 +146,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void hoverMoveEvent(QHoverEvent *e) override;
+    void wheelEvent(QWheelEvent *e) override;
     void geometryChange(const QRectF &n, const QRectF &o) override;
 
 private:
@@ -181,6 +193,9 @@ private:
     // Kick off (once) the async edge-detection pass that fills
     // m_objectCandidates — shared by the ObjectPick tool and smart pick.
     void ensureObjectCandidates();
+    // Rebuild the containing-candidates chain for imgPos and pick the
+    // m_pickDepth-th (clamped); emits hoverObjectChanged + repaints on change.
+    void updateHoverObject(const QPoint &imgPos);
 
     QImage m_base;
     QVector<Annot> m_items;
@@ -214,6 +229,9 @@ private:
     // Object-pick mode (overlay): detected candidate rects + the one under the
     // cursor. Detection runs off-thread the first time the tool is selected.
     QVector<QRect> m_objectCandidates;
+    QVector<QRect> m_hoverChain; // candidates containing the cursor, inner→outer
+    int m_pickDepth = 0;         // 0 = innermost; scroll wheel moves outward
+    QPoint m_lastHoverImg;
     QRect m_hoverObject;
     QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;
 

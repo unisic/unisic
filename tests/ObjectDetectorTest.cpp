@@ -10,9 +10,18 @@ class ObjectDetectorTest : public QObject
 
 private slots:
     void detectsHighContrastObject();
+    void detectsNestedRects();
     void segmentsCenteredObject();
     void rejectsInvalidSegmentationRegion();
 };
+
+static bool hasRectNear(const QVector<QRect> &candidates, const QRect &want, int tol)
+{
+    return std::any_of(candidates.cbegin(), candidates.cend(), [&](const QRect &r) {
+        return qAbs(r.left() - want.left()) <= tol && qAbs(r.top() - want.top()) <= tol
+            && qAbs(r.right() - want.right()) <= tol && qAbs(r.bottom() - want.bottom()) <= tol;
+    });
+}
 
 void ObjectDetectorTest::detectsHighContrastObject()
 {
@@ -26,10 +35,40 @@ void ObjectDetectorTest::detectsHighContrastObject()
     const QVector<QRect> candidates = ObjectDetector::detect(image);
     QVERIFY(!candidates.isEmpty());
 
-    const QPoint objectCenter(155, 100);
-    QVERIFY(std::any_of(candidates.cbegin(), candidates.cend(), [objectCenter](const QRect &candidate) {
-        return candidate.contains(objectCenter);
-    }));
+    // Not just "something under the point" — the drawn rect itself, with
+    // accurate (edge-snapped) borders.
+    QVERIFY(hasRectNear(candidates, QRect(80, 50, 150, 100), 4));
+
+    // The whole image is always the outermost candidate (the scroll-up end
+    // of the nesting chain).
+    QVERIFY(candidates.last() == image.rect());
+}
+
+void ObjectDetectorTest::detectsNestedRects()
+{
+    // A window-like container with an inner panel: both must be found, area-
+    // sorted inner-first — the overlay's nesting chain depends on that order.
+    QImage image(640, 400, QImage::Format_RGB32);
+    image.fill(QColor(0x17, 0x15, 0x3B));
+
+    QPainter painter(&image);
+    painter.fillRect(QRect(60, 40, 500, 300), QColor(0xEC, 0xEC, 0xF4));   // window
+    painter.fillRect(QRect(120, 90, 200, 120), QColor(0x43, 0x3D, 0x8B));  // panel
+    painter.end();
+
+    const QVector<QRect> candidates = ObjectDetector::detect(image);
+    QVERIFY(hasRectNear(candidates, QRect(60, 40, 500, 300), 6));
+    QVERIFY(hasRectNear(candidates, QRect(120, 90, 200, 120), 6));
+
+    const QPoint inner(200, 140);
+    QVector<QRect> chain;
+    for (const QRect &r : candidates)
+        if (r.contains(inner))
+            chain.append(r);
+    QVERIFY(chain.size() >= 3); // panel, window, whole screen
+    for (int i = 1; i < chain.size(); ++i)
+        QVERIFY(qint64(chain[i].width()) * chain[i].height()
+                >= qint64(chain[i-1].width()) * chain[i-1].height());
 }
 
 void ObjectDetectorTest::segmentsCenteredObject()

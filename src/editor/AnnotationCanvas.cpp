@@ -3,6 +3,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QHoverEvent>
 #include <QCursor>
 #include <QtMath>
@@ -607,9 +608,12 @@ void AnnotationCanvas::paint(QPainter *painter)
             painter->setPen(Qt::NoPen);
             painter->setBrush(QColor(23, 21, 59, 150));
             painter->drawPath(full);
-            QPen border(QColor(200, 172, 214), 2.0 / s); // accent
-            painter->setPen(border);
             painter->setBrush(Qt::NoBrush);
+            // White halo under the accent line: keeps the highlight readable
+            // over dark and light content alike.
+            painter->setPen(QPen(QColor(255, 255, 255, 160), 4.0 / s));
+            painter->drawRect(QRectF(m_hoverObject));
+            painter->setPen(QPen(QColor(200, 172, 214), 2.0 / s)); // accent
             painter->drawRect(QRectF(m_hoverObject));
         }
     } else if (m_selectionMode) {
@@ -927,16 +931,17 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // exactly like today's empty click. (An ObjectPick pending click keeps
     // its existing no-op semantics.)
     if (m_drag == PendingNewSelection && m_selectionMode && m_tool == None && m_smartPick) {
-        const QPoint p = m_dragStart.toPoint();
-        for (const QRect &r : std::as_const(m_objectCandidates)) {
-            if (r.contains(p)) {
-                m_selection = QRectF(r);
-                normalizeSelection();
-                m_hoverObject = QRect();
-                emit selectionRectChanged();
-                update();
-                break;
-            }
+        // The highlighted rect IS the promise — select exactly it (including
+        // the scroll-chosen nesting level), not a recomputed first hit.
+        updateHoverObject(m_dragStart.toPoint());
+        if (!m_hoverObject.isNull()) {
+            m_selection = QRectF(m_hoverObject);
+            normalizeSelection();
+            m_hoverObject = QRect();
+            m_hoverChain.clear();
+            emit hoverObjectChanged();
+            emit selectionRectChanged();
+            update();
         }
     }
     if (m_drag == DrawDrag && m_drawing) {
@@ -971,40 +976,62 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
     e->accept();
 }
 
+void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
+{
+    m_lastHoverImg = imgPos;
+    QVector<QRect> chain;
+    for (const QRect &r : std::as_const(m_objectCandidates))
+        if (r.contains(imgPos))
+            chain.append(r); // candidates are area-sorted -> chain is inner→outer
+    if (chain.isEmpty())
+        m_pickDepth = 0;
+    const QRect found = chain.isEmpty()
+        ? QRect()
+        : chain.at(qBound(0, m_pickDepth, int(chain.size()) - 1));
+    const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size());
+    m_hoverChain = chain;
+    if (changed) {
+        m_hoverObject = found;
+        emit hoverObjectChanged();
+        update();
+    }
+}
+
+void AnnotationCanvas::wheelEvent(QWheelEvent *e)
+{
+    // Scroll cycles the nesting level while hovering in a pick mode: down =
+    // innermost element, up = enclosing containers, topmost = whole screen.
+    const bool pickHover = !hasSelection()
+        && (m_tool == ObjectPick || (m_selectionMode && m_tool == None && m_smartPick));
+    if (!pickHover || m_hoverChain.size() < 2) {
+        e->ignore();
+        return;
+    }
+    const int dir = e->angleDelta().y() > 0 ? 1 : -1;
+    const int depth = qBound(0, m_pickDepth + dir, int(m_hoverChain.size()) - 1);
+    if (depth != m_pickDepth) {
+        m_pickDepth = depth;
+        updateHoverObject(m_lastHoverImg);
+    }
+    e->accept();
+}
+
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
 {
     m_hoverPoint = e->position();
     emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
     if (m_tool == ObjectPick) {
-        // Candidates are sorted smallest-first, so the first hit is the
-        // innermost element under the cursor.
-        QRect found;
-        const QPoint p = img.toPoint();
-        for (const QRect &r : std::as_const(m_objectCandidates)) {
-            if (r.contains(p)) { found = r; break; }
-        }
-        if (found != m_hoverObject) {
-            m_hoverObject = found;
-            update();
-        }
-        setCursor(found.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        updateHoverObject(img.toPoint());
+        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
         e->accept();
         return;
     }
     if (m_selectionMode && m_tool == None && m_smartPick && !hasSelection()) {
-        // Smart pick: highlight the innermost detected object under the
-        // cursor (same candidate list as the ObjectPick tool).
-        QRect found;
-        const QPoint p = img.toPoint();
-        for (const QRect &r : std::as_const(m_objectCandidates)) {
-            if (r.contains(p)) { found = r; break; }
-        }
-        if (found != m_hoverObject) {
-            m_hoverObject = found;
-            update();
-        }
-        setCursor(found.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        // Smart pick: highlight the detected object under the cursor at the
+        // current nesting depth (same candidate list as the ObjectPick tool).
+        updateHoverObject(img.toPoint());
+        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
         e->accept();
         return;
     }

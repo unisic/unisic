@@ -19,8 +19,12 @@ Window {
                            ? previewImageSize : Qt.size(640, 400)
     readonly property bool layerMode: previewCtl ? previewCtl.layerShell : false
 
-    readonly property int maxW: Screen.desktopAvailableWidth * 0.7
-    readonly property int maxH: Screen.desktopAvailableHeight * 0.7
+    // Size against the window's OWN screen — desktopAvailable* spans all
+    // monitors, but the layer surface only covers one output, so a stitched
+    // multi-monitor capture would size the card wider than the surface and
+    // push the (right-anchored) close/opacity/resize controls off-screen.
+    readonly property int maxW: Screen.width * 0.7
+    readonly property int maxH: Screen.height * 0.7
     readonly property real fit: Math.min(1.0, maxW / imgSize.width,
                                          (maxH - 40) / imgSize.height)
     readonly property int cardW: Math.max(280, Math.round(imgSize.width * fit))
@@ -34,7 +38,7 @@ Window {
     minimumWidth: layerMode ? 0 : 280
     minimumHeight: layerMode ? 0 : 160
     color: "transparent"
-    title: qsTr("Unisic — Preview")
+    title: qsTr("Unisic Preview")
 
     // Static flags (no dependencies → evaluated once): PreviewController adds
     // stays-on-top imperatively, so a rebinding here can't clobber it.
@@ -57,9 +61,10 @@ Window {
             id: card
             // Fallback mode: the card IS the window, so it follows the window
             // size (system resize). Layer mode: the resize grip writes width/
-            // height directly (breaking these initial bindings — intended).
-            width: preview.layerMode ? preview.cardW : root.width
-            height: preview.layerMode ? preview.cardH : root.height
+            // height directly (breaking these initial bindings — intended);
+            // clamp to the surface so the controls always stay reachable.
+            width: preview.layerMode ? Math.min(preview.cardW, root.width) : root.width
+            height: preview.layerMode ? Math.min(preview.cardH, root.height) : root.height
             x: preview.layerMode ? Math.max(0, root.width - width - 64) : 0
             y: preview.layerMode ? Math.min(64, Math.max(0, root.height - height)) : 0
             radius: Theme.radiusM

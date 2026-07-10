@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.2.2 LANGUAGES CXX)
+project(unisic VERSION 0.3.0 LANGUAGES CXX)
+# Human-facing version. project(VERSION) only takes numeric tuples, so
+# pre-release suffixes live here (a letter suffix like "0.3b" -> the
+# workflow marks the GitHub release pre-release); this string
+# drives the binary footer, package versions and the GitHub release tag.
+set(UNISIC_VERSION_STRING "0.3")
 
 include(GNUInstallDirs)
 
@@ -19,6 +24,9 @@ pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
+# QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
+# pages/) so tooling resolves them; also silences the configure warning.
+qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(unisic
     src/main.cpp
@@ -56,7 +64,7 @@ else()
     set(UNISIC_BUILD "dev")
 endif()
 target_compile_definitions(unisic PRIVATE
-    UNISIC_VERSION="${PROJECT_VERSION}"
+    UNISIC_VERSION="${UNISIC_VERSION_STRING}"
     UNISIC_BUILD="${UNISIC_BUILD}")
 
 # Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
@@ -86,6 +94,16 @@ if(TESSERACT_FOUND)
     target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
     target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT)
     target_compile_definitions(unisic PRIVATE HAVE_TESSERACT)
+    # QR/barcode decoding inside the OCR path (zxing-cpp, optional): a QR in
+    # the scanned region copies its payload instead of OCR-ing its pixels.
+    find_package(ZXing CONFIG QUIET)
+    if(ZXing_FOUND)
+        target_link_libraries(unisic PRIVATE ZXing::ZXing)
+        target_compile_definitions(unisic PRIVATE HAVE_ZXING)
+        message(STATUS "QR decoding in OCR: enabled (zxing-cpp)")
+    else()
+        message(STATUS "QR decoding in OCR: disabled (needs zxing-cpp-devel)")
+    endif()
 else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
 endif()
@@ -131,7 +149,11 @@ qt_add_qml_module(unisic
         qml/components/USlider.qml
         qml/components/UTextField.qml
         qml/components/UShortcutRecorder.qml
+        qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
+        qml/components/UConfirmDialog.qml
+        qml/components/UColorPopup.qml
+        qml/components/UHoverTip.qml
         qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
@@ -148,7 +170,7 @@ target_link_libraries(unisic PRIVATE
 
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 
-file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
+file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
 # Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
@@ -175,8 +197,8 @@ set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
 set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_PACKAGE_VERSION ${UNISIC_VERSION_STRING})
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${UNISIC_VERSION_STRING}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_STRIP_FILES TRUE)
 
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")
@@ -200,7 +222,11 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal")
+# "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
+# stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
+# GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
+# a package-name Requires would make the RPM uninstallable on stock Fedora.
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
@@ -208,6 +234,14 @@ include(CPack)
 include(CTest)
 if(BUILD_TESTING)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    qt_add_executable(unisic_shortcut_format_test
+        tests/ShortcutFormatTest.cpp
+        src/hotkeys/ShortcutFormat.h
+    )
+    target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
+    add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
     qt_add_executable(unisic_object_detector_test
         tests/ObjectDetectorTest.cpp
         src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp

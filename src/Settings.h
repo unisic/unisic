@@ -57,6 +57,7 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
+    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
     Q_PROPERTY(bool quickCopyAfterCapture READ quickCopyAfterCapture WRITE setQuickCopyAfterCapture NOTIFY quickCopyAfterCaptureChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
@@ -65,8 +66,10 @@ class Settings : public QObject
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
+    Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
+    Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
@@ -168,7 +171,7 @@ public:
         m_s.sync();
         if (!m_writable)
             qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
-                       << "(check permissions/ownership of ~/.config/Unisic).";
+                       << "(check permissions/ownership of ~/.config/unisic).";
     }
 
     // False when the config file cannot actually be written back (the UI shows
@@ -221,6 +224,11 @@ public:
     // Crosshair guide lines from the cursor to the screen edges while selecting a
     // region (screenshot AND recording overlay). Off by default.
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
+    // Region overlay: a plain CLICK selects the detected object (window,
+    // panel, image) under the cursor; dragging still draws a manual rect.
+    // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
+    // window/element reliably without heavy vision libraries.
+    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", false)
     U_SETTING(bool, quickCopyAfterCapture, setQuickCopyAfterCapture, "capture/quickCopyAfterCapture", true)
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
@@ -230,8 +238,11 @@ public:
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
+    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
+    // "casual" (full card) | "compact" (single slim row)
+    U_SETTING(QString, capturePopupStyle, setCapturePopupStyle, "capturePopupStyle", QStringLiteral("casual"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
     // Skip the capture card while notifications are inhibited (a fullscreen app,
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
@@ -264,13 +275,14 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
-        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
+        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
         emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
+        emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
-        emit capturePopupDurationSecChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
@@ -308,6 +320,7 @@ signals:
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
+    void smartPickChanged();
     void quickCopyAfterCaptureChanged();
     void videoFpsChanged();
     void videoFormatChanged();
@@ -316,8 +329,10 @@ signals:
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
     void hotkeyRecordChanged();
+    void hotkeyOcrChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
+    void capturePopupStyleChanged();
     void capturePopupDurationSecChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();

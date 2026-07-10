@@ -2,6 +2,7 @@
 
 #include <QGuiApplication>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QTest>
 
 class TestAnnotationCanvas final : public AnnotationCanvas
@@ -10,6 +11,7 @@ public:
     using AnnotationCanvas::mouseMoveEvent;
     using AnnotationCanvas::mousePressEvent;
     using AnnotationCanvas::mouseReleaseEvent;
+    using AnnotationCanvas::hoverMoveEvent;
 };
 
 class AnnotationCanvasTest : public QObject
@@ -18,6 +20,7 @@ class AnnotationCanvasTest : public QObject
 
 private slots:
     void penStrokeKeepsReleaseEndpoint();
+    void smartPickPrefersTiledWindow();
 };
 
 void AnnotationCanvasTest::penStrokeKeepsReleaseEndpoint()
@@ -47,6 +50,33 @@ void AnnotationCanvasTest::penStrokeKeepsReleaseEndpoint()
 
     const QColor endpoint = canvas.rendered().pixelColor(85, 50);
     QVERIFY2(endpoint.lightness() < 80, "the rendered pen path must include its release endpoint");
+}
+
+void AnnotationCanvasTest::smartPickPrefersTiledWindow()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(640);
+    canvas.setHeight(400);
+
+    QImage image(640, 400, QImage::Format_ARGB32_Premultiplied);
+    QPainter painter(&image);
+    painter.fillRect(QRect(0, 0, 320, 200), QColor(35, 38, 42));
+    painter.fillRect(QRect(320, 0, 320, 200), QColor(41, 44, 48));
+    painter.fillRect(QRect(0, 200, 320, 200), QColor(47, 50, 54));
+    painter.fillRect(QRect(320, 200, 320, 200), QColor(53, 56, 60));
+    painter.end();
+
+    canvas.setImage(image);
+    canvas.setSelectionMode(true);
+    canvas.setSmartPick(true);
+
+    QHoverEvent hover(QEvent::HoverMove, QPointF(100, 100), QPointF(100, 100), QPointF(99, 99));
+    canvas.hoverMoveEvent(&hover);
+
+    QTRY_COMPARE(canvas.hoverObjectKind(), QStringLiteral("Window"));
+    const QRectF rect = canvas.hoverObjectRect();
+    QVERIFY(qAbs(rect.left()) <= 7 && qAbs(rect.top()) <= 7);
+    QVERIFY(qAbs(rect.right() - 319) <= 7 && qAbs(rect.bottom() - 199) <= 7);
 }
 
 int main(int argc, char *argv[])

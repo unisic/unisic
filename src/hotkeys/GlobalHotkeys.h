@@ -17,13 +17,12 @@ public:
     // Register the action with KGlobalAccel and set its default shortcut. Uses
     // autoloading so KDE's stored key (incl. edits made in the System Settings
     // Shortcuts KCM) stays authoritative — call this on startup for every
-    // action. The daemon's reply already carries the ACTIVE keys — returned via
-    // the out-params so startup does not need 10 extra shortcutKeys
-    // round-trips for the bootstrap check and KCM-drift sync. `ok` false on
-    // error/timeout (never treat that as "unbound").
+    // action. The setShortcut reply is deliberately NOT surfaced: kglobalacceld
+    // (observed live) echoes the requested keys on an IsDefault call even when
+    // it only filled the default column and the ACTIVE binding stayed "none" —
+    // only a real activeKeys() query tells the truth.
     void defineAction(const QString &actionId, const QString &friendlyName,
-                      const QString &defaultKeySequence,
-                      QList<int> *activeKeysOut = nullptr, bool *ok = nullptr);
+                      const QString &defaultKeySequence);
 
     // Push a user-chosen shortcut from Unisic's own settings to KGlobalAccel so
     // the change propagates to the DE. Call this only when the user edits a key
@@ -48,6 +47,16 @@ public:
     // daemon-authoritative sync.
     QList<int> activeKeys(const QString &actionId, bool *ok = nullptr) const;
 
+    // Shift+digit bindings are pushed with their shifted-symbol variants as
+    // alternates (KWin Wayland reports the press with shift consumed — see
+    // the impl); portableFromKeys() collapses them back for display.
+    static QList<int> expandShiftDigitVariants(const QList<int> &keys);
+
+    // True when two portable strings describe the same binding SET — the
+    // daemon reorders alternate keys in its replies ([F9, Meta+F9] comes
+    // back as [Meta+F9, F9]), so string comparison over-reports drift.
+    static bool sameBinding(const QString &a, const QString &b);
+
     // First non-empty key as a portable QKeySequence string ("Meta+Shift+1"),
     // for daemon-authoritative display in the settings UI.
     static QString portableFromKeys(const QList<int> &keys);
@@ -66,9 +75,12 @@ private slots:
     void onYourShortcutsChanged(const QStringList &actionId, const QList<int> &newKeys);
     void onYourShortcutsListChanged(const QDBusMessage &msg);
 
+    // Portable string -> flat combined-int list (each chord of a multi-key
+    // string becomes one ALTERNATE key of the action).
+    static QList<int> keysFor(const QString &keySequence);
+
 private:
     QStringList fullActionId(const QString &actionId, const QString &friendlyName) const;
-    QList<int> keysFor(const QString &keySequence) const;
     void ensureSignalConnected();
 
     static constexpr const char *COMPONENT = "unisic";

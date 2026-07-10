@@ -98,7 +98,7 @@ Item {
                         }
                         USpinBox {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 0; to: 600; value: App.settings.gifMaxDurationSec; suffix: " s"
+                            from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"
                             onChanged: (v) => App.settings.gifMaxDurationSec = v
                         }
                     }

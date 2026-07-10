@@ -3,9 +3,11 @@
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
 #include "overlay/OverlayController.h"
+#include "overlay/ObjectDetector.h"
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
+#include "hotkeys/ShortcutFormat.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
@@ -51,6 +53,7 @@
 #include <QPainter>
 #include <QFile>
 #include <QFileInfo>
+#include <QTemporaryFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -117,7 +120,7 @@ AppContext::AppContext(QObject *parent)
     // A history file that could not be trashed still gets its entry removed;
     // let the user know the file is still on disk.
     connect(m_history, &HistoryStore::fileTrashFailed, this, [this](const QString &path) {
-        showToast(tr("Could not move %1 to trash — the file is still on disk").arg(path), true);
+        showToast(tr("Could not move %1 to trash; the file is still on disk").arg(path), true);
     });
 
     // Live-apply a custom tray icon the moment the setting changes (also covers
@@ -224,6 +227,7 @@ void AppContext::dispatchHotkey(const QString &action)
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
     else if (action == QLatin1String("capture-region")) captureRegion();
     else if (action == QLatin1String("capture-window")) captureWindow();
+    else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
         if (recording()) stopRecording();
         else startGifRegion();
@@ -254,6 +258,15 @@ bool AppContext::recordingAvailable() const
 bool AppContext::ocrAvailable() const
 {
 #ifdef HAVE_TESSERACT
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool AppContext::qrAvailable() const
+{
+#ifdef HAVE_ZXING
     return true;
 #else
     return false;
@@ -302,26 +315,11 @@ void AppContext::showToast(const QString &text, bool important)
     emit toastChanged();
 }
 
-QString AppContext::formatShortcut(int key, int modifiers) const
+QString AppContext::formatShortcut(int key, int modifiers, int nativeScanCode) const
 {
-    switch (key) {
-    case Qt::Key_Control:
-    case Qt::Key_Shift:
-    case Qt::Key_Alt:
-    case Qt::Key_Meta:
-    case Qt::Key_AltGr:
-    case Qt::Key_Super_L:
-    case Qt::Key_Super_R:
-    case Qt::Key_Hyper_L:
-    case Qt::Key_Hyper_R:
-        return {};
-    default:
-        break;
-    }
-
-    const auto allowed = Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier;
-    const Qt::KeyboardModifiers mods = Qt::KeyboardModifiers(modifiers) & allowed;
-    return QKeySequence(mods.toInt() | key).toString(QKeySequence::PortableText);
+    // Header-only helper so the Shift+digit unshift logic is unit-testable
+    // (see tests/ShortcutFormatTest.cpp).
+    return ShortcutFormat::portable(key, modifiers, nativeScanCode);
 }
 
 void AppContext::setShortcutRecording(bool recording)
@@ -349,16 +347,16 @@ QString AppContext::captureErrorGuidance(const QString &err)
         return text;
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
     if (desktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
-        text += tr(" — install Unisic (sudo cmake --install build) and launch it from the "
+        text += tr(". Install Unisic (sudo cmake --install build) and launch it from the "
                    "application menu so KDE authorizes it, and check that "
                    "xdg-desktop-portal-kde is running.");
     else if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
-        text += tr(" — allow screenshots for Unisic in GNOME Settings → Apps, and check that "
+        text += tr(". Allow screenshots for Unisic in GNOME Settings → Apps, and check that "
                    "xdg-desktop-portal-gnome is running.");
     else if (!err.contains(QLatin1String("grim")))
         // The capture chain's own rescue may already carry grim advice
         // (with per-desktop rationale) — don't tell the user twice.
-        text += tr(" — install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
+        text += tr(". Install 'grim' (works on sway/niri/Hyprland-style compositors) or an "
                    "xdg-desktop-portal backend for your desktop.");
     return text;
 }
@@ -370,11 +368,21 @@ bool AppContext::nowInhibited() const
 
 void AppContext::captureFullScreen()
 {
-    if (m_captureInFlight)
-        return; // hammering the hotkey must not stack portal requests
+    // In-flight guard: hammering the hotkey must not stack portal requests.
+    // Overlay guard: with the region-selection overlay open, a stray
+    // fullscreen/window hotkey would capture the overlay's own dimming and
+    // toolbar and push that garbage through the whole after-capture pipeline.
+    if (m_captureInFlight || m_overlay->active())
+        return;
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     withDelay([this, inhibited] {
+        // Re-check: with a capture delay configured, the region overlay may
+        // have opened between the keypress and this deferred fire.
+        if (m_overlay->active()) {
+            m_captureInFlight = false;
+            return;
+        }
         m_capture->captureWorkspace([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
@@ -398,13 +406,27 @@ void AppContext::captureRegion()
     });
 }
 
+void AppContext::captureRegionOcr()
+{
+    withDelay([this] {
+        m_overlay->pickAnnotatedImage([this](const QImage &img) {
+            if (!img.isNull())
+                ocrImage(img);   // recognizes (QR first, then text) + copies
+        });
+    });
+}
+
 void AppContext::captureWindow()
 {
-    if (m_captureInFlight)
+    if (m_captureInFlight || m_overlay->active()) // see captureFullScreen
         return;
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     withDelay([this, inhibited] {
+        if (m_overlay->active()) { // re-check after the capture delay
+            m_captureInFlight = false;
+            return;
+        }
         m_capture->captureActiveWindow([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             if (!err.isEmpty()) {
@@ -422,7 +444,6 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -434,7 +455,6 @@ void AppContext::startGifRegion()
 void AppContext::startGifFullScreen()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
 }
@@ -448,7 +468,6 @@ GifRecorder::Output AppContext::videoOutput() const
 void AppContext::startVideoScreen()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Screen);
 }
@@ -456,7 +475,6 @@ void AppContext::startVideoScreen()
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
@@ -468,7 +486,6 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
-    m_recordInhibited = nowInhibited();
     m_pendingRecordRegion = QRect();
     m_recorder->start(videoOutput(), GifRecorder::Window);
 }
@@ -497,11 +514,60 @@ static QImage devTestImage()
     return img;
 }
 
+// Synthetic smart-pick check shared by the smoke test and the dev button: a
+// window-like light rect on a dark backdrop must be detected, and the point
+// inside it must resolve to a candidate (the exact lookup a click does).
+static QString smartPickDetectCheck()
+{
+    QImage img(400, 300, QImage::Format_ARGB32);
+    img.fill(QColor(0x17, 0x15, 0x3B));
+    {
+        QPainter p(&img);
+        p.fillRect(QRect(120, 80, 160, 100), QColor(0xEC, 0xEC, 0xF4));
+        p.setPen(QPen(QColor(0x43, 0x3D, 0x8B), 2));
+        p.drawRect(QRect(120, 80, 160, 100));
+    }
+    const QVector<QRect> rects = ObjectDetector::detect(img);
+    // The whole image is always a candidate now, so "contains the point" is
+    // trivially true — assert the drawn rect was found with ACCURATE edges.
+    const QRect want(120, 80, 160, 100);
+    for (const QRect &r : rects) {
+        if (qAbs(r.left() - want.left()) <= 6 && qAbs(r.top() - want.top()) <= 6
+            && qAbs(r.right() - want.right()) <= 6 && qAbs(r.bottom() - want.bottom()) <= 6)
+            return QStringLiteral("PASS (%1 candidates, rect within ±6 px)").arg(rects.size());
+    }
+    return QStringLiteral("FAIL (%1 candidates, none matches the drawn rect)").arg(rects.size());
+}
+
+void AppContext::devTestSmartPick()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: smart pick detect: %1").arg(smartPickDetectCheck()));
+}
+
 void AppContext::devTestNotification()
 {
     if (!devBuild())
         return;
-    showCaptureNotification(devTestImage(), QString(), QStringLiteral("image"), false);
+    // Full parity with a real capture — including the gates. A dev test that
+    // bypassed them "worked" while every real capture card was suppressed,
+    // which made the suppression look like a notification bug. Explain instead.
+    if (!m_settings->showNotifications()) {
+        showToast(tr("Dev: ALL notifications are disabled in Settings "
+                     "(General → Show notifications)"), true);
+        return;
+    }
+    if (!m_settings->showCapturePopup()) {
+        showToast(tr("Dev: capture notification is DISABLED in Settings "
+                     "(General → Show capture notification)"), true);
+        return;
+    }
+    const bool inhibited = nowInhibited();
+    if (inhibited && m_settings->muteOnFullscreen())
+        showToast(tr("Dev: cards are currently muted (fullscreen / Do Not Disturb "
+                     "inhibition is active)"), true);
+    showCaptureNotification(devTestImage(), QString(), QStringLiteral("image"), inhibited);
 }
 
 void AppContext::devTestEditor()
@@ -517,6 +583,15 @@ void AppContext::devTestHistory()
         return;
     m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
     showToast(tr("Dev: added a test history entry"));
+}
+
+void AppContext::devTestFavoriteHistory()
+{
+    if (!devBuild())
+        return;
+    m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
+    m_history->setFavorite(0, true);
+    showToast(tr("Dev: added a STARRED history entry; try Clear all / delete on it"));
 }
 
 void AppContext::devTestEditFromHistory()
@@ -539,7 +614,7 @@ void AppContext::devTestQuickCopy()
     if (!devBuild())
         return;
     if (!m_hotkeys->available()) {
-        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE) — unavailable here"), true);
+        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE), unavailable here"), true);
         return;
     }
     armQuickCopy(devTestImage());
@@ -568,6 +643,163 @@ void AppContext::devTestPreviewFromHistory()
     previewFromHistory(p);
 }
 
+QString AppContext::settingsRoundTripCheck()
+{
+    // Export -> parse -> verify every writable Settings property serialized ->
+    // import the file back. Importing the just-exported effective config is a
+    // no-op for values while exercising the whole read path.
+    // QTemporaryFile: unique name + 0600 — the export embeds destination
+    // secrets (API keys), which must not sit world-readable in shared /tmp.
+    QTemporaryFile tmp(QDir::tempPath() + QStringLiteral("/unisic-smoketest-XXXXXX.json"));
+    if (!tmp.open())
+        return QStringLiteral("FAIL (cannot create a temp file)");
+    const QString path = tmp.fileName();
+    tmp.close(); // exportSettings rewrites it in place; 0600 perms survive
+    const QString exportErr = exportSettings(QUrl::fromLocalFile(path));
+    if (!exportErr.isEmpty())
+        return QStringLiteral("FAIL (export: %1)").arg(exportErr);
+
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return QStringLiteral("FAIL (cannot re-read %1)").arg(path);
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    const QJsonObject s = root.value(QStringLiteral("settings")).toObject();
+    QStringList missing;
+    const QMetaObject *mo = m_settings->metaObject();
+    for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
+        const QMetaProperty p = mo->property(i);
+        if (p.isWritable() && !s.contains(QString::fromLatin1(p.name())))
+            missing << QString::fromLatin1(p.name());
+    }
+    if (!missing.isEmpty())
+        return QStringLiteral("FAIL (not serialized: %1)").arg(missing.join(QLatin1String(", ")));
+
+    const QString importErr = importSettings(QUrl::fromLocalFile(path));
+    if (!importErr.isEmpty())
+        return QStringLiteral("FAIL (import: %1)").arg(importErr);
+    return QStringLiteral("PASS (%1 settings + %2 destinations)")
+        .arg(s.size())
+        .arg(root.value(QStringLiteral("destinations")).toArray().size());
+}
+
+void AppContext::devTestSettingsRoundTrip()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: settings round-trip: %1").arg(settingsRoundTripCheck()));
+}
+
+void AppContext::devTestUpload()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: uploading a test image to '%1'…").arg(m_settings->activeDestination()));
+    uploadImage(devTestImage(), [this](const QString &url, const QString &err) {
+        if (err.isEmpty())
+            showToast(tr("Dev: upload OK: %1").arg(url));
+        else
+            showToast(tr("Dev: upload failed: %1").arg(err), true);
+    });
+}
+
+QString AppContext::altHotkeysCheck()
+{
+    // Round-trip a MULTI-binding through the real daemon on a scratch action:
+    // push "F9, Meta+F9", read the active keys back, expect BOTH to be live
+    // and the portable form to collapse to the same string; then release.
+    // Exercises keysFor (multi-chord parse), the daemon's alternate-key list
+    // and portableFromKeys — the plumbing the alternative-hotkeys UI rides on.
+    if (!m_hotkeys->available())
+        return QStringLiteral("SKIP (no KGlobalAccel)");
+    const QString id = QStringLiteral("alt-hotkey-test");
+    const QString name = tr("Alternate hotkey test");
+    const QString wanted = QStringLiteral("F9, Meta+F9");
+    QString result;
+    if (!m_hotkeys->setShortcut(id, name, wanted)) {
+        result = QStringLiteral("FAIL (daemon refused the multi-binding — keys taken?)");
+    } else {
+        bool ok = false;
+        const QString actual = m_hotkeys->activeKeysPortable(id, &ok);
+        if (!ok)
+            result = QStringLiteral("FAIL (readback query failed)");
+        else if (!GlobalHotkeys::sameBinding(actual, wanted))
+            result = QStringLiteral("FAIL (round-trip returned '%1')").arg(actual);
+        else
+            result = QStringLiteral("PASS (both alternates live)");
+    }
+    m_hotkeys->releaseShortcut(id, name);
+    return result;
+}
+
+void AppContext::devTestAltHotkeys()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: alternate hotkeys — %1").arg(altHotkeysCheck()));
+}
+
+QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
+{
+    QStringList lines;
+    int bad = 0;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts) {
+        bool ok = false;
+        const QList<int> raw = m_hotkeys->activeKeys(a.id, &ok);
+        const QString actual = GlobalHotkeys::portableFromKeys(raw);
+        if (!ok) {
+            lines << a.id + QStringLiteral(": query failed");
+            ++bad;
+        } else if (actual.isEmpty() && !a.keys.isEmpty()) {
+            ++bad;
+            if (heal && m_hotkeys->setShortcut(a.id, a.name, a.keys))
+                lines << a.id + QStringLiteral(": was unbound, re-asserted ") + a.keys;
+            else
+                lines << a.id + QStringLiteral(": UNBOUND (stored ") + a.keys + QLatin1Char(')');
+        } else if (heal && GlobalHotkeys::sameBinding(actual, a.keys)
+                   && GlobalHotkeys::expandShiftDigitVariants(raw) != raw) {
+            // Bound to the right key, but WITHOUT the shifted-symbol variant
+            // alternates a Shift+digit binding needs on KWin/Wayland (older
+            // builds bound only the digit form, which the compositor's
+            // consumed-shift lookup never matches) — re-push to upgrade.
+            m_hotkeys->setShortcut(a.id, a.name, a.keys);
+            lines << a.id + QStringLiteral(": ") + actual
+                     + QStringLiteral(" (upgraded with Shift+digit variants)");
+        } else {
+            // Bound, but not to what we store = a KCM edit — honor it in the
+            // UI (daemon-authoritative display). Set-compare: the daemon
+            // reorders alternates, and a mere reorder is not an edit.
+            if (!GlobalHotkeys::sameBinding(actual, a.keys))
+                syncHotkeyFromDaemon(a.id, actual);
+            lines << a.id + QStringLiteral(": ")
+                     + (actual.isEmpty() ? QStringLiteral("(none)") : actual);
+        }
+    }
+    if (unbound)
+        *unbound = bad;
+    return lines;
+}
+
+void AppContext::devTestHotkeyBinds()
+{
+    if (!devBuild())
+        return;
+    if (!m_hotkeys->available()) {
+        showToast(tr("Dev: KGlobalAccel not available (backend: %1)")
+                      .arg(m_hotkeyBackend.isEmpty() ? tr("none") : m_hotkeyBackend));
+        return;
+    }
+    int bad = 0;
+    const QStringList lines = hotkeyBindStatus(&bad, true);
+    qInfo().noquote() << "[dev] hotkey binds:\n" + lines.join(QLatin1Char('\n'));
+    if (bad == 0)
+        showToast(tr("Hotkeys: all %1 bound in the daemon").arg(lines.size()));
+    else
+        showToast(tr("Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)")
+                      .arg(bad).arg(lines.size()), true);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -582,12 +814,15 @@ void AppContext::smokeNext()
 
 void AppContext::runSmokeTest()
 {
-    if (m_smokeRunning)
+    // Dev-only, defense in depth: the F8 dispatch and the QML pane already
+    // check, but the invokable itself must not be reachable in a release.
+    if (!devBuild() || m_smokeRunning)
         return;
     m_smokeRunning = true;
     m_smokeLog.clear();
     m_smokeIdx = 0;
     m_smokeSteps.clear();
+    m_smokeWindows.clear();
     smokeLog(QStringLiteral("=== Unisic smoke test ==="));
     emit smokeTestChanged();
 
@@ -602,7 +837,20 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("record border: ") + (capRecordBorder() ? QStringLiteral("PASS") : QStringLiteral("n/a on this compositor")));
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
-        smokeLog(QStringLiteral("OCR: ") + (ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)")));
+        if (m_hotkeys->available()) {
+            // Live daemon check: every action's active binding (heals unbound
+            // ones — same repair defineHotkeys runs at startup).
+            int bad = 0;
+            const QStringList lines = hotkeyBindStatus(&bad, true);
+            for (const QString &l : lines)
+                smokeLog(QStringLiteral("  bind ") + l);
+            smokeLog(QStringLiteral("  hotkey binds: ")
+                     + (bad == 0 ? QStringLiteral("PASS")
+                                 : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
+        }
+        smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
+                 ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
+                 qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
         smokeNext();
     });
 
@@ -632,7 +880,7 @@ void AppContext::runSmokeTest()
         t.fill(QColor(0x2E, 0x23, 0x6C));
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
-                 ? QStringLiteral("PASS (close the window manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -648,7 +896,7 @@ void AppContext::runSmokeTest()
         const int before = m_editorWindows;
         editFromHistory(p);
         smokeLog(QStringLiteral("edit from history: ") + (m_editorWindows > before
-                 ? QStringLiteral("PASS (overwrite editor — close manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS (overwrite editor)") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -670,8 +918,63 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         const bool ok = openPreview(devTestImage());
         smokeLog(QStringLiteral("preview window: ") + (ok
-                 ? QStringLiteral("PASS (close it manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
+    });
+
+    // 3e) history favorite round-trip (star -> role reads back -> unstar)
+    m_smokeSteps.append([this] {
+        m_history->addEntry(QString(), devTestImage(), QStringLiteral("image"));
+        m_history->setFavorite(0, true);
+        const bool fav = m_history->data(m_history->index(0), HistoryStore::FavoriteRole).toBool();
+        smokeLog(QStringLiteral("history favorite: ") + (fav ? QStringLiteral("PASS")
+                                                             : QStringLiteral("FAIL")));
+        m_history->setFavorite(0, false);
+        smokeNext();
+    });
+
+    // 3e2) smart pick: object detection on a synthetic window-like rect —
+    // the exact candidate lookup a click in the region overlay performs.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("smart pick detect: ") + smartPickDetectCheck());
+        smokeNext();
+    });
+
+
+    // 3e3) alternate hotkeys: multi-binding round-trip on a scratch action.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("alternate hotkeys: ") + altHotkeysCheck());
+        smokeNext();
+    });
+
+    // 3f) OCR recognition — a real tesseract run on a rendered known token
+    // (digits: language-neutral, works with any installed traineddata).
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        QImage t(320, 120, QImage::Format_ARGB32);
+        t.fill(Qt::white);
+        {
+            QPainter p(&t);
+            p.setPen(Qt::black);
+            QFont f;
+            f.setPixelSize(64);
+            f.setBold(true);
+            p.setFont(f);
+            p.drawText(t.rect(), Qt::AlignCenter, QStringLiteral("1234"));
+        }
+        m_ocr->recognize(t, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+            if (!err.isEmpty())
+                smokeLog(QStringLiteral("ocr recognize: FAIL (%1)").arg(err));
+            else if (text.contains(QLatin1String("1234")))
+                smokeLog(QStringLiteral("ocr recognize: PASS"));
+            else
+                smokeLog(QStringLiteral("ocr recognize: FAIL (got '%1')").arg(text.simplified()));
+            smokeNext();
+        });
+#else
+        smokeLog(QStringLiteral("ocr recognize: SKIP (built without tesseract)"));
+        smokeNext();
+#endif
     });
 
     // 4) short GIF recording (fullscreen, ~3s, auto-stop)
@@ -682,20 +985,55 @@ void AppContext::runSmokeTest()
             return;
         }
         smokeLog(QStringLiteral("recording (GIF fullscreen, ~3s)…"));
+        // `live` dies with THIS smoke recording: without it the 3s auto-stop
+        // outlives an early failure (e.g. portal dialog cancelled) and would
+        // kill an unrelated recording the user starts right after.
+        auto live = std::make_shared<bool>(true);
         auto done = std::make_shared<QMetaObject::Connection>();
         auto fail = std::make_shared<QMetaObject::Connection>();
-        *done = connect(m_recorder, &GifRecorder::finished, this, [this, done, fail](const QString &f) {
+        *done = connect(m_recorder, &GifRecorder::finished, this, [this, live, done, fail](const QString &f) {
+            *live = false;
             disconnect(*done); disconnect(*fail);
             smokeLog(QStringLiteral("  recording: PASS (%1)").arg(f));
             smokeNext();
         });
-        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, done, fail](const QString &e) {
+        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, live, done, fail](const QString &e) {
+            *live = false;
             disconnect(*done); disconnect(*fail);
             smokeLog(QStringLiteral("  recording: FAIL (%1)").arg(e));
             smokeNext();
         });
         startGifFullScreen();
-        QTimer::singleShot(3000, this, [this] { if (recording()) stopRecording(); });
+        QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
+    });
+
+    // 4b) short video recording (MP4 fullscreen, ~3s, auto-stop) — the video
+    // pipeline (format selection, convertVideo, poster extraction) is distinct
+    // from the GIF path and needs its own pass/fail line.
+    m_smokeSteps.append([this] {
+        if (!recordingAvailable()) {
+            smokeLog(QStringLiteral("video recording: SKIP"));
+            smokeNext();
+            return;
+        }
+        smokeLog(QStringLiteral("recording (video fullscreen, ~3s)…"));
+        auto live = std::make_shared<bool>(true);
+        auto done = std::make_shared<QMetaObject::Connection>();
+        auto fail = std::make_shared<QMetaObject::Connection>();
+        *done = connect(m_recorder, &GifRecorder::finished, this, [this, live, done, fail](const QString &f) {
+            *live = false;
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  video recording: PASS (%1)").arg(f));
+            smokeNext();
+        });
+        *fail = connect(m_recorder, &GifRecorder::failed, this, [this, live, done, fail](const QString &e) {
+            *live = false;
+            disconnect(*done); disconnect(*fail);
+            smokeLog(QStringLiteral("  video recording: FAIL (%1)").arg(e));
+            smokeNext();
+        });
+        startVideoScreen();
+        QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
     });
 
     // 5) capture notification
@@ -708,10 +1046,32 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 5b) settings export/import round-trip (metaobject serialization has
+    // regression history — the [%General] key folding).
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
+        smokeNext();
+    });
+
     // 6) upload (needs a real destination + a public target — left manual)
     m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("upload: SKIP — active destination '%1'; run a real upload manually")
+        smokeLog(QStringLiteral("upload: SKIP (active destination '%1'); run a real upload manually")
                  .arg(m_settings->activeDestination()));
+        smokeNext();
+    });
+
+    // 7) cleanup: close every editor/preview window the run opened — F8 must
+    // verify and leave the desktop exactly as it found it.
+    m_smokeSteps.append([this] {
+        int closed = 0;
+        for (const QPointer<QQuickWindow> &w : std::as_const(m_smokeWindows)) {
+            if (w) {
+                w->close();
+                ++closed;
+            }
+        }
+        m_smokeWindows.clear();
+        smokeLog(QStringLiteral("cleanup: closed %1 test window(s)").arg(closed));
         smokeNext();
     });
 
@@ -862,7 +1222,10 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
-    auto *notif = showCaptureNotification(thumb, path, kind, m_recordInhibited);
+    // Inhibition is sampled NOW, not at recording start: a recording can run
+    // for minutes, and muteOnFullscreen must reflect what is on screen when
+    // the card would appear (e.g. the recorded app went fullscreen mid-run).
+    auto *notif = showCaptureNotification(thumb, path, kind, nowInhibited());
     QPointer<CaptureNotification> np(notif);
 
     if (m_settings->uploadAfterCapture()) {
@@ -895,17 +1258,27 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
     // %rand% template would otherwise produce two different names).
     const QString fileName = makeFileName();
     QString path;
-    if (m_settings->autoSave())
+    if (m_settings->autoSave()) {
         path = saveImageAuto(img, fileName);
+        // A failed save must be LOUD: the rest of the pipeline continues (the
+        // capture still exists in memory/history), but silently pretending it
+        // was persisted loses data on unplugged/read-only/full save targets.
+        if (path.isEmpty())
+            showToast(tr("Could not save to %1. Check the save folder in Settings")
+                          .arg(m_settings->saveDirectory()), true);
+    }
     if (m_settings->copyToClipboard())
         copyImageToClipboard(img);
 
     const bool uploading = m_settings->uploadAfterCapture();
+    quint64 historyId = 0;
     if (!uploading || !path.isEmpty())
-        m_history->addEntry(path, img, QStringLiteral("image"));
+        historyId = m_history->addEntry(path, img, QStringLiteral("image"));
 
     auto *notif = showCaptureNotification(img, path, QStringLiteral("image"), inhibited);
     QPointer<CaptureNotification> np(notif);
+    if (notif)
+        notif->setHistoryId(historyId); // Save/upload address exactly this entry
 
     if (uploading) {
         if (np) np->setUploading(true);
@@ -988,7 +1361,7 @@ void AppContext::afterUploadActions(const QString &url)
 {
     if (m_settings->afterUploadCopyLink()) {
         copyText(url);
-        showToast(tr("Uploaded — link copied"));
+        showToast(tr("Uploaded, link copied"));
     } else {
         showToast(tr("Uploaded: %1").arg(url));
     }
@@ -1016,6 +1389,40 @@ void AppContext::previewFromHistory(const QString &filePath)
     openPreview(img);
 }
 
+void AppContext::copyImageFromHistory(const QString &filePath)
+{
+    QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 to copy").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    copyImageToClipboard(img);
+    showToast(tr("Image copied"));
+}
+
+void AppContext::uploadFromHistory(const QString &filePath)
+{
+    if (filePath.isEmpty())
+        return;
+    // Upload the FILE itself (works for images, GIFs and videos alike) and
+    // attach the resulting URL to this entry so the card's link/copy-link
+    // light up. afterUploadActions honours the copy-link / open-in-browser
+    // settings, matching a capture-time upload.
+    showToast(tr("Uploading %1…").arg(QFileInfo(filePath).fileName()));
+    m_uploads->uploadFile(filePath, [this, filePath](const QString &url, const QString &del,
+                                                     const QString &err) {
+        if (!err.isEmpty()) {
+            showToast(tr("Upload failed: %1").arg(err), true);
+            return;
+        }
+        m_history->setUrl(filePath, url, del);
+        if (url.isEmpty())
+            showToast(tr("Uploaded")); // FTP/SFTP destination with no public URL
+        else
+            afterUploadActions(url);   // shows its own toast (+ copy-link/open)
+    });
+}
+
 void AppContext::openEditor(const QImage &img, const QString &overwritePath)
 {
     if (!m_engine)
@@ -1032,6 +1439,8 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
         ++m_editorWindows;
         emit editorWindowsOpenChanged();
+        if (m_smokeRunning)
+            m_smokeWindows.append(win); // auto-closed by the smoke test's last step
         connect(win, &QQuickWindow::visibleChanged, session, [this, session, win](bool v) {
             if (!v) {
                 win->deleteLater(); session->deleteLater(); scheduleMemoryTrim();
@@ -1124,6 +1533,8 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
         // Belt-and-braces for exit paths where visibleChanged(false) never
         // fires (deleteLater is idempotent-safe here: remove of a gone file).
         connect(win, &QObject::destroyed, qApp, [tmp] { QFile::remove(tmp); });
+        if (m_smokeRunning)
+            m_smokeWindows.append(win); // auto-closed by the smoke test's last step
         win->show();
         win->requestActivate();
         return;
@@ -1139,6 +1550,22 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
     QPointer<CaptureNotification> np(n);
     if (n)
         n->setUploading(true);
+    // A recording's card carries the POSTER FRAME as its image — uploading
+    // that would ship a still PNG instead of the GIF/video. Upload the media
+    // file itself, exactly like finishRecordingEntry's auto-upload does.
+    if (n && n->kind() != QLatin1String("image") && !path.isEmpty()) {
+        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
+            if (!err.isEmpty()) {
+                showToast(tr("Upload failed: %1").arg(err), true);
+                if (np) np->setUploading(false);
+                return;
+            }
+            m_history->setUrl(path, url, del);
+            afterUploadActions(url);
+            if (np) np->setUrl(url);
+        });
+        return;
+    }
     const QString fileName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
     // Same off-thread encode + conditional image retention as finishCapture.
     encodeImageAsync(img, [this, path, np, fileName,
@@ -1152,7 +1579,10 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
                 }
                 if (!path.isEmpty())
                     m_history->setUrl(path, url, del);
-                else
+                // Unsaved capture: finishCapture already added a pathless
+                // entry for it — attach the URL to exactly that entry (by the
+                // card's history id). Fallback add only if it was evicted.
+                else if (!np || !m_history->setUrlById(np->historyId(), url, del))
                     m_history->addEntry({}, img, QStringLiteral("image"), url, del);
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
@@ -1163,7 +1593,9 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
                                                          const QString &kind, bool inhibited)
 {
-    if (!m_settings->showCapturePopup())
+    // The master "Show notifications" switch promises complete silence — it
+    // must cover capture cards (layer-shell AND native) exactly like toasts.
+    if (!m_settings->showCapturePopup() || !m_settings->showNotifications())
         return nullptr;
     // A real desktop notification (org.freedesktop.Notifications) with an inline
     // thumbnail and Open/Copy/Upload/Delete action buttons. The notification
@@ -1349,9 +1781,14 @@ void AppContext::copyImageToClipboard(const QImage &img)
         return;
     // PNG-encoding a 4K capture takes 100+ ms — keep it off the GUI thread.
     // QImage is implicitly shared and the worker only reads its copy.
+    // The deferred wl-copy must not land STALE: two rapid captures can finish
+    // encoding out of order, and the user may copy something else during the
+    // encode — only the newest copy request may take the Wayland selection
+    // (all m_clipboardSeq writers run on the GUI thread; no atomics needed).
+    const quint64 seq = ++m_clipboardSeq;
     QPointer<AppContext> self(this);
     QPointer<QCoreApplication> application(qApp);
-    (void)QtConcurrent::run([self, application, img, wlCopy] {
+    (void)QtConcurrent::run([self, application, img, wlCopy, seq] {
         QByteArray png;
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
@@ -1359,8 +1796,8 @@ void AppContext::copyImageToClipboard(const QImage &img)
         // QProcess must live on the GUI thread.
         if (!application)
             return;
-        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy] {
-            if (self)
+        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy, seq] {
+            if (self && self->m_clipboardSeq == seq)
                 spawnWlCopy(self, wlCopy, {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
         }, Qt::QueuedConnection);
     });
@@ -1371,6 +1808,7 @@ void AppContext::copyText(const QString &text)
     QGuiApplication::clipboard()->setText(text);
     if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
         return;
+    ++m_clipboardSeq; // a newer text copy invalidates any in-flight image mirror
     const QString wlCopy = wlCopyPath();
     if (!wlCopy.isEmpty()) {
         auto *proc = new QProcess(this);
@@ -1529,6 +1967,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
+        {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
     };
 }
 
@@ -1541,6 +1980,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
+    else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();
@@ -1556,7 +1996,7 @@ void AppContext::syncAllHotkeysFromDaemon()
         const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
         // A failed/timed-out query must NOT be mistaken for "unbound" — that
         // would wipe the stored key (and the sync() below persists the wipe).
-        if (ok && actual != a.keys)
+        if (ok && !GlobalHotkeys::sameBinding(actual, a.keys))
             syncHotkeyFromDaemon(a.id, actual);
     }
 }
@@ -1570,38 +2010,12 @@ void AppContext::defineHotkeys()
 
     if (m_hotkeys->available()) {
         m_hotkeyBackend = QStringLiteral("kglobalaccel");
-        // The registration reply already carries each action's ACTIVE keys —
-        // reuse it for both the bootstrap check and the KCM-drift sync
-        // instead of 10 extra blocking shortcutKeys round-trips.
-        struct RegResult { QList<int> keys; bool ok = false; };
-        QHash<QString, RegResult> active;
-        for (const HotkeyAction &a : acts) {
-            RegResult r;
-            m_hotkeys->defineAction(a.id, a.name, a.keys, &r.keys, &r.ok);
-            active.insert(a.id, r);
-        }
+        for (const HotkeyAction &a : acts)
+            m_hotkeys->defineAction(a.id, a.name, a.keys);
 
-        // Self-heal for fresh installs: our reference kglobalacceld binds both
-        // the active and default columns on an IsDefault registration, but
-        // daemons in the field have been seen applying it to the default
-        // column only — leaving every action registered yet UNBOUND (hotkeys
-        // silently dead). Verify once per install; never repeated afterwards,
-        // so deliberately unbinding a key in the KCM still sticks.
-        if (!m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
-            for (const HotkeyAction &a : acts) {
-                const RegResult &r = active.value(a.id);
-                if (r.ok && r.keys.isEmpty() && !a.keys.isEmpty()) {
-                    qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
-                               << "— forcing default" << a.keys;
-                    m_hotkeys->setShortcut(a.id, a.name, a.keys);
-                }
-            }
-            m_settings->raw()->setValue(QStringLiteral("hotkeys/bootstrapped"), true);
-            // Flush now: a SIGTERM/logout kill skips destructors, and losing
-            // the flag would re-force defaults on every launch (breaking
-            // deliberate KCM unbinds).
-            m_settings->raw()->sync();
-        }
+        // Leftover from the abandoned one-time-heal scheme (see the verify
+        // pass below, which now runs every launch).
+        m_settings->raw()->remove(QStringLiteral("hotkeys/bootstrapped"));
         // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable.
         // Pushed with SetPresent|NoAutoloading on every startup, so even a KCM
         // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
@@ -1612,7 +2026,7 @@ void AppContext::defineHotkeys()
                                     QStringLiteral("Ctrl+Escape"))) {
             qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
                           " component — on stock Plasma: Show System Activity)";
-            showToast(tr("Ctrl+Esc emergency stop unavailable — the key is taken by the system "
+            showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
                          "(System Settings → Shortcuts to free it)"));
         }
 #ifdef UNISIC_DEV_BUILD
@@ -1624,18 +2038,21 @@ void AppContext::defineHotkeys()
         // the 2s window would leave Ctrl+C bound to us persistently. Clear it on
         // every startup so a stale grab can't hijack the user's Ctrl+C.
         m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
-        // The daemon may have autoloaded KCM-edited keys that differ from our
-        // stored strings — reflect reality in the UI (from the registration
-        // replies; no extra queries). An error/timeout must never be treated
-        // as "unbound" — that would wipe (and sync()-persist) the stored key.
-        for (const HotkeyAction &a : acts) {
-            const RegResult &r = active.value(a.id);
-            if (!r.ok)
-                continue;
-            const QString actual = GlobalHotkeys::portableFromKeys(r.keys);
-            if (actual != a.keys)
-                syncHotkeyFromDaemon(a.id, actual);
-        }
+        // Verify + repair, EVERY launch, with real shortcutKeys queries — the
+        // registration replies CANNOT be trusted for this: kglobalacceld
+        // (observed live) answers an IsDefault setShortcut with the requested
+        // keys even when it stored them into the default column only and the
+        // ACTIVE binding stayed "none". That left every hotkey shown as
+        // assigned in the UI yet silently dead until the user re-assigned
+        // each one by hand. hotkeyBindStatus asserts the stored key on any
+        // action the daemon reports unbound, and syncs a KCM-edited key back
+        // into the UI. A deliberate KCM unbind made while the app runs still
+        // sticks: it arrives via yourShortcutsChanged and empties the stored
+        // string, so there is nothing to assert on the next launch.
+        int unbound = 0;
+        const QStringList report = hotkeyBindStatus(&unbound, true);
+        if (unbound > 0)
+            qWarning().noquote() << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
         emit hotkeysAvailableChanged();
         return;
     }
@@ -1703,7 +2120,7 @@ void AppContext::applyHotkey(const QString &actionId)
         if (a.id != actionId)
             continue;
         if (!m_hotkeys->setShortcut(a.id, a.name, a.keys)) {
-            showToast(tr("Could not bind %1 — the key is taken by another shortcut").arg(a.keys),
+            showToast(tr("Could not bind %1; the key is taken by another shortcut").arg(a.keys),
                       true);
             // Show what is actually bound instead of the refused wish.
             bool ok = false;
@@ -1730,7 +2147,7 @@ void AppContext::applyHotkeys()
     for (const HotkeyAction &a : acts)
         allOk &= m_hotkeys->setShortcut(a.id, a.name, a.keys);
     if (!allOk) {
-        showToast(tr("Some hotkeys could not be bound (keys taken) — showing the actual state"),
+        showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
                   true);
         syncAllHotkeysFromDaemon();
     }
@@ -2096,12 +2513,12 @@ void AppContext::setAutostartEnabled(bool on)
     const QString path = autostartFilePath();
     if (!on) {
         if (!QFile::remove(path) && QFile::exists(path))
-            showToast(tr("Could not disable autostart — cannot remove %1").arg(path), true);
+            showToast(tr("Could not disable autostart: cannot remove %1").arg(path), true);
         emit autostartEnabledChanged(); // reflect the real (post-remove) state
         return;
     }
     if (!writeAutostartFile()) {
-        showToast(tr("Could not enable autostart — cannot write %1").arg(path), true);
+        showToast(tr("Could not enable autostart: cannot write %1").arg(path), true);
         return; // state unchanged; the switch snaps back on the next read
     }
     emit autostartEnabledChanged();

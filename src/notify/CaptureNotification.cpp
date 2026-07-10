@@ -107,8 +107,15 @@ void CaptureNotification::save()
     const QString path = m_app->saveImageAuto(m_image);
     if (!path.isEmpty()) {
         m_filePath = path;
+        // finishCapture registered this capture as a PATHLESS history entry —
+        // attach the file to exactly that entry (by id), or Delete/upload-URL
+        // bookkeeping would look it up by path and silently miss.
+        m_app->history()->setFilePathById(m_historyId, path);
         m_app->showToast(tr("Saved %1").arg(path));
         emit stateChanged();
+    } else {
+        m_app->showToast(tr("Could not save the capture. Check the save folder in Settings"),
+                         true);
     }
 }
 
@@ -135,6 +142,13 @@ void CaptureNotification::upload()
 
 void CaptureNotification::deleteCapture()
 {
+    // removeByFile refuses starred entries — surface that instead of
+    // dismissing the card as if the file were gone.
+    if (!m_filePath.isEmpty() && m_app->history()->fileIsFavorite(m_filePath)) {
+        m_app->showToast(tr("Not deleted: this capture is starred in History (unstar it first)"),
+                         true);
+        return;
+    }
     if (!m_filePath.isEmpty())
         m_app->history()->removeByFile(m_filePath);
     dismiss();

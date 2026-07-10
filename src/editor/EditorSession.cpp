@@ -85,7 +85,7 @@ void EditorSession::upload()
     m_app->uploadImage(composited(), [self](const QString &url, const QString &error) {
         if (!self)
             return;
-        self->setStatus(error.isEmpty() ? tr("Uploaded — link copied: %1").arg(url)
+        self->setStatus(error.isEmpty() ? tr("Uploaded, link copied: %1").arg(url)
                                         : tr("Upload failed: %1").arg(error));
     });
 }

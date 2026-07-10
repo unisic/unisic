@@ -64,7 +64,7 @@ public:
     // Import a ShareX Custom Uploader (.sxcu) file. Accepts a plain path or a
     // file:// URL. Returns the imported destination's name on success, or an
     // empty string on failure (with errorOut set). Maps the common case:
-    // RequestMethod POST + Body MultipartFormData/JSON + JSON/text response.
+    // any RequestMethod + Body MultipartFormData/JSON + JSON/text response.
     Q_INVOKABLE QString importSxcu(const QString &pathOrUrl);
     // Last import error message for the QML layer to surface.
     Q_INVOKABLE QString lastImportError() const { return m_lastImportError; }

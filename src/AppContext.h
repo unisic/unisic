@@ -81,6 +81,7 @@ class AppContext : public QObject
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
+    Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -137,14 +138,21 @@ public:
     Q_INVOKABLE void devTestNotification();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestHistory();
+    Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
     Q_INVOKABLE void devTestQuickCopy();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
+    Q_INVOKABLE void devTestHotkeyBinds();
+    Q_INVOKABLE void devTestUpload();
+    Q_INVOKABLE void devTestSettingsRoundTrip();
+    Q_INVOKABLE void devTestSmartPick();
+    Q_INVOKABLE void devTestAltHotkeys();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
+    bool qrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
     bool autostartEnabled() const;
@@ -159,6 +167,8 @@ public:
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
+    // Region selection -> OCR/QR -> clipboard. No save/history/notification.
+    Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
@@ -174,7 +184,7 @@ public:
     // must not vanish silently).
     Q_INVOKABLE void showToast(const QString &text, bool important = false);
     Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
-    Q_INVOKABLE QString formatShortcut(int key, int modifiers) const;
+    Q_INVOKABLE QString formatShortcut(int key, int modifiers, int nativeScanCode = 0) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);
     Q_INVOKABLE void applyHotkeys();
     // Push ONE just-edited action — never re-asserts the app's possibly-stale
@@ -214,6 +224,11 @@ public:
     Q_INVOKABLE void editFromHistory(const QString &filePath);
     // Open a saved capture from history in the floating pinned preview.
     Q_INVOKABLE void previewFromHistory(const QString &filePath);
+    // Copy a saved image file's pixels to the clipboard (history card).
+    Q_INVOKABLE void copyImageFromHistory(const QString &filePath);
+    // Upload a saved capture file (history card) to the active destination and
+    // write the resulting URL back onto its history entry.
+    Q_INVOKABLE void uploadFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
@@ -255,6 +270,17 @@ private:
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
+    // Query each action's live daemon binding; with heal, re-assert stored
+    // keys on actions the daemon reports unbound. Lines for smoke/dev output.
+    QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // Windows (editor/preview) opened while the smoke test runs — the final
+    // step closes them so F8 leaves no manual cleanup behind.
+    QVector<QPointer<QQuickWindow>> m_smokeWindows;
+    // Export -> verify all properties serialized -> import back. Returns a
+    // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
+    QString settingsRoundTripCheck();
+    // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
+    QString altHotkeysCheck();
 
     void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
@@ -329,6 +355,9 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    // Monotonic copy-request id: the deferred wl-copy mirror only fires when
+    // its request is still the newest (GUI-thread only, no atomics).
+    quint64 m_clipboardSeq = 0;
     // Developer smoke-test runner state (sequential async steps).
     void smokeNext();
     void smokeLog(const QString &line);
@@ -336,6 +365,5 @@ private:
     bool m_smokeRunning = false;
     QVector<std::function<void()>> m_smokeSteps;
     int m_smokeIdx = 0;
-    bool m_recordInhibited = false; // inhibit state at record start (recordings are exclusive)
 };
 

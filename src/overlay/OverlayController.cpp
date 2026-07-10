@@ -216,6 +216,11 @@ void OverlayController::cancel()
 
 void OverlayController::closeAll()
 {
+    // The QML text editor's onVisibleChanged never fires on window teardown, so the
+    // flag would latch true forever (killing hover-based requestActivate) if the
+    // session ends with the in-place text box still open. Clear it here — closeAll()
+    // is the single choke point for every session teardown.
+    setTextEditing(false);
     m_starting = false;
     const auto windows = m_windows;
     m_windows.clear();

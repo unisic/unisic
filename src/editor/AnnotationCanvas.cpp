@@ -3,11 +3,14 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QHoverEvent>
 #include <QCursor>
 #include <QtMath>
 #include <QtConcurrent>
 #include <QFutureWatcher>
+#include <algorithm>
+#include <cmath>
 
 AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
     : QQuickPaintedItem(parent)
@@ -42,7 +45,10 @@ void AnnotationCanvas::setImage(const QImage &img)
     // Object-pick state belongs to the previous image; stale rects would also
     // block re-detection (setTool only detects when candidates are empty).
     m_objectCandidates.clear();
+    m_hoverChain.clear();
+    m_pickOffset = 0;
     m_hoverObject = QRect();
+    m_hoverObjectKind.clear();
     clearObjectMask();
     if (m_detectWatcher) {
         // Let the stale run finish detached; its lambda must not deliver.
@@ -55,7 +61,8 @@ void AnnotationCanvas::setImage(const QImage &img)
     emit historyChanged();
     emit selectionRectChanged();
     emit renderScaleChanged();
-    update();
+    update();    if (m_smartPick && m_selectionMode)
+        ensureObjectCandidates();
 }
 
 qreal AnnotationCanvas::renderScale() const
@@ -68,30 +75,81 @@ void AnnotationCanvas::setTool(int t)
 {
     if (m_tool == t) return;
     const bool leftObjectPick = (m_tool == ObjectPick);
+    const bool leftHighlight = (m_tool == Highlight);
     m_tool = t;
     emit toolChanged();
+    // Until the user explicitly picks a color, the highlighter defaults to
+    // yellow instead of the stock red. Flip the live color both ways so the
+    // toolbar dot always shows exactly what a stroke will draw — and an
+    // explicit pick (including re-clicking the red swatch) is honored as-is.
+    if (!m_strokeColorTouched) {
+        if (t == Highlight && m_color == QColor(QStringLiteral("#FF4757"))) {
+            m_color = QColor(255, 234, 112); // sensible default for highlighter
+            m_strokeAuto = true;             // not a user pick — never persisted
+            emit strokeColorChanged();
+        } else if (leftHighlight && m_color == QColor(255, 234, 112)) {
+            m_color = QColor(QStringLiteral("#FF4757"));
+            m_strokeAuto = true;
+            emit strokeColorChanged();
+        }
+    }
     if (leftObjectPick)
         clearObjectMask();
     if (t == ObjectPick) {
         m_hoverObject = QRect();
-        // Detect candidate objects once, off the GUI thread (a few tens of ms).
-        if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
-            m_detectWatcher = new QFutureWatcher<QVector<QRect>>(this);
-            connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished, this, [this] {
-                m_objectCandidates = m_detectWatcher->result();
-                m_detectWatcher->deleteLater();
-                m_detectWatcher = nullptr;
-                update();
-            });
-            m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
-        }
+        m_hoverObjectKind.clear();
+        ensureObjectCandidates();
     }
+    update();
+}
+
+void AnnotationCanvas::ensureObjectCandidates()
+{
+    // Detect candidate objects once, off the GUI thread (a few tens of ms).
+    if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
+        m_detectWatcher = new QFutureWatcher<QVector<ObjectDetector::Candidate>>(this);
+        connect(m_detectWatcher, &QFutureWatcher<QVector<ObjectDetector::Candidate>>::finished, this, [this] {
+            m_objectCandidates = m_detectWatcher->result();
+            m_detectWatcher->deleteLater();
+            m_detectWatcher = nullptr;
+            if (!m_lastHoverImg.isNull())
+                updateHoverObject(m_lastHoverImg);
+            update();
+        });
+        m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detectCandidates, m_base));
+    }
+}
+
+void AnnotationCanvas::setSmartPick(bool on)
+{
+    if (m_smartPick == on)
+        return;
+    m_smartPick = on;
+    // Start detecting right away: the candidates must be ready by the time
+    // the user's first click lands (the pass runs off-thread).
+    if (on && m_selectionMode)
+        ensureObjectCandidates();
+    emit smartPickChanged();
+    update();
+}
+
+void AnnotationCanvas::setColorPicking(bool on)
+{
+    if (m_colorPicking == on)
+        return;
+    m_colorPicking = on;
+    setCursor(on ? Qt::CrossCursor : Qt::ArrowCursor);
+    emit colorPickingChanged();
     update();
 }
 
 void AnnotationCanvas::setStrokeColor(const QColor &c)
 {
     if (m_color == c) return;
+    // Only a real change counts as a user pick — restoring the identical
+    // default from settings at startup early-returns on the guard above.
+    m_strokeColorTouched = true;
+    m_strokeAuto = false;
     m_color = c;
     emit strokeColorChanged();
 }
@@ -182,7 +240,7 @@ void AnnotationCanvas::startSegmentation()
             QImage inv = mask;
             inv.invertPixels();
             m_maskOverlay = QImage(mask.size(), QImage::Format_ARGB32_Premultiplied);
-            m_maskOverlay.fill(QColor(23, 21, 59, 200));
+            { QColor sc = m_uiScrim; sc.setAlpha(200); m_maskOverlay.fill(sc); }
             QPainter p(&m_maskOverlay);
             p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
             p.drawImage(0, 0, grayToAlpha(inv));
@@ -315,6 +373,23 @@ void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
 void AnnotationCanvas::selectAll()
 {
     m_selection = QRectF(QPointF(0, 0), QSizeF(m_base.size()));
+    // Any object mask was computed for the old rect — drop it, or the status
+    // pill keeps promising a cutout that renderedSelection() would skip. No
+    // auto re-segment: select-all is a change of intent and a full-frame
+    // segmentation is costly; clicking a candidate re-segments as before.
+    if (m_tool == ObjectPick)
+        clearObjectMask();
+    emit selectionRectChanged();
+    update();
+}
+
+// Escape-cancel for an in-progress selection: drops the rect (and any object
+// mask computed for it) without touching annotations or the base image.
+void AnnotationCanvas::clearSelection()
+{
+    m_selection = {};
+    if (m_tool == ObjectPick)
+        clearObjectMask();
     emit selectionRectChanged();
     update();
 }
@@ -340,7 +415,10 @@ void AnnotationCanvas::applyCrop()
     m_selection = {};
     // Candidates and masks are in pre-crop coordinates now — invalidate.
     m_objectCandidates.clear();
+    m_hoverChain.clear();
+    m_pickOffset = 0;
     m_hoverObject = QRect();
+    m_hoverObjectKind.clear();
     clearObjectMask();
     emit imageChanged();
     emit renderScaleChanged();
@@ -539,7 +617,8 @@ void AnnotationCanvas::paint(QPainter *painter)
     painter->drawImage(0, 0, m_base);
     drawAll(*painter);
 
-    if (m_tool == ObjectPick && !hasSelection()) {
+    if ((m_tool == ObjectPick
+         || (m_selectionMode && m_tool == None && m_smartPick)) && !hasSelection()) {
         // Highlight the object under the cursor: dim the rest, outline it in accent.
         if (!m_hoverObject.isNull()) {
             QPainterPath full;
@@ -547,12 +626,16 @@ void AnnotationCanvas::paint(QPainter *painter)
             QPainterPath hole;
             hole.addRect(QRectF(m_hoverObject));
             full = full.subtracted(hole);
+            QColor scrim = m_uiScrim; scrim.setAlpha(150);
             painter->setPen(Qt::NoPen);
-            painter->setBrush(QColor(23, 21, 59, 150));
+            painter->setBrush(scrim);
             painter->drawPath(full);
-            QPen border(QColor(200, 172, 214), 2.0 / s); // accent
-            painter->setPen(border);
             painter->setBrush(Qt::NoBrush);
+            // White halo under the accent line: keeps the highlight readable
+            // over dark and light content alike.
+            painter->setPen(QPen(QColor(255, 255, 255, 160), 4.0 / s));
+            painter->drawRect(QRectF(m_hoverObject));
+            painter->setPen(QPen(m_uiAccent, 2.0 / s)); // themed accent
             painter->drawRect(QRectF(m_hoverObject));
         }
     } else if (m_selectionMode) {
@@ -564,8 +647,9 @@ void AnnotationCanvas::paint(QPainter *painter)
             sel.addRect(m_selection);
             full = full.subtracted(sel);
         }
+        QColor scrim = m_uiScrim; scrim.setAlpha(150);
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(23, 21, 59, 150)); // primary tint dim
+        painter->setBrush(scrim); // themed dim tint
         painter->drawPath(full);
 
         if (hasSelection()) {
@@ -574,14 +658,14 @@ void AnnotationCanvas::paint(QPainter *painter)
             if (m_tool == ObjectPick && !m_maskOverlay.isNull()
                 && m_objectMaskRect == m_selection.toAlignedRect().intersected(m_base.rect()))
                 painter->drawImage(m_objectMaskRect.topLeft(), m_maskOverlay);
-            QPen border(QColor(200, 172, 214), 1.5 / s); // accent
+            QPen border(m_uiAccent, 1.5 / s); // themed accent
             border.setStyle(Qt::SolidLine);
             painter->setPen(border);
             painter->setBrush(Qt::NoBrush);
             painter->drawRect(m_selection);
             // Handles
-            painter->setBrush(QColor(200, 172, 214));
-            painter->setPen(QPen(QColor(23, 21, 59), 1.0 / s));
+            painter->setBrush(m_uiAccent);
+            painter->setPen(QPen(m_uiScrim, 1.0 / s));
             const qreal hs = 5.0 / s;
             const QRectF r = m_selection;
             const QPointF pts[8] = {
@@ -655,6 +739,16 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
     m_dragStart = img;
 
+    if (m_colorPicking) {
+        // Sample the pixel under the cursor from the frozen screenshot.
+        const QPoint p = img.toPoint();
+        if (m_base.rect().contains(p))
+            emit colorPicked(m_base.pixelColor(p));
+        setColorPicking(false);
+        e->accept();
+        return;
+    }
+
     if (m_tool == ObjectPick) {
         // Click on a detected candidate, or drag a rectangle around the object.
         // Either way the foreground inside the region is segmented off-thread
@@ -708,6 +802,19 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
 
     const bool selectionTool = (m_selectionMode && m_tool == None) || m_tool == Crop;
     if (selectionTool) {
+        // Ctrl + press anywhere inside the region = grab-and-move, overriding
+        // handle-resize and new-selection. A reliable "reposition the whole
+        // capture area" that never accidentally resizes an edge or starts a
+        // fresh rectangle.
+        const bool ctrl = e->modifiers() & Qt::ControlModifier;
+        if (ctrl && hasSelection() && m_selection.contains(img)) {
+            m_drag = MoveSelection;
+            m_selStart = m_selection;
+            setCursor(Qt::ClosedHandCursor);
+            update();
+            e->accept();
+            return;
+        }
         const int h = hitHandle(img);
         if (h >= 0) {
             m_drag = ResizeSelection;
@@ -716,6 +823,11 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         } else if (hasSelection() && m_selection.contains(img)) {
             m_drag = MoveSelection;
             m_selStart = m_selection;
+        } else if (m_smartPick && m_tool == None) {
+            // Smart pick: defer — a genuine drag promotes to NewSelection
+            // (mouseMoveEvent), a plain click selects the detected object
+            // under the cursor on release.
+            m_drag = PendingNewSelection;
         } else {
             m_drag = NewSelection;
             m_selection = QRectF(img, img);
@@ -740,8 +852,6 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         m_current.rect = QRectF(img, img);
         if (m_tool == Pen)
             m_current.points = {img};
-        if (m_tool == Highlight && m_current.color == QColor(QStringLiteral("#FF4757")))
-            m_current.color = QColor(255, 234, 112); // sensible default for highlighter
         update();
     }
     e->accept();
@@ -862,6 +972,25 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
 {
     if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
         startSegmentation();
+    // Smart pick: the press never moved (still pending), so this is a CLICK —
+    // select the evidence-ranked detected object under it. No candidate = no-op,
+    // exactly like today's empty click. (An ObjectPick pending click keeps
+    // its existing no-op semantics.)
+    if (m_drag == PendingNewSelection && m_selectionMode && m_tool == None && m_smartPick) {
+        // The highlighted rect IS the promise — select exactly it (including
+        // the scroll-chosen nesting level), not a recomputed first hit.
+        updateHoverObject(m_dragStart.toPoint());
+        if (!m_hoverObject.isNull()) {
+            m_selection = QRectF(m_hoverObject);
+            normalizeSelection();
+            m_hoverObject = QRect();
+            m_hoverObjectKind.clear();
+            m_hoverChain.clear();
+            emit hoverObjectChanged();
+            emit selectionRectChanged();
+            update();
+        }
+    }
     if (m_drag == DrawDrag && m_drawing) {
         // Preserve the stroke endpoint even when it falls within the sampling
         // threshold used while the pointer is moving.
@@ -894,28 +1023,140 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
     e->accept();
 }
 
+void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
+{
+    m_lastHoverImg = imgPos;
+    QVector<ObjectDetector::Candidate> chain;
+    for (const ObjectDetector::Candidate &candidate : std::as_const(m_objectCandidates))
+        if (candidate.rect.contains(imgPos))
+            chain.append(candidate); // candidates are area-sorted -> chain is inner→outer
+
+    const auto sameChain = [](const QVector<ObjectDetector::Candidate> &a,
+                              const QVector<ObjectDetector::Candidate> &b) {
+        if (a.size() != b.size())
+            return false;
+        for (qsizetype i = 0; i < a.size(); ++i)
+            if (a[i].rect != b[i].rect || a[i].kind != b[i].kind)
+                return false;
+        return true;
+    };
+    const bool chainChanged = !sameChain(chain, m_hoverChain);
+    if (chain.isEmpty()) {
+        m_pickOffset = 0;
+        m_hoverDefaultIndex = 0;
+    } else if (chainChanged) {
+        // An element's visual evidence matters as much as its size. The old
+        // "smallest bounding box always wins" rule regularly picked a bright
+        // speck in a photo/video over the actual panel beneath the cursor.
+        // Prefer a high-confidence, specific candidate, while preserving all
+        // other candidates as scrollable levels.
+        const double imageArea = qMax<qint64>(1, qint64(m_base.width()) * m_base.height());
+        double best = -1.0;
+        m_hoverDefaultIndex = 0;
+        for (qsizetype i = 0; i < chain.size(); ++i) {
+            const ObjectDetector::Candidate &candidate = chain[i];
+            const double area = qint64(candidate.rect.width()) * candidate.rect.height();
+            const double specificity = 1.0 - std::sqrt(std::min(1.0, area / imageArea));
+            double kindBonus = 0.0;
+            switch (candidate.kind) {
+            case ObjectDetector::CandidateKind::Element: kindBonus = 0.025; break;
+            case ObjectDetector::CandidateKind::Group: kindBonus = 0.01; break;
+            case ObjectDetector::CandidateKind::Container: break;
+            case ObjectDetector::CandidateKind::Window: kindBonus = 0.04; break;
+            case ObjectDetector::CandidateKind::Screen: kindBonus = -0.20; break;
+            }
+            // Confidence intentionally dominates specificity. A small region
+            // in a video is often more specific, but its colour/edge evidence
+            // is weaker than the clear frame of the app or content panel.
+            const double score = candidate.confidence * 0.90 + specificity * 0.10 + kindBonus;
+            if (score > best) {
+                best = score;
+                m_hoverDefaultIndex = int(i);
+            }
+        }
+        m_pickOffset = 0;
+    }
+    const int idx = chain.isEmpty()
+        ? 0
+        : qBound(0, m_hoverDefaultIndex + m_pickOffset, int(chain.size()) - 1);
+    const QRect found = chain.isEmpty() ? QRect() : chain.at(idx).rect;
+    const QString foundKind = [&] {
+        if (chain.isEmpty())
+            return QString();
+        switch (chain.at(idx).kind) {
+        case ObjectDetector::CandidateKind::Element: return tr("Element");
+        case ObjectDetector::CandidateKind::Group: return tr("Group");
+        case ObjectDetector::CandidateKind::Container: return tr("Panel");
+        case ObjectDetector::CandidateKind::Window: return tr("Window");
+        case ObjectDetector::CandidateKind::Screen: return tr("Screen");
+        }
+        return QString();
+    }();
+    const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size())
+                         || (idx != m_hoverIndex) || (foundKind != m_hoverObjectKind);
+    m_hoverChain = chain;
+    m_hoverIndex = idx;
+    if (changed) {
+        m_hoverObject = found;
+        m_hoverObjectKind = foundKind;
+        emit hoverObjectChanged();
+        update();
+    }
+}
+
+void AnnotationCanvas::wheelEvent(QWheelEvent *e)
+{
+    // Scroll cycles the nesting level while hovering in a pick mode: down =
+    // inner detected elements, up = enclosing windows/containers, topmost =
+    // whole screen.
+    const bool pickHover = !hasSelection()
+        && (m_tool == ObjectPick || (m_selectionMode && m_tool == None && m_smartPick));
+    if (!pickHover || m_hoverChain.size() < 2) {
+        e->ignore();
+        return;
+    }
+    const int dir = e->angleDelta().y() > 0 ? 1 : -1;
+    const int before = m_hoverIndex;
+    m_pickOffset += dir;
+    updateHoverObject(m_lastHoverImg);
+    if (m_hoverIndex == before)
+        m_pickOffset -= dir; // chain end — don't bank invisible steps
+    e->accept();
+}
+
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
 {
     m_hoverPoint = e->position();
     emit hoverPointChanged();
     const QPointF img = toImage(e->position().x(), e->position().y());
+    if (m_colorPicking) {
+        setCursor(Qt::CrossCursor);
+        e->accept();
+        return;
+    }
     if (m_tool == ObjectPick) {
-        // Candidates are sorted smallest-first, so the first hit is the
-        // innermost element under the cursor.
-        QRect found;
-        const QPoint p = img.toPoint();
-        for (const QRect &r : std::as_const(m_objectCandidates)) {
-            if (r.contains(p)) { found = r; break; }
-        }
-        if (found != m_hoverObject) {
-            m_hoverObject = found;
-            update();
-        }
-        setCursor(found.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        updateHoverObject(img.toPoint());
+        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        e->accept();
+        return;
+    }
+    if (m_selectionMode && m_tool == None && m_smartPick && !hasSelection()) {
+        // Smart pick: highlight the detected object under the cursor at the
+        // current nesting depth (same candidate list as the ObjectPick tool).
+        updateHoverObject(img.toPoint());
+        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
         e->accept();
         return;
     }
     if ((m_selectionMode && m_tool == None) || m_tool == Crop) {
+        // Ctrl inside the region = grab-to-move (see mousePressEvent): show the
+        // open-hand cursor there so the affordance is discoverable.
+        if ((e->modifiers() & Qt::ControlModifier)
+            && hasSelection() && m_selection.contains(img)) {
+            setCursor(Qt::OpenHandCursor);
+            e->accept();
+            return;
+        }
         const int h = hitHandle(img);
         if (h == 0 || h == 7) setCursor(Qt::SizeFDiagCursor);
         else if (h == 2 || h == 5) setCursor(Qt::SizeBDiagCursor);

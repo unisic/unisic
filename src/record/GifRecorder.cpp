@@ -51,6 +51,16 @@ static const QSet<QString> &ffmpegEncoders()
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
 {
+    // The lossless intermediates live in ~/.cache/unisic (disk-backed — see
+    // beginEncoding), which unlike /tmp is never reclaimed by a reboot: sweep
+    // recordings orphaned by a crash/SIGKILL (multi-GB each) once at startup.
+    // The recorder is constructed before any recording can start, so nothing
+    // live can be swept.
+    QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+    const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
+    for (const QString &f : stale)
+        cache.remove(f);
+
     m_sampler.setTimerType(Qt::PreciseTimer);
     connect(&m_sampler, &QTimer::timeout, this, &GifRecorder::sampleFrame);
     m_maxTimer.setSingleShot(true);
@@ -80,7 +90,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 {
 #ifndef HAVE_PIPEWIRE
     Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen)
-    emit failed(tr("Unisic was built without PipeWire support — recording unavailable"));
+    emit failed(tr("Unisic was built without PipeWire support, so recording is unavailable"));
     return;
 #else
     if (m_state != Idle)
@@ -196,8 +206,13 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                          : QStringLiteral("mp4");
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
     QDir().mkpath(m_settings->saveDirectory());
-    m_tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                 + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
+    // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
+    // /tmp is tmpfs on Fedora and in Flatpak, and minutes of lossless 4K would
+    // exhaust RAM (max duration defaults to unlimited) and lose the recording
+    // when ffmpeg's write hits ENOSPC.
+    const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(tmpBase);
+    m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
     m_outPath = m_settings->saveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
@@ -269,7 +284,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     m_ffmpeg->setProcessChannelMode(QProcess::MergedChannels);
     connect(m_ffmpeg, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if ((m_state == Recording || m_state == Starting) && error == QProcess::FailedToStart)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     connect(m_ffmpeg, &QProcess::finished, this,
             [this](int code, QProcess::ExitStatus status) {
@@ -307,7 +322,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         // errorOccurred may already have fired fail() synchronously (state now
         // Idle); guard so we don't emit failed() twice.
         if (m_ffmpeg == encoder && m_state == Starting)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
         return;
     }
     if (m_ffmpeg != encoder)
@@ -480,7 +495,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -491,7 +506,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -527,7 +542,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -540,7 +555,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -616,14 +631,14 @@ void GifRecorder::convertVideo()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"), args);
     if (!conv->waitForStarted(3000) && m_converter == conv) {
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -702,6 +717,12 @@ void GifRecorder::cleanup()
 
 void GifRecorder::fail(const QString &msg)
 {
+    // Single-fire: a streamError/formatReady queued from the PipeWire thread
+    // just before abort() is still delivered after it (disconnect/deleteLater
+    // don't cancel already-posted queued calls) — without this guard a cancel
+    // during Starting could re-enter here and emit a second failed().
+    if (m_state == Idle)
+        return;
     qWarning() << "GifRecorder:" << msg;
     abort();
     emit failed(msg);

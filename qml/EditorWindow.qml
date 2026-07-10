@@ -15,20 +15,38 @@ Window {
                     Screen.desktopAvailableWidth * 0.9)
     height: Math.min(Math.max(minimumHeight,
                               canvas.imageSize.height / Screen.devicePixelRatio
-                              + topBar.height + bottomBar.height + 88),
+                              + topBar.height + bottomBar.height + 88 + chromeTop),
                      Screen.desktopAvailableHeight * 0.9)
     minimumWidth: 820
     minimumHeight: 480
     visible: true
-    title: editorSession.overwriteMode ? qsTr("Unisic — Editing saved image")
-                                       : qsTr("Unisic — Editor")
+    title: editorSession.overwriteMode ? qsTr("Unisic Editor (editing saved image)")
+                                       : qsTr("Unisic Editor")
     color: Theme.background
+    // Same decoration policy as the main window: the stylized frameless title
+    // bar unless the user opted into system decorations (Appearance).
+    flags: App.settings.useSystemDecoration
+           ? Qt.Window
+           : (Qt.Window | Qt.FramelessWindowHint)
+    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
+
+    // Text still being typed in the floating input is visible on the canvas but
+    // only becomes an annotation on Enter — commit it before any export so the
+    // result is exactly what's rendered (empty text is a safe no-op).
+    function commitPendingText() {
+        if (editorTextInput.visible) {
+            canvas.commitText(editorTextInput.imgX, editorTextInput.imgY, editorTextField.text)
+            editorTextInput.visible = false
+            shortcutScope.forceActiveFocus()
+        }
+    }
 
     // Editing an existing capture (from history) overwrites the original file, so
     // confirm first; a normal capture saves straight to a fresh file.
     function doSave() {
+        commitPendingText()
         if (editorSession.overwriteMode) overwriteConfirm.open()
         else editorSession.save()
     }
@@ -77,14 +95,82 @@ Window {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) editorSession.copyToClipboard()
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) editorSession.upload()
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) { editorWindow.commitPendingText(); editorSession.upload() }
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Minus) canvasFlick.zoomBy(1 / 1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_0) canvasFlick.zoom = 0
-            else if (e.key === Qt.Key_Escape) editorWindow.close()
+            // Escape cancels an active crop selection first; only a second
+            // press (nothing pending) closes the editor.
+            else if (e.key === Qt.Key_Escape) {
+                if (canvas.hasSelection) canvas.clearSelection()
+                else editorWindow.close()
+            }
             else return
             e.accepted = true
+        }
+
+        // ---------- custom title bar (frameless decoration) ----------
+        Rectangle {
+            id: editorTitleBar
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: editorWindow.chromeTop
+            visible: !App.settings.useSystemDecoration
+            z: 20
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            // Deferred startSystemMove past a drag threshold — same pattern
+            // (and reason) as Main.qml's title bar.
+            MouseArea {
+                anchors.fill: parent
+                property real pressX: 0
+                property real pressY: 0
+                property bool moving: false
+                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                onPositionChanged: (m) => {
+                    if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                        moving = true
+                        editorWindow.startSystemMove()
+                    }
+                }
+                onDoubleClicked: editorWindow.visibility === Window.Maximized
+                                 ? editorWindow.showNormal() : editorWindow.showMaximized()
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                anchors.verticalCenter: parent.verticalCenter
+                text: editorWindow.title
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontM
+                font.weight: Font.DemiBold
+            }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                UIconButton {
+                    iconName: "minus"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Minimize")
+                    onClicked: editorWindow.showMinimized()
+                }
+                UIconButton {
+                    iconName: "window"; iconSize: 13; width: 30; height: 30
+                    tooltip: qsTr("Maximize")
+                    onClicked: editorWindow.visibility === Window.Maximized
+                               ? editorWindow.showNormal() : editorWindow.showMaximized()
+                }
+                UIconButton {
+                    iconName: "close"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Close")
+                    onClicked: editorWindow.close()
+                }
+            }
         }
 
         // ---------- top toolbar ----------
@@ -93,6 +179,7 @@ Window {
         Rectangle {
             id: topBar
             anchors.top: parent.top
+            anchors.topMargin: editorWindow.chromeTop + Theme.spacingM
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: Theme.spacingM
@@ -339,6 +426,8 @@ Window {
                     x: Math.max(0, (canvasFlick.width - width) / 2)
                     y: Math.max(0, (canvasFlick.height - height) / 2)
                     selectionMode: canvas.tool === AnnotationCanvas.Crop
+                    uiAccent: Theme.accent
+                    uiScrim: Theme.primary
                     Component.onCompleted: {
                         strokeColor = App.settings.editorStrokeColor
                         strokeWidth = App.settings.editorStrokeWidth
@@ -346,7 +435,9 @@ Window {
                         shapeFillColor = App.settings.editorFillColor
                         shapeFillEnabled = App.settings.editorFillEnabled
                     }
-                    onStrokeColorChanged: App.settings.editorStrokeColor = String(strokeColor)
+                    // The automatic highlighter red<->yellow swap must not leak
+                    // into the saved default — persist only real user picks.
+                    onStrokeColorChanged: if (!strokeColorIsAuto) App.settings.editorStrokeColor = String(strokeColor)
                     onStrokeWidthChanged: App.settings.editorStrokeWidth = strokeWidth
                     onFontSizeChanged: App.settings.editorFontSize = fontSize
                     onShapeFillColorChanged: App.settings.editorFillColor = String(shapeFillColor)
@@ -446,7 +537,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
 
-                UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: editorSession.copyToClipboard() }
+                UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() } }
                 UButton {
                     iconName: "document-save"
                     text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
@@ -455,7 +546,7 @@ Window {
                 UButton {
                     iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
                     enabled: !App.uploads.busy
-                    onClicked: editorSession.upload()
+                    onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                 }
                 UButton {
                     visible: App.ocrAvailable

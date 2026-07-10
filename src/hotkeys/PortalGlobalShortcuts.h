@@ -70,6 +70,7 @@ private:
     bool m_signalConnected = false;
     bool m_sessionPending = false; // CreateSession round-trip in flight
     bool m_retriedBind = false;    // one stale-session retry per bind attempt
+    bool m_needRebind = false;     // portal owner lost — re-bind on owner gain
     QVector<Shortcut> m_queued;    // newest set requested while pending
     QVector<Shortcut> m_lastBound; // for transparent re-bind after a portal restart
 };

@@ -250,26 +250,73 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.WhatsThisCursor
-                onClicked: page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail,
-                                         settingRow.available ? "" : settingRow.hint)
+                onClicked: {
+                    helpTipDelay.stop()
+                    helpTipPopup.close()
+                    page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail,
+                                  settingRow.available ? "" : settingRow.hint)
+                }
+                // Short delay so the tip doesn't flash on every mouse pass.
+                onContainsMouseChanged: {
+                    if (containsMouse)
+                        helpTipDelay.start()
+                    else {
+                        helpTipDelay.stop()
+                        helpTipPopup.close()
+                    }
+                }
             }
+            Timer { id: helpTipDelay; interval: 240; onTriggered: helpTipPopup.open() }
             Popup {
                 // Popup renders on the overlay layer, so the tooltip can never
                 // be buried under later rows/cards or clipped by the Flickable.
+                id: helpTipPopup
                 parent: helpBadge
-                x: 0
-                y: parent.height + 6
-                visible: helpMouse.containsMouse
-                width: Math.min(helpTip.implicitWidth, 320) + 16
+                x: -(width / 2) + parent.width / 2
+                y: parent.height + 8
+                margins: 8 // clamp inside the window near edges
+                width: Math.min(helpTipText.implicitWidth, 300) + leftPadding + rightPadding
                 closePolicy: Popup.NoAutoClose
-                padding: 8
-                background: Rectangle { radius: Theme.radiusM; color: Theme.tooltipBg }
-                contentItem: Text {
-                    id: helpTip
-                    wrapMode: Text.WordWrap
-                    text: settingRow.help
-                    color: Theme.isDark ? "#FFFFFF" : Theme.textOnAccent
-                    font.pixelSize: 11
+                padding: 12
+                background: Rectangle {
+                    radius: Theme.radiusL
+                    color: Theme.surface
+                    border.width: 1
+                    border.color: Theme.alpha(Theme.accent, 0.4)
+                }
+                enter: Transition {
+                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 130; easing.type: Easing.OutCubic }
+                    NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 130; easing.type: Easing.OutCubic }
+                }
+                exit: Transition {
+                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 90 }
+                }
+                contentItem: Column {
+                    spacing: 6
+                    Text {
+                        width: parent.width
+                        text: settingRow.label
+                        color: Theme.accent
+                        font.pixelSize: Theme.fontS
+                        font.weight: Font.DemiBold
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        id: helpTipText
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: settingRow.help
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontS + 1
+                        lineHeight: 1.2
+                    }
+                    Text {
+                        visible: settingRow.helpDetail !== "" || !settingRow.available
+                        width: parent.width
+                        text: qsTr("Click for the full explanation")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS - 1
+                    }
                 }
             }
         }

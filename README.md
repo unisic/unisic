@@ -16,9 +16,11 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
 </p>
 
+<img src="docs/screenshots/editor.png" width="99%" alt="Unisic post-capture editor" />
 <img src="docs/screenshots/capture.png" width="49%" alt="Unisic capture page" />
 <img src="docs/screenshots/record.png" width="49%" alt="Unisic screen recording page" />
-<img src="docs/screenshots/editor.png" width="98%" alt="Unisic post-capture editor" />
+<img src="docs/screenshots/history.png" width="49%" alt="Unisic history page" />
+<img src="docs/screenshots/destinations.png" width="49%" alt="Unisic destinations page" />
 
 </div>
 

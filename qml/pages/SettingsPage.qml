@@ -1077,6 +1077,12 @@ Item {
                         helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual — never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
+                    SettingRow {
+                        label: qsTr("Smart pick")
+                        help: qsTr("Click once during region selection to pick the detected object (window, panel, image) under the cursor.")
+                        helpDetail: qsTr("With Smart pick on, the region overlay highlights the interface element under your cursor — a single click selects its rectangle, no press-and-drag needed. Dragging still draws a manual rectangle, and the selection can be adjusted with the handles or arrow keys afterwards. Detection is a fast local edge-analysis pass (no ML, no network).")
+                        USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
+                    }
                 }
             }
 
@@ -1447,6 +1453,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                     }
                 }
             }

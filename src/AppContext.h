@@ -146,6 +146,7 @@ public:
     Q_INVOKABLE void devTestHotkeyBinds();
     Q_INVOKABLE void devTestUpload();
     Q_INVOKABLE void devTestSettingsRoundTrip();
+    Q_INVOKABLE void devTestSmartPick();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }

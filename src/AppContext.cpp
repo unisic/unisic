@@ -3,6 +3,7 @@
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
 #include "overlay/OverlayController.h"
+#include "overlay/ObjectDetector.h"
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
@@ -513,6 +514,33 @@ static QImage devTestImage()
     return img;
 }
 
+// Synthetic smart-pick check shared by the smoke test and the dev button: a
+// window-like light rect on a dark backdrop must be detected, and the point
+// inside it must resolve to a candidate (the exact lookup a click does).
+static QString smartPickDetectCheck()
+{
+    QImage img(400, 300, QImage::Format_ARGB32);
+    img.fill(QColor(0x17, 0x15, 0x3B));
+    {
+        QPainter p(&img);
+        p.fillRect(QRect(120, 80, 160, 100), QColor(0xEC, 0xEC, 0xF4));
+        p.setPen(QPen(QColor(0x43, 0x3D, 0x8B), 2));
+        p.drawRect(QRect(120, 80, 160, 100));
+    }
+    const QVector<QRect> rects = ObjectDetector::detect(img);
+    for (const QRect &r : rects)
+        if (r.contains(QPoint(200, 130)))
+            return QStringLiteral("PASS (%1 candidates)").arg(rects.size());
+    return QStringLiteral("FAIL (%1 candidates, none under the probe point)").arg(rects.size());
+}
+
+void AppContext::devTestSmartPick()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: smart pick detect — %1").arg(smartPickDetectCheck()));
+}
+
 void AppContext::devTestNotification()
 {
     if (!devBuild())
@@ -849,6 +877,13 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("history favorite: ") + (fav ? QStringLiteral("PASS")
                                                              : QStringLiteral("FAIL")));
         m_history->setFavorite(0, false);
+        smokeNext();
+    });
+
+    // 3e2) smart pick: object detection on a synthetic window-like rect —
+    // the exact candidate lookup a click in the region overlay performs.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("smart pick detect: ") + smartPickDetectCheck());
         smokeNext();
     });
 

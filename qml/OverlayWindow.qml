@@ -134,6 +134,9 @@ Window {
             anchors.fill: parent
             selectionMode: true
             tool: AnnotationCanvas.None
+            // Smart pick: click = select the detected object under the cursor;
+            // drag still draws a manual rectangle (Settings > Capture).
+            smartPick: App.settings.smartPick
             Component.onCompleted: {
                 strokeColor = App.settings.editorStrokeColor
                 strokeWidth = App.settings.editorStrokeWidth
@@ -254,9 +257,14 @@ Window {
             Text {
                 id: hintText
                 anchors.centerIn: parent
-                text: annotationToolsEnabled
-                      ? qsTr("Drag to select · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
-                      : qsTr("Drag to select the recording region · Enter to start · Esc to cancel")
+                text: {
+                    const drag = App.settings.smartPick
+                               ? qsTr("Click an object or drag to select")
+                               : qsTr("Drag to select")
+                    return annotationToolsEnabled
+                           ? drag + qsTr(" · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
+                           : drag + qsTr(" · Enter to start · Esc to cancel")
+                }
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1
             }

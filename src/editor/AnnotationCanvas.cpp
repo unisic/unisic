@@ -55,7 +55,8 @@ void AnnotationCanvas::setImage(const QImage &img)
     emit historyChanged();
     emit selectionRectChanged();
     emit renderScaleChanged();
-    update();
+    update();    if (m_smartPick && m_selectionMode)
+        ensureObjectCandidates();
 }
 
 qreal AnnotationCanvas::renderScale() const
@@ -90,18 +91,36 @@ void AnnotationCanvas::setTool(int t)
         clearObjectMask();
     if (t == ObjectPick) {
         m_hoverObject = QRect();
-        // Detect candidate objects once, off the GUI thread (a few tens of ms).
-        if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
-            m_detectWatcher = new QFutureWatcher<QVector<QRect>>(this);
-            connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished, this, [this] {
-                m_objectCandidates = m_detectWatcher->result();
-                m_detectWatcher->deleteLater();
-                m_detectWatcher = nullptr;
-                update();
-            });
-            m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
-        }
+        ensureObjectCandidates();
     }
+    update();
+}
+
+void AnnotationCanvas::ensureObjectCandidates()
+{
+    // Detect candidate objects once, off the GUI thread (a few tens of ms).
+    if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
+        m_detectWatcher = new QFutureWatcher<QVector<QRect>>(this);
+        connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished, this, [this] {
+            m_objectCandidates = m_detectWatcher->result();
+            m_detectWatcher->deleteLater();
+            m_detectWatcher = nullptr;
+            update();
+        });
+        m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
+    }
+}
+
+void AnnotationCanvas::setSmartPick(bool on)
+{
+    if (m_smartPick == on)
+        return;
+    m_smartPick = on;
+    // Start detecting right away: the candidates must be ready by the time
+    // the user's first click lands (the pass runs off-thread).
+    if (on && m_selectionMode)
+        ensureObjectCandidates();
+    emit smartPickChanged();
     update();
 }
 
@@ -576,7 +595,8 @@ void AnnotationCanvas::paint(QPainter *painter)
     painter->drawImage(0, 0, m_base);
     drawAll(*painter);
 
-    if (m_tool == ObjectPick && !hasSelection()) {
+    if ((m_tool == ObjectPick
+         || (m_selectionMode && m_tool == None && m_smartPick)) && !hasSelection()) {
         // Highlight the object under the cursor: dim the rest, outline it in accent.
         if (!m_hoverObject.isNull()) {
             QPainterPath full;
@@ -753,6 +773,11 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         } else if (hasSelection() && m_selection.contains(img)) {
             m_drag = MoveSelection;
             m_selStart = m_selection;
+        } else if (m_smartPick && m_tool == None) {
+            // Smart pick: defer — a genuine drag promotes to NewSelection
+            // (mouseMoveEvent), a plain click selects the detected object
+            // under the cursor on release.
+            m_drag = PendingNewSelection;
         } else {
             m_drag = NewSelection;
             m_selection = QRectF(img, img);
@@ -897,6 +922,23 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
 {
     if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
         startSegmentation();
+    // Smart pick: the press never moved (still pending), so this is a CLICK —
+    // select the innermost detected object under it. No candidate = no-op,
+    // exactly like today's empty click. (An ObjectPick pending click keeps
+    // its existing no-op semantics.)
+    if (m_drag == PendingNewSelection && m_selectionMode && m_tool == None && m_smartPick) {
+        const QPoint p = m_dragStart.toPoint();
+        for (const QRect &r : std::as_const(m_objectCandidates)) {
+            if (r.contains(p)) {
+                m_selection = QRectF(r);
+                normalizeSelection();
+                m_hoverObject = QRect();
+                emit selectionRectChanged();
+                update();
+                break;
+            }
+        }
+    }
     if (m_drag == DrawDrag && m_drawing) {
         // Preserve the stroke endpoint even when it falls within the sampling
         // threshold used while the pointer is moving.
@@ -937,6 +979,22 @@ void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
     if (m_tool == ObjectPick) {
         // Candidates are sorted smallest-first, so the first hit is the
         // innermost element under the cursor.
+        QRect found;
+        const QPoint p = img.toPoint();
+        for (const QRect &r : std::as_const(m_objectCandidates)) {
+            if (r.contains(p)) { found = r; break; }
+        }
+        if (found != m_hoverObject) {
+            m_hoverObject = found;
+            update();
+        }
+        setCursor(found.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        e->accept();
+        return;
+    }
+    if (m_selectionMode && m_tool == None && m_smartPick && !hasSelection()) {
+        // Smart pick: highlight the innermost detected object under the
+        // cursor (same candidate list as the ObjectPick tool).
         QRect found;
         const QPoint p = img.toPoint();
         for (const QRect &r : std::as_const(m_objectCandidates)) {

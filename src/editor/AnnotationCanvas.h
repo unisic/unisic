@@ -31,6 +31,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(int strokeWidth READ strokeWidth WRITE setStrokeWidth NOTIFY strokeWidthChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
+    // Overlay smart pick: with the plain selection tool (None), hovering
+    // highlights the detected object under the cursor and a CLICK (no drag)
+    // selects its rect; dragging still draws a manual rectangle.
+    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -76,6 +80,8 @@ public:
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
     bool selectionMode() const { return m_selectionMode; }
+    bool smartPick() const { return m_smartPick; }
+    void setSmartPick(bool on);
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -113,6 +119,7 @@ signals:
     void strokeWidthChanged();
     void fontSizeChanged();
     void selectionModeChanged();
+    void smartPickChanged();
     void selectionRectChanged();
     void hoverPointChanged();
     void historyChanged();
@@ -171,6 +178,9 @@ private:
     QColor sampleEdgeColor(const QRectF &r) const;
     void startSegmentation();
     void clearObjectMask();
+    // Kick off (once) the async edge-detection pass that fills
+    // m_objectCandidates — shared by the ObjectPick tool and smart pick.
+    void ensureObjectCandidates();
 
     QImage m_base;
     QVector<Annot> m_items;
@@ -190,6 +200,7 @@ private:
     int m_stepCounter = 0;
 
     bool m_selectionMode = false;
+    bool m_smartPick = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag

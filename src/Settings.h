@@ -57,6 +57,7 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
+    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
     Q_PROPERTY(bool quickCopyAfterCapture READ quickCopyAfterCapture WRITE setQuickCopyAfterCapture NOTIFY quickCopyAfterCaptureChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
@@ -223,6 +224,9 @@ public:
     // Crosshair guide lines from the cursor to the screen edges while selecting a
     // region (screenshot AND recording overlay). Off by default.
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
+    // Region overlay: a plain CLICK selects the detected object (window,
+    // panel, image) under the cursor; dragging still draws a manual rect.
+    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", true)
     U_SETTING(bool, quickCopyAfterCapture, setQuickCopyAfterCapture, "capture/quickCopyAfterCapture", true)
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
@@ -269,7 +273,7 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
-        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
+        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
         emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
@@ -314,6 +318,7 @@ signals:
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
+    void smartPickChanged();
     void quickCopyAfterCaptureChanged();
     void videoFpsChanged();
     void videoFormatChanged();

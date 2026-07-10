@@ -148,6 +148,7 @@ qt_add_qml_module(unisic
         qml/components/USlider.qml
         qml/components/UTextField.qml
         qml/components/UShortcutRecorder.qml
+        qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
         qml/components/UConfirmDialog.qml
         qml/components/UHoverTip.qml

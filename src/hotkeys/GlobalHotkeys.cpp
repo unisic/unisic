@@ -99,13 +99,21 @@ QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
     return parts.join(QStringLiteral(", "));
 }
 
+bool GlobalHotkeys::sameBinding(const QString &a, const QString &b)
+{
+    if (a == b)
+        return true;
+    const QList<int> ka = keysFor(a), kb = keysFor(b);
+    return QSet<int>(ka.begin(), ka.end()) == QSet<int>(kb.begin(), kb.end());
+}
+
 QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
 {
     // KGlobalAccel canonical id: [componentUnique, actionUnique, componentFriendly, actionFriendly]
     return {QString::fromLatin1(COMPONENT), actionId, QStringLiteral("Unisic"), friendlyName};
 }
 
-QList<int> GlobalHotkeys::keysFor(const QString &keySequence) const
+QList<int> GlobalHotkeys::keysFor(const QString &keySequence)
 {
     // Older builds stored multi-sequence strings joined with "; " — normalize
     // to QKeySequence's native ", " so legacy configs keep both bindings.
@@ -281,8 +289,9 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     // of the auto-generated variant set.
     if (!reply.arguments().isEmpty()) {
         const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
-        if (portableFromKeys(actual) != QKeySequence(keySequence).toString(QKeySequence::PortableText)
-            && actual != wanted) {
+        // ORDER-INSENSITIVE: the daemon reorders alternate keys in replies.
+        if (QSet<int>(actual.begin(), actual.end())
+            != QSet<int>(wanted.begin(), wanted.end())) {
             qWarning() << "setShortcut for" << actionId << "requested" << wanted
                        << "but daemon kept" << actual << "(key owned elsewhere?)";
             return false;

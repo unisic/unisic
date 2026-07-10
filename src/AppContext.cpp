@@ -703,6 +703,42 @@ void AppContext::devTestUpload()
     });
 }
 
+QString AppContext::altHotkeysCheck()
+{
+    // Round-trip a MULTI-binding through the real daemon on a scratch action:
+    // push "F9, Meta+F9", read the active keys back, expect BOTH to be live
+    // and the portable form to collapse to the same string; then release.
+    // Exercises keysFor (multi-chord parse), the daemon's alternate-key list
+    // and portableFromKeys — the plumbing the alternative-hotkeys UI rides on.
+    if (!m_hotkeys->available())
+        return QStringLiteral("SKIP (no KGlobalAccel)");
+    const QString id = QStringLiteral("alt-hotkey-test");
+    const QString name = tr("Alternate hotkey test");
+    const QString wanted = QStringLiteral("F9, Meta+F9");
+    QString result;
+    if (!m_hotkeys->setShortcut(id, name, wanted)) {
+        result = QStringLiteral("FAIL (daemon refused the multi-binding — keys taken?)");
+    } else {
+        bool ok = false;
+        const QString actual = m_hotkeys->activeKeysPortable(id, &ok);
+        if (!ok)
+            result = QStringLiteral("FAIL (readback query failed)");
+        else if (!GlobalHotkeys::sameBinding(actual, wanted))
+            result = QStringLiteral("FAIL (round-trip returned '%1')").arg(actual);
+        else
+            result = QStringLiteral("PASS (both alternates live)");
+    }
+    m_hotkeys->releaseShortcut(id, name);
+    return result;
+}
+
+void AppContext::devTestAltHotkeys()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: alternate hotkeys — %1").arg(altHotkeysCheck()));
+}
+
 QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
 {
     QStringList lines;
@@ -721,7 +757,7 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
                 lines << a.id + QStringLiteral(": was unbound, re-asserted ") + a.keys;
             else
                 lines << a.id + QStringLiteral(": UNBOUND (stored ") + a.keys + QLatin1Char(')');
-        } else if (heal && actual == a.keys
+        } else if (heal && GlobalHotkeys::sameBinding(actual, a.keys)
                    && GlobalHotkeys::expandShiftDigitVariants(raw) != raw) {
             // Bound to the right key, but WITHOUT the shifted-symbol variant
             // alternates a Shift+digit binding needs on KWin/Wayland (older
@@ -732,8 +768,9 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
                      + QStringLiteral(" (upgraded with Shift+digit variants)");
         } else {
             // Bound, but not to what we store = a KCM edit — honor it in the
-            // UI (daemon-authoritative display).
-            if (actual != a.keys)
+            // UI (daemon-authoritative display). Set-compare: the daemon
+            // reorders alternates, and a mere reorder is not an edit.
+            if (!GlobalHotkeys::sameBinding(actual, a.keys))
                 syncHotkeyFromDaemon(a.id, actual);
             lines << a.id + QStringLiteral(": ")
                      + (actual.isEmpty() ? QStringLiteral("(none)") : actual);
@@ -903,6 +940,12 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+
+    // 3e3) alternate hotkeys: multi-binding round-trip on a scratch action.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("alternate hotkeys: ") + altHotkeysCheck());
+        smokeNext();
+    });
 
     // 3f) OCR recognition — a real tesseract run on a rendered known token
     // (digits: language-neutral, works with any installed traineddata).
@@ -1919,7 +1962,7 @@ void AppContext::syncAllHotkeysFromDaemon()
         const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
         // A failed/timed-out query must NOT be mistaken for "unbound" — that
         // would wipe the stored key (and the sync() below persists the wipe).
-        if (ok && actual != a.keys)
+        if (ok && !GlobalHotkeys::sameBinding(actual, a.keys))
             syncHotkeyFromDaemon(a.id, actual);
     }
 }

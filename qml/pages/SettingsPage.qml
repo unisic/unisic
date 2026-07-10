@@ -172,7 +172,9 @@ Item {
         property string hint: ""
         default property alias control: slot.data
         width: parent.width
-        height: 44
+        // Rows grow with tall controls (e.g. the multi-binding hotkey chips
+        // wrapping to a second line); everything else keeps the 44px rhythm.
+        height: Math.max(44, slot.height)
         opacity: available ? 1.0 : 0.45
         Text {
             id: labelText
@@ -196,7 +198,7 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             width: childrenRect.width
-            height: 44
+            height: Math.max(44, childrenRect.height)
         }
         Rectangle {
             id: helpBadge
@@ -1262,7 +1264,7 @@ Item {
                         wrapMode: Text.WordWrap
                         text: App.hotkeyBackend === "portal"
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
-                              : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Use Qt key notation, e.g. Meta+Shift+2.")
+                              : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -1270,31 +1272,31 @@ Item {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
                         helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline.")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyFullScreen; onRecorded: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyFullScreen; onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") } }
                     }
                     SettingRow {
                         label: qsTr("Region")
                         help: qsTr("Hotkey: capture a selected region.")
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyRegion; onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") } }
                     }
                     SettingRow {
                         label: qsTr("Window")
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyWindow; onRecorded: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyWindow; onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") } }
                     }
                     SettingRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
                         helpDetail: qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRecord; onRecorded: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyRecord; onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") } }
                     }
                     SettingRow {
                         label: qsTr("GIF start/stop")
                         help: qsTr("Hotkey: toggle GIF recording.")
                         helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyGif; onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
                     }
                     SettingRow {
                         label: qsTr("OCR region (copy text)")
@@ -1305,7 +1307,7 @@ Item {
                         helpDetail: (App.qrAvailable
                                      ? qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
                                      : qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied."))
-                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyOcr; onRecorded: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
+                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyOcr; onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
                     }
                     UButton {
                         anchors.right: parent.right
@@ -1445,6 +1447,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Arm quick-copy (Ctrl+C)"); onClicked: App.devTestQuickCopy() }

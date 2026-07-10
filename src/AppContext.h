@@ -147,6 +147,7 @@ public:
     Q_INVOKABLE void devTestUpload();
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestSmartPick();
+    Q_INVOKABLE void devTestAltHotkeys();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -273,6 +274,8 @@ private:
     // Export -> verify all properties serialized -> import back. Returns a
     // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
     QString settingsRoundTripCheck();
+    // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
+    QString altHotkeysCheck();
 
     void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,

@@ -17,6 +17,9 @@ Window {
 
     // 0 = stay open until manually closed.
     readonly property int autoHideSec: App.settings.capturePopupDurationSec
+    // "compact": single slim row (small thumb + filename + actions);
+    // "casual": the full card. C++ sizes the surface to match.
+    readonly property bool compact: App.settings.capturePopupStyle === "compact"
 
     // Auto-dismiss, paused while the pointer is over the card.
     Timer {
@@ -55,7 +58,106 @@ Window {
 
         HoverHandler { id: hover }
 
+        // ---- compact variant: one slim row ----
+        Item {
+            visible: popup.compact
+            anchors.fill: parent
+            anchors.margins: 8
+
+            Rectangle {
+                id: cThumb
+                width: 36; height: 36
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 6
+                color: Theme.background
+                clip: true
+                Image {
+                    anchors.fill: parent
+                    source: notif.thumbSource
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    sourceSize: Qt.size(72, 72)
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: notif.kind === "image"
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: notif.preview()
+                }
+            }
+
+            UIconButton {
+                id: cClose
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "close"; iconSize: 11; width: 22; height: 22
+                onClicked: notif.dismiss()
+            }
+
+            Row {
+                id: cActions
+                anchors.right: cClose.left
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 0
+                UIconButton {
+                    iconName: "edit"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Edit"); visible: notif.kind === "image"
+                    onClicked: notif.edit()
+                }
+                UIconButton {
+                    iconName: "edit-copy"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Copy image"); visible: notif.kind === "image"
+                    onClicked: notif.copyImage()
+                }
+                UIconButton {
+                    iconName: "globe"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Copy link"); visible: notif.url !== ""
+                    onClicked: notif.copyUrl()
+                }
+                UIconButton {
+                    iconName: "folder-open"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Show in folder")
+                    onClicked: notif.showInFolder()
+                }
+                UIconButton {
+                    iconName: "upload-cloud"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Upload"); visible: notif.url === "" && !notif.uploading
+                    onClicked: notif.upload()
+                }
+                UIconButton {
+                    iconName: "ocr"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Copy text (OCR)")
+                    visible: App.ocrAvailable && notif.kind === "image"
+                    onClicked: notif.ocr()
+                }
+                UIconButton {
+                    iconName: "edit-delete"; iconSize: 14; width: 24; height: 24
+                    tooltip: qsTr("Delete"); visible: notif.filePath !== ""
+                    onClicked: notif.deleteCapture()
+                }
+            }
+
+            Text {
+                anchors.left: cThumb.right
+                anchors.leftMargin: 8
+                anchors.right: cActions.left
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                text: notif.uploading ? qsTr("Uploading…")
+                      : notif.url !== "" ? notif.url
+                      : notif.fileName !== "" ? notif.fileName
+                      : qsTr("Not saved")
+                color: notif.url !== "" ? Theme.accent : Theme.textSecondary
+                font.pixelSize: Theme.fontS
+                elide: Text.ElideMiddle
+                maximumLineCount: 1
+            }
+        }
+
+        // ---- casual variant: the full card ----
         Row {
+            visible: !popup.compact
             anchors.fill: parent
             anchors.margins: 10
             spacing: 10
@@ -160,6 +262,7 @@ Window {
         }
 
         UIconButton {
+            visible: !popup.compact   // compact has its own inline close
             anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 4
             iconName: "close"; iconSize: 12; width: 24; height: 24
             onClicked: notif.dismiss()

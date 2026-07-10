@@ -68,6 +68,7 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
+    Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
@@ -234,6 +235,8 @@ public:
     U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
+    // "casual" (full card) | "compact" (single slim row)
+    U_SETTING(QString, capturePopupStyle, setCapturePopupStyle, "capturePopupStyle", QStringLiteral("casual"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
     // Skip the capture card while notifications are inhibited (a fullscreen app,
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
@@ -273,7 +276,7 @@ public:
         emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
-        emit capturePopupDurationSecChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
@@ -322,6 +325,7 @@ signals:
     void hotkeyOcrChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
+    void capturePopupStyleChanged();
     void capturePopupDurationSecChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();

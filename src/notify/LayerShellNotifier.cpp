@@ -64,7 +64,11 @@ void LayerShellNotifier::show(CaptureNotification *n)
     }
 
     // Card + a small transparent pad so the drop shadow isn't clipped.
-    const int cardW = 400, cardH = 150, pad = 16, edge = 8;
+    // "compact" is a single slim row; "casual" the full card with thumbnail.
+    const bool compact = m_app->settings()->capturePopupStyle() == QLatin1String("compact");
+    const int cardW = compact ? 380 : 400;
+    const int cardH = compact ? 52 : 150;
+    const int pad = 16, edge = 8;
 
     auto *ctx = new QQmlContext(engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("notif"), n);

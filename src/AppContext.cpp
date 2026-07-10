@@ -1389,6 +1389,40 @@ void AppContext::previewFromHistory(const QString &filePath)
     openPreview(img);
 }
 
+void AppContext::copyImageFromHistory(const QString &filePath)
+{
+    QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 to copy").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    copyImageToClipboard(img);
+    showToast(tr("Image copied"));
+}
+
+void AppContext::uploadFromHistory(const QString &filePath)
+{
+    if (filePath.isEmpty())
+        return;
+    // Upload the FILE itself (works for images, GIFs and videos alike) and
+    // attach the resulting URL to this entry so the card's link/copy-link
+    // light up. afterUploadActions honours the copy-link / open-in-browser
+    // settings, matching a capture-time upload.
+    showToast(tr("Uploading %1…").arg(QFileInfo(filePath).fileName()));
+    m_uploads->uploadFile(filePath, [this, filePath](const QString &url, const QString &del,
+                                                     const QString &err) {
+        if (!err.isEmpty()) {
+            showToast(tr("Upload failed: %1").arg(err), true);
+            return;
+        }
+        m_history->setUrl(filePath, url, del);
+        if (url.isEmpty())
+            showToast(tr("Uploaded")); // FTP/SFTP destination with no public URL
+        else
+            afterUploadActions(url);   // shows its own toast (+ copy-link/open)
+    });
+}
+
 void AppContext::openEditor(const QImage &img, const QString &overwritePath)
 {
     if (!m_engine)

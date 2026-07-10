@@ -224,6 +224,11 @@ public:
     Q_INVOKABLE void editFromHistory(const QString &filePath);
     // Open a saved capture from history in the floating pinned preview.
     Q_INVOKABLE void previewFromHistory(const QString &filePath);
+    // Copy a saved image file's pixels to the clipboard (history card).
+    Q_INVOKABLE void copyImageFromHistory(const QString &filePath);
+    // Upload a saved capture file (history card) to the active destination and
+    // write the resulting URL back onto its history entry.
+    Q_INVOKABLE void uploadFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.

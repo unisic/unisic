@@ -63,13 +63,21 @@ Item {
                 height: grid.cellHeight
 
                 Rectangle {
+                    id: card
                     anchors.fill: parent
                     anchors.margins: 8
                     radius: Theme.radiusL
-                    color: itemMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+                    color: cardHover.hovered ? Theme.surfaceHi : Theme.surface
                     border.width: 1
-                    border.color: Theme.divider
+                    border.color: cardHover.hovered ? Theme.alpha(Theme.accent, 0.45) : Theme.divider
+                    clip: true
                     Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+
+                    // HoverHandler (not a MouseArea): child button MouseAreas
+                    // don't steal its hover, so the action overlay stays up
+                    // while the pointer is over a button.
+                    HoverHandler { id: cardHover }
 
                     Column {
                         anchors.fill: parent
@@ -77,28 +85,25 @@ Item {
                         spacing: 8
 
                         Rectangle {
+                            id: thumb
                             width: parent.width
-                            height: 120
+                            height: 128
                             radius: Theme.radiusM
                             color: Theme.primary
                             clip: true
                             Image {
                                 anchors.fill: parent
-                                // encodeURI: '#', '?' or '%' in the data path
-                                // would otherwise produce an invalid URL.
                                 source: thumbnail !== "" ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent) : ""
                                 fillMode: Image.PreserveAspectCrop
                                 asynchronous: true
-                                // Thumbs are 480x300 on disk but display ~230x120;
-                                // with both dims set + PreserveAspectCrop, Qt decodes
-                                // the smallest covering image — ~4x less texture RAM.
                                 sourceSize.width: Math.ceil(width * Screen.devicePixelRatio)
                                 sourceSize.height: Math.ceil(height * Screen.devicePixelRatio)
                             }
+                            // Kind badge (GIF/MP4/…): top-left.
                             Rectangle {
                                 visible: kind !== "image"
                                 anchors.top: parent.top
-                                anchors.left: parent.left   // star owns the right corner
+                                anchors.left: parent.left
                                 anchors.margins: 6
                                 width: kindText.implicitWidth + 14
                                 height: 20
@@ -113,16 +118,16 @@ Item {
                                     font.weight: Font.Bold
                                 }
                             }
-                            // Star overlaid on the thumbnail (top-right): keeps
-                            // the action row below within the tile width. Dark
-                            // scrim disc so it reads on any screenshot.
+                            // Star: top-right, dark scrim disc so it reads on
+                            // any screenshot. Above the action overlay (z).
                             Rectangle {
+                                z: 2
                                 anchors.top: parent.top
                                 anchors.right: parent.right
                                 anchors.margins: 6
                                 width: 26; height: 26; radius: 13
-                                color: Qt.rgba(0, 0, 0, 0.45)
-                                visible: favorite || itemMouse.containsMouse
+                                color: Qt.rgba(0, 0, 0, 0.5)
+                                visible: favorite || cardHover.hovered
                                 UIcon {
                                     anchors.centerIn: parent
                                     name: favorite ? "star-filled" : "star"
@@ -135,6 +140,73 @@ Item {
                                     onClicked: App.history.setFavorite(index, !favorite)
                                 }
                             }
+                            // Action overlay: fades in on hover over the whole
+                            // card, so every action fits without cramping the
+                            // tile. White icons on a dark scrim.
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusM
+                                color: Qt.rgba(0, 0, 0, 0.55)
+                                visible: opacity > 0
+                                opacity: cardHover.hovered ? 1 : 0
+                                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+
+                                Grid {
+                                    anchors.centerIn: parent
+                                    columns: 4
+                                    rowSpacing: 6
+                                    columnSpacing: 6
+                                    UIconButton {
+                                        iconName: "content-copy"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Copy image")
+                                        visible: kind === "image" && filePath !== ""
+                                        onClicked: App.copyImageFromHistory(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "globe"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Copy link")
+                                        enabled: url !== ""
+                                        onClicked: { App.copyText(url); App.showToast(qsTr("Link copied")) }
+                                    }
+                                    UIconButton {
+                                        iconName: "upload-cloud"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Upload")
+                                        enabled: filePath !== ""
+                                        onClicked: App.uploadFromHistory(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "folder-open"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Open file")
+                                        enabled: filePath !== ""
+                                        onClicked: App.openFile(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "edit"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Edit (overwrites the file on save)")
+                                        visible: kind === "image" && filePath !== ""
+                                        onClicked: App.editFromHistory(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "window-pin"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Pin as floating preview")
+                                        visible: kind === "image" && filePath !== ""
+                                        onClicked: App.previewFromHistory(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "ocr"; iconSize: 17; width: 34; height: 34
+                                        tooltip: qsTr("Copy text (OCR)")
+                                        visible: App.ocrAvailable && kind === "image" && filePath !== ""
+                                        onClicked: App.ocrFile(filePath)
+                                    }
+                                    UIconButton {
+                                        iconName: "edit-delete"; iconSize: 17; width: 34; height: 34
+                                        enabled: !favorite
+                                        tooltip: favorite ? qsTr("Starred. Unstar to allow deleting")
+                                                          : qsTr("Delete (moves file to trash)")
+                                        onClicked: App.history.remove(index)
+                                    }
+                                }
+                            }
                         }
 
                         Text {
@@ -145,53 +217,13 @@ Item {
                             font.pixelSize: Theme.fontS
                             elide: Text.ElideMiddle
                         }
-
-                        Row {
-                            spacing: 4
-                            UIconButton {
-                                iconName: "edit-copy"; iconSize: 16; tooltip: qsTr("Copy link")
-                                width: 30; height: 30
-                                enabled: url !== ""
-                                onClicked: { App.copyText(url); App.showToast(qsTr("Link copied")) }
-                            }
-                            UIconButton {
-                                iconName: "folder-open"; iconSize: 16; width: 30; height: 30
-                                enabled: filePath !== ""
-                                onClicked: App.openFile(filePath)
-                            }
-                            UIconButton {
-                                iconName: "document-edit"; iconSize: 16; width: 30; height: 30
-                                tooltip: qsTr("Edit (overwrites the file on save)")
-                                visible: kind === "image" && filePath !== ""
-                                onClicked: App.editFromHistory(filePath)
-                            }
-                            UIconButton {
-                                iconName: "window-pin"; iconSize: 16; width: 30; height: 30
-                                tooltip: qsTr("Pin as floating preview")
-                                visible: kind === "image" && filePath !== ""
-                                onClicked: App.previewFromHistory(filePath)
-                            }
-                            UIconButton {
-                                iconName: "ocr"; iconSize: 16; width: 30; height: 30
-                                tooltip: qsTr("Copy text (OCR)")
-                                visible: App.ocrAvailable && kind === "image" && filePath !== ""
-                                onClicked: App.ocrFile(filePath)
-                            }
-                            UIconButton {
-                                iconName: "edit-delete"; iconSize: 16; width: 30; height: 30
-                                enabled: !favorite
-                                tooltip: favorite ? qsTr("Starred. Unstar to allow deleting")
-                                                  : qsTr("Delete (moves file to trash)")
-                                onClicked: App.history.remove(index)
-                            }
+                        Text {
+                            width: parent.width
+                            text: timestamp ? Qt.formatDateTime(timestamp, "yyyy-MM-dd  HH:mm") : ""
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS - 1
+                            elide: Text.ElideRight
                         }
-                    }
-
-                    MouseArea {
-                        id: itemMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.NoButton
                     }
                 }
             }

@@ -81,6 +81,7 @@ class AppContext : public QObject
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
+    Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -146,6 +147,7 @@ public:
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
+    bool qrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
     bool autostartEnabled() const;
@@ -160,6 +162,8 @@ public:
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
+    // Region selection -> OCR/QR -> clipboard. No save/history/notification.
+    Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();

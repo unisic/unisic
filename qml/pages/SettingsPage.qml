@@ -11,6 +11,47 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // ---- settings search ----
+    property string searchQuery: ""
+    readonly property bool searchActive: searchQuery.length > 0
+    property var searchResults: []
+    // Set when jumping to a result; highlights matching row labels for a moment.
+    property string highlightQuery: ""
+    onSearchQueryChanged: Qt.callLater(rebuildSearch)
+    Timer {
+        id: highlightTimer
+        interval: 4000
+        onTriggered: page.highlightQuery = ""
+    }
+    function jumpTo(result) {
+        highlightQuery = searchQuery.toLowerCase()
+        highlightTimer.restart()
+        tab = result.tab
+        searchQuery = ""
+    }
+    function rebuildSearch() {
+        if (!searchActive) { searchResults = []; return }
+        var q = searchQuery.toLowerCase()
+        var out = []
+        for (var i = 0; i < paneArea.children.length; ++i) {
+            var ld = paneArea.children[i]
+            if (!ld || ld.tabIndex === undefined || !ld.item)
+                continue
+            collectRows(ld.item, ld.tabIndex, q, out)
+        }
+        searchResults = out
+    }
+    function collectRows(obj, tabIdx, q, out) {
+        if (!obj)
+            return
+        if (obj.isSettingRow === true && obj.label !== undefined && obj.label.length > 0
+            && obj.label.toLowerCase().indexOf(q) >= 0)
+            out.push({ label: obj.label, tab: tabIdx })
+        var kids = obj.children
+        for (var i = 0; kids && i < kids.length; ++i)
+            collectRows(kids[i], tabIdx, q, out)
+    }
+
     // Local absolute path -> file URL. Per-segment encode: encodeURI leaves
     // '#'/'?' unescaped, so a filename containing them would be parsed as a URL
     // fragment/query and the thumbnail would fail to load.
@@ -84,6 +125,7 @@ Item {
 
     component SettingRow: Item {
         id: settingRow
+        readonly property bool isSettingRow: true   // marker for the settings search
         property alias label: labelText.text
         // Capability gating: unavailable options are greyed out (not hidden) with
         // a one-line reason, so a release build still shows what it can't do.
@@ -102,7 +144,10 @@ Item {
             verticalAlignment: Text.AlignVCenter
             width: slot.x - Theme.spacingM
             elide: Text.ElideRight
-            color: Theme.textPrimary
+            // Briefly tinted when this row was just jumped to from the search.
+            color: page.highlightQuery.length > 0
+                   && text.toLowerCase().indexOf(page.highlightQuery) >= 0
+                   ? Theme.accent : Theme.textPrimary
             font.pixelSize: Theme.fontM
         }
         Item {
@@ -222,6 +267,17 @@ Item {
         }
     }
 
+    // Settings search: type to list matching rows across ALL tabs; click a
+    // result to jump to its tab (label flashes accent for a moment).
+    UTextField {
+        anchors.right: tabBar.right
+        anchors.verticalCenter: tabBar.verticalCenter
+        width: 190
+        placeholder: qsTr("Search settings…")
+        text: page.searchQuery
+        onEdited: (t) => page.searchQuery = t
+    }
+
     // Persistence warning: the config dir isn't writable, so nothing sticks
     // across launches. Tells the user exactly why + where to fix it.
     Rectangle {
@@ -263,15 +319,85 @@ Item {
         anchors.bottomMargin: Theme.spacingL
         clip: true
 
+        // ===== search results (shown instead of the panes while typing) =====
+        Flickable {
+            visible: page.searchActive
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: resultsCol.height + Theme.spacingXL
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            Column {
+                id: resultsCol
+                width: parent.width
+                spacing: Theme.spacingS
+                Text {
+                    visible: page.searchResults.length === 0
+                    text: qsTr("No settings match \u201C%1\u201D").arg(page.searchQuery)
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontM
+                }
+                Repeater {
+                    model: page.searchResults
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: page.cardWidth
+                        height: 46
+                        radius: Theme.radiusM
+                        color: resMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+                        border.width: 1
+                        border.color: Theme.divider
+                        Text {
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spacingM
+                            anchors.right: tabChip.left
+                            anchors.rightMargin: Theme.spacingM
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            elide: Text.ElideRight
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontM
+                        }
+                        Rectangle {
+                            id: tabChip
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.spacingM
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: chipText.implicitWidth + 16
+                            height: 22
+                            radius: 11
+                            color: Theme.alpha(Theme.accent, 0.18)
+                            Text {
+                                id: chipText
+                                anchors.centerIn: parent
+                                text: page.tabNames[modelData.tab] !== undefined ? page.tabNames[modelData.tab] : ""
+                                color: Theme.accent
+                                font.pixelSize: Theme.fontS
+                            }
+                        }
+                        MouseArea {
+                            id: resMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: page.jumpTo(modelData)
+                        }
+                    }
+                }
+            }
+        }
+
         // ===== General =====
         // Lazily built on first visit, then kept alive (preserves scroll
         // position). Six always-instantiated panes made opening Settings
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 0
+            readonly property int tabIndex: 0
+            visible: page.tab === 0 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -317,7 +443,8 @@ Item {
                     }
                     SettingRow {
                         available: App.ocrAvailable
-                        hint: App.ocrAvailable ? ""
+                        hint: App.ocrAvailable
+                              ? (App.qrAvailable ? qsTr("OCR also scans QR codes — a code in the region copies its content instead.") : "")
                               : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
                         label: qsTr("OCR languages")
                         UTextField {
@@ -484,9 +611,11 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 1
+            readonly property int tabIndex: 1
+            visible: page.tab === 1 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -723,9 +852,11 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 2
+            readonly property int tabIndex: 2
+            visible: page.tab === 2 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -822,9 +953,11 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 3
+            readonly property int tabIndex: 3
+            visible: page.tab === 3 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -889,9 +1022,11 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 4
+            readonly property int tabIndex: 4
+            visible: page.tab === 4 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
 
@@ -954,6 +1089,15 @@ Item {
                         label: qsTr("GIF start/stop")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
                     }
+                    SettingRow {
+                        label: qsTr("OCR region (copy text)")
+                        available: App.ocrAvailable
+                        hint: App.ocrAvailable
+                              ? (App.qrAvailable ? qsTr("Select a region — recognized text lands in the clipboard. QR codes are read too (their content is copied).")
+                                                 : qsTr("Select a region — recognized text lands in the clipboard."))
+                              : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
+                        UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyOcr; onRecorded: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
+                    }
                     UButton {
                         anchors.right: parent.right
                         text: qsTr("Apply hotkeys")
@@ -980,9 +1124,11 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            visible: page.tab === 5
+            readonly property int tabIndex: 5
+            visible: page.tab === 5 && !page.searchActive
             property bool touched: false
-            active: touched || visible
+            // Search needs every pane instantiated so it can walk the rows.
+            active: touched || visible || page.searchActive
             onLoaded: touched = true
             sourceComponent: ScrollPane {
             UCard {
@@ -1081,6 +1227,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                     }
                 }
             }

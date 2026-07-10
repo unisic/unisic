@@ -225,6 +225,7 @@ void AppContext::dispatchHotkey(const QString &action)
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
     else if (action == QLatin1String("capture-region")) captureRegion();
     else if (action == QLatin1String("capture-window")) captureWindow();
+    else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
         if (recording()) stopRecording();
         else startGifRegion();
@@ -255,6 +256,15 @@ bool AppContext::recordingAvailable() const
 bool AppContext::ocrAvailable() const
 {
 #ifdef HAVE_TESSERACT
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool AppContext::qrAvailable() const
+{
+#ifdef HAVE_ZXING
     return true;
 #else
     return false;
@@ -380,6 +390,16 @@ void AppContext::captureRegion()
         m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             if (!img.isNull())
                 finishCapture(img, inhibited);
+        });
+    });
+}
+
+void AppContext::captureRegionOcr()
+{
+    withDelay([this] {
+        m_overlay->pickAnnotatedImage([this](const QImage &img) {
+            if (!img.isNull())
+                ocrImage(img);   // recognizes (QR first, then text) + copies
         });
     });
 }
@@ -609,7 +629,9 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("record border: ") + (capRecordBorder() ? QStringLiteral("PASS") : QStringLiteral("n/a on this compositor")));
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
-        smokeLog(QStringLiteral("OCR: ") + (ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)")));
+        smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
+                 ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
+                 qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
         smokeNext();
     });
 
@@ -1547,6 +1569,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
+        {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
     };
 }
 
@@ -1559,6 +1582,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
+    else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

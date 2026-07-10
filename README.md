@@ -16,10 +16,9 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
 </p>
 
-<!-- Drop UI screenshots here, e.g.:
-<img src="docs/screenshots/editor.jpg" width="49%" alt="Unisic post-capture editor" />
-<img src="docs/screenshots/overlay.jpg" width="49%" alt="Unisic region overlay with annotation" />
--->
+<img src="docs/screenshots/capture.png" width="49%" alt="Unisic capture page" />
+<img src="docs/screenshots/record.png" width="49%" alt="Unisic screen recording page" />
+<img src="docs/screenshots/editor.png" width="98%" alt="Unisic post-capture editor" />
 
 </div>
 

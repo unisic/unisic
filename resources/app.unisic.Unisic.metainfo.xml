@@ -7,7 +7,7 @@
   <developer id="app.unisic">
     <name>Unisic maintainers</name>
   </developer>
-  <summary>Capture, annotate, record and share your screen on Linux Wayland</summary>
+  <summary>Capture, annotate, record, share</summary>
   <description>
     <p>
       Most screenshot tools hand you a rectangle of pixels and walk away. Unisic
@@ -45,17 +45,36 @@
     <color type="primary" scheme_preference="dark">#17153B</color>
   </branding>
   <screenshots>
-    <!-- TODO: replace with real UI screenshots (overlay, editor, recorder)
-         before the Flathub review round — this is the project banner. -->
     <screenshot type="default">
-      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/social-preview.png</image>
-      <caption>Capture, annotate, record and share your screen</caption>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/capture.png</image>
+      <caption>Pick full screen, region or window and what happens after the shot</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/editor.png</image>
+      <caption>Annotate with arrows, numbered steps, blur and crop, then copy, save or upload</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/record.png</image>
+      <caption>Record the screen, a region or a window to MP4, WebM or GIF</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/destinations.png</image>
+      <caption>Modular upload destinations with the link copied after every upload</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/settings.png</image>
+      <caption>Searchable settings with import and export</caption>
     </screenshot>
   </screenshots>
   <provides>
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.4.0" date="2026-07-10">
+      <description>
+        <p>New app ID app.unisic.Unisic (backed by unisic.app) and first Flathub release. Stale menu and autostart entries from older installs are cleaned up automatically.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-07-10" />
     <release version="0.3.0" date="2026-07-10" />
     <release version="0.2.2" date="2026-07-10" />

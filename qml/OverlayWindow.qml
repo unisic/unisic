@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
-import QtQuick.Dialogs
 import Unisic
 import "components"
 
@@ -106,26 +105,18 @@ Window {
             e.accepted = true
         }
 
-        // DontUseNativeDialog: a native color dialog is an xdg toplevel, which stacks
-        // BELOW our layer-shell OVERLAY surface — it would open invisible/unreachable
-        // (hits e.g. sway/hyprland with the gtk3 platform theme). The in-scene QML
-        // dialog renders inside the overlay window itself.
-        ColorDialog {
+        // In-scene picker, NOT QtQuick.Dialogs' ColorDialog: that is a separate
+        // top-level window, and under this overlay's layer-shell surface (with
+        // an exclusive keyboard grab) it never receives input — it froze the
+        // whole capture screen. UColorPopup is a Popup in the same scene.
+        UColorPopup {
             id: overlayColorDialog
-            title: qsTr("Stroke color")
-            selectedColor: canvas.strokeColor
-            options: ColorDialog.DontUseNativeDialog
-            onAccepted: canvas.strokeColor = selectedColor
+            onPicked: (c) => canvas.strokeColor = c
         }
-        ColorDialog {
+        UColorPopup {
             id: overlayFillDialog
-            title: qsTr("Fill color")
-            selectedColor: canvas.shapeFillColor
-            options: ColorDialog.ShowAlphaChannel | ColorDialog.DontUseNativeDialog
-            onAccepted: {
-                canvas.shapeFillColor = selectedColor
-                canvas.shapeFillEnabled = true
-            }
+            showAlpha: true
+            onPicked: (c) => { canvas.shapeFillColor = c; canvas.shapeFillEnabled = true }
         }
 
         AnnotationCanvas {
@@ -359,7 +350,7 @@ Window {
                         iconName: "color-picker"; iconSize: 15
                         width: 30; height: 30
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayColorDialog.open()
+                        onClicked: overlayColorDialog.openWith(canvas.strokeColor)
                     }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
@@ -375,7 +366,7 @@ Window {
                         dotColor: canvas.shapeFillColor
                         active: canvas.shapeFillEnabled
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayFillDialog.open()
+                        onClicked: overlayFillDialog.openWith(canvas.shapeFillColor)
                     }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }

@@ -151,6 +151,7 @@ qt_add_qml_module(unisic
         qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
         qml/components/UConfirmDialog.qml
+        qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
         qml/components/USpinBox.qml
         qml/components/SidebarItem.qml

@@ -2513,7 +2513,7 @@ QString AppContext::autostartFilePath() const
 {
     // XDG autostart: $XDG_CONFIG_HOME/autostart (ConfigLocation == ~/.config).
     return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-           + QStringLiteral("/autostart/org.unisic.Unisic.desktop");
+           + QStringLiteral("/autostart/app.unisic.Unisic.desktop");
 }
 
 bool AppContext::autostartEnabled() const
@@ -2549,7 +2549,7 @@ bool AppContext::writeAutostartFile()
             "Name=Unisic\n"
             "Comment=Screenshots, annotations, uploads and GIF recording\n"
             + autostartExecLine() +
-            "Icon=org.unisic.Unisic\n"
+            "Icon=app.unisic.Unisic\n"
             "Terminal=false\n"
             "Categories=Utility;Graphics;\n"
             "X-GNOME-Autostart-enabled=true\n");
@@ -2559,6 +2559,13 @@ bool AppContext::writeAutostartFile()
 
 void AppContext::refreshAutostartIfStale()
 {
+    // Pre-rename installs wrote org.unisic.Unisic.desktop; migrate it or the
+    // old entry keeps autostarting alongside (and ignores the toggle).
+    const QString legacy = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
+                           + QStringLiteral("/autostart/org.unisic.Unisic.desktop");
+    if (QFile::remove(legacy) && !QFile::exists(autostartFilePath()))
+        writeAutostartFile();
+
     // Self-heal a stale Exec (binary rebuilt to a new path / AppImage moved),
     // mirroring ensureDesktopFile() — otherwise the toggle reads "on" while
     // login autostart silently launches nothing.

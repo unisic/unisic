@@ -187,11 +187,11 @@ if(UNISIC_TRAY_ICONS)
 endif()
 
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES resources/org.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/org.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-    RENAME org.unisic.Unisic.svg)
+    RENAME app.unisic.Unisic.svg)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
     RENAME unisic.svg)

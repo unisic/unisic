@@ -379,7 +379,7 @@ jobs:
     if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
     steps:
       - uses: actions/checkout@v4
@@ -391,14 +391,14 @@ jobs:
         # ships an empty placeholder). The manifest also pins
         # -DUNISIC_DEV_BUILD=OFF, so this only affects the footer build label.
         run: |
-          sed -i "s/UNISIC_BUILD_NUMBER: \"\"/UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"/" org.unisic.Unisic.yml
-          grep -q "UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"" org.unisic.Unisic.yml \
+          sed -i "s/UNISIC_BUILD_NUMBER: \"\"/UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"/" app.unisic.Unisic.yml
+          grep -q "UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"" app.unisic.Unisic.yml \
             || { echo "::error::failed to inject UNISIC_BUILD_NUMBER into the flatpak manifest"; exit 1; }
 
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          manifest-path: org.unisic.Unisic.yml
+          manifest-path: app.unisic.Unisic.yml
           bundle: unisic.flatpak
           upload-artifact: false
 

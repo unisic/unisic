@@ -31,7 +31,7 @@ static void registerHostAppId()
         QStringLiteral("/org/freedesktop/portal/desktop"),
         QStringLiteral("org.freedesktop.host.portal.Registry"),
         QStringLiteral("Register"));
-    msg << QStringLiteral("org.unisic.Unisic") << QVariantMap{};
+    msg << QStringLiteral("app.unisic.Unisic") << QVariantMap{};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
 
@@ -52,7 +52,7 @@ static void grantSilentScreenshotPermission()
     if (!flatpakId.isEmpty())
         appIds << flatpakId;
     else
-        appIds << QStringLiteral("org.unisic.Unisic") << QString();
+        appIds << QStringLiteral("app.unisic.Unisic") << QString();
     for (const QString &appId : std::as_const(appIds)) {
         QDBusMessage msg = QDBusMessage::createMethodCall(
             QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),

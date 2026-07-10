@@ -1,9 +1,8 @@
-id: org.unisic.Unisic
+id: app.unisic.Unisic
 runtime: org.kde.Platform
-runtime-version: "6.8"
+runtime-version: "6.10"
 sdk: org.kde.Sdk
 command: unisic
-appstream-compose: false
 
 finish-args:
   - --share=ipc
@@ -15,12 +14,15 @@ finish-args:
   - --device=dri
   - --filesystem=xdg-pictures:create
   - --filesystem=xdg-videos:create
-  - --filesystem=xdg-config/unisic:create
-  - --talk-name=org.freedesktop.portal.Desktop
+  # No xdg-config/unisic hole (Flathub linter forbids it): the flatpak keeps
+  # its config under ~/.var/app; Settings export/import migrates from native.
   # Self-grant the "screenshot" permission so non-interactive portal
   # screenshots (overlay freeze) work without a dialog per capture.
   - --talk-name=org.freedesktop.impl.portal.PermissionStore
+  # KDE-specific silent capture path (org.kde.KWin.ScreenShot2); the app
+  # auto-falls back to the Screenshot portal when unavailable/unauthorized.
   - --talk-name=org.kde.KWin
+  # Global capture hotkeys via KGlobalAccel.
   - --talk-name=org.kde.kglobalaccel
   # Tray icon (StatusNotifierItem) and native capture notifications: the
   # filtered session bus hides these names by default, which would leave the
@@ -96,6 +98,15 @@ modules:
         url: https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v2.2.1.tar.gz
         sha256: 02078ae15f19f9d423a441f205b1d1bee32349ddda7467e2c84e8f08876f8635
 
+  # Clipboard reliability on Wayland: the app mirrors copies through wl-copy
+  # when present, and the runtime does not ship it.
+  - name: wl-clipboard
+    buildsystem: meson
+    sources:
+      - type: archive
+        url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.2.1.tar.gz
+        sha256: 6eb8081207fb5581d1d82c4bcd9587205a31a3d47bea3ebeb7f41aa1143783eb
+
   - name: layer-shell-qt
     buildsystem: cmake-ninja
     builddir: true
@@ -109,12 +120,9 @@ modules:
 
   - name: unisic
     buildsystem: cmake-ninja
-    # flatpak-builder runs cmake in a cleaned sandbox environment: the release
-    # workflow's UNISIC_BUILD_NUMBER host env var never reaches it, so force
-    # the release default explicitly — otherwise CMakeLists.txt would flip
+    # flatpak-builder runs cmake in a cleaned sandbox environment, so pin the
+    # release defaults explicitly — otherwise CMakeLists.txt would flip
     # UNISIC_DEV_BUILD to ON and ship the Developer tab + F8 smoke-test grab.
-    # The workflow seds the empty placeholder below to the real run number so
-    # the sidebar footer shows a build number instead of "dev".
     build-options:
       env:
         UNISIC_BUILD_NUMBER: ""
@@ -123,5 +131,13 @@ modules:
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DUNISIC_DEV_BUILD=OFF
     sources:
-      - type: dir
-        path: .
+      # FIXME before submitting: point at the first tag that contains the
+      # app.unisic.Unisic rename and fill the full commit sha:
+      #   git rev-parse 'v0.4.0^{commit}'
+      - type: git
+        url: https://github.com/unisic/unisic.git
+        tag: v0.4.0
+        commit: FIXME-full-40-char-sha-of-v0.4.0
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$

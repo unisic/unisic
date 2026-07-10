@@ -64,7 +64,7 @@ static QString singleInstanceServerName()
     // instance per user is the right guarantee; two concurrent graphical
     // sessions of the same user (rare) sharing one instance is the far smaller
     // cost.
-    return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
+    return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
 }
 
 // Capture flag from argv, mapped to the command sent over the local socket —
@@ -148,7 +148,7 @@ static void ensureDesktopFile()
     // Dev-run icon: hicolor lookup needs it on disk, not just in qrc.
     const QString iconDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
                             + QStringLiteral("/icons/hicolor/scalable/apps");
-    const QString iconTarget = iconDir + QStringLiteral("/org.unisic.Unisic.svg");
+    const QString iconTarget = iconDir + QStringLiteral("/app.unisic.Unisic.svg");
     const QString legacyIconTarget = iconDir + QStringLiteral("/unisic.svg");
     QDir().mkpath(iconDir);
     if (!QFile::exists(iconTarget))
@@ -157,14 +157,17 @@ static void ensureDesktopFile()
         QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), legacyIconTarget);
 
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
-    const QString target = dir + QStringLiteral("/org.unisic.Unisic.desktop");
+    const QString target = dir + QStringLiteral("/app.unisic.Unisic.desktop");
+    // Pre-rename installs dropped org.unisic.Unisic.desktop here; left behind
+    // it shows up as a second "Unisic" menu entry.
+    QFile::remove(dir + QStringLiteral("/org.unisic.Unisic.desktop"));
     // Quote per the Desktop Entry spec — an unquoted build path with spaces
     // yields an invalid entry and silently breaks ScreenShot2 authorization.
     QString execPath = QCoreApplication::applicationFilePath();
     execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
             .replace(QLatin1Char('"'), QLatin1String("\\\""));
     const QByteArray execLine = "Exec=\"" + execPath.toUtf8() + "\"\n";
-    const QByteArray iconLine = "Icon=org.unisic.Unisic\n";
+    const QByteArray iconLine = "Icon=app.unisic.Unisic\n";
     const QByteArray restrictedLine =
         "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
 
@@ -214,7 +217,7 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
     app.setOrganizationName(QStringLiteral("Unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
-    app.setDesktopFileName(QStringLiteral("org.unisic.Unisic"));
+    app.setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 

@@ -501,7 +501,19 @@ void AppContext::devTestNotification()
 {
     if (!devBuild())
         return;
-    showCaptureNotification(devTestImage(), QString(), QStringLiteral("image"), false);
+    // Full parity with a real capture — including the gates. A dev test that
+    // bypassed them "worked" while every real capture card was suppressed,
+    // which made the suppression look like a notification bug. Explain instead.
+    if (!m_settings->showCapturePopup()) {
+        showToast(tr("Dev: capture notification is DISABLED in Settings "
+                     "(General → Show capture notification)"), true);
+        return;
+    }
+    const bool inhibited = nowInhibited();
+    if (inhibited && m_settings->muteOnFullscreen())
+        showToast(tr("Dev: cards are currently muted (fullscreen / Do Not Disturb "
+                     "inhibition is active)"), true);
+    showCaptureNotification(devTestImage(), QString(), QStringLiteral("image"), inhibited);
 }
 
 void AppContext::devTestEditor()

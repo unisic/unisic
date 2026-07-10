@@ -71,8 +71,14 @@ void DesktopNotifier::onPropertiesChanged(const QString &interfaceName,
     if (interfaceName != kIface)
         return;
     const auto it = changed.find(QStringLiteral("Inhibited"));
-    if (it != changed.end())
-        m_inhibited = it.value().toBool();
+    if (it != changed.end()) {
+        const bool now = it.value().toBool();
+        // A genuine fullscreen/DND event flips the flag during the session; a
+        // stuck third-party inhibitor is true from the start and never moves.
+        if (now && !m_inhibited)
+            m_inhibitTransitionSeen = true;
+        m_inhibited = now;
+    }
 }
 
 bool DesktopNotifier::available()

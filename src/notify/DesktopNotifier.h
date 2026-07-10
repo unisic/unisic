@@ -29,7 +29,14 @@ public:
     // application is fullscreen, during Do-Not-Disturb, and while sharing the
     // screen). The layer-shell card consults this to stay off a fullscreen app;
     // the native path doesn't need it — the server suppresses on its own.
-    bool inhibited() const { return m_inhibited; }
+    //
+    // Stuck-inhibitor guard: third-party apps sometimes leave a notification
+    // inhibitor registered forever (observed in the field: Inhibited == true
+    // with no fullscreen window and no DND). Trusting the raw flag then mutes
+    // EVERY capture card for the whole session. Only honor the flag once we
+    // have seen it actually transition false->true during this run — a real
+    // fullscreen/DND event; a stuck-since-startup inhibitor never transitions.
+    bool inhibited() const { return m_inhibited && m_inhibitTransitionSeen; }
 
 private slots:
     void onActionInvoked(uint id, const QString &actionKey);
@@ -46,4 +53,5 @@ private:
     AppContext *m_app;
     QHash<uint, QPointer<CaptureNotification>> m_active; // server id -> backing object
     bool m_inhibited = false; // notifications currently suppressed (fullscreen/DND/sharing)
+    bool m_inhibitTransitionSeen = false; // saw false->true this run (see inhibited())
 };

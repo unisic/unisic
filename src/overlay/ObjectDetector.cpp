@@ -176,7 +176,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
     const int minSide = 20;                 // downscaled px (~50 real at 2560)
     QVector<Seg> hSegs = mergeCollinear(extractSegments(hEdge, w, h, true, minSide, 3));
     QVector<Seg> vSegs = mergeCollinear(extractSegments(vEdge, w, h, false, minSide, 3));
-    const int cap = 160;
+    const int cap = 224;
     if (hSegs.size() > cap) hSegs.resize(cap); // mergeCollinear left them length-sorted
     if (vSegs.size() > cap) vSegs.resize(cap);
     // The image boundary is a border every screen-edge-touching window shares
@@ -265,11 +265,23 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                        tops.end());
             if (tops.size() < 2)
                 continue;
-            // Bounded pair generation: the outer frame + adjacent bands.
+            // Pair generation: ALL (top,bottom) combinations while the list is
+            // small — limiting to outer-frame + adjacent bands skipped many
+            // true window rects (their exact borders were neither first/last
+            // nor adjacent), which read as "selects too much or too little".
             QVector<QPair<int,int>> pairs;
-            pairs.append({tops.first(), tops.last()});
-            for (int k = 0; k + 1 < tops.size(); ++k)
-                pairs.append({tops[k], tops[k + 1]});
+            if (tops.size() <= 14) {
+                for (int a = 0; a < tops.size(); ++a)
+                    for (int b = a + 1; b < tops.size(); ++b)
+                        pairs.append({tops[a], tops[b]});
+            } else {
+                pairs.append({tops.first(), tops.last()});
+                for (int k = 0; k + 1 < tops.size(); ++k) {
+                    pairs.append({tops[k], tops[k + 1]});
+                    if (k + 2 < tops.size())
+                        pairs.append({tops[k], tops[k + 2]});
+                }
+            }
             for (const auto &pr : std::as_const(pairs)) {
                 const int y0 = pr.first, y1 = pr.second;
                 if (y1 - y0 < minSide)
@@ -332,6 +344,8 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             return a.q > b.q;
         return qint64(a.r.width()) * a.r.height() < qint64(b.r.width()) * b.r.height();
     });
+    if (scored.size() > 1500)
+        scored.resize(1500); // O(n^2) dedup below — the tail is lowest-quality anyway
     QVector<QRect> merged;
     for (const Scored &sc : std::as_const(scored)) {
         const QRect &r = sc.r;

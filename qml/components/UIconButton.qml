@@ -44,4 +44,10 @@ Rectangle {
         cursorShape: Qt.PointingHandCursor
         onClicked: if (root.enabled) root.clicked()
     }
+
+    UHoverTip {
+        anchor: root
+        text: root.tooltip
+        show: mouse.containsMouse
+    }
 }

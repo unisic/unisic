@@ -146,6 +146,7 @@ qt_add_qml_module(unisic
         qml/components/UShortcutRecorder.qml
         qml/components/UComboBox.qml
         qml/components/UConfirmDialog.qml
+        qml/components/UHoverTip.qml
         qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml

@@ -292,8 +292,8 @@ Window {
                                ? qsTr("Click an object (scroll = level) or drag to select")
                                : qsTr("Drag to select")
                     return annotationToolsEnabled
-                           ? drag + qsTr(" · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
-                           : drag + qsTr(" · Enter to start · Esc to cancel")
+                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
+                           : drag + qsTr(" · Ctrl+drag to move · Enter to start · Esc to cancel")
                 }
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1

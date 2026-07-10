@@ -780,6 +780,19 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
 
     const bool selectionTool = (m_selectionMode && m_tool == None) || m_tool == Crop;
     if (selectionTool) {
+        // Ctrl + press anywhere inside the region = grab-and-move, overriding
+        // handle-resize and new-selection. A reliable "reposition the whole
+        // capture area" that never accidentally resizes an edge or starts a
+        // fresh rectangle.
+        const bool ctrl = e->modifiers() & Qt::ControlModifier;
+        if (ctrl && hasSelection() && m_selection.contains(img)) {
+            m_drag = MoveSelection;
+            m_selStart = m_selection;
+            setCursor(Qt::ClosedHandCursor);
+            update();
+            e->accept();
+            return;
+        }
         const int h = hitHandle(img);
         if (h >= 0) {
             m_drag = ResizeSelection;
@@ -1109,6 +1122,14 @@ void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
         return;
     }
     if ((m_selectionMode && m_tool == None) || m_tool == Crop) {
+        // Ctrl inside the region = grab-to-move (see mousePressEvent): show the
+        // open-hand cursor there so the affordance is discoverable.
+        if ((e->modifiers() & Qt::ControlModifier)
+            && hasSelection() && m_selection.contains(img)) {
+            setCursor(Qt::OpenHandCursor);
+            e->accept();
+            return;
+        }
         const int h = hitHandle(img);
         if (h == 0 || h == 7) setCursor(Qt::SizeFDiagCursor);
         else if (h == 2 || h == 5) setCursor(Qt::SizeBDiagCursor);

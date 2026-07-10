@@ -97,10 +97,12 @@ QVector<Seg> mergeCollinear(QVector<Seg> segs)
     return kept;
 }
 
-// Connected components of a binary mask; bboxes filtered by min side and a
-// max screen fraction. Shared by the smear passes below.
+// Connected components of a binary mask; bboxes filtered by min side, a max
+// screen fraction and (optionally) fill density — how much of the bbox the
+// component actually covers. Shared by the smear and interior passes below.
 static QVector<QRect> maskComponents(const QVector<uchar> &mask, int w, int h,
-                                     int minSide, double maxFrac)
+                                     int minSide, double maxFrac,
+                                     double minDensity = 0.0)
 {
     QVector<QRect> out;
     QVector<uchar> seen(w * h, 0);
@@ -109,10 +111,12 @@ static QVector<QRect> maskComponents(const QVector<uchar> &mask, int w, int h,
         if (!mask[start] || seen[start])
             continue;
         int minx = w, miny = h, maxx = 0, maxy = 0;
+        qint64 count = 0;
         stack.append(start);
         seen[start] = 1;
         while (!stack.isEmpty()) {
             const int p = stack.takeLast();
+            ++count;
             const int x = p % w, y = p / w;
             minx = std::min(minx, x); maxx = std::max(maxx, x);
             miny = std::min(miny, y); maxy = std::max(maxy, y);
@@ -128,6 +132,8 @@ static QVector<QRect> maskComponents(const QVector<uchar> &mask, int w, int h,
         if (bw < minSide || bh < minSide)
             continue;
         if (bw > w * maxFrac && bh > h * maxFrac)
+            continue;
+        if (minDensity > 0.0 && double(count) / (double(bw) * bh) < minDensity)
             continue;
         out.append(QRect(minx, miny, bw, bh));
     }
@@ -468,12 +474,45 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
         }
     }
 
-    // 5c. CONTENT SMEARING at two radii: nearby edge pixels merge into blobs.
-    //     Small radius -> ONE element (icon, button, text line); large radius
-    //     -> a GROUP of elements (toolbar with its buttons, icon grid, form).
-    //     Structural border lines are removed first so two windows' contents
-    //     never smear across their shared frame — the exact failure mode that
-    //     killed the old blob detector on tiled desktops.
+    // 5c. ENCLOSED INTERIORS — the dependency-free equivalent of OpenCV's
+    //     findContours hole hierarchy (the standard "preset" for this task):
+    //     seal the edge map with a 1 px dilation, then take connected
+    //     components of the NON-edge space. Every room walled in by borders —
+    //     a window's content area, a popup body, a button face — becomes a
+    //     precise candidate, and two windows whose frames TOUCH still yield
+    //     two separate interiors, which line-pair hypotheses kept merging.
+    {
+        QVector<uchar> edge(w * h, 0);
+        for (int i = 0; i < w * h; ++i)
+            edge[i] = hEdge[i] || vEdge[i];
+        const QVector<uchar> sealed = dilate(edge, w, h, 1);
+        QVector<uchar> open(w * h, 0);
+        for (int i = 0; i < w * h; ++i)
+            open[i] = !sealed[i];
+        // density >= 0.65: interiors are rectangular rooms; the sprawling
+        // desktop "sea" around/behind windows is L-shaped and dies here.
+        const QVector<QRect> rooms = maskComponents(open, w, h, 14, 0.92, 0.65);
+        for (const QRect &room : rooms) {
+            // Cover the border the room is inscribed in (and undo the seal).
+            const QRect grown = room.adjusted(-2, -2, 2, 2)
+                                    .intersected(QRect(0, 0, w, h));
+            QRect r(int(grown.x() * scale), int(grown.y() * scale),
+                    int(grown.width() * scale), int(grown.height() * scale));
+            r = r.intersected(QRect(0, 0, src.width(), src.height()));
+            if (r.width() >= 8 && r.height() >= 8
+                && qint64(r.width()) * r.height()
+                       < qint64(src.width()) * src.height() * 96 / 100)
+                scored.append({r, 3.3}); // precise — above regions and smears
+        }
+    }
+
+    // 5d. CONTENT SMEARING (groups): nearby edge pixels merged with a wide
+    //     dilation form a GROUP of elements (a toolbar with its buttons, an
+    //     icon grid, a form block). Structural border lines are removed first
+    //     so two windows' contents never smear across their shared frame.
+    //     (A small-radius pass for single elements existed and produced junk
+    //     boxes misaligned with real elements — interiors + flat regions
+    //     cover single elements better.)
     {
         QVector<uchar> content = hEdge;
         for (int i = 0; i < w * h; ++i)
@@ -496,27 +535,20 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
         for (const Seg &g : std::as_const(hSegs)) zeroSeg(g, true);
         for (const Seg &g : std::as_const(vSegs)) zeroSeg(g, false);
 
-        const struct { int radius; int minSide; double q; } passes[] = {
-            {2, 10, 2.7},  // single elements
-            {7, 26, 2.5},  // element groups
-        };
-        for (const auto &pass : passes) {
-            const QVector<uchar> closed = dilate(content, w, h, pass.radius);
-            const QVector<QRect> boxes = maskComponents(closed, w, h, pass.minSide, 0.92);
-            for (const QRect &b : boxes) {
-                // Undo the dilation growth so the box hugs the actual pixels.
-                const QRect tight = b.adjusted(pass.radius, pass.radius,
-                                               -pass.radius, -pass.radius);
-                if (tight.width() < pass.minSide || tight.height() < pass.minSide)
-                    continue;
-                QRect r(int(tight.x() * scale), int(tight.y() * scale),
-                        int(tight.width() * scale), int(tight.height() * scale));
-                r = r.intersected(QRect(0, 0, src.width(), src.height()));
-                if (r.width() >= 8 && r.height() >= 8
-                    && qint64(r.width()) * r.height()
-                           < qint64(src.width()) * src.height() * 96 / 100)
-                    scored.append({r, pass.q});
-            }
+        const QVector<uchar> closed = dilate(content, w, h, 7);
+        const QVector<QRect> boxes = maskComponents(closed, w, h, 26, 0.92);
+        for (const QRect &b : boxes) {
+            // Undo the dilation growth so the box hugs the actual pixels.
+            const QRect tight = b.adjusted(7, 7, -7, -7);
+            if (tight.width() < 26 || tight.height() < 26)
+                continue;
+            QRect r(int(tight.x() * scale), int(tight.y() * scale),
+                    int(tight.width() * scale), int(tight.height() * scale));
+            r = r.intersected(QRect(0, 0, src.width(), src.height()));
+            if (r.width() >= 8 && r.height() >= 8
+                && qint64(r.width()) * r.height()
+                       < qint64(src.width()) * src.height() * 96 / 100)
+                scored.append({r, 2.5});
         }
     }
 

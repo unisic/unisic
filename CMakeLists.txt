@@ -48,6 +48,7 @@ qt_add_executable(unisic
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    src/overlay/WindowRects.h src/overlay/WindowRects.cpp
 )
 
 # Single source of the app version string, exported to C++ from the project() call.

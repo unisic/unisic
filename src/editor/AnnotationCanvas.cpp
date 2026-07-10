@@ -43,6 +43,10 @@ void AnnotationCanvas::setImage(const QImage &img)
     // Object-pick state belongs to the previous image; stale rects would also
     // block re-detection (setTool only detects when candidates are empty).
     m_objectCandidates.clear();
+    m_windowCandidates.clear();
+    m_pickList.clear();
+    m_hoverChain.clear();
+    m_pickOffset = 0;
     m_hoverObject = QRect();
     clearObjectMask();
     if (m_detectWatcher) {
@@ -106,6 +110,7 @@ void AnnotationCanvas::ensureObjectCandidates()
             m_objectCandidates = m_detectWatcher->result();
             m_detectWatcher->deleteLater();
             m_detectWatcher = nullptr;
+            rebuildPickList();
             update();
         });
         m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detect, m_base));
@@ -123,6 +128,57 @@ void AnnotationCanvas::setSmartPick(bool on)
         ensureObjectCandidates();
     emit smartPickChanged();
     update();
+}
+
+void AnnotationCanvas::setWindowCandidates(const QVector<QRect> &rects)
+{
+    m_windowCandidates.clear();
+    m_windowCandidates.reserve(rects.size());
+    for (const QRect &r : rects) {
+        const QRect c = r.intersected(m_base.rect());
+        if (c.width() >= 8 && c.height() >= 8)
+            m_windowCandidates.append(c);
+    }
+    rebuildPickList();
+    update();
+}
+
+void AnnotationCanvas::rebuildPickList()
+{
+    m_pickList.clear();
+    for (const QRect &r : std::as_const(m_windowCandidates))
+        m_pickList.append({r, true});
+    // Pixel-detected rects fill in what the compositor can't know (elements
+    // INSIDE windows); one that basically re-detects a window is dropped —
+    // the compositor's frame wins.
+    for (const QRect &d : std::as_const(m_objectCandidates)) {
+        bool dupOfWindow = false;
+        for (const QRect &wr : std::as_const(m_windowCandidates)) {
+            const QRect inter = d.intersected(wr);
+            if (inter.isEmpty())
+                continue;
+            const double ia = double(inter.width()) * inter.height();
+            const double ua = double(d.width()) * d.height()
+                              + double(wr.width()) * wr.height() - ia;
+            if (ua > 0 && ia / ua > 0.75) { dupOfWindow = true; break; }
+        }
+        if (!dupOfWindow)
+            m_pickList.append({d, false});
+    }
+    // The whole screen stays reachable even before detection finishes.
+    if (!m_base.isNull()) {
+        bool hasFull = false;
+        for (const PickCandidate &c : std::as_const(m_pickList))
+            if (c.r == m_base.rect()) { hasFull = true; break; }
+        if (!hasFull)
+            m_pickList.append({m_base.rect(), false});
+    }
+    std::sort(m_pickList.begin(), m_pickList.end(),
+              [](const PickCandidate &a, const PickCandidate &b) {
+        return qint64(a.r.width()) * a.r.height() < qint64(b.r.width()) * b.r.height();
+    });
+    if (!m_lastHoverImg.isNull())
+        updateHoverObject(m_lastHoverImg);
 }
 
 void AnnotationCanvas::setStrokeColor(const QColor &c)
@@ -397,6 +453,10 @@ void AnnotationCanvas::applyCrop()
     m_selection = {};
     // Candidates and masks are in pre-crop coordinates now — invalidate.
     m_objectCandidates.clear();
+    m_windowCandidates.clear();
+    m_pickList.clear();
+    m_hoverChain.clear();
+    m_pickOffset = 0;
     m_hoverObject = QRect();
     clearObjectMask();
     emit imageChanged();
@@ -939,6 +999,7 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             normalizeSelection();
             m_hoverObject = QRect();
             m_hoverChain.clear();
+            m_hoverIsWindow = false;
             emit hoverObjectChanged();
             emit selectionRectChanged();
             update();
@@ -979,17 +1040,30 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
 void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
 {
     m_lastHoverImg = imgPos;
-    QVector<QRect> chain;
-    for (const QRect &r : std::as_const(m_objectCandidates))
-        if (r.contains(imgPos))
-            chain.append(r); // candidates are area-sorted -> chain is inner→outer
+    QVector<PickCandidate> chain;
+    for (const PickCandidate &c : std::as_const(m_pickList))
+        if (c.r.contains(imgPos))
+            chain.append(c); // list is area-sorted -> chain is inner→outer
     if (chain.isEmpty())
-        m_pickDepth = 0;
-    const QRect found = chain.isEmpty()
-        ? QRect()
-        : chain.at(qBound(0, m_pickDepth, int(chain.size()) - 1));
-    const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size());
+        m_pickOffset = 0;
+
+    // Default level: SYSTEM FIRST — the innermost compositor window under the
+    // cursor. Scrolling down (offset < 0) dives into detected elements inside
+    // it, scrolling up walks containers toward the whole screen.
+    int defaultIdx = 0;
+    for (int i = 0; i < chain.size(); ++i)
+        if (chain[i].window) { defaultIdx = i; break; }
+
+    const int idx = chain.isEmpty()
+        ? 0
+        : qBound(0, defaultIdx + m_pickOffset, int(chain.size()) - 1);
+    const QRect found = chain.isEmpty() ? QRect() : chain.at(idx).r;
+    const bool isWin = !chain.isEmpty() && chain.at(idx).window;
+    const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size())
+                         || (isWin != m_hoverIsWindow) || (idx != m_hoverIndex);
     m_hoverChain = chain;
+    m_hoverIndex = idx;
+    m_hoverIsWindow = isWin;
     if (changed) {
         m_hoverObject = found;
         emit hoverObjectChanged();
@@ -1000,7 +1074,8 @@ void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
 void AnnotationCanvas::wheelEvent(QWheelEvent *e)
 {
     // Scroll cycles the nesting level while hovering in a pick mode: down =
-    // innermost element, up = enclosing containers, topmost = whole screen.
+    // inner detected elements, up = enclosing windows/containers, topmost =
+    // whole screen.
     const bool pickHover = !hasSelection()
         && (m_tool == ObjectPick || (m_selectionMode && m_tool == None && m_smartPick));
     if (!pickHover || m_hoverChain.size() < 2) {
@@ -1008,11 +1083,11 @@ void AnnotationCanvas::wheelEvent(QWheelEvent *e)
         return;
     }
     const int dir = e->angleDelta().y() > 0 ? 1 : -1;
-    const int depth = qBound(0, m_pickDepth + dir, int(m_hoverChain.size()) - 1);
-    if (depth != m_pickDepth) {
-        m_pickDepth = depth;
-        updateHoverObject(m_lastHoverImg);
-    }
+    const int before = m_hoverIndex;
+    m_pickOffset += dir;
+    updateHoverObject(m_lastHoverImg);
+    if (m_hoverIndex == before)
+        m_pickOffset -= dir; // chain end — don't bank invisible steps
     e->accept();
 }
 

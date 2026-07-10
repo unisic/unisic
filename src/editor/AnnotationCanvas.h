@@ -42,6 +42,7 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(QRectF hoverObjectRect READ hoverObjectRect NOTIFY hoverObjectChanged)
     Q_PROPERTY(int hoverDepth READ hoverDepth NOTIFY hoverObjectChanged)
     Q_PROPERTY(int hoverDepthCount READ hoverDepthCount NOTIFY hoverObjectChanged)
+    Q_PROPERTY(bool hoverIsWindow READ hoverIsWindow NOTIFY hoverObjectChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -90,8 +91,13 @@ public:
     bool smartPick() const { return m_smartPick; }
     void setSmartPick(bool on);
     QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
-    int hoverDepth() const { return m_pickDepth; }
+    int hoverDepth() const { return m_hoverIndex; }
     int hoverDepthCount() const { return int(m_hoverChain.size()); }
+    bool hoverIsWindow() const { return m_hoverIsWindow; }
+    // Compositor-reported window frames in IMAGE pixels (screen-local): these
+    // get PRIORITY — hover defaults to the window under the cursor; scrolling
+    // down dives into pixel-detected elements inside it, up into containers.
+    void setWindowCandidates(const QVector<QRect> &rects);
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -229,8 +235,16 @@ private:
     // Object-pick mode (overlay): detected candidate rects + the one under the
     // cursor. Detection runs off-thread the first time the tool is selected.
     QVector<QRect> m_objectCandidates;
-    QVector<QRect> m_hoverChain; // candidates containing the cursor, inner→outer
-    int m_pickDepth = 0;         // 0 = innermost; scroll wheel moves outward
+    QVector<QRect> m_windowCandidates; // compositor truth, image px
+    struct PickCandidate { QRect r; bool window; };
+    QVector<PickCandidate> m_pickList;  // both sources merged, area-ascending
+    void rebuildPickList();
+    QVector<PickCandidate> m_hoverChain; // candidates containing the cursor, inner→outer
+    // Scroll offset relative to the DEFAULT level (the innermost WINDOW under
+    // the cursor when one exists, else the innermost detected element).
+    int m_pickOffset = 0;
+    int m_hoverIndex = 0; // resolved chain index (for the QML badge)
+    bool m_hoverIsWindow = false;
     QPoint m_lastHoverImg;
     QRect m_hoverObject;
     QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;

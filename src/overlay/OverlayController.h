@@ -51,12 +51,15 @@ public slots:
 private:
     void begin(bool annotationTools);
     void createWindows();
+    // Push compositor window frames (m_windowRects) into every overlay canvas.
+    void applyWindowRects();
     void closeAll();
 
     AppContext *m_app;
     QVector<QQuickWindow *> m_windows;
     QVector<QScreen *> m_screens;
     QVector<QImage> m_frozen;
+    QVector<QRect> m_windowRects; // compositor truth (global logical coords)
     ImageCallback m_imageCb;
     RegionCallback m_regionCb;
     bool m_annotationTools = true;

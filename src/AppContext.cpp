@@ -4,6 +4,7 @@
 #include "capture/KWinScreenShot2.h"
 #include "overlay/OverlayController.h"
 #include "overlay/ObjectDetector.h"
+#include "overlay/WindowRects.h"
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
@@ -544,6 +545,12 @@ void AppContext::devTestSmartPick()
     if (!devBuild())
         return;
     showToast(tr("Dev: smart pick detect — %1").arg(smartPickDetectCheck()));
+    // Second half of smart pick: the compositor window query (KDE only).
+    WindowRects::query(this, [this](const QVector<QRect> &rects) {
+        showToast(rects.isEmpty()
+                      ? tr("Dev: KWin window rects — none (non-KDE or scripting off)")
+                      : tr("Dev: KWin window rects — %1 windows").arg(rects.size()));
+    });
 }
 
 void AppContext::devTestNotification()
@@ -891,6 +898,16 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("smart pick detect: ") + smartPickDetectCheck());
         smokeNext();
+    });
+
+    // 3e3) smart pick window priors: live compositor query (KDE only).
+    m_smokeSteps.append([this] {
+        WindowRects::query(this, [this](const QVector<QRect> &rects) {
+            smokeLog(rects.isEmpty()
+                         ? QStringLiteral("kwin window rects: SKIP (none reported — non-KDE?)")
+                         : QStringLiteral("kwin window rects: PASS (%1 windows)").arg(rects.size()));
+            smokeNext();
+        });
     });
 
     // 3f) OCR recognition — a real tesseract run on a rendered known token

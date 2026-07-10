@@ -1,6 +1,7 @@
 #include "OverlayController.h"
 #include "AppContext.h"
 #include "capture/CaptureManager.h"
+#include "overlay/WindowRects.h"
 #include "editor/AnnotationCanvas.h"
 #include <QGuiApplication>
 #include <QScreen>
@@ -55,6 +56,19 @@ void OverlayController::begin(bool annotationTools)
     // Stale-callback guard: a cancel()+retrigger must not let the previous
     // freeze capture overwrite state and spawn a second set of windows.
     const int gen = ++m_generation;
+
+    // System first: ask the compositor for the REAL window frames (async,
+    // KDE-only, empty elsewhere). Whichever finishes last — this query or the
+    // freeze capture — pushes the rects into the canvases via
+    // applyWindowRects(); querying BEFORE our own overlay windows exist also
+    // keeps them out of the list.
+    m_windowRects.clear();
+    WindowRects::query(this, [this, gen](const QVector<QRect> &rects) {
+        if (gen != m_generation)
+            return;
+        m_windowRects = rects;
+        applyWindowRects();
+    });
     m_app->captureManager()->captureAllScreens(m_screens,
         [this, gen](const QVector<QImage> &imgs, const QString &err) {
             if (gen != m_generation)
@@ -145,6 +159,7 @@ void OverlayController::createWindows()
     }
     if (!m_windows.isEmpty()) {
         m_starting = false;
+        applyWindowRects(); // no-op if the compositor hasn't answered yet
         m_windows.first()->requestActivate();
         // Each canvas took its own copy — don't pin a second full-resolution
         // image per monitor for the overlay's whole lifetime.
@@ -203,6 +218,32 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
         auto cb = std::move(m_regionCb);
         closeAll();
         cb(phys, screen);
+    }
+}
+
+void OverlayController::applyWindowRects()
+{
+    if (m_windowRects.isEmpty() || m_windows.isEmpty())
+        return;
+    // Global LOGICAL rects -> each screen's IMAGE pixels: shift by the
+    // screen's origin, scale by its DPR (the frozen capture is physical px).
+    for (QQuickWindow *win : std::as_const(m_windows)) {
+        QScreen *screen = win->screen();
+        auto *canvas = win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas"));
+        if (!screen || !canvas)
+            continue;
+        const QRect sg = screen->geometry();
+        const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+        QVector<QRect> local;
+        local.reserve(m_windowRects.size());
+        for (const QRect &r : std::as_const(m_windowRects)) {
+            const QRect on = r.intersected(sg);
+            if (on.width() < 8 || on.height() < 8)
+                continue;
+            local.append(QRect(int((on.x() - sg.x()) * dpr), int((on.y() - sg.y()) * dpr),
+                               int(on.width() * dpr), int(on.height() * dpr)));
+        }
+        canvas->setWindowCandidates(local);
     }
 }
 

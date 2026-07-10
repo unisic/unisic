@@ -43,9 +43,14 @@ Item {
     }
     // Settings help: "?" badge click. Dialog shows the short summary first
     // (the tooltip text, expanded), then the detailed explanation.
-    function showHelp(label, shortText, detail) {
+    function showHelp(label, shortText, detail, reason) {
+        var t = shortText
+        if (detail && detail.length > 0)
+            t += "\n\n" + detail
+        if (reason && reason.length > 0)
+            t += "\n\n⚠ " + qsTr("Greyed out: ") + reason
         helpDialog.title = label
-        helpDialog.text = shortText + (detail && detail.length > 0 ? "\n\n" + detail : "")
+        helpDialog.text = t
         helpDialog.open()
     }
     UConfirmDialog {
@@ -151,9 +156,8 @@ Item {
         property string hint: ""
         default property alias control: slot.data
         width: parent.width
-        height: 44 + (hintLabel.visible ? hintLabel.implicitHeight + 4 : 0)
+        height: 44
         opacity: available ? 1.0 : 0.45
-        enabled: available
         Text {
             id: labelText
             anchors.left: parent.left
@@ -170,6 +174,9 @@ Item {
         }
         Item {
             id: slot
+            // Only the CONTROL is disabled on an unavailable row — the "?"
+            // badge must stay clickable so the dialog can explain why.
+            enabled: settingRow.available
             anchors.right: parent.right
             anchors.top: parent.top
             width: childrenRect.width
@@ -197,36 +204,28 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.WhatsThisCursor
-                onClicked: page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail)
+                onClicked: page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail,
+                                         settingRow.available ? "" : settingRow.hint)
             }
-            Rectangle {
+            Popup {
+                // Popup renders on the overlay layer, so the tooltip can never
+                // be buried under later rows/cards or clipped by the Flickable.
+                parent: helpBadge
+                x: 0
+                y: parent.height + 6
                 visible: helpMouse.containsMouse
-                anchors.top: parent.bottom
-                anchors.topMargin: 6
-                width: Math.min(tipText.implicitWidth, 320) + 16
-                height: tipText.height + 12
-                radius: Theme.radiusM
-                color: Theme.tooltipBg
-                z: 1000
-                Text {
-                    id: tipText
-                    x: 8; y: 6
-                    width: Math.min(implicitWidth, 320)
+                width: Math.min(helpTip.implicitWidth, 320) + 16
+                closePolicy: Popup.NoAutoClose
+                padding: 8
+                background: Rectangle { radius: Theme.radiusM; color: Theme.tooltipBg }
+                contentItem: Text {
+                    id: helpTip
                     wrapMode: Text.WordWrap
                     text: settingRow.help
                     color: Theme.isDark ? "#FFFFFF" : Theme.textOnAccent
                     font.pixelSize: 11
                 }
             }
-        }
-        Text {
-            id: hintLabel
-            visible: settingRow.hint !== ""
-            anchors { left: parent.left; right: parent.right; top: slot.bottom }
-            wrapMode: Text.WordWrap
-            text: settingRow.hint
-            color: Theme.textTertiary
-            font.pixelSize: Theme.fontS
         }
     }
 

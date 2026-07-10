@@ -135,13 +135,10 @@ modules:
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DUNISIC_DEV_BUILD=OFF
     sources:
-      # FIXME before submitting: point at the first tag that contains the
-      # app.unisic.Unisic rename and fill the full commit sha:
-      #   git rev-parse 'v0.4.0^{commit}'
       - type: git
         url: https://github.com/unisic/unisic.git
         tag: v0.4.0
-        commit: FIXME-full-40-char-sha-of-v0.4.0
+        commit: 9a78201780bec7822b4ee7b56b1699386668c3e0
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$

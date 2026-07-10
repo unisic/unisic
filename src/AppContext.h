@@ -147,6 +147,7 @@ public:
     Q_INVOKABLE void devTestUpload();
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestSmartPick();
+    Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestAltHotkeys();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
@@ -215,6 +216,11 @@ public:
     QString saveImageAuto(const QImage &img, const QString &fileName = {});
     QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {});
     void copyImageToClipboard(const QImage &img);
+    // Play the selected capture-sound cue (General > Capture sound). No-op
+    // when "off" or no player (pw-play/paplay/aplay) is present.
+    void playCaptureSound();
+    // Preview the selected capture sound from the settings UI.
+    Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
     void uploadImage(const QImage &img, UploadDone done);
     void openEditor(const QImage &img, const QString &overwritePath = {});
     // Floating, pinnable, translucent preview of a capture. Returns false when

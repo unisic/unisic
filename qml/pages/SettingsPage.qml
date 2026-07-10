@@ -661,6 +661,30 @@ Item {
                         helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
                         USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
                     }
+                    SettingRow {
+                        label: qsTr("Capture sound")
+                        help: qsTr("Plays a short sound when a screenshot is taken.")
+                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a cue — Shutter, Click, Beep, Ding or Pop — or Off. The sound plays through the system audio (pw-play/paplay/aplay).")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 160
+                                anchors.verticalCenter: parent.verticalCenter
+                                model: [qsTr("Off"), qsTr("Shutter"), qsTr("Click"), qsTr("Beep"), qsTr("Ding"), qsTr("Pop")]
+                                property var ids: ["off", "shutter", "click", "beep", "ding", "pop"]
+                                currentIndex: Math.max(0, ids.indexOf(App.settings.captureSound))
+                                onActivated: (i) => App.settings.captureSound = ids[i]
+                            }
+                            UIconButton {
+                                iconName: "play"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Preview")
+                                enabled: App.settings.captureSound !== "off"
+                                onClicked: App.previewCaptureSound()
+                            }
+                        }
+                    }
                 }
             }
 
@@ -1538,6 +1562,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
                     }
                 }
             }

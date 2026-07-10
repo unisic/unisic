@@ -173,6 +173,11 @@ qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
+# Capture sound cues (General > Capture sound). Short bundled WAVs; extracted
+# to the cache dir and played via pw-play/paplay/aplay at capture time.
+file(GLOB UNISIC_SOUNDS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/sounds/*.wav)
+qt_add_resources(unisic "sounds" PREFIX "/" FILES ${UNISIC_SOUNDS})
+
 # Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
 # show up in Settings > Appearance > System tray icon (re-run cmake after adding).
 file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}

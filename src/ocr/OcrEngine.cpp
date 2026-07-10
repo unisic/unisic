@@ -85,7 +85,11 @@ OcrResult runOcr(QImage img, QString langs, std::shared_ptr<std::atomic_bool> ca
     api.SetSourceResolution(96); // screenshots have no DPI metadata; silences a warning
     // Recognize with a cancel hook (polled at tesseract's progress ticks) so
     // the destructor can abort an in-flight recognition promptly.
-    tesseract::ETEXT_DESC monitor;
+    // ETEXT_DESC lives in ::tesseract on 5.x (Fedora) but in the GLOBAL
+    // namespace on 4.x (Ubuntu 22.04 / the AppImage build). Unqualified
+    // lookup with the namespace in scope resolves whichever exists.
+    using namespace tesseract;
+    ETEXT_DESC monitor;
     monitor.cancel = [](void *that, int) { return static_cast<std::atomic_bool *>(that)->load(); };
     monitor.cancel_this = cancelled.get();
     if (api.Recognize(&monitor) == 0 && !cancelled->load()) {

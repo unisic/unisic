@@ -32,6 +32,7 @@ class Settings : public QObject
     Q_PROPERTY(bool uploadAfterCapture READ uploadAfterCapture WRITE setUploadAfterCapture NOTIFY uploadAfterCaptureChanged)
     Q_PROPERTY(bool includeCursor READ includeCursor WRITE setIncludeCursor NOTIFY includeCursorChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
+    Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
     Q_PROPERTY(int gifFps READ gifFps WRITE setGifFps NOTIFY gifFpsChanged)
     Q_PROPERTY(int gifMaxDurationSec READ gifMaxDurationSec WRITE setGifMaxDurationSec NOTIFY gifMaxDurationSecChanged)
     Q_PROPERTY(int gifQuality READ gifQuality WRITE setGifQuality NOTIFY gifQualityChanged)
@@ -197,6 +198,9 @@ public:
     U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "uploadAfterCapture", false)
     U_SETTING(bool, includeCursor, setIncludeCursor, "includeCursor", false)
     U_SETTING(int, captureDelayMs, setCaptureDelayMs, "captureDelayMs", 200)
+    // Capture sound cue (General tab). Bare key (never a "general"-named
+    // group, see the INI [%General] trap). "off" or a bundled id.
+    U_SETTING(QString, captureSound, setCaptureSound, "captureSound", QStringLiteral("shutter"))
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -267,7 +271,7 @@ public:
     {
         emit saveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
-        emit captureDelayMsChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
+        emit captureDelayMsChanged(); emit captureSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
@@ -295,6 +299,7 @@ signals:
     void uploadAfterCaptureChanged();
     void includeCursorChanged();
     void captureDelayMsChanged();
+    void captureSoundChanged();
     void gifFpsChanged();
     void gifMaxDurationSecChanged();
     void gifQualityChanged();

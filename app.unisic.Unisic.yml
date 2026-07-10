@@ -3,7 +3,6 @@ runtime: org.kde.Platform
 runtime-version: "6.10"
 sdk: org.kde.Sdk
 command: unisic
-appstream-compose: false
 
 finish-args:
   - --share=ipc
@@ -100,6 +99,10 @@ modules:
   # when present, and the runtime does not ship it.
   - name: wl-clipboard
     buildsystem: meson
+    config-opts:
+      # Auto-detected completion dirs resolve outside /app and fail install.
+      - -Dzshcompletiondir=no
+      - -Dfishcompletiondir=no
     sources:
       - type: archive
         url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.2.1.tar.gz
@@ -113,8 +116,8 @@ modules:
       - -DBUILD_TESTING=OFF
     sources:
       - type: archive
-        url: https://download.kde.org/stable/plasma/6.3.5/layer-shell-qt-6.3.5.tar.xz
-        sha256: 7062ca0e50dcce97dd11d8adf1b86d49f1c56423f2341dceb3ea40dc48206e25
+        url: https://download.kde.org/stable/plasma/6.7.2/layer-shell-qt-6.7.2.tar.xz
+        sha256: 392cd82742f109452f874d14f5d391a823c7b021bdc2446c0f474b3d1e77b129
 
   - name: unisic
     buildsystem: cmake-ninja

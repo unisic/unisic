@@ -1,4 +1,5 @@
 #include "GlobalHotkeys.h"
+#include "ShortcutFormat.h"
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -42,6 +43,33 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
         qWarning() << "KGlobalAccel not available — global hotkeys disabled";
 }
 
+QList<int> GlobalHotkeys::expandShiftDigitVariants(const QList<int> &keys)
+{
+    // KWin on Wayland reports a pressed Shift+digit with the shift CONSUMED
+    // by the symbol: physical Meta+Shift+1 reaches the daemon lookup as
+    // Meta+! (and some paths as Meta+Shift+!). A binding stored only as
+    // Meta+Shift+1 therefore never fires. Bind all three encodings as
+    // alternates of one action — whichever the compositor computes, the
+    // daemon finds the action. portableFromKeys() collapses them back so
+    // the UI keeps showing just "Meta+Shift+1".
+    QList<int> out = keys;
+    for (int k : keys) {
+        if (!(k & Qt::ShiftModifier))
+            continue;
+        const int mods = k & int(Qt::KeyboardModifierMask);
+        const int sym = ShortcutFormat::shiftedSymbolFor(k & ~int(Qt::KeyboardModifierMask));
+        if (!sym)
+            continue;
+        const int withShift = mods | sym;
+        const int noShift = (mods & ~int(Qt::ShiftModifier)) | sym;
+        if (!out.contains(withShift))
+            out.append(withShift);
+        if (!out.contains(noShift))
+            out.append(noShift);
+    }
+    return out;
+}
+
 QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
 {
     // Keep ALL sequences ("Meta+Shift+1, Print"), not just the first: the
@@ -50,11 +78,24 @@ QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
     // alternate KCM binding. The separator MUST be ", " — QKeySequence's only
     // multi-sequence separator; "; " parses as ONE Qt::Key_unknown chord that
     // setShortcut would then push over the user's real bindings.
+    //
+    // Auto-generated Shift+digit variants (see expandShiftDigitVariants) are
+    // collapsed back into their digit form so the UI never shows the
+    // "Meta+Shift+1, Meta+Shift+!, Meta+!" internals.
     QStringList parts;
-    for (int k : keys)
-        if (k != 0)
-            parts << QKeySequence(QKeyCombination::fromCombined(k))
-                         .toString(QKeySequence::PortableText);
+    for (int k : keys) {
+        if (k == 0)
+            continue;
+        const int base = ShortcutFormat::baseForShiftedSymbol(k & ~int(Qt::KeyboardModifierMask));
+        if (base) {
+            const int digitForm = (k & int(Qt::KeyboardModifierMask))
+                                  | int(Qt::ShiftModifier) | base;
+            if (keys.contains(digitForm))
+                continue; // derived variant of a digit binding also present
+        }
+        parts << QKeySequence(QKeyCombination::fromCombined(k))
+                     .toString(QKeySequence::PortableText);
+    }
     return parts.join(QStringLiteral(", "));
 }
 
@@ -222,7 +263,7 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     // the OLD key. Only NoAutoloading forces the daemon to take the passed keys and
     // persist them to kglobalshortcutsrc. This was the "hotkeys set from the app UI
     // don't work, only KDE-set ones do" bug: autoloading kept clobbering our value.
-    const QList<int> wanted = keysFor(keySequence);
+    const QList<int> wanted = expandShiftDigitVariants(keysFor(keySequence));
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(wanted) << uint(0x2 | 0x4);
@@ -235,10 +276,13 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     }
     // The daemon answers with the keys actually in effect: when another
     // component owns the requested combination it keeps/returns something
-    // else — surface that instead of pretending the bind worked.
+    // else — surface that instead of pretending the bind worked. Compare the
+    // COLLAPSED portable forms: the daemon may legitimately grant only part
+    // of the auto-generated variant set.
     if (!reply.arguments().isEmpty()) {
         const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
-        if (actual != wanted) {
+        if (portableFromKeys(actual) != QKeySequence(keySequence).toString(QKeySequence::PortableText)
+            && actual != wanted) {
             qWarning() << "setShortcut for" << actionId << "requested" << wanted
                        << "but daemon kept" << actual << "(key owned elsewhere?)";
             return false;

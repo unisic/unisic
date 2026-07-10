@@ -710,7 +710,8 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
     const auto acts = hotkeyActions();
     for (const HotkeyAction &a : acts) {
         bool ok = false;
-        const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
+        const QList<int> raw = m_hotkeys->activeKeys(a.id, &ok);
+        const QString actual = GlobalHotkeys::portableFromKeys(raw);
         if (!ok) {
             lines << a.id + QStringLiteral(": query failed");
             ++bad;
@@ -720,6 +721,15 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
                 lines << a.id + QStringLiteral(": was unbound, re-asserted ") + a.keys;
             else
                 lines << a.id + QStringLiteral(": UNBOUND (stored ") + a.keys + QLatin1Char(')');
+        } else if (heal && actual == a.keys
+                   && GlobalHotkeys::expandShiftDigitVariants(raw) != raw) {
+            // Bound to the right key, but WITHOUT the shifted-symbol variant
+            // alternates a Shift+digit binding needs on KWin/Wayland (older
+            // builds bound only the digit form, which the compositor's
+            // consumed-shift lookup never matches) — re-push to upgrade.
+            m_hotkeys->setShortcut(a.id, a.name, a.keys);
+            lines << a.id + QStringLiteral(": ") + actual
+                     + QStringLiteral(" (upgraded with Shift+digit variants)");
         } else {
             // Bound, but not to what we store = a KCM edit — honor it in the
             // UI (daemon-authoritative display).

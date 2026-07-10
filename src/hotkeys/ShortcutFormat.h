@@ -25,6 +25,49 @@ namespace ShortcutFormat {
 // every recorded Shift+digit combo on Wayland (the gate never passed, the
 // symbol was stored, and a 'Meta+Shift+!' binding never fires). 0
 // (unknown) keeps the unconditional legacy mapping.
+// US-position shifted counterpart of a digit-row base key (Key_1 ->
+// Key_Exclam), or 0. Shared by the recorder remap above and by
+// GlobalHotkeys' binding expansion: KWin (Wayland) reports Shift+1 with the
+// shift CONSUMED — the pressed combination arrives as Meta+! — so a binding
+// stored only in digit form never matches and every Shift+digit hotkey is
+// silently dead. GlobalHotkeys therefore binds digit AND symbol variants.
+inline int shiftedSymbolFor(int baseKey)
+{
+    switch (baseKey) {
+    case Qt::Key_1:     return Qt::Key_Exclam;
+    case Qt::Key_2:     return Qt::Key_At;
+    case Qt::Key_3:     return Qt::Key_NumberSign;
+    case Qt::Key_4:     return Qt::Key_Dollar;
+    case Qt::Key_5:     return Qt::Key_Percent;
+    case Qt::Key_6:     return Qt::Key_AsciiCircum;
+    case Qt::Key_7:     return Qt::Key_Ampersand;
+    case Qt::Key_8:     return Qt::Key_Asterisk;
+    case Qt::Key_9:     return Qt::Key_ParenLeft;
+    case Qt::Key_0:     return Qt::Key_ParenRight;
+    case Qt::Key_Minus: return Qt::Key_Underscore;
+    case Qt::Key_Equal: return Qt::Key_Plus;
+    default:            return 0;
+    }
+}
+inline int baseForShiftedSymbol(int symKey)
+{
+    switch (symKey) {
+    case Qt::Key_Exclam:      return Qt::Key_1;
+    case Qt::Key_At:          return Qt::Key_2;
+    case Qt::Key_NumberSign:  return Qt::Key_3;
+    case Qt::Key_Dollar:      return Qt::Key_4;
+    case Qt::Key_Percent:     return Qt::Key_5;
+    case Qt::Key_AsciiCircum: return Qt::Key_6;
+    case Qt::Key_Ampersand:   return Qt::Key_7;
+    case Qt::Key_Asterisk:    return Qt::Key_8;
+    case Qt::Key_ParenLeft:   return Qt::Key_9;
+    case Qt::Key_ParenRight:  return Qt::Key_0;
+    case Qt::Key_Underscore:  return Qt::Key_Minus;
+    case Qt::Key_Plus:        return Qt::Key_Equal;
+    default:                  return 0;
+    }
+}
+
 inline QString portable(int key, int modifiers, int nativeScanCode = 0)
 {
     switch (key) {

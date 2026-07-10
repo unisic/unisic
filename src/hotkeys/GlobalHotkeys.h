@@ -47,6 +47,11 @@ public:
     // daemon-authoritative sync.
     QList<int> activeKeys(const QString &actionId, bool *ok = nullptr) const;
 
+    // Shift+digit bindings are pushed with their shifted-symbol variants as
+    // alternates (KWin Wayland reports the press with shift consumed — see
+    // the impl); portableFromKeys() collapses them back for display.
+    static QList<int> expandShiftDigitVariants(const QList<int> &keys);
+
     // First non-empty key as a portable QKeySequence string ("Meta+Shift+1"),
     // for daemon-authoritative display in the settings UI.
     static QString portableFromKeys(const QList<int> &keys);

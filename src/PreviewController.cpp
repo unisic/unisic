@@ -28,9 +28,12 @@ void PreviewController::attach()
             // Fullscreen surface (all four anchors, size from the anchors); the
             // visible card is a movable item inside it and setInputRect() keeps
             // pointer input clipped to the card. Dragging is then pure QML.
+            // All four anchors => the compositor sizes the surface to the
+            // output (fullscreen). No setDesiredSize call: it is the default
+            // (0,0 = follow anchors) AND it is absent from older LayerShellQt
+            // (the distro/AppImage builds), which broke the CI compile.
             ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
                                        | LW::AnchorLeft | LW::AnchorRight));
-            ls->setDesiredSize(QSize(0, 0));
             ls->setExclusiveZone(-1); // may float over panels
             // OnDemand: the card takes keyboard focus when clicked but doesn't
             // steal it, so global shortcuts keep working.

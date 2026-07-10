@@ -43,6 +43,7 @@ modules:
   # fullscreen apps, preview pin) compiled out.
   - name: leptonica
     buildsystem: cmake-ninja
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DBUILD_PROG=OFF
@@ -54,6 +55,7 @@ modules:
 
   - name: tesseract
     buildsystem: cmake-ninja
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DBUILD_TRAINING_TOOLS=OFF
@@ -81,6 +83,7 @@ modules:
 
   - name: zxing-cpp
     buildsystem: cmake-ninja
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DBUILD_EXAMPLES=OFF
@@ -93,6 +96,7 @@ modules:
 
   - name: layer-shell-qt
     buildsystem: cmake-ninja
+    builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DBUILD_TESTING=OFF

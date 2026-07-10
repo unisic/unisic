@@ -4,7 +4,13 @@
 #include <tesseract/baseapi.h>
 #ifdef HAVE_ZXING
 #include <ZXing/ReadBarcode.h>
-#include <ZXing/Version.h>
+// DecodeHints was renamed to ReaderOptions in zxing-cpp 2.2; the version
+// header itself moved names across releases, so probe the header directly.
+#if __has_include(<ZXing/ReaderOptions.h>)
+using ZXingOptions = ZXing::ReaderOptions;
+#else
+using ZXingOptions = ZXing::DecodeHints;
+#endif
 #endif
 
 namespace {
@@ -26,11 +32,7 @@ OcrResult runOcr(QImage img, QString langs)
         const QImage gray = img.convertToFormat(QImage::Format_Grayscale8);
         ZXing::ImageView view(gray.constBits(), gray.width(), gray.height(),
                               ZXing::ImageFormat::Lum, int(gray.bytesPerLine()));
-#if ZXING_VERSION_MAJOR > 2 || (ZXING_VERSION_MAJOR == 2 && ZXING_VERSION_MINOR >= 2)
-        ZXing::ReaderOptions opts;   // DecodeHints was renamed in 2.2
-#else
-        ZXing::DecodeHints opts;
-#endif
+        ZXingOptions opts;
         opts.setTryHarder(true);
         opts.setTryRotate(true);
         const auto res = ZXing::ReadBarcode(view, opts);

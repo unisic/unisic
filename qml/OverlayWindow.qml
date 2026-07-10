@@ -15,6 +15,16 @@ Window {
         anchors.fill: parent
         focus: true
 
+        // Alignment guides only make sense while MANIPULATING the region — the
+        // plain selection tool (create / move / resize the rectangle). With a
+        // drawing tool active they are just visual noise over the stroke, and
+        // over an auto-detected smart-pick object the highlight box already
+        // shows the target.
+        readonly property bool guidesUseful:
+            App.settings.selectionGuides
+            && canvas.tool === AnnotationCanvas.None
+            && canvas.hoverObjectRect.width <= 0
+
         // Non-KDE compositors (Mutter, sway) routinely deny requestActivate()
         // issued from a hotkey with no focused window — keyboard (Esc/Enter/
         // nudge) would go nowhere. Pointer presence is a legitimate activation
@@ -153,7 +163,7 @@ Window {
             // bug. As a child it tracks the pointer across the whole overlay.
             HoverHandler {
                 id: guideHover
-                enabled: App.settings.selectionGuides
+                enabled: root.guidesUseful
             }
         }
 
@@ -162,7 +172,7 @@ Window {
         // Position comes from canvas.hoverPoint (C++), which — unlike a QML
         // HoverHandler — keeps updating while the selection is being dragged.
         Item { // vertical guide
-            visible: App.settings.selectionGuides && guideHover.hovered
+            visible: root.guidesUseful && guideHover.hovered
             x: Math.round(canvas.hoverPoint.x) - 1
             y: 0; width: 3; height: parent.height
             Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
@@ -173,7 +183,7 @@ Window {
             }
         }
         Item { // horizontal guide
-            visible: App.settings.selectionGuides && guideHover.hovered
+            visible: root.guidesUseful && guideHover.hovered
             x: 0; y: Math.round(canvas.hoverPoint.y) - 1
             width: parent.width; height: 3
             Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }

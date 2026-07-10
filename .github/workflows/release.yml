@@ -241,6 +241,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
             -DBUILD_TESTING=OFF
           cmake --build build-lsq --parallel
           cmake --install build-lsq
@@ -257,6 +258,7 @@ jobs:
           cmake -S zxing-cpp -B build-zxing -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
             -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
           cmake --build build-zxing --parallel
           cmake --install build-zxing
@@ -323,7 +325,16 @@ jobs:
           # LayerShellQt was installed into a local prefix — linuxdeploy walks
           # the binary's deps via the loader, so it must be resolvable here to
           # get bundled (no-op if the optional layer-shell build was skipped).
-          export LD_LIBRARY_PATH="$PWD/lsq-prefix/lib:${LD_LIBRARY_PATH:-}"
+          # Cover every libdir ECM/GNUInstallDirs might have chosen on the
+          # runner (plain lib, Debian multiarch lib/x86_64-linux-gnu, lib64) —
+          # the KDE_INSTALL_LIBDIR=lib above forces `lib`, this is the belt.
+          export LD_LIBRARY_PATH="$PWD/lsq-prefix/lib:$PWD/lsq-prefix/lib/x86_64-linux-gnu:$PWD/lsq-prefix/lib64:${LD_LIBRARY_PATH:-}"
+          # Deploy the LayerShellQt lib explicitly too: linuxdeploy resolves the
+          # app's NEEDED entry, but passing the versioned .so guarantees it and
+          # its SONAME symlinks land in the AppDir even if loader search misses.
+          LSQ_LIB="$(find "$PWD/lsq-prefix" -name 'libLayerShellQtInterface.so.6.*' -print -quit 2>/dev/null)"
+          EXTRA_LIB_ARGS=()
+          [ -n "$LSQ_LIB" ] && EXTRA_LIB_ARGS+=(--library "$LSQ_LIB")
           # --exclude-library libwayland-*: never bundle the BUILD HOST's
           # libwayland — mixing an old libwayland-client with a modern
           # compositor breaks at symbol lookup (MuseScore#13781); every 2020+
@@ -331,6 +342,7 @@ jobs:
           ./tools/linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --plugin qt \
+            "${EXTRA_LIB_ARGS[@]}" \
             --exclude-library "libwayland-client*" \
             --exclude-library "libwayland-cursor*" \
             --exclude-library "libwayland-egl*" \

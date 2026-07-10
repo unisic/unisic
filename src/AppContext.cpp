@@ -595,6 +595,56 @@ void AppContext::devTestPreviewFromHistory()
     previewFromHistory(p);
 }
 
+QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
+{
+    QStringList lines;
+    int bad = 0;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts) {
+        bool ok = false;
+        const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
+        if (!ok) {
+            lines << a.id + QStringLiteral(": query failed");
+            ++bad;
+        } else if (actual.isEmpty() && !a.keys.isEmpty()) {
+            ++bad;
+            if (heal && m_hotkeys->setShortcut(a.id, a.name, a.keys))
+                lines << a.id + QStringLiteral(": was unbound — re-asserted ") + a.keys;
+            else
+                lines << a.id + QStringLiteral(": UNBOUND (stored ") + a.keys + QLatin1Char(')');
+        } else {
+            // Bound, but not to what we store = a KCM edit — honor it in the
+            // UI (daemon-authoritative display).
+            if (actual != a.keys)
+                syncHotkeyFromDaemon(a.id, actual);
+            lines << a.id + QStringLiteral(": ")
+                     + (actual.isEmpty() ? QStringLiteral("(none)") : actual);
+        }
+    }
+    if (unbound)
+        *unbound = bad;
+    return lines;
+}
+
+void AppContext::devTestHotkeyBinds()
+{
+    if (!devBuild())
+        return;
+    if (!m_hotkeys->available()) {
+        showToast(tr("Dev: KGlobalAccel not available (backend: %1)")
+                      .arg(m_hotkeyBackend.isEmpty() ? tr("none") : m_hotkeyBackend));
+        return;
+    }
+    int bad = 0;
+    const QStringList lines = hotkeyBindStatus(&bad, true);
+    qInfo().noquote() << "[dev] hotkey binds:\n" + lines.join(QLatin1Char('\n'));
+    if (bad == 0)
+        showToast(tr("Hotkeys: all %1 bound in the daemon").arg(lines.size()));
+    else
+        showToast(tr("Hotkeys: %1 of %2 were unbound — re-asserted (details in the log)")
+                      .arg(bad).arg(lines.size()), true);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -629,6 +679,17 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("record border: ") + (capRecordBorder() ? QStringLiteral("PASS") : QStringLiteral("n/a on this compositor")));
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
+        if (m_hotkeys->available()) {
+            // Live daemon check: every action's active binding (heals unbound
+            // ones — same repair defineHotkeys runs at startup).
+            int bad = 0;
+            const QStringList lines = hotkeyBindStatus(&bad, true);
+            for (const QString &l : lines)
+                smokeLog(QStringLiteral("  bind ") + l);
+            smokeLog(QStringLiteral("  hotkey binds: ")
+                     + (bad == 0 ? QStringLiteral("PASS")
+                                 : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
+        }
         smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
                  ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
                  qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
@@ -1612,38 +1673,12 @@ void AppContext::defineHotkeys()
 
     if (m_hotkeys->available()) {
         m_hotkeyBackend = QStringLiteral("kglobalaccel");
-        // The registration reply already carries each action's ACTIVE keys —
-        // reuse it for both the bootstrap check and the KCM-drift sync
-        // instead of 10 extra blocking shortcutKeys round-trips.
-        struct RegResult { QList<int> keys; bool ok = false; };
-        QHash<QString, RegResult> active;
-        for (const HotkeyAction &a : acts) {
-            RegResult r;
-            m_hotkeys->defineAction(a.id, a.name, a.keys, &r.keys, &r.ok);
-            active.insert(a.id, r);
-        }
+        for (const HotkeyAction &a : acts)
+            m_hotkeys->defineAction(a.id, a.name, a.keys);
 
-        // Self-heal for fresh installs: our reference kglobalacceld binds both
-        // the active and default columns on an IsDefault registration, but
-        // daemons in the field have been seen applying it to the default
-        // column only — leaving every action registered yet UNBOUND (hotkeys
-        // silently dead). Verify once per install; never repeated afterwards,
-        // so deliberately unbinding a key in the KCM still sticks.
-        if (!m_settings->raw()->value(QStringLiteral("hotkeys/bootstrapped")).toBool()) {
-            for (const HotkeyAction &a : acts) {
-                const RegResult &r = active.value(a.id);
-                if (r.ok && r.keys.isEmpty() && !a.keys.isEmpty()) {
-                    qWarning() << "Hotkey" << a.id << "registered but left unbound by the daemon"
-                               << "— forcing default" << a.keys;
-                    m_hotkeys->setShortcut(a.id, a.name, a.keys);
-                }
-            }
-            m_settings->raw()->setValue(QStringLiteral("hotkeys/bootstrapped"), true);
-            // Flush now: a SIGTERM/logout kill skips destructors, and losing
-            // the flag would re-force defaults on every launch (breaking
-            // deliberate KCM unbinds).
-            m_settings->raw()->sync();
-        }
+        // Leftover from the abandoned one-time-heal scheme (see the verify
+        // pass below, which now runs every launch).
+        m_settings->raw()->remove(QStringLiteral("hotkeys/bootstrapped"));
         // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable.
         // Pushed with SetPresent|NoAutoloading on every startup, so even a KCM
         // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
@@ -1666,18 +1701,21 @@ void AppContext::defineHotkeys()
         // the 2s window would leave Ctrl+C bound to us persistently. Clear it on
         // every startup so a stale grab can't hijack the user's Ctrl+C.
         m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
-        // The daemon may have autoloaded KCM-edited keys that differ from our
-        // stored strings — reflect reality in the UI (from the registration
-        // replies; no extra queries). An error/timeout must never be treated
-        // as "unbound" — that would wipe (and sync()-persist) the stored key.
-        for (const HotkeyAction &a : acts) {
-            const RegResult &r = active.value(a.id);
-            if (!r.ok)
-                continue;
-            const QString actual = GlobalHotkeys::portableFromKeys(r.keys);
-            if (actual != a.keys)
-                syncHotkeyFromDaemon(a.id, actual);
-        }
+        // Verify + repair, EVERY launch, with real shortcutKeys queries — the
+        // registration replies CANNOT be trusted for this: kglobalacceld
+        // (observed live) answers an IsDefault setShortcut with the requested
+        // keys even when it stored them into the default column only and the
+        // ACTIVE binding stayed "none". That left every hotkey shown as
+        // assigned in the UI yet silently dead until the user re-assigned
+        // each one by hand. hotkeyBindStatus asserts the stored key on any
+        // action the daemon reports unbound, and syncs a KCM-edited key back
+        // into the UI. A deliberate KCM unbind made while the app runs still
+        // sticks: it arrives via yourShortcutsChanged and empties the stored
+        // string, so there is nothing to assert on the next launch.
+        int unbound = 0;
+        const QStringList report = hotkeyBindStatus(&unbound, true);
+        if (unbound > 0)
+            qWarning().noquote() << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
         emit hotkeysAvailableChanged();
         return;
     }

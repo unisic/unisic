@@ -130,11 +130,8 @@ void GlobalHotkeys::onYourShortcutsListChanged(const QDBusMessage &msg)
 }
 
 void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendlyName,
-                                 const QString &defaultKeySequence,
-                                 QList<int> *activeKeysOut, bool *ok)
+                                 const QString &defaultKeySequence)
 {
-    if (ok)
-        *ok = false;
     if (!m_available)
         return;
 
@@ -147,29 +144,24 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     m_registered.insert(actionId);
 
     // KGlobalAccel SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
-    // We register with IsDefault (8) + autoloading (no NoAutoloading). Verified
-    // behavior on Plasma 6 (kglobalacceld) for this exact call:
-    //   * fresh install (no stored key): both the active AND default columns are
-    //     set to defaultKeySequence, so the hotkey fires immediately;
+    // We register with IsDefault (8) + autoloading (no NoAutoloading):
+    //   * fresh install (no stored key): the daemon binds defaultKeySequence;
     //   * a key the user changed in KDE's Shortcuts KCM is autoloaded and is NOT
     //     clobbered on subsequent launches (only the default column is touched).
     // Adding a separate SetPresent(2) call is deliberately avoided: on this
     // daemon it *clears* the binding (persists nothing / wipes a stored key).
-    // A user-initiated change from Unisic's own settings is pushed later via
-    // setShortcut() (SetPresent), which the daemon does honor.
+    // The reply is intentionally ignored: kglobalacceld echoes the requested
+    // keys even when it filled only the default column and left the ACTIVE
+    // binding "none" (observed live — e.g. after a historical wipe). Callers
+    // must verify with activeKeys() and repair via setShortcut() (SetPresent),
+    // which the daemon does honor — see AppContext::defineHotkeys.
     const QList<int> defKeys = keysFor(defaultKeySequence);
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(defKeys) << uint(0x8);
     QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
-    if (reply.type() == QDBusMessage::ErrorMessage) {
+    if (reply.type() == QDBusMessage::ErrorMessage)
         qWarning() << "defineAction setShortcut failed for" << actionId << reply.errorMessage();
-    } else if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
-        if (ok)
-            *ok = true;
-        if (activeKeysOut)
-            *activeKeysOut = qdbus_cast<QList<int>>(reply.arguments().first());
-    }
 
     ensureSignalConnected();
 }

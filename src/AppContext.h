@@ -143,6 +143,7 @@ public:
     Q_INVOKABLE void devTestQuickCopy();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
+    Q_INVOKABLE void devTestHotkeyBinds();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -260,6 +261,9 @@ private:
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
+    // Query each action's live daemon binding; with heal, re-assert stored
+    // keys on actions the daemon reports unbound. Lines for smoke/dev output.
+    QStringList hotkeyBindStatus(int *unbound, bool heal);
 
     void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,

@@ -57,10 +57,17 @@ jobs:
       - name: Install build dependencies
         run: |
           apt-get update
+          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
+          # (HAVE_TESSERACT / HAVE_LAYERSHELL) — without the -dev packages here
+          # the shipped binary has OCR and the on-top layer-shell surfaces
+          # (custom notification card, overlay-over-fullscreen, preview pin)
+          # compiled out no matter what the user installs at runtime.
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
-            libpipewire-0.3-dev
+            libpipewire-0.3-dev \
+            libtesseract-dev libleptonica-dev \
+            liblayershellqtinterface-dev libwayland-dev
 
       - uses: actions/checkout@v4
 
@@ -89,10 +96,14 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
+          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
+          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) — see the deb job comment.
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-            pipewire-devel
+            pipewire-devel \
+            tesseract-devel leptonica-devel \
+            layer-shell-qt-devel wayland-devel
 
       - uses: actions/checkout@v4
 
@@ -124,7 +135,7 @@ jobs:
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
-            tesseract leptonica
+            tesseract leptonica layer-shell-qt wayland
 
       - uses: actions/checkout@v4
 
@@ -167,13 +178,18 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
+          # libtesseract-dev/libleptonica-dev: OCR is a compile-time optional
+          # (HAVE_TESSERACT) — linuxdeploy bundles the linked libs, language
+          # data is picked up from the user's system at runtime.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl file desktop-file-utils patchelf libfuse2 \
             cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
             libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
-            libwayland-client0 libwayland-cursor0 libwayland-egl1
+            libwayland-client0 libwayland-cursor0 libwayland-egl1 \
+            libtesseract-dev libleptonica-dev \
+            libwayland-dev extra-cmake-modules wayland-protocols
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -187,10 +203,27 @@ jobs:
           modules: qtwaylandcompositor
           cache: true
 
+      - name: Build LayerShellQt (against the aqt Qt)
+        # Layer-shell (HAVE_LAYERSHELL) powers the on-top custom notification
+        # card, the overlay-over-fullscreen capture and the preview pin. No
+        # Ubuntu package matches the aqt-installed Qt, so build the small KDE
+        # lib from source. Best-effort: on failure the app still builds, with
+        # layer-shell features compiled out (as before).
+        continue-on-error: true
+        run: |
+          git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
+          cmake -S layer-shell-qt -B build-lsq -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DBUILD_TESTING=OFF
+          cmake --build build-lsq --parallel
+          cmake --install build-lsq
+
       - name: Build AppDir
         run: |
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build-appimage --parallel
           mkdir -p AppDir
@@ -232,6 +265,10 @@ jobs:
           chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
           export PATH="$PWD/tools:$PATH"
           export QMAKE="$(command -v qmake)"
+          # LayerShellQt was installed into a local prefix — linuxdeploy walks
+          # the binary's deps via the loader, so it must be resolvable here to
+          # get bundled (no-op if the optional layer-shell build was skipped).
+          export LD_LIBRARY_PATH="$PWD/lsq-prefix/lib:${LD_LIBRARY_PATH:-}"
           # --exclude-library libwayland-*: never bundle the BUILD HOST's
           # libwayland — mixing an old libwayland-client with a modern
           # compositor breaks at symbol lookup (MuseScore#13781); every 2020+

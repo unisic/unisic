@@ -5,12 +5,14 @@ pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
 license=('GPL-3.0-or-later')
-depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal')
-makedepends=('cmake' 'ninja' 'pkgconf' 'tesseract' 'leptonica')
+# tesseract/leptonica/layer-shell-qt are hard deps: the CI build links them
+# (HAVE_TESSERACT / HAVE_LAYERSHELL), so the binary needs the libs at runtime.
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal'
+         'tesseract' 'leptonica' 'layer-shell-qt')
+makedepends=('cmake' 'ninja' 'pkgconf' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland')
 optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'
-            'tesseract: OCR (copy text from a capture)'
             'tesseract-data-pol: Polish OCR language data'
             'tesseract-data-eng: English OCR language data')
 source=("${pkgname}-${pkgver}.tar.gz")

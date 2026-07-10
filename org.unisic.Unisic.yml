@@ -21,7 +21,50 @@ finish-args:
   - --talk-name=org.kde.KWin
   - --talk-name=org.kde.kglobalaccel
 
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /bin/tesseract
+  - /share/man
+
 modules:
+  # Optional compile-time deps (HAVE_TESSERACT / HAVE_LAYERSHELL): the KDE
+  # runtime ships neither, and without them the app builds with OCR and the
+  # on-top layer-shell surfaces (custom notification card, overlay over
+  # fullscreen apps, preview pin) compiled out.
+  - name: leptonica
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz
+        sha256: 3745ae3bf271a6801a2292eead83ac926e3a9bc1bf622e9cd4dd0f3786e17205
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DDISABLE_CURL=ON
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz
+        sha256: f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11
+
+  - name: layer-shell-qt
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/plasma/6.3.5/layer-shell-qt-6.3.5.tar.xz
+        sha256: 7062ca0e50dcce97dd11d8adf1b86d49f1c56423f2341dceb3ea40dc48206e25
+
   - name: unisic
     buildsystem: cmake-ninja
     config-opts:

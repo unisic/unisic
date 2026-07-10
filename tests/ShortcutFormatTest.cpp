@@ -68,6 +68,13 @@ private slots:
         // Unknown scancode (0) keeps the unconditional legacy mapping.
         QCOMPARE(ShortcutFormat::portable(Qt::Key_Asterisk, mods, 0),
                  QStringLiteral("Meta+Shift+8"));
+        // qtwayland reports raw evdev codes (XKB minus 8): digit 1 = 2,
+        // digit 8 = 9 — the remap must accept those too, or every recorded
+        // Shift+digit combo dies on Wayland.
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Exclam, mods, 2),
+                 QStringLiteral("Meta+Shift+1"));
+        QCOMPARE(ShortcutFormat::portable(Qt::Key_Asterisk, mods, 9),
+                 QStringLiteral("Meta+Shift+8"));
     }
 };
 

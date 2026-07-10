@@ -16,11 +16,15 @@ namespace ShortcutFormat {
 // nativeScanCode gates the remap per physical key: the symbol positions in
 // the map are US/Polish digit-row facts, and on e.g. a German layout '*' is
 // Shift+Plus — blindly rewriting Key_Asterisk to Key_8 would bind the wrong
-// physical key. XKB keycodes are layout-independent (digit row 1..0 =
-// 10..19, minus 20, equal 21, on both X11 and Wayland); with a scancode
-// present a symbol is only rewritten when it really came from that
-// US-position key, otherwise the symbol is recorded as-is. 0 (unknown)
-// keeps the unconditional legacy mapping.
+// physical key. Scancodes are layout-independent but PLATFORM-dependent:
+// xcb reports XKB keycodes (digit row 1..0 = 10..19, minus 20, equal 21)
+// while qtwayland reports raw evdev codes (the same keys minus 8: 2..13).
+// BOTH are accepted — the symbol already selects the map entry, the
+// scancode only confirms the physical position, so the dual match cannot
+// alias across entries. Requiring only the XKB convention silently broke
+// every recorded Shift+digit combo on Wayland (the gate never passed, the
+// symbol was stored, and a 'Meta+Shift+!' binding never fires). 0
+// (unknown) keeps the unconditional legacy mapping.
 inline QString portable(int key, int modifiers, int nativeScanCode = 0)
 {
     switch (key) {
@@ -59,7 +63,8 @@ inline QString portable(int key, int modifiers, int nativeScanCode = 0)
         };
         for (const Remap &m : kShiftRemap) {
             if (key == m.sym) {
-                if (nativeScanCode == 0 || nativeScanCode == m.scan)
+                if (nativeScanCode == 0 || nativeScanCode == m.scan
+                    || nativeScanCode + 8 == m.scan)
                     key = m.base;
                 break;
             }

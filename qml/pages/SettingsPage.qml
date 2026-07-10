@@ -157,6 +157,34 @@ Item {
         App.settings.editorToolIcons = JSON.stringify(m)
     }
 
+    // One hotkey action: the label row (with the searchable "?" badge) on
+    // top, the full-width multi-binding chip editor underneath — chips read
+    // left to right (primary first) and the "+ Add" ghost button is always
+    // at the end of the list, which is where the eye expects it.
+    component HotkeyRow: Column {
+        id: hotkeyRow
+        property alias label: hotkeyHeader.label
+        property alias help: hotkeyHeader.help
+        property alias helpDetail: hotkeyHeader.helpDetail
+        property alias available: hotkeyHeader.available
+        property alias hint: hotkeyHeader.hint
+        property string shortcuts: ""
+        signal changed(string shortcuts)
+        width: parent.width
+        spacing: 2
+        SettingRow {
+            id: hotkeyHeader
+            width: parent.width
+        }
+        UShortcutList {
+            width: parent.width
+            enabled: hotkeyRow.available
+            opacity: hotkeyRow.available ? 1.0 : 0.45
+            shortcuts: hotkeyRow.shortcuts
+            onChanged: (t) => hotkeyRow.changed(t)
+        }
+    }
+
     component SettingRow: Item {
         id: settingRow
         readonly property bool isSettingRow: true   // marker for the settings search
@@ -1268,37 +1296,42 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
                         helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline.")
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyFullScreen; onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") } }
+                        shortcuts: App.settings.hotkeyFullScreen
+                        onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") }
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("Region")
                         help: qsTr("Hotkey: capture a selected region.")
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyRegion; onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") } }
+                        shortcuts: App.settings.hotkeyRegion
+                        onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") }
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("Window")
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyWindow; onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") } }
+                        shortcuts: App.settings.hotkeyWindow
+                        onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
                         helpDetail: qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyRecord; onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") } }
+                        shortcuts: App.settings.hotkeyRecord
+                        onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") }
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("GIF start/stop")
                         help: qsTr("Hotkey: toggle GIF recording.")
                         helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyGif; onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
+                        shortcuts: App.settings.hotkeyGif
+                        onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
-                    SettingRow {
+                    HotkeyRow {
                         label: qsTr("OCR region (copy text)")
                         available: App.ocrAvailable
                         hint: App.ocrAvailable ? ""
@@ -1307,7 +1340,8 @@ Item {
                         helpDetail: (App.qrAvailable
                                      ? qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
                                      : qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied."))
-                        UShortcutList { width: 220; shortcuts: App.settings.hotkeyOcr; onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
+                        shortcuts: App.settings.hotkeyOcr
+                        onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
                     UButton {
                         anchors.right: parent.right

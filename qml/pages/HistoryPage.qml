@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Dialogs
 import QtQuick.Window
 import Unisic
 import "../components"
@@ -30,11 +29,12 @@ Item {
                 enabled: App.history.count > 0
                 onClicked: clearAllConfirm.open()
             }
-            MessageDialog {
+            UConfirmDialog {
                 id: clearAllConfirm
                 title: qsTr("Clear the whole history?")
                 text: qsTr("This removes every history entry AND moves the capture files to the trash.\n\nStarred (favorite) captures are kept — entry and file.")
-                buttons: MessageDialog.Ok | MessageDialog.Cancel
+                confirmText: qsTr("Clear all")
+                destructive: true
                 onAccepted: App.history.clearAll()
             }
         }
@@ -98,7 +98,7 @@ Item {
                             Rectangle {
                                 visible: kind !== "image"
                                 anchors.top: parent.top
-                                anchors.right: parent.right
+                                anchors.left: parent.left   // star owns the right corner
                                 anchors.margins: 6
                                 width: kindText.implicitWidth + 14
                                 height: 20
@@ -111,6 +111,28 @@ Item {
                                     color: Theme.textOnAccent
                                     font.pixelSize: 10
                                     font.weight: Font.Bold
+                                }
+                            }
+                            // Star overlaid on the thumbnail (top-right): keeps
+                            // the action row below within the tile width. Dark
+                            // scrim disc so it reads on any screenshot.
+                            Rectangle {
+                                anchors.top: parent.top
+                                anchors.right: parent.right
+                                anchors.margins: 6
+                                width: 26; height: 26; radius: 13
+                                color: Qt.rgba(0, 0, 0, 0.45)
+                                visible: favorite || itemMouse.containsMouse
+                                UIcon {
+                                    anchors.centerIn: parent
+                                    name: favorite ? "star-filled" : "star"
+                                    size: 15
+                                    color: favorite ? Theme.accent : "#FFFFFF"
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: App.history.setFavorite(index, !favorite)
                                 }
                             }
                         }
@@ -126,14 +148,6 @@ Item {
 
                         Row {
                             spacing: 4
-                            UIconButton {
-                                iconName: favorite ? "star-filled" : "star"
-                                iconSize: 16; width: 30; height: 30
-                                tooltip: favorite ? qsTr("Unstar (allows deletion again)")
-                                                  : qsTr("Star — survives Clear all and can't be deleted")
-                                active: favorite
-                                onClicked: App.history.setFavorite(index, !favorite)
-                            }
                             UIconButton {
                                 iconName: "edit-copy"; iconSize: 16; tooltip: qsTr("Copy link")
                                 width: 30; height: 30

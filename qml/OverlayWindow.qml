@@ -210,8 +210,7 @@ Window {
             Text {
                 id: hoverDimText
                 anchors.centerIn: parent
-                text: (canvas.hoverIsWindow ? qsTr("Window") + "  ·  " : "")
-                      + Math.round(canvas.hoverObjectRect.width) + " × "
+                text: Math.round(canvas.hoverObjectRect.width) + " × "
                       + Math.round(canvas.hoverObjectRect.height)
                       + (canvas.hoverDepthCount > 1
                          ? "   " + (canvas.hoverDepth + 1) + "/" + canvas.hoverDepthCount + " ↕"

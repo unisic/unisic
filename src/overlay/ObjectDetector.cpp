@@ -97,6 +97,77 @@ QVector<Seg> mergeCollinear(QVector<Seg> segs)
     return kept;
 }
 
+// Connected components of a binary mask; bboxes filtered by min side and a
+// max screen fraction. Shared by the smear passes below.
+static QVector<QRect> maskComponents(const QVector<uchar> &mask, int w, int h,
+                                     int minSide, double maxFrac)
+{
+    QVector<QRect> out;
+    QVector<uchar> seen(w * h, 0);
+    QVector<int> stack;
+    for (int start = 0; start < w * h; ++start) {
+        if (!mask[start] || seen[start])
+            continue;
+        int minx = w, miny = h, maxx = 0, maxy = 0;
+        stack.append(start);
+        seen[start] = 1;
+        while (!stack.isEmpty()) {
+            const int p = stack.takeLast();
+            const int x = p % w, y = p / w;
+            minx = std::min(minx, x); maxx = std::max(maxx, x);
+            miny = std::min(miny, y); maxy = std::max(maxy, y);
+            const int nbs[4] = {p - 1, p + 1, p - w, p + w};
+            const bool ok[4] = {x > 0, x < w - 1, y > 0, y < h - 1};
+            for (int i = 0; i < 4; ++i)
+                if (ok[i] && mask[nbs[i]] && !seen[nbs[i]]) {
+                    seen[nbs[i]] = 1;
+                    stack.append(nbs[i]);
+                }
+        }
+        const int bw = maxx - minx + 1, bh = maxy - miny + 1;
+        if (bw < minSide || bh < minSide)
+            continue;
+        if (bw > w * maxFrac && bh > h * maxFrac)
+            continue;
+        out.append(QRect(minx, miny, bw, bh));
+    }
+    return out;
+}
+
+// Two-pass box dilation (horizontal then vertical run spreading) — O(n) per
+// pass regardless of radius.
+static QVector<uchar> dilate(const QVector<uchar> &mask, int w, int h, int r)
+{
+    QVector<uchar> tmp(w * h, 0), out(w * h, 0);
+    for (int y = 0; y < h; ++y) {
+        const uchar *in = mask.constData() + qsizetype(y) * w;
+        uchar *o = tmp.data() + qsizetype(y) * w;
+        int run = -1;
+        for (int x = 0; x < w; ++x)
+            if (in[x]) { run = r; o[x] = 1; }
+            else if (run >= 0) { o[x] = 1; if (--run < 0) run = -1; }
+        run = -1;
+        for (int x = w - 1; x >= 0; --x)
+            if (in[x]) run = r;
+            else if (run >= 0) { o[x] = 1; --run; if (run < 0) run = -1; }
+    }
+    for (int x = 0; x < w; ++x) {
+        int run = -1;
+        for (int y = 0; y < h; ++y) {
+            const int i = y * w + x;
+            if (tmp[i]) { run = r; out[i] = 1; }
+            else if (run >= 0) { out[i] = 1; if (--run < 0) run = -1; }
+        }
+        run = -1;
+        for (int y = h - 1; y >= 0; --y) {
+            const int i = y * w + x;
+            if (tmp[i]) run = r;
+            else if (run >= 0) { out[i] = 1; --run; if (run < 0) run = -1; }
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 QVector<QRect> ObjectDetector::detect(const QImage &src)
@@ -124,6 +195,10 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                             ? grayFull.scaled(sw, sh, Qt::IgnoreAspectRatio,
                                               Qt::SmoothTransformation)
                             : grayFull;
+    const QImage smallRgb = (scale > 1.0
+                                 ? src.scaled(sw, sh, Qt::IgnoreAspectRatio,
+                                              Qt::SmoothTransformation)
+                                 : src).convertToFormat(QImage::Format_RGB32);
     const int w = gray.width();
     const int h = gray.height();
     if (w < 8 || h < 8)
@@ -329,6 +404,118 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                 if (qint64(r.width()) * r.height()
                     < qint64(src.width()) * src.height() * 96 / 100)
                     scored.append({r, quality});
+            }
+        }
+    }
+
+    // 5b. FLAT-COLOR REGIONS: flood-fill over near-uniform color. Buttons,
+    //     cards, thumbnails and content panes rarely have a crisp 4-side
+    //     outline, but they ARE contiguous patches of similar color — their
+    //     bounding boxes make natural single-element candidates.
+    {
+        const int tol2 = 30 * 30; // squared per-channel-ish distance
+        QVector<int> label(w * h, -1);
+        QVector<int> stack;
+        int next = 0;
+        auto rgbAtSmall = [&](int i) -> QRgb {
+            return reinterpret_cast<const QRgb *>(smallRgb.constScanLine(i / w))[i % w];
+        };
+        auto close = [&](QRgb a, QRgb b) {
+            const int dr = qRed(a) - qRed(b), dg = qGreen(a) - qGreen(b), db = qBlue(a) - qBlue(b);
+            return dr * dr + dg * dg + db * db < tol2;
+        };
+        int added = 0;
+        for (int start = 0; start < w * h && added < 200; ++start) {
+            if (label[start] != -1)
+                continue;
+            const QRgb seed = rgbAtSmall(start);
+            int minx = w, miny = h, maxx = 0, maxy = 0, count = 0;
+            stack.append(start);
+            label[start] = next;
+            while (!stack.isEmpty()) {
+                const int p = stack.takeLast();
+                ++count;
+                const int x = p % w, y = p / w;
+                minx = std::min(minx, x); maxx = std::max(maxx, x);
+                miny = std::min(miny, y); maxy = std::max(maxy, y);
+                const int nbs[4] = {p - 1, p + 1, p - w, p + w};
+                const bool ok[4] = {x > 0, x < w - 1, y > 0, y < h - 1};
+                for (int i = 0; i < 4; ++i)
+                    if (ok[i] && label[nbs[i]] == -1 && close(seed, rgbAtSmall(nbs[i]))) {
+                        label[nbs[i]] = next;
+                        stack.append(nbs[i]);
+                    }
+            }
+            ++next;
+            const int bw = maxx - minx + 1, bh = maxy - miny + 1;
+            if (bw < 12 || bh < 12 || count < 96)
+                continue;
+            if (bw > w * 0.95 && bh > h * 0.95)
+                continue;
+            // Solid patches only: a sprawling low-density web (anti-aliased
+            // text lattice, gradients leaking around content) is not an
+            // element — its bbox would be arbitrary.
+            if (double(count) / (double(bw) * bh) < 0.55)
+                continue;
+            QRect r(int(minx * scale), int(miny * scale), int(bw * scale), int(bh * scale));
+            r = r.intersected(QRect(0, 0, src.width(), src.height()));
+            if (r.width() >= 8 && r.height() >= 8
+                && qint64(r.width()) * r.height()
+                       < qint64(src.width()) * src.height() * 96 / 100) {
+                scored.append({r, 2.9}); // below a full 4-side bordered rect
+                ++added;
+            }
+        }
+    }
+
+    // 5c. CONTENT SMEARING at two radii: nearby edge pixels merge into blobs.
+    //     Small radius -> ONE element (icon, button, text line); large radius
+    //     -> a GROUP of elements (toolbar with its buttons, icon grid, form).
+    //     Structural border lines are removed first so two windows' contents
+    //     never smear across their shared frame — the exact failure mode that
+    //     killed the old blob detector on tiled desktops.
+    {
+        QVector<uchar> content = hEdge;
+        for (int i = 0; i < w * h; ++i)
+            content[i] = content[i] || vEdge[i];
+        auto zeroSeg = [&](const Seg &g, bool horizontal) {
+            for (int d = -1; d <= 1; ++d) {
+                if (horizontal) {
+                    const int y = g.pos + d;
+                    if (y < 0 || y >= h) continue;
+                    for (int x = g.a; x <= g.b; ++x)
+                        content[y * w + x] = 0;
+                } else {
+                    const int x = g.pos + d;
+                    if (x < 0 || x >= w) continue;
+                    for (int y = g.a; y <= g.b; ++y)
+                        content[y * w + x] = 0;
+                }
+            }
+        };
+        for (const Seg &g : std::as_const(hSegs)) zeroSeg(g, true);
+        for (const Seg &g : std::as_const(vSegs)) zeroSeg(g, false);
+
+        const struct { int radius; int minSide; double q; } passes[] = {
+            {2, 10, 2.7},  // single elements
+            {7, 26, 2.5},  // element groups
+        };
+        for (const auto &pass : passes) {
+            const QVector<uchar> closed = dilate(content, w, h, pass.radius);
+            const QVector<QRect> boxes = maskComponents(closed, w, h, pass.minSide, 0.92);
+            for (const QRect &b : boxes) {
+                // Undo the dilation growth so the box hugs the actual pixels.
+                const QRect tight = b.adjusted(pass.radius, pass.radius,
+                                               -pass.radius, -pass.radius);
+                if (tight.width() < pass.minSide || tight.height() < pass.minSide)
+                    continue;
+                QRect r(int(tight.x() * scale), int(tight.y() * scale),
+                        int(tight.width() * scale), int(tight.height() * scale));
+                r = r.intersected(QRect(0, 0, src.width(), src.height()));
+                if (r.width() >= 8 && r.height() >= 8
+                    && qint64(r.width()) * r.height()
+                           < qint64(src.width()) * src.height() * 96 / 100)
+                    scored.append({r, pass.q});
             }
         }
     }

@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.2.2 LANGUAGES CXX)
+project(unisic VERSION 0.3.0 LANGUAGES CXX)
+# Human-facing version. project(VERSION) only takes numeric tuples, so
+# pre-release suffixes live here ("0.3b" -> pre-release builds); this string
+# drives the binary footer, package versions and the GitHub release tag.
+set(UNISIC_VERSION_STRING "0.3b")
 
 include(GNUInstallDirs)
 
@@ -59,7 +63,7 @@ else()
     set(UNISIC_BUILD "dev")
 endif()
 target_compile_definitions(unisic PRIVATE
-    UNISIC_VERSION="${PROJECT_VERSION}"
+    UNISIC_VERSION="${UNISIC_VERSION_STRING}"
     UNISIC_BUILD="${UNISIC_BUILD}")
 
 # Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
@@ -190,8 +194,8 @@ set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
 set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_PACKAGE_VERSION ${UNISIC_VERSION_STRING})
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${UNISIC_VERSION_STRING}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_STRIP_FILES TRUE)
 
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")

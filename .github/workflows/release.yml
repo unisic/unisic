@@ -32,9 +32,16 @@ jobs:
       - id: v
         name: Read version and decide whether to release
         run: |
-          version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
+          # Display version (allows pre-release suffixes like "0.3b"); falls
+          # back to the numeric project() version if the string is absent.
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           # Release only when this version has not been tagged yet — i.e. the
           # version in CMakeLists.txt was bumped. Plain pushes to main (docs,
@@ -293,9 +300,16 @@ jobs:
           # Older linuxdeploy-plugin-appimage builds read the unprefixed name.
           UPDATE_INFORMATION: "gh-releases-zsync|unisic|unisic|latest|Unisic-*x86_64.AppImage.zsync"
         run: |
-          version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
+          # Display version (allows pre-release suffixes like "0.3b"); falls
+          # back to the numeric project() version if the string is absent.
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
           export VERSION="$version"
 
           mkdir -p tools dist
@@ -423,7 +437,13 @@ jobs:
             exit 1
           fi
 
+          # A letter suffix in the version ("0.3b", "1.0rc1") marks the
+          # GitHub release as a pre-release automatically.
+          prerelease=()
+          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+            prerelease=(--prerelease)
+          fi
           gh release create "v${VERSION}" "${assets[@]}" \
             --target "$GITHUB_SHA" \
             --title "Unisic ${VERSION}" \
-            --notes-file NOTES.md
+            --notes-file NOTES.md "${prerelease[@]}"

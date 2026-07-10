@@ -132,6 +132,6 @@ No arguments = background start with tray + main window. A second invocation for
 
 ## Notes
 
-- On first run Unisic installs `org.unisic.Unisic.desktop` into `~/.local/share/applications` (declares `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`) — this authorizes the silent KWin path. Without it captures still work through the portal.
+- On first run Unisic installs `app.unisic.Unisic.desktop` into `~/.local/share/applications` (declares `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`) — this authorizes the silent KWin path. Without it captures still work through the portal.
 - Brand palette: `#17153B` · `#2E236C` · `#433D8B` · `#C8ACD6`.
 - License: **GNU GPL v3**.

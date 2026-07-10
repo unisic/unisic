@@ -112,7 +112,7 @@ void DesktopNotifier::sendNotify(CaptureNotification *n)
     };
 
     QVariantMap hints;
-    hints.insert(QStringLiteral("desktop-entry"), QStringLiteral("org.unisic.Unisic"));
+    hints.insert(QStringLiteral("desktop-entry"), QStringLiteral("app.unisic.Unisic"));
     hints.insert(QStringLiteral("category"), QStringLiteral("transfer.complete"));
     const QString thumb = n->thumbFilePath();
     if (!thumb.isEmpty())
@@ -139,7 +139,7 @@ void DesktopNotifier::sendNotify(CaptureNotification *n)
                                                       QStringLiteral("Notify"));
     msg << QStringLiteral("Unisic")             // app_name
         << 0u                                   // replaces_id (0 = new)
-        << QStringLiteral("org.unisic.Unisic")  // app_icon
+        << QStringLiteral("app.unisic.Unisic")  // app_icon
         << summary << body << actions << hints << timeout;
     QPointer<CaptureNotification> np(n);
     auto *watcher = new QDBusPendingCallWatcher(

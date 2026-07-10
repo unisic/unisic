@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>org.unisic.Unisic</id>
+  <id>app.unisic.Unisic</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Unisic</name>
-  <developer id="org.unisic">
+  <developer id="app.unisic">
     <name>Unisic maintainers</name>
   </developer>
   <summary>Capture, annotate, record and share your screen on Linux Wayland</summary>
@@ -32,16 +32,32 @@
       native capture path; other desktops work through portals. Zero telemetry.
     </p>
   </description>
-  <launchable type="desktop-id">org.unisic.Unisic.desktop</launchable>
+  <launchable type="desktop-id">app.unisic.Unisic.desktop</launchable>
   <categories>
     <category>Graphics</category>
     <category>Utility</category>
   </categories>
-  <url type="homepage">https://github.com/unisic/unisic</url>
+  <url type="homepage">https://unisic.app</url>
+  <url type="bugtracker">https://github.com/unisic/unisic/issues</url>
+  <url type="vcs-browser">https://github.com/unisic/unisic</url>
+  <branding>
+    <color type="primary" scheme_preference="light">#C8ACD6</color>
+    <color type="primary" scheme_preference="dark">#17153B</color>
+  </branding>
+  <screenshots>
+    <!-- TODO: replace with real UI screenshots (overlay, editor, recorder)
+         before the Flathub review round — this is the project banner. -->
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/social-preview.png</image>
+      <caption>Capture, annotate, record and share your screen</caption>
+    </screenshot>
+  </screenshots>
   <provides>
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.3.1" date="2026-07-10" />
+    <release version="0.3.0" date="2026-07-10" />
     <release version="0.2.2" date="2026-07-10" />
     <release version="0.2.1" date="2026-07-09" />
     <release version="0.2.0" date="2026-07-07" />

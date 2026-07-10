@@ -55,18 +55,18 @@ on KDE Plasma. Zero telemetry.
 %cmake_install
 
 %check
-desktop-file-validate %{buildroot}%{_datadir}/applications/org.unisic.Unisic.desktop
+desktop-file-validate %{buildroot}%{_datadir}/applications/app.unisic.Unisic.desktop
 appstream-util validate-relax --nonet \
-    %{buildroot}%{_datadir}/metainfo/org.unisic.Unisic.metainfo.xml || :
+    %{buildroot}%{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml || :
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/unisic
-%{_datadir}/applications/org.unisic.Unisic.desktop
-%{_datadir}/metainfo/org.unisic.Unisic.metainfo.xml
+%{_datadir}/applications/app.unisic.Unisic.desktop
+%{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg
-%{_datadir}/icons/hicolor/scalable/apps/org.unisic.Unisic.svg
+%{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
 * Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.3.1-1

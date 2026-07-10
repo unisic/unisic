@@ -99,7 +99,10 @@ Window {
             }
             if (e.key === Qt.Key_Escape) {
                 overlayController.cancel()
-            } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+            } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter
+                       || e.key === Qt.Key_Space) {
+                // Space confirms too (only reachable here — the text-box branch
+                // above returns first, so typing a space still types a space).
                 overlayController.confirmFromWindow(overlayWindow)
             } else if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) {
                 canvas.selectAll()
@@ -295,8 +298,8 @@ Window {
                                ? qsTr("Click an object (scroll = level) or drag to select")
                                : qsTr("Drag to select")
                     return annotationToolsEnabled
-                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
-                           : drag + qsTr(" · Ctrl+drag to move · Enter to start · Esc to cancel")
+                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
+                           : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
                 }
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1

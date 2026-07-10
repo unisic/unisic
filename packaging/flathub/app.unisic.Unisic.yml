@@ -1,0 +1,144 @@
+id: app.unisic.Unisic
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+command: unisic
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Capture sound cue (General > Capture sound): audio out for pw-play/paplay.
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-pictures:create
+  - --filesystem=xdg-videos:create
+  # No xdg-config/unisic hole (Flathub linter forbids it): the flatpak keeps
+  # its config under ~/.var/app; Settings export/import migrates from native.
+  # Self-grant the "screenshot" permission so non-interactive portal
+  # screenshots (overlay freeze) work without a dialog per capture.
+  - --talk-name=org.freedesktop.impl.portal.PermissionStore
+  # KDE-specific silent capture path (org.kde.KWin.ScreenShot2); the app
+  # auto-falls back to the Screenshot portal when unavailable/unauthorized.
+  - --talk-name=org.kde.KWin
+  # Global capture hotkeys via KGlobalAccel.
+  - --talk-name=org.kde.kglobalaccel
+  # Tray icon (StatusNotifierItem) and native capture notifications: the
+  # filtered session bus hides these names by default, which would leave the
+  # flatpak with no tray icon and no notification feedback.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Bundled tesseract resolves its language data from /app/share/tessdata
+  # (installed by the tessdata module below); pin it for robustness.
+  - --env=TESSDATA_PREFIX=/app/share/tessdata
+
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /bin/tesseract
+  - /share/man
+
+modules:
+  # Optional compile-time deps (HAVE_TESSERACT / HAVE_LAYERSHELL): the KDE
+  # runtime ships neither, and without them the app builds with OCR and the
+  # on-top layer-shell surfaces (custom notification card, overlay over
+  # fullscreen apps, preview pin) compiled out.
+  - name: leptonica
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz
+        sha256: 3745ae3bf271a6801a2292eead83ac926e3a9bc1bf622e9cd4dd0f3786e17205
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DDISABLE_CURL=ON
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz
+        sha256: f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11
+
+  # Language data for the bundled tesseract (default ocrLanguages "pol+eng"):
+  # the sandbox cannot see host langpacks and /app is read-only at runtime, so
+  # without shipping the .traineddata here OCR always fails in the flatpak.
+  - name: tessdata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
+      - install -Dm644 pol.traineddata /app/share/tessdata/pol.traineddata
+    sources:
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/pol.traineddata
+        sha256: c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2
+
+  - name: zxing-cpp
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_EXAMPLES=OFF
+      - -DBUILD_BLACKBOX_TESTS=OFF
+      - -DBUILD_UNIT_TESTS=OFF
+    sources:
+      - type: archive
+        url: https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v2.2.1.tar.gz
+        sha256: 02078ae15f19f9d423a441f205b1d1bee32349ddda7467e2c84e8f08876f8635
+
+  # Clipboard reliability on Wayland: the app mirrors copies through wl-copy
+  # when present, and the runtime does not ship it.
+  - name: wl-clipboard
+    buildsystem: meson
+    config-opts:
+      # Auto-detected completion dirs resolve outside /app and fail install.
+      - -Dzshcompletiondir=no
+      - -Dfishcompletiondir=no
+    sources:
+      - type: archive
+        url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.2.1.tar.gz
+        sha256: 6eb8081207fb5581d1d82c4bcd9587205a31a3d47bea3ebeb7f41aa1143783eb
+
+  - name: layer-shell-qt
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/plasma/6.7.2/layer-shell-qt-6.7.2.tar.xz
+        sha256: 392cd82742f109452f874d14f5d391a823c7b021bdc2446c0f474b3d1e77b129
+
+  - name: unisic
+    buildsystem: cmake-ninja
+    # flatpak-builder runs cmake in a cleaned sandbox environment, so pin the
+    # release defaults explicitly — otherwise CMakeLists.txt would flip
+    # UNISIC_DEV_BUILD to ON and ship the Developer tab + F8 smoke-test grab.
+    build-options:
+      env:
+        UNISIC_BUILD_NUMBER: ""
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DUNISIC_DEV_BUILD=OFF
+    sources:
+      - type: git
+        url: https://github.com/unisic/unisic.git
+        tag: v0.4.0
+        commit: 9a78201780bec7822b4ee7b56b1699386668c3e0
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$

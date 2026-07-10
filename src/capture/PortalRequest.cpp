@@ -4,6 +4,7 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusObjectPath>
+#include <QDBusServiceWatcher>
 #include <QCoreApplication>
 #include <QDebug>
 
@@ -25,6 +26,20 @@ PortalRequest::PortalRequest(const QString &token, Callback cb, QObject *parent)
     : QObject(parent), m_cb(std::move(cb))
 {
     subscribe(expectedPath(token));
+    // If xdg-desktop-portal dies before emitting Response (crash/restart while
+    // an interactive dialog is open), no signal ever arrives: the request — and
+    // the capture-callback chain it captured — would sit on its long-lived
+    // parent forever, and the capture flow would hang silently. Complete with
+    // an error instead. Routed through onResponse: m_cb is moved out on first
+    // completion, so a race with a real Response/late error is harmless.
+    // No timeout here — interactive portal dialogs legitimately stay open long.
+    auto *w = new QDBusServiceWatcher(QStringLiteral("org.freedesktop.portal.Desktop"),
+                                      QDBusConnection::sessionBus(),
+                                      QDBusServiceWatcher::WatchForUnregistration, this);
+    connect(w, &QDBusServiceWatcher::serviceUnregistered, this, [this] {
+        onResponse(2, {{QStringLiteral("error"),
+                        QStringLiteral("xdg-desktop-portal exited while the request was pending")}});
+    });
 }
 
 void PortalRequest::subscribe(const QString &path)

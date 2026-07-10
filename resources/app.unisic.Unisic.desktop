@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Unisic
+GenericName=Screenshot & Screen Recorder
+Comment=Capture, annotate, record (GIF/MP4/WebM) and upload your screen on Wayland
+Exec=unisic
+Icon=app.unisic.Unisic
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;screen recording;screencast;annotate;editor;blur;GIF;MP4;upload;capture;region;Wayland;ShareX;
+StartupNotify=false
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

@@ -7,7 +7,9 @@ import QtQuick
 QtObject {
     readonly property var tools: [
         { id: "select",     tool: 0,  iconName: "select-rectangular", label: qsTr("Select"),       overlay: true,  editor: false, hideable: false },
-        { id: "object",     tool: 13, iconName: "object-pick",        label: qsTr("Pick object"),  overlay: true,  editor: false, hideable: true },
+        // Superseded in the overlay by "Smart pick" (Settings > Capture):
+        // a plain CLICK during region selection picks the detected object.
+        { id: "object",     tool: 13, iconName: "object-pick",        label: qsTr("Pick object"),  overlay: false, editor: false, hideable: false },
         { id: "pen",        tool: 1,  iconName: "draw-freehand",      label: qsTr("Pen"),          overlay: true,  editor: true,  hideable: true },
         { id: "line",       tool: 2,  iconName: "draw-line",          label: qsTr("Line"),         overlay: true,  editor: true,  hideable: true },
         { id: "arrow",      tool: 3,  iconName: "draw-arrow",         label: qsTr("Arrow"),        overlay: true,  editor: true,  hideable: true },

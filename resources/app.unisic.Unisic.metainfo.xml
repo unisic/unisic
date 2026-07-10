@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.unisic.Unisic</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>Unisic</name>
+  <developer id="app.unisic">
+    <name>Unisic maintainers</name>
+  </developer>
+  <summary>Capture, annotate, record, share</summary>
+  <description>
+    <p>
+      Most screenshot tools hand you a rectangle of pixels and walk away. Unisic
+      covers the whole workflow that starts the moment you press the hotkey:
+      annotate directly on the selection overlay before the shot is even taken,
+      keep editing afterwards, record the same region as a GIF or video, and push
+      the result wherever it belongs — clipboard, disk, or a custom upload
+      destination with the link ready to paste.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Capture full screen (multi-monitor), an interactive region, or a specific window</li>
+      <li>Annotate on the overlay before the capture is finalized — ShareX-style</li>
+      <li>Post-capture editor: arrows, shapes, freehand, text, blur/pixelate, crop, numbered steps, highlight, object cutout with background removal, undo/redo</li>
+      <li>Record a region or the full screen to GIF, MP4 or WebM, with optional system and microphone audio</li>
+      <li>Modular upload destinations (custom HTTP/FTP/SFTP/API), auto-copy the link, upload history</li>
+      <li>Tray icon, configurable global hotkeys, and optional OCR to copy text out of a capture</li>
+    </ul>
+    <p>
+      Built for Wayland on legitimate APIs only (xdg-desktop-portal, KWin
+      ScreenShot2, PipeWire, KGlobalAccel). KDE Plasma gets the fully silent
+      native capture path; other desktops work through portals. Zero telemetry.
+    </p>
+  </description>
+  <launchable type="desktop-id">app.unisic.Unisic.desktop</launchable>
+  <categories>
+    <category>Graphics</category>
+    <category>Utility</category>
+  </categories>
+  <url type="homepage">https://unisic.app</url>
+  <url type="bugtracker">https://github.com/unisic/unisic/issues</url>
+  <url type="vcs-browser">https://github.com/unisic/unisic</url>
+  <branding>
+    <color type="primary" scheme_preference="light">#C8ACD6</color>
+    <color type="primary" scheme_preference="dark">#17153B</color>
+  </branding>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/capture.png</image>
+      <caption>Pick full screen, region or window and what happens after the shot</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/editor.png</image>
+      <caption>Annotate with arrows, numbered steps, blur and crop, then copy, save or upload</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/record.png</image>
+      <caption>Record the screen, a region or a window to MP4, WebM or GIF</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/destinations.png</image>
+      <caption>Modular upload destinations with the link copied after every upload</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/unisic/unisic/main/docs/screenshots/settings.png</image>
+      <caption>Searchable settings with import and export</caption>
+    </screenshot>
+  </screenshots>
+  <provides>
+    <binary>unisic</binary>
+  </provides>
+  <releases>
+    <release version="0.4.0" date="2026-07-10">
+      <description>
+        <p>New app ID app.unisic.Unisic (backed by unisic.app) and first Flathub release. Stale menu and autostart entries from older installs are cleaned up automatically.</p>
+      </description>
+    </release>
+    <release version="0.3.1" date="2026-07-10" />
+    <release version="0.3.0" date="2026-07-10" />
+    <release version="0.2.2" date="2026-07-10" />
+    <release version="0.2.1" date="2026-07-09" />
+    <release version="0.2.0" date="2026-07-07" />
+    <release version="0.1.0" date="2026-07-07" />
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>

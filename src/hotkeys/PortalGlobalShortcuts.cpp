@@ -6,6 +6,8 @@
 #include <QDBusArgument>
 #include <QDBusObjectPath>
 #include <QDBusMetaType>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDBusServiceWatcher>
 #include <QKeySequence>
 #include <QDebug>
@@ -49,13 +51,28 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
     // re-bind; persisted grants make it prompt-free on KDE/GNOME.
     auto *w = new QDBusServiceWatcher(PORTAL_SERVICE, QDBusConnection::sessionBus(),
                                       QDBusServiceWatcher::WatchForOwnerChange, this);
+    // A crash/restart delivers TWO owner changes: (old, "") then ("", new).
+    // The first must only invalidate the session (binding into a dying portal
+    // is pointless); the actual re-bind has to wait for the second, when the
+    // new daemon is on the bus — hence the m_needRebind carry-over.
     connect(w, &QDBusServiceWatcher::serviceOwnerChanged, this,
             [this](const QString &, const QString &, const QString &newOwner) {
-        if (m_sessionHandle.isEmpty())
+        if (newOwner.isEmpty()) {
+            // Owner lost: session died with the daemon; flag the re-bind for
+            // the owner-gained event that follows.
+            if (!m_sessionHandle.isEmpty()) {
+                m_sessionHandle.clear();
+                m_needRebind = true;
+            }
             return;
-        qWarning() << "xdg-desktop-portal restarted — re-binding global shortcuts";
+        }
+        // Owner gained (restart's second event, or an atomic handover).
+        if (!m_needRebind && m_sessionHandle.isEmpty())
+            return; // never had a session — nothing to restore
+        m_needRebind = false;
         m_sessionHandle.clear();
-        if (!newOwner.isEmpty() && !m_lastBound.isEmpty())
+        qWarning() << "xdg-desktop-portal restarted — re-binding global shortcuts";
+        if (!m_lastBound.isEmpty())
             bind(m_lastBound);
     });
 }
@@ -75,9 +92,32 @@ bool PortalGlobalShortcuts::interfacePresent()
     return reply.type() == QDBusMessage::ReplyMessage;
 }
 
+void PortalGlobalShortcuts::probeInterface(QObject *ctx, std::function<void(bool)> done)
+{
+    // Same probe (and activation caveat) as interfacePresent(), but awaited
+    // asynchronously — the blocking form stalled the GUI thread for however
+    // long D-Bus took to spin the portal up at cold session start.
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        PORTAL_SERVICE, PORTAL_PATH,
+        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    msg << GS_IFACE << QStringLiteral("version");
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg, 3000), ctx);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, ctx,
+                     [done = std::move(done)](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        done(!w->isError());
+    });
+}
+
 QString PortalGlobalShortcuts::toPortalTrigger(const QString &portableKeySequence)
 {
-    const QKeySequence seq(portableKeySequence, QKeySequence::PortableText);
+    // Older builds joined alternate shortcuts with "; ", which QKeySequence
+    // parses as ONE Qt::Key_unknown chord — normalize to its native ", " so
+    // legacy stored strings still yield the first (primary) trigger.
+    QString s = portableKeySequence;
+    s.replace(QStringLiteral("; "), QStringLiteral(", "));
+    const QKeySequence seq(s, QKeySequence::PortableText);
     if (seq.isEmpty())
         return {};
     const QKeyCombination kc = seq[0];
@@ -117,6 +157,8 @@ QString PortalGlobalShortcuts::toPortalTrigger(const QString &portableKeySequenc
         {QStringLiteral("`"), QStringLiteral("grave")},
     };
     key = fixups.value(key, key);
+    if (key.isEmpty())
+        return {}; // unparseable key (e.g. Qt::Key_unknown) — no valid trigger
     if (key.size() == 1)
         key = key.toLower(); // letter keysyms are lowercase in the spec
     parts << key;

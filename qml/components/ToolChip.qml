@@ -37,23 +37,10 @@ Rectangle {
         color: root.active ? Theme.textOnAccent : Theme.textPrimary
     }
 
-    Rectangle {
-        visible: tipText.text !== "" && mouse.containsMouse
-        anchors.bottom: parent.top
-        anchors.bottomMargin: 8
-        anchors.horizontalCenter: parent.horizontalCenter
-        width: tipText.implicitWidth + 16
-        height: 24
-        radius: 12
-        color: Theme.tooltipBg
-        z: 100
-        Text {
-            id: tipText
-            anchors.centerIn: parent
-            text: root.label
-            color: Theme.isDark ? "#FFFFFF" : Theme.textOnAccent
-            font.pixelSize: 11
-        }
+    UHoverTip {
+        anchor: root
+        text: root.label
+        show: mouse.containsMouse
     }
 
     MouseArea {

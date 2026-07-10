@@ -64,7 +64,7 @@ public:
     // Import a ShareX Custom Uploader (.sxcu) file. Accepts a plain path or a
     // file:// URL. Returns the imported destination's name on success, or an
     // empty string on failure (with errorOut set). Maps the common case:
-    // RequestMethod POST + Body MultipartFormData/JSON + JSON/text response.
+    // any RequestMethod + Body MultipartFormData/JSON + JSON/text response.
     Q_INVOKABLE QString importSxcu(const QString &pathOrUrl);
     // Last import error message for the QML layer to surface.
     Q_INVOKABLE QString lastImportError() const { return m_lastImportError; }
@@ -83,9 +83,16 @@ private:
     void persistDestinations();
     void ensureBuiltins();
     QString configPath() const;
-    void httpUpload(const QJsonObject &dest, const QByteArray &data, const QString &fileName,
-                    const QString &mime, Callback cb);
-    void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &fileName, Callback cb);
+    // Exactly one of `data` (in-memory capture bytes) or `srcPath` (a file on
+    // disk — recordings can be hundreds of MB) is used. The path variants
+    // STREAM the payload (multipart body device / curl -T <path>) instead of
+    // holding the whole file in RAM for the duration of the transfer.
+    void httpUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
+                    const QString &fileName, const QString &mime, Callback cb);
+    void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
+                    const QString &fileName, Callback cb);
+    void startUpload(const QByteArray &data, const QString &srcPath, const QString &fileName,
+                     const QString &mime, Callback cb);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
     void setBusy(bool b);

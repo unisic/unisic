@@ -160,7 +160,10 @@ Item {
             fName.text = e.name || ""
             fType.currentIndex = e.type === "curl" ? 1 : 0
             fUrl.text = e.requestUrl || ""
+            fBody.currentIndex = e.body === "json" ? 1 : 0
             fFormName.text = e.fileFormName || "file"
+            fData.text = e.data || ""
+            fArgs.text = e.arguments ? JSON.stringify(e.arguments) : ""
             fUrlPath.text = e.urlPath || ""
             fHeaders.text = e.headers ? JSON.stringify(e.headers) : ""
             fUser.text = e.user || ""
@@ -220,7 +223,7 @@ Item {
                     id: fBody; width: parent.width
                     visible: fType.currentIndex === 0
                     model: [qsTr("Multipart form-data (upload the file)"), qsTr("Custom JSON body")]
-                    currentIndex: page.editing && page.editing.body === "json" ? 1 : 0
+                    onActivated: (i) => fBody.currentIndex = i
                 }
                 UTextField {
                     id: fFormName; width: parent.width
@@ -230,14 +233,12 @@ Item {
                 UTextField {
                     id: fData; width: parent.width
                     visible: fType.currentIndex === 0 && fBody.currentIndex === 1
-                    placeholder: qsTr("JSON body — tokens $base64$, $filename$, $mime$")
-                    text: page.editing ? (page.editing.data || "") : ""
+                    placeholder: qsTr("JSON body. Tokens: $base64$, $filename$, $mime$")
                 }
                 UTextField {
                     id: fArgs; width: parent.width
                     visible: fType.currentIndex === 0 && fBody.currentIndex === 0
                     placeholder: qsTr("Extra form fields as JSON, e.g. {\"reqtype\":\"fileupload\"}")
-                    text: page.editing && page.editing.arguments ? JSON.stringify(page.editing.arguments) : ""
                 }
                 UTextField {
                     id: fUrlPath; width: parent.width
@@ -268,12 +269,18 @@ Item {
                         text: qsTr("Save")
                         enabled: fName.text.trim() !== "" && fUrl.text.trim() !== ""
                         onClicked: {
-                            var d = {
-                                name: fName.text.trim(),
-                                type: fType.currentIndex === 1 ? "curl" : "http",
-                                requestUrl: fUrl.text.trim(),
-                                method: "POST"
-                            }
+                            // Deep-copy HERE, not an alias of page.editing: the
+                            // validation early-returns below must leave the sheet
+                            // state untouched, or a failed Save corrupts `orig`
+                            // for the retry (rename cleanup then misses). Keys the
+                            // form does not own (method, deletionUrlPath, builtin,
+                            // urlReplace, …) still survive the round-trip.
+                            var d = JSON.parse(JSON.stringify(page.editing || {}))
+                            var orig = (page.editing && page.editing.name) || ""
+                            d.name = fName.text.trim()
+                            d.type = fType.currentIndex === 1 ? "curl" : "http"
+                            d.requestUrl = fUrl.text.trim()
+                            if (!d.method) d.method = "POST"
                             if (d.type === "http") {
                                 d.urlPath = fUrlPath.text.trim() || "$text$"
                                 d.responseType = d.urlPath.indexOf("$json:") === 0 ? "json" : "text"
@@ -281,24 +288,45 @@ Item {
                                     try { d.headers = JSON.parse(fHeaders.text) }
                                     catch (e) {
                                         // Silently dropping the auth header would be worse.
-                                        App.showToast(qsTr("Headers are not valid JSON — fix or clear the field"))
+                                        App.showToast(qsTr("Headers are not valid JSON. Fix or clear the field"))
                                         return
                                     }
+                                } else {
+                                    delete d.headers
                                 }
                                 if (fBody.currentIndex === 1) {
+                                    delete d.fileFormName
+                                    delete d.arguments
                                     d.body = "json"
                                     d.data = fData.text
                                 } else {
+                                    delete d.body
+                                    delete d.data
                                     d.fileFormName = fFormName.text.trim() || "file"
                                     if (fArgs.text.trim() !== "") {
-                                        try { d.arguments = JSON.parse(fArgs.text) } catch (e) {}
+                                        try { d.arguments = JSON.parse(fArgs.text) }
+                                        catch (e) {
+                                            App.showToast(qsTr("Extra form fields are not valid JSON. Fix or clear the field"))
+                                            return
+                                        }
+                                    } else {
+                                        delete d.arguments
                                     }
                                 }
                             } else {
                                 if (fUser.text.trim() !== "") d.user = fUser.text.trim()
+                                else delete d.user
                                 if (fPublicBase.text.trim() !== "") d.publicUrlBase = fPublicBase.text.trim()
+                                else delete d.publicUrlBase
                             }
                             App.uploads.saveDestination(d)
+                            // Renaming: drop the old entry so it doesn't linger as a
+                            // duplicate, and keep the active-destination pointer valid.
+                            if (orig !== "" && orig !== d.name) {
+                                App.uploads.removeDestination(orig)
+                                if (App.settings.activeDestination === orig)
+                                    App.settings.activeDestination = d.name
+                            }
                             editSheet.close()
                         }
                     }

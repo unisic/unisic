@@ -32,6 +32,7 @@ class Settings : public QObject
     Q_PROPERTY(bool uploadAfterCapture READ uploadAfterCapture WRITE setUploadAfterCapture NOTIFY uploadAfterCaptureChanged)
     Q_PROPERTY(bool includeCursor READ includeCursor WRITE setIncludeCursor NOTIFY includeCursorChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
+    Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
     Q_PROPERTY(int gifFps READ gifFps WRITE setGifFps NOTIFY gifFpsChanged)
     Q_PROPERTY(int gifMaxDurationSec READ gifMaxDurationSec WRITE setGifMaxDurationSec NOTIFY gifMaxDurationSecChanged)
     Q_PROPERTY(int gifQuality READ gifQuality WRITE setGifQuality NOTIFY gifQualityChanged)
@@ -56,18 +57,27 @@ class Settings : public QObject
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
+    Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
+    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
+    Q_PROPERTY(bool quickCopyAfterCapture READ quickCopyAfterCapture WRITE setQuickCopyAfterCapture NOTIFY quickCopyAfterCaptureChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
     Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
+    Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
+    Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
+    Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
+    Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
+    Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
+    Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
@@ -135,8 +145,12 @@ public:
         const QStringList oldGeneral = m_s.allKeys();
         bool migratedGeneral = false;
         for (const QString &k : oldGeneral) {
+            // "app/" folds too: an earlier dev branch briefly moved these keys to
+            // an "app/" group before this top-level-keys fix landed — reconcile
+            // those configs back so they don't reset once more.
             if (k.startsWith(QLatin1String("General/"))
-                || k.startsWith(QLatin1String("general/"))) {
+                || k.startsWith(QLatin1String("general/"))
+                || k.startsWith(QLatin1String("app/"))) {
                 // Sorted allKeys yields "General/x" before "general/x", so the
                 // lowercase variant (the app's most recent writes) wins.
                 m_s.setValue(k.mid(k.indexOf(QLatin1Char('/')) + 1), m_s.value(k));
@@ -158,7 +172,7 @@ public:
         m_s.sync();
         if (!m_writable)
             qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
-                       << "(check permissions/ownership of ~/.config/Unisic).";
+                       << "(check permissions/ownership of ~/.config/unisic).";
     }
 
     // False when the config file cannot actually be written back (the UI shows
@@ -184,6 +198,9 @@ public:
     U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "uploadAfterCapture", false)
     U_SETTING(bool, includeCursor, setIncludeCursor, "includeCursor", false)
     U_SETTING(int, captureDelayMs, setCaptureDelayMs, "captureDelayMs", 200)
+    // Capture sound cue (General tab). Bare key (never a "general"-named
+    // group, see the INI [%General] trap). "off" or a bundled id.
+    U_SETTING(QString, captureSound, setCaptureSound, "captureSound", QStringLiteral("shutter"))
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -208,14 +225,33 @@ public:
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
     U_SETTING(QString, hiddenTools, setHiddenTools, "editor/hiddenTools", QString())
     U_SETTING(QString, overlayToolbarPosition, setOverlayToolbarPosition, "capture/overlayToolbarPosition", QStringLiteral("follow"))
+    // Crosshair guide lines from the cursor to the screen edges while selecting a
+    // region (screenshot AND recording overlay). Off by default.
+    U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
+    // Region overlay: a plain CLICK selects the detected object (window,
+    // panel, image) under the cursor; dragging still draws a manual rect.
+    // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
+    // window/element reliably without heavy vision libraries.
+    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", false)
+    U_SETTING(bool, quickCopyAfterCapture, setQuickCopyAfterCapture, "capture/quickCopyAfterCapture", true)
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
     U_SETTING(int, videoMaxDurationSec, setVideoMaxDurationSec, "video/maxDurationSec", 0)
+    // Video recording audio (never GIF). Both OFF by default.
+    U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
+    U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
+    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
+    // "casual" (full card) | "compact" (single slim row)
+    U_SETTING(QString, capturePopupStyle, setCapturePopupStyle, "capturePopupStyle", QStringLiteral("casual"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
+    // Skip the capture card while notifications are inhibited (a fullscreen app,
+    // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
+    // for your own deliberate capture, so it should normally show regardless.
+    U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
@@ -225,6 +261,9 @@ public:
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
+    // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
+    // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
+    U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -232,7 +271,7 @@ public:
     {
         emit saveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
-        emit captureDelayMsChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
+        emit captureDelayMsChanged(); emit captureSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
@@ -240,13 +279,16 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
-        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged();
+        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
+        emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
+        emit hotkeyOcrChanged();
+        emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
-        emit capturePopupDurationSecChanged(); emit ocrLanguagesChanged();
+        emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
-        emit useSystemDecorationChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
 
 signals:
@@ -257,6 +299,7 @@ signals:
     void uploadAfterCaptureChanged();
     void includeCursorChanged();
     void captureDelayMsChanged();
+    void captureSoundChanged();
     void gifFpsChanged();
     void gifMaxDurationSecChanged();
     void gifQualityChanged();
@@ -281,18 +324,27 @@ signals:
     void recentColorsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
+    void selectionGuidesChanged();
+    void smartPickChanged();
+    void quickCopyAfterCaptureChanged();
     void videoFpsChanged();
     void videoFormatChanged();
     void videoQualityChanged();
     void videoMaxDurationSecChanged();
+    void recordSystemAudioChanged();
+    void recordMicrophoneChanged();
     void hotkeyRecordChanged();
+    void hotkeyOcrChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
+    void capturePopupStyleChanged();
     void capturePopupDurationSecChanged();
+    void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();
     void useSystemDecorationChanged();
+    void trayIconPathChanged();
 
 private:
     QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal Unisic mark: selection corners + capture point. -->
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="#1c1c1c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 8.5 V6 A2 2 0 0 1 6 4 H8.5"/>
+    <path d="M20 8.5 V6 A2 2 0 0 0 18 4 H15.5"/>
+    <path d="M4 15.5 V18 A2 2 0 0 0 6 20 H8.5"/>
+    <path d="M20 15.5 V18 A2 2 0 0 1 18 20 H15.5"/>
+  </g>
+  <circle cx="12" cy="12" r="2.5" fill="#1c1c1c"/>
+</svg>

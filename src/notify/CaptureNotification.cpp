@@ -54,11 +54,15 @@ QString CaptureNotification::fileName() const
 
 void CaptureNotification::setUrl(const QString &url)
 {
+    // Always emit when leaving the uploading state, even if the URL is unchanged
+    // (an FTP/SFTP destination with no public URL completes with an empty url) —
+    // DesktopNotifier::retire() frees this object on that very transition, so a
+    // dropped signal here leaks the notification and its cached thumbnail.
+    const bool changed = (m_url != url) || m_uploading;
     m_uploading = false;
-    if (m_url == url)
-        return;
     m_url = url;
-    emit stateChanged();
+    if (changed)
+        emit stateChanged();
 }
 
 void CaptureNotification::setUploading(bool on)
@@ -73,6 +77,13 @@ void CaptureNotification::edit()
 {
     m_app->openEditor(m_image);
     dismiss();
+}
+
+void CaptureNotification::preview()
+{
+    // Preview outlives the popup — don't dismiss, the user may still want the
+    // action buttons while the floating preview is up.
+    m_app->openPreview(m_image);
 }
 
 void CaptureNotification::copyImage()
@@ -96,8 +107,15 @@ void CaptureNotification::save()
     const QString path = m_app->saveImageAuto(m_image);
     if (!path.isEmpty()) {
         m_filePath = path;
+        // finishCapture registered this capture as a PATHLESS history entry —
+        // attach the file to exactly that entry (by id), or Delete/upload-URL
+        // bookkeeping would look it up by path and silently miss.
+        m_app->history()->setFilePathById(m_historyId, path);
         m_app->showToast(tr("Saved %1").arg(path));
         emit stateChanged();
+    } else {
+        m_app->showToast(tr("Could not save the capture. Check the save folder in Settings"),
+                         true);
     }
 }
 
@@ -109,6 +127,14 @@ void CaptureNotification::showInFolder()
         m_app->openDirectory(QFileInfo(m_filePath).absolutePath());
 }
 
+void CaptureNotification::openCapture()
+{
+    if (m_filePath.isEmpty())
+        save();
+    if (!m_filePath.isEmpty())
+        m_app->openFile(m_filePath);
+}
+
 void CaptureNotification::upload()
 {
     m_app->uploadFromNotification(this, m_image, m_filePath);
@@ -116,6 +142,13 @@ void CaptureNotification::upload()
 
 void CaptureNotification::deleteCapture()
 {
+    // removeByFile refuses starred entries — surface that instead of
+    // dismissing the card as if the file were gone.
+    if (!m_filePath.isEmpty() && m_app->history()->fileIsFavorite(m_filePath)) {
+        m_app->showToast(tr("Not deleted: this capture is starred in History (unstar it first)"),
+                         true);
+        return;
+    }
     if (!m_filePath.isEmpty())
         m_app->history()->removeByFile(m_filePath);
     dismiss();

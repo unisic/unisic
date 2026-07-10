@@ -10,6 +10,7 @@
 #include <QDBusPendingReply>
 #include <QDBusUnixFileDescriptor>
 #include <QCoreApplication>
+#include <QMetaMethod>
 #include <QDebug>
 #include <unistd.h>
 #include <fcntl.h>
@@ -196,6 +197,12 @@ void ScreenCastSession::openRemote(uint nodeId, const QSize &size, const QPoint 
             [this, nodeId, size, pos](QDBusPendingCallWatcher *w) {
         QDBusPendingReply<QDBusUnixFileDescriptor> reply = *w;
         w->deleteLater();
+        // Recorder cancelled mid-flight (disconnect(this) + deleteLater): the
+        // reply may still land before the deferred delete. Nobody would take
+        // ownership of the dup'd fd — emitting to zero receivers leaked one fd
+        // per cancel in a long-lived tray app. Compile-checked signal lookup.
+        if (!isSignalConnected(QMetaMethod::fromSignal(&ScreenCastSession::ready)))
+            return;
         if (reply.isError()) {
             emit failed(QStringLiteral("OpenPipeWireRemote failed: %1").arg(reply.error().message()));
             return;

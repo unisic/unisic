@@ -11,7 +11,10 @@ Window {
     height: 700
     minimumWidth: 880
     minimumHeight: 560
-    visible: true
+    // Normally shown at launch; `unisic --tray-only` (autostart) boots hidden
+    // into the tray. startHidden is a context property set from C++ (always
+    // defined, so this binding never hits an undefined reference).
+    visible: !startHidden
     title: "Unisic"
     color: Theme.backgroundDeep
 
@@ -32,14 +35,15 @@ Window {
         if (App.settings.minimizeToTrayOnClose && App.trayAvailable) {
             close.accepted = false
             window.hide()
-        } else if (!App.trayAvailable) {
-            // quitOnLastWindowClosed is false (tray lifetime) — without a tray
-            // an accepted close would leave a hidden resident process. Quit —
-            // but never kill an in-flight recording/encode or open editors
-            // with unsaved annotations.
+        } else {
+            // Hide-to-tray is off (or there's no tray at all).
+            // quitOnLastWindowClosed is false (tray lifetime), so an accepted
+            // close would just leave a hidden resident process. Quit — but
+            // never kill an in-flight recording/encode or open editors with
+            // unsaved annotations.
             if (App.recording || App.converting) {
                 close.accepted = false
-                App.showToast(qsTr("Recording in progress — stop it before closing"), true)
+                App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
             } else if (App.editorWindowsOpen > 0) {
                 window.hide()
                 close.accepted = false
@@ -214,7 +218,10 @@ Window {
                     color: Theme.danger
                     anchors.verticalCenter: parent.verticalCenter
                     SequentialAnimation on opacity {
-                        running: App.recording
+                        // Gate on window visibility too: with the window hidden to
+                        // tray during a long recording, an infinite animation keeps
+                        // the GUI thread waking ~60x/s for an invisible dot.
+                        running: App.recording && window.visible
                         loops: Animation.Infinite
                         NumberAnimation { to: 0.2; duration: 600 }
                         NumberAnimation { to: 1.0; duration: 600 }
@@ -243,6 +250,20 @@ Window {
                     onClicked: App.stopRecording()
                 }
             }
+        }
+
+        // Version / build footer — hidden while the recording pill occupies the bottom.
+        Text {
+            visible: !App.recording && !App.converting
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.spacingM
+            anchors.horizontalCenter: parent.horizontalCenter
+            horizontalAlignment: Text.AlignHCenter
+            text: "v" + App.appVersion + (App.buildNumber === "dev"
+                    ? " · dev"
+                    : " · build " + App.buildNumber)
+            color: Theme.textTertiary
+            font.pixelSize: Theme.fontS
         }
     }
 

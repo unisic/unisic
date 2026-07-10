@@ -1,8 +1,10 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QColor>
 #include <QRect>
 #include <QPointer>
+#include <QStringList>
 #include <functional>
 #include <qqmlregistration.h>
 
@@ -13,8 +15,10 @@
 
 class QQmlEngine;
 class QMenu;
+class QIcon;
 class QSystemTrayIcon;
 class QDBusServiceWatcher;
+class QFileSystemWatcher;
 class QQuickWindow;
 class QTimer;
 class CaptureManager;
@@ -24,6 +28,9 @@ class PortalGlobalShortcuts;
 class GifRecorder;
 class OcrEngine;
 class CaptureNotification;
+class DesktopNotifier;
+class PreviewController;
+class LayerShellNotifier;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -44,9 +51,37 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // True when the capture card is shown on the layer-shell overlay (KWin/wlroots)
+    // rather than as a native notification — lets the UI expose card-only options
+    // (e.g. corner position, which a native notification server controls itself).
+    Q_PROPERTY(bool layerShellActive READ layerShellActive CONSTANT)
+    // Developer build (F8 smoke test; capability options stay editable). False in
+    // a release build, where unsupported options are shown greyed-out instead.
+    Q_PROPERTY(bool devBuild READ devBuild CONSTANT)
+    // Compositor capabilities, resolved once at startup. The UI uses them to
+    // enable/grey the matching options. capCustomNotification/capRecordBorder ride
+    // on layer-shell (KWin/wlroots/COSMIC); capNativeNotification on a running
+    // notification server (absent on e.g. a bare Sway).
+    Q_PROPERTY(bool capNativeNotification READ capNativeNotification CONSTANT)
+    Q_PROPERTY(bool capCustomNotification READ capCustomNotification CONSTANT)
+    Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
+    Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
+    Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
+    // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
+    // or removes that file (Exec carries --tray-only so login starts hidden).
+    Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
+    // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
+    // the settings gallery lists these as pickable presets (live via a watcher).
+    Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
+    // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
+    Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // Contrast colour for the (monochrome) bundled presets: light on a dark
+    // system scheme, dark on a light one. Follows the OS light/dark, live.
+    Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
+    Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -54,6 +89,10 @@ class AppContext : public QObject
     // "kglobalaccel" | "portal" | "" — lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
+    // Baked in at compile time (CMake): semantic version + CI build number
+    // ("dev" for local builds). Shown in the sidebar footer.
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
 
 public:
     using UploadDone = std::function<void(const QString &url, const QString &error)>;
@@ -74,15 +113,63 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
+    bool layerShellActive() const { return m_layerNotifier != nullptr; }
+    bool devBuild() const
+    {
+#ifdef UNISIC_DEV_BUILD
+        return true;
+#else
+        return false;
+#endif
+    }
+    bool capNativeNotification() const;
+    bool capCustomNotification() const { return m_layerShellAvailable; }
+    bool capRecordBorder() const;
+    // True when the compositor exposes wlr-layer-shell — the selection overlay
+    // uses it so it can appear ABOVE a fullscreen application.
+    bool layerShellAvailable() const { return m_layerShellAvailable; }
+    // Developer smoke-test: sequentially exercises the main app paths and logs
+    // pass/fail/skip. Bound to F8 (dev build only) and the Settings > Developer
+    // button. smokeTestLog is the running transcript shown in the debug panel.
+    Q_INVOKABLE void runSmokeTest();
+    // Per-action manual triggers for the Developer tab (dev build only): each
+    // exercises ONE path in isolation. Capture/record reuse the public entry
+    // points; these three cover the non-capture paths with a throwaway image.
+    Q_INVOKABLE void devTestNotification();
+    Q_INVOKABLE void devTestEditor();
+    Q_INVOKABLE void devTestHistory();
+    Q_INVOKABLE void devTestFavoriteHistory();
+    Q_INVOKABLE void devTestEditFromHistory();
+    Q_INVOKABLE void devTestQuickCopy();
+    Q_INVOKABLE void devTestPreview();
+    Q_INVOKABLE void devTestPreviewFromHistory();
+    Q_INVOKABLE void devTestHotkeyBinds();
+    Q_INVOKABLE void devTestUpload();
+    Q_INVOKABLE void devTestSettingsRoundTrip();
+    Q_INVOKABLE void devTestSmartPick();
+    Q_INVOKABLE void devTestCaptureSound();
+    Q_INVOKABLE void devTestAltHotkeys();
+    QString smokeTestLog() const { return m_smokeLog; }
+    bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
+    bool qrAvailable() const;
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    bool autostartEnabled() const;
+    void setAutostartEnabled(bool on);
+    QStringList trayIconPresets() const;  // image files in trayIconsDir()
+    QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
+    QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
+    QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
 
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
+    // Region selection -> OCR/QR -> clipboard. No save/history/notification.
+    Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
@@ -98,7 +185,7 @@ public:
     // must not vanish silently).
     Q_INVOKABLE void showToast(const QString &text, bool important = false);
     Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
-    Q_INVOKABLE QString formatShortcut(int key, int modifiers) const;
+    Q_INVOKABLE QString formatShortcut(int key, int modifiers, int nativeScanCode = 0) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);
     Q_INVOKABLE void applyHotkeys();
     // Push ONE just-edited action — never re-asserts the app's possibly-stale
@@ -111,14 +198,43 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     Q_INVOKABLE QString filenamePreview() const;
+    // Custom tray icon. pickTrayIcon = native file picker; selectTrayIcon =
+    // pick a known path (gallery tile; "" reverts to default); clear = default.
+    // trayIconsDir = the folder the user drops their own icons into.
+    Q_INVOKABLE void pickTrayIcon();
+    Q_INVOKABLE void addTrayIcon();   // pick a file, COPY it into trayIconsDir(), select it
+    Q_INVOKABLE void selectTrayIcon(const QString &path);
+    Q_INVOKABLE void clearTrayIcon();
+    Q_INVOKABLE QString trayIconsDir() const;
+    // Recolored PNG data: URL of a bundled monochrome preset for the gallery
+    // thumbnail (so the preview matches the recolored tray icon). color is
+    // passed in (App.trayContrastColor) so the binding refreshes on a scheme flip.
+    Q_INVOKABLE QString trayIconThumb(const QString &path, const QColor &color) const;
 
     // Used by EditorSession / CaptureNotification. fileName: reuse a name
     // computed once per capture (save and upload must agree); empty = generate.
     QString saveImageAuto(const QImage &img, const QString &fileName = {});
     QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {});
     void copyImageToClipboard(const QImage &img);
+    // Play the selected capture-sound cue (General > Capture sound). No-op
+    // when "off" or no player (pw-play/paplay/aplay) is present.
+    void playCaptureSound();
+    // Preview the selected capture sound from the settings UI.
+    Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
     void uploadImage(const QImage &img, UploadDone done);
-    void openEditor(const QImage &img);
+    void openEditor(const QImage &img, const QString &overwritePath = {});
+    // Floating, pinnable, translucent preview of a capture. Returns false when
+    // the window could not be created.
+    bool openPreview(const QImage &img);
+    // Re-open a saved capture from history; editor save() overwrites it in place.
+    Q_INVOKABLE void editFromHistory(const QString &filePath);
+    // Open a saved capture from history in the floating pinned preview.
+    Q_INVOKABLE void previewFromHistory(const QString &filePath);
+    // Copy a saved image file's pixels to the clipboard (history card).
+    Q_INVOKABLE void copyImageFromHistory(const QString &filePath);
+    // Upload a saved capture file (history card) to the active destination and
+    // write the resulting URL back onto its history entry.
+    Q_INVOKABLE void uploadFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
@@ -135,8 +251,21 @@ signals:
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void editorWindowsOpenChanged();
+    void smokeTestChanged();
+    void autostartEnabledChanged();
+    void trayIconPresetsChanged();
+    void trayContrastColorChanged();
 
 private:
+    bool systemIsDark() const;                        // OS light/dark scheme
+    QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
+    QString autostartFilePath() const;
+    QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
+    bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
+    void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
+    QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
+    QIcon trayIconBadged() const;// trayIcon() + a red recording dot
+    void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
     struct HotkeyAction {
         QString id;
         QString name;
@@ -147,17 +276,53 @@ private:
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
+    // Query each action's live daemon binding; with heal, re-assert stored
+    // keys on actions the daemon reports unbound. Lines for smoke/dev output.
+    QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // Windows (editor/preview) opened while the smoke test runs — the final
+    // step closes them so F8 leaves no manual cleanup behind.
+    QVector<QPointer<QQuickWindow>> m_smokeWindows;
+    // Export -> verify all properties serialized -> import back. Returns a
+    // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
+    QString settingsRoundTripCheck();
+    // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
+    QString altHotkeysCheck();
 
-    void finishCapture(const QImage &img);
+    void finishCapture(const QImage &img, bool inhibited);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
-                                                 const QString &kind);
+                                                 const QString &kind, bool inhibited);
+    // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
+    // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
+    // overlay opens, so the overlay can't self-suppress the resulting card — and
+    // threaded per-operation to the card (never a shared member: a screenshot
+    // during a recording would otherwise clobber the recording's value).
+    // Consulted by the layer-shell card only (the native path is server-suppressed).
+    bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
+    // Region recording marker: a transparent, click-through fullscreen window
+    // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
+    // px on screen) so the user sees what is being captured without the frame
+    // landing inside the ffmpeg crop. KWin-only, like the capture popup.
+    void showRecordBorder(QRect physRegion, QScreen *screen);
+    void hideRecordBorder();
     void withDelay(std::function<void()> fn);
+    // "Quick copy" grace window: when auto-copy-to-clipboard is off, the last
+    // capture is held for a couple of seconds and Ctrl+C (grabbed globally via
+    // KGlobalAccel for exactly that window) copies it, then the grab is released.
+    void armQuickCopy(const QImage &img);
+    void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
     QByteArray encodeImage(const QImage &img, QString *mime) const;
+    // encodeImage off the GUI thread (a 4K PNG encode is 100+ ms): settings are
+    // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
+    // delivered back on the GUI thread (dropped if AppContext died meanwhile).
+    void encodeImageAsync(const QImage &img,
+                          std::function<void(const QByteArray &, const QString &)> done);
+    // Continuation of openPreview after the worker-thread PNG save.
+    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
     void afterUploadActions(const QString &url);
     GifRecorder::Output videoOutput() const;
     // Coalesced, debounced malloc_trim(0): after a capture/record/upload cycle
@@ -178,8 +343,17 @@ private:
     OcrEngine *m_ocr = nullptr;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
+    QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QPointer<QQuickWindow> m_notifWindow; // the live capture popup, if any
+    QImage m_quickCopyImage;                       // held during the quick-copy window
+    QTimer *m_quickCopyTimer = nullptr;            // releases the Ctrl+C grab after ~2s
+    bool m_quickCopyArmed = false;
+    DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
+    LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
+    bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
+    QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
+    QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_screenCastPortalPresent = true; // optimistic until the async probe answers
@@ -187,4 +361,15 @@ private:
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    // Monotonic copy-request id: the deferred wl-copy mirror only fires when
+    // its request is still the newest (GUI-thread only, no atomics).
+    quint64 m_clipboardSeq = 0;
+    // Developer smoke-test runner state (sequential async steps).
+    void smokeNext();
+    void smokeLog(const QString &line);
+    QString m_smokeLog;
+    bool m_smokeRunning = false;
+    QVector<std::function<void()>> m_smokeSteps;
+    int m_smokeIdx = 0;
 };
+

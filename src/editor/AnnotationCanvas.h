@@ -6,6 +6,7 @@
 #include <QRect>
 #include <QTimer>
 #include <qqmlregistration.h>
+#include "overlay/ObjectDetector.h"
 
 template <typename T> class QFutureWatcher;
 
@@ -21,6 +22,15 @@ class AnnotationCanvas : public QQuickPaintedItem
 
     Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged)
     Q_PROPERTY(QColor strokeColor READ strokeColor WRITE setStrokeColor NOTIFY strokeColorChanged)
+    // Theme colours for the selection chrome (border, handles, smart-pick
+    // highlight, dim-outside scrim). Bound to Theme.accent / Theme.primary so
+    // the overlay follows the SELECTED app theme instead of a fixed purple.
+    Q_PROPERTY(QColor uiAccent READ uiAccent WRITE setUiAccent NOTIFY uiChromeChanged)
+    Q_PROPERTY(QColor uiScrim READ uiScrim WRITE setUiScrim NOTIFY uiChromeChanged)
+    Q_PROPERTY(bool colorPicking READ colorPicking WRITE setColorPicking NOTIFY colorPickingChanged)
+    // True while the current color came from the automatic highlighter
+    // red<->yellow swap (not a user pick) — consumers must not persist it.
+    Q_PROPERTY(bool strokeColorIsAuto READ strokeColorIsAuto NOTIFY strokeColorChanged)
     // "shapeFill*" — QQuickPaintedItem already has a fillColor property (the
     // item background); reusing that name shadows it and breaks both.
     Q_PROPERTY(QColor shapeFillColor READ shapeFillColor WRITE setShapeFillColor NOTIFY shapeFillColorChanged)
@@ -28,8 +38,24 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(int strokeWidth READ strokeWidth WRITE setStrokeWidth NOTIFY strokeWidthChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
+    // Overlay smart pick: with the plain selection tool (None), hovering
+    // highlights the detected object under the cursor and a CLICK (no drag)
+    // selects its rect; dragging still draws a manual rectangle.
+    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
+    // Hover state for the pick modes (smart pick / ObjectPick): the currently
+    // highlighted object rect (image px; null when none), plus the nesting
+    // position — hoverDepth-th of hoverDepthCount rects under the cursor
+    // (inner→outer, scroll wheel cycles). QML draws the size/level badge.
+    Q_PROPERTY(QRectF hoverObjectRect READ hoverObjectRect NOTIFY hoverObjectChanged)
+    Q_PROPERTY(QString hoverObjectKind READ hoverObjectKind NOTIFY hoverObjectChanged)
+    Q_PROPERTY(int hoverDepth READ hoverDepth NOTIFY hoverObjectChanged)
+    Q_PROPERTY(int hoverDepthCount READ hoverDepthCount NOTIFY hoverObjectChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
+    // Latest pointer position in ITEM coordinates, updated on hover AND while
+    // dragging (a QML HoverHandler stops firing during a button grab). Drives
+    // the overlay's selection guides so they track the cursor mid-drag.
+    Q_PROPERTY(QPointF hoverPoint READ hoverPoint NOTIFY hoverPointChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageChanged)
@@ -58,7 +84,17 @@ public:
     int tool() const { return m_tool; }
     void setTool(int t);
     QColor strokeColor() const { return m_color; }
+    bool strokeColorIsAuto() const { return m_strokeAuto; }
     void setStrokeColor(const QColor &c);
+    QColor uiAccent() const { return m_uiAccent; }
+    void setUiAccent(const QColor &c) { if (m_uiAccent == c) return; m_uiAccent = c; emit uiChromeChanged(); update(); }
+    QColor uiScrim() const { return m_uiScrim; }
+    void setUiScrim(const QColor &c) { if (m_uiScrim == c) return; m_uiScrim = c; emit uiChromeChanged(); update(); }
+    // Screen colour-pick mode: the next click samples the pixel under the
+    // cursor from the frozen base image and emits colorPicked, instead of
+    // drawing or selecting. Enabled by the colour popup's eyedropper.
+    bool colorPicking() const { return m_colorPicking; }
+    void setColorPicking(bool on);
     QColor shapeFillColor() const { return m_fillColor; }
     void setShapeFillColor(const QColor &c);
     bool shapeFillEnabled() const { return m_fillEnabled; }
@@ -68,9 +104,16 @@ public:
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
     bool selectionMode() const { return m_selectionMode; }
+    bool smartPick() const { return m_smartPick; }
+    void setSmartPick(bool on);
+    QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
+    QString hoverObjectKind() const { return m_hoverObjectKind; }
+    int hoverDepth() const { return m_hoverIndex; }
+    int hoverDepthCount() const { return int(m_hoverChain.size()); }
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
+    QPointF hoverPoint() const { return m_hoverPoint; }
     bool canUndo() const { return !m_undo.isEmpty(); }
     bool canRedo() const { return !m_redo.isEmpty(); }
     QSize imageSize() const { return m_base.size(); }
@@ -86,6 +129,7 @@ public:
     Q_INVOKABLE void commitText(qreal imgX, qreal imgY, const QString &text);
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
+    Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
     Q_INVOKABLE QRectF selectionInItemCoords() const;
@@ -98,12 +142,19 @@ public:
 signals:
     void toolChanged();
     void strokeColorChanged();
+    void uiChromeChanged();
+    void colorPickingChanged();
+    // A pixel was sampled in screen colour-pick mode.
+    void colorPicked(const QColor &c);
     void shapeFillColorChanged();
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
     void fontSizeChanged();
     void selectionModeChanged();
+    void smartPickChanged();
+    void hoverObjectChanged();
     void selectionRectChanged();
+    void hoverPointChanged();
     void historyChanged();
     void imageChanged();
     void renderScaleChanged();
@@ -117,6 +168,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void hoverMoveEvent(QHoverEvent *e) override;
+    void wheelEvent(QWheelEvent *e) override;
     void geometryChange(const QRectF &n, const QRectF &o) override;
 
 private:
@@ -131,6 +183,15 @@ private:
         QString text;
         int fontSize = 18;
         int number = 0;             // step marker
+        // Blur/Pixelate patch cache: recomputing the smooth down/up-scale of the
+        // base region on EVERY repaint (i.e. every drag mouse-move) burned
+        // milliseconds per patch for byte-identical output. Keyed on the base's
+        // cacheKey (changes whenever the shared data is swapped or detached),
+        // the rect and the width. mutable: drawAnnot is const.
+        mutable QImage fxPatch;
+        mutable qint64 fxBaseKey = -1;
+        mutable QRectF fxRect;
+        mutable qreal fxWidth = -1;
     };
 
     // PendingNewSelection: an ObjectPick press that did NOT hit a candidate is
@@ -143,11 +204,21 @@ private:
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
     void drawAll(QPainter &p) const;
+    // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
+    // to repaint only the dirty region while drag-drawing.
+    QRectF annotBoundsImg(const Annot &a) const;
     int hitHandle(const QPointF &imgPos) const; // 0..7 handles, -1 none
     void normalizeSelection();
     QColor sampleEdgeColor(const QRectF &r) const;
     void startSegmentation();
     void clearObjectMask();
+    // Kick off (once) the async edge-detection pass that fills
+    // m_objectCandidates — shared by the ObjectPick tool and smart pick.
+    void ensureObjectCandidates();
+    // Rebuild the containing-candidates chain for imgPos and pick the
+    // evidence-weighted default plus m_pickOffset (clamped); emits
+    // hoverObjectChanged + repaints on change.
+    void updateHoverObject(const QPoint &imgPos);
 
     QImage m_base;
     QVector<Annot> m_items;
@@ -156,6 +227,13 @@ private:
 
     int m_tool = None;
     QColor m_color = QColor(QStringLiteral("#FF4757"));
+    QColor m_uiAccent = QColor(200, 172, 214); // #C8ACD6 default (unisic accent)
+    QColor m_uiScrim = QColor(23, 21, 59);     // #17153B default (unisic primary)
+    bool m_colorPicking = false;
+    // An explicit color pick disables the highlighter's automatic yellow
+    // default (see setTool) — the chosen color is then always drawn as-is.
+    bool m_strokeColorTouched = false;
+    bool m_strokeAuto = false; // current color set by the auto-swap, not the user
     QColor m_fillColor = QColor(255, 71, 87, 60);
     bool m_fillEnabled = false;
     int m_strokeWidth = 4;
@@ -163,7 +241,10 @@ private:
     int m_stepCounter = 0;
 
     bool m_selectionMode = false;
+    bool m_smartPick = false;
     QRectF m_selection;
+    QPointF m_hoverPoint;
+    QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
     DragMode m_drag = NoDrag;
     int m_resizeHandle = -1;
     QPointF m_dragStart;      // image coords
@@ -173,9 +254,16 @@ private:
 
     // Object-pick mode (overlay): detected candidate rects + the one under the
     // cursor. Detection runs off-thread the first time the tool is selected.
-    QVector<QRect> m_objectCandidates;
+    QVector<ObjectDetector::Candidate> m_objectCandidates;
+    QVector<ObjectDetector::Candidate> m_hoverChain; // candidates containing the cursor, inner→outer
+    // Scroll offset relative to the evidence-weighted default candidate.
+    int m_pickOffset = 0;
+    int m_hoverDefaultIndex = 0;
+    int m_hoverIndex = 0; // resolved chain index (for the QML badge)
+    QPoint m_lastHoverImg;
     QRect m_hoverObject;
-    QFutureWatcher<QVector<QRect>> *m_detectWatcher = nullptr;
+    QString m_hoverObjectKind;
+    QFutureWatcher<QVector<ObjectDetector::Candidate>> *m_detectWatcher = nullptr;
 
     // Object-pick foreground mask for the current selection (Grayscale8 at
     // region size, 255 = keep). Computed off-thread; m_segmentSeq drops stale

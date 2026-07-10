@@ -40,6 +40,8 @@ public:
     void setThemeName(const QString &name);
     int rev() const { return m_rev; }
 
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
     bool systemDark() const;
     QColor sysWindow() const;
     QColor sysBase() const;
@@ -57,6 +59,7 @@ signals:
 
 private:
     void bump();
+    void scheduleSystemBump();
 
     QString m_themeName;
     int m_rev = 0;

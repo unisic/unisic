@@ -1,0 +1,21 @@
+# Packit — auto-builds each GitHub release into the COPR project
+# deandark/unisic, so `sudo dnf upgrade unisic` picks up new versions.
+# Prereqs: the Packit GitHub App installed on unisic/unisic, and the COPR
+# project's "Packit allowed forge projects" = github.com/unisic/unisic.
+specfile_path: unisic.spec
+upstream_package_name: unisic
+downstream_package_name: unisic
+
+# Version comes from the git tag (v0.3 -> 0.3); Packit rewrites the spec's
+# Version and packs the git archive as Source0, so no manual bump is needed.
+upstream_tag_template: "v{version}"
+
+jobs:
+  - job: copr_build
+    trigger: release
+    owner: deandark
+    project: Unisic
+    targets:
+      - fedora-43-x86_64
+      - fedora-44-x86_64
+      - fedora-rawhide-x86_64

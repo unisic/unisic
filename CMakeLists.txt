@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.2.0 LANGUAGES CXX)
+project(unisic VERSION 0.4.0 LANGUAGES CXX)
+# Human-facing version. project(VERSION) only takes numeric tuples, so
+# pre-release suffixes live here (a letter suffix like "0.3b" -> the
+# workflow marks the GitHub release pre-release); this string
+# drives the binary footer, package versions and the GitHub release tag.
+set(UNISIC_VERSION_STRING "0.4.0")
 
 include(GNUInstallDirs)
 
@@ -10,13 +15,23 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControl
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
 pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
+# Optional: on-top custom capture card via wlr-layer-shell (KWin/wlroots). Needs
+# both LayerShellQt (to make the window a layer surface) and wayland-client (to
+# probe at runtime whether the compositor actually exposes zwlr_layer_shell_v1;
+# GNOME/Mutter don't, and there we fall back to the native desktop notification).
+find_package(LayerShellQt QUIET)
+pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
+# QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
+# pages/) so tooling resolves them; also silences the configure warning.
+qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(unisic
     src/main.cpp
     src/AppContext.h src/AppContext.cpp
+    src/PreviewController.h src/PreviewController.cpp
     src/Settings.h src/Settings.cpp
     src/capture/PortalRequest.h src/capture/PortalRequest.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
@@ -36,11 +51,36 @@ qt_add_executable(unisic
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
+    src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
 )
 
 # Single source of the app version string, exported to C++ from the project() call.
-target_compile_definitions(unisic PRIVATE UNISIC_VERSION="${PROJECT_VERSION}")
+# UNISIC_BUILD carries the CI build number (GITHUB_RUN_NUMBER, set in the release
+# workflow) when built in CI, or "dev" for local builds. Shown in the sidebar footer.
+if(DEFINED ENV{UNISIC_BUILD_NUMBER} AND NOT "$ENV{UNISIC_BUILD_NUMBER}" STREQUAL "")
+    set(UNISIC_BUILD "$ENV{UNISIC_BUILD_NUMBER}")
+else()
+    set(UNISIC_BUILD "dev")
+endif()
+target_compile_definitions(unisic PRIVATE
+    UNISIC_VERSION="${UNISIC_VERSION_STRING}"
+    UNISIC_BUILD="${UNISIC_BUILD}")
+
+# Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
+# options editable in Settings. A CI build (UNISIC_BUILD carries a run number, not
+# "dev") defaults to a RELEASE build, where unsupported options are shown greyed-out
+# with an explanation instead. Override explicitly with -DUNISIC_DEV_BUILD=ON/OFF.
+if(UNISIC_BUILD STREQUAL "dev")
+    set(_unisic_dev_default ON)
+else()
+    set(_unisic_dev_default OFF)
+endif()
+option(UNISIC_DEV_BUILD "Developer build (F8 smoke test + editable capability toggles)" ${_unisic_dev_default})
+if(UNISIC_DEV_BUILD)
+    target_compile_definitions(unisic PRIVATE UNISIC_DEV_BUILD)
+    message(STATUS "Developer build: UNISIC_DEV_BUILD=ON (F8 smoke test enabled)")
+endif()
 
 if(PIPEWIRE_FOUND)
     target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
@@ -54,8 +94,27 @@ if(TESSERACT_FOUND)
     target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
     target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT)
     target_compile_definitions(unisic PRIVATE HAVE_TESSERACT)
+    # QR/barcode decoding inside the OCR path (zxing-cpp, optional): a QR in
+    # the scanned region copies its payload instead of OCR-ing its pixels.
+    find_package(ZXing CONFIG QUIET)
+    if(ZXing_FOUND)
+        target_link_libraries(unisic PRIVATE ZXing::ZXing)
+        target_compile_definitions(unisic PRIVATE HAVE_ZXING)
+        message(STATUS "QR decoding in OCR: enabled (zxing-cpp)")
+    else()
+        message(STATUS "QR decoding in OCR: disabled (needs zxing-cpp-devel)")
+    endif()
 else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
+endif()
+
+if(LayerShellQt_FOUND AND WAYLAND_CLIENT_FOUND)
+    target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp)
+    target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
+    target_compile_definitions(unisic PRIVATE HAVE_LAYERSHELL)
+    message(STATUS "Layer-shell on-top capture card: enabled")
+else()
+    message(STATUS "Layer-shell on-top capture card: disabled (needs layer-shell-qt-devel + wayland-client) — native notification only")
 endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
@@ -74,6 +133,8 @@ qt_add_qml_module(unisic
         qml/OverlayWindow.qml
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
+        qml/RecordBorder.qml
+        qml/PreviewWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -88,7 +149,11 @@ qt_add_qml_module(unisic
         qml/components/USlider.qml
         qml/components/UTextField.qml
         qml/components/UShortcutRecorder.qml
+        qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
+        qml/components/UConfirmDialog.qml
+        qml/components/UColorPopup.qml
+        qml/components/UHoverTip.qml
         qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
@@ -105,15 +170,28 @@ target_link_libraries(unisic PRIVATE
 
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 
-file(GLOB UNISIC_SYM_ICONS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
+file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
+# Capture sound cues (General > Capture sound). Short bundled WAVs; extracted
+# to the cache dir and played via pw-play/paplay/aplay at capture time.
+file(GLOB UNISIC_SOUNDS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/sounds/*.wav)
+qt_add_resources(unisic "sounds" PREFIX "/" FILES ${UNISIC_SOUNDS})
+
+# Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
+# show up in Settings > Appearance > System tray icon (re-run cmake after adding).
+file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+     resources/icons/tray/*.svg resources/icons/tray/*.png)
+if(UNISIC_TRAY_ICONS)
+    qt_add_resources(unisic "tray_icons" PREFIX "/" FILES ${UNISIC_TRAY_ICONS})
+endif()
+
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-install(FILES resources/org.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES resources/org.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
+install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
-    RENAME org.unisic.Unisic.svg)
+    RENAME app.unisic.Unisic.svg)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
     RENAME unisic.svg)
@@ -121,10 +199,11 @@ install(FILES resources/icons/unisic.svg
 set(CPACK_PACKAGE_NAME "unisic")
 set(CPACK_PACKAGE_VENDOR "Unisic")
 set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ShareX-like screenshot and screen-recording tool for Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
+set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
-set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
-set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}-${CMAKE_SYSTEM_PROCESSOR}")
+set(CPACK_PACKAGE_VERSION ${UNISIC_VERSION_STRING})
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${UNISIC_VERSION_STRING}-${CMAKE_SYSTEM_PROCESSOR}")
 set(CPACK_STRIP_FILES TRUE)
 
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")
@@ -147,8 +226,43 @@ set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "LicenseRef-Unknown")
-set(CPACK_RPM_PACKAGE_REQUIRES "ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+# "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
+# stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
+# GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
+# a package-name Requires would make the RPM uninstallable on stock Fedora.
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Test)
+    qt_add_executable(unisic_shortcut_format_test
+        tests/ShortcutFormatTest.cpp
+        src/hotkeys/ShortcutFormat.h
+    )
+    target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
+    add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
+    qt_add_executable(unisic_object_detector_test
+        tests/ObjectDetectorTest.cpp
+        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    )
+    target_link_libraries(unisic_object_detector_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_object_detector_test PRIVATE src/overlay)
+    add_test(NAME unisic_object_detector_test COMMAND unisic_object_detector_test)
+
+    qt_add_executable(unisic_annotation_canvas_test
+        tests/AnnotationCanvasTest.cpp
+        src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    )
+    target_link_libraries(unisic_annotation_canvas_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+    target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor src/overlay)
+    add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
+    set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+endif()

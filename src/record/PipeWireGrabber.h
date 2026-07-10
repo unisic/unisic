@@ -28,7 +28,10 @@ public:
 
     // Hands out the latest frame (tightly packed BGRA, frameSize()) as a
     // cheap implicitly-shared reference. Returns false if no frame arrived yet.
-    bool latestFrame(QByteArray &out);
+    // `seq` (same mutex, so atomic with the frame) increments once per new
+    // stream frame — compositor streams are damage-driven, so on a static
+    // screen it lets the sampler skip re-cropping an unchanged frame.
+    bool latestFrame(QByteArray &out, quint64 *seq = nullptr);
 
 signals:
     void formatReady(const QSize &size);
@@ -49,6 +52,7 @@ private:
     QMutex m_mutex;
     QByteArray m_latest; // front buffer: replaced by swap only, never written in place
     QByteArray m_back;   // back buffer: PipeWire thread only
+    quint64 m_seq = 0;   // frame sequence, guarded by m_mutex
     std::atomic<bool> m_haveFrame{false};
     QSize m_size;
     uint32_t m_format = 0;

@@ -51,6 +51,16 @@ static const QSet<QString> &ffmpegEncoders()
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
 {
+    // The lossless intermediates live in ~/.cache/unisic (disk-backed — see
+    // beginEncoding), which unlike /tmp is never reclaimed by a reboot: sweep
+    // recordings orphaned by a crash/SIGKILL (multi-GB each) once at startup.
+    // The recorder is constructed before any recording can start, so nothing
+    // live can be swept.
+    QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+    const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
+    for (const QString &f : stale)
+        cache.remove(f);
+
     m_sampler.setTimerType(Qt::PreciseTimer);
     connect(&m_sampler, &QTimer::timeout, this, &GifRecorder::sampleFrame);
     m_maxTimer.setSingleShot(true);
@@ -80,7 +90,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 {
 #ifndef HAVE_PIPEWIRE
     Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen)
-    emit failed(tr("Unisic was built without PipeWire support — recording unavailable"));
+    emit failed(tr("Unisic was built without PipeWire support, so recording is unavailable"));
     return;
 #else
     if (m_state != Idle)
@@ -103,6 +113,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_encodeSize = {};
     m_targetScreen = screen;
     m_lastFrame.clear();
+    m_lastSampledSeq = 0;
 
     m_session = new ScreenCastSession(this);
     connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
@@ -195,8 +206,13 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                          : QStringLiteral("mp4");
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
     QDir().mkpath(m_settings->saveDirectory());
-    m_tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-                 + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
+    // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
+    // /tmp is tmpfs on Fedora and in Flatpak, and minutes of lossless 4K would
+    // exhaust RAM (max duration defaults to unlimited) and lose the recording
+    // when ffmpeg's write hits ENOSPC.
+    const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(tmpBase);
+    m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
     m_outPath = m_settings->saveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
@@ -209,7 +225,25 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                      QStringLiteral("-video_size"),
                      QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
                      QStringLiteral("-framerate"), QString::number(fps),
+                     QStringLiteral("-thread_queue_size"), QStringLiteral("512"),
                      QStringLiteral("-i"), QStringLiteral("-")};
+
+    // Optional audio — video output only (GIF has none). Each enabled source is
+    // a live pulse capture indexed after the video (input 0): @DEFAULT_MONITOR@
+    // is the default sink's monitor (system sound), "default" is the mic.
+    m_hasAudio = false;
+    QStringList audioSources;
+    if (m_output != Gif) {
+        if (m_settings->recordSystemAudio())
+            audioSources << QStringLiteral("@DEFAULT_MONITOR@");
+        if (m_settings->recordMicrophone())
+            audioSources << QStringLiteral("default");
+    }
+    for (const QString &dev : audioSources) {
+        args << QStringLiteral("-f") << QStringLiteral("pulse")
+             << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
+             << QStringLiteral("-i") << dev;
+    }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
     // x264, else utvideo (fast intra-only RGB), else FFV1 — both ship in the
@@ -224,13 +258,33 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     } else {
         args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
     }
+
+    // Audio mux: one source maps straight through, two are mixed. Stored as
+    // lossless FLAC in the intermediate (convertVideo re-encodes to AAC/Opus).
+    // -shortest ends the file when the video (pipe) stops so the live pulse
+    // captures — which never EOF on their own — don't hang the encoder.
+    if (audioSources.size() == 1) {
+        args << QStringLiteral("-map") << QStringLiteral("0:v")
+             << QStringLiteral("-map") << QStringLiteral("1:a")
+             << QStringLiteral("-c:a") << QStringLiteral("flac")
+             << QStringLiteral("-shortest");
+        m_hasAudio = true;
+    } else if (audioSources.size() >= 2) {
+        args << QStringLiteral("-filter_complex")
+             << QStringLiteral("[1:a][2:a]amix=inputs=2:duration=longest:normalize=0[aout]")
+             << QStringLiteral("-map") << QStringLiteral("0:v")
+             << QStringLiteral("-map") << QStringLiteral("[aout]")
+             << QStringLiteral("-c:a") << QStringLiteral("flac")
+             << QStringLiteral("-shortest");
+        m_hasAudio = true;
+    }
     args << m_tempPath;
 
     m_ffmpeg = new QProcess(this);
     m_ffmpeg->setProcessChannelMode(QProcess::MergedChannels);
     connect(m_ffmpeg, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if ((m_state == Recording || m_state == Starting) && error == QProcess::FailedToStart)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     connect(m_ffmpeg, &QProcess::finished, this,
             [this](int code, QProcess::ExitStatus status) {
@@ -268,7 +322,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         // errorOccurred may already have fired fail() synchronously (state now
         // Idle); guard so we don't emit failed() twice.
         if (m_ffmpeg == encoder && m_state == Starting)
-            fail(tr("ffmpeg could not be started — is it installed?"));
+            fail(tr("ffmpeg could not be started. Is it installed?"));
         return;
     }
     if (m_ffmpeg != encoder)
@@ -304,23 +358,33 @@ void GifRecorder::sampleFrame()
     const qsizetype expected = qsizetype(m_streamSize.width()) * m_streamSize.height() * 4;
     QByteArray frame;
     QByteArray encoded;
-    if (m_grabber->latestFrame(frame) && frame.size() == expected) {
-        if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
-            encoded = frame;
+    quint64 seq = 0;
+    if (m_grabber->latestFrame(frame, &seq) && frame.size() == expected) {
+        if (seq == m_lastSampledSeq && !m_lastFrame.isEmpty()) {
+            // Compositor streams are damage-driven: on a static screen no new
+            // frame arrives, and re-cropping the identical buffer every tick
+            // (alloc + row-by-row memcpy at the sample rate) produced byte-
+            // identical output. Reuse the previous sample.
+            encoded = m_lastFrame;
         } else {
-            encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
-            const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
-            const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
-            const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
-                              + qsizetype(m_encodeCrop.x()) * 4;
-            char *dst = encoded.data();
-            for (int y = 0; y < m_encodeSize.height(); ++y) {
-                memcpy(dst, src, dstStride);
-                src += srcStride;
-                dst += dstStride;
+            if (m_encodeCrop == QRect(QPoint(0, 0), m_streamSize)) {
+                encoded = frame;
+            } else {
+                encoded.resize(qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4);
+                const qsizetype srcStride = qsizetype(m_streamSize.width()) * 4;
+                const qsizetype dstStride = qsizetype(m_encodeSize.width()) * 4;
+                const char *src = frame.constData() + qsizetype(m_encodeCrop.y()) * srcStride
+                                  + qsizetype(m_encodeCrop.x()) * 4;
+                char *dst = encoded.data();
+                for (int y = 0; y < m_encodeSize.height(); ++y) {
+                    memcpy(dst, src, dstStride);
+                    src += srcStride;
+                    dst += dstStride;
+                }
             }
+            m_lastFrame = encoded;
+            m_lastSampledSeq = seq;
         }
-        m_lastFrame = encoded;
     } else {
         encoded = m_lastFrame; // no frame yet / renegotiated size: sample-and-hold
     }
@@ -431,7 +495,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -442,7 +506,7 @@ void GifRecorder::convertToGif()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -478,7 +542,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"),
                 {QStringLiteral("-y"), QStringLiteral("-nostats"),
@@ -491,7 +555,7 @@ void GifRecorder::convertToGifRender(int fps, const QString &dither)
         conv->deleteLater();
         QFile::remove(m_tempPath);
         QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -528,6 +592,18 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     }
+    // Carry the FLAC intermediate audio into the shareable container: Opus for
+    // WebM, AAC for MP4. The '?' keeps it a no-op if no audio was recorded.
+    if (m_hasAudio) {
+        args << QStringLiteral("-map") << QStringLiteral("0:v:0")
+             << QStringLiteral("-map") << QStringLiteral("0:a:0?");
+        if (m_output == WebM)
+            args << QStringLiteral("-c:a") << QStringLiteral("libopus")
+                 << QStringLiteral("-b:a") << QStringLiteral("128k");
+        else
+            args << QStringLiteral("-c:a") << QStringLiteral("aac")
+                 << QStringLiteral("-b:a") << QStringLiteral("192k");
+    }
     args << m_outPath;
 
     auto *conv = new QProcess(this);
@@ -555,14 +631,14 @@ void GifRecorder::convertVideo()
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     });
     conv->start(QStringLiteral("ffmpeg"), args);
     if (!conv->waitForStarted(3000) && m_converter == conv) {
         m_converter = nullptr;
         conv->deleteLater();
         QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started — is it installed?"));
+        fail(tr("ffmpeg could not be started. Is it installed?"));
     }
 }
 
@@ -573,15 +649,24 @@ void GifRecorder::stopProcess(QProcess *&process)
     QProcess *p = process;
     process = nullptr;
     QObject::disconnect(p, nullptr, this, nullptr);
-    if (p->state() != QProcess::NotRunning) {
-        p->closeWriteChannel();
-        p->terminate();
-        if (!p->waitForFinished(1000)) {
-            p->kill();
-            p->waitForFinished(3000);
-        }
+    if (p->state() == QProcess::NotRunning) {
+        p->deleteLater();
+        return;
     }
-    p->deleteLater();
+    // Non-blocking escalation: the old terminate + waitForFinished(1000) +
+    // kill + waitForFinished(3000) froze the GUI for up to 4 s per process on
+    // every cancel/failure (ffmpeg can be slow to flush after SIGTERM). The
+    // detached process reaps itself via finished -> deleteLater; removing the
+    // temp files right after stays correct on Linux (ffmpeg keeps writing to
+    // the unlinked inode, the space is reclaimed when it exits). The singleShot
+    // is parented to p, so it auto-cancels if the process dies sooner.
+    connect(p, &QProcess::finished, p, &QObject::deleteLater);
+    p->closeWriteChannel();
+    p->terminate();
+    QTimer::singleShot(1000, p, [p] {
+        if (p->state() != QProcess::NotRunning)
+            p->kill();
+    });
 }
 
 void GifRecorder::abort()
@@ -624,6 +709,7 @@ void GifRecorder::cleanup()
     m_encodeCrop = {};
     m_encodeSize = {};
     m_targetScreen = nullptr;
+    m_hasAudio = false;
     m_lastFrame.clear();
     m_elapsed.invalidate();
     emit elapsedChanged();
@@ -631,6 +717,12 @@ void GifRecorder::cleanup()
 
 void GifRecorder::fail(const QString &msg)
 {
+    // Single-fire: a streamError/formatReady queued from the PipeWire thread
+    // just before abort() is still delivered after it (disconnect/deleteLater
+    // don't cancel already-posted queued calls) — without this guard a cancel
+    // during Starting could re-enter here and emit a second failed().
+    if (m_state == Idle)
+        return;
     qWarning() << "GifRecorder:" << msg;
     abort();
     emit failed(msg);

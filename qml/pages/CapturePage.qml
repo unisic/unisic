@@ -26,14 +26,18 @@ Item {
                 font.weight: Font.Bold
             }
             Text {
-                text: qsTr("Screenshots land in the editor — annotate, then save, copy or upload.")
+                text: qsTr("Screenshots land in the editor, where you can annotate, then save, copy or upload.")
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontM
             }
 
             Item { width: 1; height: Theme.spacingS }
 
-            Row {
+            // Flow, not Row: at the minimum window width the viewport is
+            // narrower than the three fixed-width cards, so wrap instead of
+            // clipping the third card (the Flickable has no horizontal scroll).
+            Flow {
+                width: parent.width
                 spacing: Theme.spacingL
 
                 Repeater {

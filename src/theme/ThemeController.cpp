@@ -1,4 +1,5 @@
 #include "ThemeController.h"
+#include <QEvent>
 #include <QGuiApplication>
 #include <QStyleHints>
 #include <QPalette>
@@ -12,22 +13,34 @@ ThemeController::ThemeController(QObject *parent) : QObject(parent)
         s_instance = this;
 
     // Follow live system scheme/palette changes so the "System" theme updates
-    // without a restart. A scheme flip fires BOTH signals — coalesce into one
-    // rev bump per event-loop turn, or every icon re-renders twice.
-    auto scheduleBump = [this] {
-        if (m_bumpQueued)
-            return;
-        m_bumpQueued = true;
-        QMetaObject::invokeMethod(this, [this] {
-            m_bumpQueued = false;
-            bump();
-            emit systemChanged();
-        }, Qt::QueuedConnection);
-    };
+    // without a restart. A scheme flip fires BOTH notifications — coalesce into
+    // one rev bump per event-loop turn, or every icon re-renders twice.
     if (auto *hints = QGuiApplication::styleHints()) {
-        connect(hints, &QStyleHints::colorSchemeChanged, this, scheduleBump);
+        connect(hints, &QStyleHints::colorSchemeChanged,
+                this, &ThemeController::scheduleSystemBump);
     }
-    connect(qApp, &QGuiApplication::paletteChanged, this, scheduleBump);
+    // Palette changes arrive as QEvent::ApplicationPaletteChange on qApp
+    // (QGuiApplication::paletteChanged is deprecated since Qt 6.0).
+    qApp->installEventFilter(this);
+}
+
+bool ThemeController::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == qApp && event->type() == QEvent::ApplicationPaletteChange)
+        scheduleSystemBump();
+    return QObject::eventFilter(watched, event);
+}
+
+void ThemeController::scheduleSystemBump()
+{
+    if (m_bumpQueued)
+        return;
+    m_bumpQueued = true;
+    QMetaObject::invokeMethod(this, [this] {
+        m_bumpQueued = false;
+        bump();
+        emit systemChanged();
+    }, Qt::QueuedConnection);
 }
 
 ThemeController::~ThemeController()

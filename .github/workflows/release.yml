@@ -15,20 +15,66 @@ defaults:
 
 env:
   BUILD_TYPE: Release
+  # Baked into the binary by CMake and shown in the sidebar footer.
+  UNISIC_BUILD_NUMBER: ${{ github.run_number }}
 
 jobs:
+  check:
+    name: Version check
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      should_release: ${{ steps.v.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        name: Read version and decide whether to release
+        run: |
+          # Display version (allows pre-release suffixes like "0.3b"); falls
+          # back to the numeric project() version if the string is absent.
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Release only when this version has not been tagged yet — i.e. the
+          # version in CMakeLists.txt was bumped. Plain pushes to main (docs,
+          # refactors without a bump) build nothing and cut no release.
+          if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Tag v${version} already exists — no version bump, skipping release."
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Releasing v${version}."
+          fi
+
   deb:
     name: Debian package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: debian:trixie
     steps:
       - name: Install build dependencies
         run: |
           apt-get update
+          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
+          # (HAVE_TESSERACT / HAVE_LAYERSHELL) — without the -dev packages here
+          # the shipped binary has OCR and the on-top layer-shell surfaces
+          # (custom notification card, overlay-over-fullscreen, preview pin)
+          # compiled out no matter what the user installs at runtime.
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
-            libpipewire-0.3-dev
+            libpipewire-0.3-dev \
+            libtesseract-dev libleptonica-dev libzxing-dev \
+            liblayershellqtinterface-dev libwayland-dev
 
       - uses: actions/checkout@v4
 
@@ -50,15 +96,21 @@ jobs:
 
   rpm:
     name: RPM package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: fedora:latest
     steps:
       - name: Install build dependencies
         run: |
+          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
+          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) — see the deb job comment.
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-            pipewire-devel
+            pipewire-devel \
+            tesseract-devel leptonica-devel zxing-cpp-devel \
+            layer-shell-qt-devel wayland-devel
 
       - uses: actions/checkout@v4
 
@@ -78,6 +130,8 @@ jobs:
 
   arch:
     name: Arch package
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container: archlinux:base-devel
     steps:
@@ -88,7 +142,7 @@ jobs:
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
-            tesseract leptonica
+            tesseract leptonica layer-shell-qt wayland zxing-cpp
 
       - uses: actions/checkout@v4
 
@@ -122,6 +176,8 @@ jobs:
 
   appimage:
     name: AppImage
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -129,13 +185,23 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
+          # libtesseract-dev/libleptonica-dev: OCR is a compile-time optional
+          # (HAVE_TESSERACT) — linuxdeploy bundles the linked libs. Language
+          # data comes from the user's system at runtime, but the bundled
+          # Ubuntu libtesseract bakes in the Debian tessdata path
+          # (/usr/share/tesseract-ocr/4.00/tessdata), so on Fedora
+          # (/usr/share/tesseract/tessdata) or Arch (/usr/share/tessdata)
+          # hosts OCR needs TESSDATA_PREFIX set until OcrEngine probes the
+          # common distro paths itself.
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl file desktop-file-utils patchelf libfuse2 \
             cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
             libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
-            libwayland-client0 libwayland-cursor0 libwayland-egl1
+            libwayland-client0 libwayland-cursor0 libwayland-egl1 \
+            libtesseract-dev libleptonica-dev \
+            libwayland-dev extra-cmake-modules wayland-protocols
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -149,10 +215,65 @@ jobs:
           modules: qtwaylandcompositor
           cache: true
 
+      - name: Build LayerShellQt (against the aqt Qt)
+        # Layer-shell (HAVE_LAYERSHELL) powers the on-top custom notification
+        # card, the overlay-over-fullscreen capture and the preview pin. No
+        # Ubuntu package matches the aqt-installed Qt, so build the small KDE
+        # lib from source. Best-effort: on failure the app still builds, with
+        # layer-shell features compiled out (the Build AppDir step warns).
+        continue-on-error: true
+        run: |
+          # layer-shell-qt 6.3.x hard-requires ECM >= 6.10 and jammy ships
+          # 5.92, so first install the matching ECM (script-only, seconds)
+          # into the same local prefix.
+          # BUILD_DOC=OFF matters: ECM auto-enables man/html docs when the
+          # runner happens to have sphinx-build, and those install rules
+          # reference files only a `cmake --build` would generate — the
+          # build-less install below would then hard-fail the whole step.
+          git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/extra-cmake-modules.git
+          cmake -S extra-cmake-modules -B build-ecm -G Ninja \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
+            -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
+          cmake --install build-ecm
+          git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
+          cmake -S layer-shell-qt -B build-lsq -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_TESTING=OFF
+          cmake --build build-lsq --parallel
+          cmake --install build-lsq
+
+      - name: Build zxing-cpp (against the aqt Qt)
+        # zxing-cpp (QR in OCR, HAVE_ZXING): Ubuntu 22.04 has no modern
+        # package — same best-effort source build into the same local prefix.
+        # Deliberately its OWN continue-on-error step: sharing a step with
+        # layer-shell-qt would let a layer-shell configure failure (bash -e)
+        # silently skip this build too.
+        continue-on-error: true
+        run: |
+          git clone --depth 1 --branch v2.2.1 https://github.com/zxing-cpp/zxing-cpp.git
+          cmake -S zxing-cpp -B build-zxing -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
+          cmake --build build-zxing --parallel
+          cmake --install build-zxing
+
       - name: Build AppDir
         run: |
+          # The two optional builds above are continue-on-error — surface a
+          # missing component loudly instead of silently shipping without it.
+          find lsq-prefix -name 'LayerShellQtConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::layer-shell-qt build failed — AppImage ships without HAVE_LAYERSHELL (on-top card, preview pin)"
+          find lsq-prefix -name 'ZXingConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX=/usr
           cmake --build build-appimage --parallel
           mkdir -p AppDir
@@ -181,9 +302,16 @@ jobs:
           # Older linuxdeploy-plugin-appimage builds read the unprefixed name.
           UPDATE_INFORMATION: "gh-releases-zsync|unisic|unisic|latest|Unisic-*x86_64.AppImage.zsync"
         run: |
-          version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
+          # Display version (allows pre-release suffixes like "0.3b"); falls
+          # back to the numeric project() version if the string is absent.
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
           export VERSION="$version"
 
           mkdir -p tools dist
@@ -194,6 +322,19 @@ jobs:
           chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
           export PATH="$PWD/tools:$PATH"
           export QMAKE="$(command -v qmake)"
+          # LayerShellQt was installed into a local prefix — linuxdeploy walks
+          # the binary's deps via the loader, so it must be resolvable here to
+          # get bundled (no-op if the optional layer-shell build was skipped).
+          # Cover every libdir ECM/GNUInstallDirs might have chosen on the
+          # runner (plain lib, Debian multiarch lib/x86_64-linux-gnu, lib64) —
+          # the KDE_INSTALL_LIBDIR=lib above forces `lib`, this is the belt.
+          export LD_LIBRARY_PATH="$PWD/lsq-prefix/lib:$PWD/lsq-prefix/lib/x86_64-linux-gnu:$PWD/lsq-prefix/lib64:${LD_LIBRARY_PATH:-}"
+          # Deploy the LayerShellQt lib explicitly too: linuxdeploy resolves the
+          # app's NEEDED entry, but passing the versioned .so guarantees it and
+          # its SONAME symlinks land in the AppDir even if loader search misses.
+          LSQ_LIB="$(find "$PWD/lsq-prefix" -name 'libLayerShellQtInterface.so.6.*' -print -quit 2>/dev/null)"
+          EXTRA_LIB_ARGS=()
+          [ -n "$LSQ_LIB" ] && EXTRA_LIB_ARGS+=(--library "$LSQ_LIB")
           # --exclude-library libwayland-*: never bundle the BUILD HOST's
           # libwayland — mixing an old libwayland-client with a modern
           # compositor breaks at symbol lookup (MuseScore#13781); every 2020+
@@ -201,6 +342,7 @@ jobs:
           ./tools/linuxdeploy-x86_64.AppImage \
             --appdir AppDir \
             --plugin qt \
+            "${EXTRA_LIB_ARGS[@]}" \
             --exclude-library "libwayland-client*" \
             --exclude-library "libwayland-cursor*" \
             --exclude-library "libwayland-egl*" \
@@ -233,17 +375,30 @@ jobs:
 
   flatpak:
     name: Flatpak
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.8
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inject build number into manifest
+        # flatpak-builder runs module builds in a cleaned bwrap sandbox — the
+        # workflow-level UNISIC_BUILD_NUMBER env var is NOT inherited there,
+        # so patch it into the unisic module's build-options env (the manifest
+        # ships an empty placeholder). The manifest also pins
+        # -DUNISIC_DEV_BUILD=OFF, so this only affects the footer build label.
+        run: |
+          sed -i "s/UNISIC_BUILD_NUMBER: \"\"/UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"/" app.unisic.Unisic.yml
+          grep -q "UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"" app.unisic.Unisic.yml \
+            || { echo "::error::failed to inject UNISIC_BUILD_NUMBER into the flatpak manifest"; exit 1; }
+
       - name: Build Flatpak bundle
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
-          manifest-path: org.unisic.Unisic.yml
+          manifest-path: app.unisic.Unisic.yml
           bundle: unisic.flatpak
           upload-artifact: false
 
@@ -255,53 +410,52 @@ jobs:
 
   release:
     name: GitHub Release
-    runs-on: ubuntu-latest
     needs:
+      - check
       - deb
       - rpm
       - arch
       - appimage
       - flatpak
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog can diff against the previous
+          # release and find the last clean semver tag.
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
           path: dist
 
+      - name: Generate changelog
+        run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version_line=""
-          while IFS= read -r line; do
-            if [[ "$line" == project\(unisic\ VERSION* ]]; then
-              version_line="$line"
-              break
-            fi
-          done < CMakeLists.txt
-          if [[ -z "$version_line" ]]; then
-            printf 'Could not read project version from CMakeLists.txt\n' >&2
-            exit 1
-          fi
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
-          tag="v${version}-build.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-          short_sha="${GITHUB_SHA::7}"
-
           shopt -s globstar nullglob
           assets=()
           for path in dist/**/*; do
-            if [[ -f "$path" ]]; then
-              assets+=("$path")
-            fi
+            [[ -f "$path" ]] && assets+=("$path")
           done
           if [[ ${#assets[@]} -eq 0 ]]; then
             printf 'No release assets found\n' >&2
             exit 1
           fi
 
-          gh release create "$tag" "${assets[@]}" \
+          # A letter suffix in the version ("0.3b", "1.0rc1") marks the
+          # GitHub release as a pre-release automatically.
+          prerelease=()
+          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "v${VERSION}" "${assets[@]}" \
             --target "$GITHUB_SHA" \
-            --title "Unisic ${version} build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
-            --notes "Automated release from main at commit ${short_sha}."
+            --title "Unisic ${VERSION}" \
+            --notes-file NOTES.md "${prerelease[@]}"

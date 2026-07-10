@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
-import QtQuick.Dialogs
 import Unisic
 import "components"
 
@@ -15,6 +14,16 @@ Window {
         id: root
         anchors.fill: parent
         focus: true
+
+        // Alignment guides only make sense while MANIPULATING the region — the
+        // plain selection tool (create / move / resize the rectangle). With a
+        // drawing tool active they are just visual noise over the stroke, and
+        // over an auto-detected smart-pick object the highlight box already
+        // shows the target.
+        readonly property bool guidesUseful:
+            App.settings.selectionGuides
+            && canvas.tool === AnnotationCanvas.None
+            && canvas.hoverObjectRect.width <= 0
 
         // Non-KDE compositors (Mutter, sway) routinely deny requestActivate()
         // issued from a hotkey with no focused window — keyboard (Esc/Enter/
@@ -88,9 +97,25 @@ Window {
                 }
                 return
             }
+            // Screen colour-pick in progress: Escape backs out of picking and
+            // reopens the popup, without cancelling the whole capture.
+            if (canvas.colorPicking) {
+                if (e.key === Qt.Key_Escape) {
+                    canvas.colorPicking = false
+                    if (root.pendingColorPopup) {
+                        root.pendingColorPopup.open()
+                        root.pendingColorPopup = null
+                    }
+                    e.accepted = true
+                }
+                return
+            }
             if (e.key === Qt.Key_Escape) {
                 overlayController.cancel()
-            } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+            } else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter
+                       || e.key === Qt.Key_Space) {
+                // Space confirms too (only reachable here — the text-box branch
+                // above returns first, so typing a space still types a space).
                 overlayController.confirmFromWindow(overlayWindow)
             } else if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) {
                 canvas.selectAll()
@@ -106,21 +131,24 @@ Window {
             e.accepted = true
         }
 
-        ColorDialog {
+        // In-scene picker, NOT QtQuick.Dialogs' ColorDialog: that is a separate
+        // top-level window, and under this overlay's layer-shell surface (with
+        // an exclusive keyboard grab) it never receives input — it froze the
+        // whole capture screen. UColorPopup is a Popup in the same scene.
+        // Which popup asked to sample a colour from the screen — reopened with
+        // the sampled pixel once the canvas reports it.
+        property var pendingColorPopup: null
+
+        UColorPopup {
             id: overlayColorDialog
-            title: qsTr("Stroke color")
-            selectedColor: canvas.strokeColor
-            onAccepted: canvas.strokeColor = selectedColor
+            onPicked: (c) => canvas.strokeColor = c
+            onRequestScreenPick: { root.pendingColorPopup = overlayColorDialog; canvas.colorPicking = true }
         }
-        ColorDialog {
+        UColorPopup {
             id: overlayFillDialog
-            title: qsTr("Fill color")
-            selectedColor: canvas.shapeFillColor
-            options: ColorDialog.ShowAlphaChannel
-            onAccepted: {
-                canvas.shapeFillColor = selectedColor
-                canvas.shapeFillEnabled = true
-            }
+            showAlpha: true
+            onPicked: (c) => { canvas.shapeFillColor = c; canvas.shapeFillEnabled = true }
+            onRequestScreenPick: { root.pendingColorPopup = overlayFillDialog; canvas.colorPicking = true }
         }
 
         AnnotationCanvas {
@@ -129,6 +157,12 @@ Window {
             anchors.fill: parent
             selectionMode: true
             tool: AnnotationCanvas.None
+            // Smart pick: click = select the detected object under the cursor;
+            // drag still draws a manual rectangle (Settings > Capture).
+            smartPick: App.settings.smartPick
+            // Selection chrome follows the selected app theme (was fixed purple).
+            uiAccent: Theme.accent
+            uiScrim: Theme.primary
             Component.onCompleted: {
                 strokeColor = App.settings.editorStrokeColor
                 strokeWidth = App.settings.editorStrokeWidth
@@ -139,12 +173,86 @@ Window {
             onShapeFillColorChanged: App.settings.editorFillColor = shapeFillColor
             onShapeFillEnabledChanged: App.settings.editorFillEnabled = shapeFillEnabled
             onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
+            // Screen eyedropper result → reopen the popup that requested it,
+            // seeded with the sampled colour.
+            onColorPicked: (c) => {
+                if (root.pendingColorPopup) {
+                    root.pendingColorPopup.openWith(c)
+                    root.pendingColorPopup = null
+                }
+            }
             onTextRequested: (x, y) => {
                 textEditor.imgX = x
                 textEditor.imgY = y
                 textEditor.visible = true
                 textField.text = ""
                 textField.forceActiveFocus()
+            }
+
+            // Crosshair guides from the cursor to the screen edges. The handler
+            // lives INSIDE the canvas: the canvas item receives the pointer, so a
+            // sibling handler on root would report hovered only where the canvas
+            // isn't (e.g. over the toolbar) — the exact "only shows over toolbar"
+            // bug. As a child it tracks the pointer across the whole overlay.
+            HoverHandler {
+                id: guideHover
+                enabled: root.guidesUseful
+            }
+        }
+
+        // Each guide: a dark underlay + bright accent core, so the line stays
+        // legible over both the dimmed backdrop and the bright selected region.
+        // Position comes from canvas.hoverPoint (C++), which — unlike a QML
+        // HoverHandler — keeps updating while the selection is being dragged.
+        Item { // vertical guide
+            visible: root.guidesUseful && guideHover.hovered
+            x: Math.round(canvas.hoverPoint.x) - 1
+            y: 0; width: 3; height: parent.height
+            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle {
+                width: 1; height: parent.height
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: Theme.accent; opacity: 0.95
+            }
+        }
+        Item { // horizontal guide
+            visible: root.guidesUseful && guideHover.hovered
+            x: 0; y: Math.round(canvas.hoverPoint.y) - 1
+            width: parent.width; height: 3
+            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle {
+                width: parent.width; height: 1
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.accent; opacity: 0.95
+            }
+        }
+
+        // Smart-pick hover badge: highlighted object's size + nesting level
+        // (scroll cycles inner element ⇄ container ⇄ whole screen).
+        Rectangle {
+            visible: !canvas.hasSelection && canvas.hoverObjectRect.width > 0
+            readonly property real hx: canvas.hoverObjectRect.x * canvas.renderScale
+            readonly property real hy: canvas.hoverObjectRect.y * canvas.renderScale
+            readonly property real hw: canvas.hoverObjectRect.width * canvas.renderScale
+            x: Math.max(4, Math.min(hx + hw / 2 - width / 2, parent.width - width - 8))
+            y: Math.max(4, hy - height - 10)
+            width: hoverDimText.implicitWidth + 22
+            height: 28
+            radius: 14
+            color: "#000000"
+            opacity: 0.8
+            Text {
+                id: hoverDimText
+                anchors.centerIn: parent
+                text: canvas.hoverObjectKind + "  ·  "
+                      + Math.round(canvas.hoverObjectRect.width) + " × "
+                      + Math.round(canvas.hoverObjectRect.height)
+                      + (canvas.hoverDepthCount > 1
+                         ? "   " + (canvas.hoverDepth + 1) + "/" + canvas.hoverDepthCount + " ↕"
+                         : "")
+                color: "#FFFFFF"
+                font.pixelSize: 12
+                font.family: "monospace"
             }
         }
 
@@ -190,7 +298,7 @@ Window {
                 anchors.centerIn: parent
                 text: canvas.segmenting
                       ? qsTr("Separating object from background…")
-                      : qsTr("Background removed — Enter or double-click captures the cutout")
+                      : qsTr("Background removed. Enter or double-click captures the cutout")
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1
             }
@@ -212,9 +320,14 @@ Window {
             Text {
                 id: hintText
                 anchors.centerIn: parent
-                text: annotationToolsEnabled
-                      ? qsTr("Drag to select · annotate with the toolbar · Enter or double-click to capture · Esc to cancel")
-                      : qsTr("Drag to select the recording region · Enter to start · Esc to cancel")
+                text: {
+                    const drag = App.settings.smartPick
+                               ? qsTr("Click an object (scroll = level) or drag to select")
+                               : qsTr("Drag to select")
+                    return annotationToolsEnabled
+                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
+                           : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
+                }
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1
             }
@@ -280,7 +393,7 @@ Window {
                         iconName: "color-picker"; iconSize: 15
                         width: 30; height: 30
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayColorDialog.open()
+                        onClicked: overlayColorDialog.openWith(canvas.strokeColor)
                     }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
@@ -296,7 +409,7 @@ Window {
                         dotColor: canvas.shapeFillColor
                         active: canvas.shapeFillEnabled
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayFillDialog.open()
+                        onClicked: overlayFillDialog.openWith(canvas.shapeFillColor)
                     }
 
                     Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }

@@ -1,4 +1,5 @@
 #include "GlobalHotkeys.h"
+#include "ShortcutFormat.h"
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -42,19 +43,68 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
         qWarning() << "KGlobalAccel not available — global hotkeys disabled";
 }
 
+QList<int> GlobalHotkeys::expandShiftDigitVariants(const QList<int> &keys)
+{
+    // KWin on Wayland reports a pressed Shift+digit with the shift CONSUMED
+    // by the symbol: physical Meta+Shift+1 reaches the daemon lookup as
+    // Meta+! (and some paths as Meta+Shift+!). A binding stored only as
+    // Meta+Shift+1 therefore never fires. Bind all three encodings as
+    // alternates of one action — whichever the compositor computes, the
+    // daemon finds the action. portableFromKeys() collapses them back so
+    // the UI keeps showing just "Meta+Shift+1".
+    QList<int> out = keys;
+    for (int k : keys) {
+        if (!(k & Qt::ShiftModifier))
+            continue;
+        const int mods = k & int(Qt::KeyboardModifierMask);
+        const int sym = ShortcutFormat::shiftedSymbolFor(k & ~int(Qt::KeyboardModifierMask));
+        if (!sym)
+            continue;
+        const int withShift = mods | sym;
+        const int noShift = (mods & ~int(Qt::ShiftModifier)) | sym;
+        if (!out.contains(withShift))
+            out.append(withShift);
+        if (!out.contains(noShift))
+            out.append(noShift);
+    }
+    return out;
+}
+
 QString GlobalHotkeys::portableFromKeys(const QList<int> &keys)
 {
-    // Keep ALL sequences ("Meta+Shift+1; Print"), not just the first: the
+    // Keep ALL sequences ("Meta+Shift+1, Print"), not just the first: the
     // daemon-authoritative sync feeds this back into setShortcut on the next
     // apply, and a single-key round-trip would silently delete a user's
-    // alternate KCM binding. QKeySequence parses/serializes multi-sequence
-    // strings natively, and keysFor() iterates every sequence.
+    // alternate KCM binding. The separator MUST be ", " — QKeySequence's only
+    // multi-sequence separator; "; " parses as ONE Qt::Key_unknown chord that
+    // setShortcut would then push over the user's real bindings.
+    //
+    // Auto-generated Shift+digit variants (see expandShiftDigitVariants) are
+    // collapsed back into their digit form so the UI never shows the
+    // "Meta+Shift+1, Meta+Shift+!, Meta+!" internals.
     QStringList parts;
-    for (int k : keys)
-        if (k != 0)
-            parts << QKeySequence(QKeyCombination::fromCombined(k))
-                         .toString(QKeySequence::PortableText);
-    return parts.join(QStringLiteral("; "));
+    for (int k : keys) {
+        if (k == 0)
+            continue;
+        const int base = ShortcutFormat::baseForShiftedSymbol(k & ~int(Qt::KeyboardModifierMask));
+        if (base) {
+            const int digitForm = (k & int(Qt::KeyboardModifierMask))
+                                  | int(Qt::ShiftModifier) | base;
+            if (keys.contains(digitForm))
+                continue; // derived variant of a digit binding also present
+        }
+        parts << QKeySequence(QKeyCombination::fromCombined(k))
+                     .toString(QKeySequence::PortableText);
+    }
+    return parts.join(QStringLiteral(", "));
+}
+
+bool GlobalHotkeys::sameBinding(const QString &a, const QString &b)
+{
+    if (a == b)
+        return true;
+    const QList<int> ka = keysFor(a), kb = keysFor(b);
+    return QSet<int>(ka.begin(), ka.end()) == QSet<int>(kb.begin(), kb.end());
 }
 
 QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
@@ -63,12 +113,22 @@ QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &
     return {QString::fromLatin1(COMPONENT), actionId, QStringLiteral("Unisic"), friendlyName};
 }
 
-QList<int> GlobalHotkeys::keysFor(const QString &keySequence) const
+QList<int> GlobalHotkeys::keysFor(const QString &keySequence)
 {
+    // Older builds stored multi-sequence strings joined with "; " — normalize
+    // to QKeySequence's native ", " so legacy configs keep both bindings.
+    QString s = keySequence;
+    s.replace(QStringLiteral("; "), QStringLiteral(", "));
     QList<int> keys;
-    const QKeySequence seq(keySequence);
-    for (int i = 0; i < seq.count(); ++i)
-        keys.append(int(seq[i].toCombined()));
+    const QKeySequence seq(s);
+    for (int i = 0; i < seq.count(); ++i) {
+        // Never forward an unparseable chord: SetPresent|NoAutoloading makes
+        // the daemon persist whatever it is handed, so a Qt::Key_unknown here
+        // would replace the user's real bindings with a dead key.
+        const int k = int(seq[i].toCombined());
+        if (k != 0 && k != int(Qt::Key_unknown))
+            keys.append(k);
+    }
     return keys;
 }
 
@@ -130,11 +190,8 @@ void GlobalHotkeys::onYourShortcutsListChanged(const QDBusMessage &msg)
 }
 
 void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendlyName,
-                                 const QString &defaultKeySequence,
-                                 QList<int> *activeKeysOut, bool *ok)
+                                 const QString &defaultKeySequence)
 {
-    if (ok)
-        *ok = false;
     if (!m_available)
         return;
 
@@ -143,33 +200,49 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("doRegister"));
     reg << id;
-    QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+    QDBusConnection::sessionBus().call(reg, QDBus::Block, 800);
+    m_registered.insert(actionId);
 
     // KGlobalAccel SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
-    // We register with IsDefault (8) + autoloading (no NoAutoloading). Verified
-    // behavior on Plasma 6 (kglobalacceld) for this exact call:
-    //   * fresh install (no stored key): both the active AND default columns are
-    //     set to defaultKeySequence, so the hotkey fires immediately;
+    // We register with IsDefault (8) + autoloading (no NoAutoloading):
+    //   * fresh install (no stored key): the daemon binds defaultKeySequence;
     //   * a key the user changed in KDE's Shortcuts KCM is autoloaded and is NOT
     //     clobbered on subsequent launches (only the default column is touched).
     // Adding a separate SetPresent(2) call is deliberately avoided: on this
     // daemon it *clears* the binding (persists nothing / wipes a stored key).
-    // A user-initiated change from Unisic's own settings is pushed later via
-    // setShortcut() (SetPresent), which the daemon does honor.
+    // The reply is intentionally ignored: kglobalacceld echoes the requested
+    // keys even when it filled only the default column and left the ACTIVE
+    // binding "none" (observed live — e.g. after a historical wipe). Callers
+    // must verify with activeKeys() and repair via setShortcut() (SetPresent),
+    // which the daemon does honor — see AppContext::defineHotkeys.
     const QList<int> defKeys = keysFor(defaultKeySequence);
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(defKeys) << uint(0x8);
-    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
-    if (reply.type() == QDBusMessage::ErrorMessage) {
+    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 800);
+    if (reply.type() == QDBusMessage::ErrorMessage)
         qWarning() << "defineAction setShortcut failed for" << actionId << reply.errorMessage();
-    } else if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
-        if (ok)
-            *ok = true;
-        if (activeKeysOut)
-            *activeKeysOut = qdbus_cast<QList<int>>(reply.arguments().first());
-    }
 
+    ensureSignalConnected();
+}
+
+void GlobalHotkeys::releaseShortcut(const QString &actionId, const QString &friendlyName)
+{
+    if (!m_available)
+        return;
+    // Fire-and-forget async unbind (used by the quick-copy grace window and the
+    // startup stale-grab clear): the caller never inspects the result, so two
+    // blocking round-trips (2 s timeout each) on the GUI thread bought nothing.
+    // D-Bus messages on one connection stay ordered, so doRegister lands first.
+    const QStringList id = fullActionId(actionId, friendlyName);
+    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("doRegister"));
+    reg << id;
+    QDBusConnection::sessionBus().asyncCall(reg);
+    QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("setShortcut"));
+    set << id << QVariant::fromValue(QList<int>()) << uint(0x2 | 0x4);
+    QDBusConnection::sessionBus().asyncCall(set);
     ensureSignalConnected();
 }
 
@@ -180,10 +253,16 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
         return false;
     const QStringList id = fullActionId(actionId, friendlyName);
 
-    QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
-                                                      QStringLiteral("doRegister"));
-    reg << id;
-    QDBusConnection::sessionBus().call(reg, QDBus::Block, 2000);
+    // doRegister is idempotent and per-process registration only needs to
+    // happen once per action — skip the extra blocking round-trip on repeats
+    // (the quick-copy path re-arms on every capture).
+    if (!m_registered.contains(actionId)) {
+        QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                          QStringLiteral("doRegister"));
+        reg << id;
+        QDBusConnection::sessionBus().call(reg, QDBus::Block, 800);
+        m_registered.insert(actionId);
+    }
 
     // SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
     // MUST be SetPresent|NoAutoloading (0x6). Verified live against kglobalacceld
@@ -192,11 +271,11 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     // the OLD key. Only NoAutoloading forces the daemon to take the passed keys and
     // persist them to kglobalshortcutsrc. This was the "hotkeys set from the app UI
     // don't work, only KDE-set ones do" bug: autoloading kept clobbering our value.
-    const QList<int> wanted = keysFor(keySequence);
+    const QList<int> wanted = expandShiftDigitVariants(keysFor(keySequence));
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(wanted) << uint(0x2 | 0x4);
-    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 2000);
+    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 800);
     ensureSignalConnected();
 
     if (reply.type() == QDBusMessage::ErrorMessage) {
@@ -205,10 +284,14 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     }
     // The daemon answers with the keys actually in effect: when another
     // component owns the requested combination it keeps/returns something
-    // else — surface that instead of pretending the bind worked.
+    // else — surface that instead of pretending the bind worked. Compare the
+    // COLLAPSED portable forms: the daemon may legitimately grant only part
+    // of the auto-generated variant set.
     if (!reply.arguments().isEmpty()) {
         const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
-        if (actual != wanted) {
+        // ORDER-INSENSITIVE: the daemon reorders alternate keys in replies.
+        if (QSet<int>(actual.begin(), actual.end())
+            != QSet<int>(wanted.begin(), wanted.end())) {
             qWarning() << "setShortcut for" << actionId << "requested" << wanted
                        << "but daemon kept" << actual << "(key owned elsewhere?)";
             return false;
@@ -229,7 +312,7 @@ QList<int> GlobalHotkeys::activeKeys(const QString &actionId, bool *ok) const
     // shortcutKeys matches on [componentUnique, actionUnique] — friendly names
     // are ignored for the lookup.
     msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 2000);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 800);
     if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
         return keys;
     if (ok)

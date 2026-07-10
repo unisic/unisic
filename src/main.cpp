@@ -10,6 +10,7 @@
 #include <QStyleHints>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QLockFile>
 #include <QDir>
 #include <QFile>
 #include <QStandardPaths>
@@ -63,7 +64,7 @@ static QString singleInstanceServerName()
     // instance per user is the right guarantee; two concurrent graphical
     // sessions of the same user (rare) sharing one instance is the far smaller
     // cost.
-    return QStringLiteral("org.unisic.Unisic.%1").arg(getuid());
+    return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
 }
 
 // Capture flag from argv, mapped to the command sent over the local socket —
@@ -75,6 +76,9 @@ static QByteArray cliCommand(const QStringList &args)
     if (args.contains(QLatin1String("--region"))) return "region";
     if (args.contains(QLatin1String("--window"))) return "window";
     if (args.contains(QLatin1String("--gif"))) return "gif";
+    // Autostart path: if an instance is somehow already running, do nothing
+    // (never raise its window) — the flag only shapes a FRESH launch.
+    if (args.contains(QLatin1String("--tray-only"))) return "tray";
     return "show";
 }
 
@@ -99,6 +103,15 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     if (server->listen(serverName))
         return server;
 
+    // Serialize the recovery below across near-simultaneous spawns (autostart
+    // plus a compositor-keybind `unisic --region`): unguarded, one process can
+    // removeServer() — an unconditional unlink — the socket another just
+    // bound, booting two full instances. QLockFile auto-breaks locks held by
+    // dead PIDs, so a crash mid-recovery can't wedge future launches; a failed
+    // tryLock (broken tmp) just degrades to the old unserialized behavior.
+    QLockFile recoveryLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
+    recoveryLock.tryLock(2000);
+
     // If a peer appeared between our probe and listen(), hand off to it — with
     // the REAL command, and signal main() to exit: continuing would boot a
     // duplicate instance with duplicate hotkey registrations (every press
@@ -112,6 +125,15 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     if (server->listen(serverName))
         return server;
 
+    // Still can't bind — most likely a live peer took the name meanwhile, so
+    // hand off instead of continuing as an unguarded duplicate. Only the
+    // genuinely environmental no-peer case (broken runtime dir) falls through
+    // to warn-and-continue.
+    if (notifyExistingInstance(serverName, command)) {
+        *handedOff = true;
+        delete server;
+        return nullptr;
+    }
     qWarning() << "Could not create single-instance server:" << server->errorString();
     delete server;
     return nullptr;
@@ -126,7 +148,7 @@ static void ensureDesktopFile()
     // Dev-run icon: hicolor lookup needs it on disk, not just in qrc.
     const QString iconDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
                             + QStringLiteral("/icons/hicolor/scalable/apps");
-    const QString iconTarget = iconDir + QStringLiteral("/org.unisic.Unisic.svg");
+    const QString iconTarget = iconDir + QStringLiteral("/app.unisic.Unisic.svg");
     const QString legacyIconTarget = iconDir + QStringLiteral("/unisic.svg");
     QDir().mkpath(iconDir);
     if (!QFile::exists(iconTarget))
@@ -135,14 +157,17 @@ static void ensureDesktopFile()
         QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), legacyIconTarget);
 
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
-    const QString target = dir + QStringLiteral("/org.unisic.Unisic.desktop");
+    const QString target = dir + QStringLiteral("/app.unisic.Unisic.desktop");
+    // Pre-rename installs dropped org.unisic.Unisic.desktop here; left behind
+    // it shows up as a second "Unisic" menu entry.
+    QFile::remove(dir + QStringLiteral("/org.unisic.Unisic.desktop"));
     // Quote per the Desktop Entry spec — an unquoted build path with spaces
     // yields an invalid entry and silently breaks ScreenShot2 authorization.
     QString execPath = QCoreApplication::applicationFilePath();
     execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
             .replace(QLatin1Char('"'), QLatin1String("\\\""));
     const QByteArray execLine = "Exec=\"" + execPath.toUtf8() + "\"\n";
-    const QByteArray iconLine = "Icon=org.unisic.Unisic\n";
+    const QByteArray iconLine = "Icon=app.unisic.Unisic\n";
     const QByteArray restrictedLine =
         "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
 
@@ -192,7 +217,7 @@ int main(int argc, char *argv[])
     app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
     app.setOrganizationName(QStringLiteral("Unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
-    app.setDesktopFileName(QStringLiteral("org.unisic.Unisic"));
+    app.setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 
@@ -257,6 +282,20 @@ int main(int argc, char *argv[])
     const bool dark = QGuiApplication::styleHints()
                       && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     QIcon::setFallbackThemeName(dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze"));
+    // Re-pin on runtime light/dark flips — a fallback frozen at startup keeps
+    // serving the old scheme's glyphs (dark-on-dark = invisible icons) even
+    // though ThemeController bumps rev and every icon re-fetches. Direct
+    // connection runs during signal emission, BEFORE ThemeController's queued
+    // rev bump, so the re-fetch resolves against the corrected fallback
+    // (setFallbackThemeName also flushes Qt's icon-loader cache).
+    if (auto *hints = QGuiApplication::styleHints()) {
+        QObject::connect(hints, &QStyleHints::colorSchemeChanged, &app,
+                         [](Qt::ColorScheme scheme) {
+            QIcon::setFallbackThemeName(scheme == Qt::ColorScheme::Dark
+                                            ? QStringLiteral("breeze-dark")
+                                            : QStringLiteral("breeze"));
+        });
+    }
 
     // The desktop file exists solely for KWin's ScreenShot2 authorization —
     // skip the app-grid pollution (with an Exec that goes stale on every
@@ -287,6 +326,11 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconImageProvider(nullptr));
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);
+    // Autostart path: `unisic --tray-only` boots straight into the tray with no
+    // main window (Main.qml binds `visible: !startHidden`). A manual `unisic`
+    // still shows the window. Set BEFORE load so there is no visible flash.
+    const bool trayOnly = args.contains(QLatin1String("--tray-only"));
+    engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), trayOnly);
     context.initialize(&engine);
 
     if (singleInstanceServer) {
@@ -304,6 +348,7 @@ int main(int argc, char *argv[])
                     else if (cmd == "region") context.captureRegion();
                     else if (cmd == "window") context.captureWindow();
                     else if (cmd == "gif") context.startGifRegion();
+                    else if (cmd == "tray") { /* already running — stay in tray */ }
                     else QMetaObject::invokeMethod(&context, "showMainWindowRequested",
                                                    Qt::QueuedConnection);
                     socket->disconnectFromServer();
@@ -326,6 +371,31 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
     });
+
+    // Safety net for --tray-only: if this desktop has no system-tray host AT ALL
+    // (GNOME without AppIndicator, bare wlroots), a hidden start would be
+    // unreachable, so reveal the window. But a cold-boot login — exactly when
+    // autostart fires — can take many seconds for plasmashell/waybar to register
+    // the StatusNotifier host, and setupTray()'s watcher waits for it. So DON'T
+    // reveal on a short fixed delay (that popped the window mid-login); use a
+    // generous deadline AND cancel it the moment a tray actually appears.
+    if (trayOnly && !context.trayAvailable()) {
+        auto *reveal = new QTimer(&context);
+        reveal->setSingleShot(true);
+        reveal->setInterval(30000);
+        QObject::connect(reveal, &QTimer::timeout, &context, [&context, reveal] {
+            reveal->deleteLater();
+            if (!context.trayAvailable())
+                QMetaObject::invokeMethod(&context, "showMainWindowRequested",
+                                          Qt::QueuedConnection);
+        });
+        // Tray showed up in time — no reveal needed.
+        QObject::connect(&context, &AppContext::trayAvailableChanged, reveal, [reveal] {
+            reveal->stop();
+            reveal->deleteLater();
+        });
+        reveal->start();
+    }
 
     return app.exec();
 }

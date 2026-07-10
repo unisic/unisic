@@ -1,5 +1,6 @@
 #include "HistoryStore.h"
 #include <QStandardPaths>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -8,29 +9,64 @@
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QSaveFile>
 #include <QUuid>
 #include <QSet>
+
+// Thumbnail scale in two steps: a cheap nearest-neighbour pass to ~2x the
+// target first, so the smooth pass works on ~0.5 MP instead of a full 8+ MP
+// capture (~10x cheaper on the GUI thread, visually identical at 480x300).
+// The guard keeps the fast pass downscale-only.
+static QImage makeThumb(const QImage &src)
+{
+    QImage s = src;
+    if (s.width() > 960 || s.height() > 600)
+        s = s.scaled(960, 600, Qt::KeepAspectRatio, Qt::FastTransformation);
+    return s.scaled(480, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+}
 
 HistoryStore::HistoryStore(QObject *parent) : QAbstractListModel(parent)
 {
     load();
+    sweepThumbs();
 
     // External-deletion sync: watch the directories the captures live in (a
     // handful even at 500 entries) rather than 500 individual files. Our own
-    // saves also fire directoryChanged, so validation is debounced and only
-    // does a cheap existence check.
+    // saves also fire directoryChanged, so validation is debounced, only does a
+    // cheap existence check, and only over entries in the dirs that changed.
     m_watcher = new QFileSystemWatcher(this);
     m_validateTimer.setSingleShot(true);
     m_validateTimer.setInterval(250);
     connect(&m_validateTimer, &QTimer::timeout, this, [this] {
-        pruneMissing();
+        // Swap first: events arriving during the prune re-arm cleanly.
+        const QSet<QString> dirs = std::move(m_changedDirs);
+        m_changedDirs.clear();
+        pruneMissing(&dirs);
         rebuildWatches();
     });
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, this,
-            [this] { m_validateTimer.start(); });
+            [this](const QString &dir) {
+        m_changedDirs.insert(dir);
+        m_validateTimer.start();
+    });
+
+    m_persistTimer.setSingleShot(true);
+    m_persistTimer.setInterval(500);
+    connect(&m_persistTimer, &QTimer::timeout, this, &HistoryStore::persistNow);
+    // A SIGTERM/logout kill skips destructors — flush pending writes on quit.
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
+        if (m_persistTimer.isActive())
+            persistNow();
+    });
 
     pruneMissing();   // catch deletions that happened while Unisic was closed
     rebuildWatches();
+}
+
+HistoryStore::~HistoryStore()
+{
+    if (m_persistTimer.isActive())
+        persistNow();
 }
 
 void HistoryStore::rebuildWatches()
@@ -53,7 +89,7 @@ void HistoryStore::rebuildWatches()
         m_watcher->addPaths(wanted);
 }
 
-void HistoryStore::pruneMissing()
+void HistoryStore::pruneMissing(const QSet<QString> *dirFilter)
 {
     // Batch: removeRow() persists + rebuilds watches per call — O(n²) after a
     // bulk external deletion. Walk back-to-front so removals don't shift the
@@ -61,7 +97,15 @@ void HistoryStore::pruneMissing()
     bool removed = false;
     for (int i = m_entries.size() - 1; i >= 0; --i) {
         const Entry &e = m_entries[i];
-        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)) {
+        if (dirFilter && !e.filePath.isEmpty()
+            && !dirFilter->contains(QFileInfo(e.filePath).absolutePath()))
+            continue;
+        // Missing file + present parent dir = actually deleted. If the whole
+        // directory is gone (unmounted removable/network volume) keep the
+        // entry — it revalidates on the next launch/change after remount
+        // instead of being destroyed while the capture file still exists.
+        if (!e.filePath.isEmpty() && !QFile::exists(e.filePath)
+            && QFileInfo(e.filePath).dir().exists()) {
             beginRemoveRows({}, i, i);
             QFile::remove(e.thumbPath);
             m_entries.removeAt(i);
@@ -73,6 +117,30 @@ void HistoryStore::pruneMissing()
         persist();
         rebuildWatches();
         emit countChanged();
+    }
+}
+
+void HistoryStore::sweepThumbs()
+{
+    // Crash reconciliation: thumb PNGs are written/deleted immediately while
+    // the JSON index is persisted up to 500 ms later, so a hard kill in that
+    // window leaves orphaned PNGs in thumbs/ (nothing else ever reclaims them)
+    // or entries pointing at an already-deleted thumb. Runs once at startup,
+    // before the model is exposed — no change notifications needed.
+    QSet<QString> referenced;
+    for (Entry &e : m_entries) {
+        if (e.thumbPath.isEmpty())
+            continue;
+        if (QFile::exists(e.thumbPath))
+            referenced.insert(QFileInfo(e.thumbPath).absoluteFilePath());
+        else
+            e.thumbPath.clear();   // dangling — show a clean no-thumb tile
+    }
+    const QFileInfoList thumbs = QDir(dataDir() + "/thumbs")
+        .entryInfoList({QStringLiteral("*.png")}, QDir::Files);
+    for (const QFileInfo &fi : thumbs) {
+        if (!referenced.contains(fi.absoluteFilePath()))
+            QFile::remove(fi.absoluteFilePath());
     }
 }
 
@@ -94,18 +162,26 @@ void HistoryStore::load()
     for (const auto &v : arr) {
         const QJsonObject o = v.toObject();
         m_entries.append({
+            m_nextId++, // runtime-only id; fresh every load
             o.value(QStringLiteral("file")).toString(),
             o.value(QStringLiteral("thumb")).toString(),
             o.value(QStringLiteral("url")).toString(),
             o.value(QStringLiteral("deleteUrl")).toString(),
             o.value(QStringLiteral("kind")).toString(QStringLiteral("image")),
             QDateTime::fromString(o.value(QStringLiteral("ts")).toString(), Qt::ISODate),
+            o.value(QStringLiteral("fav")).toBool(),
         });
     }
 }
 
 void HistoryStore::persist()
 {
+    m_persistTimer.start();   // coalesce bursts (addEntry + setUrl per capture)
+}
+
+void HistoryStore::persistNow()
+{
+    m_persistTimer.stop();
     QJsonArray arr;
     for (const Entry &e : m_entries) {
         arr.append(QJsonObject{
@@ -115,11 +191,16 @@ void HistoryStore::persist()
             {QStringLiteral("deleteUrl"), e.deleteUrl},
             {QStringLiteral("kind"), e.kind},
             {QStringLiteral("ts"), e.timestamp.toString(Qt::ISODate)},
+            {QStringLiteral("fav"), e.favorite},
         });
     }
-    QFile f(dataDir() + "/history.json");
-    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    // QSaveFile: atomic rename-replace — a crash mid-write can no longer
+    // truncate history.json to garbage.
+    QSaveFile f(dataDir() + "/history.json");
+    if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(arr).toJson(QJsonDocument::Compact));
+        f.commit();
+    }
 }
 
 int HistoryStore::rowCount(const QModelIndex &parent) const
@@ -139,6 +220,7 @@ QVariant HistoryStore::data(const QModelIndex &index, int role) const
     case DeleteUrlRole: return e.deleteUrl;
     case KindRole: return e.kind;
     case TimestampRole: return e.timestamp;
+    case FavoriteRole: return e.favorite;
     }
     return {};
 }
@@ -152,31 +234,40 @@ QHash<int, QByteArray> HistoryStore::roleNames() const
         {DeleteUrlRole, "deleteUrl"},
         {KindRole, "kind"},
         {TimestampRole, "timestamp"},
+        {FavoriteRole, "favorite"},
     };
 }
 
-void HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
-                            const QString &kind, const QString &url, const QString &deleteUrl)
+quint64 HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
+                               const QString &kind, const QString &url, const QString &deleteUrl)
 {
     QString thumbPath;
     if (!thumbSource.isNull()) {
         thumbPath = dataDir() + "/thumbs/" +
                     QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
-        thumbSource.scaled(480, 300, Qt::KeepAspectRatio, Qt::SmoothTransformation)
-            .save(thumbPath, "PNG");
+        makeThumb(thumbSource).save(thumbPath, "PNG");
     }
+    const quint64 id = m_nextId++;
     beginInsertRows({}, 0, 0);
-    m_entries.prepend({filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
+    m_entries.prepend({id, filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
     endInsertRows();
     while (m_entries.size() > 500) {
-        beginRemoveRows({}, m_entries.size() - 1, m_entries.size() - 1);
-        QFile::remove(m_entries.last().thumbPath);
-        m_entries.removeLast();
+        // Cap eviction spares favorites: evict the oldest non-favorite.
+        int victim = -1;
+        for (int i = m_entries.size() - 1; i >= 0; --i) {
+            if (!m_entries[i].favorite) { victim = i; break; }
+        }
+        if (victim < 0)
+            break; // everything is starred — let the list exceed the cap
+        beginRemoveRows({}, victim, victim);
+        QFile::remove(m_entries[victim].thumbPath);
+        m_entries.removeAt(victim);
         endRemoveRows();
     }
     persist();
     rebuildWatches();
     emit countChanged();
+    return id;
 }
 
 void HistoryStore::setUrl(const QString &filePath, const QString &url, const QString &deleteUrl)
@@ -190,6 +281,75 @@ void HistoryStore::setUrl(const QString &filePath, const QString &url, const QSt
             return;
         }
     }
+}
+
+bool HistoryStore::setUrlById(quint64 id, const QString &url, const QString &deleteUrl)
+{
+    // Attach an upload URL to exactly the capture's own entry: with several
+    // unsaved cards on screen a "newest pathless" heuristic would attach the
+    // URL to a different capture.
+    if (id == 0)
+        return false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].id == id) {
+            m_entries[i].url = url;
+            m_entries[i].deleteUrl = deleteUrl;
+            emit dataChanged(index(i), index(i), {UrlRole, DeleteUrlRole});
+            persist();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HistoryStore::setFilePathById(quint64 id, const QString &filePath)
+{
+    // The capture card's Save button persists an until-now unsaved capture:
+    // point its own entry (by id — see setUrlById) at the file so path-keyed
+    // lookups (Delete, upload URL) find it.
+    if (id == 0 || filePath.isEmpty())
+        return false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].id == id) {
+            m_entries[i].filePath = filePath;
+            emit dataChanged(index(i), index(i), {FilePathRole});
+            persist();
+            rebuildWatches();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HistoryStore::fileIsFavorite(const QString &filePath) const
+{
+    if (filePath.isEmpty())
+        return false;
+    for (const Entry &e : m_entries)
+        if (e.favorite && e.filePath == filePath)
+            return true;
+    return false;
+}
+
+void HistoryStore::refreshEntry(const QString &filePath, const QImage &img)
+{
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (m_entries[i].filePath != filePath)
+            continue;
+        const QString oldThumb = m_entries[i].thumbPath;
+        const QString newThumb = dataDir() + "/thumbs/" +
+                                 QUuid::createUuid().toString(QUuid::WithoutBraces) + ".png";
+        if (!img.isNull() && makeThumb(img).save(newThumb, "PNG")) {
+            m_entries[i].thumbPath = newThumb;
+            if (!oldThumb.isEmpty())
+                QFile::remove(oldThumb);
+        }
+        emit dataChanged(index(i), index(i), {ThumbnailRole});
+        persist();
+        return;
+    }
+    // File wasn't tracked (edited something outside history) — record it.
+    addEntry(filePath, img, QStringLiteral("image"));
 }
 
 void HistoryStore::removeRow(int row, bool trashFile)
@@ -207,14 +367,27 @@ void HistoryStore::removeRow(int row, bool trashFile)
     QFile::remove(e.thumbPath);
     m_entries.removeAt(row);
     endRemoveRows();
-    persist();
+    persistNow();   // explicit delete — never resurrectable by a crash
     rebuildWatches();
     emit countChanged();
 }
 
 void HistoryStore::remove(int row)
 {
+    // Starred entries are protected — the UI disables the button too, but the
+    // model is the actual gate (a favorite must be un-starred to be deleted).
+    if (row >= 0 && row < m_entries.size() && m_entries[row].favorite)
+        return;
     removeRow(row, /*trashFile=*/true);
+}
+
+void HistoryStore::setFavorite(int row, bool favorite)
+{
+    if (row < 0 || row >= m_entries.size() || m_entries[row].favorite == favorite)
+        return;
+    m_entries[row].favorite = favorite;
+    emit dataChanged(index(row), index(row), {FavoriteRole});
+    persist();
 }
 
 void HistoryStore::removeByFile(const QString &filePath)
@@ -223,6 +396,11 @@ void HistoryStore::removeByFile(const QString &filePath)
         return;
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].filePath == filePath) {
+            // Same gate as remove(): starred entries must be un-starred before
+            // they can be deleted — this path is reachable from the capture
+            // notification's Delete button, which has no favorite check.
+            if (m_entries[i].favorite)
+                return;
             removeRow(i, /*trashFile=*/true);
             return;
         }
@@ -231,12 +409,25 @@ void HistoryStore::removeByFile(const QString &filePath)
 
 void HistoryStore::clearAll()
 {
+    // Clears entries AND trashes their capture files (the History page shows a
+    // warning dialog first). Favorites survive untouched — entry and file.
+    // Trash, never hard-delete: recoverable, and failures are surfaced.
     beginResetModel();
-    for (const Entry &e : m_entries)
+    QVector<Entry> kept;
+    for (const Entry &e : m_entries) {
+        if (e.favorite) {
+            kept.append(e);
+            continue;
+        }
+        if (!e.filePath.isEmpty() && QFile::exists(e.filePath)) {
+            if (!QFile::moveToTrash(e.filePath))
+                emit fileTrashFailed(e.filePath);
+        }
         QFile::remove(e.thumbPath);
-    m_entries.clear();
+    }
+    m_entries = kept;
     endResetModel();
-    persist();
+    persistNow();   // explicit clear — flush immediately
     rebuildWatches(); // drop stale directory watches, they'd keep firing validations
     emit countChanged();
 }

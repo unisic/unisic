@@ -31,7 +31,7 @@ static void registerHostAppId()
         QStringLiteral("/org/freedesktop/portal/desktop"),
         QStringLiteral("org.freedesktop.host.portal.Registry"),
         QStringLiteral("Register"));
-    msg << QStringLiteral("org.unisic.Unisic") << QVariantMap{};
+    msg << QStringLiteral("app.unisic.Unisic") << QVariantMap{};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
 
@@ -52,7 +52,7 @@ static void grantSilentScreenshotPermission()
     if (!flatpakId.isEmpty())
         appIds << flatpakId;
     else
-        appIds << QStringLiteral("org.unisic.Unisic") << QString();
+        appIds << QStringLiteral("app.unisic.Unisic") << QString();
     for (const QString &appId : std::as_const(appIds)) {
         QDBusMessage msg = QDBusMessage::createMethodCall(
             QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
@@ -186,15 +186,18 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
     // ran as the primary (re-running it in the rescue would just repeat the
     // same deterministic failure and lose the primary's error).
     auto grimRescue = [this, cursor, cb, niri](const QString &prevErr, bool grimTried) {
-        if (grimTried || !GrimScreenshot::isAvailable()) {
+        // isX11Session() mirrors preferGrim(): a stale WAYLAND_DISPLAY in a
+        // genuine X11 session must not let the rescue capture ANOTHER
+        // session's compositor (see the comment above isX11Session()).
+        if (grimTried || isX11Session() || !GrimScreenshot::isAvailable()) {
             QString msg = prevErr;
             if (!GrimScreenshot::isAvailable()) {
                 // grim missing on a session where it is likely the ONLY
                 // working backend — say so.
                 if (niri)
-                    msg += QStringLiteral("; install 'grim' — niri's own screenshot D-Bus API "
-                                          "fails with more than one monitor (niri issue #117)");
-                else if (!isKdeSession() && !isGnomeSession()
+                    msg += QStringLiteral("; install 'grim', because niri's own screenshot D-Bus "
+                                          "API fails with more than one monitor (niri issue #117)");
+                else if (!isX11Session() && !isKdeSession() && !isGnomeSession()
                          && !qEnvironmentVariable("WAYLAND_DISPLAY").isEmpty())
                     msg += QStringLiteral("; installing 'grim' usually fixes capture on this "
                                           "desktop (wlr-screencopy works where portals don't)");
@@ -213,6 +216,9 @@ void CaptureManager::workspaceFallback(Callback cb, bool allowInteractive,
         m_portal->capture(false, [this, cursor, cb, prevErr, gnomeAvail, grimRescue, grimTried]
                           (const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
+            // User cancelled the interactive dialog: stop the chain and keep
+            // the bare "cancelled" so AppContext's toast suppression matches.
+            if (err == QLatin1String("cancelled")) { cb({}, err); return; }
             const QString labeled = QStringLiteral("portal: %1").arg(err);
             if (!gnomeAvail) { grimRescue(combinedError(prevErr, labeled), grimTried); return; }
             qWarning() << "Portal workspace capture failed, trying org.gnome.Shell.Screenshot:" << err;
@@ -276,6 +282,8 @@ void CaptureManager::captureWorkspace(Callback cb)
                         m_kwinDenied = true;
                     const QString kerr = QStringLiteral("KWin: %1").arg(err);
                     portalFallback([cb, kerr](const QImage &img, const QString &portalErr) {
+                        // Bare "cancelled" must survive uncombined for the toast suppression.
+                        if (portalErr == QLatin1String("cancelled")) { cb({}, portalErr); return; }
                         if (!portalErr.isEmpty()) { cb({}, combinedError(kerr, portalErr)); return; }
                         cb(img, {});
                     });
@@ -305,6 +313,8 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
                     // Portal returns the whole workspace: crop to the screen.
                     const QString kerr = QStringLiteral("KWin: %1").arg(err);
                     portalFallback([geom, cb, kerr](const QImage &full, const QString &e2) {
+                        // Bare "cancelled" must survive uncombined for the toast suppression.
+                        if (e2 == QLatin1String("cancelled")) { cb({}, e2); return; }
                         if (!e2.isEmpty()) { cb({}, combinedError(kerr, e2)); return; }
                         QImage crop = CaptureManager::cropForScreen(full, geom);
                         if (crop.isNull()) {
@@ -485,6 +495,12 @@ void CaptureManager::portalAllScreens(QVector<QPointer<QScreen>> screens, MultiC
     // previousError is prepended once here, so pass {} down to avoid double-nesting.
     workspaceFallback([geoms, cb, previousError](const QImage &full, const QString &err) {
         if (!err.isEmpty()) {
+            // User cancellation must reach the caller as the bare string —
+            // the toast suppression matches "cancelled" exactly.
+            if (err == QLatin1String("cancelled")) {
+                cb({}, err);
+                return;
+            }
             cb({}, combinedError(previousError, err));
             return;
         }
@@ -512,6 +528,9 @@ void CaptureManager::captureActiveWindow(Callback cb)
         m_portal->capture(true, [this, cursor, cb, prevErr, gnomeAvail]
                           (const QImage &img, const QString &portalErr) {
             if (portalErr.isEmpty()) { cb(img, {}); return; }
+            // User cancelled the window picker: keep the bare "cancelled"
+            // (exact match suppresses the error toast) and skip the rescue.
+            if (portalErr == QLatin1String("cancelled")) { cb({}, portalErr); return; }
             if (!gnomeAvail) { cb({}, combinedError(prevErr, portalErr)); return; }
             m_gnome->captureActiveWindow(cursor, [cb, prevErr, portalErr]
                                          (const QImage &gimg, const QString &gerr) {

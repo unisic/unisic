@@ -16,26 +16,11 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
 </p>
 
-<!-- Drop UI screenshots here, e.g.:
-<img src="docs/screenshots/editor.jpg" width="49%" alt="Unisic post-capture editor" />
-<img src="docs/screenshots/overlay.jpg" width="49%" alt="Unisic region overlay with annotation" />
--->
+<img src="docs/screenshots/capture.png" width="49%" alt="Unisic capture page" />
+<img src="docs/screenshots/record.png" width="49%" alt="Unisic screen recording page" />
+<img src="docs/screenshots/editor.png" width="98%" alt="Unisic post-capture editor" />
 
 </div>
-
-## Table of contents
-
-1. [What is Unisic](#what-is-unisic)
-2. [Early developer access](#early-developer-access)
-3. [Install](#install)
-4. [Updates](#updates)
-5. [Features](#features)
-6. [Default hotkeys](#default-hotkeys)
-7. [Build from source](#build-from-source)
-8. [Run](#run)
-9. [Configuration](#configuration)
-10. [niri and other wlroots compositors](#niri-and-other-wlroots-compositors)
-11. [Notes](#notes)
 
 ## What is Unisic
 
@@ -146,6 +131,6 @@ No arguments = background start with tray + main window. A second invocation for
 
 ## Notes
 
-- On first run Unisic installs `org.unisic.Unisic.desktop` into `~/.local/share/applications` (declares `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`) — this authorizes the silent KWin path. Without it captures still work through the portal.
+- On first run Unisic installs `app.unisic.Unisic.desktop` into `~/.local/share/applications` (declares `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2`) — this authorizes the silent KWin path. Without it captures still work through the portal.
 - Brand palette: `#17153B` · `#2E236C` · `#433D8B` · `#C8ACD6`.
 - License: **GNU GPL v3**.

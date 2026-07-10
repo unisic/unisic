@@ -113,7 +113,7 @@ Item {
                         width: parent.width; height: 44
                         Text {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Quality (CRF %1 — lower is better)").arg(App.settings.videoQuality)
+                            text: qsTr("Quality (CRF %1, lower is better)").arg(App.settings.videoQuality)
                             color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
                         USlider {
@@ -131,7 +131,7 @@ Item {
                         }
                         USpinBox {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 0; to: 3600; value: App.settings.videoMaxDurationSec; suffix: " s"
+                            from: 0; to: 3600; step: 10; value: App.settings.videoMaxDurationSec; suffix: " s"
                             onChanged: (v) => App.settings.videoMaxDurationSec = v
                         }
                     }

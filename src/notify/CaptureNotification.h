@@ -34,14 +34,22 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    QString kindText() const { return m_kind; }
+    QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
+    // The history entry created for this capture (0 = none). Save/upload use
+    // it to address exactly this entry — never "the newest pathless one".
+    quint64 historyId() const { return m_historyId; }
+    void setHistoryId(quint64 id) { m_historyId = id; }
 
     void setUrl(const QString &url);
     void setUploading(bool on);
 
     Q_INVOKABLE void edit();
+    Q_INVOKABLE void preview();       // open the floating pinnable preview window
     Q_INVOKABLE void copyImage();
     Q_INVOKABLE void copyUrl();
     Q_INVOKABLE void showInFolder();
+    Q_INVOKABLE void openCapture();   // open the saved file (saving first if needed)
     Q_INVOKABLE void save();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void deleteCapture();
@@ -59,6 +67,7 @@ private:
     QString m_kind;
     QString m_url;
     QString m_thumbSource;
-    QString m_thumbFile;    // cached on-disk thumbnail, removed in the destructor
+    QString m_thumbFile;
+    quint64 m_historyId = 0;    // cached on-disk thumbnail, removed in the destructor
     bool m_uploading = false;
 };

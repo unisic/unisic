@@ -14,6 +14,8 @@ Popup {
     property string cancelText: qsTr("Cancel")
     // Destructive actions get the danger colour on the confirm button.
     property bool destructive: false
+    // Info-only dialogs (e.g. settings help) hide the cancel button.
+    property bool showCancel: true
 
     signal accepted()
 
@@ -57,6 +59,7 @@ Popup {
             anchors.right: parent.right
             spacing: Theme.spacingS
             UButton {
+                visible: root.showCancel
                 text: root.cancelText
                 variant: "ghost"
                 compact: true

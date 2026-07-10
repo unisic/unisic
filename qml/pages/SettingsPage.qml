@@ -41,6 +41,19 @@ Item {
         }
         searchResults = out
     }
+    // Settings help: "?" badge click. Dialog shows the short summary first
+    // (the tooltip text, expanded), then the detailed explanation.
+    function showHelp(label, shortText, detail) {
+        helpDialog.title = label
+        helpDialog.text = shortText + (detail && detail.length > 0 ? "\n\n" + detail : "")
+        helpDialog.open()
+    }
+    UConfirmDialog {
+        id: helpDialog
+        showCancel: false
+        confirmText: qsTr("Close")
+    }
+
     function collectRows(obj, tabIdx, q, out) {
         if (!obj)
             return
@@ -127,6 +140,11 @@ Item {
         id: settingRow
         readonly property bool isSettingRow: true   // marker for the settings search
         property alias label: labelText.text
+        // "?" badge: `help` is the one-line summary (hover tooltip); clicking
+        // opens the in-app help dialog with `help` on top and `helpDetail`
+        // (the full explanation) below it. Rows without help show no badge.
+        property string help: ""
+        property string helpDetail: ""
         // Capability gating: unavailable options are greyed out (not hidden) with
         // a one-line reason, so a release build still shows what it can't do.
         property bool available: true
@@ -156,6 +174,50 @@ Item {
             anchors.top: parent.top
             width: childrenRect.width
             height: 44
+        }
+        Rectangle {
+            id: helpBadge
+            visible: settingRow.help !== ""
+            x: labelText.x + Math.min(labelText.implicitWidth, labelText.width) + 8
+            y: (44 - height) / 2
+            width: 16; height: 16; radius: 8
+            color: helpMouse.containsMouse ? Theme.accent : "transparent"
+            border.width: 1
+            border.color: helpMouse.containsMouse ? Theme.accent : Theme.textTertiary
+            z: 10
+            Text {
+                anchors.centerIn: parent
+                text: "?"
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
+                color: helpMouse.containsMouse ? Theme.textOnAccent : Theme.textTertiary
+            }
+            MouseArea {
+                id: helpMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.WhatsThisCursor
+                onClicked: page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail)
+            }
+            Rectangle {
+                visible: helpMouse.containsMouse
+                anchors.top: parent.bottom
+                anchors.topMargin: 6
+                width: Math.min(tipText.implicitWidth, 320) + 16
+                height: tipText.height + 12
+                radius: Theme.radiusM
+                color: Theme.tooltipBg
+                z: 1000
+                Text {
+                    id: tipText
+                    x: 8; y: 6
+                    width: Math.min(implicitWidth, 320)
+                    wrapMode: Text.WordWrap
+                    text: settingRow.help
+                    color: Theme.isDark ? "#FFFFFF" : Theme.textOnAccent
+                    font.pixelSize: 11
+                }
+            }
         }
         Text {
             id: hintLabel
@@ -408,10 +470,14 @@ Item {
                     SectionTitle { text: qsTr("General") }
                     SettingRow {
                         label: qsTr("Show notifications")
+                        help: qsTr("Master switch for all app notifications.")
+                        helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent — captures, uploads and errors produce no visual feedback outside the main window.")
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
                         label: qsTr("Show capture notification")
+                        help: qsTr("Shows a card with actions after every capture.")
+                        helpDetail: qsTr("The card gives quick access to Open, Copy, Upload and Delete for the capture you just took. On KDE/wlroots it is drawn as an always-on-top layer-shell card; elsewhere as a native desktop notification.")
                         USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
                     }
                     SettingRow {
@@ -422,6 +488,8 @@ Item {
                         hint: App.layerShellActive ? ""
                               : qsTr("Position is set by the system notification server here — this compositor has no layer-shell card to place.")
                         label: qsTr("Notification position")
+                        help: qsTr("Screen corner where the capture card appears.")
+                        helpDetail: qsTr("Only applies to the layer-shell card, which Unisic positions itself. Native desktop notifications are placed by the system notification server and ignore this.")
                         UComboBox {
                             width: 180
                             model: page.popupPosNames
@@ -433,20 +501,27 @@ Item {
                         visible: App.settings.showCapturePopup
                         height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Notification auto-hide (0 = keep open)")
+                        help: qsTr("How long the capture card stays on screen.")
+                        helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
                         USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Hide it during fullscreen / Do Not Disturb")
+                        help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
+                        helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
                         USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
                     }
                     SettingRow {
                         available: App.ocrAvailable
-                        hint: App.ocrAvailable
-                              ? (App.qrAvailable ? qsTr("OCR also scans QR codes — a code in the region copies its content instead.") : "")
+                        hint: App.ocrAvailable ? ""
                               : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
                         label: qsTr("OCR languages")
+                        help: qsTr("Tesseract language spec used when recognizing text.")
+                        helpDetail: (App.qrAvailable
+                                     ? qsTr("Combine languages with “+”, e.g. “pol+eng” — each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
+                                     : qsTr("Combine languages with “+”, e.g. “pol+eng” — each needs its Tesseract langpack installed."))
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
@@ -456,22 +531,32 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Closing the window minimizes to tray")
+                        help: qsTr("Close button hides to the tray instead of quitting.")
+                        helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
                         USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
                     }
                     SettingRow {
                         label: qsTr("Start at login (minimized to tray)")
+                        help: qsTr("Launches Unisic automatically when you log in.")
+                        helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
                         USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
                     }
                     SettingRow {
                         label: qsTr("Open file after saving")
+                        help: qsTr("Opens each capture in your image viewer after saving.")
+                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor — this simply opens the saved file.")
                         USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
                     }
                     SettingRow {
                         label: qsTr("Capture delay")
+                        help: qsTr("Waits this long before taking the capture.")
+                        helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
                         USpinBox { from: 0; to: 5000; value: App.settings.captureDelayMs; suffix: " ms"; onChanged: (v) => App.settings.captureDelayMs = v }
                     }
                     SettingRow {
                         label: qsTr("Include mouse cursor")
+                        help: qsTr("Draws the mouse pointer into the capture.")
+                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
                         USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
                     }
                 }
@@ -495,6 +580,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Image format")
+                        help: qsTr("File format for saved captures: PNG, JPEG or WebP.")
+                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. The format also applies to uploads and to the clipboard-encoded image where relevant.")
                         UComboBox {
                             width: 150
                             model: ["png", "jpg", "webp"]
@@ -504,6 +591,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Quality (JPEG/WebP): %1").arg(App.settings.imageQuality)
+                        help: qsTr("Compression quality for lossy formats.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this — it is always lossless.")
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -557,14 +646,17 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Copy image to clipboard")
+                        help: qsTr("Puts every capture on the clipboard automatically.")
+                        helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
                         USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
                     }
                     SettingRow {
                         label: qsTr("Grab Ctrl+C for 2s after a capture")
                         available: !App.settings.copyToClipboard
-                        hint: !App.settings.copyToClipboard
-                              ? qsTr("When auto-copy is off, press Ctrl+C within 2 seconds of a capture to copy it. KDE only.")
+                        hint: !App.settings.copyToClipboard ? ""
                               : qsTr("Not used while “Copy image to clipboard” is on — the capture is copied automatically anyway.")
+                        help: qsTr("Reflexive Ctrl+C right after a capture copies it.")
+                        helpDetail: qsTr("For 2 seconds after each capture, Ctrl+C is grabbed globally and copies the fresh capture to the clipboard (including the wl-copy mirror); afterwards the key returns to normal. KDE only — it needs KGlobalAccel's on-demand key grabbing.")
                         USwitch {
                             checked: App.settings.quickCopyAfterCapture
                             onToggled: (c) => App.settings.quickCopyAfterCapture = c
@@ -572,14 +664,20 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Save to disk automatically")
+                        help: qsTr("Saves every capture into your save folder without asking.")
+                        helpDetail: qsTr("Files are named from the filename template. When off, a capture exists only in the notification/editor until you save it explicitly.")
                         USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
                     }
                     SettingRow {
                         label: qsTr("Upload to the active destination")
+                        help: qsTr("Uploads every capture immediately after taking it.")
+                        helpDetail: qsTr("Uses the destination selected on the Destinations page. The result link can be auto-copied or opened via the options below.")
                         USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
                     }
                     SettingRow {
                         label: qsTr("Open the editor")
+                        help: qsTr("Opens every capture in the annotation editor.")
+                        helpDetail: qsTr("The editor never blocks other after-capture actions — saving, copying and uploading run independently at the same time.")
                         USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
                     }
                 }
@@ -593,10 +691,14 @@ Item {
                     SectionTitle { text: qsTr("After upload") }
                     SettingRow {
                         label: qsTr("Copy link to clipboard")
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.")
                         USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                     SettingRow {
                         label: qsTr("Open link in browser")
+                        help: qsTr("Opens the uploaded file's URL in your browser.")
+                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
                         USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
                     }
                 }
@@ -626,6 +728,8 @@ Item {
                     SectionTitle { text: qsTr("Appearance") }
                     SettingRow {
                         label: qsTr("Theme")
+                        help: qsTr("Color theme for the whole app.")
+                        helpDetail: qsTr("“System” follows your desktop's light/dark scheme live; the other entries are fixed palettes. Windows, cards and the editor all re-theme instantly.")
                         UComboBox {
                             width: 220
                             model: page.themeNames
@@ -651,6 +755,8 @@ Item {
                     SectionTitle { text: qsTr("Window decoration") }
                     SettingRow {
                         label: qsTr("Use system window decoration")
+                        help: qsTr("Uses the desktop's normal title bar and borders.")
+                        helpDetail: qsTr("When off, Unisic draws its own frameless chrome. Turn this on if window dragging/snapping misbehaves on your compositor.")
                         USwitch { checked: App.settings.useSystemDecoration; onToggled: (c) => App.settings.useSystemDecoration = c }
                     }
                     Text {
@@ -795,6 +901,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Icon style")
+                        help: qsTr("Icon set used by the editor toolbars.")
+                        helpDetail: qsTr("“System” takes icons from your desktop icon theme (with Breeze as fallback); “custom” uses the bundled monochrome set that follows the app theme.")
                         UComboBox {
                             width: 220
                             model: [qsTr("Custom (bundled)"), qsTr("System (desktop theme)")]
@@ -867,6 +975,8 @@ Item {
                     SectionTitle { text: qsTr("Editor defaults") }
                     SettingRow {
                         label: qsTr("Stroke color")
+                        help: qsTr("Default color for new annotations.")
+                        helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
                         Row {
                             spacing: 6
                             ColorDot { dotColor: "#FF4757"; active: App.settings.editorStrokeColor.toLowerCase() === "#ff4757"; onClicked: App.settings.editorStrokeColor = "#FF4757" }
@@ -878,10 +988,14 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Stroke width")
+                        help: qsTr("Default line thickness for annotations.")
+                        helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
                         USpinBox { from: 1; to: 16; value: App.settings.editorStrokeWidth; suffix: " px"; onChanged: (v) => App.settings.editorStrokeWidth = v }
                     }
                     SettingRow {
                         label: qsTr("Text size")
+                        help: qsTr("Default font size for the text tool.")
+                        helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
                         USpinBox { from: 10; to: 72; value: App.settings.editorFontSize; suffix: " px"; onChanged: (v) => App.settings.editorFontSize = v }
                     }
                 }
@@ -895,6 +1009,8 @@ Item {
                     SectionTitle { text: qsTr("Capture overlay") }
                     SettingRow {
                         label: qsTr("Toolbar position")
+                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
+                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge — useful when it keeps covering what you select.")
                         UComboBox {
                             width: 200
                             model: page.toolbarPosNames
@@ -904,6 +1020,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Show alignment guides while selecting")
+                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
+                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual — never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
                 }
@@ -968,14 +1086,20 @@ Item {
                     SectionTitle { text: qsTr("Recording") }
                     SettingRow {
                         label: qsTr("GIF frame rate")
+                        help: qsTr("Frames per second sampled into the GIF.")
+                        helpDetail: qsTr("Higher is smoother but grows the file quickly. 10–15 fps is usually plenty for UI demos.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
                         label: qsTr("GIF max duration (0 = unlimited)")
+                        help: qsTr("Auto-stops GIF recording after this many seconds.")
+                        helpDetail: qsTr("A safety cap — GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
                         USpinBox { from: 0; to: 600; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
                     }
                     SettingRow {
                         label: qsTr("GIF quality")
+                        help: qsTr("Color fidelity of the generated GIF.")
+                        helpDetail: qsTr("Higher quality uses a richer palette (two-pass palettegen) at the cost of file size and conversion time.")
                         UComboBox {
                             width: 180
                             model: [qsTr("Fast / small"), qsTr("Balanced"), qsTr("Best")]
@@ -985,6 +1109,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("MP4 frame rate")
+                        help: qsTr("Frames per second for video recordings.")
+                        helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
                     }
                 }
@@ -998,10 +1124,14 @@ Item {
                     SectionTitle { text: qsTr("Audio") }
                     SettingRow {
                         label: qsTr("Record system audio")
+                        help: qsTr("Captures what you hear (system output) into video recordings.")
+                        helpDetail: qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
                     }
                     SettingRow {
                         label: qsTr("Record microphone")
+                        help: qsTr("Captures your microphone into video recordings.")
+                        helpDetail: qsTr("Uses the default input device. Mixed with system audio when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
                     }
                     Text {
@@ -1071,31 +1201,43 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Full screen")
+                        help: qsTr("Hotkey: capture all monitors at once.")
+                        helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyFullScreen; onRecorded: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") } }
                     }
                     SettingRow {
                         label: qsTr("Region")
+                        help: qsTr("Hotkey: capture a selected region.")
+                        helpDetail: qsTr("Opens the selection overlay with annotation tools — draw on the frozen screen before the capture is finalized.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRegion; onRecorded: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") } }
                     }
                     SettingRow {
                         label: qsTr("Window")
+                        help: qsTr("Hotkey: capture a single window.")
+                        helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyWindow; onRecorded: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") } }
                     }
                     SettingRow {
                         label: qsTr("Video start/stop")
+                        help: qsTr("Hotkey: toggle video recording.")
+                        helpDetail: qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyRecord; onRecorded: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") } }
                     }
                     SettingRow {
                         label: qsTr("GIF start/stop")
+                        help: qsTr("Hotkey: toggle GIF recording.")
+                        helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyGif; onRecorded: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") } }
                     }
                     SettingRow {
                         label: qsTr("OCR region (copy text)")
                         available: App.ocrAvailable
-                        hint: App.ocrAvailable
-                              ? (App.qrAvailable ? qsTr("Select a region — recognized text lands in the clipboard. QR codes are read too (their content is copied).")
-                                                 : qsTr("Select a region — recognized text lands in the clipboard."))
+                        hint: App.ocrAvailable ? ""
                               : qsTr("OCR is not built in — install tesseract and a language pack, then rebuild.")
+                        help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
+                        helpDetail: (App.qrAvailable
+                                     ? qsTr("Opens the region selector and runs OCR on the crop — nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                                     : qsTr("Opens the region selector and runs OCR on the crop — nothing is saved and no notification is shown; the recognized text is simply copied."))
                         UShortcutRecorder { width: 220; shortcut: App.settings.hotkeyOcr; onRecorded: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") } }
                     }
                     UButton {
@@ -1146,16 +1288,22 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Native notifications")
+                        help: qsTr("Whether a desktop notification server is available.")
+                        helpDetail: qsTr("Detected from org.freedesktop.Notifications on the session bus. Without it (e.g. bare Sway) capture cards need the layer-shell path instead.")
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
                                color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Custom card (layer-shell)")
+                        help: qsTr("Whether the compositor supports wlr-layer-shell surfaces.")
+                        helpDetail: qsTr("Layer-shell powers the always-on-top capture card, the selection overlay above fullscreen apps and the pinned preview. KWin, wlroots and COSMIC have it; GNOME does not.")
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
                                color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Recording border")
+                        help: qsTr("Whether a border can be drawn around the recorded region.")
+                        helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself.")
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }

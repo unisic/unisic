@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.3
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -69,5 +69,8 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/org.unisic.Unisic.svg
 
 %changelog
+* Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.3.1-1
+- Add Unisic to COPR (dnf install/upgrade).
+
 * Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.3-1
 - Initial COPR package.

@@ -267,6 +267,9 @@ private:
     // Query each action's live daemon binding; with heal, re-assert stored
     // keys on actions the daemon reports unbound. Lines for smoke/dev output.
     QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // Windows (editor/preview) opened while the smoke test runs — the final
+    // step closes them so F8 leaves no manual cleanup behind.
+    QVector<QPointer<QQuickWindow>> m_smokeWindows;
     // Export -> verify all properties serialized -> import back. Returns a
     // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
     QString settingsRoundTripCheck();

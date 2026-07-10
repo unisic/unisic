@@ -1,5 +1,6 @@
 #include "ObjectDetector.h"
 #include <QImage>
+#include <QDebug>
 #include <QStack>
 #include <algorithm>
 #include <cmath>
@@ -42,17 +43,77 @@ int snapLine(const QImage &gray, bool vertical, int pos, int pad, int spanA, int
 
 } // namespace
 
+namespace {
+
+struct Seg { int pos; int a; int b; }; // line at `pos`, spanning [a, b]
+
+// Long straight runs of orientation-dominant edge pixels — the borders of
+// windows, panels, cards and buttons. Small gaps are bridged (title-bar
+// buttons, tab separators cut through a border line).
+QVector<Seg> extractSegments(const QVector<uchar> &mask, int w, int h,
+                             bool horizontal, int minLen, int maxGap)
+{
+    QVector<Seg> out;
+    const int lines = horizontal ? h : w;
+    const int span = horizontal ? w : h;
+    for (int l = 0; l < lines; ++l) {
+        int runStart = -1, lastHit = -1;
+        for (int c = 0; c <= span; ++c) {
+            const bool hit = c < span
+                && mask[horizontal ? l * w + c : c * w + l];
+            if (hit) {
+                if (runStart < 0)
+                    runStart = c;
+                lastHit = c;
+            } else if (runStart >= 0 && (c - lastHit > maxGap || c == span)) {
+                if (lastHit - runStart + 1 >= minLen)
+                    out.append({l, runStart, lastHit});
+                runStart = -1;
+            }
+        }
+    }
+    return out;
+}
+
+// Thick (anti-aliased / shadowed) borders yield the same segment on 2-3
+// adjacent lines — keep the longest of each cluster.
+QVector<Seg> mergeCollinear(QVector<Seg> segs)
+{
+    std::sort(segs.begin(), segs.end(), [](const Seg &x, const Seg &y) {
+        return (x.b - x.a) > (y.b - y.a);
+    });
+    QVector<Seg> kept;
+    for (const Seg &s : std::as_const(segs)) {
+        bool dup = false;
+        for (const Seg &k : std::as_const(kept)) {
+            if (std::abs(k.pos - s.pos) > 2)
+                continue;
+            const int ov = std::min(k.b, s.b) - std::max(k.a, s.a) + 1;
+            if (ov > 0 && ov >= (s.b - s.a + 1) * 7 / 10) { dup = true; break; }
+        }
+        if (!dup)
+            kept.append(s);
+    }
+    return kept;
+}
+
+} // namespace
+
 QVector<QRect> ObjectDetector::detect(const QImage &src)
 {
-    QVector<QRect> result;
+    struct Scored { QRect r; double q; };
+    QVector<Scored> scored;
     if (src.isNull() || src.width() < 16 || src.height() < 16)
-        return result;
+        return {};
 
-    // 1. Downscale for speed — to 1024, not 640: on a 2560-wide screen the old
-    //    ceiling meant 4x scale, so every edge was up to ±4 real px off and
-    //    anything under ~96 px fell below minSide. Detection stays off the GUI
-    //    thread, so the ~2.5x extra work is invisible; a full-res grayscale is
-    //    kept for the edge-snap refinement pass at the end.
+    // UI elements are axis-aligned rectangles whose borders are long straight
+    // lines. Connected-component blobs fail on a real desktop — tiled windows
+    // share borders, so every outline merges into one screen-sized component.
+    // Instead: find long horizontal/vertical edge segments, hypothesize rects
+    // from (left,right)x(top,bottom) line pairs, and keep the hypotheses whose
+    // four sides are actually traced by edges.
+
+    // 1. Downscaled grayscale for analysis; full-res kept for edge snapping.
     const int maxDim = 1024;
     const int longest = std::max(src.width(), src.height());
     const double scale = longest > maxDim ? double(longest) / maxDim : 1.0;
@@ -65,139 +126,215 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
                             : grayFull;
     const int w = gray.width();
     const int h = gray.height();
-    if (w < 3 || h < 3)
-        return result;
+    if (w < 8 || h < 8)
+        return {};
 
     auto px = [&](int x, int y) -> int { return gray.constScanLine(y)[x]; };
 
-    // 2. Sobel gradient magnitude + running mean/stddev for an adaptive threshold.
-    QVector<int> mag(w * h, 0);
-    double sum = 0.0, sumSq = 0.0;
-    for (int y = 1; y < h - 1; ++y) {
-        for (int x = 1; x < w - 1; ++x) {
-            const int gx = -px(x-1,y-1) - 2*px(x-1,y) - px(x-1,y+1)
-                           + px(x+1,y-1) + 2*px(x+1,y) + px(x+1,y+1);
-            const int gy = -px(x-1,y-1) - 2*px(x,y-1) - px(x+1,y-1)
-                           + px(x-1,y+1) + 2*px(x,y+1) + px(x+1,y+1);
-            const int m = std::abs(gx) + std::abs(gy);
-            mag[y*w + x] = m;
-            sum += m;
-            sumSq += double(m) * m;
+    // 2. Sobel, orientation-split: a pixel belongs to a horizontal border when
+    //    the vertical gradient dominates, and vice versa. Adaptive threshold
+    //    from the combined magnitude (mean + sigma).
+    QVector<uchar> hEdge(w * h, 0), vEdge(w * h, 0);
+    {
+        QVector<int> gxs(w * h, 0), gys(w * h, 0);
+        double sum = 0.0, sumSq = 0.0;
+        for (int y = 1; y < h - 1; ++y) {
+            for (int x = 1; x < w - 1; ++x) {
+                const int gx = -px(x-1,y-1) - 2*px(x-1,y) - px(x-1,y+1)
+                               + px(x+1,y-1) + 2*px(x+1,y) + px(x+1,y+1);
+                const int gy = -px(x-1,y-1) - 2*px(x,y-1) - px(x+1,y-1)
+                               + px(x-1,y+1) + 2*px(x,y+1) + px(x+1,y+1);
+                gxs[y*w + x] = std::abs(gx);
+                gys[y*w + x] = std::abs(gy);
+                const int m = std::abs(gx) + std::abs(gy);
+                sum += m;
+                sumSq += double(m) * m;
+            }
+        }
+        const double n = double((w - 2) * (h - 2));
+        const double mean = sum / n;
+        const double var = std::max(0.0, sumSq / n - mean * mean);
+        // Clamp BOTH ends: mean+sigma explodes when part of the screen is
+        // high-contrast content (a video/photo), which starved every subtle
+        // UI border elsewhere of edge pixels — a panel edge of ~20 gray
+        // levels is mag ~80, so the usable band is narrow.
+        const int thresh = std::clamp(int(mean + std::sqrt(var)), 24, 110);
+        if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG"))
+            qInfo() << "det: mean" << mean << "sigma" << std::sqrt(var) << "thresh" << thresh;
+        for (int i = 0; i < w * h; ++i) {
+            // Soft dominance (2x): where a horizontal divider CROSSES a
+            // vertical border both gradients spike — strict dominance would
+            // punch a hole into one of the lines at every crossing and chop
+            // long borders into sub-minLen pieces.
+            hEdge[i] = gys[i] > thresh && gys[i] * 2 >= gxs[i] ? 1 : 0;
+            vEdge[i] = gxs[i] > thresh && gxs[i] * 2 >= gys[i] ? 1 : 0;
         }
     }
-    const double n = double((w - 2) * (h - 2));
-    const double mean = sum / n;
-    const double var = std::max(0.0, sumSq / n - mean * mean);
-    const int thresh = int(mean + std::sqrt(var));
 
-    // 3. Binary edge map, then a single 3x3 dilation to bridge 1px gaps so an
-    //    object's outline reads as one connected component. The RAW map is
-    //    kept: the rectangularity filter below must measure the true outline,
-    //    not the dilated smear.
-    QVector<uchar> edge(w * h, 0);
-    for (int i = 0; i < w * h; ++i)
-        edge[i] = mag[i] > thresh ? 1 : 0;
-    QVector<uchar> dil(w * h, 0);
-    for (int y = 0; y < h; ++y)
-        for (int x = 0; x < w; ++x) {
-            if (!edge[y*w + x]) continue;
-            for (int dy = -1; dy <= 1; ++dy)
-                for (int dx = -1; dx <= 1; ++dx) {
-                    const int nx = x + dx, ny = y + dy;
-                    if (nx >= 0 && nx < w && ny >= 0 && ny < h)
-                        dil[ny*w + nx] = 1;
-                }
-        }
+    // 3. Long segments (border candidates), deduped across line thickness and
+    //    capped by length so text rows can't flood the pair search.
+    const int minSide = 20;                 // downscaled px (~50 real at 2560)
+    QVector<Seg> hSegs = mergeCollinear(extractSegments(hEdge, w, h, true, minSide, 3));
+    QVector<Seg> vSegs = mergeCollinear(extractSegments(vEdge, w, h, false, minSide, 3));
+    const int cap = 160;
+    if (hSegs.size() > cap) hSegs.resize(cap); // mergeCollinear left them length-sorted
+    if (vSegs.size() > cap) vSegs.resize(cap);
+    // The image boundary is a border every screen-edge-touching window shares
+    // but no gradient can ever mark — add the four boundary lines as virtual
+    // segments (their coverage checks below auto-pass).
+    vSegs.append({0, 0, h - 1});
+    vSegs.append({w - 1, 0, h - 1});
+    hSegs.append({0, 0, w - 1});
+    hSegs.append({h - 1, 0, w - 1});
 
-    // Fraction of one bbox side covered by RAW edge pixels (±1 px band).
-    auto sideCoverage = [&](int x0, int x1, int y0, int y1, bool horizontal) -> double {
-        int hits = 0, len = 0;
-        if (horizontal) {
-            const int y = y0;
-            for (int x = x0; x <= x1; ++x, ++len)
-                for (int dy = -1; dy <= 1; ++dy) {
-                    const int yy = y + dy;
-                    if (yy >= 0 && yy < h && edge[yy*w + x]) { ++hits; break; }
-                }
-        } else {
-            const int x = x0;
-            for (int y = y0; y <= y1; ++y, ++len)
-                for (int dx = -1; dx <= 1; ++dx) {
-                    const int xx = x + dx;
-                    if (xx >= 0 && xx < w && edge[y*w + xx]) { ++hits; break; }
-                }
+    if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG"))
+        qInfo() << "det: img" << w << "x" << h << "scale" << scale
+                 << "hSegs" << hSegs.size() << "vSegs" << vSegs.size();
+
+    // 4. Per-row/per-column prefix sums for O(1) side-coverage checks.
+    QVector<int> hPre((w + 1) * h, 0), vPre((h + 1) * w, 0);
+    for (int y = 0; y < h; ++y) {
+        int *row = hPre.data() + qsizetype(y) * (w + 1);
+        for (int x = 0; x < w; ++x)
+            row[x + 1] = row[x] + hEdge[y*w + x];
+    }
+    for (int x = 0; x < w; ++x) {
+        int *col = vPre.data() + qsizetype(x) * (h + 1);
+        for (int y = 0; y < h; ++y)
+            col[y + 1] = col[y] + vEdge[y*w + x];
+    }
+    // Coverage of a horizontal line at y over [x0,x1], best row in a ±2 band.
+    auto hCov = [&](int y, int x0, int x1) -> double {
+        double best = 0;
+        for (int dy = -2; dy <= 2; ++dy) {
+            const int yy = y + dy;
+            if (yy < 0 || yy >= h) continue;
+            const int *row = hPre.constData() + qsizetype(yy) * (w + 1);
+            best = std::max(best, double(row[x1 + 1] - row[x0]) / (x1 - x0 + 1));
         }
-        return len ? double(hits) / len : 0.0;
+        return best;
+    };
+    auto vCov = [&](int x, int y0, int y1) -> double {
+        double best = 0;
+        for (int dx = -2; dx <= 2; ++dx) {
+            const int xx = x + dx;
+            if (xx < 0 || xx >= w) continue;
+            const int *col = vPre.constData() + qsizetype(xx) * (h + 1);
+            best = std::max(best, double(col[y1 + 1] - col[y0]) / (y1 - y0 + 1));
+        }
+        return best;
+    };
+    // Boundary lines are always "covered" — the screen simply ends there.
+    auto hCovB = [&](int y, int x0, int x1) -> double {
+        return (y <= 1 || y >= h - 2) ? 1.0 : hCov(y, x0, x1);
+    };
+    auto vCovB = [&](int x, int y0, int y1) -> double {
+        return (x <= 1 || x >= w - 2) ? 1.0 : vCov(x, y0, y1);
     };
 
-    // 4. Connected components (8-connectivity); a component's bounding box
-    //    approximates the object it outlines. UI elements are axis-aligned
-    //    RECTANGLES though — so a bbox only survives if its perimeter is
-    //    actually traced by edges (per-side coverage), which kills the sloppy
-    //    merged-content blobs that used to produce arbitrary boxes.
-    QVector<uchar> seen(w * h, 0);
-    QStack<int> stack;
-    const int minSide = 16; // downscaled px (~40 real px at 2560-wide)
-    for (int start = 0; start < w * h; ++start) {
-        if (!dil[start] || seen[start])
-            continue;
-        int minx = w, miny = h, maxx = 0, maxy = 0;
-        stack.push(start);
-        seen[start] = 1;
-        while (!stack.isEmpty()) {
-            const int p = stack.pop();
-            const int x = p % w, y = p / w;
-            minx = std::min(minx, x); maxx = std::max(maxx, x);
-            miny = std::min(miny, y); maxy = std::max(maxy, y);
-            for (int dy = -1; dy <= 1; ++dy)
-                for (int dx = -1; dx <= 1; ++dx) {
-                    if (!dx && !dy) continue;
-                    const int nx = x + dx, ny = y + dy;
-                    if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
-                    const int np = ny*w + nx;
-                    if (dil[np] && !seen[np]) {
-                        seen[np] = 1;
-                        stack.push(np);
-                    }
-                }
+    // 5. Hypotheses: every (left,right) segment pair, with the horizontal
+    //    lines that span it as (top,bottom). All four sides must be traced
+    //    (coverage >= 0.55 — rounded corners and crossing content eat a bit).
+    const int tol = 4;
+    for (int i = 0; i < vSegs.size(); ++i) {
+        for (int j = 0; j < vSegs.size(); ++j) {
+            const Seg &L = vSegs[i];
+            const Seg &R = vSegs[j];
+            if (R.pos - L.pos < minSide)
+                continue;
+            const int yLo = std::max(L.a, R.a);
+            const int yHi = std::min(L.b, R.b);
+            if (yHi - yLo < minSide)
+                continue;
+            // Horizontal border candidates: a segment only nominates the Y —
+            // BOTH span checks run on COVERAGE (prefix sums), so a border
+            // chopped by buttons/tabs still counts, and a top/bottom line
+            // outside the V-segments' literal overlap is fine as long as the
+            // final vCovB validation reaches it (title bars break vertical
+            // borders into pieces shorter than the window).
+            QVector<int> tops;
+            for (const Seg &t : std::as_const(hSegs)) {
+                if (hCovB(t.pos, L.pos, R.pos) >= 0.50)
+                    tops.append(t.pos);
+            }
+            if (tops.size() < 2)
+                continue;
+            std::sort(tops.begin(), tops.end());
+            tops.erase(std::unique(tops.begin(), tops.end(),
+                                   [](int a, int b) { return b - a <= 2; }),
+                       tops.end());
+            if (tops.size() < 2)
+                continue;
+            // Bounded pair generation: the outer frame + adjacent bands.
+            QVector<QPair<int,int>> pairs;
+            pairs.append({tops.first(), tops.last()});
+            for (int k = 0; k + 1 < tops.size(); ++k)
+                pairs.append({tops[k], tops[k + 1]});
+            for (const auto &pr : std::as_const(pairs)) {
+                const int y0 = pr.first, y1 = pr.second;
+                if (y1 - y0 < minSide)
+                    continue;
+                const double cL = vCovB(L.pos, y0, y1);
+                const double cR = vCovB(R.pos, y0, y1);
+                if (cL < 0.50 || cR < 0.50)
+                    continue;
+                // Quality = side coverage, with image-boundary sides slightly
+                // discounted: a band that merely runs from screen edge to
+                // screen edge must lose a dedup against a window whose four
+                // sides are all REAL borders.
+                auto side = [](double cov, bool boundary) {
+                    return boundary ? cov * 0.8 : cov;
+                };
+                const double quality =
+                    side(cL, L.pos <= 1 || L.pos >= w - 2)
+                    + side(cR, R.pos <= 1 || R.pos >= w - 2)
+                    + side(hCovB(y0, L.pos, R.pos), y0 <= 1 || y0 >= h - 2)
+                    + side(hCovB(y1, L.pos, R.pos), y1 <= 1 || y1 >= h - 2);
+                QRect r(int(L.pos * scale), int(y0 * scale),
+                        int((R.pos - L.pos + 1) * scale), int((y1 - y0 + 1) * scale));
+                r = r.intersected(QRect(0, 0, src.width(), src.height()));
+                if (r.width() < 8 || r.height() < 8)
+                    continue;
+                // 6. Snap each side onto the strongest full-res gradient line.
+                // Snap interior sides to the strongest full-res gradient; a
+                // side ON the image boundary stays put (snapping would drag
+                // it onto the nearest content line).
+                const int pad = int(std::ceil(scale)) + 2;
+                const int margin = std::min(r.width(), r.height()) / 8;
+                const int fw = src.width(), fh = src.height();
+                const int nL = r.left() <= 2 ? r.left()
+                    : snapLine(grayFull, true,  r.left(),   pad, r.top() + margin,  r.bottom() - margin);
+                const int nR = r.right() >= fw - 3 ? r.right()
+                    : snapLine(grayFull, true,  r.right(),  pad, r.top() + margin,  r.bottom() - margin);
+                const int nT = r.top() <= 2 ? r.top()
+                    : snapLine(grayFull, false, r.top(),    pad, r.left() + margin, r.right() - margin);
+                const int nB = r.bottom() >= fh - 3 ? r.bottom()
+                    : snapLine(grayFull, false, r.bottom(), pad, r.left() + margin, r.right() - margin);
+                if (nR - nL >= 8 && nB - nT >= 8)
+                    r = QRect(QPoint(nL, nT), QPoint(nR, nB));
+                // Near-full-screen hypotheses would duplicate the explicit
+                // whole-image candidate appended below.
+                if (qint64(r.width()) * r.height()
+                    < qint64(src.width()) * src.height() * 96 / 100)
+                    scored.append({r, quality});
+            }
         }
-        const int bw = maxx - minx + 1, bh = maxy - miny + 1;
-        if (bw < minSide || bh < minSide) continue;
-        if (bw > w * 0.97 && bh > h * 0.97) continue; // whole screen added explicitly below
-        const double top    = sideCoverage(minx, maxx, miny, miny, true);
-        const double bottom = sideCoverage(minx, maxx, maxy, maxy, true);
-        const double left   = sideCoverage(minx, minx, miny, maxy, false);
-        const double right  = sideCoverage(maxx, maxx, miny, maxy, false);
-        const double avg = (top + bottom + left + right) / 4.0;
-        // Rounded corners and title-bar buttons eat a little coverage; real
-        // window/panel/card outlines still trace well over half their box.
-        if (avg < 0.55 || std::min(std::min(top, bottom), std::min(left, right)) < 0.30)
-            continue;
-
-        // 5. Map back to full resolution and snap each side onto the strongest
-        //    nearby gradient line — pixel-accurate borders instead of
-        //    scale-quantized ones.
-        QRect r(int(minx * scale), int(miny * scale), int(bw * scale), int(bh * scale));
-        r = r.intersected(QRect(0, 0, src.width(), src.height()));
-        if (r.width() < 8 || r.height() < 8)
-            continue;
-        const int pad = int(std::ceil(scale)) + 2;
-        const int margin = std::min(r.width(), r.height()) / 8;
-        const int newL = snapLine(grayFull, true,  r.left(),   pad, r.top() + margin,  r.bottom() - margin);
-        const int newR = snapLine(grayFull, true,  r.right(),  pad, r.top() + margin,  r.bottom() - margin);
-        const int newT = snapLine(grayFull, false, r.top(),    pad, r.left() + margin, r.right() - margin);
-        const int newB = snapLine(grayFull, false, r.bottom(), pad, r.left() + margin, r.right() - margin);
-        if (newR - newL >= 8 && newB - newT >= 8)
-            r = QRect(QPoint(newL, newT), QPoint(newR, newB));
-        result.append(r);
     }
 
-    // 6. Drop near-duplicates (IoU > 0.75), keeping the larger of each pair.
-    std::sort(result.begin(), result.end(), [](const QRect &a, const QRect &b) {
-        return qint64(a.width()) * a.height() > qint64(b.width()) * b.height();
+    if (qEnvironmentVariableIsSet("UNISIC_DET_DEBUG"))
+        qInfo() << "det: raw hypotheses" << scored.size();
+
+    // 7. Drop near-duplicates (IoU > 0.75). Priority is QUALITY, not size:
+    //    higher-scored (real-bordered, well-covered) hypotheses survive and
+    //    absorb their sloppier overlaps; ties go to the tighter rect.
+    std::sort(scored.begin(), scored.end(), [](const Scored &a, const Scored &b) {
+        if (a.q != b.q)
+            return a.q > b.q;
+        return qint64(a.r.width()) * a.r.height() < qint64(b.r.width()) * b.r.height();
     });
     QVector<QRect> merged;
-    for (const QRect &r : std::as_const(result)) {
+    for (const Scored &sc : std::as_const(scored)) {
+        const QRect &r = sc.r;
         bool dup = false;
         for (const QRect &m : std::as_const(merged)) {
             const QRect inter = r.intersected(m);
@@ -213,7 +350,7 @@ QVector<QRect> ObjectDetector::detect(const QImage &src)
             break; // hover does a linear scan per move — keep it bounded
     }
 
-    // 7. The whole image is always the outermost candidate: scrolling the
+    // 8. The whole image is always the outermost candidate: scrolling the
     //    nesting level up ends at "this entire screen".
     merged.append(QRect(0, 0, src.width(), src.height()));
 

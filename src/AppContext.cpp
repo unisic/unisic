@@ -775,6 +775,7 @@ void AppContext::runSmokeTest()
     m_smokeLog.clear();
     m_smokeIdx = 0;
     m_smokeSteps.clear();
+    m_smokeWindows.clear();
     smokeLog(QStringLiteral("=== Unisic smoke test ==="));
     emit smokeTestChanged();
 
@@ -832,7 +833,7 @@ void AppContext::runSmokeTest()
         t.fill(QColor(0x2E, 0x23, 0x6C));
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
-                 ? QStringLiteral("PASS (close the window manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -848,7 +849,7 @@ void AppContext::runSmokeTest()
         const int before = m_editorWindows;
         editFromHistory(p);
         smokeLog(QStringLiteral("edit from history: ") + (m_editorWindows > before
-                 ? QStringLiteral("PASS (overwrite editor — close manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS (overwrite editor)") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -870,7 +871,7 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         const bool ok = openPreview(devTestImage());
         smokeLog(QStringLiteral("preview window: ") + (ok
-                 ? QStringLiteral("PASS (close it manually)") : QStringLiteral("FAIL")));
+                 ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -1002,6 +1003,21 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("upload: SKIP — active destination '%1'; run a real upload manually")
                  .arg(m_settings->activeDestination()));
+        smokeNext();
+    });
+
+    // 7) cleanup: close every editor/preview window the run opened — F8 must
+    // verify and leave the desktop exactly as it found it.
+    m_smokeSteps.append([this] {
+        int closed = 0;
+        for (const QPointer<QQuickWindow> &w : std::as_const(m_smokeWindows)) {
+            if (w) {
+                w->close();
+                ++closed;
+            }
+        }
+        m_smokeWindows.clear();
+        smokeLog(QStringLiteral("cleanup: closed %1 test window(s)").arg(closed));
         smokeNext();
     });
 
@@ -1335,6 +1351,8 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
         ++m_editorWindows;
         emit editorWindowsOpenChanged();
+        if (m_smokeRunning)
+            m_smokeWindows.append(win); // auto-closed by the smoke test's last step
         connect(win, &QQuickWindow::visibleChanged, session, [this, session, win](bool v) {
             if (!v) {
                 win->deleteLater(); session->deleteLater(); scheduleMemoryTrim();
@@ -1427,6 +1445,8 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
         // Belt-and-braces for exit paths where visibleChanged(false) never
         // fires (deleteLater is idempotent-safe here: remove of a gone file).
         connect(win, &QObject::destroyed, qApp, [tmp] { QFile::remove(tmp); });
+        if (m_smokeRunning)
+            m_smokeWindows.append(win); // auto-closed by the smoke test's last step
         win->show();
         win->requestActivate();
         return;

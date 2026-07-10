@@ -15,7 +15,7 @@ Window {
                     Screen.desktopAvailableWidth * 0.9)
     height: Math.min(Math.max(minimumHeight,
                               canvas.imageSize.height / Screen.devicePixelRatio
-                              + topBar.height + bottomBar.height + 88),
+                              + topBar.height + bottomBar.height + 88 + chromeTop),
                      Screen.desktopAvailableHeight * 0.9)
     minimumWidth: 820
     minimumHeight: 480
@@ -23,6 +23,12 @@ Window {
     title: editorSession.overwriteMode ? qsTr("Unisic — Editing saved image")
                                        : qsTr("Unisic — Editor")
     color: Theme.background
+    // Same decoration policy as the main window: the stylized frameless title
+    // bar unless the user opted into system decorations (Appearance).
+    flags: App.settings.useSystemDecoration
+           ? Qt.Window
+           : (Qt.Window | Qt.FramelessWindowHint)
+    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
 
@@ -104,12 +110,76 @@ Window {
             e.accepted = true
         }
 
+        // ---------- custom title bar (frameless decoration) ----------
+        Rectangle {
+            id: editorTitleBar
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: editorWindow.chromeTop
+            visible: !App.settings.useSystemDecoration
+            z: 20
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            // Deferred startSystemMove past a drag threshold — same pattern
+            // (and reason) as Main.qml's title bar.
+            MouseArea {
+                anchors.fill: parent
+                property real pressX: 0
+                property real pressY: 0
+                property bool moving: false
+                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                onPositionChanged: (m) => {
+                    if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                        moving = true
+                        editorWindow.startSystemMove()
+                    }
+                }
+                onDoubleClicked: editorWindow.visibility === Window.Maximized
+                                 ? editorWindow.showNormal() : editorWindow.showMaximized()
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                anchors.verticalCenter: parent.verticalCenter
+                text: editorWindow.title
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontM
+                font.weight: Font.DemiBold
+            }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                UIconButton {
+                    iconName: "minus"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Minimize")
+                    onClicked: editorWindow.showMinimized()
+                }
+                UIconButton {
+                    iconName: "window"; iconSize: 13; width: 30; height: 30
+                    tooltip: qsTr("Maximize")
+                    onClicked: editorWindow.visibility === Window.Maximized
+                               ? editorWindow.showNormal() : editorWindow.showMaximized()
+                }
+                UIconButton {
+                    iconName: "close"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Close")
+                    onClicked: editorWindow.close()
+                }
+            }
+        }
+
         // ---------- top toolbar ----------
         // The two control groups live in a Flow: when the window is too narrow
         // for one row they wrap instead of overlapping, and the bar grows.
         Rectangle {
             id: topBar
             anchors.top: parent.top
+            anchors.topMargin: editorWindow.chromeTop + Theme.spacingM
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.margins: Theme.spacingM

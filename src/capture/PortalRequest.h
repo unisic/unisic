@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QVariantMap>
 #include <QDBusMessage>
+#include <QDBusConnection>
 #include <functional>
 
 // Helper implementing the xdg-desktop-portal Request pattern:
@@ -21,20 +22,27 @@ public:
     // name, so the service watcher never fires and the request-handle reply
     // already landed — nothing else would ever unwedge the callback. Pass 0 for
     // interactive dialogs, which legitimately stay open indefinitely.
+    // `bus` lets a caller route the request over a PRIVATE bus connection (the
+    // portal keys app identity per connection — see PortalGlobalShortcuts);
+    // the Response subscription and request path derive from that connection.
     static void send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent,
-                     int timeoutMs = 0);
+                     int timeoutMs = 0,
+                     const QDBusConnection &bus = QDBusConnection::sessionBus());
 
     // Generates a unique handle token and the request object path it maps to.
     static QString nextToken();
-    static QString expectedPath(const QString &token);
+    static QString expectedPath(const QString &token,
+                                const QDBusConnection &bus = QDBusConnection::sessionBus());
 
 private slots:
     void onResponse(uint code, const QVariantMap &results);
 
 private:
-    explicit PortalRequest(const QString &token, Callback cb, QObject *parent);
+    explicit PortalRequest(const QString &token, Callback cb, QObject *parent,
+                           const QDBusConnection &bus);
     void subscribe(const QString &path);
 
+    QDBusConnection m_bus;
     QString m_path;
     Callback m_cb;
 };

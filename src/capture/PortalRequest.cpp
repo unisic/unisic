@@ -16,17 +16,18 @@ QString PortalRequest::nextToken()
     return QStringLiteral("unisic_%1_%2").arg(QCoreApplication::applicationPid()).arg(++s_tokenCounter);
 }
 
-QString PortalRequest::expectedPath(const QString &token)
+QString PortalRequest::expectedPath(const QString &token, const QDBusConnection &bus)
 {
-    QString sender = QDBusConnection::sessionBus().baseService().mid(1); // strip ':'
+    QString sender = bus.baseService().mid(1); // strip ':'
     sender.replace(QLatin1Char('.'), QLatin1Char('_'));
     return QStringLiteral("/org/freedesktop/portal/desktop/request/%1/%2").arg(sender, token);
 }
 
-PortalRequest::PortalRequest(const QString &token, Callback cb, QObject *parent)
-    : QObject(parent), m_cb(std::move(cb))
+PortalRequest::PortalRequest(const QString &token, Callback cb, QObject *parent,
+                             const QDBusConnection &bus)
+    : QObject(parent), m_bus(bus), m_cb(std::move(cb))
 {
-    subscribe(expectedPath(token));
+    subscribe(expectedPath(token, m_bus));
     // If xdg-desktop-portal dies before emitting Response (crash/restart while
     // an interactive dialog is open), no signal ever arrives: the request — and
     // the capture-callback chain it captured — would sit on its long-lived
@@ -35,7 +36,7 @@ PortalRequest::PortalRequest(const QString &token, Callback cb, QObject *parent)
     // completion, so a race with a real Response/late error is harmless.
     // No timeout here — interactive portal dialogs legitimately stay open long.
     auto *w = new QDBusServiceWatcher(QStringLiteral("org.freedesktop.portal.Desktop"),
-                                      QDBusConnection::sessionBus(),
+                                      m_bus,
                                       QDBusServiceWatcher::WatchForUnregistration, this);
     connect(w, &QDBusServiceWatcher::serviceUnregistered, this, [this] {
         onResponse(2, {{QStringLiteral("error"),
@@ -46,22 +47,22 @@ PortalRequest::PortalRequest(const QString &token, Callback cb, QObject *parent)
 void PortalRequest::subscribe(const QString &path)
 {
     if (!m_path.isEmpty()) {
-        QDBusConnection::sessionBus().disconnect(
+        m_bus.disconnect(
             QStringLiteral("org.freedesktop.portal.Desktop"), m_path,
             QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
             this, SLOT(onResponse(uint, QVariantMap)));
     }
     m_path = path;
-    QDBusConnection::sessionBus().connect(
+    m_bus.connect(
         QStringLiteral("org.freedesktop.portal.Desktop"), m_path,
         QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
         this, SLOT(onResponse(uint, QVariantMap)));
 }
 
 void PortalRequest::send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent,
-                         int timeoutMs)
+                         int timeoutMs, const QDBusConnection &bus)
 {
-    auto *req = new PortalRequest(handleToken, std::move(cb), parent);
+    auto *req = new PortalRequest(handleToken, std::move(cb), parent, bus);
     if (timeoutMs > 0) {
         // Watchdog for NON-interactive requests: a hung (but not dead) portal
         // backend keeps its bus name and never emits Response, so neither the
@@ -75,7 +76,7 @@ void PortalRequest::send(QDBusMessage msg, const QString &handleToken, Callback 
                                  QStringLiteral("portal request timed out")}});
         });
     }
-    QDBusPendingCall call = QDBusConnection::sessionBus().asyncCall(msg);
+    QDBusPendingCall call = req->m_bus.asyncCall(msg);
     auto *watcher = new QDBusPendingCallWatcher(call, req);
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished, req, [req](QDBusPendingCallWatcher *w) {
         QDBusPendingReply<QDBusObjectPath> reply = *w;

@@ -104,9 +104,11 @@ class AppContext : public QObject
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
     // Baked in at compile time (CMake): semantic version + CI build number
-    // ("dev" for local builds). Shown in the sidebar footer.
+    // ("dev" for local builds) + git-commit date of the built state
+    // (YYYYMMDD-HHMM, empty when unknown). Shown in the sidebar footer.
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
+    Q_PROPERTY(QString buildDate READ buildDate CONSTANT)
 
 public:
     using UploadDone = std::function<void(const QString &url, const QString &error)>;
@@ -214,6 +216,9 @@ public:
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
     QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
+    // In the .cpp: the generated unisic_build_date.h changes on every commit —
+    // including it here would recompile every AppContext.h dependent each time.
+    QString buildDate() const;
 
     // Capture entry points (also bound to hotkeys and tray).
     Q_INVOKABLE void captureFullScreen();

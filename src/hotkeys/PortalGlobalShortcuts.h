@@ -3,6 +3,7 @@
 #include <QString>
 #include <QVector>
 #include <QVariantMap>
+#include <QDBusConnection>
 #include <QDBusObjectPath>
 #include <functional>
 
@@ -66,7 +67,18 @@ private:
     // Disconnect our Closed subscription for `handle` and Close() it so an
     // abandoned session (and its D-Bus match rule) does not leak daemon-side.
     void closeSession(const QString &handle);
+    // Registry.Register our desktop id as the FIRST call on m_bus (see the
+    // ctor comment for why identity needs a private connection).
+    void registerAppId();
 
+    // PRIVATE bus connection for everything this class does. The portal keys
+    // app identity per D-Bus connection, resolved and pinned at the FIRST
+    // portal call; on GNOME Qt's xdgdesktopportal platform theme reads the
+    // Settings portal during QGuiApplication construction, pinning the shared
+    // session bus to app id "" for terminal/AppImage launches — and GNOME's
+    // shortcuts provider DISCARDS BindShortcuts from an empty app id. A fresh
+    // connection whose first call is Registry.Register carries a real id.
+    QDBusConnection m_bus;
     QString m_sessionHandle; // object path string from the CreateSession response
     bool m_signalConnected = false;
     bool m_sessionPending = false; // CreateSession round-trip in flight

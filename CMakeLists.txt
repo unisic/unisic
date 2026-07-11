@@ -83,6 +83,19 @@ target_compile_definitions(unisic PRIVATE
     UNISIC_VERSION="${UNISIC_VERSION_STRING}"
     UNISIC_BUILD="${UNISIC_BUILD}")
 
+# Exact git-commit date of the built state (YYYYMMDD-HHMM), regenerated at
+# BUILD time (a configure-time value would go stale across commits). See
+# cmake/BuildDate.cmake for the env fallback used by tarball (rpm/OBS) builds.
+add_custom_target(unisic_build_date
+    COMMAND ${CMAKE_COMMAND}
+        -DOUT=${CMAKE_CURRENT_BINARY_DIR}/unisic_build_date.h
+        -DSRC=${CMAKE_CURRENT_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildDate.cmake
+    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/unisic_build_date.h
+    COMMENT "Stamping build date")
+add_dependencies(unisic unisic_build_date)
+target_include_directories(unisic PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+
 # Developer build: exposes the F8 smoke-test hotkey and leaves compositor-capability
 # options editable in Settings. A CI build (UNISIC_BUILD carries a run number, not
 # "dev") defaults to a RELEASE build, where unsupported options are shown greyed-out

@@ -9,6 +9,7 @@
 #include <QDBusPendingCall>
 #include <QDBusPendingCallWatcher>
 #include <QDBusServiceWatcher>
+#include <QGuiApplication>
 #include <QKeySequence>
 #include <QDebug>
 
@@ -40,16 +41,34 @@ const QDBusArgument &operator>>(const QDBusArgument &a, PortalShortcutWire &s)
 }
 
 PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
-    : QObject(parent)
+    : QObject(parent),
+      // Private connection: the portal pins app identity per D-Bus connection
+      // at its first portal call. On GNOME, Qt's xdgdesktopportal platform
+      // theme calls the Settings portal (color scheme) during QGuiApplication
+      // construction, so the SHARED session bus is already associated with app
+      // id "" for terminal/AppImage launches by the time anything here runs —
+      // Registry.Register then fails ("Connection already associated") and
+      // gnome-control-center's GlobalShortcutsProvider DISCARDS BindShortcuts
+      // requests with an empty app id (Response code 2 → hotkey UI collapses
+      // to the compositor-binds card). A dedicated connection whose first call
+      // is Registry.Register always carries our real desktop id.
+      m_bus(QDBusConnection::connectToBus(QDBusConnection::SessionBus,
+                                          QStringLiteral("unisic-globalshortcuts")))
 {
     qDBusRegisterMetaType<PortalShortcutWire>();
     qDBusRegisterMetaType<QList<PortalShortcutWire>>();
+    if (!m_bus.isConnected()) {
+        qWarning() << "Private bus connection failed — global shortcuts on the shared one"
+                      " (GNOME may see an empty app id)";
+        m_bus = QDBusConnection::sessionBus();
+    }
+    registerAppId();
     // Session::Closed is NOT emitted when xdg-desktop-portal crashes — watch
     // the service owner too. Sessions are in-memory frontend objects: after a
     // restart the new daemon would never fire Activated for the old handle
     // (hotkeys silently dead while the app believes they work). Re-create and
     // re-bind; persisted grants make it prompt-free on KDE/GNOME.
-    auto *w = new QDBusServiceWatcher(PORTAL_SERVICE, QDBusConnection::sessionBus(),
+    auto *w = new QDBusServiceWatcher(PORTAL_SERVICE, m_bus,
                                       QDBusServiceWatcher::WatchForOwnerChange, this);
     // A crash/restart delivers TWO owner changes: (old, "") then ("", new).
     // The first must only invalidate the session (binding into a dying portal
@@ -69,7 +88,12 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
             }
             return;
         }
-        // Owner gained (restart's second event, or an atomic handover).
+        // Owner gained (restart's second event, or an atomic handover). The
+        // identity registry is in-memory portal-side: the new daemon has no
+        // association for this connection, so register again BEFORE anything
+        // else reaches it (even with no session to restore — the FIRST bind
+        // may still be ahead of us) or GNOME drops the bind (empty app id).
+        registerAppId();
         if (!m_needRebind && m_sessionHandle.isEmpty())
             return; // never had a session — nothing to restore
         m_needRebind = false;
@@ -80,18 +104,46 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
     });
 }
 
+void PortalGlobalShortcuts::registerAppId()
+{
+    if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
+        return; // sandboxed: identity comes from the sandbox metadata
+    // Must be the FIRST portal call on m_bus — the portal resolves and pins
+    // the sender's identity at its first portal interaction, and Register on
+    // an already-pinned connection fails. In-order dispatch (the Register
+    // handler is synchronous portal-side) means the calls that follow can be
+    // fired without awaiting this reply. Fails harmlessly on xdg-desktop-portal
+    // < 1.20 (no Registry) or when our .desktop file is not installed — the
+    // portal then falls back to cgroup detection (works for menu launches).
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        PORTAL_SERVICE, PORTAL_PATH,
+        QStringLiteral("org.freedesktop.host.portal.Registry"),
+        QStringLiteral("Register"));
+    msg << QGuiApplication::desktopFileName() << QVariantMap{};
+    auto *watcher = new QDBusPendingCallWatcher(m_bus.asyncCall(msg), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [](QDBusPendingCallWatcher *w) {
+        w->deleteLater();
+        if (w->isError())
+            qInfo() << "GlobalShortcuts app-id registration:" << w->error().message()
+                    << "— GNOME may refuse to bind for terminal launches";
+    });
+}
+
 void PortalGlobalShortcuts::probeInterface(QObject *ctx, std::function<void(bool)> done)
 {
     // Async probe (deliberately no isServiceRegistered pre-check: this call
     // D-Bus-ACTIVATES a not-yet-started portal), awaited
     // asynchronously — the blocking form stalled the GUI thread for however
-    // long D-Bus took to spin the portal up at cold session start.
+    // long D-Bus took to spin the portal up at cold session start. Generous
+    // timeout: at autostart the activation itself can take several seconds,
+    // and a timeout here permanently flips the hotkey UI to "unavailable".
     QDBusMessage msg = QDBusMessage::createMethodCall(
         PORTAL_SERVICE, PORTAL_PATH,
         QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
     msg << GS_IFACE << QStringLiteral("version");
     auto *watcher = new QDBusPendingCallWatcher(
-        QDBusConnection::sessionBus().asyncCall(msg, 3000), ctx);
+        QDBusConnection::sessionBus().asyncCall(msg, 15000), ctx);
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished, ctx,
                      [done = std::move(done)](QDBusPendingCallWatcher *w) {
         w->deleteLater();
@@ -209,7 +261,7 @@ void PortalGlobalShortcuts::createSession(const QVector<Shortcut> &shortcuts)
         m_sessionHandle = handle;
 
         if (!m_signalConnected) {
-            m_signalConnected = QDBusConnection::sessionBus().connect(
+            m_signalConnected = m_bus.connect(
                 PORTAL_SERVICE, PORTAL_PATH, GS_IFACE, QStringLiteral("Activated"),
                 this, SLOT(onActivated(QDBusObjectPath,QString,qulonglong,QVariantMap)));
             if (!m_signalConnected)
@@ -218,18 +270,18 @@ void PortalGlobalShortcuts::createSession(const QVector<Shortcut> &shortcuts)
         // A portal restart (crash, package upgrade) closes the session — the
         // hotkeys would silently die while the app still believes they work.
         // Re-create + re-bind transparently (persisted grants make it silent).
-        QDBusConnection::sessionBus().connect(
+        m_bus.connect(
             PORTAL_SERVICE, m_sessionHandle,
             QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
             this, SLOT(onSessionClosed()));
         bindNow(shortcuts);
-    }, this);
+    }, this, 0, m_bus);
 }
 
 void PortalGlobalShortcuts::onSessionClosed()
 {
     qWarning() << "GlobalShortcuts portal session closed (portal restart?) — re-binding";
-    QDBusConnection::sessionBus().disconnect(
+    m_bus.disconnect(
         PORTAL_SERVICE, m_sessionHandle,
         QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
         this, SLOT(onSessionClosed()));
@@ -245,14 +297,14 @@ void PortalGlobalShortcuts::closeSession(const QString &handle)
     // Drop our Closed subscription for this handle FIRST: neither the Close()
     // below nor a later backend Closed on this now-abandoned session must run
     // onSessionClosed() against a DIFFERENT (current) session handle.
-    QDBusConnection::sessionBus().disconnect(
+    m_bus.disconnect(
         PORTAL_SERVICE, handle,
         QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
         this, SLOT(onSessionClosed()));
     QDBusMessage msg = QDBusMessage::createMethodCall(
         PORTAL_SERVICE, handle,
         QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
-    QDBusConnection::sessionBus().asyncCall(msg);
+    m_bus.asyncCall(msg);
 }
 
 void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
@@ -297,9 +349,12 @@ void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
         }
         if (code != 0) {
             qWarning() << "GlobalShortcuts BindShortcuts failed (code" << code << ")";
-            // The session may be stale (portal restarted between binds):
-            // retry ONCE through a fresh session before reporting failure —
-            // a failure report flips the whole hotkey UI off for the run.
+            // The session may be stale (portal restarted between binds), or
+            // this was a re-bind on GNOME — the spec allows ONE BindShortcuts
+            // per session and xdg-desktop-portal-gnome enforces it ("Session
+            // already has bound shortcuts", code 2). Either way: retry ONCE
+            // through a fresh session before reporting failure — a failure
+            // report flips the whole hotkey UI off for the run.
             // Close the abandoned session first so neither it nor its Closed
             // match rule leaks daemon-side (a later Closed on it would else
             // disconnect the CURRENT session and trigger a spurious rebind).
@@ -328,7 +383,7 @@ void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
             arg.endArray();
         }
         emit bindFinished(true, triggers);
-    }, this);
+    }, this, 0, m_bus);
 }
 
 void PortalGlobalShortcuts::onActivated(const QDBusObjectPath &sessionHandle,

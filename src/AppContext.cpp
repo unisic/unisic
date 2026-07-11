@@ -37,6 +37,7 @@
 #include <QPointer>
 #include <QClipboard>
 #include <QQmlEngine>
+#include <QQmlApplicationEngine>
 #include <QTranslator>
 #include <QLibraryInfo>
 #include <QLocale>
@@ -104,8 +105,22 @@ AppContext::AppContext(QObject *parent)
                       : tr("Unisic %1 is available").arg(v));
     });
     connect(m_updater, &UpdateChecker::installed, this, [this](const QString &v) {
-        showToast(tr("Unisic %1 installed — restart Unisic to switch").arg(v));
         setupTray(); // the entry flips to "Restart to update"
+        if (tryUpdateRestart())
+            return;
+        // Busy right now — tell the user it's ready and keep retrying quietly
+        // until the app goes idle (recording over, editors closed, window
+        // hidden back into the tray).
+        showToast(tr("Unisic %1 installed — it will start on the next launch").arg(v));
+        if (!m_updateRestartTimer) {
+            m_updateRestartTimer = new QTimer(this);
+            m_updateRestartTimer->setInterval(60 * 1000);
+            connect(m_updateRestartTimer, &QTimer::timeout, this, [this] {
+                if (tryUpdateRestart())
+                    m_updateRestartTimer->stop();
+            });
+        }
+        m_updateRestartTimer->start();
     });
 
     connect(m_hotkeys, &GlobalHotkeys::activated, this, &AppContext::dispatchHotkey);
@@ -1019,6 +1034,59 @@ void AppContext::devTestUpdateAvailable()
     m_updater->simulateAvailable(QStringLiteral("99.0"));
 }
 
+void AppContext::devTestAutoRestart()
+{
+    if (!devBuild())
+        return;
+    const QString b = autoRestartBlockers();
+    showToast(b.isEmpty() ? tr("Dev: auto-restart gate: idle — an installed update would restart now")
+                          : tr("Dev: auto-restart gate: deferred (%1)").arg(b));
+}
+
+QString AppContext::autoRestartBlockers() const
+{
+    QStringList b;
+    if (recording() || m_converting)
+        b << tr("recording");
+    if (m_captureInFlight)
+        b << tr("capture in progress");
+    if (m_overlay && m_overlay->active())
+        b << tr("selection overlay open");
+    if (m_editorWindows > 0)
+        b << tr("editor windows open");
+    if (mainWindowVisible())
+        b << tr("main window visible");
+    return b.join(QStringLiteral(", "));
+}
+
+bool AppContext::mainWindowVisible() const
+{
+    // rootObjects() lives on QQmlApplicationEngine (what main() passes in).
+    auto *appEngine = qobject_cast<QQmlApplicationEngine *>(m_engine);
+    if (!appEngine)
+        return true; // can't tell — be conservative, block the restart
+    const QList<QObject *> roots = appEngine->rootObjects();
+    for (QObject *o : roots)
+        if (auto *w = qobject_cast<QQuickWindow *>(o))
+            return w->isVisible();
+    return true;
+}
+
+bool AppContext::tryUpdateRestart()
+{
+    if (!m_updater->restartPending())
+        return true; // nothing pending — also ends the retry timer
+    const QString blockers = autoRestartBlockers();
+    if (!blockers.isEmpty()) {
+        qInfo() << "Update restart deferred:" << blockers;
+        return false;
+    }
+    qInfo() << "Idle — restarting into the updated version";
+    // Idle implies the window is hidden in the tray: come back the same way.
+    m_updater->restartNow(true);
+    return true;
+}
+
 void AppContext::devTestU2Net()
 {
     if (!devBuild())
@@ -1788,6 +1856,10 @@ void AppContext::runSmokeTest()
                         && !UpdateVersion::isNewer(QStringLiteral("0.5.0"), QStringLiteral("0.5.1"));
         smokeLog(QStringLiteral("version compare: ")
                  + (cmpOk ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        const QString gate = autoRestartBlockers();
+        smokeLog(QStringLiteral("auto-restart gate: ")
+                 + (gate.isEmpty() ? QStringLiteral("idle")
+                                   : QStringLiteral("deferred (%1)").arg(gate)));
         m_updater->check(true, [this](const UpdateChecker::Result &r) {
             // Offline is a SKIP, not a FAIL — dev machines must keep a green run.
             smokeLog(QStringLiteral("update check: ")

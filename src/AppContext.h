@@ -174,6 +174,7 @@ public:
     Q_INVOKABLE void devTestLanguage();
     Q_INVOKABLE void devTestUpdateCheck();
     Q_INVOKABLE void devTestUpdateAvailable();
+    Q_INVOKABLE void devTestAutoRestart();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -360,6 +361,13 @@ private:
     QString settingsRoundTripCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
+    // Idle gate for the automatic post-update restart: empty = safe to
+    // restart, else a comma-joined list of what blocks it (recording, open
+    // editors, visible window…).
+    QString autoRestartBlockers() const;
+    bool mainWindowVisible() const;
+    // Restart into an installed update when idle; false = deferred.
+    bool tryUpdateRestart();
 
     // forceCopy: the overlay was confirmed with Ctrl+C (Spectacle semantics) —
     // copy to the clipboard even when auto-copy is off.
@@ -428,6 +436,7 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
+    QTimer *m_updateRestartTimer = nullptr; // retries the idle auto-restart
     // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K
     // QImage) — the "Copy last capture" hotkey decodes and copies it.
     QByteArray m_lastCaptureData;

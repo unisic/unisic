@@ -794,11 +794,13 @@ Item {
                             visible: !App.updater.canSelfUpdate
                             width: parent.width
                             wrapMode: Text.WordWrap
-                            text: App.updater.installKind === "flatpak"
-                                  ? qsTr("The Flatpak sandbox can't replace the app from inside — install the new bundle.")
-                                  : App.updater.installKind === "appimage"
-                                    ? qsTr("The AppImage location is read-only — it can't update itself from here.")
-                                    : qsTr("The update arrives through your package manager.")
+                            text: App.buildNumber === "dev"
+                                  ? qsTr("Self-update is disabled in dev builds.")
+                                  : App.updater.installKind === "flatpak"
+                                    ? qsTr("The Flatpak sandbox can't replace the app from inside — install the new bundle.")
+                                    : App.updater.installKind === "appimage"
+                                      ? qsTr("The AppImage location is read-only — it can't update itself from here.")
+                                      : qsTr("The update arrives through your package manager.")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
@@ -2004,6 +2006,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
                     }
                 }
             }

@@ -9,10 +9,16 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
 
-// Polls the GitHub releases feed for a newer version; on AppImage installs it
-// also downloads the new file and atomically swaps it over $APPIMAGE, no
-// interaction needed. Package installs (deb/rpm/arch/flatpak bundle) are
-// notify-only — replacing those needs the package manager. Owned by
+// Polls the GitHub releases feed for a newer version and installs it with no
+// interaction. Two self-update paths:
+//  - AppImage: download + atomic swap over $APPIMAGE.
+//  - Package installs (deb/rpm/arch): /usr/bin is root-owned, so the release's
+//    AppImage is downloaded and extracted ONCE (--appimage-extract, no FUSE)
+//    into <AppData>/updates/<version>/; a "current" pointer file makes the
+//    bootstrap in main() exec that copy on the next start. The package binary
+//    becomes a bootstrap until the distro package catches up, then the staging
+//    area is cleaned. No root, no package manager involved.
+// Flatpak stays notify-only (the sandbox can't replace itself). Owned by
 // AppContext, reached from QML as App.updater.
 class UpdateChecker : public QObject
 {
@@ -63,7 +69,9 @@ public:
 
     Q_INVOKABLE void checkNow() { check(true); }
     Q_INVOKABLE void downloadAndInstall();
-    Q_INVOKABLE void restartNow();
+    // trayOnly relaunches hidden — used by the idle auto-restart so an update
+    // applied while the app sits in the tray doesn't pop a window.
+    Q_INVOKABLE void restartNow(bool trayOnly = false);
 
     // manual=true keeps failures visible in statusText and never toasts;
     // an automatic check additionally emits updateFound (once per version).
@@ -88,10 +96,20 @@ private:
     // Canonicalized $APPIMAGE ("" when not an AppImage): launchers point the
     // variable at a symlink — the real file is what must be replaced.
     QString appImageTarget() const;
+    // <AppData>/updates — staged versions for package installs. The path
+    // composition must stay in sync with execStagedUpdate() in main.cpp.
+    QString stagingDir() const;
     void applyAutoPolicy();
     void handleCheckReply(QNetworkReply *reply, bool manual,
                           const std::function<void(const Result &)> &done);
     void setAvailable(bool available);
+    // Package-install second half: extract the downloaded AppImage into the
+    // staging dir and flip the "current" pointer the bootstrap reads.
+    void extractStagedAppImage(const QString &pkg);
+    // Remove stage dirs other than keepVersion (never the one we run from).
+    void pruneStages(const QString &keepVersion);
+    // Startup: drop stages the package version has caught up with.
+    void cleanStaleStage();
     QNetworkAccessManager *nam();
 
     Settings *m_settings;

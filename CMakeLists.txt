@@ -64,6 +64,13 @@ qt_add_executable(unisic
     src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
 )
 
+# qt_standard_project_setup bakes an $ORIGIN install-RPATH into the binary;
+# distro packages link system Qt so it is dead weight — and openSUSE's
+# rpmlint hard-fails the build on it (binary-or-shlib-defines-rpath).
+# Build-tree binaries keep their build RPATH, and linuxdeploy patches the
+# AppImage's own, so nothing else changes.
+set_target_properties(unisic PROPERTIES INSTALL_RPATH "")
+
 # Single source of the app version string, exported to C++ from the project() call.
 # UNISIC_BUILD carries the CI build number (GITHUB_RUN_NUMBER, set in the release
 # workflow) when built in CI, or "dev" for local builds. Shown in the sidebar footer.

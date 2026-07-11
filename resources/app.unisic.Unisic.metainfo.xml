@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.6.1" date="2026-07-12">
+      <description>
+        <p>Fixes global hotkeys on GNOME: shortcut registration now carries the app identity on a dedicated D-Bus connection, so binds no longer fail for terminal and AppImage launches. The version footer shows the exact git-commit date of the build, the hotkeys-unavailable card explains the GNOME custom-shortcuts route, and 42 missing translations were filled in.</p>
+      </description>
+    </release>
     <release version="0.6.0" date="2026-07-12">
       <description>
         <p>Fully automatic updates: the app checks GitHub daily, AppImage installs download and swap themselves in place (restarting when idle), and deb/rpm downloads register the signed OBS/COPR repository on install so every later version arrives natively through the package manager. New Updates section in Settings.</p>

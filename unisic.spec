@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.6.0
+Version:        0.6.1
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -122,6 +122,16 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.1-1
+- Fix global hotkeys on GNOME: the GlobalShortcuts portal binds carried an
+  empty app id for terminal/AppImage launches (identity is pinned per D-Bus
+  connection at the first portal call, which Qt makes before app code runs);
+  all shortcut traffic now runs on a private connection registered via
+  Registry.Register first. Portal probe timeout raised for cold autostarts.
+- Version footer shows the exact git-commit date of the built state
+  (YYYYMMDD-HHMM); hotkeys-unavailable card gains GNOME guidance.
+- Fill 42 missing pl/es/it/en translations (auto-update UI and others).
+
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.0-1
 - Fully automatic updates: daily GitHub check, AppImage self-swap with idle
   auto-restart, deb/rpm downloads register the OBS/COPR repo on install.

@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.6.0" date="2026-07-12">
+      <description>
+        <p>Fully automatic updates: the app checks GitHub daily, AppImage installs download and swap themselves in place (restarting when idle), and deb/rpm downloads register the signed OBS/COPR repository on install so every later version arrives natively through the package manager. New Updates section in Settings.</p>
+      </description>
+    </release>
     <release version="0.5.1" date="2026-07-11">
       <description>
         <p>Fixes region recording on multi-monitor setups. Adds a dedicated copy-last-capture shortcut (replacing the 2-second Ctrl+C grab), Ctrl+C on the selection overlay, capture-on-release, a separate recordings folder and a trash sound.</p>

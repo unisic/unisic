@@ -1,0 +1,36 @@
+<services>
+  <!-- Server-side: fetch main on each trigger; version = newest v* tag with
+       the "v" stripped. Re-run via the runservice token (release.yml obs job)
+       or `osc service remoterun`. While testing a feature branch, point
+       revision at the branch and flip back to main before the final commit.
+       tar_scm (not obs_scm + buildtime tar/recompress): the buildtime
+       services need obs-service-* packages the Debian/Ubuntu/Arch build
+       roots can't resolve, and the plain `tar` service is not installed
+       server-side on OBS. tar_scm emits a plain .tar (its old
+       `compression` param is gone on OBS) — the server-side `recompress`
+       below turns it into the .tar.gz debtransform wants. -->
+  <service name="tar_scm">
+    <param name="scm">git</param>
+    <param name="url">https://github.com/unisic/unisic.git</param>
+    <param name="revision">main</param>
+    <param name="versionformat">@PARENT_TAG@</param>
+    <param name="versionrewrite-pattern">v(.*)</param>
+    <param name="versionrewrite-replacement">\1</param>
+    <param name="match-tag">v*</param>
+  </service>
+  <!-- Server-side: pull the packaging files out of the checkout so they are
+       owned by git, not by OBS. Files land in the package under their
+       basenames (all unique by design). Runs on the .tar, BEFORE recompress
+       consumes it. -->
+  <service name="extract_file">
+    <param name="archive">*.tar</param>
+    <param name="files">*/unisic.spec */packaging/arch/PKGBUILD */packaging/arch/unisic.install */packaging/obs/unisic.dsc */packaging/obs/debian.control */packaging/obs/debian.rules */packaging/obs/debian.changelog</param>
+  </service>
+  <service name="recompress">
+    <param name="file">*.tar</param>
+    <param name="compression">gz</param>
+  </service>
+  <!-- Server-side: rewrite spec Version / dsc Version / debian.changelog /
+       PKGBUILD pkgver to the tag version from tar_scm. -->
+  <service name="set_version"/>
+</services>

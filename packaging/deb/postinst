@@ -1,0 +1,35 @@
+#!/bin/sh
+set -e
+# Configure the Unisic OBS apt repository on first install, so every later
+# version arrives as a native .deb through plain `apt upgrade` — the same
+# pattern Chrome and VS Code use. postrm removes it again on purge. On a
+# distro without a matching OBS target this silently does nothing and the
+# app only notifies about new versions.
+#
+# Used by the CPack DEB built in CI (CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA).
+# OBS-built debs deliberately skip this: they are installed FROM the repo,
+# so it is already configured.
+if [ "$1" = "configure" ] && [ ! -e /etc/apt/sources.list.d/unisic.sources ]; then
+    repo=""
+    if [ -r /etc/os-release ]; then
+        . /etc/os-release
+        case "$ID" in
+            debian)
+                case "${VERSION_ID:-}" in 13|13.*) repo="Debian_13" ;; esac ;;
+            ubuntu)
+                case "${VERSION_ID:-}" in
+                    26.04) repo="xUbuntu_26.04" ;;
+                    25.10) repo="xUbuntu_25.10" ;;
+                esac ;;
+        esac
+    fi
+    if [ -n "$repo" ] && [ -r /usr/share/unisic/obs-signing-key.asc ]; then
+        cat > /etc/apt/sources.list.d/unisic.sources <<EOF
+Types: deb
+URIs: https://download.opensuse.org/repositories/home:/unisic/${repo}/
+Suites: ./
+Signed-By: /usr/share/unisic/obs-signing-key.asc
+EOF
+    fi
+fi
+exit 0

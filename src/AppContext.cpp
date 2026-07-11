@@ -8,6 +8,8 @@
 #include "history/HistoryStore.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
+#include "update/UpdateChecker.h"
+#include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
 #include "editor/EditorSession.h"
@@ -35,6 +37,7 @@
 #include <QPointer>
 #include <QClipboard>
 #include <QQmlEngine>
+#include <QQmlApplicationEngine>
 #include <QTranslator>
 #include <QLibraryInfo>
 #include <QLocale>
@@ -91,6 +94,34 @@ AppContext::AppContext(QObject *parent)
     , m_recorder(new GifRecorder(m_settings, this))
 {
     m_notifier = new DesktopNotifier(this, this);
+
+    m_updater = new UpdateChecker(m_settings, this);
+    // Tray entry follows availability flips only — stateChanged also fires per
+    // download-progress chunk and would rebuild the tray continuously.
+    connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
+    connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
+        showToast(m_updater->canSelfUpdate()
+                      ? tr("Unisic %1 is available — updating automatically").arg(v)
+                      : tr("Unisic %1 is available").arg(v));
+    });
+    connect(m_updater, &UpdateChecker::installed, this, [this](const QString &v) {
+        setupTray(); // the entry flips to "Restart to update"
+        if (tryUpdateRestart())
+            return;
+        // Busy right now — tell the user it's ready and keep retrying quietly
+        // until the app goes idle (recording over, editors closed, window
+        // hidden back into the tray).
+        showToast(tr("Unisic %1 installed — it will start on the next launch").arg(v));
+        if (!m_updateRestartTimer) {
+            m_updateRestartTimer = new QTimer(this);
+            m_updateRestartTimer->setInterval(60 * 1000);
+            connect(m_updateRestartTimer, &QTimer::timeout, this, [this] {
+                if (tryUpdateRestart())
+                    m_updateRestartTimer->stop();
+            });
+        }
+        m_updateRestartTimer->start();
+    });
 
     connect(m_hotkeys, &GlobalHotkeys::activated, this, &AppContext::dispatchHotkey);
     // Live two-way sync: a KCM edit updates the app's stored/displayed key.
@@ -211,6 +242,10 @@ void AppContext::initialize(QQmlEngine *engine)
     // loaded the window instead of before it, and late enough that startup
     // toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
     QTimer::singleShot(0, this, &AppContext::defineHotkeys);
+
+    // Daily release check + AppImage self-install (suppressed on dev builds
+    // and when the setting is off — the checker logs why it stays quiet).
+    m_updater->startAutoCheck();
 
 #ifdef HAVE_PIPEWIRE
     // Async probe: is a ScreenCast portal backend actually present? (-xapp and
@@ -971,6 +1006,87 @@ void AppContext::devTestLanguage()
     showToast(tr("Dev: language: %1").arg(languageCheck()));
 }
 
+void AppContext::devTestUpdateCheck()
+{
+    if (!devBuild())
+        return;
+    // manual=true: visible errors, no toast/once-per-version bookkeeping.
+    m_updater->check(true, [this](const UpdateChecker::Result &r) {
+        showToast(tr("Dev: update check: %1")
+                      .arg(r.ok ? QStringLiteral("PASS (latest %1 — %2)")
+                                      .arg(r.latestVersion.isEmpty() ? QStringLiteral("none")
+                                                                     : r.latestVersion,
+                                           r.updateAvailable ? QStringLiteral("update available")
+                                                             : QStringLiteral("up to date"))
+                                : QStringLiteral("FAIL (%1)").arg(r.error)),
+                  !r.ok);
+    });
+}
+
+void AppContext::devTestUpdateAvailable()
+{
+    if (!devBuild())
+        return;
+    // Fake "update available" state: exercises the toast, the tray entry and
+    // the Settings → General card without a newer release existing. "Update
+    // now" then fails gracefully (no asset) unless UNISIC_UPDATE_FEED_URL
+    // points at a fake feed.
+    m_updater->simulateAvailable(QStringLiteral("99.0"));
+}
+
+void AppContext::devTestAutoRestart()
+{
+    if (!devBuild())
+        return;
+    const QString b = autoRestartBlockers();
+    showToast(b.isEmpty() ? tr("Dev: auto-restart gate: idle — an installed update would restart now")
+                          : tr("Dev: auto-restart gate: deferred (%1)").arg(b));
+}
+
+QString AppContext::autoRestartBlockers() const
+{
+    QStringList b;
+    if (recording() || m_converting)
+        b << tr("recording");
+    if (m_captureInFlight)
+        b << tr("capture in progress");
+    if (m_overlay && m_overlay->active())
+        b << tr("selection overlay open");
+    if (m_editorWindows > 0)
+        b << tr("editor windows open");
+    if (mainWindowVisible())
+        b << tr("main window visible");
+    return b.join(QStringLiteral(", "));
+}
+
+bool AppContext::mainWindowVisible() const
+{
+    // rootObjects() lives on QQmlApplicationEngine (what main() passes in).
+    auto *appEngine = qobject_cast<QQmlApplicationEngine *>(m_engine);
+    if (!appEngine)
+        return true; // can't tell — be conservative, block the restart
+    const QList<QObject *> roots = appEngine->rootObjects();
+    for (QObject *o : roots)
+        if (auto *w = qobject_cast<QQuickWindow *>(o))
+            return w->isVisible();
+    return true;
+}
+
+bool AppContext::tryUpdateRestart()
+{
+    if (!m_updater->restartPending())
+        return true; // nothing pending — also ends the retry timer
+    const QString blockers = autoRestartBlockers();
+    if (!blockers.isEmpty()) {
+        qInfo() << "Update restart deferred:" << blockers;
+        return false;
+    }
+    qInfo() << "Idle — restarting into the updated version";
+    // Idle implies the window is hidden in the tray: come back the same way.
+    m_updater->restartNow(true);
+    return true;
+}
+
 void AppContext::devTestU2Net()
 {
     if (!devBuild())
@@ -1728,6 +1844,33 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
         smokeNext();
+    });
+
+    // 5c) update check: comparator semantics (synchronous, always runs), then
+    // a live feed query — manual mode so the run never toasts or burns the
+    // once-per-version notification.
+    m_smokeSteps.append([this] {
+        const bool cmpOk = UpdateVersion::isNewer(QStringLiteral("0.5.2"), QStringLiteral("0.5.1"))
+                        && !UpdateVersion::isNewer(QStringLiteral("v0.5.1"), QStringLiteral("0.5.1"))
+                        && UpdateVersion::isNewer(QStringLiteral("0.5.1"), QStringLiteral("0.5.1b"))
+                        && !UpdateVersion::isNewer(QStringLiteral("0.5.0"), QStringLiteral("0.5.1"));
+        smokeLog(QStringLiteral("version compare: ")
+                 + (cmpOk ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        const QString gate = autoRestartBlockers();
+        smokeLog(QStringLiteral("auto-restart gate: ")
+                 + (gate.isEmpty() ? QStringLiteral("idle")
+                                   : QStringLiteral("deferred (%1)").arg(gate)));
+        m_updater->check(true, [this](const UpdateChecker::Result &r) {
+            // Offline is a SKIP, not a FAIL — dev machines must keep a green run.
+            smokeLog(QStringLiteral("update check: ")
+                     + (r.ok ? QStringLiteral("PASS (latest %1 — %2)")
+                                   .arg(r.latestVersion.isEmpty() ? QStringLiteral("none")
+                                                                  : r.latestVersion,
+                                        r.updateAvailable ? QStringLiteral("update available")
+                                                          : QStringLiteral("up to date"))
+                             : QStringLiteral("SKIP (network: %1)").arg(r.error)));
+            smokeNext();
+        });
     });
 
     // 6) upload (needs a real destination + a public target — left manual)
@@ -3066,6 +3209,18 @@ void AppContext::setupTray()
     menu->addAction(tr("Record GIF (region)"), this, &AppContext::startGifRegion);
     menu->addAction(tr("Stop recording"), this, &AppContext::stopRecording);
     menu->addSeparator();
+    if (m_updater && m_updater->restartPending()) {
+        // The new version is already swapped in — one click finishes the job.
+        menu->addAction(tr("Restart to update to Unisic %1").arg(m_updater->latestVersion()),
+                        m_updater, &UpdateChecker::restartNow);
+        menu->addSeparator();
+    } else if (m_updater && m_updater->updateAvailable()) {
+        // Persistent counterpart of the one-shot update toast — a tray-dwelling
+        // app may never have a window up when the toast fires.
+        menu->addAction(tr("Update available — Unisic %1").arg(m_updater->latestVersion()),
+                        this, [this] { emit showMainWindowRequested(); });
+        menu->addSeparator();
+    }
     menu->addAction(tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
     menu->addAction(tr("Quit"), qApp, &QCoreApplication::quit);
     m_tray->setContextMenu(menu);

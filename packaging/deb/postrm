@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+# The repo entry belongs to this package — purge takes it along. A plain
+# remove keeps it, matching how apt treats conffile-like state.
+if [ "$1" = "purge" ]; then
+    rm -f /etc/apt/sources.list.d/unisic.sources
+fi
+exit 0

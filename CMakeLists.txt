@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.5.1 LANGUAGES CXX)
+project(unisic VERSION 0.6.0 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.5.1")
+set(UNISIC_VERSION_STRING "0.6.0")
 
 include(GNUInstallDirs)
 
@@ -55,12 +55,21 @@ qt_add_executable(unisic
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
+    src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    src/update/VersionCompare.h
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
 )
+
+# qt_standard_project_setup bakes an $ORIGIN install-RPATH into the binary;
+# distro packages link system Qt so it is dead weight — and openSUSE's
+# rpmlint hard-fails the build on it (binary-or-shlib-defines-rpath).
+# Build-tree binaries keep their build RPATH, and linuxdeploy patches the
+# AppImage's own, so nothing else changes.
+set_target_properties(unisic PROPERTIES INSTALL_RPATH "")
 
 # Single source of the app version string, exported to C++ from the project() call.
 # UNISIC_BUILD carries the CI build number (GITHUB_RUN_NUMBER, set in the release
@@ -190,7 +199,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify)
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify src/update)
 target_link_libraries(unisic PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
     Qt6::DBus Qt6::Network Qt6::Concurrent
@@ -251,6 +260,11 @@ else()
 endif()
 
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# OBS repo signing key, shipped so the deb postinst can reference it from the
+# apt .sources file it writes (native repo updates for direct .deb downloads —
+# see packaging/obs/README.md).
+install(FILES packaging/obs/home_unisic.key
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME obs-signing-key.asc)
 install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
@@ -287,6 +301,10 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     xdg-desktop-portal)
 string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
+# Direct-download debs self-register the OBS apt repo (postinst) so later
+# versions arrive natively via apt; postrm drops the entry on purge.
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postinst;${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postrm")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
@@ -296,6 +314,10 @@ set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 # GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
 # a package-name Requires would make the RPM uninstallable on stock Fedora.
 set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
+# Direct-download rpms self-register the COPR repo on Fedora (%post) so later
+# versions arrive natively via dnf; %postun drops the entry on erase.
+set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-post.sh")
+set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-postun.sh")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)
@@ -310,6 +332,14 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
     add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
+    qt_add_executable(unisic_version_compare_test
+        tests/VersionCompareTest.cpp
+        src/update/VersionCompare.h
+    )
+    target_link_libraries(unisic_version_compare_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_version_compare_test PRIVATE src/update)
+    add_test(NAME unisic_version_compare_test COMMAND unisic_version_compare_test)
 
     qt_add_executable(unisic_object_detector_test
         tests/ObjectDetectorTest.cpp

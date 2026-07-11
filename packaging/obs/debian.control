@@ -1,0 +1,34 @@
+# Depends/Recommends mirror the CPack DEB block in CMakeLists.txt (the
+# explicit entries cover runtime-loaded pieces ${shlibs:Depends} cannot see:
+# QML modules, the Qt SVG image plugin, the pipewire daemon, the ffmpeg CLI,
+# portals, wl-clipboard). Keep both lists in sync when either changes.
+# Build-Depends mirror the debian:trixie CI job in .github/workflows/release.yml
+# and the Build-Depends line in unisic.dsc.
+Source: unisic
+Section: graphics
+Priority: optional
+Maintainer: Unisic maintainers <unisic@debondor.com>
+Standards-Version: 4.7.0
+Homepage: https://github.com/unisic/unisic
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config,
+ qt6-base-dev, qt6-declarative-dev, qt6-svg-dev, qt6-tools-dev, qt6-l10n-tools,
+ libpipewire-0.3-dev, libtesseract-dev, libleptonica-dev, libzxing-dev,
+ liblayershellqtinterface-dev, libwayland-dev
+
+Package: unisic
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ffmpeg, libqt6svg6, pipewire,
+ qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-dialogs,
+ qml6-module-qtquick-effects, qml6-module-qtquick-window, qt6-wayland,
+ wl-clipboard, xdg-desktop-portal
+Recommends: curl, xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
+ xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh |
+ xdg-desktop-portal-gtk | xdg-desktop-portal-xapp
+Description: Capture, annotate, record and share your screen on Linux Wayland
+ Unisic covers the whole workflow after you press the hotkey: annotate on the
+ selection overlay before the shot is taken, keep editing afterwards (blur,
+ pixelate, numbered steps, crop, object cutout), record the same region as
+ GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload
+ destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin
+ ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture
+ path on KDE Plasma. Zero telemetry.

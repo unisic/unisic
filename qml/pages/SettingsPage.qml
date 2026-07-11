@@ -709,6 +709,105 @@ Item {
                 }
             }
 
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Updates") }
+                    SettingRow {
+                        label: qsTr("Current version")
+                        help: qsTr("The Unisic version you are running.")
+                        Text {
+                            height: 44
+                            verticalAlignment: Text.AlignVCenter
+                            text: "v" + App.appVersion
+                                  + (App.buildNumber === "dev" ? " · dev" : " · build " + App.buildNumber)
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontM
+                        }
+                    }
+                    SettingRow {
+                        available: App.buildNumber !== "dev"
+                        hint: qsTr("Automatic checks are disabled in dev builds.")
+                        label: qsTr("Automatic updates")
+                        help: qsTr("Checks for a new release shortly after startup and once a day, then installs it in the background.")
+                        helpDetail: qsTr("Only the latest release version is fetched from the GitHub API — nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray's Restart entry). Package installs are updated by the system package manager instead.")
+                        USwitch {
+                            checked: App.settings.autoCheckUpdates
+                            onToggled: (c) => App.settings.autoCheckUpdates = c
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Check now")
+                        help: qsTr("Ask GitHub for the latest release immediately.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: App.updater.busy && !App.updater.downloading
+                                  ? qsTr("Checking…") : qsTr("Check now")
+                            enabled: !App.updater.busy
+                            onClicked: App.updater.checkNow()
+                        }
+                    }
+                    Text {
+                        visible: App.updater.statusText !== ""
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: App.updater.statusText
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Column {
+                        visible: App.updater.updateAvailable
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Version %1 is available").arg(App.updater.latestVersion)
+                            color: Theme.accent
+                            font.pixelSize: Theme.fontM
+                            font.weight: Font.DemiBold
+                        }
+                        Row {
+                            spacing: Theme.spacingM
+                            UButton {
+                                // AppImage in a writable location: the download starts by
+                                // itself on discovery — this button is the manual retry.
+                                visible: App.updater.canSelfUpdate && !App.updater.restartPending
+                                text: App.updater.downloading
+                                      ? qsTr("Downloading… %1%").arg(Math.round(App.updater.downloadProgress * 100))
+                                      : qsTr("Update now")
+                                enabled: !App.updater.busy
+                                onClicked: App.updater.downloadAndInstall()
+                            }
+                            UButton {
+                                visible: App.updater.restartPending
+                                text: qsTr("Restart now")
+                                onClicked: App.updater.restartNow()
+                            }
+                        }
+                        Text {
+                            // No self-update path here — the package manager (or, for a
+                            // read-only AppImage, its owner) does the swap.
+                            visible: !App.updater.canSelfUpdate
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: App.buildNumber === "dev"
+                                  ? qsTr("Self-update is disabled in dev builds.")
+                                  : App.updater.installKind === "flatpak"
+                                    ? qsTr("The Flatpak sandbox can't replace the app from inside — install the new bundle.")
+                                    : App.updater.installKind === "appimage"
+                                      ? qsTr("The AppImage location is read-only — it can't update itself from here.")
+                                      : qsTr("This install updates natively through your package manager (the package set up its repository).")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+            }
+
         }
         }
 
@@ -1905,6 +2004,9 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("U-2-Net segment"); enabled: App.u2netAvailable; onClicked: App.devTestU2Net() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
                     }
                 }
             }

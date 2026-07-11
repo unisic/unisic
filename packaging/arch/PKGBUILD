@@ -1,5 +1,8 @@
 pkgname=unisic
-pkgver=${UNISIC_PKGVER:-0.5.1}
+# Plain literal on purpose: OBS parses the PKGBUILD server-side (no bash
+# ${var:-default} expansion) and its set_version service rewrites this line
+# at build time; the CI release job seds in the CMakeLists version likewise.
+pkgver=0.6.0
 pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
@@ -15,6 +18,7 @@ optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'
             'tesseract-data-pol: Polish OCR language data'
             'tesseract-data-eng: English OCR language data')
+install=unisic.install
 source=("${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')
 

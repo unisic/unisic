@@ -41,11 +41,22 @@ public:
     void pickAnnotatedImage(ImageCallback cb);   // full capture flow
     void pickRegion(RegionCallback cb);          // GIF region flow (no annotation tools)
 
+    // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
+    // Consumed by the capture callback to force a clipboard copy even when
+    // auto-copy is off — Spectacle's CaptureWindow Ctrl+C semantics.
+    bool takeCopyRequested()
+    {
+        const bool r = m_copyRequested;
+        m_copyRequested = false;
+        return r;
+    }
+
 signals:
     void textEditingChanged();
 
 public slots:
     void confirmFromWindow(QQuickWindow *win);   // Enter / double-click
+    void confirmAndCopy(QQuickWindow *win);      // Ctrl+C: confirm + force copy
     void cancel();                               // Esc
 
 private:
@@ -62,5 +73,6 @@ private:
     bool m_annotationTools = true;
     bool m_starting = false;
     bool m_textEditing = false;
+    bool m_copyRequested = false;
     int m_generation = 0; // invalidates in-flight freeze callbacks
 };

@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.5.0
+Version:        0.5.1
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -77,6 +77,14 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sat Jul 11 2026 Unisic maintainers <unisic@debondor.com> - 0.5.1-1
+- Fix region recording on multi-monitor setups (per-monitor portal restore
+  tokens + wrong-monitor stream detection with self-heal).
+- Dedicated Copy-last-capture hotkey replaces the 2s Ctrl+C grab; Ctrl+C on
+  the selection overlay confirms and copies (Spectacle-style).
+- Capture-on-release option, separate recordings folder (~/Videos/Unisic),
+  trash sound on history deletions.
+
 * Sat Jul 11 2026 Unisic maintainers <unisic@debondor.com> - 0.5.0-1
 - Editable shapes and shape groups, OCR text selection, richer text styling.
 - Spanish and Italian translations (full catalogs, en/pl gaps filled).

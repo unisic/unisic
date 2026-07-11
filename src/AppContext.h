@@ -152,7 +152,7 @@ public:
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
-    Q_INVOKABLE void devTestQuickCopy();
+    Q_INVOKABLE void devTestCopyLast();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
@@ -161,9 +161,11 @@ public:
     Q_INVOKABLE void devTestSmartPick();
     Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestRecordingSound();
+    Q_INVOKABLE void devTestTrashSound();
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
     Q_INVOKABLE void devTestShapeEdit();
+    Q_INVOKABLE void devTestCaptureOnRelease();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestU2Net();
     Q_INVOKABLE void devTestLanguage();
@@ -264,9 +266,15 @@ public:
     // Same, for finished recordings/GIFs (General > Recording sound) —
     // a separate cue with its own setting.
     void playRecordingSound();
+    // Fixed trash cue for explicit deletions — always the bundled "trash"
+    // sound, deliberately not user-configurable.
+    void playTrashSound();
     // Preview the selected capture sound from the settings UI.
     Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
     Q_INVOKABLE void previewRecordingSound() { playRecordingSound(); }
+    // "Copy last capture" hotkey: put the most recent screenshot of this
+    // session back on the clipboard (toast when none exists yet).
+    Q_INVOKABLE void copyLastCapture();
     // Ids for the Settings combo: "off", the bundled cues, then any user
     // files dropped into ~/.config/unisic/sounds (basenames incl. extension).
     Q_INVOKABLE QStringList captureSoundIds() const;
@@ -348,7 +356,9 @@ private:
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
 
-    void finishCapture(const QImage &img, bool inhibited);
+    // forceCopy: the overlay was confirmed with Ctrl+C (Spectacle semantics) —
+    // copy to the clipboard even when auto-copy is off.
+    void finishCapture(const QImage &img, bool inhibited, bool forceCopy = false);
     // Shared player behind playCaptureSound/playRecordingSound: resolves a
     // bundled or user sound id and spawns pw-play/paplay/aplay.
     void playSoundId(const QString &id);
@@ -375,8 +385,6 @@ private:
     // "Quick copy" grace window: when auto-copy-to-clipboard is off, the last
     // capture is held for a couple of seconds and Ctrl+C (grabbed globally via
     // KGlobalAccel for exactly that window) copies it, then the grab is released.
-    void armQuickCopy(const QImage &img);
-    void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
     // Encode off the GUI thread (a 4K PNG encode is 100+ ms): settings are
     // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
@@ -414,9 +422,9 @@ private:
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
     QTimer *m_trimTimer = nullptr;
-    QImage m_quickCopyImage;                       // held during the quick-copy window
-    QTimer *m_quickCopyTimer = nullptr;            // releases the Ctrl+C grab after ~2s
-    bool m_quickCopyArmed = false;
+    // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K
+    // QImage) — the "Copy last capture" hotkey decodes and copies it.
+    QByteArray m_lastCaptureData;
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1

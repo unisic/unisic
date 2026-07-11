@@ -149,7 +149,9 @@ void ScreenCastSession::startCast()
         // streams: a(ua{sv})
         uint nodeId = 0;
         QSize size;
-        QPoint pos;
+        // Sentinel: the portal may omit "position" — (0,0) is a legit primary-
+        // monitor origin, so absence must be distinguishable for the consumer.
+        QPoint pos(INT_MIN, INT_MIN);
         const QVariant streamsVar = results.value(QStringLiteral("streams"));
         const QDBusArgument arg = streamsVar.value<QDBusArgument>();
         arg.beginArray();

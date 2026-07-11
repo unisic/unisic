@@ -131,6 +131,9 @@ AppContext::AppContext(QObject *parent)
         showToast(tr("Could not move %1 to trash; the file is still on disk").arg(path), true);
     });
 
+    // Fixed (non-configurable) trash cue on every explicit history deletion.
+    connect(m_history, &HistoryStore::entryTrashed, this, &AppContext::playTrashSound);
+
     // Live-apply a custom tray icon the moment the setting changes (also covers
     // an import that rewrites trayIconPath).
     connect(m_settings, &Settings::trayIconPathChanged, this, &AppContext::applyTrayIcon);
@@ -241,18 +244,9 @@ void AppContext::dispatchHotkey(const QString &action)
             stopRecording();
         return;
     }
-    // Quick-copy grace window: time-sensitive and unrelated to captures, so it
-    // fires even mid shortcut-recording.
-    if (action == QLatin1String("quick-copy")) {
-        if (m_quickCopyArmed && !m_quickCopyImage.isNull()) {
-            copyImageToClipboard(m_quickCopyImage);
-            showToast(tr("Copied to clipboard"));
-        }
-        disarmQuickCopy();
-        return;
-    }
     if (m_shortcutRecording)
         return;
+    if (action == QLatin1String("copy-last")) { copyLastCapture(); return; }
     if (action == QLatin1String("capture-fullscreen")) captureFullScreen();
     else if (action == QLatin1String("capture-region")) captureRegion();
     else if (action == QLatin1String("capture-window")) captureWindow();
@@ -652,7 +646,7 @@ void AppContext::captureRegion()
     withDelay([this, inhibited] {
         m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             if (!img.isNull())
-                finishCapture(img, inhibited);
+                finishCapture(img, inhibited, m_overlay->takeCopyRequested());
         });
     });
 }
@@ -889,6 +883,49 @@ void AppContext::devTestShapeEdit()
     showToast(tr("Dev: shape edit: %1").arg(shapeEditCheck()));
 }
 
+// Capture-on-release: a synthetic selection drag must confirm exactly once on
+// release with the toggle on, and never with it off (dev button + smoke step).
+static QString captureOnReleaseCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(100);
+    c.setHeight(100);
+    QImage base(100, 100, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setSelectionMode(true);
+    c.setConfirmOnRelease(true);
+    int confirms = 0;
+    QObject::connect(&c, &AnnotationCanvas::selectionConfirmed, &c, [&confirms] { ++confirms; });
+    const auto drag = [&c](QPointF from, QPointF to) {
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        c.mousePressEvent(&p);
+        QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        c.mouseMoveEvent(&m);
+        QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        c.mouseReleaseEvent(&r);
+    };
+    drag({10, 10}, {80, 60});
+    if (confirms != 1)
+        return QStringLiteral("FAIL (drag release confirmed %1x, expected once)").arg(confirms);
+    c.setConfirmOnRelease(false);
+    drag({85, 80}, {95, 95}); // outside the first selection: a fresh drag
+    if (confirms != 1)
+        return QStringLiteral("FAIL (confirmed with the toggle off)");
+    return QStringLiteral("PASS (release confirms once; off = no confirm)");
+}
+
+void AppContext::devTestCaptureOnRelease()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: capture on release: %1").arg(captureOnReleaseCheck()));
+}
+
 // Renders two words and asserts recognizeBoxes returns ≥2 boxes with sane
 // geometry — the selectable-text overlay's data source.
 static QImage ocrBoxTestImage()
@@ -1002,6 +1039,14 @@ void AppContext::devTestRecordingSound()
     showToast(tr("Dev: played recording sound '%1'").arg(m_settings->recordingSound()));
 }
 
+void AppContext::devTestTrashSound()
+{
+    if (!devBuild())
+        return;
+    playTrashSound();
+    showToast(tr("Dev: played the fixed trash sound"));
+}
+
 void AppContext::devTestSmartPick()
 {
     if (!devBuild())
@@ -1073,17 +1118,19 @@ void AppContext::devTestEditFromHistory()
     editFromHistory(p);
 }
 
-void AppContext::devTestQuickCopy()
+void AppContext::devTestCopyLast()
 {
     if (!devBuild())
         return;
-    if (!m_hotkeys->available()) {
-        showToast(tr("Dev: quick-copy needs KGlobalAccel (KDE), unavailable here"), true);
-        return;
-    }
-    armQuickCopy(devTestImage());
-    showToast(m_quickCopyArmed ? tr("Dev: press Ctrl+C within 2s to copy the test image")
-                               : tr("Dev: couldn't grab Ctrl+C (key owned elsewhere)"), true);
+    QByteArray png;
+    QBuffer buf(&png);
+    buf.open(QIODevice::WriteOnly);
+    devTestImage().save(&buf, "PNG");
+    m_lastCaptureData = png;
+    copyLastCapture();
+    const bool ok = !QGuiApplication::clipboard()->image().isNull();
+    showToast(tr("Dev: copy last capture: %1")
+                  .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
 }
 
 void AppContext::devTestPreview()
@@ -1405,17 +1452,18 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // 3c) quick-copy grab (Ctrl+C grace window) — arm, verify, release
+    // 3c) copy last capture — seed a known image, invoke, clipboard must fill.
     m_smokeSteps.append([this] {
-        if (!m_hotkeys->available()) {
-            smokeLog(QStringLiteral("quick-copy: SKIP (no KGlobalAccel)"));
-            smokeNext();
-            return;
-        }
-        armQuickCopy(devTestImage());
-        smokeLog(QStringLiteral("quick-copy grab: ") + (m_quickCopyArmed
-                 ? QStringLiteral("PASS") : QStringLiteral("FAIL (Ctrl+C owned elsewhere?)")));
-        disarmQuickCopy();
+        QByteArray png;
+        QBuffer buf(&png);
+        buf.open(QIODevice::WriteOnly);
+        devTestImage().save(&buf, "PNG");
+        m_lastCaptureData = png;
+        copyLastCapture();
+        smokeLog(QStringLiteral("copy last capture: ")
+                 + (QGuiApplication::clipboard()->image().isNull()
+                        ? QStringLiteral("FAIL (clipboard empty)")
+                        : QStringLiteral("PASS")));
         smokeNext();
     });
 
@@ -1497,6 +1545,26 @@ void AppContext::runSmokeTest()
             playRecordingSound();
             smokeLog(QStringLiteral("recording sound: PASS (played '%1', %2)").arg(id, source));
         }
+        smokeNext();
+    });
+
+    // 3e5b) trash sound: fixed cue — the qrc WAV must extract and play.
+    m_smokeSteps.append([this] {
+        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
+        if (!player) {
+            smokeLog(QStringLiteral("trash sound: SKIP (no pw-play/paplay/aplay)"));
+        } else {
+            playTrashSound();
+            smokeLog(QStringLiteral("trash sound: PASS (played fixed 'trash' cue)"));
+        }
+        smokeNext();
+    });
+
+    // 3e6) capture-on-release: synthetic drag confirms once; toggle off = never.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("capture on release: ") + captureOnReleaseCheck());
         smokeNext();
     });
 
@@ -1877,7 +1945,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
 
 // Every enabled action runs immediately and independently the moment the
 // capture lands — the editor no longer swallows the pipeline.
-void AppContext::finishCapture(const QImage &img, bool inhibited)
+void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy)
 {
     if (img.isNull())
         return;
@@ -1899,7 +1967,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
             showToast(tr("Could not save to %1. Check the save folder in Settings")
                           .arg(m_settings->saveDirectory()), true);
     }
-    if (m_settings->copyToClipboard())
+    if (m_settings->copyToClipboard() || forceCopy)
         copyImageToClipboard(img);
 
     const bool uploading = m_settings->uploadAfterCapture();
@@ -1944,49 +2012,24 @@ void AppContext::finishCapture(const QImage &img, bool inhibited)
     if (m_settings->openEditor())
         openEditor(img);
 
-    // When the user hasn't opted into auto-copy, still let them grab it with a
-    // reflexive Ctrl+C right after the shot (2s window), then get their key back.
-    if (!m_settings->copyToClipboard() && m_settings->quickCopyAfterCapture())
-        armQuickCopy(img);
+    // Keep the newest screenshot for the "Copy last capture" hotkey — encoded
+    // off-thread so the retained buffer is megabytes, not a pinned 4K QImage.
+    encodeImageAsync(img, [this](const QByteArray &data, const QString &) {
+        m_lastCaptureData = data;
+    });
 
     scheduleMemoryTrim();
 }
 
-void AppContext::armQuickCopy(const QImage &img)
+void AppContext::copyLastCapture()
 {
-    // KGlobalAccel-only: it's the one backend that can grab Ctrl+C on demand and
-    // release it. The GlobalShortcuts portal binds are fixed at session config.
-    if (!m_hotkeys->available() || img.isNull())
-        return;
-    m_quickCopyImage = img;
-    if (!m_quickCopyTimer) {
-        m_quickCopyTimer = new QTimer(this);
-        m_quickCopyTimer->setSingleShot(true);
-        connect(m_quickCopyTimer, &QTimer::timeout, this, &AppContext::disarmQuickCopy);
-    }
-    // Grab Ctrl+C globally for the grace window. If the daemon refuses (another
-    // component owns it) there's simply no quick-copy this time.
-    if (!m_hotkeys->setShortcut(QStringLiteral("quick-copy"),
-                                tr("Copy last capture"), QStringLiteral("Ctrl+C"))) {
-        m_quickCopyImage = QImage();
+    const QImage img = QImage::fromData(m_lastCaptureData);
+    if (img.isNull()) {
+        showToast(tr("No capture to copy yet"), true);
         return;
     }
-    m_quickCopyArmed = true;
-    m_quickCopyTimer->start(2000);
-}
-
-void AppContext::disarmQuickCopy()
-{
-    if (m_quickCopyTimer)
-        m_quickCopyTimer->stop();
-    if (m_quickCopyArmed) {
-        // Release the global Ctrl+C grab so normal copy works everywhere again.
-        // Async fire-and-forget: the result is never inspected and the blocking
-        // variant stalled the GUI thread twice per capture.
-        m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
-        m_quickCopyArmed = false;
-    }
-    m_quickCopyImage = QImage();
+    copyImageToClipboard(img);
+    showToast(tr("Copied to clipboard"));
 }
 
 void AppContext::afterUploadActions(const QString &url)
@@ -2039,6 +2082,13 @@ void AppContext::playRecordingSound()
     playSoundId(m_settings->recordingSound());
 }
 
+void AppContext::playTrashSound()
+{
+    // Deliberately fixed: "trash" is bundled but NOT in captureSoundIds(), so
+    // it never shows up in the sound combos and can't be reassigned.
+    playSoundId(QStringLiteral("trash"));
+}
+
 void AppContext::playSoundId(const QString &id)
 {
     if (id.isEmpty() || id == QLatin1String("off"))
@@ -2048,15 +2098,21 @@ void AppContext::playSoundId(const QString &id)
         return;
 
     QString file;
-    if (bundledSoundIds().contains(id)) {
+    // "trash" is a fixed internal cue: bundled in qrc, deliberately absent
+    // from bundledSoundIds() so the settings combos never offer it.
+    if (bundledSoundIds().contains(id) || id == QLatin1String("trash")) {
         // A player takes a filesystem path, not a qrc URL — extract the WAV to
-        // the cache once, then reuse it.
+        // the cache and reuse it. Size mismatch = the bundled cue changed in an
+        // app update; re-extract, or the stale cached copy would play forever.
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
                             + QStringLiteral("/sounds");
         QDir().mkpath(dir);
         file = dir + QLatin1Char('/') + id + QStringLiteral(".wav");
-        if (!QFile::exists(file))
-            QFile::copy(QStringLiteral(":/resources/sounds/%1.wav").arg(id), file);
+        QFile res(QStringLiteral(":/resources/sounds/%1.wav").arg(id));
+        if (!QFile::exists(file) || QFileInfo(file).size() != res.size()) {
+            QFile::remove(file);
+            res.copy(file);
+        }
     } else {
         // User cue from ~/.config/unisic/sounds. Only a bare file name is
         // accepted — a hand-edited config must not smuggle an arbitrary path
@@ -2741,6 +2797,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
+        {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
     };
 }
 
@@ -2765,6 +2822,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
     else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
+    else if (actionId == QLatin1String("copy-last")) m_settings->setHotkeyCopyLast(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();
@@ -2818,10 +2876,12 @@ void AppContext::defineHotkeys()
         m_hotkeys->setShortcut(QStringLiteral("smoke-test"),
                                tr("Developer smoke test"), QStringLiteral("F8"));
 #endif
-        // The quick-copy grab is set with NoAutoloading, so a crash/quit inside
-        // the 2s window would leave Ctrl+C bound to us persistently. Clear it on
-        // every startup so a stale grab can't hijack the user's Ctrl+C.
+        // Upgrade path: older versions grabbed Ctrl+C for a 2s "quick-copy"
+        // window (NoAutoloading), and a crash inside it left the grab bound
+        // persistently. Release AND unregister the legacy action so a stale
+        // grab can't hijack Ctrl+C and no phantom row lingers in the KCM.
         m_hotkeys->releaseShortcut(QStringLiteral("quick-copy"), tr("Copy last capture"));
+        m_hotkeys->unregisterAction(QStringLiteral("quick-copy"));
         // Verify + repair, EVERY launch, with real shortcutKeys queries — the
         // registration replies CANNOT be trusted for this: kglobalacceld
         // (observed live) answers an IsDefault setShortcut with the requested

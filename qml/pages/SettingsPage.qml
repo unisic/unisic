@@ -626,6 +626,11 @@ Item {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Storage & file naming") }
+                    Text {
+                        text: qsTr("Screenshots folder")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
                     Row {
                         width: parent.width
                         spacing: Theme.spacingM
@@ -635,6 +640,21 @@ Item {
                             onEdited: (t) => App.settings.saveDirectory = t
                         }
                         UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory("") }
+                    }
+                    Text {
+                        text: qsTr("Recordings folder (GIF and video)")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            text: App.settings.videoSaveDirectory
+                            onEdited: (t) => App.settings.videoSaveDirectory = t
+                        }
+                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory(App.settings.videoSaveDirectory) }
                     }
                     SettingRow {
                         label: qsTr("Image format")
@@ -810,6 +830,12 @@ Item {
                         USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
                     }
                     SettingRow {
+                        label: qsTr("Capture on release")
+                        help: qsTr("Takes the screenshot the moment you release the selection.")
+                        helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately — no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
+                        USwitch { checked: App.settings.captureOnRelease; onToggled: (c) => App.settings.captureOnRelease = c }
+                    }
+                    SettingRow {
                         label: qsTr("Capture sound")
                         help: qsTr("Plays a short sound when a screenshot is taken.")
                         helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
@@ -965,23 +991,6 @@ Item {
                         help: qsTr("Puts every capture on the clipboard automatically.")
                         helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
                         USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Grab Ctrl+C for 2s after a capture")
-                        // KGlobalAccel-only: armQuickCopy is a no-op on other
-                        // desktops, so grey the row out there with the reason.
-                        available: App.hotkeyBackend === "kglobalaccel" && !App.settings.copyToClipboard
-                        hint: App.hotkeyBackend !== "kglobalaccel"
-                              ? qsTr("Needs KGlobalAccel's on-demand key grabbing, so it works on KDE Plasma only.")
-                              : App.settings.copyToClipboard
-                                ? qsTr("Not used while “Copy image to clipboard” is on, since the capture is already copied automatically.")
-                                : ""
-                        help: qsTr("Reflexive Ctrl+C right after a capture copies it.")
-                        helpDetail: qsTr("For 2 seconds after each capture, Ctrl+C is grabbed globally and copies the fresh capture to the clipboard (including the wl-copy mirror); afterwards the key returns to normal. KDE only, as it needs KGlobalAccel's on-demand key grabbing.")
-                        USwitch {
-                            checked: App.settings.quickCopyAfterCapture
-                            onToggled: (c) => App.settings.quickCopyAfterCapture = c
-                        }
                     }
                     SettingRow {
                         label: qsTr("Save to disk automatically")
@@ -1730,6 +1739,13 @@ Item {
                         shortcuts: App.settings.hotkeyOcr
                         onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
+                    HotkeyRow {
+                        label: qsTr("Copy last capture")
+                        help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
+                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C — this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        shortcuts: App.settings.hotkeyCopyLast
+                        onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
+                    }
                     UButton {
                         anchors.right: parent.right
                         text: qsTr("Apply hotkeys")
@@ -1873,7 +1889,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Arm quick-copy (Ctrl+C)"); onClicked: App.devTestQuickCopy() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
@@ -1882,8 +1898,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trash sound"); onClicked: App.devTestTrashSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("U-2-Net segment"); enabled: App.u2netAvailable; onClicked: App.devTestU2Net() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }

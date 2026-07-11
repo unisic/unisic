@@ -183,6 +183,12 @@ Window {
                 // Space confirms too (only reachable here — the text-box branch
                 // above returns first, so typing a space still types a space).
                 overlayController.confirmFromWindow(overlayWindow)
+            } else if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) {
+                // Spectacle parity: Ctrl+C accepts the selection and copies the
+                // result to the clipboard even when auto-copy is off. Screenshot
+                // flow only — the GIF region picker keeps its Start button.
+                if (annotationToolsEnabled)
+                    overlayController.confirmAndCopy(overlayWindow)
             } else if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) {
                 canvas.selectAll()
             } else if (e.key === Qt.Key_Z && (e.modifiers & Qt.ControlModifier)) {
@@ -237,6 +243,9 @@ Window {
             // Smart pick: click = select the detected object under the cursor;
             // drag still draws a manual rectangle (Settings > Capture).
             smartPick: App.settings.smartPick
+            // Capture on release: screenshot flow only — the GIF region picker
+            // (annotationToolsEnabled false) keeps its explicit Start button.
+            confirmOnRelease: App.settings.captureOnRelease && annotationToolsEnabled
             // Selection chrome follows the selected app theme (was fixed purple).
             uiAccent: Theme.accent
             uiScrim: Theme.primary
@@ -451,7 +460,9 @@ Window {
         // contextual, so the pill stays compact with the plain selection tool.
         Rectangle {
             id: toolbar
-            visible: canvas.hasSelection
+            // Capture-on-release confirms the moment the drag ends — the
+            // toolbar would only flash mid-drag, so don't show it at all.
+            visible: canvas.hasSelection && !canvas.confirmOnRelease
             x: root.toolbarX()
             y: root.toolbarY()
             width: toolColumn.implicitWidth + 24

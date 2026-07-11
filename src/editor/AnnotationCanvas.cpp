@@ -2086,6 +2086,19 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // the cache (keyed partly on m_fxFast) rebuilds the smoothed patch. update()
     // is deferred, so the coalesced paint runs with m_fxFast already false.
     if (m_fxFast) { m_fxFast = false; update(); }
+    // Capture-on-release: only a gesture that PRODUCED the selection confirms
+    // (manual drag = NewSelection, smart-pick click = PendingNewSelection that
+    // set m_selection above). Move/resize of an existing selection and empty
+    // clicks (hasSelection false) fall through to the normal confirm paths.
+    if (m_confirmOnRelease && m_selectionMode && m_tool == None
+        && (m_drag == NewSelection || m_drag == PendingNewSelection)
+        && hasSelection()) {
+        m_drag = NoDrag;
+        m_resizeHandle = -1;
+        e->accept();
+        emit selectionConfirmed();
+        return;
+    }
     m_drag = NoDrag;
     m_resizeHandle = -1;
     m_resizeUndoPending = false;

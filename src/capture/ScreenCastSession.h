@@ -18,6 +18,9 @@ public:
     void start(bool includeCursor, uint sourceTypes = 1, const QString &restoreToken = {});
 
 signals:
+    // streamPos: the stream's logical position in the compositor workspace, or
+    // (INT_MIN, INT_MIN) when the portal did not report one — (0,0) alone is
+    // ambiguous, it is also a legit primary-monitor origin.
     void ready(int pipewireFd, uint nodeId, const QSize &streamSize, const QPoint &streamPos);
     void failed(const QString &error);
     void restoreTokenChanged(const QString &token);

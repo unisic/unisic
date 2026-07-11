@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.5.1" date="2026-07-11">
+      <description>
+        <p>Fixes region recording on multi-monitor setups. Adds a dedicated copy-last-capture shortcut (replacing the 2-second Ctrl+C grab), Ctrl+C on the selection overlay, capture-on-release, a separate recordings folder and a trash sound.</p>
+      </description>
+    </release>
     <release version="0.5.0" date="2026-07-11">
       <description>
         <p>Editable shapes and shape groups in the editor, OCR text selection, richer text styling, Spanish and Italian translations, and a separate sound cue when a recording or GIF finishes encoding.</p>

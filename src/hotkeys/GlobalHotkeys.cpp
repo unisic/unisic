@@ -231,8 +231,8 @@ void GlobalHotkeys::releaseShortcut(const QString &actionId, const QString &frie
 {
     if (!m_available)
         return;
-    // Fire-and-forget async unbind (used by the quick-copy grace window and the
-    // startup stale-grab clear): the caller never inspects the result, so two
+    // Fire-and-forget async unbind (used by the startup legacy quick-copy clear
+    // and the alt-hotkey test): the caller never inspects the result, so two
     // blocking round-trips (2 s timeout each) on the GUI thread bought nothing.
     // D-Bus messages on one connection stay ordered, so doRegister lands first.
     const QStringList id = fullActionId(actionId, friendlyName);
@@ -255,8 +255,7 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     const QStringList id = fullActionId(actionId, friendlyName);
 
     // doRegister is idempotent and per-process registration only needs to
-    // happen once per action — skip the extra blocking round-trip on repeats
-    // (the quick-copy path re-arms on every capture).
+    // happen once per action — skip the extra blocking round-trip on repeats.
     if (!m_registered.contains(actionId)) {
         QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                           QStringLiteral("doRegister"));

@@ -48,6 +48,7 @@ void OverlayController::begin(bool annotationTools)
 {
     m_starting = true;
     m_annotationTools = annotationTools;
+    m_copyRequested = false; // never inherit a Ctrl+C from a previous session
     m_screens = QGuiApplication::screens().toVector();
     m_frozen.clear();
     m_frozen.resize(m_screens.size());
@@ -155,6 +156,20 @@ void OverlayController::createWindows()
     } else {
         cancel();
     }
+}
+
+// Spectacle CaptureWindow parity: Ctrl+C on the overlay accepts the selection
+// and forces a clipboard copy (even when auto-copy is off). The flag is
+// consumed by the capture callback via takeCopyRequested().
+void OverlayController::confirmAndCopy(QQuickWindow *win)
+{
+    // Same no-selection guard as confirmFromWindow — a bare Ctrl+C must not
+    // leave the flag armed for an unrelated Enter-confirm later in the session.
+    auto *canvas = win ? win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas")) : nullptr;
+    if (!canvas || !canvas->hasSelection())
+        return;
+    m_copyRequested = true;
+    confirmFromWindow(win);
 }
 
 void OverlayController::confirmFromWindow(QQuickWindow *win)

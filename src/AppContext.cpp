@@ -149,6 +149,11 @@ AppContext::AppContext(QObject *parent)
 #endif
 #ifdef HAVE_ONNX
     m_u2net = new U2NetSegmenter(this);
+    // Mirror the enable setting into an atomic the worker-thread segmenter
+    // lambda can read without racing the GUI thread's QSettings write.
+    m_u2netEnabled = std::make_shared<std::atomic_bool>(m_settings->useU2Net());
+    connect(m_settings, &Settings::useU2NetChanged, this,
+            [this] { m_u2netEnabled->store(m_settings->useU2Net()); });
 #endif
 }
 
@@ -342,15 +347,17 @@ void AppContext::ocrBoxes(const QImage &img,
 void AppContext::applyLanguage()
 {
     const QString pref = m_settings->uiLanguage();
-    QString code; // "" = English (source strings, no translator)
+    // Every language (incl. English) has its own .qm, so English text is
+    // editable in i18n/unisic_en.ts without touching source strings.
+    QString code;
     if (pref == QLatin1String("pl"))
         code = QStringLiteral("pl");
     else if (pref == QLatin1String("en"))
-        code = QString();
+        code = QStringLiteral("en");
     else { // "system"
         const QString sys = QLocale::system().name(); // e.g. "pl_PL"
-        if (sys.startsWith(QLatin1String("pl")))
-            code = QStringLiteral("pl");
+        code = sys.startsWith(QLatin1String("pl")) ? QStringLiteral("pl")
+                                                   : QStringLiteral("en");
     }
 
     if (m_appTranslator) {
@@ -444,9 +451,9 @@ void AppContext::installSegmenter(AnnotationCanvas *canvas)
     if (!canvas || !m_u2net)
         return;
     U2NetSegmenter *seg = m_u2net;
-    Settings *settings = m_settings;
-    canvas->setExternalSegmenter([seg, settings](const QImage &img, const QRect &r) -> QImage {
-        if (!settings->useU2Net() || !seg->modelReady())
+    auto enabled = m_u2netEnabled; // shared atomic; safe to read off-thread
+    canvas->setExternalSegmenter([seg, enabled](const QImage &img, const QRect &r) -> QImage {
+        if (!enabled->load() || !seg->modelReady())
             return {}; // fall back to the heuristic segmenter
         return seg->segmentSync(img, r);
     });

@@ -76,7 +76,14 @@ U2NetSegmenter::U2NetSegmenter(QObject *parent)
 
 U2NetSegmenter::~U2NetSegmenter()
 {
+    // segmentSync() runs on a worker thread and holds m_mutex across the whole
+    // (multi-second, uninterruptible) ORT inference. Setting the flag then
+    // acquiring the SAME mutex blocks the destructor until any in-flight worker
+    // has released it, so m_impl (the Ort::Session) and m_mutex are never torn
+    // down while a worker is still inside Run() — covers both the async
+    // segment() future and the synchronous external-segmenter path.
     m_cancelled->store(true);
+    std::lock_guard<std::mutex> lock(m_mutex);
 }
 
 QString U2NetSegmenter::modelPath()
@@ -103,8 +110,18 @@ QImage U2NetSegmenter::segmentSync(const QImage &img, const QRect &region)
         return {};
 
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (!m_impl->ensureSession(modelPath().toStdString()))
+    // Bail if the object is being destroyed (the dtor set this before it blocks
+    // on the mutex we just took).
+    if (m_cancelled->load())
         return {};
+    if (!m_impl->ensureSession(modelPath().toStdString())) {
+        // A corrupt/truncated model that passes the size check but fails to
+        // load would break background removal forever with no recourse — delete
+        // it so the next attempt re-downloads (self-heal, complements the
+        // atomic write in downloadModel).
+        QFile::remove(modelPath());
+        return {};
+    }
 
     // Preprocess: crop → 320×320 RGB → NCHW float, ImageNet-normalized.
     const QImage crop = img.copy(r).convertToFormat(QImage::Format_RGB888)
@@ -176,6 +193,9 @@ void U2NetSegmenter::downloadModel(std::function<void(bool, const QString &)> do
     QNetworkRequest req{QUrl(kModelUrl)};
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
+    // Bound the download so a hung/stalled server doesn't leave the UI stuck on
+    // "Downloading…" forever (finished still fires, with a timeout error).
+    req.setTransferTimeout(30000);
     QNetworkReply *reply = nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, nam, done]() {
         reply->deleteLater();
@@ -199,12 +219,30 @@ void U2NetSegmenter::downloadModel(std::function<void(bool, const QString &)> do
             done(false, tr("Downloaded model looks truncated"));
             return;
         }
-        QFile f(modelPath());
-        if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size()) {
+        // Write to a temp file and atomically rename into place, so a short
+        // write (ENOSPC, kill) never leaves a truncated model that the size
+        // check would accept forever with no way to recover.
+        const QString finalPath = modelPath();
+        const QString tmp = finalPath + QStringLiteral(".part");
+        QFile f(tmp);
+        if (!f.open(QIODevice::WriteOnly) || f.write(data) != data.size() || !f.flush()) {
+            f.close();
+            QFile::remove(tmp);
             done(false, tr("Could not write the model file"));
             return;
         }
         f.close();
+        if (QFileInfo(tmp).size() != data.size()) {
+            QFile::remove(tmp);
+            done(false, tr("Downloaded model looks truncated"));
+            return;
+        }
+        QFile::remove(finalPath); // rename won't overwrite on all platforms
+        if (!QFile::rename(tmp, finalPath)) {
+            QFile::remove(tmp);
+            done(false, tr("Could not write the model file"));
+            return;
+        }
         done(true, tr("Model downloaded"));
     });
 }

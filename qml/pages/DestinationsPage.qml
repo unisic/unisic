@@ -47,7 +47,7 @@ Item {
             spacing: Theme.spacingL
 
             Text {
-                text: qsTr("Destinations")
+                text: qsTr("Servers")
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontTitle
                 font.weight: Font.Bold
@@ -71,7 +71,7 @@ Item {
                         Text {
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Active destination")
+                            text: qsTr("Active server")
                             color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
                         UComboBox {
@@ -134,7 +134,7 @@ Item {
             Row {
                 spacing: Theme.spacingM
                 UButton {
-                    iconName: "list-add"; text: qsTr("Add custom destination")
+                    iconName: "list-add"; text: qsTr("Add custom server")
                     onClicked: {
                         page.editing = { name: "", type: "http", requestUrl: "", method: "POST",
                                          fileFormName: "file", responseType: "json", urlPath: "$json:url$" }
@@ -198,7 +198,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
-                    text: page.editing && page.editing.name !== "" ? qsTr("Edit destination") : qsTr("New destination")
+                    text: page.editing && page.editing.name !== "" ? qsTr("Edit server") : qsTr("New server")
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontXL
                     font.weight: Font.Bold

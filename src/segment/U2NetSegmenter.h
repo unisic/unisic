@@ -43,7 +43,8 @@ public:
     void downloadModel(std::function<void(bool ok, const QString &message)> done);
 
 private:
-    // Cancels an in-flight worker on destruction (same idiom as OcrEngine).
+    // Set by the destructor before it blocks on m_mutex; a worker that acquires
+    // the lock after this bails instead of touching torn-down state.
     std::shared_ptr<std::atomic_bool> m_cancelled = std::make_shared<std::atomic_bool>(false);
 
     // ORT objects are created lazily and reused. Opaque here to keep the ORT

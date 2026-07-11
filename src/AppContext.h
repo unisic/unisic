@@ -7,6 +7,8 @@
 #include <QStringList>
 #include <QVector>
 #include <functional>
+#include <atomic>
+#include <memory>
 #include <qqmlregistration.h>
 #include "ocr/OcrWord.h"
 
@@ -388,6 +390,9 @@ private:
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
     bool m_u2netBusy = false;          // model download in flight
+    // Thread-safe mirror of Settings::useU2Net, read by the segmenter lambda on
+    // a worker thread (a direct QSettings read there would race the GUI writer).
+    std::shared_ptr<std::atomic_bool> m_u2netEnabled;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops

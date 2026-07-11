@@ -424,7 +424,7 @@ void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
 {
     const QJsonObject dest = activeDestination();
     if (dest.isEmpty()) {
-        cb({}, {}, tr("No upload destination configured"));
+        cb({}, {}, tr("No upload server configured"));
         return;
     }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));

@@ -171,6 +171,7 @@ qt_add_qml_module(unisic
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
+        qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
@@ -213,7 +214,9 @@ endif()
 # source strings. Without the tools the app still builds — UI falls back to the
 # English source strings and the language picker only offers "System"/"English".
 find_package(Qt6 QUIET COMPONENTS LinguistTools)
-set(UNISIC_TS_FILES ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts)
+set(UNISIC_TS_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_en.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts)
 if(Qt6LinguistTools_FOUND)
     qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
                     QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)

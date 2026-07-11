@@ -316,6 +316,11 @@ private:
     // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
     // to repaint only the dirty region while drag-drawing.
     QRectF annotBoundsImg(const Annot &a) const;
+    // Repaint only the given image-space rect (converted to item coords with a
+    // small slack for borders/handles) instead of the whole ~MP base — used by
+    // the move/resize/selection drags so a 4K capture doesn't get resampled in
+    // full every frame.
+    void updateImgRect(const QRectF &imgRect);
     // Tight multi-line bounds of a Text annotation (no padding/outline slack).
     QRectF textBoundsImg(const Annot &a) const;
     QFont annotFontFor(const Annot &a) const;

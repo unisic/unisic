@@ -193,7 +193,7 @@ Window {
             SidebarItem { iconName: "media-record";  label: qsTr("Record");       active: currentPage === 1; onClicked: currentPage = 1 }
             SidebarItem { iconName: "gif";           label: qsTr("GIF");          active: currentPage === 2; onClicked: currentPage = 2 }
             SidebarItem { iconName: "view-history";  label: qsTr("History");      active: currentPage === 3; onClicked: currentPage = 3 }
-            SidebarItem { iconName: "folder-cloud";  label: qsTr("Destinations"); active: currentPage === 4; onClicked: currentPage = 4 }
+            SidebarItem { iconName: "folder-cloud";  label: qsTr("Servers"); active: currentPage === 4; onClicked: currentPage = 4 }
             SidebarItem { iconName: "configure";     label: qsTr("Settings");     active: currentPage === 5; onClicked: currentPage = 5 }
         }
 

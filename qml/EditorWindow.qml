@@ -671,7 +671,7 @@ Window {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.spacingL
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.right: actionScroll.left
+                anchors.right: actionRow.left
                 anchors.rightMargin: Theme.spacingM
                 text: editorSession.statusText !== ""
                       ? editorSession.statusText
@@ -683,65 +683,71 @@ Window {
                 elide: Text.ElideMiddle
             }
 
-            // Scroll the action buttons horizontally inside the fixed bar rather
-            // than letting a right-anchored Row grow left over the status text /
-            // off the window. Width is capped to the room left of a 160px status
-            // area — keyed off parent.width (not the status Text's live width) so
-            // there is no binding loop.
-            Flickable {
-                id: actionScroll
+            // Primary exports stay labeled; the occasional OCR / cutout actions
+            // live behind one "More" menu, and Close is an icon — so the row
+            // fits the fixed bar at the minimum window width with no scrolling
+            // and never grows the window (it is right-anchored; the status text
+            // elides into whatever space is left).
+            Row {
+                id: actionRow
                 anchors.right: parent.right
                 anchors.rightMargin: Theme.spacingM
                 anchors.verticalCenter: parent.verticalCenter
-                height: 42
-                width: Math.min(actionRow.implicitWidth,
-                                parent.width - 2 * Theme.spacingM - 160)
-                contentWidth: actionRow.implicitWidth
-                contentHeight: 42
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                interactive: contentWidth > width
-                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
-
-            Row {
-                id: actionRow
-                anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
 
-                UButton { iconName: "edit-copy"; text: qsTr("Copy");   variant: "tonal"; onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() } }
+                // --- normal (non-OCR) mode ---
                 UButton {
+                    visible: !canvas.ocrMode
+                    iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
+                    onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+                }
+                UButton {
+                    visible: !canvas.ocrMode
                     iconName: "document-save"
                     text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
                     variant: "tonal"; onClicked: editorWindow.doSave()
                 }
                 UButton {
+                    visible: !canvas.ocrMode
                     iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
-                    enabled: !App.uploads.busy
+                    variant: "tonal"; enabled: !App.uploads.busy
                     onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                 }
-                UButton {
-                    visible: App.ocrAvailable && !canvas.ocrMode
-                    iconName: "ocr"; text: qsTr("Copy all text"); variant: "tonal"
-                    onClicked: editorSession.ocrCopyText()
+                Rectangle {
+                    visible: !canvas.ocrMode && (App.ocrAvailable || App.u2netAvailable)
+                    width: 1; height: 30; color: Theme.divider
+                    anchors.verticalCenter: parent.verticalCenter
                 }
-                // Selectable-text mode: recognize words, then let the user pick.
-                UButton {
-                    visible: App.ocrAvailable && !canvas.ocrMode
-                    iconName: "select"; text: qsTr("Select text"); variant: "tonal"
-                    onClicked: editorSession.startOcrPick()
+                // "More": the occasional text/cutout actions, greyed with a reason
+                // when the build lacks the dependency (kept discoverable, not hidden).
+                UMenuButton {
+                    visible: !canvas.ocrMode && (App.ocrAvailable || App.u2netAvailable)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("More")
+                    actions: [
+                        { label: qsTr("Copy all text"), iconName: "ocr",
+                          enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
+                          trigger: function () { editorSession.ocrCopyText() } },
+                        { label: qsTr("Select text…"), iconName: "select",
+                          enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
+                          trigger: function () { editorSession.startOcrPick() } },
+                        { separatorBefore: true, iconName: "object-pick",
+                          label: App.u2netBusy ? qsTr("Downloading model…") : qsTr("Remove background"),
+                          enabled: App.u2netAvailable && !App.u2netBusy,
+                          hint: App.u2netAvailable ? "" : qsTr("Needs U-2-Net"),
+                          trigger: function () { App.u2netModelReady ? editorSession.removeBackground()
+                                                                     : u2netDownloadConfirm.open() } }
+                    ]
                 }
-                // U-2-Net background removal → transparent PNG/WebP.
-                UButton {
-                    visible: App.u2netAvailable && !canvas.ocrMode
-                    iconName: "object-pick"
-                    text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Remove background")
-                    variant: "tonal"
-                    enabled: !App.u2netBusy
-                    onClicked: {
-                        if (App.u2netModelReady) editorSession.removeBackground()
-                        else u2netDownloadConfirm.open()
-                    }
+                UIconButton {
+                    visible: !canvas.ocrMode
+                    iconName: "close"; iconSize: 16; width: 38; height: 38
+                    tooltip: qsTr("Close (Esc)")
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: editorWindow.close()
                 }
+
+                // --- OCR text-selection mode (swaps in) ---
                 UButton {
                     visible: canvas.ocrMode
                     iconName: "edit-copy"
@@ -760,8 +766,6 @@ Window {
                     iconName: "close"; text: qsTr("Done"); variant: "ghost"
                     onClicked: canvas.clearOcrMode()
                 }
-                UButton { visible: !canvas.ocrMode; iconName: "close"; text: qsTr("Close"); variant: "ghost"; onClicked: editorWindow.close() }
-            }
             }
         }
     }

@@ -1148,6 +1148,15 @@ void AnnotationCanvas::drawAll(QPainter &p) const
         drawAnnot(p, m_current);
 }
 
+void AnnotationCanvas::updateImgRect(const QRectF &imgRect)
+{
+    if (imgRect.isNull()) { update(); return; }
+    const qreal s = renderScale();
+    update(QRectF(imgRect.x() * s, imgRect.y() * s,
+                  imgRect.width() * s, imgRect.height() * s)
+               .toAlignedRect().adjusted(-8, -8, 8, 8));
+}
+
 QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
 {
     QRectF r;
@@ -1627,22 +1636,27 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         }
         break;
     }
-    case NewSelection:
+    case NewSelection: {
+        const QRectF oldSel = m_selection;
         m_selection = QRectF(m_dragStart, img).normalized();
         normalizeSelection();
         emit selectionRectChanged();
-        update();
+        // Only the scrim ring between the old and new selection edges changes.
+        updateImgRect(oldSel.united(m_selection));
         break;
+    }
     case MoveSelection: {
+        const QRectF oldSel = m_selection;
         QRectF r = m_selStart.translated(img - m_dragStart);
         r.moveLeft(qBound(0.0, r.left(), qreal(m_base.width()) - r.width()));
         r.moveTop(qBound(0.0, r.top(), qreal(m_base.height()) - r.height()));
         m_selection = r;
         emit selectionRectChanged();
-        update();
+        updateImgRect(oldSel.united(m_selection));
         break;
     }
     case ResizeSelection: {
+        const QRectF oldSel = m_selection;
         QRectF r = m_selStart;
         const QPointF d = img - m_dragStart;
         switch (m_resizeHandle) {
@@ -1658,7 +1672,7 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         m_selection = r.normalized();
         normalizeSelection();
         emit selectionRectChanged();
-        update();
+        updateImgRect(oldSel.united(m_selection));
         break;
     }
     case PendingMoveAnnot: {
@@ -1675,19 +1689,21 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
     Q_FALLTHROUGH();
     case MoveAnnot: {
         if (m_selectedAnnot < 0) break;
-        const QPointF d = img - m_dragStart;
         Annot &a = m_items[m_selectedAnnot];
+        const QRectF oldB = annotBoundsImg(a);
+        const QPointF d = img - m_dragStart;
         a.rect = m_annotStartRect.translated(d);
         a.points = m_annotStartPoints;
         for (QPointF &p : a.points)
             p += d;
-        update();
+        updateImgRect(oldB.united(annotBoundsImg(a)));
         break;
     }
     case ResizeAnnot: {
         if (m_selectedAnnot < 0) break;
         if (m_resizeUndoPending) { pushUndo(); m_resizeUndoPending = false; }
         Annot &a = m_items[m_selectedAnnot];
+        const QRectF oldB = annotBoundsImg(a);
         QRectF r = m_annotStartRect;
         const QPointF d = img - m_dragStart;
         if (a.type == Line || a.type == Arrow) {
@@ -1709,7 +1725,7 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
             }
             a.rect = r; // normalized on release
         }
-        update();
+        updateImgRect(oldB.united(annotBoundsImg(a)));
         break;
     }
     default:

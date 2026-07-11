@@ -108,6 +108,8 @@ appstream-util validate-relax --nonet \
 %license LICENSE
 %doc README.md
 %{_bindir}/unisic
+%dir %{_datadir}/unisic
+%{_datadir}/unisic/obs-signing-key.asc
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg

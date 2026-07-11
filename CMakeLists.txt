@@ -253,6 +253,11 @@ else()
 endif()
 
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+# OBS repo signing key, shipped so the deb postinst can reference it from the
+# apt .sources file it writes (native repo updates for direct .deb downloads —
+# see packaging/obs/README.md).
+install(FILES packaging/obs/home_unisic.key
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME obs-signing-key.asc)
 install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
@@ -289,6 +294,10 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     xdg-desktop-portal)
 string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
 set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "curl, xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
+# Direct-download debs self-register the OBS apt repo (postinst) so later
+# versions arrive natively via apt; postrm drops the entry on purge.
+set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postinst;${CMAKE_CURRENT_SOURCE_DIR}/packaging/deb/postrm")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
@@ -298,6 +307,10 @@ set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 # GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
 # a package-name Requires would make the RPM uninstallable on stock Fedora.
 set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
+# Direct-download rpms self-register the COPR repo on Fedora (%post) so later
+# versions arrive natively via dnf; %postun drops the entry on erase.
+set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-post.sh")
+set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-postun.sh")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
 
 include(CPack)

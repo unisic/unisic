@@ -800,7 +800,7 @@ Item {
                                     ? qsTr("The Flatpak sandbox can't replace the app from inside — install the new bundle.")
                                     : App.updater.installKind === "appimage"
                                       ? qsTr("The AppImage location is read-only — it can't update itself from here.")
-                                      : qsTr("The update arrives through your package manager.")
+                                      : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }

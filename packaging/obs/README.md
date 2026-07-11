@@ -2,7 +2,7 @@
 
 Auto-updating signed repos for **Debian 13, Ubuntu 25.10/26.04, Arch, openSUSE
 Tumbleweed + Leap 16.0**, built on the [openSUSE Build Service](https://build.opensuse.org)
-project `home:deandark:unisic`. Fedora is NOT built here — it stays on COPR
+project `home:unisic`. Fedora is NOT built here — it stays on COPR
 `deandark/Unisic` (Packit, see `.packit.yaml`).
 
 ## Data flow
@@ -32,26 +32,32 @@ the next service run overwrites them.
 | `packaging/arch/PKGBUILD` | Arch (and the CI release asset) |
 | `packaging/obs/unisic.dsc` + `debian.control/rules/changelog` | Debian 13, Ubuntu (via debtransform) |
 | `packaging/obs/_service` | source-of-truth copy of the one file living in OBS |
+| `packaging/obs/home_unisic.key` | project signing key (armored), installed as `/usr/share/unisic/obs-signing-key.asc` by CMake |
+| `packaging/arch/unisic.install` | pacman post_install note offering the OBS repo |
+| `packaging/deb/postinst`+`postrm`, `packaging/rpm/copr-post*.sh` | CI (CPack) packages ONLY: self-register the OBS apt repo / COPR dnf repo so direct downloads update natively; repo-built packages skip them on purpose |
 
 Sync rules: `debian.control` Depends mirrors the CPack DEB block in
 `CMakeLists.txt`; `unisic.dsc` Build-Depends mirrors `debian.control`;
-both mirror the debian:trixie CI job in `release.yml`.
+both mirror the debian:trixie CI job in `release.yml`. If the OBS project
+key is ever rotated, re-download it into `packaging/obs/home_unisic.key`
+(`https://build.opensuse.org/projects/home:unisic/signing_keys/download?kind=gpg`)
+and update the fingerprint in `packaging/arch/unisic.install`.
 
 ## One-time setup
 
-Requires an OBS account (placeholder `deandark` below — adjust everywhere,
-including README.md install URLs and the `obs` job in `release.yml`, if the
-account name differs) and `osc` configured (`osc whois` to test).
+Requires the OBS account `unisic` (project `home:unisic` — already created,
+signing key committed as `packaging/obs/home_unisic.key`) and `osc`
+configured (`osc whois` to test).
 
 1. Create the project:
 
    ```sh
-   osc meta prj home:deandark:unisic -F - <<'XML'
-   <project name="home:deandark:unisic">
+   osc meta prj home:unisic -F - <<'XML'
+   <project name="home:unisic">
      <title>Unisic</title>
      <description>Auto-updating release repos for Unisic (Debian, Ubuntu, openSUSE, Arch).
    Fedora is served from COPR deandark/Unisic. Rebuilt on each GitHub release via runservice token.</description>
-     <person userid="deandark" role="maintainer"/>
+     <person userid="unisic" role="maintainer"/>
      <publish><enable/></publish>
      <repository name="openSUSE_Tumbleweed">
        <path project="openSUSE:Factory" repository="snapshot"/>
@@ -84,8 +90,8 @@ account name differs) and `osc` configured (`osc whois` to test).
 2. Create the package:
 
    ```sh
-   osc meta pkg home:deandark:unisic unisic -F - <<'XML'
-   <package name="unisic" project="home:deandark:unisic">
+   osc meta pkg home:unisic unisic -F - <<'XML'
+   <package name="unisic" project="home:unisic">
      <title>Unisic</title>
      <description>Screen capture/annotate/record for Wayland</description>
    </package>
@@ -95,7 +101,7 @@ account name differs) and `osc` configured (`osc whois` to test).
 3. Commit `_service` (the only OBS-side file):
 
    ```sh
-   osc co home:deandark:unisic unisic && cd home:deandark:unisic/unisic
+   osc co home:unisic unisic && cd home:unisic/unisic
    cp <repo>/packaging/obs/_service .
    osc add _service
    osc commit -m "source services: obs_scm + extract_file from github.com/unisic/unisic"
@@ -109,8 +115,8 @@ account name differs) and `osc` configured (`osc whois` to test).
 4. Run + inspect the services:
 
    ```sh
-   osc service remoterun home:deandark:unisic unisic
-   osc ls -e home:deandark:unisic unisic
+   osc service remoterun home:unisic unisic
+   osc ls -e home:unisic unisic
    # expect: _service:obs_scm:unisic-<ver>.obscpio + .obsinfo,
    #         _service:extract_file:{unisic.spec,PKGBUILD,unisic.dsc,debian.control,debian.rules,debian.changelog}
    ```
@@ -118,8 +124,8 @@ account name differs) and `osc` configured (`osc whois` to test).
 5. Watch builds, iterate:
 
    ```sh
-   osc results home:deandark:unisic unisic
-   osc buildlog home:deandark:unisic unisic Debian_13 x86_64
+   osc results home:unisic unisic
+   osc buildlog home:unisic unisic Debian_13 x86_64
    # local reproduction (much faster iteration):
    osc build openSUSE_Tumbleweed x86_64   # runs in a local chroot
    osc build Debian_13 x86_64             # runs debtransform locally
@@ -135,7 +141,7 @@ account name differs) and `osc` configured (`osc whois` to test).
 6. Create the trigger token and GitHub secret:
 
    ```sh
-   osc token --create --operation runservice home:deandark:unisic unisic
+   osc token --create --operation runservice home:unisic unisic
    gh secret set OBS_TOKEN --repo unisic/unisic   # paste the token string
    ```
 
@@ -143,13 +149,13 @@ account name differs) and `osc` configured (`osc whois` to test).
 
    ```sh
    curl -sS -X POST -H "Authorization: Token <SECRET>" \
-     "https://api.opensuse.org/trigger/runservice?project=home:deandark:unisic&package=unisic"
+     "https://api.opensuse.org/trigger/runservice?project=home:unisic&package=unisic"
    ```
 
 7. Note the signing key fingerprint and **expiry**:
 
    ```sh
-   osc signkey home:deandark:unisic
+   osc signkey home:unisic
    ```
 
 ## Maintenance
@@ -157,14 +163,14 @@ account name differs) and `osc` configured (`osc whois` to test).
 - **Signing-key expiry (IMPORTANT)**: OBS project keys expire and are NOT
   auto-extended. An expired key hard-breaks `apt update` for every
   Debian/Ubuntu user (`EXPKEYSIG`) and zypper/pacman verification. Before
-  expiry run `osc signkey --extend home:deandark:unisic`, then retrigger a
+  expiry run `osc signkey --extend home:unisic`, then retrigger a
   build so the refreshed key propagates into `Release.key`/`repomd.xml.key`.
   Set a calendar reminder when creating the project.
 - **Ubuntu 25.10 EOL (July 2026)**: drop the target with
-  `osc meta prj -e home:deandark:unisic` (delete the repository block); add
+  `osc meta prj -e home:unisic` (delete the repository block); add
   new Ubuntu/Fedora-style targets the same way (verified names come from
   `https://api.opensuse.org/public/distributions`).
-- **Manual retrigger**: `osc service remoterun home:deandark:unisic unisic`.
+- **Manual retrigger**: `osc service remoterun home:unisic unisic`.
 - **Publish lag**: download.opensuse.org can lag the build by minutes up to
   ~1h (mirror sync) — "repo still has the old version" right after a release
   is usually just that.

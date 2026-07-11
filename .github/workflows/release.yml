@@ -469,7 +469,7 @@ jobs:
     name: Trigger OBS rebuild
     # needs `release` so the v<version> tag exists when OBS's obs_scm service
     # fetches the repo; `check` only for the should_release output. The OBS
-    # project (home:deandark:unisic) rebuilds Debian/Ubuntu/Arch/openSUSE
+    # project (home:unisic) rebuilds Debian/Ubuntu/Arch/openSUSE
     # repos from the tag — see packaging/obs/README.md.
     needs:
       - check
@@ -477,7 +477,7 @@ jobs:
     if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Run OBS source services (home:deandark:unisic/unisic)
+      - name: Run OBS source services (home:unisic/unisic)
         env:
           OBS_TOKEN: ${{ secrets.OBS_TOKEN }}
         run: |
@@ -487,7 +487,7 @@ jobs:
           fi
           resp="$(curl -sS --fail-with-body -X POST \
             -H "Authorization: Token ${OBS_TOKEN}" \
-            "https://api.opensuse.org/trigger/runservice?project=home:deandark:unisic&package=unisic")"
+            "https://api.opensuse.org/trigger/runservice?project=home:unisic&package=unisic")"
           echo "$resp"
           grep -q 'code="ok"' <<<"$resp" \
             || { echo "::error::OBS trigger did not return ok"; exit 1; }

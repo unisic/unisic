@@ -17,7 +17,7 @@
        basenames (all unique by design). -->
   <service name="extract_file">
     <param name="archive">*.obscpio</param>
-    <param name="files">*/unisic.spec */packaging/arch/PKGBUILD */packaging/obs/unisic.dsc */packaging/obs/debian.control */packaging/obs/debian.rules */packaging/obs/debian.changelog</param>
+    <param name="files">*/unisic.spec */packaging/arch/PKGBUILD */packaging/arch/unisic.install */packaging/obs/unisic.dsc */packaging/obs/debian.control */packaging/obs/debian.rules */packaging/obs/debian.changelog</param>
   </service>
   <!-- Buildtime: obscpio -> unisic-<ver>.tar -> unisic-<ver>.tar.gz (gz, not
        xz: debtransform re-converts any non-gz orig tarball anyway), then

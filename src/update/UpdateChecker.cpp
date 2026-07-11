@@ -84,9 +84,14 @@ bool UpdateChecker::canSelfUpdate() const
         // target (same filesystem) so the final rename is atomic.
         return fi.exists() && fi.isWritable() && QFileInfo(fi.absolutePath()).isWritable();
     }
-    // Package installs stage into the user's data dir — always reachable.
+    // Installs under /usr are package-managed and update NATIVELY: their
+    // postinst registered the OBS/COPR repo, so apt/dnf owns the upgrade
+    // path — staging would only shadow the package manager's copy. Staging
+    // stays for manual installs outside /usr (e.g. a tarball in $HOME).
     // Flatpak can't replace itself from inside the sandbox.
-    return kind == QLatin1String("system");
+    if (kind == QLatin1String("system"))
+        return !QCoreApplication::applicationFilePath().startsWith(QLatin1String("/usr/"));
+    return false;
 }
 
 void UpdateChecker::startAutoCheck()

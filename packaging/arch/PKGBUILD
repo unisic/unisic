@@ -18,6 +18,7 @@ optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'
             'tesseract-data-pol: Polish OCR language data'
             'tesseract-data-eng: English OCR language data')
+install=unisic.install
 source=("${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')
 

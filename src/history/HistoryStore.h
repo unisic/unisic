@@ -70,6 +70,9 @@ signals:
     // Emitted when a capture file could not be moved to the trash; the entry is
     // still removed. AppContext surfaces this as a toast.
     void fileTrashFailed(const QString &path);
+    // Emitted once per explicit user deletion (single remove or Clear all) —
+    // AppContext plays the fixed trash sound cue on it.
+    void entryTrashed();
 
 private:
     struct Entry {

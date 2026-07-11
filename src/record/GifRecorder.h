@@ -49,6 +49,9 @@ private:
     enum State { Idle, Starting, Recording, Converting };
 
     void onStreamReady(int fd, uint nodeId, const QSize &size, const QPoint &pos);
+    // Create the ScreenCast session with the (per-monitor) restore token; used
+    // by start() and by the wrong-monitor retry in onStreamReady.
+    void openPortalSession();
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
     void convertToGif();                                     // pass 1: palettegen
@@ -82,6 +85,7 @@ private:
     QSize m_streamSize;
     QSize m_encodeSize;
     QPointer<QScreen> m_targetScreen;
+    bool m_monitorRetryDone = false; // one wrong-monitor self-heal per start()
     QByteArray m_lastFrame;
     quint64 m_lastSampledSeq = 0; // grabber seq of m_lastFrame (skip re-crop when unchanged)
     QString m_tempPath;

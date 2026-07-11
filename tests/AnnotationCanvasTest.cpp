@@ -3,6 +3,7 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QSignalSpy>
 #include <QTest>
 
 class TestAnnotationCanvas final : public AnnotationCanvas
@@ -25,6 +26,7 @@ private slots:
     void smartPickPrefersTiledWindow();
     void editShapesSelectMoveDelete();
     void drawToolClickSelectsAndMoves();
+    void captureOnReleaseConfirms();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -256,6 +258,31 @@ void AnnotationCanvasTest::drawToolClickSelectsAndMoves()
              "clicking the interior of an unfilled rect must select it");
     drag(canvas, QPointF(100, 100), QPointF(130, 100));
     QCOMPARE(canvas.annotCount(), 1); // moved, not drawn over
+}
+
+void AnnotationCanvasTest::captureOnReleaseConfirms()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(100);
+    canvas.setHeight(100);
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setSelectionMode(true);
+    canvas.setConfirmOnRelease(true);
+
+    QSignalSpy confirmed(&canvas, &AnnotationCanvas::selectionConfirmed);
+
+    // Releasing a selection drag confirms exactly once.
+    drag(canvas, QPointF(10, 10), QPointF(80, 60));
+    QVERIFY(canvas.hasSelection());
+    QCOMPARE(confirmed.count(), 1);
+
+    // Toggle off: a fresh drag (outside the old rect) selects but never confirms.
+    canvas.setConfirmOnRelease(false);
+    drag(canvas, QPointF(85, 80), QPointF(95, 95));
+    QVERIFY(canvas.hasSelection());
+    QCOMPARE(confirmed.count(), 1);
 }
 
 int main(int argc, char *argv[])

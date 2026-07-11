@@ -393,6 +393,8 @@ void HistoryStore::removeRow(int row, bool trashFile)
     persistNow();   // explicit delete — never resurrectable by a crash
     rebuildWatches();
     emit countChanged();
+    if (trashFile)
+        emit entryTrashed(); // explicit user delete only, not stale-entry cleanup
 }
 
 void HistoryStore::remove(int row)
@@ -448,9 +450,12 @@ void HistoryStore::clearAll()
         }
         QFile::remove(e.thumbPath);
     }
+    const bool removedAny = kept.size() != m_entries.size();
     m_entries = kept;
     endResetModel();
     persistNow();   // explicit clear — flush immediately
     rebuildWatches(); // drop stale directory watches, they'd keep firing validations
     emit countChanged();
+    if (removedAny)
+        emit entryTrashed(); // one cue for the whole clear, not per entry
 }

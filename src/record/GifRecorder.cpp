@@ -13,7 +13,9 @@
 #include <QSet>
 #include <QDebug>
 #include <QtConcurrent>
+#include <climits>
 #include <cstring>
+#include <unistd.h>
 
 // The ffmpeg found in PATH varies: the Flatpak KDE runtime ships one without
 // GPL x264. Probe the available video encoders once so both the lossless
@@ -68,11 +70,16 @@ GifRecorder::~GifRecorder()
     abort();
 }
 
-static QString restoreTokenKey(GifRecorder::SourceType source)
+static QString restoreTokenKey(GifRecorder::SourceType source, QScreen *screen)
 {
-    return source == GifRecorder::Window
-               ? QStringLiteral("record/portalRestoreTokenWindow")
-               : QStringLiteral("record/portalRestoreTokenMonitor");
+    if (source == GifRecorder::Window)
+        return QStringLiteral("record/portalRestoreTokenWindow");
+    // Region: per-monitor token. A restore token silently replays the monitor
+    // it was created with — reusing one recorded on another screen streams the
+    // WRONG monitor and the region crop lands elsewhere (dual-monitor bug).
+    if (source == GifRecorder::Region && screen && !screen->name().isEmpty())
+        return QStringLiteral("record/portalRestoreTokenMonitor@") + screen->name();
+    return QStringLiteral("record/portalRestoreTokenMonitor");
 }
 
 int GifRecorder::elapsedSeconds() const
@@ -121,7 +128,15 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_targetScreen = screen;
     m_lastFrame.clear();
     m_lastSampledSeq = 0;
+    m_monitorRetryDone = false;
 
+    openPortalSession();
+#endif
+}
+
+void GifRecorder::openPortalSession()
+{
+#ifdef HAVE_PIPEWIRE
     m_session = new ScreenCastSession(this);
     connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
     connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
@@ -132,22 +147,46 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
         else if (m_state == Starting)
             fail(tr("Screen sharing was stopped"));
     });
-    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this, source](const QString &token) {
-        const QString key = restoreTokenKey(source);
+    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this](const QString &token) {
+        const QString key = restoreTokenKey(m_source, m_targetScreen);
         if (token.isEmpty())
             m_settings->raw()->remove(key);
         else
             m_settings->raw()->setValue(key, token);
     });
     // Window source → portal WINDOW picker; otherwise a monitor.
-    const QString restoreToken = m_settings->raw()->value(restoreTokenKey(source)).toString();
-    m_session->start(m_settings->includeCursor(), source == Window ? 2u : 1u, restoreToken);
+    const QString restoreToken =
+        m_settings->raw()->value(restoreTokenKey(m_source, m_targetScreen)).toString();
+    m_session->start(m_settings->includeCursor(), m_source == Window ? 2u : 1u, restoreToken);
 #endif
 }
 
-void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint &)
+void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint &pos)
 {
 #ifdef HAVE_PIPEWIRE
+    // Wrong-monitor guard (dual-monitor): the region crop is LOCAL to the
+    // screen it was drawn on, so a stream of a different monitor records a
+    // misplaced area. Happens when a stale restore token replays a previously
+    // picked monitor, or the user shares the wrong one in the portal dialog.
+    // The portal's stream "position" (logical workspace coords) exposes it.
+    if (m_source == Region && m_targetScreen && pos.x() != INT_MIN
+        && pos != m_targetScreen->geometry().topLeft()) {
+        ::close(fd); // dup'd for us — nobody else will
+        m_settings->raw()->remove(restoreTokenKey(m_source, m_targetScreen));
+        m_session->disconnect(this);
+        m_session->deleteLater();
+        m_session = nullptr;
+        if (!m_monitorRetryDone) {
+            // One self-heal round: re-open without the token so the picker
+            // shows and the user can share the monitor the region is on.
+            m_monitorRetryDone = true;
+            openPortalSession();
+            return;
+        }
+        fail(tr("The shared screen doesn't match the one the region was selected on — pick \"%1\" in the sharing dialog")
+                 .arg(m_targetScreen->name()));
+        return;
+    }
     m_grabber = new PipeWireGrabber(this);
     connect(m_grabber, &PipeWireGrabber::formatReady, this, &GifRecorder::beginEncoding);
     // Guard by state: a streamError queued from the PipeWire thread just before
@@ -232,7 +271,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                       : m_output == WebM ? QStringLiteral("webm")
                                          : QStringLiteral("mp4");
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
-    QDir().mkpath(m_settings->saveDirectory());
+    QDir().mkpath(m_settings->videoSaveDirectory());
     // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
     // /tmp is tmpfs on Fedora and in Flatpak, and minutes of lossless 4K would
     // exhaust RAM (max duration defaults to unlimited) and lose the recording
@@ -240,7 +279,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(tmpBase);
     m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
-    m_outPath = m_settings->saveDirectory()
+    m_outPath = m_settings->videoSaveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
     // Feed ffmpeg the stream's native byte order (bgr0/bgra/rgb0/rgba) so the

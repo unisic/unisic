@@ -26,6 +26,7 @@ class Settings : public QObject
     QML_UNCREATABLE("Provided by AppContext")
 
     Q_PROPERTY(QString saveDirectory READ saveDirectory WRITE setSaveDirectory NOTIFY saveDirectoryChanged)
+    Q_PROPERTY(QString videoSaveDirectory READ videoSaveDirectory WRITE setVideoSaveDirectory NOTIFY videoSaveDirectoryChanged)
     Q_PROPERTY(bool autoSave READ autoSave WRITE setAutoSave NOTIFY autoSaveChanged)
     Q_PROPERTY(bool copyToClipboard READ copyToClipboard WRITE setCopyToClipboard NOTIFY copyToClipboardChanged)
     Q_PROPERTY(bool openEditor READ openEditor WRITE setOpenEditor NOTIFY openEditorChanged)
@@ -70,7 +71,8 @@ class Settings : public QObject
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
     Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
-    Q_PROPERTY(bool quickCopyAfterCapture READ quickCopyAfterCapture WRITE setQuickCopyAfterCapture NOTIFY quickCopyAfterCaptureChanged)
+    Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
+    Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
     Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
@@ -228,7 +230,17 @@ public:
         return d;
     }
 
+    static QString defaultVideoSaveDir()
+    {
+        // Same no-mkpath rule as defaultSaveDir.
+        static const QString d =
+            QStandardPaths::writableLocation(QStandardPaths::MoviesLocation) + "/Unisic";
+        return d;
+    }
+
     U_SETTING(QString, saveDirectory, setSaveDirectory, "saveDirectory", defaultSaveDir())
+    // Recordings (GIF/MP4/WebM) land here; screenshots keep saveDirectory.
+    U_SETTING(QString, videoSaveDirectory, setVideoSaveDirectory, "videoSaveDirectory", defaultVideoSaveDir())
     U_SETTING(bool, autoSave, setAutoSave, "autoSave", true)
     U_SETTING(bool, copyToClipboard, setCopyToClipboard, "copyToClipboard", true)
     U_SETTING(bool, openEditor, setOpenEditor, "openEditor", true)
@@ -288,7 +300,12 @@ public:
     // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
     // window/element reliably without heavy vision libraries.
     U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", false)
-    U_SETTING(bool, quickCopyAfterCapture, setQuickCopyAfterCapture, "capture/quickCopyAfterCapture", true)
+    // Region screenshot: releasing the selection drag captures immediately
+    // (skips the annotate/confirm stage). GIF region picking is unaffected.
+    U_SETTING(bool, captureOnRelease, setCaptureOnRelease, "capture/captureOnRelease", false)
+    // Replaces the old 2s Ctrl+C grab (it stole ordinary copies right after a
+    // capture): a dedicated always-on hotkey that never collides with Ctrl+C.
+    U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral("Meta+Shift+C"))
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
@@ -336,7 +353,7 @@ public:
     QSettings *raw() { return &m_s; }
     void notifyAll()
     {
-        emit saveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
+        emit saveDirectoryChanged(); emit videoSaveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
@@ -351,7 +368,8 @@ public:
         emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
         emit editorResetColorsChanged(); emit editorResetToolsChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
-        emit quickCopyAfterCaptureChanged();
+        emit captureOnReleaseChanged();
+        emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
@@ -366,6 +384,7 @@ public:
 
 signals:
     void saveDirectoryChanged();
+    void videoSaveDirectoryChanged();
     void autoSaveChanged();
     void copyToClipboardChanged();
     void openEditorChanged();
@@ -410,7 +429,8 @@ signals:
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
     void smartPickChanged();
-    void quickCopyAfterCaptureChanged();
+    void captureOnReleaseChanged();
+    void hotkeyCopyLastChanged();
     void videoFpsChanged();
     void videoFormatChanged();
     void videoQualityChanged();

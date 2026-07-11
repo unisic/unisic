@@ -55,6 +55,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // highlights the detected object under the cursor and a CLICK (no drag)
     // selects its rect; dragging still draws a manual rectangle.
     Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
+    // Overlay capture-on-release: finishing a selection gesture (drag or
+    // smart-pick click) with the plain selection tool confirms immediately —
+    // no Enter/double-click. Annotation drags never confirm.
+    Q_PROPERTY(bool confirmOnRelease READ confirmOnRelease WRITE setConfirmOnRelease NOTIFY confirmOnReleaseChanged)
     // Hover state for the pick modes (smart pick / ObjectPick): the currently
     // highlighted object rect (image px; null when none), plus the nesting
     // position — hoverDepth-th of hoverDepthCount rects under the cursor
@@ -149,6 +153,13 @@ public:
     bool selectionMode() const { return m_selectionMode; }
     bool smartPick() const { return m_smartPick; }
     void setSmartPick(bool on);
+    bool confirmOnRelease() const { return m_confirmOnRelease; }
+    void setConfirmOnRelease(bool on)
+    {
+        if (m_confirmOnRelease == on) return;
+        m_confirmOnRelease = on;
+        emit confirmOnReleaseChanged();
+    }
     QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
     QString hoverObjectKind() const { return m_hoverObjectKind; }
     int hoverDepth() const { return m_hoverIndex; }
@@ -247,6 +258,7 @@ signals:
     void textBackgroundColorChanged();
     void selectionModeChanged();
     void smartPickChanged();
+    void confirmOnReleaseChanged();
     void hoverObjectChanged();
     void selectionRectChanged();
     void hoverPointChanged();
@@ -415,6 +427,7 @@ private:
 
     bool m_selectionMode = false;
     bool m_smartPick = false;
+    bool m_confirmOnRelease = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag

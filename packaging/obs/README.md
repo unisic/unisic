@@ -11,13 +11,25 @@ project `home:unisic`. Fedora is NOT built here — it stays on COPR
 push to main with version bump
   → release.yml builds assets, `release` job creates tag v<ver> + GitHub release
   → `obs` job POSTs the runservice trigger token to api.opensuse.org
-  → OBS re-runs source services:
-      obs_scm       clones main, version = newest v* tag (v stripped)
-      extract_file  pulls unisic.spec / PKGBUILD / unisic.dsc / debian.* out of the checkout
-      (buildtime)   tar → recompress(gz) → set_version rewrites spec/dsc/changelog/PKGBUILD versions
+  → OBS re-runs source services (ALL server-side — buildtime services can't
+    resolve obs-service-* packages in the foreign-distro build roots):
+      tar_scm       clones main into unisic-<ver>.tar, version = newest v* tag (v stripped)
+      extract_file  pulls unisic.spec / PKGBUILD / unisic.install / unisic.dsc / debian.* out of the tar
+      recompress    .tar → .tar.gz (what debtransform expects)
+      set_version   rewrites spec/dsc/changelog/PKGBUILD versions to the tag
   → per-target builds → signed repos published on download.opensuse.org
   → users get the update via apt upgrade / zypper up / pacman -Syu
 ```
+
+Hard-won details (each cost a broken round — don't regress them):
+- `DEBTRANSFORM-TAR` is a LITERAL filename, not a glob — the dsc has no such
+  line on purpose; debtransform auto-discovers the single tarball at any version.
+- Package builds pass `-DBUILD_TESTING=OFF` (spec + debian.rules) and
+  debian.rules has an empty `override_dh_auto_test:`.
+- openSUSE needs `pkgconfig(libcurl)` (tesseract link interface) and builds
+  with make (no `-G Ninja` — its %cmake_build drives make); Fedora keeps Ninja.
+- Installed binaries carry no RPATH (CMakeLists sets INSTALL_RPATH "") or
+  openSUSE's rpmlint hard-fails the build.
 
 **Invariant: the OBS package contains exactly ONE committed file — `_service`.**
 Every other file (spec, PKGBUILD, debian.*, dsc) is owned by git and re-extracted

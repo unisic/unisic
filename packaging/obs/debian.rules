@@ -7,5 +7,6 @@ export UNISIC_BUILD_NUMBER := $(shell dpkg-parsechangelog -SVersion)
 %:
 	dh $@ --buildsystem=cmake+ninja
 
+# BUILD_TESTING=OFF matches unisic.spec: packages skip unit tests (CI runs them).
 override_dh_auto_configure:
-	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
+	dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF -DBUILD_TESTING=OFF

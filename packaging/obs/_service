@@ -2,8 +2,13 @@
   <!-- Server-side: fetch main on each trigger; version = newest v* tag with
        the "v" stripped. Re-run via the runservice token (release.yml obs job)
        or `osc service remoterun`. While testing a feature branch, point
-       revision at the branch and flip back to main before the final commit. -->
-  <service name="obs_scm">
+       revision at the branch and flip back to main before the final commit.
+       tar_scm (not obs_scm + buildtime tar/recompress): the buildtime
+       services need obs-service-* packages the Debian/Ubuntu/Arch build
+       roots can't resolve, and the plain `tar` service is not installed
+       server-side on OBS — tar_scm emits the compressed tarball in one
+       server-side step instead. -->
+  <service name="tar_scm">
     <param name="scm">git</param>
     <param name="url">https://github.com/unisic/unisic.git</param>
     <param name="revision">main</param>
@@ -11,22 +16,16 @@
     <param name="versionrewrite-pattern">v(.*)</param>
     <param name="versionrewrite-replacement">\1</param>
     <param name="match-tag">v*</param>
+    <param name="compression">gz</param>
   </service>
   <!-- Server-side: pull the packaging files out of the checkout so they are
        owned by git, not by OBS. Files land in the package under their
        basenames (all unique by design). -->
   <service name="extract_file">
-    <param name="archive">*.obscpio</param>
+    <param name="archive">*.tar.gz</param>
     <param name="files">*/unisic.spec */packaging/arch/PKGBUILD */packaging/arch/unisic.install */packaging/obs/unisic.dsc */packaging/obs/debian.control */packaging/obs/debian.rules */packaging/obs/debian.changelog</param>
   </service>
-  <!-- Buildtime: obscpio -> unisic-<ver>.tar -> unisic-<ver>.tar.gz (gz, not
-       xz: debtransform re-converts any non-gz orig tarball anyway), then
-       rewrite spec Version / dsc Version / debian.changelog / PKGBUILD pkgver
-       to the tag version. -->
-  <service name="tar" mode="buildtime"/>
-  <service name="recompress" mode="buildtime">
-    <param name="file">*.tar</param>
-    <param name="compression">gz</param>
-  </service>
-  <service name="set_version" mode="buildtime"/>
+  <!-- Server-side: rewrite spec Version / dsc Version / debian.changelog /
+       PKGBUILD pkgver to the tag version from tar_scm. -->
+  <service name="set_version"/>
 </services>

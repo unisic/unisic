@@ -93,7 +93,10 @@ on KDE Plasma. Zero telemetry.
 # the RPM release as the build number ("build 1.fc44"); bump Release: (or let
 # rpkg/tito bump it) for a new number.
 export UNISIC_BUILD_NUMBER=%{release}
-%cmake -G Ninja -DUNISIC_DEV_BUILD=OFF
+# BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit tests need
+# Qt6Test, which openSUSE ships as a separate qt6-test-devel — packages
+# don't run unit tests (CI does).
+%cmake -G Ninja -DUNISIC_DEV_BUILD=OFF -DBUILD_TESTING=OFF
 %cmake_build
 
 %install

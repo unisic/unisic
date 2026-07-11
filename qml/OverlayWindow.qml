@@ -60,8 +60,20 @@ Window {
             var pos = App.settings.overlayToolbarPosition
             var m = 12
             var sel = selItem()
-            if (pos === "follow")
-                return Math.min(sel.y + sel.height + 12, height - toolbar.height - 8)
+            if (pos === "follow") {
+                // Below the selection when there's room; otherwise FLIP ABOVE
+                // it — the old bottom-clamp slid the toolbar over the region
+                // being captured near the screen's bottom edge.
+                var below = sel.y + sel.height + m
+                if (below + toolbar.height <= height - 8)
+                    return below
+                var above = sel.y - toolbar.height - m
+                if (above >= 8)
+                    return above
+                // Selection spans (almost) the full height: nowhere outside —
+                // overlap its bottom edge as the least harmful spot.
+                return height - toolbar.height - 8
+            }
             if (pos.indexOf("top") >= 0) return m + 44
             if (pos.indexOf("bottom") >= 0) return height - toolbar.height - m
             return height / 2 - toolbar.height / 2
@@ -244,17 +256,24 @@ Window {
                 textBackgroundColor = App.settings.editorTextBgColor
             }
             // A selected placed shape (Edit tool) is being restyled — don't
-            // overwrite the saved "next shape" defaults.
-            onShapeFillColorChanged: if (!hasAnnotSelection) App.settings.editorFillColor = shapeFillColor
-            onShapeFillEnabledChanged: if (!hasAnnotSelection) App.settings.editorFillEnabled = shapeFillEnabled
-            onFontFamilyChanged: if (!hasAnnotSelection) App.settings.editorFontFamily = fontFamily
-            onFontBoldChanged: if (!hasAnnotSelection) App.settings.editorFontBold = fontBold
-            onFontItalicChanged: if (!hasAnnotSelection) App.settings.editorFontItalic = fontItalic
-            onFontUnderlineChanged: if (!hasAnnotSelection) App.settings.editorFontUnderline = fontUnderline
-            onTextOutlineChanged: if (!hasAnnotSelection) App.settings.editorTextOutline = textOutline
-            onTextOutlineColorChanged: if (!hasAnnotSelection) App.settings.editorTextOutlineColor = String(textOutlineColor)
-            onTextBackgroundChanged: if (!hasAnnotSelection) App.settings.editorTextBackground = textBackground
-            onTextBackgroundColorChanged: if (!hasAnnotSelection) App.settings.editorTextBgColor = String(textBackgroundColor)
+            // overwrite the saved "next shape" defaults. Preferences can pin
+            // the saved defaults entirely (editorResetColors/editorResetTools):
+            // changes then apply to this overlay session only.
+            readonly property bool persistColors: !hasAnnotSelection && !App.settings.editorResetColors
+            readonly property bool persistTools: !hasAnnotSelection && !App.settings.editorResetTools
+            onStrokeColorChanged: if (!strokeColorIsAuto && persistColors) App.settings.editorStrokeColor = String(strokeColor)
+            onStrokeWidthChanged: if (persistTools) App.settings.editorStrokeWidth = strokeWidth
+            onFontSizeChanged: if (persistTools) App.settings.editorFontSize = fontSize
+            onShapeFillColorChanged: if (persistColors) App.settings.editorFillColor = shapeFillColor
+            onShapeFillEnabledChanged: if (persistTools) App.settings.editorFillEnabled = shapeFillEnabled
+            onFontFamilyChanged: if (persistTools) App.settings.editorFontFamily = fontFamily
+            onFontBoldChanged: if (persistTools) App.settings.editorFontBold = fontBold
+            onFontItalicChanged: if (persistTools) App.settings.editorFontItalic = fontItalic
+            onFontUnderlineChanged: if (persistTools) App.settings.editorFontUnderline = fontUnderline
+            onTextOutlineChanged: if (persistTools) App.settings.editorTextOutline = textOutline
+            onTextOutlineColorChanged: if (persistColors) App.settings.editorTextOutlineColor = String(textOutlineColor)
+            onTextBackgroundChanged: if (persistTools) App.settings.editorTextBackground = textBackground
+            onTextBackgroundColorChanged: if (persistColors) App.settings.editorTextBgColor = String(textBackgroundColor)
             onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
             // Screen eyedropper result → reopen the popup that requested it,
             // seeded with the sampled colour.
@@ -526,7 +545,7 @@ Window {
                         }
                     }
                     ToolChip {
-                        visible: canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection
+                        visible: canvas.hasAnnotSelection
                         iconName: "edit-delete"
                         label: qsTr("Delete shape")
                         anchors.verticalCenter: parent.verticalCenter
@@ -565,8 +584,8 @@ Window {
                 overlayController.textEditing = visible
                 if (visible) textField.forceActiveFocus()
             }
-            x: imgX * canvas.renderScale
-            y: imgY * canvas.renderScale
+            x: Math.min(imgX * canvas.renderScale, root.width - width - 8)
+            y: Math.min(imgY * canvas.renderScale, root.height - height - 8)
             width: 360
             height: Math.max(40, textField.implicitHeight + 16)
             z: 300

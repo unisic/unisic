@@ -160,6 +160,7 @@ public:
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestSmartPick();
     Q_INVOKABLE void devTestCaptureSound();
+    Q_INVOKABLE void devTestRecordingSound();
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
     Q_INVOKABLE void devTestShapeEdit();
@@ -177,6 +178,13 @@ public:
     bool u2netBusy() const { return m_u2netBusy; }
     Q_INVOKABLE void downloadU2NetModel();
     Q_INVOKABLE void deleteU2NetModel();
+    // Catalog for the settings combo: [{id, label}] + the "custom" entry.
+    Q_INVOKABLE QVariantList u2netModels() const;
+    // Display label of the currently selected model (download dialogs).
+    Q_INVOKABLE QString u2netModelLabel() const;
+    // Native file picker for a user-provided .onnx; sets segmentCustomModel +
+    // segmentModel="custom" on success. Returns the path ("" = cancelled).
+    Q_INVOKABLE QString pickU2NetCustomModel();
     // Install the U-2-Net segmenter onto a canvas (object-cutout upgrade). No-op
     // without onnxruntime; the lambda itself checks the enable setting + model.
     void installSegmenter(AnnotationCanvas *canvas);
@@ -253,8 +261,12 @@ public:
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
+    // Same, for finished recordings/GIFs (General > Recording sound) —
+    // a separate cue with its own setting.
+    void playRecordingSound();
     // Preview the selected capture sound from the settings UI.
     Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
+    Q_INVOKABLE void previewRecordingSound() { playRecordingSound(); }
     // Ids for the Settings combo: "off", the bundled cues, then any user
     // files dropped into ~/.config/unisic/sounds (basenames incl. extension).
     Q_INVOKABLE QStringList captureSoundIds() const;
@@ -323,7 +335,10 @@ private:
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
     // keys on actions the daemon reports unbound. Lines for smoke/dev output.
-    QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // `conflicts` (optional) collects keys that are in OUR binding yet resolve
+    // to ANOTHER component daemon-side (e.g. a KWin script) — those actions
+    // look bound but never fire, and healing cannot win the key back.
+    QStringList hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts = nullptr);
     // Windows (editor/preview) opened while the smoke test runs — the final
     // step closes them so F8 leaves no manual cleanup behind.
     QVector<QPointer<QQuickWindow>> m_smokeWindows;
@@ -334,6 +349,9 @@ private:
     QString altHotkeysCheck();
 
     void finishCapture(const QImage &img, bool inhibited);
+    // Shared player behind playCaptureSound/playRecordingSound: resolves a
+    // bundled or user sound id and spawns pw-play/paplay/aplay.
+    void playSoundId(const QString &id);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
                                                  const QString &kind, bool inhibited);
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
@@ -360,8 +378,7 @@ private:
     void armQuickCopy(const QImage &img);
     void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
-    QByteArray encodeImage(const QImage &img, QString *mime) const;
-    // encodeImage off the GUI thread (a 4K PNG encode is 100+ ms): settings are
+    // Encode off the GUI thread (a 4K PNG encode is 100+ ms): settings are
     // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
     // delivered back on the GUI thread (dropped if AppContext died meanwhile).
     void encodeImageAsync(const QImage &img,

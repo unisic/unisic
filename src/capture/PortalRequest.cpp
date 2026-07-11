@@ -6,6 +6,7 @@
 #include <QDBusObjectPath>
 #include <QDBusServiceWatcher>
 #include <QCoreApplication>
+#include <QTimer>
 #include <QDebug>
 
 static int s_tokenCounter = 0;
@@ -57,9 +58,23 @@ void PortalRequest::subscribe(const QString &path)
         this, SLOT(onResponse(uint, QVariantMap)));
 }
 
-void PortalRequest::send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent)
+void PortalRequest::send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent,
+                         int timeoutMs)
 {
     auto *req = new PortalRequest(handleToken, std::move(cb), parent);
+    if (timeoutMs > 0) {
+        // Watchdog for NON-interactive requests: a hung (but not dead) portal
+        // backend keeps its bus name and never emits Response, so neither the
+        // service watcher nor the DBus reply timeout fires and the capture
+        // callback is lost forever. Route a synthetic error through onResponse
+        // (m_cb is moved out on the first completion, so a race with a real or
+        // late Response is harmless). The timer is bound to req's lifetime, so
+        // a real completion's deleteLater cancels it.
+        QTimer::singleShot(timeoutMs, req, [req] {
+            req->onResponse(2, {{QStringLiteral("error"),
+                                 QStringLiteral("portal request timed out")}});
+        });
+    }
     QDBusPendingCall call = QDBusConnection::sessionBus().asyncCall(msg);
     auto *watcher = new QDBusPendingCallWatcher(call, req);
     QObject::connect(watcher, &QDBusPendingCallWatcher::finished, req, [req](QDBusPendingCallWatcher *w) {

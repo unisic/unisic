@@ -201,8 +201,27 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
         closeAll();
         cb(result);
     } else if (m_regionCb) {
-        // Canvas works in physical image pixels already (frozen image is native res).
-        const QRect phys = canvas->selectionRect().toAlignedRect();
+        // The selection is in frozen-IMAGE pixels; the region callback contract
+        // is PHYSICAL pixels (screen geometry * DPR). On the KWin path the
+        // frozen image is already native res so the two match and this is a
+        // no-op, but the portal workspace-crop fallback can hand back a
+        // logical / uniformly-scaled image — rescale so the recorder crops the
+        // right area instead of a mis-scaled quadrant.
+        const QRectF sel = canvas->selectionRect();
+        const QSize imgSize = canvas->image().size();
+        const QSize physSize = screen
+            ? QSize(qRound(screen->geometry().width() * screen->devicePixelRatio()),
+                    qRound(screen->geometry().height() * screen->devicePixelRatio()))
+            : QSize();
+        QRect phys;
+        if (screen && !imgSize.isEmpty() && physSize != imgSize) {
+            const double sx = double(physSize.width()) / imgSize.width();
+            const double sy = double(physSize.height()) / imgSize.height();
+            phys = QRectF(sel.x() * sx, sel.y() * sy,
+                          sel.width() * sx, sel.height() * sy).toAlignedRect();
+        } else {
+            phys = sel.toAlignedRect();
+        }
         auto cb = std::move(m_regionCb);
         closeAll();
         cb(phys, screen);

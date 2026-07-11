@@ -115,6 +115,11 @@ else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
 endif()
 
+# NOTE: no packaging channel installs onnxruntime (neither the COPR spec's
+# BuildRequires, nor the deb/rpm/arch/appimage/flatpak CI jobs), so HAVE_ONNX
+# is OFF in every shipped build — U-2-Net background removal is dev-only and the
+# app falls back to the dependency-free heuristic segmenter. This is deliberate:
+# enabling it means adding onnxruntime to the spec + all packaging deps.
 if(onnxruntime_FOUND OR ONNXRUNTIME_FOUND)
     target_sources(unisic PRIVATE src/segment/U2NetSegmenter.h src/segment/U2NetSegmenter.cpp)
     if(onnxruntime_FOUND)
@@ -171,16 +176,17 @@ qt_add_qml_module(unisic
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
+        qml/components/UValueCombo.qml
         qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
-        qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
         qml/components/ToolPropsBar.qml
         qml/components/ColorDot.qml
         qml/components/MiddleScroll.qml
+        qml/components/WheelBoost.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
@@ -216,7 +222,9 @@ endif()
 find_package(Qt6 QUIET COMPONENTS LinguistTools)
 set(UNISIC_TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_en.ts
-    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts)
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_es.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts)
 if(Qt6LinguistTools_FOUND)
     qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
                     QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)
@@ -229,8 +237,15 @@ if(Qt6LinguistTools_FOUND)
          ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
          ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
          ${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml)
-    qt_add_lupdate(TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
-    message(STATUS "Translations: enabled (Polish)")
+    # The target-less qt_add_lupdate() signature is Qt 6.7+. On the declared
+    # 6.5/6.6 floor (e.g. openSUSE Leap ships 6.6) the first positional arg is
+    # the mandatory target, so pass `unisic` explicitly there.
+    if(Qt6_VERSION VERSION_GREATER_EQUAL 6.7)
+        qt_add_lupdate(TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
+    else()
+        qt_add_lupdate(unisic TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
+    endif()
+    message(STATUS "Translations: enabled (Polish, Spanish, Italian)")
 else()
     message(STATUS "Translations: disabled (needs Qt6 LinguistTools) — English source strings only")
 endif()

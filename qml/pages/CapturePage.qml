@@ -13,6 +13,7 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
 
         MiddleScroll { flickable: pageFlick }
+        WheelBoost { flickable: pageFlick }
 
         Column {
             id: col
@@ -102,6 +103,7 @@ Item {
                             }
                             Rectangle {
                                 anchors.horizontalCenter: parent.horizontalCenter
+                                visible: modelData.hotkey !== ""
                                 width: hotkeyText.implicitWidth + 18
                                 height: 22
                                 radius: 11
@@ -109,7 +111,7 @@ Item {
                                 Text {
                                     id: hotkeyText
                                     anchors.centerIn: parent
-                                    text: modelData.hotkey
+                                    text: modelData.hotkey.split(", ")[0]
                                     color: Theme.accent
                                     font.pixelSize: 11
                                     font.family: "monospace"

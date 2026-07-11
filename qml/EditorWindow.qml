@@ -12,11 +12,11 @@ Window {
     // toolbar control visible, and never above the work area — oversized
     // images get a fit-scaled (and zoomable/pannable) canvas instead.
     width: Math.min(Math.max(minimumWidth, canvas.imageSize.width / Screen.devicePixelRatio + 96),
-                    Screen.desktopAvailableWidth * 0.9)
+                    Screen.width * 0.9)
     height: Math.min(Math.max(minimumHeight,
                               canvas.imageSize.height / Screen.devicePixelRatio
                               + reservedTopBar + reservedBottomBar + 88 + chromeTop),
-                     Screen.desktopAvailableHeight * 0.9)
+                     Screen.height * 0.9)
     minimumWidth: 820
     minimumHeight: 480
     visible: true
@@ -38,6 +38,29 @@ Window {
     readonly property int reservedBottomBar: 64                          // == bottomBar.height
 
     Component.onCompleted: editorSession.bindCanvas(canvas)
+
+    // True once the user has taken any export action (save/copy/upload/OCR/
+    // cutout) — statusText is only ever set by those. Used to skip the
+    // discard-confirm nag: once exported, closing never nags.
+    property bool exported: false
+    // Set by the discard confirmation so the second close() pass goes through.
+    property bool closeConfirmed: false
+    Connections {
+        target: editorSession
+        function onStatusTextChanged() {
+            if (editorSession.statusText !== "") editorWindow.exported = true
+        }
+    }
+
+    // A single Escape / Close must not silently destroy unsaved annotations.
+    // Guard the close when there are undoable edits and nothing was exported;
+    // the confirm dialog's Discard sets closeConfirmed and re-closes.
+    onClosing: (close) => {
+        if (canvas.canUndo && !editorWindow.exported && !editorWindow.closeConfirmed) {
+            close.accepted = false
+            discardConfirm.open()
+        }
+    }
 
     // Text still being typed in the floating input is visible on the canvas but
     // only becomes an annotation on Enter — commit it before any export so the
@@ -118,36 +141,49 @@ Window {
         App.settings.recentColors = list.join(",")
     }
 
-    ColorDialog {
-        id: strokeDialog
-        title: qsTr("Stroke color")
-        selectedColor: canvas.strokeColor
-        onAccepted: { canvas.strokeColor = selectedColor; editorWindow.addRecent(selectedColor) }
+    // In-scene pickers, NOT QtQuick.Dialogs' ColorDialog: that was a separate
+    // modal window which greyed the whole screen — impossible to judge the
+    // colour against the image. These Popups live in the editor scene, dim it
+    // only lightly and preview every change live on the canvas. The eyedropper
+    // samples from the (frozen) image via the canvas colour-picking mode.
+    property var pendingColorPopup: null
+
+    UColorPopup {
+        id: strokePopup
+        onPicked: (c) => canvas.strokeColor = c
+        onClosed: editorWindow.addRecent(String(canvas.strokeColor))
+        onRequestScreenPick: { editorWindow.pendingColorPopup = strokePopup; canvas.colorPicking = true }
     }
-    ColorDialog {
-        id: fillDialog
-        title: qsTr("Fill color")
-        options: ColorDialog.ShowAlphaChannel
-        selectedColor: canvas.shapeFillColor
-        onAccepted: { canvas.shapeFillColor = selectedColor; canvas.shapeFillEnabled = true }
+    UColorPopup {
+        id: fillPopup
+        showAlpha: true
+        onPicked: (c) => { canvas.shapeFillColor = c; canvas.shapeFillEnabled = true }
+        onRequestScreenPick: { editorWindow.pendingColorPopup = fillPopup; canvas.colorPicking = true }
     }
-    ColorDialog {
-        id: outlineDialog
-        title: qsTr("Text outline color")
-        selectedColor: canvas.textOutlineColor
-        onAccepted: { canvas.textOutlineColor = selectedColor; canvas.textOutline = true }
+    UColorPopup {
+        id: outlinePopup
+        onPicked: (c) => { canvas.textOutlineColor = c; canvas.textOutline = true }
+        onRequestScreenPick: { editorWindow.pendingColorPopup = outlinePopup; canvas.colorPicking = true }
     }
-    ColorDialog {
-        id: textBgDialog
-        title: qsTr("Text background color")
-        options: ColorDialog.ShowAlphaChannel
-        selectedColor: canvas.textBackgroundColor
-        onAccepted: { canvas.textBackgroundColor = selectedColor; canvas.textBackground = true }
+    UColorPopup {
+        id: textBgPopup
+        showAlpha: true
+        onPicked: (c) => { canvas.textBackgroundColor = c; canvas.textBackground = true }
+        onRequestScreenPick: { editorWindow.pendingColorPopup = textBgPopup; canvas.colorPicking = true }
+    }
+    UConfirmDialog {
+        id: discardConfirm
+        title: qsTr("Discard annotations?")
+        text: qsTr("You have unsaved annotations. Close the editor and discard them?")
+        confirmText: qsTr("Discard")
+        destructive: true
+        onAccepted: { editorWindow.closeConfirmed = true; editorWindow.close() }
     }
     UConfirmDialog {
         id: u2netDownloadConfirm
         title: qsTr("Download background-removal model?")
-        text: qsTr("Smart background removal needs a one-time ~5 MB model download (U-2-Net). It is stored locally and reused. Download now?")
+        text: qsTr("Smart background removal needs a one-time download of the selected model: %1. It is stored locally and reused. Download now?")
+              .arg(App.u2netModelLabel())
         confirmText: qsTr("Download")
         onAccepted: App.downloadU2NetModel()
     }
@@ -183,11 +219,15 @@ Window {
                 else if (e.key === Qt.Key_Up) canvas.nudgeSelectedAnnot(0, -step)
                 else canvas.nudgeSelectedAnnot(0, step)
             }
-            // Escape exits OCR pick mode first, then deselects a shape, then
-            // cancels a crop selection; only a press with nothing pending
-            // closes the editor.
+            // Escape cancels the colour eyedropper first, then exits OCR pick
+            // mode, then deselects a shape, then cancels a crop selection;
+            // only a press with nothing pending closes the editor.
             else if (e.key === Qt.Key_Escape) {
-                if (canvas.ocrMode) canvas.clearOcrMode()
+                if (canvas.colorPicking) {
+                    canvas.colorPicking = false
+                    editorWindow.pendingColorPopup = null
+                }
+                else if (canvas.ocrMode) canvas.clearOcrMode()
                 else if (canvas.hasAnnotSelection) canvas.clearAnnotSelection()
                 else if (canvas.hasSelection) canvas.clearSelection()
                 else editorWindow.close()
@@ -335,15 +375,26 @@ Window {
                     }
                 }
 
-                Flow {
+                // The sub-bar slot is ALWAYS reserved at one row height: the
+                // old visible-toggle collapsed the row, so every tool click
+                // shifted the toolbar edge and the whole canvas below it —
+                // the content fades in place instead.
+                Item {
+                    width: parent.width
+                    height: Math.max(40, editorSubBar.implicitHeight)
+
+                    Flow {
                     id: editorSubBar
                     width: parent.width
                     spacing: Theme.spacingL
                     // Props follow the active tool, or the SELECTED shape when
                     // the Edit tool is active.
                     readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
-                    visible: editorWindow.shapesActive || ctxProps.length > 0
+                    readonly property bool active: editorWindow.shapesActive || ctxProps.length > 0
                              || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                    opacity: active ? 1 : 0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
                     Row {
                         spacing: 6
@@ -362,9 +413,10 @@ Window {
                             }
                         }
 
-                        // Delete affordance for the selected shape (Edit tool).
+                        // Delete affordance for the selected shape — shown for
+                        // any tool, since a plain click selects shapes now.
                         ToolChip {
-                            visible: canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection
+                            visible: canvas.hasAnnotSelection
                             iconName: "edit-delete"
                             label: qsTr("Delete shape")
                             anchors.verticalCenter: parent.verticalCenter
@@ -372,8 +424,7 @@ Window {
                         }
 
                         Rectangle {
-                            visible: editorWindow.shapesActive
-                                     || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                            visible: editorWindow.shapesActive || canvas.hasAnnotSelection
                             width: 1; height: 30; color: Theme.divider
                             anchors.verticalCenter: parent.verticalCenter
                         }
@@ -383,11 +434,12 @@ Window {
                             props: editorSubBar.ctxProps
                             recentColors: editorWindow.recentList()
                             anchors.verticalCenter: parent.verticalCenter
-                            onStrokePickerRequested: strokeDialog.open()
-                            onFillPickerRequested: fillDialog.open()
-                            onTextOutlinePickerRequested: outlineDialog.open()
-                            onTextBackgroundPickerRequested: textBgDialog.open()
+                            onStrokePickerRequested: strokePopup.openWith(canvas.strokeColor)
+                            onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
+                            onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
+                            onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
                         }
+                    }
                     }
                 }
             }
@@ -534,19 +586,32 @@ Window {
                     // While a placed shape is selected (Edit tool), a property
                     // change restyles THAT shape and must NOT overwrite the
                     // saved "next shape" defaults.
-                    onStrokeColorChanged: if (!strokeColorIsAuto && !hasAnnotSelection) App.settings.editorStrokeColor = String(strokeColor)
-                    onStrokeWidthChanged: if (!hasAnnotSelection) App.settings.editorStrokeWidth = strokeWidth
-                    onFontSizeChanged: if (!hasAnnotSelection) App.settings.editorFontSize = fontSize
-                    onShapeFillColorChanged: if (!hasAnnotSelection) App.settings.editorFillColor = String(shapeFillColor)
-                    onShapeFillEnabledChanged: if (!hasAnnotSelection) App.settings.editorFillEnabled = shapeFillEnabled
-                    onFontFamilyChanged: if (!hasAnnotSelection) App.settings.editorFontFamily = fontFamily
-                    onFontBoldChanged: if (!hasAnnotSelection) App.settings.editorFontBold = fontBold
-                    onFontItalicChanged: if (!hasAnnotSelection) App.settings.editorFontItalic = fontItalic
-                    onFontUnderlineChanged: if (!hasAnnotSelection) App.settings.editorFontUnderline = fontUnderline
-                    onTextOutlineChanged: if (!hasAnnotSelection) App.settings.editorTextOutline = textOutline
-                    onTextOutlineColorChanged: if (!hasAnnotSelection) App.settings.editorTextOutlineColor = String(textOutlineColor)
-                    onTextBackgroundChanged: if (!hasAnnotSelection) App.settings.editorTextBackground = textBackground
-                    onTextBackgroundColorChanged: if (!hasAnnotSelection) App.settings.editorTextBgColor = String(textBackgroundColor)
+                    // Preferences can pin the saved defaults entirely
+                    // (editorResetColors / editorResetTools): changes then
+                    // apply to this session only.
+                    readonly property bool persistColors: !hasAnnotSelection && !App.settings.editorResetColors
+                    readonly property bool persistTools: !hasAnnotSelection && !App.settings.editorResetTools
+                    onStrokeColorChanged: if (!strokeColorIsAuto && persistColors) App.settings.editorStrokeColor = String(strokeColor)
+                    onStrokeWidthChanged: if (persistTools) App.settings.editorStrokeWidth = strokeWidth
+                    onFontSizeChanged: if (persistTools) App.settings.editorFontSize = fontSize
+                    onShapeFillColorChanged: if (persistColors) App.settings.editorFillColor = String(shapeFillColor)
+                    onShapeFillEnabledChanged: if (persistTools) App.settings.editorFillEnabled = shapeFillEnabled
+                    onFontFamilyChanged: if (persistTools) App.settings.editorFontFamily = fontFamily
+                    onFontBoldChanged: if (persistTools) App.settings.editorFontBold = fontBold
+                    onFontItalicChanged: if (persistTools) App.settings.editorFontItalic = fontItalic
+                    onFontUnderlineChanged: if (persistTools) App.settings.editorFontUnderline = fontUnderline
+                    onTextOutlineChanged: if (persistTools) App.settings.editorTextOutline = textOutline
+                    onTextOutlineColorChanged: if (persistColors) App.settings.editorTextOutlineColor = String(textOutlineColor)
+                    onTextBackgroundChanged: if (persistTools) App.settings.editorTextBackground = textBackground
+                    onTextBackgroundColorChanged: if (persistColors) App.settings.editorTextBgColor = String(textBackgroundColor)
+                    // Eyedropper result → reopen the popup that requested it,
+                    // seeded with the sampled pixel.
+                    onColorPicked: (c) => {
+                        if (editorWindow.pendingColorPopup) {
+                            editorWindow.pendingColorPopup.openWith(c)
+                            editorWindow.pendingColorPopup = null
+                        }
+                    }
                     onTextRequested: (x, y) => {
                         // Reposition while a text box is open: keep what was
                         // typed instead of silently discarding it.

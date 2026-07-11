@@ -13,6 +13,11 @@ Popup {
     // Live value; open() decomposes it into h/s/v/a.
     property color selected: "#ffffff"
     property bool showAlpha: false
+    // Scrim darkness behind the picker. Kept LIGHT by default: the whole point
+    // of the in-scene picker is comparing the colour against the image, which
+    // a heavy dim (the old separate-window ColorDialog greyed everything)
+    // made impossible.
+    property real scrimOpacity: 0.25
     // Quick-pick chips (the theme palette by default).
     property var swatches: Theme.swatches
 
@@ -60,7 +65,7 @@ Popup {
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     padding: Theme.spacingL
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.5) }
+    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, root.scrimOpacity) }
     background: Rectangle {
         radius: Theme.radiusL
         color: Theme.surface
@@ -242,7 +247,7 @@ Popup {
                 anchors.verticalCenter: parent.verticalCenter
                 placeholder: root.showAlpha ? "#AARRGGBB" : "#RRGGBB"
                 // Reflect the live colour unless the user is editing the field.
-                text: activeFocus ? text
+                text: hexField.inputActiveFocus ? text
                     : (root.showAlpha
                        ? "#" + root.col.toString().slice(1).toUpperCase()
                        : "#" + root.col.toString().slice(1, 7).toUpperCase())
@@ -256,7 +261,7 @@ Popup {
                     }
                 }
                 onAccepted: applyHex()
-                onActiveFocusChanged: if (!activeFocus) applyHex()
+                onInputActiveFocusChanged: if (!hexField.inputActiveFocus) applyHex()
             }
         }
 

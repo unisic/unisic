@@ -38,7 +38,7 @@ Rectangle {
     layer.enabled: variant === "filled" || variant === "danger"
     layer.effect: MultiEffect {
         shadowEnabled: true
-        shadowColor: root.variant === "filled" ? Qt.rgba(200/255, 172/255, 214/255, 0.45) : Theme.shadow
+        shadowColor: root.variant === "filled" ? Theme.alpha(Theme.accent, 0.45) : Theme.shadow
         shadowBlur: 0.7
         shadowVerticalOffset: 3
         shadowOpacity: 0.5

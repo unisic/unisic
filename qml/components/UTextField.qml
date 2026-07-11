@@ -7,8 +7,16 @@ Rectangle {
     property alias placeholder: placeholderText.text
     property alias readOnly: input.readOnly
     property alias echoMode: input.echoMode
+    property alias validator: input.validator
+    // The root Rectangle is not a FocusScope, so its own activeFocus stays
+    // false; expose the inner TextInput's focus so callers can tell if the
+    // user is editing (e.g. UColorPopup's hex-field guard/blur-commit).
+    readonly property alias inputActiveFocus: input.activeFocus
     signal edited(string text)
     signal accepted()
+
+    function forceFocus() { input.forceActiveFocus() }
+    function selectAll() { input.selectAll() }
 
     implicitWidth: 260
     implicitHeight: 40

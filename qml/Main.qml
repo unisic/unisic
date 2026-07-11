@@ -53,6 +53,20 @@ Window {
         }
     }
 
+    // When the main window is hidden (closed to no tray) and the only thing
+    // keeping the process alive was an open editor, quitting must happen once
+    // that last editor closes — otherwise the app lives on invisibly with no
+    // tray icon and no window. Mirror onClosing's conditions.
+    Connections {
+        target: App
+        function onEditorWindowsOpenChanged() {
+            if (App.editorWindowsOpen === 0 && !window.visible
+                    && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
+                    && !App.recording && !App.converting)
+                Qt.quit()
+        }
+    }
+
     Connections {
         target: App
         function onShowMainWindowRequested() {
@@ -177,6 +191,9 @@ Window {
                     width: 34; height: 34
                     smooth: true
                     anchors.verticalCenter: parent.verticalCenter
+                    // Dev builds are gray everywhere (tray, menu, here too).
+                    layer.enabled: App.devBuild
+                    layer.effect: MultiEffect { saturation: -1.0 }
                 }
                 Text {
                     text: "Unisic"

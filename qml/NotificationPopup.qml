@@ -119,11 +119,17 @@ Window {
         }
 
         // Countdown drain; restarts from full whenever hovering ends.
+        // Stepped Timer, NOT a NumberAnimation: a per-frame animation kept the
+        // card's render loop awake at ~60 fps for the whole auto-hide window
+        // (seconds of full-rate repaints for a slowly shrinking bar). 30 steps
+        // over the same duration looks identical at this size.
         property real drain: 1.0
-        NumberAnimation on drain {
+        Timer {
+            interval: Math.max(50, dismissTimer.interval / 30)
+            repeat: true
             running: popup.autoHideSec > 0 && !hover.hovered
-            from: 1.0; to: 0.0
-            duration: dismissTimer.interval
+            onRunningChanged: if (running) card.drain = 1.0
+            onTriggered: card.drain = Math.max(0, card.drain - 1 / 30)
         }
 
         HoverHandler { id: hover }

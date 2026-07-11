@@ -32,6 +32,9 @@ BuildRequires:  libappstream-glib
 # where the GPL ffmpeg is only in RPM Fusion (ffmpeg-free covers most codecs).
 Recommends:     ffmpeg-free
 Recommends:     wl-clipboard
+# Region/window screenshots (PortalScreenshot) and all ScreenCast recording
+# route through xdg-desktop-portal; matches the CPack RPM/DEB dependency lists.
+Recommends:     xdg-desktop-portal
 # Capture-sound cue plays through one of these if present.
 Recommends:     pipewire-utils
 
@@ -48,6 +51,11 @@ on KDE Plasma. Zero telemetry.
 %autosetup -n %{name}-%{version}
 
 %build
+# COPR/mock strips the environment, so UNISIC_BUILD_NUMBER is never set and
+# the sidebar footer would say "dev" despite this being a release build. Use
+# the RPM release as the build number ("build 1.fc44"); bump Release: (or let
+# rpkg/tito bump it) for a new number.
+export UNISIC_BUILD_NUMBER=%{release}
 %cmake -G Ninja -DUNISIC_DEV_BUILD=OFF
 %cmake_build
 

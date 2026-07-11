@@ -57,7 +57,7 @@ Rectangle {
         height: parent ? parent.height : 0
         visible: popup.opened && parent !== null
         z: 999
-        MouseArea { anchors.fill: parent; onClicked: popup.close() }
+        MouseArea { anchors.fill: parent; onClicked: popup.close(); onWheel: (w) => { popup.close(); w.accepted = false } }
     }
 
     MouseArea {
@@ -75,6 +75,7 @@ Rectangle {
         height: col.implicitHeight + 12
         z: catcher.z + 1
         padding: 6
+        focus: true
         closePolicy: C.Popup.CloseOnEscape
 
         // The bar is at the window's bottom edge → prefer opening above; flip

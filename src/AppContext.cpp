@@ -154,6 +154,15 @@ AppContext::AppContext(QObject *parent)
     m_u2netEnabled = std::make_shared<std::atomic_bool>(m_settings->useU2Net());
     connect(m_settings, &Settings::useU2NetChanged, this,
             [this] { m_u2netEnabled->store(m_settings->useU2Net()); });
+    // Apply the selected model (catalog id or custom .onnx) now and on change;
+    // readiness/download state follows the selection.
+    const auto applyModel = [this] {
+        m_u2net->setModel(m_settings->segmentModel(), m_settings->segmentCustomModel());
+        emit u2netChanged();
+    };
+    applyModel();
+    connect(m_settings, &Settings::segmentModelChanged, this, applyModel);
+    connect(m_settings, &Settings::segmentCustomModelChanged, this, applyModel);
 #endif
 }
 
@@ -349,15 +358,14 @@ void AppContext::applyLanguage()
     const QString pref = m_settings->uiLanguage();
     // Every language (incl. English) has its own .qm, so English text is
     // editable in i18n/unisic_en.ts without touching source strings.
+    static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
+                                          QStringLiteral("es"), QStringLiteral("it")};
     QString code;
-    if (pref == QLatin1String("pl"))
-        code = QStringLiteral("pl");
-    else if (pref == QLatin1String("en"))
-        code = QStringLiteral("en");
-    else { // "system"
-        const QString sys = QLocale::system().name(); // e.g. "pl_PL"
-        code = sys.startsWith(QLatin1String("pl")) ? QStringLiteral("pl")
-                                                   : QStringLiteral("en");
+    if (supported.contains(pref)) {
+        code = pref;
+    } else { // "system"
+        const QString sys = QLocale::system().name().left(2); // e.g. "pl_PL" → "pl"
+        code = supported.contains(sys) ? sys : QStringLiteral("en");
     }
 
     if (m_appTranslator) {
@@ -439,9 +447,73 @@ void AppContext::downloadU2NetModel()
 void AppContext::deleteU2NetModel()
 {
 #ifdef HAVE_ONNX
-    QFile::remove(U2NetSegmenter::modelPath());
+    // A custom model is the USER'S file elsewhere on disk — never delete it
+    // (the UI hides Delete for custom; this guards the invokable itself).
+    if (m_settings->segmentModel() == QLatin1String("custom"))
+        return;
+    QFile::remove(U2NetSegmenter::pathFor(m_settings->segmentModel()));
     emit u2netChanged();
     showToast(tr("Removed the background-removal model"));
+#endif
+}
+
+QVariantList AppContext::u2netModels() const
+{
+    QVariantList out;
+#ifdef HAVE_ONNX
+    const auto add = [&out](const QString &id, const QString &label, const QString &size) {
+        QVariantMap m;
+        m.insert(QStringLiteral("id"), id);
+        m.insert(QStringLiteral("label"), size.isEmpty() ? label
+                                                         : label + QStringLiteral(" (") + size
+                                                               + QLatin1Char(')'));
+        out.append(m);
+    };
+    const QHash<QString, QString> labels{
+        {QStringLiteral("u2netp"), tr("U-2-Net small — fast, general")},
+        {QStringLiteral("u2net"), tr("U-2-Net full — better quality")},
+        {QStringLiteral("u2net_human_seg"), tr("U-2-Net human — tuned for people")},
+        {QStringLiteral("silueta"), tr("Silueta — compact U-2-Net")},
+        {QStringLiteral("isnet-general-use"), tr("IS-Net — best edge detail")},
+    };
+    const QStringList ids = U2NetSegmenter::modelIds();
+    for (const QString &id : ids)
+        add(id, labels.value(id, id), U2NetSegmenter::modelSizeText(id));
+    add(QStringLiteral("custom"), tr("Custom model (your .onnx file)"), QString());
+#endif
+    return out;
+}
+
+QString AppContext::u2netModelLabel() const
+{
+#ifdef HAVE_ONNX
+    const QString cur = m_settings->segmentModel();
+    const QVariantList models = u2netModels();
+    for (const QVariant &v : models) {
+        const QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("id")).toString() == cur)
+            return m.value(QStringLiteral("label")).toString();
+    }
+#endif
+    return QStringLiteral("U-2-Net");
+}
+
+QString AppContext::pickU2NetCustomModel()
+{
+#ifdef HAVE_ONNX
+    // Native picker: QFileDialog with the platform theme (same reasoning as
+    // settings import/export — the QML FileDialog falls back to the Basic
+    // style here).
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Choose an ONNX segmentation model"), QDir::homePath(),
+        tr("ONNX models (*.onnx)"));
+    if (path.isEmpty())
+        return {};
+    m_settings->setSegmentCustomModel(path);
+    m_settings->setSegmentModel(QStringLiteral("custom"));
+    return path;
+#else
+    return {};
 #endif
 }
 
@@ -450,12 +522,16 @@ void AppContext::installSegmenter(AnnotationCanvas *canvas)
 #ifdef HAVE_ONNX
     if (!canvas || !m_u2net)
         return;
-    U2NetSegmenter *seg = m_u2net;
+    // makeWorker() binds a shared_ptr to the segmenter's state, so the canvas's
+    // off-thread segmentation task never dereferences a raw `this` that could be
+    // freed at shutdown — a destroyed segmenter just makes the worker return a
+    // null mask (heuristic fallback).
+    auto worker = m_u2net->makeWorker();
     auto enabled = m_u2netEnabled; // shared atomic; safe to read off-thread
-    canvas->setExternalSegmenter([seg, enabled](const QImage &img, const QRect &r) -> QImage {
-        if (!enabled->load() || !seg->modelReady())
+    canvas->setExternalSegmenter([worker, enabled](const QImage &img, const QRect &r) -> QImage {
+        if (!enabled->load())
             return {}; // fall back to the heuristic segmenter
-        return seg->segmentSync(img, r);
+        return worker(img, r);
     });
 #else
     Q_UNUSED(canvas);
@@ -830,17 +906,22 @@ static QImage ocrBoxTestImage()
     return t;
 }
 
-// Loads the bundled Polish .qm and checks a known string translates.
+// Loads every bundled non-English .qm and checks a known string translates.
 static QString languageCheck()
 {
 #ifdef HAVE_TRANSLATIONS
-    QTranslator tr;
-    if (!tr.load(QStringLiteral(":/i18n/unisic_pl.qm")))
-        return QStringLiteral("FAIL (unisic_pl.qm not loadable)");
-    const QString q = tr.translate("AppContext", "Quit");
-    if (q.isEmpty() || q == QLatin1String("Quit"))
-        return QStringLiteral("FAIL ('Quit' not translated)");
-    return QStringLiteral("PASS ('Quit' → '%1')").arg(q);
+    const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it")};
+    QStringList parts;
+    for (const QString &c : codes) {
+        QTranslator tr;
+        if (!tr.load(QStringLiteral(":/i18n/unisic_%1.qm").arg(c)))
+            return QStringLiteral("FAIL (unisic_%1.qm not loadable)").arg(c);
+        const QString q = tr.translate("AppContext", "Quit");
+        if (q.isEmpty() || q == QLatin1String("Quit"))
+            return QStringLiteral("FAIL ('Quit' not translated in %1)").arg(c);
+        parts << QStringLiteral("%1: '%2'").arg(c, q);
+    }
+    return QStringLiteral("PASS (Quit → %1)").arg(parts.join(QStringLiteral(", ")));
 #else
     return QStringLiteral("SKIP (built without Qt LinguistTools)");
 #endif
@@ -877,8 +958,9 @@ void AppContext::devTestU2Net()
         const QImage g = mask.convertToFormat(QImage::Format_Grayscale8);
         const int center = qGray(g.pixel(100, 100));
         const int corner = qGray(g.pixel(6, 6));
-        showToast(tr("Dev: U-2-Net: %1 (center=%2 corner=%3)")
-                      .arg(center > corner + 40 ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+        showToast(tr("Dev: U-2-Net: %1 (model=%2 center=%3 corner=%4)")
+                      .arg(center > corner + 40 ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
+                           m_settings->segmentModel())
                       .arg(center).arg(corner));
     });
 #else
@@ -912,12 +994,23 @@ void AppContext::devTestCaptureSound()
     showToast(tr("Dev: played capture sound '%1'").arg(m_settings->captureSound()));
 }
 
+void AppContext::devTestRecordingSound()
+{
+    if (!devBuild())
+        return;
+    playRecordingSound();
+    showToast(tr("Dev: played recording sound '%1'").arg(m_settings->recordingSound()));
+}
+
 void AppContext::devTestSmartPick()
 {
     if (!devBuild())
         return;
     showToast(tr("Dev: smart pick detect: %1").arg(smartPickDetectCheck()));
 }
+
+// (devTestU2Net below reports against the ACTIVE segment model — the toast
+// includes its id so a wrong-model regression is visible at a glance.)
 
 void AppContext::devTestNotification()
 {
@@ -928,14 +1021,12 @@ void AppContext::devTestNotification()
     // which made the suppression look like a notification bug. Explain instead.
     if (!m_settings->showNotifications()) {
         showToast(tr("Dev: ALL notifications are disabled in Settings "
-                     "(General → Show notifications)"), true);
+                     "(Preferences → Show notifications)"), true);
         return;
     }
-    if (!m_settings->showCapturePopup()) {
-        showToast(tr("Dev: capture notification is DISABLED in Settings "
-                     "(General → Show capture notification)"), true);
-        return;
-    }
+    if (!m_settings->showCapturePopup())
+        showToast(tr("Dev: stylized cards are off — falling back to a native "
+                     "desktop notification"));
     const bool inhibited = nowInhibited();
     if (inhibited && m_settings->muteOnFullscreen())
         showToast(tr("Dev: cards are currently muted (fullscreen / Do Not Disturb "
@@ -1102,6 +1193,9 @@ QString AppContext::altHotkeysCheck()
             result = QStringLiteral("PASS (both alternates live)");
     }
     m_hotkeys->releaseShortcut(id, name);
+    // Fully remove the scratch action — unbinding alone (NoAutoloading) leaves a
+    // phantom "Alternate hotkey test" row in the Shortcuts KCM forever.
+    m_hotkeys->unregisterAction(id);
     return result;
 }
 
@@ -1112,7 +1206,7 @@ void AppContext::devTestAltHotkeys()
     showToast(tr("Dev: alternate hotkeys — %1").arg(altHotkeysCheck()));
 }
 
-QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
+QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts)
 {
     QStringList lines;
     int bad = 0;
@@ -1121,6 +1215,20 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
         bool ok = false;
         const QList<int> raw = m_hotkeys->activeKeys(a.id, &ok);
         const QString actual = GlobalHotkeys::portableFromKeys(raw);
+        // Cross-component conflict: the daemon keeps the key in OUR binding
+        // list while resolving the actual press to another component (a KWin
+        // script, another app) — the action looks bound but never fires.
+        if (conflicts && ok) {
+            for (int k : raw) {
+                const QString owner = m_hotkeys->keyOwner(k);
+                if (!owner.isEmpty() && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                    const QString line = QKeySequence(k).toString() + QStringLiteral(" (")
+                                         + a.name + QStringLiteral(") → ") + owner;
+                    conflicts->append(line);
+                    lines << a.id + QStringLiteral(": CONFLICT ") + line;
+                }
+            }
+        }
         if (!ok) {
             lines << a.id + QStringLiteral(": query failed");
             ++bad;
@@ -1143,8 +1251,18 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal)
             // Bound, but not to what we store = a KCM edit — honor it in the
             // UI (daemon-authoritative display). Set-compare: the daemon
             // reorders alternates, and a mere reorder is not an edit.
-            if (!GlobalHotkeys::sameBinding(actual, a.keys))
+            if (!GlobalHotkeys::sameBinding(actual, a.keys)) {
                 syncHotkeyFromDaemon(a.id, actual);
+            } else if (heal) {
+                // Grab refresh: the binding can survive daemon-side while the
+                // compositor's key grab is gone (observed live: shortcutKeys
+                // reported the keys and invokeShortcut fired, yet physical
+                // presses did nothing until the user re-assigned every key by
+                // hand). Re-pushing the same keys is exactly what that manual
+                // re-assign does — do it on every launch so the grab can
+                // never stay stale.
+                m_hotkeys->setShortcut(a.id, a.name, a.keys);
+            }
             lines << a.id + QStringLiteral(": ")
                      + (actual.isEmpty() ? QStringLiteral("(none)") : actual);
         }
@@ -1164,9 +1282,14 @@ void AppContext::devTestHotkeyBinds()
         return;
     }
     int bad = 0;
-    const QStringList lines = hotkeyBindStatus(&bad, true);
+    QStringList conflicts;
+    const QStringList lines = hotkeyBindStatus(&bad, true, &conflicts);
     qInfo().noquote() << "[dev] hotkey binds:\n" + lines.join(QLatin1Char('\n'));
-    if (bad == 0)
+    if (!conflicts.isEmpty())
+        showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
+                     "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
+                      .arg(conflicts.join(QStringLiteral("; "))), true);
+    else if (bad == 0)
         showToast(tr("Hotkeys: all %1 bound in the daemon").arg(lines.size()));
     else
         showToast(tr("Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)")
@@ -1202,6 +1325,11 @@ void AppContext::runSmokeTest()
     // 1) capability / availability snapshot (synchronous)
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("build: ") + (devBuild() ? QStringLiteral("dev") : QStringLiteral("release")));
+        smokeLog(QStringLiteral("identity: app=%1 desktop=%2 hotkeys=%3 config=%4")
+                     .arg(QCoreApplication::applicationName(),
+                          QGuiApplication::desktopFileName(),
+                          GlobalHotkeys::componentPrefix().chopped(1),
+                          m_settings->configPath()));
         smokeLog(QStringLiteral("capture backend: ") + (m_capture ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("recording: ") + (recordingAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no PipeWire/portal)")));
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
@@ -1214,12 +1342,16 @@ void AppContext::runSmokeTest()
             // Live daemon check: every action's active binding (heals unbound
             // ones — same repair defineHotkeys runs at startup).
             int bad = 0;
-            const QStringList lines = hotkeyBindStatus(&bad, true);
+            QStringList conflicts;
+            const QStringList lines = hotkeyBindStatus(&bad, true, &conflicts);
             for (const QString &l : lines)
                 smokeLog(QStringLiteral("  bind ") + l);
             smokeLog(QStringLiteral("  hotkey binds: ")
-                     + (bad == 0 ? QStringLiteral("PASS")
-                                 : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
+                     + (!conflicts.isEmpty()
+                            ? QStringLiteral("CONFLICT %1 (key owned by another component)")
+                                  .arg(conflicts.size())
+                            : bad == 0 ? QStringLiteral("PASS")
+                                       : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
         }
         smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
                  ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
@@ -1346,6 +1478,24 @@ void AppContext::runSmokeTest()
                                        : QStringLiteral("custom");
             playCaptureSound();
             smokeLog(QStringLiteral("capture sound: PASS (played '%1', %2)").arg(id, source));
+        }
+        smokeNext();
+    });
+
+    // 3e5) recording sound: same player requirement, separate setting/cue.
+    m_smokeSteps.append([this] {
+        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
+                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
+        if (!player) {
+            smokeLog(QStringLiteral("recording sound: SKIP (no pw-play/paplay/aplay)"));
+        } else {
+            const QString id = m_settings->recordingSound();
+            const QString source = (id == QLatin1String("off") || bundledSoundIds().contains(id))
+                                       ? QStringLiteral("bundled")
+                                       : QStringLiteral("custom");
+            playRecordingSound();
+            smokeLog(QStringLiteral("recording sound: PASS (played '%1', %2)").arg(id, source));
         }
         smokeNext();
     });
@@ -1656,11 +1806,17 @@ void AppContext::onRecordingFinished(const QString &path)
             proc->deleteLater();
             finishRecordingEntry(path, QImage(), kind);
         });
+        // Extract the poster already downscaled to thumbnail size: the only
+        // consumer is a history/popup thumbnail (≤480 px), so a full-res 4K PNG
+        // would just cost a ~30 MB GUI-thread decode and a second re-scale in
+        // makeThumb. 960 px stays comfortably above every thumbnail target.
         proc->start(QStringLiteral("ffmpeg"),
                     {QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), path,
-                     QStringLiteral("-frames:v"), QStringLiteral("1"), posterPath});
+                     QStringLiteral("-frames:v"), QStringLiteral("1"),
+                     QStringLiteral("-vf"), QStringLiteral("scale='min(960,iw)':-2"),
+                     posterPath});
         // Poster extraction should take a fraction of a second. Do not leave a
         // stuck ffmpeg process and its QProcess alive forever if a malformed
         // media file or a broken decoder blocks here.
@@ -1672,12 +1828,25 @@ void AppContext::onRecordingFinished(const QString &path)
         });
         return;
     }
-    QImage thumb(path); // first GIF frame loads fine via Qt's gif plugin
+    // First GIF frame, scaled DURING decode (Qt's gif handler honors
+    // setScaledSize) — a full 8 MP LZW decode of a fullscreen GIF on the GUI
+    // thread just to make a thumbnail is wasted work.
+    QImageReader reader(path);
+    const QSize orig = reader.size();
+    if (orig.isValid() && (orig.width() > 960 || orig.height() > 960))
+        reader.setScaledSize(orig.scaled(960, 960, Qt::KeepAspectRatio));
+    QImage thumb = reader.read();
+    if (thumb.isNull())
+        thumb = QImage(path); // fall back to a full decode if the scaled read failed
     finishRecordingEntry(path, thumb, kind);
 }
 
 void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind)
 {
+    // Audible cue that the (possibly long) encode is done and the file exists —
+    // the screenshot pipeline plays its own cue in finishCapture.
+    playRecordingSound();
+
     m_history->addEntry(path, thumb, kind);
     showToast(tr("Saved %1").arg(path));
 
@@ -1828,8 +1997,16 @@ void AppContext::afterUploadActions(const QString &url)
     } else {
         showToast(tr("Uploaded: %1").arg(url));
     }
-    if (m_settings->afterUploadOpenInBrowser())
-        QDesktopServices::openUrl(QUrl(url));
+    if (m_settings->afterUploadOpenInBrowser()) {
+        // The URL is extracted from the upload server's response (attacker-
+        // controllable on a compromised/hostile destination). Only auto-open
+        // web links — never file://, smb://, or a custom scheme wired to a
+        // local handler.
+        const QUrl u(url);
+        const QString scheme = u.scheme().toLower();
+        if (scheme == QLatin1String("http") || scheme == QLatin1String("https"))
+            QDesktopServices::openUrl(u);
+    }
 }
 
 void AppContext::editFromHistory(const QString &filePath)
@@ -1854,7 +2031,16 @@ void AppContext::previewFromHistory(const QString &filePath)
 
 void AppContext::playCaptureSound()
 {
-    const QString id = m_settings->captureSound();
+    playSoundId(m_settings->captureSound());
+}
+
+void AppContext::playRecordingSound()
+{
+    playSoundId(m_settings->recordingSound());
+}
+
+void AppContext::playSoundId(const QString &id)
+{
     if (id.isEmpty() || id == QLatin1String("off"))
         return;
     const QString player = soundPlayer();
@@ -2003,11 +2189,17 @@ bool AppContext::openPreview(const QImage &img)
     // A crash/SIGKILL with a preview open leaves its temp PNG behind — in /tmp
     // that's tmpfs, i.e. RAM until reboot. Sweep stale ones once per process
     // (never per call: another still-open preview owns its own temp file).
+    // Namespace the temp files per app flavor (unisic / unisic-dev): the sweep
+    // must only reap THIS flavor's leftovers, or a dev instance would delete the
+    // PNG backing a stable instance's currently-open preview (both run side by
+    // side by design).
+    const QString previewPrefix = QCoreApplication::applicationName()
+                                  + QStringLiteral("-preview-");
     static bool sweptStale = false;
     if (!sweptStale) {
         sweptStale = true;
         QDir tmpDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation));
-        const QStringList stale = tmpDir.entryList({QStringLiteral("unisic-preview-*.png")}, QDir::Files);
+        const QStringList stale = tmpDir.entryList({previewPrefix + QStringLiteral("*.png")}, QDir::Files);
         for (const QString &f : stale)
             QFile::remove(tmpDir.filePath(f));
     }
@@ -2016,13 +2208,18 @@ bool AppContext::openPreview(const QImage &img)
     // PNG encode is 100+ ms at 4K, so it runs on a worker; the window is built
     // in the GUI-thread continuation.
     const QString tmp = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
-                            .filePath(QStringLiteral("unisic-preview-") +
+                            .filePath(previewPrefix +
                                       QUuid::createUuid().toString(QUuid::WithoutBraces) +
                                       QStringLiteral(".png"));
     QPointer<AppContext> self(this);
     QPointer<QCoreApplication> application(qApp);
     (void)QtConcurrent::run([self, application, img, tmp] {
         const bool ok = img.save(tmp);
+        // The capture can contain a password/bank page/private chat; /tmp is
+        // world-listable, so lock the file to the owner (a UUID name is no
+        // protection once the directory is listable).
+        if (ok)
+            QFile::setPermissions(tmp, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
         if (!application) {
             QFile::remove(tmp);
             return;
@@ -2135,7 +2332,10 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
 {
     // The master "Show notifications" switch promises complete silence — it
     // must cover capture cards (layer-shell AND native) exactly like toasts.
-    if (!m_settings->showCapturePopup() || !m_settings->showNotifications())
+    // showCapturePopup only selects the STYLE: on = the stylized layer-shell
+    // card (when the compositor supports it), off/unsupported = a native
+    // desktop notification. It is no longer a second silence switch.
+    if (!m_settings->showNotifications())
         return nullptr;
     // A real desktop notification (org.freedesktop.Notifications) with an inline
     // thumbnail and Open/Copy/Upload/Delete action buttons. The notification
@@ -2145,7 +2345,7 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
     // owns the returned object; callers may still poke its upload state.
     auto *notif = new CaptureNotification(this, img, path, kind, nullptr);
 #ifdef HAVE_LAYERSHELL
-    if (m_layerNotifier) {
+    if (m_layerNotifier && m_settings->showCapturePopup()) {
         // The layer card draws above everything. Only when the user opted in
         // (muteOnFullscreen) do we honour KDE's inhibition — which conflates a
         // fullscreen app, Do-Not-Disturb, AND stuck third-party inhibitors, so
@@ -2207,6 +2407,8 @@ QString AppContext::filenamePreview() const
     return makeFileName();
 }
 
+static bool imageHasTransparency(const QImage &img);
+
 void AppContext::encodeImageAsync(const QImage &img,
                                   std::function<void(const QByteArray &, const QString &)> done)
 {
@@ -2220,7 +2422,12 @@ void AppContext::encodeImageAsync(const QImage &img,
         QString mime;
         QBuffer buf(&out);
         buf.open(QIODevice::WriteOnly);
-        if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg")) && img.save(&buf, "JPG", q)) {
+        // JPEG has no alpha: a transparent cutout (object pick / background
+        // removal) would flatten to solid black. Mirror saveImageTo's auto-
+        // switch and encode PNG instead, so the uploaded bytes match the saved
+        // file. WEBP keeps alpha, so it needs no such guard.
+        const bool wantJpg = (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"));
+        if (wantJpg && !imageHasTransparency(img) && img.save(&buf, "JPG", q)) {
             mime = QStringLiteral("image/jpeg");
         } else if (fmt == QLatin1String("webp") && img.save(&buf, "WEBP", q)) {
             mime = QStringLiteral("image/webp");
@@ -2239,39 +2446,20 @@ void AppContext::encodeImageAsync(const QImage &img,
     });
 }
 
-QByteArray AppContext::encodeImage(const QImage &img, QString *mime) const
-{
-    const QString fmt = m_settings->imageFormat().toLower();
-    const int q = qBound(1, m_settings->imageQuality(), 100);
-    QByteArray out;
-    QBuffer buf(&out);
-    buf.open(QIODevice::WriteOnly);
-    if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg")) && img.save(&buf, "JPG", q)) {
-        *mime = QStringLiteral("image/jpeg");
-    } else if (fmt == QLatin1String("webp") && img.save(&buf, "WEBP", q)) {
-        *mime = QStringLiteral("image/webp");
-    } else {
-        out.clear();
-        buf.seek(0);
-        img.save(&buf, "PNG");
-        *mime = QStringLiteral("image/png");
-    }
-    return out;
-}
-
 // True when the image actually contains transparent pixels (not merely an
 // alpha-capable format). Sampled — a save-time scan of every pixel of a 4K
-// frame is wasteful and transparency comes in contiguous regions.
+// frame is wasteful and transparency comes in contiguous regions. pixelColor()
+// reads alpha correctly for any format (incl. ARGB32_Premultiplied), so no
+// full-frame convertToFormat() copy is needed — the sampling stays ~free.
 static bool imageHasTransparency(const QImage &img)
 {
     if (!img.hasAlphaChannel())
         return false;
-    const QImage a = img.convertToFormat(QImage::Format_ARGB32);
-    const int stepY = qMax(1, a.height() / 256);
-    const int stepX = qMax(1, a.width() / 256);
-    for (int y = 0; y < a.height(); y += stepY)
-        for (int x = 0; x < a.width(); x += stepX)
-            if (qAlpha(a.pixel(x, y)) < 255)
+    const int stepY = qMax(1, img.height() / 256);
+    const int stepX = qMax(1, img.width() / 256);
+    for (int y = 0; y < img.height(); y += stepY)
+        for (int x = 0; x < img.width(); x += stepX)
+            if (img.pixelColor(x, y).alpha() < 255)
                 return true;
     return false;
 }
@@ -2281,25 +2469,30 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
     if (dir.isEmpty() || img.isNull())
         return {};
     QDir().mkpath(dir);
-    const QString name = fileName.isEmpty() ? makeFileName() : fileName;
+    QString name = fileName.isEmpty() ? makeFileName() : fileName;
+
+    QString fmt = m_settings->imageFormat().toLower();
+    // JPEG can't hold an alpha channel — a transparent cutout (object pick /
+    // background removal) would flatten to black. Auto-switch such saves to PNG
+    // (and fix the extension) BEFORE the collision-dedup loop below, so the
+    // switched name is what the loop de-duplicates against — otherwise two
+    // transparent saves in the same second (or a pre-existing same-named .png)
+    // both pass the .jpg existence check and silently overwrite one another.
+    if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
+        && imageHasTransparency(img)) {
+        fmt = QStringLiteral("png");
+        if (name.endsWith(QLatin1String(".jpg"), Qt::CaseInsensitive)
+            || name.endsWith(QLatin1String(".jpeg"), Qt::CaseInsensitive))
+            name = name.left(name.lastIndexOf(QLatin1Char('.'))) + QStringLiteral(".png");
+        showToast(tr("Saved as PNG to keep transparency"));
+    }
+
     QString path = dir + QLatin1Char('/') + name;
     const QFileInfo fi(name);
     for (int n = 1; QFile::exists(path); ++n)
         path = dir + QLatin1Char('/') + fi.completeBaseName()
                + QStringLiteral("-%1.").arg(n) + fi.suffix();
 
-    QString fmt = m_settings->imageFormat().toLower();
-    // JPEG can't hold an alpha channel — a transparent cutout (object pick /
-    // background removal) would flatten to black. Auto-switch such saves to PNG
-    // (and fix the path's extension) instead of silently losing transparency.
-    if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
-        && imageHasTransparency(img)) {
-        fmt = QStringLiteral("png");
-        if (path.endsWith(QLatin1String(".jpg"), Qt::CaseInsensitive)
-            || path.endsWith(QLatin1String(".jpeg"), Qt::CaseInsensitive))
-            path = path.left(path.lastIndexOf(QLatin1Char('.'))) + QStringLiteral(".png");
-        showToast(tr("Saved as PNG to keep transparency"));
-    }
     bool ok;
     if (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
         ok = img.save(path, "JPG", qBound(1, m_settings->imageQuality(), 100));
@@ -2478,7 +2671,19 @@ QString AppContext::exportSettings(const QUrl &file)
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return tr("Cannot write %1").arg(path);
-    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    // The export embeds destination secrets (SFTP passwords, API keys) — lock it
+    // to the owner before any bytes land (the CLI --export-settings path can
+    // target a world-readable /tmp).
+    f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    // Verify the write really landed: a silent partial write (disk full, quota,
+    // an unplugged USB/fuse target) must not be reported as a successful backup.
+    const QByteArray json = QJsonDocument(root).toJson(QJsonDocument::Indented);
+    if (f.write(json) != json.size() || !f.flush() || f.error() != QFileDevice::NoError) {
+        f.close();
+        QFile::remove(path); // don't leave a truncated secrets file behind
+        return tr("Cannot write %1").arg(path);
+    }
+    f.close();
     showToast(tr("Settings exported to %1").arg(path));
     return {};
 }
@@ -2543,6 +2748,17 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
 // settings UI must show — the stored string is just the app's last wish.
 void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &portable)
 {
+    // The daemon REORDERS alternate keys in its replies ("F9, Meta+F9" comes
+    // back as "Meta+F9, F9"). A plain string compare in the setter would read
+    // that as a KCM edit and persist it (with an immediate disk sync), flipping
+    // the user's chip order right after they typed it. Compare set-wise and drop
+    // pure reorders — only a genuine binding change should be stored.
+    QString stored;
+    for (const HotkeyAction &a : hotkeyActions())
+        if (a.id == actionId) { stored = a.keys; break; }
+    if (GlobalHotkeys::sameBinding(stored, portable))
+        return;
+
     if (actionId == QLatin1String("capture-fullscreen")) m_settings->setHotkeyFullScreen(portable);
     else if (actionId == QLatin1String("capture-region")) m_settings->setHotkeyRegion(portable);
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
@@ -2618,9 +2834,19 @@ void AppContext::defineHotkeys()
         // sticks: it arrives via yourShortcutsChanged and empties the stored
         // string, so there is nothing to assert on the next launch.
         int unbound = 0;
-        const QStringList report = hotkeyBindStatus(&unbound, true);
+        QStringList conflicts;
+        const QStringList report = hotkeyBindStatus(&unbound, true, &conflicts);
         if (unbound > 0)
             qWarning().noquote() << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
+        // A key another component owns daemon-side never reaches us even
+        // though it shows as bound — silent-dead without this toast (observed
+        // live: a KWin tiling script holding Meta+Shift+F).
+        if (!conflicts.isEmpty()) {
+            qWarning().noquote() << "Hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
+            showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
+                         "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
+                          .arg(conflicts.join(QStringLiteral("; "))), true);
+        }
         emit hotkeysAvailableChanged();
         return;
     }
@@ -2761,6 +2987,13 @@ void AppContext::setupTray()
         m_trayWatcher->deleteLater();
         m_trayWatcher = nullptr;
     }
+    // Rebuilt live (language switch, tray-icon change): drop the previous
+    // icon and menu first, or every rebuild stacks ANOTHER StatusNotifierItem
+    // next to the old one in the tray.
+    delete m_tray;
+    m_tray = nullptr;
+    delete m_trayMenu;
+    m_trayMenu = nullptr;
     m_tray = new QSystemTrayIcon(trayIcon(), this);
     auto *menu = new QMenu;
     m_trayMenu = menu;
@@ -2776,7 +3009,7 @@ void AppContext::setupTray()
     menu->addAction(tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
     menu->addAction(tr("Quit"), qApp, &QCoreApplication::quit);
     m_tray->setContextMenu(menu);
-    m_tray->setToolTip(QStringLiteral("Unisic"));
+    m_tray->setToolTip(QGuiApplication::applicationDisplayName());
     connect(m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason r) {
         if (r == QSystemTrayIcon::Trigger)
             emit showMainWindowRequested();
@@ -2845,20 +3078,40 @@ QIcon AppContext::recoloredTrayIcon(const QString &path) const
 
 QIcon AppContext::trayIcon() const
 {
+    QIcon icon(QStringLiteral(":/resources/icons/unisic.svg"));
     const QString path = m_settings->trayIconPath();
     if (!path.isEmpty()) {
-        if (isBundledTrayIcon(path)) {
-            const QIcon recolored = recoloredTrayIcon(path);
-            if (!recolored.isNull())
-                return recolored;
+        QIcon chosen;
+        if (isBundledTrayIcon(path))
+            chosen = recoloredTrayIcon(path);
+        if (chosen.isNull()) {
+            QIcon custom(path);
+            // availableSizes() is EMPTY for scalable SVGs (no discrete sizes) —
+            // gate on whether a pixmap actually renders instead, so .svg works.
+            if (!custom.isNull() && !custom.pixmap(QSize(64, 64)).isNull())
+                chosen = custom;
         }
-        QIcon custom(path);
-        // availableSizes() is EMPTY for scalable SVGs (no discrete sizes) — gate
-        // on whether a pixmap actually renders instead, so .svg works too.
-        if (!custom.isNull() && !custom.pixmap(QSize(64, 64)).isNull())
-            return custom;
+        if (!chosen.isNull())
+            icon = chosen;
     }
-    return QIcon(QStringLiteral(":/resources/icons/unisic.svg"));
+#ifdef UNISIC_DEV_BUILD
+    // GRAY tray icon = dev build — tells it apart from the stable app's when
+    // both run side by side. Desaturate per-pixel: Format_Grayscale8 would
+    // drop the alpha channel (see the project's Qt gotchas).
+    QPixmap pm = icon.pixmap(QSize(64, 64));
+    if (!pm.isNull()) {
+        QImage img = pm.toImage().convertToFormat(QImage::Format_ARGB32);
+        for (int y = 0; y < img.height(); ++y) {
+            QRgb *line = reinterpret_cast<QRgb *>(img.scanLine(y));
+            for (int x = 0; x < img.width(); ++x) {
+                const int g = qGray(line[x]);
+                line[x] = qRgba(g, g, g, qAlpha(line[x]));
+            }
+        }
+        icon = QIcon(QPixmap::fromImage(img));
+    }
+#endif
+    return icon;
 }
 
 QString AppContext::trayIconThumb(const QString &path, const QColor &color) const
@@ -3012,8 +3265,11 @@ QStringList AppContext::bundledTrayIcons() const
 QString AppContext::autostartFilePath() const
 {
     // XDG autostart: $XDG_CONFIG_HOME/autostart (ConfigLocation == ~/.config).
+    // Keyed on the desktop id, so the dev build (app.unisic.UnisicDev) keeps
+    // its own autostart entry and never overwrites the stable one.
     return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-           + QStringLiteral("/autostart/app.unisic.Unisic.desktop");
+           + QStringLiteral("/autostart/") + QGuiApplication::desktopFileName()
+           + QStringLiteral(".desktop");
 }
 
 bool AppContext::autostartEnabled() const
@@ -3046,10 +3302,10 @@ bool AppContext::writeAutostartFile()
         return false;
     f.write("[Desktop Entry]\n"
             "Type=Application\n"
-            "Name=Unisic\n"
+            "Name=" + QGuiApplication::applicationDisplayName().toUtf8() + "\n"
             "Comment=Screenshots, annotations, uploads and GIF recording\n"
             + autostartExecLine() +
-            "Icon=app.unisic.Unisic\n"
+            "Icon=" + QGuiApplication::desktopFileName().toUtf8() + "\n"
             "Terminal=false\n"
             "Categories=Utility;Graphics;\n"
             "X-GNOME-Autostart-enabled=true\n");

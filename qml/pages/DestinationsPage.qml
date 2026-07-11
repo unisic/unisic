@@ -40,6 +40,7 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
 
         MiddleScroll { flickable: pageFlick }
+        WheelBoost { flickable: pageFlick }
 
         Column {
             id: col
@@ -125,7 +126,13 @@ Item {
                         UIconButton {
                             iconName: "edit-delete"; iconSize: 16
                             visible: !modelData.builtin
-                            onClicked: App.uploads.removeDestination(modelData.name)
+                            onClicked: {
+                                // Clear the active pointer first, or it dangles at a
+                                // removed name (combo and list then disagree).
+                                if (App.settings.activeDestination === modelData.name)
+                                    App.settings.activeDestination = ""
+                                App.uploads.removeDestination(modelData.name)
+                            }
                         }
                     }
                 }
@@ -186,6 +193,10 @@ Item {
             color: Theme.surfaceHi
             border.width: 1
             border.color: Theme.divider
+
+            // Dismiss with Escape like every other overlay in the app.
+            focus: editSheet.visible
+            Keys.onEscapePressed: editSheet.close()
 
             MouseArea { anchors.fill: parent } // swallow clicks
 
@@ -319,6 +330,19 @@ Item {
                                 if (fPublicBase.text.trim() !== "") d.publicUrlBase = fPublicBase.text.trim()
                                 else delete d.publicUrlBase
                             }
+                            // Renaming onto an existing server would make
+                            // saveDestination() silently overwrite its config.
+                            if (orig !== d.name
+                                    && Object.keys(App.uploads.destination(d.name)).length > 0) {
+                                App.showToast(qsTr("A server with this name already exists"))
+                                return
+                            }
+                            // A renamed copy of a builtin becomes a fresh custom
+                            // server — drop the builtin flag, or the clone can never
+                            // be deleted (delete button is hidden for builtins) and
+                            // the original resurrects as a duplicate next launch.
+                            if (orig !== "" && orig !== d.name)
+                                delete d.builtin
                             App.uploads.saveDestination(d)
                             // Renaming: drop the old entry so it doesn't linger as a
                             // duplicate, and keep the active-destination pointer valid.

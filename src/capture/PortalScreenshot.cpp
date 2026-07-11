@@ -64,5 +64,5 @@ void PortalScreenshot::requestOnce(bool interactive, Callback cb)
                     cb(img, {});
             }, Qt::QueuedConnection);
         });
-    }, this);
+    }, this, interactive ? 0 : 30000); // silent request: 30 s watchdog; interactive dialog: untimed
 }

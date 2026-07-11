@@ -20,9 +20,30 @@ class AnnotationCanvasTest : public QObject
 
 private slots:
     void penStrokeKeepsReleaseEndpoint();
+    void penTapRendersDot();
+    void deselectRestoresStrokeStyle();
     void smartPickPrefersTiledWindow();
     void editShapesSelectMoveDelete();
+    void drawToolClickSelectsAndMoves();
 };
+
+// Convenience: full press→(move)→release cycle at item coordinates.
+static void click(TestAnnotationCanvas &c, const QPointF &at)
+{
+    QMouseEvent p(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent r(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+}
+static void drag(TestAnnotationCanvas &c, const QPointF &from, const QPointF &to)
+{
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    c.mouseMoveEvent(&m);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+}
 
 void AnnotationCanvasTest::penStrokeKeepsReleaseEndpoint()
 {
@@ -51,6 +72,60 @@ void AnnotationCanvasTest::penStrokeKeepsReleaseEndpoint()
 
     const QColor endpoint = canvas.rendered().pixelColor(85, 50);
     QVERIFY2(endpoint.lightness() < 80, "the rendered pen path must include its release endpoint");
+}
+
+// A pen TAP (press+release, no drag) is a deliberate dot. A 1-point path has
+// no segments, so it must be rendered as a filled dot — not an invisible
+// annotation that only a puzzling Ctrl+Z removes.
+void AnnotationCanvasTest::penTapRendersDot()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(100);
+    canvas.setHeight(100);
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Pen);
+    canvas.setStrokeColor(Qt::black);
+    canvas.setStrokeWidth(12);
+
+    click(canvas, QPointF(50, 50)); // tap in place, no movement
+    QCOMPARE(canvas.annotCount(), 1);
+    QVERIFY2(canvas.rendered().pixelColor(50, 50).lightness() < 80,
+             "a pen tap must render a visible dot at the tap point");
+}
+
+// Selecting a shape seeds the props bar from that shape's style; deselecting via
+// ANY path (click-empty, delete, …) must hand the user their own pre-selection
+// style back, or the clicked shape's colour leaks into the next drawn shape.
+void AnnotationCanvasTest::deselectRestoresStrokeStyle()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    canvas.setStrokeColor(Qt::red);
+    drag(canvas, QPointF(50, 50), QPointF(150, 150)); // a red shape
+
+    canvas.setStrokeColor(Qt::blue); // the user's own current pick
+    click(canvas, QPointF(100, 100)); // select the red shape
+    QVERIFY(canvas.hasAnnotSelection());
+    QCOMPARE(canvas.strokeColor(), QColor(Qt::red)); // props bar shows the shape's colour
+
+    click(canvas, QPointF(5, 5)); // deselect on empty space
+    QVERIFY(!canvas.hasAnnotSelection());
+    QCOMPARE(canvas.strokeColor(), QColor(Qt::blue)); // restored, not leaked
+
+    // The delete path used to skip the restore entirely — verify it too.
+    click(canvas, QPointF(100, 100));
+    QCOMPARE(canvas.strokeColor(), QColor(Qt::red));
+    canvas.removeSelectedAnnot();
+    QCOMPARE(canvas.strokeColor(), QColor(Qt::blue));
 }
 
 void AnnotationCanvasTest::smartPickPrefersTiledWindow()
@@ -129,6 +204,58 @@ void AnnotationCanvasTest::editShapesSelectMoveDelete()
     QCOMPARE(canvas.annotCount(), 0);
     canvas.undo();
     QCOMPARE(canvas.annotCount(), 1);
+}
+
+// Direct manipulation WITHOUT the Edit tool: with the Rect tool still active,
+// a plain click on a placed shape selects it, dragging its body moves it,
+// dragging empty space draws a NEW shape, and a click on empty deselects.
+void AnnotationCanvasTest::drawToolClickSelectsAndMoves()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    drag(canvas, QPointF(50, 50), QPointF(150, 150));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    // Still the Rect tool: click inside the shape → selected.
+    click(canvas, QPointF(100, 100));
+    QVERIFY2(canvas.hasAnnotSelection(), "click with the Rect tool must select the shape");
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::Rect));
+
+    // Drag the selected body → moves (no new shape drawn).
+    drag(canvas, QPointF(100, 100), QPointF(120, 100));
+    QCOMPARE(canvas.annotCount(), 1);
+    QVERIFY2(canvas.rendered().pixelColor(165, 100).lightness() < 250,
+             "dragging the selected shape's body must move it, not draw a new one");
+
+    // Drag on empty space → draws a second shape.
+    drag(canvas, QPointF(10, 160), QPointF(40, 190));
+    QCOMPARE(canvas.annotCount(), 2);
+
+    // Click empty space → deselects.
+    click(canvas, QPointF(5, 5));
+    QVERIFY(!canvas.hasAnnotSelection());
+
+    // UNFILLED rect: clicking its INTERIOR (not the outline) must select too —
+    // that is where users click, only the border actually paints.
+    canvas.undo(); // drop shape 2
+    canvas.undo(); // undo the body move
+    canvas.undo(); // drop shape 1
+    QCOMPARE(canvas.annotCount(), 0);
+    canvas.setShapeFillEnabled(false);
+    drag(canvas, QPointF(50, 50), QPointF(150, 150));
+    QCOMPARE(canvas.annotCount(), 1);
+    click(canvas, QPointF(100, 100)); // dead center, far from the outline
+    QVERIFY2(canvas.hasAnnotSelection(),
+             "clicking the interior of an unfilled rect must select it");
+    drag(canvas, QPointF(100, 100), QPointF(130, 100));
+    QCOMPARE(canvas.annotCount(), 1); // moved, not drawn over
 }
 
 int main(int argc, char *argv[])

@@ -23,6 +23,7 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
 
         MiddleScroll { flickable: pageFlick }
+        WheelBoost { flickable: pageFlick }
 
         Column {
             id: col
@@ -127,11 +128,16 @@ Item {
                         width: parent.width; height: 40
                         Text {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Maximum duration (0 = unlimited)"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                            text: qsTr("Maximum duration"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
-                        USpinBox {
+                        UValueCombo {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 0; to: 3600; step: 10; value: App.settings.videoMaxDurationSec; suffix: " s"
+                            width: 130
+                            values: [0, 10, 30, 60, 120, 300, 600, 1800, 3600]
+                            from: 0; to: 3600
+                            suffix: " s"
+                            tooltip: qsTr("0 = unlimited")
+                            value: App.settings.videoMaxDurationSec
                             onChanged: (v) => App.settings.videoMaxDurationSec = v
                         }
                     }
@@ -145,6 +151,32 @@ Item {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             checked: App.settings.includeCursor
                             onToggled: (c) => App.settings.includeCursor = c
+                        }
+                    }
+                    // Quick audio toggles — the same settings as
+                    // Settings → Recording → Audio, surfaced where recording starts.
+                    Item {
+                        width: parent.width; height: 40
+                        Text {
+                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Record system audio"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                        }
+                        USwitch {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            checked: App.settings.recordSystemAudio
+                            onToggled: (c) => App.settings.recordSystemAudio = c
+                        }
+                    }
+                    Item {
+                        width: parent.width; height: 40
+                        Text {
+                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Record microphone"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                        }
+                        USwitch {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            checked: App.settings.recordMicrophone
+                            onToggled: (c) => App.settings.recordMicrophone = c
                         }
                     }
                 }

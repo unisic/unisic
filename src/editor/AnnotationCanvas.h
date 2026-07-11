@@ -189,6 +189,10 @@ public:
     // OCR text-pick mode.
     bool ocrMode() const { return m_ocrMode; }
     void setOcrMode(bool on);
+    // Bumped whenever OCR state is invalidated (mode toggled, base replaced).
+    // The async OCR runner captures this before recognizing and drops its
+    // result if the value changed meanwhile (a dismissed or superseded pick).
+    quint64 ocrSeq() const { return m_ocrSeq; }
     bool ocrBusy() const { return m_ocrBusy; }
     void setOcrBusy(bool on);
     bool hasOcrSelection() const;
@@ -297,6 +301,9 @@ private:
         mutable qint64 fxBaseKey = -1;
         mutable QRectF fxRect;
         mutable qreal fxWidth = -1;
+        // Whether the cached patch was built with fast (drag-preview) sampling —
+        // when the interactive gesture ends the smooth version is rebuilt once.
+        mutable bool fxFast = false;
     };
 
     // PendingNewSelection: an ObjectPick press that did NOT hit a candidate is
@@ -306,9 +313,17 @@ private:
     // MoveAnnot/ResizeAnnot: drag the selected placed annotation (EditShapes).
     // PendingMoveAnnot: a press that selected/re-hit a shape but has not yet
     // moved — a bare click just selects; a real drag promotes it to MoveAnnot.
-    enum DragMode { NoDrag, DrawDrag, NewSelection, MoveSelection, ResizeSelection,
+    // PendingDraw: a press with a drawing tool that has not moved yet — a real
+    // drag promotes it to DrawDrag (beginDraw), a bare click instead
+    // selects/deselects the shape under the cursor (direct shape editing
+    // without switching to the Edit tool).
+    enum DragMode { NoDrag, DrawDrag, PendingDraw, NewSelection, MoveSelection, ResizeSelection,
                     PendingNewSelection,
                     PendingMoveAnnot, MoveAnnot, ResizeAnnot };
+
+    // Start a fresh in-progress annotation for the active tool at `at`
+    // (shared by the immediate Pen path and the PendingDraw promotion).
+    void beginDraw(const QPointF &at);
 
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
@@ -336,7 +351,15 @@ private:
     int annotAt(const QPointF &imgPos) const;
     int handlesForSelected(QPointF out[8]) const;
     int hitAnnotHandle(const QPointF &imgPos) const;
+    // Cursor for direct shape editing (resize handle → directional, body →
+    // pointing hand, none → arrow). Shared by the Edit tool and the drawing-
+    // tool direct-manipulation path so both give the same handle feedback.
+    Qt::CursorShape annotEditCursor(const QPointF &imgPos) const;
     void selectAnnot(int index);
+    // Restore the user's pre-selection style captured in m_styleBackup. Called
+    // from every deselect path so a clicked shape's style can't leak into the
+    // drawing defaults. Caller must have already cleared m_selectedAnnot.
+    void restoreStyleBackup();
     void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
     // A style property setter calls this AFTER updating the "current" prop: when
     // a shape is selected it coalesces an undo entry, copies the props onto the
@@ -384,6 +407,12 @@ private:
     QColor m_textBgColor = QColor(0, 0, 0, 179);
     int m_stepCounter = 0;
 
+    // Style snapshot taken when a selection is made from NO selection: a
+    // click-select seeds the props bar from the clicked shape, and deselecting
+    // must hand the user their own defaults back — not the shape's style.
+    Annot m_styleBackup;
+    bool m_styleBackupValid = false;
+
     bool m_selectionMode = false;
     bool m_smartPick = false;
     QRectF m_selection;
@@ -395,6 +424,9 @@ private:
     QRectF m_selStart;
     Annot m_current;
     bool m_drawing = false;
+    // True while a Blur's geometry is being dragged: its patch is rebuilt with
+    // fast sampling each frame (drawAnnot) and re-smoothed once on release.
+    bool m_fxFast = false;
 
     // EditShapes selection.
     int m_selectedAnnot = -1;
@@ -406,6 +438,7 @@ private:
     // OCR text-pick mode. Glyphs are in reading order; the selection is a
     // contiguous index range [min(anchor,caret) .. max] (letter-granular),
     // dragged like a text cursor. -1 = no selection.
+    quint64 m_ocrSeq = 0;                  // staleness guard for async OCR results
     bool m_ocrMode = false;
     bool m_ocrBusy = false;
     QVector<OcrWord> m_ocrWords;
@@ -420,6 +453,12 @@ private:
     // (word boundary = OcrWord::spaceBefore) or whole text line.
     void ocrExpandWord(int i, int &lo, int &hi) const;
     void ocrExpandLine(int i, int &lo, int &hi) const;
+    // Image-space bounding box (with slack) of the OCR word rects in the
+    // inclusive index range [min(a,b)..max(a,b)] — used to dirty just the
+    // changed selection/hover bars instead of the whole scrim. Null when the
+    // range is out of bounds (callers then fall back to a full repaint).
+    QRectF ocrRangeBoxImg(int a, int b) const;
+    QRectF ocrLineBoxImg(int glyph) const; // box of the glyph's whole text line
     // Coalesce-window bookkeeping (see pushUndoCoalesced).
     int m_lastCoalesceProp = -1;
     int m_lastCoalesceIndex = -1;

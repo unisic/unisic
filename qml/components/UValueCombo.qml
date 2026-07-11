@@ -2,39 +2,34 @@ import QtQuick
 import QtQuick.Controls as C
 import Unisic
 
-// Dropdown whose list is a Popup parented to the window Overlay, so it renders
-// above every card/Flickable and is never clipped by clip:true.
+// Numeric dropdown: a preset list plus a free-entry "Custom" field at the
+// bottom. A typed value applies immediately but is NEVER added to the preset
+// list. Same Overlay-parented popup pattern as UComboBox so it escapes
+// Flickable clipping. Optional `tooltip` shows on hover (used for hints like
+// "0 = keep open" that used to bloat the row label).
 Rectangle {
     id: root
-    property var model: []            // array of strings
-    property int currentIndex: 0
-    // Long lists (fonts): a filter field pinned at the top of the popup.
-    property bool searchable: false
-    // Render each entry in its own family (font pickers).
-    property bool fontPreview: false
-    readonly property string currentText: model && model.length > currentIndex && currentIndex >= 0
-                                          ? String(model[currentIndex]) : ""
-    signal activated(int index)
+    property var values: []           // preset numbers, ascending
+    property int value: 0
+    property int from: 0
+    property int to: 100
+    property string suffix: ""
+    property string tooltip: ""
+    signal changed(int value)
 
-    property string _filter: ""
-    // Entries carry their SOURCE index so filtering never breaks activation.
-    readonly property var _entries: {
-        var out = []
-        for (var i = 0; model && i < model.length; ++i) {
-            var s = String(model[i])
-            if (_filter === "" || s.toLowerCase().indexOf(_filter) >= 0)
-                out.push({ text: s, idx: i })
-        }
-        return out
-    }
-
-    implicitWidth: 220
+    implicitWidth: 130
     implicitHeight: 40
     radius: Theme.radiusM
     color: mouse.containsMouse ? Theme.tertiary : Theme.surfaceHi
     border.width: 1
     border.color: popup.opened ? Theme.accent : Theme.divider
     Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+    function _apply(v) {
+        v = Math.max(from, Math.min(to, Math.round(v)))
+        // Emit only — assigning `value` would break the consumer's binding.
+        if (v !== value) root.changed(v)
+    }
 
     Item {
         id: outsideCatcher
@@ -56,7 +51,7 @@ Rectangle {
         anchors.leftMargin: 14
         anchors.verticalCenter: parent.verticalCenter
         anchors.right: chevron.left
-        text: root.currentText
+        text: root.value + root.suffix
         color: Theme.textPrimary
         font.pixelSize: Theme.fontM
         elide: Text.ElideRight
@@ -81,13 +76,17 @@ Rectangle {
         onClicked: popup.opened ? popup.close() : popup.open()
     }
 
+    UHoverTip {
+        anchor: root
+        text: root.tooltip
+        show: mouse.containsMouse && !popup.opened
+    }
+
     C.Popup {
         id: popup
         parent: C.Overlay.overlay
-        // Fonts get a wider popup than the compact closed field.
-        width: Math.max(root.width, root.searchable ? 240 : 0)
-        readonly property int searchH: root.searchable ? 40 : 0
-        height: Math.min(list.contentHeight + 12 + searchH, 340)
+        width: Math.max(root.width, 130)
+        height: Math.min(list.contentHeight + 12 + 46, 340)
         z: outsideCatcher.z + 1
         padding: 6
         focus: true
@@ -96,8 +95,7 @@ Rectangle {
         // Position under the field in overlay coordinates each time it opens;
         // clamp to the window and flip above the field when out of room below.
         onAboutToShow: {
-            root._filter = ""
-            searchField.text = ""
+            customField.text = ""
             var overlay = C.Overlay.overlay
             var p = root.mapToItem(overlay, 0, root.height + 6)
             x = Math.max(0, Math.min(p.x, overlay.width - width))
@@ -108,7 +106,6 @@ Rectangle {
                 y = p.y
             }
         }
-        onOpened: if (root.searchable) searchField.forceFocus()
 
         enter: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animFast } }
         exit: Transition { NumberAnimation { property: "opacity"; from: 1; to: 0; duration: Theme.animFast } }
@@ -123,28 +120,12 @@ Rectangle {
         contentItem: Column {
             spacing: 6
 
-            UTextField {
-                id: searchField
-                visible: root.searchable
-                width: parent.width
-                implicitHeight: 34
-                placeholder: qsTr("Search…")
-                onEdited: (t) => root._filter = t.toLowerCase()
-                // Enter picks the first (best) match.
-                onAccepted: {
-                    if (root._entries.length > 0) {
-                        popup.close()
-                        root.activated(root._entries[0].idx)
-                    }
-                }
-            }
-
             ListView {
                 id: list
                 width: parent.width
-                height: popup.height - 12 - popup.searchH
+                height: popup.height - 12 - 46
                 clip: true
-                model: root._entries
+                model: root.values
                 boundsBehavior: Flickable.StopAtBounds
                 delegate: Rectangle {
                     width: ListView.view.width
@@ -154,20 +135,16 @@ Rectangle {
                     Text {
                         anchors.left: parent.left
                         anchors.leftMargin: 10
-                        anchors.right: parent.right
-                        anchors.rightMargin: 30
                         anchors.verticalCenter: parent.verticalCenter
-                        text: modelData.text
-                        elide: Text.ElideRight
+                        text: modelData + root.suffix
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontM
-                        font.family: root.fontPreview ? modelData.text : Qt.application.font.family
                     }
                     UIcon {
                         anchors.right: parent.right
                         anchors.rightMargin: 10
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: modelData.idx === root.currentIndex
+                        visible: Number(modelData) === root.value
                         name: "checkmark"
                         size: 15
                         color: Theme.accent
@@ -177,12 +154,27 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        // Emit only — writing currentIndex here would destroy the
-                        // consumer's binding; the handler updates the source.
                         onClicked: {
                             popup.close()
-                            root.activated(modelData.idx)
+                            root._apply(Number(modelData))
                         }
+                    }
+                }
+            }
+
+            Rectangle { width: parent.width; height: 1; color: Theme.divider }
+
+            UTextField {
+                id: customField
+                width: parent.width
+                implicitHeight: 34
+                placeholder: qsTr("Custom…")
+                validator: IntValidator { bottom: root.from; top: root.to }
+                onAccepted: {
+                    var v = parseInt(text)
+                    if (!isNaN(v)) {
+                        popup.close()
+                        root._apply(v)
                     }
                 }
             }

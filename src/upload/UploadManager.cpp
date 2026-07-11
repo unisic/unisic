@@ -43,9 +43,17 @@ UploadManager::UploadManager(Settings *settings, QObject *parent)
 
 QString UploadManager::configPath() const
 {
-    QString dir = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation) + "/unisic";
-    QDir().mkpath(dir);
-    return dir + "/destinations.json";
+    // UnisicConfig::configDir(): "unisic-dev" in dev builds — the dev app is
+    // fully separate from the installed stable one.
+    const QString path = UnisicConfig::configDir() + QStringLiteral("/destinations.json");
+#ifdef UNISIC_DEV_BUILD
+    // First dev run: start from the stable app's destinations (plain JSON, a
+    // raw copy is fine) instead of only the builtins.
+    const QString stable = UnisicConfig::stableConfigDir() + QStringLiteral("/destinations.json");
+    if (!QFile::exists(path) && QFile::exists(stable))
+        QFile::copy(stable, path);
+#endif
+    return path;
 }
 
 void UploadManager::loadDestinations()
@@ -122,7 +130,12 @@ void UploadManager::ensureBuiltins()
         });
         changed = true;
     }
-    if (!has(QStringLiteral("Imgur (anonymous)"))) {
+    // Only ship the Imgur builtin once a real Client-ID is compiled in. With the
+    // placeholder it 403s on every upload, and since builtins are matched by name
+    // a later build with a real ID would never repair the stored destination — so
+    // don't create it at all until kImgurClientId is set.
+    if (qstrcmp(kImgurClientId, "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID") != 0
+        && !has(QStringLiteral("Imgur (anonymous)"))) {
         m_destinations.append(QJsonObject{
             {QStringLiteral("name"), QStringLiteral("Imgur (anonymous)")},
             {QStringLiteral("type"), QStringLiteral("http")},
@@ -287,7 +300,9 @@ static QJsonObject sxcuToDestination(const QJsonObject &sx, const QString &fallb
     QString url = pick({"RequestURL", "RequestUrl"}).toString();
     // ShareX allows query parameters as a separate "Parameters" object.
     const QJsonObject params = pick({"Parameters"}).toObject();
-    if (!params.isEmpty()) {
+    // Only merge Parameters into a real endpoint — merging into an empty URL
+    // yields "?key=val", which slips past importSxcu's missing-RequestURL check.
+    if (!params.isEmpty() && !url.isEmpty()) {
         QUrl u(url);
         QUrlQuery q(u);
         for (auto it = params.begin(); it != params.end(); ++it)
@@ -599,7 +614,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         for (auto it = args.begin(); it != args.end(); ++it) {
             QHttpPart part;
             part.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QStringLiteral("form-data; name=\"%1\"").arg(it.key()));
+                           QStringLiteral("form-data; name=\"%1\"").arg(sanitizeFileName(it.key())));
             part.setBody(it.value().toString().toUtf8());
             multi->append(part);
         }
@@ -666,8 +681,13 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
             cb({}, {}, tr("Cannot create temp file"));
             return;
         }
-        tmp->write(data);
-        tmp->flush();
+        // A short write or failed flush (disk full) would upload a truncated or
+        // empty file yet still return a "success" URL — bail before curl runs.
+        if (tmp->write(data) != data.size() || !tmp->flush()) {
+            delete tmp;
+            cb({}, {}, tr("Cannot write temp file"));
+            return;
+        }
         uploadPath = tmp->fileName();
     }
 

@@ -27,6 +27,14 @@ Item {
         highlightQuery = searchQuery.toLowerCase()
         highlightTimer.restart()
         tab = result.tab
+        // Latch the destination pane as a REAL visit: onLoaded won't re-fire
+        // (search already built the Loader), so without this the visited pane
+        // is torn down on the next tab switch, losing its scroll position.
+        for (var i = 0; i < paneArea.children.length; ++i) {
+            var ld = paneArea.children[i]
+            if (ld && ld.tabIndex === result.tab)
+                ld.touched = true
+        }
         searchQuery = ""
         // Scroll the row's pane so the highlighted match is actually on
         // screen — panes keep their last scroll position, so without this
@@ -345,6 +353,7 @@ Item {
             spacing: Theme.spacingL
         }
         MiddleScroll { flickable: fl }
+        WheelBoost { flickable: fl }
     }
 
     // Import/Export use the DESKTOP's native file picker (C++ QFileDialog via
@@ -568,7 +577,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -582,8 +593,10 @@ Item {
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            property var ids: ["system", "en", "pl"]
-                            model: [qsTr("System"), qsTr("English"), qsTr("Polski")]
+                            property var ids: ["system", "en", "pl", "es", "it"]
+                            // Native names on purpose — every user recognises
+                            // their own language regardless of the current UI.
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano"]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                             onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }
@@ -691,7 +704,9 @@ Item {
             enabled: page.tab === 1 && !page.searchActive
             property bool touched: false
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -701,15 +716,29 @@ Item {
                     SectionTitle { text: qsTr("Notifications") }
                     SettingRow {
                         label: qsTr("Show notifications")
+                        // No notification backend at all → the switch would do
+                        // nothing; grey it out with the reason instead.
+                        available: App.capNativeNotification || App.capCustomNotification
+                        hint: (App.capNativeNotification || App.capCustomNotification) ? ""
+                              : qsTr("No notification support was detected on this desktop: there is no notification server and the compositor has no layer-shell, so Unisic cannot show any notification.")
                         help: qsTr("Master switch for all app notifications.")
-                        helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
+                        helpDetail: qsTr("Covers toasts and capture notifications alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
                         USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
                     }
                     SettingRow {
-                        label: qsTr("Show capture notification")
-                        help: qsTr("Shows a card with actions after every capture.")
-                        helpDetail: qsTr("The card gives quick access to Open, Copy, Upload and Delete for the capture you just took. On KDE/wlroots it is drawn as an always-on-top layer-shell card; elsewhere as a native desktop notification.")
-                        USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
+                        label: qsTr("Show app notifications (stylized)")
+                        // The stylized card needs layer-shell; without it the
+                        // native desktop notification is used regardless.
+                        available: App.capCustomNotification
+                        hint: App.capCustomNotification ? ""
+                              : qsTr("This compositor has no layer-shell support, so Unisic cannot draw its own stylized card. Native desktop notifications are used instead.")
+                        help: qsTr("Draws capture notifications as Unisic's own themed card.")
+                        helpDetail: qsTr("On: the capture notification is Unisic's stylized always-on-top card (layer-shell), with the position, style and auto-hide options below.\nOff or unsupported: a native desktop notification is shown instead — the capture feedback itself never disappears; use the master switch above to silence everything.")
+                        USwitch {
+                            checked: App.settings.showCapturePopup
+                            enabled: App.settings.showNotifications
+                            onToggled: (c) => App.settings.showCapturePopup = c
+                        }
                     }
                     SettingRow {
                         // Corner only matters for the layer-shell card we position
@@ -731,10 +760,18 @@ Item {
                     SettingRow {
                         visible: App.settings.showCapturePopup
                         height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Notification auto-hide (0 = keep open)")
-                        help: qsTr("How long the capture card stays on screen.")
+                        label: qsTr("Notification auto-hide")
+                        help: qsTr("How long the capture card stays on screen. 0 keeps it open.")
                         helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
-                        USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
+                        UValueCombo {
+                            width: 120
+                            values: [0, 3, 5, 8, 10, 15, 30, 60]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = keep open")
+                            value: App.settings.capturePopupDurationSec
+                            onChanged: (v) => App.settings.capturePopupDurationSec = v
+                        }
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
@@ -757,7 +794,14 @@ Item {
                         label: qsTr("Capture delay")
                         help: qsTr("Waits this long before taking the capture.")
                         helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
-                        USpinBox { from: 0; to: 5000; step: 50; value: App.settings.captureDelayMs; suffix: " ms"; onChanged: (v) => App.settings.captureDelayMs = v }
+                        UValueCombo {
+                            width: 130
+                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000]
+                            from: 0; to: 5000
+                            suffix: " ms"
+                            value: App.settings.captureDelayMs
+                            onChanged: (v) => App.settings.captureDelayMs = v
+                        }
                     }
                     SettingRow {
                         label: qsTr("Include mouse cursor")
@@ -807,10 +851,71 @@ Item {
                                     if (id !== "") {
                                         App.settings.captureSound = id
                                         soundCombo.ids = App.captureSoundIds()
+                                        recSoundCombo.ids = App.captureSoundIds()
                                     }
                                 }
                             }
                         }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording sound")
+                        help: qsTr("Plays a short sound when a recording or GIF is finished.")
+                        helpDetail: qsTr("Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                id: recSoundCombo
+                                width: 160
+                                anchors.verticalCenter: parent.verticalCenter
+                                property var ids: App.captureSoundIds()
+                                model: ids.map(soundCombo.labelFor)
+                                currentIndex: Math.max(0, ids.indexOf(App.settings.recordingSound))
+                                onActivated: (i) => App.settings.recordingSound = ids[i]
+                            }
+                            UIconButton {
+                                iconName: "play"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Preview")
+                                enabled: App.settings.recordingSound !== "off"
+                                onClicked: App.previewRecordingSound()
+                            }
+                            UIconButton {
+                                iconName: "list-add"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Add custom sound")
+                                onClicked: {
+                                    var id = App.addCustomSound()
+                                    if (id !== "") {
+                                        App.settings.recordingSound = id
+                                        soundCombo.ids = App.captureSoundIds()
+                                        recSoundCombo.ids = App.captureSoundIds()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor defaults") }
+                    SettingRow {
+                        label: qsTr("Always start with the default colors")
+                        help: qsTr("Color picks made while annotating last for that session only.")
+                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults — the next session starts again from the colors configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Always start with the default tool options")
+                        help: qsTr("Stroke width, text style and fill toggles last for that session only.")
+                        helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
                     }
                 }
             }
@@ -938,7 +1043,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1204,7 +1311,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1229,13 +1338,27 @@ Item {
                         label: qsTr("Stroke width")
                         help: qsTr("Default line thickness for annotations.")
                         helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
-                        USpinBox { from: 1; to: 16; value: App.settings.editorStrokeWidth; suffix: " px"; onChanged: (v) => App.settings.editorStrokeWidth = v }
+                        UValueCombo {
+                            width: 110
+                            values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
+                            from: 1; to: 64
+                            suffix: " px"
+                            value: App.settings.editorStrokeWidth
+                            onChanged: (v) => App.settings.editorStrokeWidth = v
+                        }
                     }
                     SettingRow {
                         label: qsTr("Text size")
                         help: qsTr("Default font size for the text tool.")
                         helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
-                        USpinBox { from: 10; to: 72; value: App.settings.editorFontSize; suffix: " px"; onChanged: (v) => App.settings.editorFontSize = v }
+                        UValueCombo {
+                            width: 110
+                            values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
+                            from: 8; to: 144
+                            suffix: " px"
+                            value: App.settings.editorFontSize
+                            onChanged: (v) => App.settings.editorFontSize = v
+                        }
                     }
                 }
             }
@@ -1300,7 +1423,42 @@ Item {
                     SettingRow {
                         visible: App.u2netAvailable
                         label: qsTr("Model")
-                        help: qsTr("The U-2-Net model file (~4.5 MB) is downloaded once and stored locally.")
+                        help: qsTr("Which neural model performs the cutout.")
+                        helpDetail: qsTr("Models differ in size, speed and quality:\n• U-2-Net small — fastest, good general results.\n• U-2-Net full — noticeably better masks, big download.\n• U-2-Net human — tuned for people/portraits.\n• Silueta — U-2-Net full compressed to 43 MB.\n• IS-Net — newest, best fine edge detail.\n• Custom — any segmentation .onnx you provide (u2net-style input is assumed; the input size is read from the model).\nEach downloaded model is stored locally and reused; switching models applies immediately.")
+                        UComboBox {
+                            id: segModelCombo
+                            width: 240
+                            property var entries: App.u2netModels()
+                            model: entries.map(function (e) { return e.label })
+                            currentIndex: {
+                                for (var i = 0; i < entries.length; ++i)
+                                    if (entries[i].id === App.settings.segmentModel) return i
+                                return 0
+                            }
+                            onActivated: (i) => {
+                                if (entries[i].id === "custom") {
+                                    // Cancelled picker keeps the previous model —
+                                    // currentIndex re-evaluates from settings.
+                                    App.pickU2NetCustomModel()
+                                } else {
+                                    App.settings.segmentModel = entries[i].id
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: App.u2netAvailable && App.settings.segmentModel === "custom"
+                        width: parent.width
+                        wrapMode: Text.WrapAnywhere
+                        text: App.settings.segmentCustomModel
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                        font.family: "monospace"
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model file")
+                        help: qsTr("Download state of the selected model. Each model is fetched once and stored locally.")
                         Row {
                             spacing: Theme.spacingS
                             Text {
@@ -1311,14 +1469,20 @@ Item {
                             }
                             UButton {
                                 compact: true; variant: "tonal"
-                                visible: !App.u2netModelReady
+                                visible: !App.u2netModelReady && App.settings.segmentModel !== "custom"
                                 text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
                                 enabled: !App.u2netBusy
                                 onClicked: App.downloadU2NetModel()
                             }
                             UButton {
+                                compact: true; variant: "tonal"
+                                visible: App.settings.segmentModel === "custom"
+                                text: qsTr("Choose file…")
+                                onClicked: App.pickU2NetCustomModel()
+                            }
+                            UButton {
                                 compact: true; variant: "danger"
-                                visible: App.u2netModelReady
+                                visible: App.u2netModelReady && App.settings.segmentModel !== "custom"
                                 text: qsTr("Delete")
                                 onClicked: App.deleteU2NetModel()
                             }
@@ -1380,7 +1544,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1395,10 +1561,18 @@ Item {
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
-                        label: qsTr("GIF max duration (0 = unlimited)")
-                        help: qsTr("Auto-stops GIF recording after this many seconds.")
+                        label: qsTr("GIF max duration")
+                        help: qsTr("Auto-stops GIF recording after this many seconds. 0 = unlimited.")
                         helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
-                        USpinBox { from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
+                        UValueCombo {
+                            width: 120
+                            values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = unlimited")
+                            value: App.settings.gifMaxDurationSec
+                            onChanged: (v) => App.settings.gifMaxDurationSec = v
+                        }
                     }
                     SettingRow {
                         label: qsTr("GIF quality")
@@ -1465,7 +1639,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
 
             // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
@@ -1592,7 +1768,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: App.devBuild && (touched || visible || page.searchActive)
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1703,6 +1881,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }

@@ -2,6 +2,7 @@
 #include "CaptureNotification.h"
 #include "AppContext.h"
 #include "Settings.h"
+#include <QGuiApplication>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusInterface>
@@ -105,6 +106,10 @@ void DesktopNotifier::sendNotify(CaptureNotification *n)
     // [key, label, key, label, …]. Keys are stable; labels localized. Servers
     // that advertise the "actions" capability render these as buttons.
     const QStringList actions{
+        // "default" binds the notification body itself (servers hide it from the
+        // button row); without it, onActionInvoked's key == "default" branch is
+        // never reachable and body-clicks are swallowed.
+        QStringLiteral("default"), tr("Open"),
         QStringLiteral("open"),   tr("Open"),
         QStringLiteral("copy"),   tr("Copy"),
         QStringLiteral("upload"), tr("Upload"),
@@ -112,7 +117,8 @@ void DesktopNotifier::sendNotify(CaptureNotification *n)
     };
 
     QVariantMap hints;
-    hints.insert(QStringLiteral("desktop-entry"), QStringLiteral("app.unisic.Unisic"));
+    // Dev builds have their own desktop id — keep the hint truthful.
+    hints.insert(QStringLiteral("desktop-entry"), QGuiApplication::desktopFileName());
     hints.insert(QStringLiteral("category"), QStringLiteral("transfer.complete"));
     const QString thumb = n->thumbFilePath();
     if (!thumb.isEmpty())

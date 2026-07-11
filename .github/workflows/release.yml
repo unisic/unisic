@@ -72,6 +72,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
+            qt6-tools-dev qt6-l10n-tools \
             libpipewire-0.3-dev \
             libtesseract-dev libleptonica-dev libzxing-dev \
             liblayershellqtinterface-dev libwayland-dev
@@ -108,6 +109,7 @@ jobs:
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
+            qt6-qttools-devel \
             pipewire-devel \
             tesseract-devel leptonica-devel zxing-cpp-devel \
             layer-shell-qt-devel wayland-devel
@@ -140,7 +142,7 @@ jobs:
           pacman -Sy --noconfirm archlinux-keyring
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
-            qt6-base qt6-declarative qt6-svg qt6-wayland \
+            qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp
 

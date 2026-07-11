@@ -64,16 +64,19 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
         Text {
-            text: qsTr("Stroke %1").arg(root.canvas.strokeWidth)
+            text: qsTr("Stroke")
             color: Theme.textTertiary
             font.pixelSize: 10
             anchors.horizontalCenter: parent.horizontalCenter
         }
-        USlider {
-            width: 100
-            from: 1; to: 16
+        UValueCombo {
+            width: 86
+            implicitHeight: 28
+            values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
+            from: 1; to: 64
+            suffix: " px"
             value: root.canvas.strokeWidth
-            onMoved: (v) => root.canvas.strokeWidth = Math.round(v)
+            onChanged: (v) => root.canvas.strokeWidth = v
         }
     }
 
@@ -110,6 +113,8 @@ Row {
         visible: root.has("font")
         width: 150
         anchors.verticalCenter: parent.verticalCenter
+        searchable: true
+        fontPreview: true
         property var fams: [qsTr("Default font")].concat(Qt.fontFamilies())
         model: fams
         currentIndex: {
@@ -119,10 +124,13 @@ Row {
         }
         onActivated: (i) => root.canvas.fontFamily = (i === 0 ? "" : fams[i])
     }
-    USpinBox {
+    UValueCombo {
         visible: root.has("font")
+        width: 88
         anchors.verticalCenter: parent.verticalCenter
-        from: 8; to: 144; step: 2
+        values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
+        from: 8; to: 144
+        suffix: " px"
         value: root.canvas.fontSize
         onChanged: (v) => root.canvas.fontSize = v
     }

@@ -34,8 +34,6 @@ public:
     // The frontend only exposes the interface when a backend module claims
     // it — but a claimed interface can still be broken (xdp-gnome's backend
     // is hardwired to org.gnome.Shell and fails on niri), so treat this as a
-    // pre-filter and the CreateSession/BindShortcuts response as the truth.
-    static bool interfacePresent();
     // Async variant: the Get may D-Bus-ACTIVATE the portal at cold session
     // start (multi-hundred-ms), so the blocking form stalls the GUI thread at
     // startup. `done(present)` is delivered on ctx's thread; dropped if ctx
@@ -65,10 +63,15 @@ private slots:
 private:
     void createSession(const QVector<Shortcut> &shortcuts);
     void bindNow(const QVector<Shortcut> &shortcuts);
+    // Disconnect our Closed subscription for `handle` and Close() it so an
+    // abandoned session (and its D-Bus match rule) does not leak daemon-side.
+    void closeSession(const QString &handle);
 
     QString m_sessionHandle; // object path string from the CreateSession response
     bool m_signalConnected = false;
     bool m_sessionPending = false; // CreateSession round-trip in flight
+    bool m_bindPending = false;    // BindShortcuts Response round-trip in flight
+    bool m_bindQueued = false;     // a newer set arrived during an in-flight bind
     bool m_retriedBind = false;    // one stale-session retry per bind attempt
     bool m_needRebind = false;     // portal owner lost — re-bind on owner gain
     QVector<Shortcut> m_queued;    // newest set requested while pending

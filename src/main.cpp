@@ -63,8 +63,13 @@ static QString singleInstanceServerName()
     // fires twice) and two QSettings writers racing the same config file. One
     // instance per user is the right guarantee; two concurrent graphical
     // sessions of the same user (rare) sharing one instance is the far smaller
-    // cost.
+    // cost. Dev builds use their own socket so stable and dev can run (and be
+    // CLI-targeted) side by side.
+#ifdef UNISIC_DEV_BUILD
+    return QStringLiteral("app.unisic.UnisicDev.%1").arg(getuid());
+#else
     return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
+#endif
 }
 
 // Capture flag from argv, mapped to the command sent over the local socket —
@@ -143,6 +148,23 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
 // .desktop file declares X-KDE-DBUS-Restricted-Interfaces. When running
 // from a build tree, drop the desktop file into ~/.local/share/applications
 // so the silent KDE capture path works.
+#ifdef UNISIC_DEV_BUILD
+// Desaturate keeping alpha — Format_Grayscale8 would drop the alpha channel
+// (see the project's Qt gotchas), so convert per-pixel instead.
+static QPixmap grayscalePixmap(const QPixmap &src)
+{
+    QImage img = src.toImage().convertToFormat(QImage::Format_ARGB32);
+    for (int y = 0; y < img.height(); ++y) {
+        QRgb *line = reinterpret_cast<QRgb *>(img.scanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            const int g = qGray(line[x]);
+            line[x] = qRgba(g, g, g, qAlpha(line[x]));
+        }
+    }
+    return QPixmap::fromImage(img);
+}
+#endif
+
 static void ensureDesktopFile()
 {
     // Dev-run icon: hicolor lookup needs it on disk, not just in qrc.
@@ -155,19 +177,76 @@ static void ensureDesktopFile()
         QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), iconTarget);
     if (!QFile::exists(legacyIconTarget))
         QFile::copy(QStringLiteral(":/resources/icons/unisic.svg"), legacyIconTarget);
+#ifdef UNISIC_DEV_BUILD
+    // The dev app gets its own GRAY icon (menu + window + task switcher), so
+    // the two flavors are distinguishable at a glance.
+    const QString devIconDir = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                               + QStringLiteral("/icons/hicolor/256x256/apps");
+    const QString devIconTarget = devIconDir + QStringLiteral("/app.unisic.UnisicDev.png");
+    QDir().mkpath(devIconDir);
+    if (!QFile::exists(devIconTarget)) {
+        const QPixmap gray =
+            grayscalePixmap(QIcon(QStringLiteral(":/resources/icons/unisic.svg")).pixmap(256));
+        gray.save(devIconTarget, "PNG");
+    }
+#endif
 
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
-    const QString target = dir + QStringLiteral("/app.unisic.Unisic.desktop");
+    const QString target = dir + QLatin1Char('/') + QGuiApplication::desktopFileName()
+                           + QStringLiteral(".desktop");
     // Pre-rename installs dropped org.unisic.Unisic.desktop here; left behind
     // it shows up as a second "Unisic" menu entry.
     QFile::remove(dir + QStringLiteral("/org.unisic.Unisic.desktop"));
+#ifdef UNISIC_DEV_BUILD
+    // Older dev builds wrote app.unisic.Unisic.desktop here with Exec pointing
+    // into the build tree — since ~/.local shadows /usr/share, the menu's
+    // "Unisic" then launched the DEV binary instead of the installed stable
+    // one. Remove that shadow when its Exec points at this build (or at a
+    // binary that no longer exists); a genuine user-made local entry pointing
+    // at some other existing binary is left alone.
+    {
+        const QString shadow = dir + QStringLiteral("/app.unisic.Unisic.desktop");
+        QFile sf(shadow);
+        if (sf.exists() && sf.open(QIODevice::ReadOnly)) {
+            QString exec;
+            const QList<QByteArray> shadowLines = sf.readAll().split('\n');
+            for (const QByteArray &line : shadowLines) {
+                if (!line.startsWith("Exec="))
+                    continue;
+                exec = QString::fromUtf8(line.mid(5)).trimmed();
+                if (exec.startsWith(QLatin1Char('"'))) {
+                    const int end = exec.indexOf(QLatin1Char('"'), 1);
+                    exec = end > 0 ? exec.mid(1, end - 1) : QString();
+                } else {
+                    exec = exec.section(QLatin1Char(' '), 0, 0);
+                }
+                break;
+            }
+            sf.close();
+            if (exec == QCoreApplication::applicationFilePath()
+                || (exec.startsWith(QLatin1Char('/')) && !QFile::exists(exec))) {
+                QFile::remove(shadow);
+                qInfo() << "Removed stale dev shadow of the stable desktop entry:" << shadow;
+            }
+        }
+    }
+#endif
     // Quote per the Desktop Entry spec — an unquoted build path with spaces
     // yields an invalid entry and silently breaks ScreenShot2 authorization.
     QString execPath = QCoreApplication::applicationFilePath();
     execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
             .replace(QLatin1Char('"'), QLatin1String("\\\""));
     const QByteArray execLine = "Exec=\"" + execPath.toUtf8() + "\"\n";
-    const QByteArray iconLine = "Icon=app.unisic.Unisic\n";
+#ifdef UNISIC_DEV_BUILD
+    // ABSOLUTE path, not a theme name: themed lookup for the freshly-dropped
+    // gray dev icon proved unreliable against stale icon caches
+    // (icon-theme.cache / icon-cache.kcache) — an absolute Icon= bypasses
+    // theme resolution entirely.
+    const QByteArray iconLine = "Icon=" + devIconTarget.toUtf8() + "\n";
+#else
+    const QByteArray iconLine =
+        "Icon=" + QGuiApplication::desktopFileName().toUtf8() + "\n";
+#endif
     const QByteArray restrictedLine =
         "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
 
@@ -188,7 +267,7 @@ static void ensureDesktopFile()
         return;
     f.write("[Desktop Entry]\n"
             "Type=Application\n"
-            "Name=Unisic\n"
+            "Name=" + QGuiApplication::applicationDisplayName().toUtf8() + "\n"
             "Comment=Screenshots, annotations, uploads and GIF recording\n"
             + execLine +
             iconLine +
@@ -213,12 +292,29 @@ static void ensureDesktopFile()
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
+    // Dev builds are a SEPARATE app: own application name (which moves every
+    // QStandardPaths location: cache, history, U-2-Net model), own desktop id,
+    // own single-instance socket, own config dir (ConfigPath.h) and own
+    // KGlobalAccel component (GlobalHotkeys.h) — so a build-tree binary never
+    // shadows or fights the installed stable Unisic.
+#ifdef UNISIC_DEV_BUILD
+    app.setApplicationName(QStringLiteral("unisic-dev"));
+    app.setApplicationDisplayName(QStringLiteral("Unisic (dev)"));
+    app.setDesktopFileName(QStringLiteral("app.unisic.UnisicDev"));
+#else
     app.setApplicationName(QStringLiteral("unisic"));
-    app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
-    app.setOrganizationName(QStringLiteral("Unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
     app.setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
+#endif
+    app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
+    app.setOrganizationName(QStringLiteral("Unisic"));
+#ifdef UNISIC_DEV_BUILD
+    // Gray window icon = dev build, at a glance.
+    app.setWindowIcon(QIcon(
+        grayscalePixmap(QIcon(QStringLiteral(":/resources/icons/unisic.svg")).pixmap(256))));
+#else
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
+#endif
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 
     const QStringList args = app.arguments();

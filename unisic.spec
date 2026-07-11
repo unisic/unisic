@@ -15,9 +15,9 @@ BuildRequires:  cmake
 BuildRequires:  gcc-c++
 BuildRequires:  pkgconfig
 BuildRequires:  extra-cmake-modules
-%if 0%{?suse_version}
-BuildRequires:  ninja
-%else
+%if !0%{?suse_version}
+# Fedora builds with Ninja (matches CI); openSUSE's %%cmake_build drives
+# plain make, so no -G there and no ninja dependency.
 BuildRequires:  ninja-build
 # appstream-util for the %%check metainfo validation; Fedora-only — the
 # %%check line is `|| :`-guarded and skips quietly where the tool is absent.
@@ -96,7 +96,7 @@ export UNISIC_BUILD_NUMBER=%{release}
 # BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit tests need
 # Qt6Test, which openSUSE ships as a separate qt6-test-devel — packages
 # don't run unit tests (CI does).
-%cmake -G Ninja -DUNISIC_DEV_BUILD=OFF -DBUILD_TESTING=OFF
+%cmake %{!?suse_version:-G Ninja} -DUNISIC_DEV_BUILD=OFF -DBUILD_TESTING=OFF
 %cmake_build
 
 %install

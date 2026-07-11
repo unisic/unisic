@@ -723,6 +723,7 @@ Item {
                             verticalAlignment: Text.AlignVCenter
                             text: "v" + App.appVersion
                                   + (App.buildNumber === "dev" ? " · dev" : " · build " + App.buildNumber)
+                                  + (App.buildDate ? " · " + App.buildDate : "")
                             color: Theme.textSecondary
                             font.pixelSize: Theme.fontM
                         }
@@ -1765,8 +1766,9 @@ Item {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         textFormat: Text.MarkdownText
-                        text: qsTr("This desktop has no KGlobalAccel service, so Unisic cannot register global shortcuts itself. Bind keys in your compositor instead; a running Unisic instance picks the command up:\n\n" +
+                        text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Bind keys in your desktop instead; a running Unisic instance picks the command up:\n\n" +
                                    "```\nunisic --region | --fullscreen | --window | --gif\n```\n\n" +
+                                   "GNOME: Settings → Keyboard → Custom Shortcuts, one entry per command above. GNOME 48+ normally supports in-app hotkeys; if this card shows there, update xdg-desktop-portal-gnome or launch Unisic once from its menu entry.\n\n" +
                                    "niri (`config.kdl`):\n\n" +
                                    "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
                         color: Theme.textSecondary

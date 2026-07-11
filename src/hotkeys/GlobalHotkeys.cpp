@@ -27,6 +27,12 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
     // launchers), and gating on it alone would silently route hotkeys to the
     // portal (or nowhere) on a real KDE session. org.kde.KWin on the bus is
     // the reliable, env-independent signal.
+    // Dev aid: UNISIC_HOTKEY_BACKEND=portal forces the non-KDE path so the
+    // GlobalShortcuts portal flow can be exercised on a KDE box.
+    if (qEnvironmentVariable("UNISIC_HOTKEY_BACKEND") == QLatin1String("portal")) {
+        qInfo() << "UNISIC_HOTKEY_BACKEND=portal — KGlobalAccel skipped";
+        return;
+    }
     auto *iface = QDBusConnection::sessionBus().interface();
     const bool kwinOnBus = iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const QStringList desktops =

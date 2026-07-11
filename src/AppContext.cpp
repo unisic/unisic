@@ -1,4 +1,5 @@
 #include "AppContext.h"
+#include "unisic_build_date.h" // generated into the build dir (cmake/BuildDate.cmake)
 #include "Settings.h"
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
@@ -329,6 +330,11 @@ bool AppContext::qrAvailable() const
 #else
     return false;
 #endif
+}
+
+QString AppContext::buildDate() const
+{
+    return QStringLiteral(UNISIC_BUILD_DATE);
 }
 
 bool AppContext::hotkeysAvailable() const
@@ -3069,13 +3075,16 @@ void AppContext::defineHotkeys()
         connect(m_portalHotkeys, &PortalGlobalShortcuts::activated,
                 this, &AppContext::dispatchHotkey);
         connect(m_portalHotkeys, &PortalGlobalShortcuts::bindFinished, this,
-                [this](bool ok, const QVariantMap &) {
+                [this](bool ok, const QVariantMap &triggers) {
             const QString wanted = ok ? QStringLiteral("portal") : QString();
             if (m_hotkeyBackend != wanted) {
                 m_hotkeyBackend = wanted;
                 emit hotkeysAvailableChanged();
             }
-            if (!ok)
+            if (ok)
+                qInfo() << "GlobalShortcuts bound via portal," << triggers.size()
+                        << "trigger descriptions";
+            else
                 qWarning() << "GlobalShortcuts portal exists but has no working backend here"
                               " — falling back to compositor-binds guidance";
         });

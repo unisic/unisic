@@ -279,6 +279,7 @@ Window {
             text: "v" + App.appVersion + (App.buildNumber === "dev"
                     ? " · dev"
                     : " · build " + App.buildNumber)
+                  + (App.buildDate ? "\n" + App.buildDate : "")
             color: Theme.textTertiary
             font.pixelSize: Theme.fontS
         }

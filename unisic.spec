@@ -37,6 +37,9 @@ BuildRequires:  cmake(Qt6LinguistTools)
 BuildRequires:  cmake(Qt6WaylandClient)
 BuildRequires:  pkgconfig(libpipewire-0.3)
 BuildRequires:  pkgconfig(tesseract)
+# openSUSE's tesseract link interface drags in -lcurl (libarchive chain);
+# Fedora resolves it transitively — harmless there.
+BuildRequires:  pkgconfig(libcurl)
 BuildRequires:  pkgconfig(lept)
 BuildRequires:  cmake(ZXing)
 BuildRequires:  cmake(LayerShellQt)

@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.4.0
+Version:        0.5.0
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -77,6 +77,11 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sat Jul 11 2026 Unisic maintainers <unisic@debondor.com> - 0.5.0-1
+- Editable shapes and shape groups, OCR text selection, richer text styling.
+- Spanish and Italian translations (full catalogs, en/pl gaps filled).
+- Separate sound cue when a recording/GIF finishes encoding; custom sounds.
+
 * Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.4.0-1
 - Rename app ID to app.unisic.Unisic (unisic.app); Flathub submission prep.
 

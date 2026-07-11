@@ -55,6 +55,8 @@ qt_add_executable(unisic
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
+    src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    src/update/VersionCompare.h
     src/theme/ThemeController.h src/theme/ThemeController.cpp
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
@@ -190,7 +192,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify)
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify src/update)
 target_link_libraries(unisic PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
     Qt6::DBus Qt6::Network Qt6::Concurrent
@@ -310,6 +312,14 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
     add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
+    qt_add_executable(unisic_version_compare_test
+        tests/VersionCompareTest.cpp
+        src/update/VersionCompare.h
+    )
+    target_link_libraries(unisic_version_compare_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_version_compare_test PRIVATE src/update)
+    add_test(NAME unisic_version_compare_test COMMAND unisic_version_compare_test)
 
     qt_add_executable(unisic_object_detector_test
         tests/ObjectDetectorTest.cpp

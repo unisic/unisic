@@ -16,6 +16,7 @@
 #include "upload/UploadManager.h"
 #include "history/HistoryStore.h"
 #include "record/GifRecorder.h"
+#include "update/UpdateChecker.h"
 
 class QQmlEngine;
 class QMenu;
@@ -51,6 +52,7 @@ class AppContext : public QObject
     Q_PROPERTY(Settings *settings READ settings CONSTANT)
     Q_PROPERTY(UploadManager *uploads READ uploads CONSTANT)
     Q_PROPERTY(HistoryStore *history READ history CONSTANT)
+    Q_PROPERTY(UpdateChecker *updater READ updater CONSTANT)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
@@ -117,6 +119,7 @@ public:
     Settings *settings() const { return m_settings; }
     UploadManager *uploads() const { return m_uploads; }
     HistoryStore *history() const { return m_history; }
+    UpdateChecker *updater() const { return m_updater; }
     CaptureManager *captureManager() const { return m_capture; }
     QQmlEngine *qmlEngine() const { return m_engine; }
 
@@ -169,6 +172,8 @@ public:
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestU2Net();
     Q_INVOKABLE void devTestLanguage();
+    Q_INVOKABLE void devTestUpdateCheck();
+    Q_INVOKABLE void devTestUpdateAvailable();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -406,6 +411,7 @@ private:
     OverlayController *m_overlay;
     UploadManager *m_uploads;
     HistoryStore *m_history;
+    UpdateChecker *m_updater = nullptr;
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | ""

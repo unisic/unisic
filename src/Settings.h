@@ -95,6 +95,7 @@ class Settings : public QObject
     Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
+    Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
@@ -348,6 +349,9 @@ public:
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
+    // Daily GitHub release check + automatic AppImage self-install
+    // (UpdateChecker). Suppressed in dev builds regardless of this value.
+    U_SETTING(bool, autoCheckUpdates, setAutoCheckUpdates, "updates/autoCheck", true)
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -380,6 +384,7 @@ public:
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
+        emit autoCheckUpdatesChanged();
     }
 
 signals:
@@ -453,6 +458,7 @@ signals:
     void uiLanguageChanged();
     void useSystemDecorationChanged();
     void trayIconPathChanged();
+    void autoCheckUpdatesChanged();
 
 private:
     QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};

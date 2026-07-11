@@ -197,20 +197,21 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
     const int sw = std::max(3, int(std::lround(src.width() / scale)));
     const int sh = std::max(3, int(std::lround(src.height() / scale)));
     const QImage grayFull = src.convertToFormat(QImage::Format_Grayscale8);
-    const QImage gray = scale > 1.0
-                            ? grayFull.scaled(sw, sh, Qt::IgnoreAspectRatio,
-                                              Qt::SmoothTransformation)
-                            : grayFull;
     const QImage smallRgb = (scale > 1.0
                                  ? src.scaled(sw, sh, Qt::IgnoreAspectRatio,
                                               Qt::SmoothTransformation)
                                  : src).convertToFormat(QImage::Format_RGB32);
+    // Derive the small grayscale from the already-downscaled RGB instead of a
+    // second full-frame smooth scale; grayscale conversion is linear, so the
+    // result matches scale-then-gray up to rounding. grayFull stays full-res
+    // for edge snapping.
+    const QImage gray = scale > 1.0
+                            ? smallRgb.convertToFormat(QImage::Format_Grayscale8)
+                            : grayFull;
     const int w = gray.width();
     const int h = gray.height();
     if (w < 8 || h < 8)
         return {};
-
-    auto px = [&](int x, int y) -> int { return gray.constScanLine(y)[x]; };
 
     // 2. Sobel, orientation-split: a pixel belongs to a horizontal border when
     //    the vertical gradient dominates, and vice versa. Adaptive threshold
@@ -221,11 +222,16 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
     {
         double sum = 0.0, sumSq = 0.0;
         for (int y = 1; y < h - 1; ++y) {
+            // Hoist the three scanline pointers once per row instead of an
+            // out-of-line constScanLine call per neighbour access.
+            const uchar *rm = gray.constScanLine(y - 1);
+            const uchar *r0 = gray.constScanLine(y);
+            const uchar *rp = gray.constScanLine(y + 1);
             for (int x = 1; x < w - 1; ++x) {
-                const int gx = -px(x-1,y-1) - 2*px(x-1,y) - px(x-1,y+1)
-                               + px(x+1,y-1) + 2*px(x+1,y) + px(x+1,y+1);
-                const int gy = -px(x-1,y-1) - 2*px(x,y-1) - px(x+1,y-1)
-                               + px(x-1,y+1) + 2*px(x,y+1) + px(x+1,y+1);
+                const int gx = -rm[x-1] - 2*r0[x-1] - rp[x-1]
+                               + rm[x+1] + 2*r0[x+1] + rp[x+1];
+                const int gy = -rm[x-1] - 2*rm[x] - rm[x+1]
+                               + rp[x-1] + 2*rp[x] + rp[x+1];
                 gxs[y*w + x] = std::abs(gx);
                 gys[y*w + x] = std::abs(gy);
                 const int m = std::abs(gx) + std::abs(gy);
@@ -383,8 +389,14 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
     //    lines that span it as (top,bottom). All four sides must be traced
     //    (coverage >= 0.55 — rounded corners and crossing content eat a bit).
     const int tol = 4;
-    for (int i = 0; i < vSegs.size(); ++i) {
-        for (int j = 0; j < vSegs.size(); ++j) {
+    // Bound the primary line-pair pass like every sibling pass (5a/5aa/5b):
+    // grid-heavy content (spreadsheets, terminals) can otherwise generate tens
+    // of thousands of hypotheses, each paying four full-res snapLine scans,
+    // only for the later resize(1500)/merged-400 caps to throw them away.
+    int stepAdded = 0;
+    const int stepCap = 600;
+    for (int i = 0; i < vSegs.size() && stepAdded < stepCap; ++i) {
+        for (int j = 0; j < vSegs.size() && stepAdded < stepCap; ++j) {
             const Seg &L = vSegs[i];
             const Seg &R = vSegs[j];
             if (R.pos - L.pos < minSide)
@@ -488,6 +500,7 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
                         && r.width() >= src.width() / 5 && r.height() >= src.height() / 5;
                     scored.append({r, quality,
                                    window ? CandidateKind::Window : CandidateKind::Container});
+                    ++stepAdded;
                 }
             }
         }
@@ -657,8 +670,13 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
         QVector<int> label(w * h, -1);
         QVector<int> stack;
         int next = 0;
-        auto rgbAtSmall = [&](int i) -> QRgb {
-            return reinterpret_cast<const QRgb *>(smallRgb.constScanLine(i / w))[i % w];
+        // Hoist the pixel buffer once and index by (x,y): the old rgbAtSmall(i)
+        // did an out-of-line constScanLine plus an i/w and i%w division on every
+        // neighbour read (~3M per detection). Neighbour coords are already known.
+        const QRgb *bits = reinterpret_cast<const QRgb *>(smallRgb.constBits());
+        const qsizetype stride = smallRgb.bytesPerLine() / 4;
+        auto rgbAtSmall = [&](int x, int y) -> QRgb {
+            return bits[qsizetype(y) * stride + x];
         };
         auto close = [&](QRgb a, QRgb b) {
             const int dr = qRed(a) - qRed(b), dg = qGreen(a) - qGreen(b), db = qBlue(a) - qBlue(b);
@@ -668,7 +686,7 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
         for (int start = 0; start < w * h && added < 200; ++start) {
             if (label[start] != -1)
                 continue;
-            const QRgb seed = rgbAtSmall(start);
+            const QRgb seed = rgbAtSmall(start % w, start / w);
             int minx = w, miny = h, maxx = 0, maxy = 0, count = 0;
             stack.append(start);
             label[start] = next;
@@ -679,9 +697,11 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
                 minx = std::min(minx, x); maxx = std::max(maxx, x);
                 miny = std::min(miny, y); maxy = std::max(maxy, y);
                 const int nbs[4] = {p - 1, p + 1, p - w, p + w};
+                const int nnx[4] = {x - 1, x + 1, x, x};
+                const int nny[4] = {y, y, y - 1, y + 1};
                 const bool ok[4] = {x > 0, x < w - 1, y > 0, y < h - 1};
                 for (int i = 0; i < 4; ++i)
-                    if (ok[i] && label[nbs[i]] == -1 && close(seed, rgbAtSmall(nbs[i]))) {
+                    if (ok[i] && label[nbs[i]] == -1 && close(seed, rgbAtSmall(nnx[i], nny[i]))) {
                         label[nbs[i]] = next;
                         stack.append(nbs[i]);
                     }
@@ -777,7 +797,10 @@ QVector<ObjectDetector::Candidate> ObjectDetector::detectCandidates(const QImage
         const QVector<QRect> boxes = maskComponents(closed, w, h, 26, 0.92);
         for (const QRect &b : boxes) {
             // Undo the dilation growth so the box hugs the actual pixels.
-            const QRect tight = b.adjusted(7, 7, -7, -7);
+            // dilate() spreads r+1 pixels per side (the run counter is tested
+            // before it decrements), so a radius-7 smear inflates each bbox by
+            // 8 per side — shrink by 8 to match, not 7.
+            const QRect tight = b.adjusted(8, 8, -8, -8);
             if (tight.width() < 26 || tight.height() < 26)
                 continue;
             QRect r(int(tight.x() * scale), int(tight.y() * scale),

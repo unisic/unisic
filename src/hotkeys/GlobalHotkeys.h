@@ -36,6 +36,9 @@ public:
     void releaseShortcut(const QString &actionId, const QString &friendlyName);
 
     void unregisterAll();
+    // Fully remove a single action from the daemon (and the Shortcuts KCM),
+    // unlike releaseShortcut() which only unbinds its keys.
+    void unregisterAction(const QString &actionId);
 
     // False when org.kde.kglobalaccel is absent (non-KDE session) — callers
     // must not report a bind "conflict" that is really just no daemon.
@@ -46,6 +49,13 @@ public:
     // out" — treating a timeout as unbound once wiped the user's keys via the
     // daemon-authoritative sync.
     QList<int> activeKeys(const QString &actionId, bool *ok = nullptr) const;
+
+    // Which action the daemon resolves `key` to, as "component/action" (empty
+    // when unowned or on error). Two components can BOTH list the same key in
+    // their bindings (observed live: a KWin tiling script held Meta+Shift+F
+    // while our capture-fullscreen binding still listed it) — only this
+    // daemon-side lookup tells who actually receives the press.
+    QString keyOwner(int key) const;
 
     // Shift+digit bindings are pushed with their shifted-symbol variants as
     // alternates (KWin Wayland reports the press with shift consumed — see
@@ -60,6 +70,11 @@ public:
     // First non-empty key as a portable QKeySequence string ("Meta+Shift+1"),
     // for daemon-authoritative display in the settings UI.
     static QString portableFromKeys(const QList<int> &keys);
+
+    // "unisic/" (or "unisic-dev/" in dev builds) — for matching keyOwner()
+    // results against our own component.
+    static QString componentPrefix()
+    { return QString::fromLatin1(COMPONENT) + QLatin1Char('/'); }
     QString activeKeysPortable(const QString &actionId, bool *ok = nullptr) const
     { return portableFromKeys(activeKeys(actionId, ok)); }
 
@@ -83,7 +98,20 @@ private:
     QStringList fullActionId(const QString &actionId, const QString &friendlyName) const;
     void ensureSignalConnected();
 
+    // Dev builds register a SEPARATE component, so a dev instance never
+    // double-dispatches (or steals) the stable app's hotkeys. The dev config
+    // is seeded with all hotkeys unbound for the same reason (Settings.h).
+    // Underscore, NOT a dash: the daemon exposes each component at
+    // /component/<unique> and a dash is invalid in a D-Bus object path — the
+    // daemon sanitizes it to '_' while our signal subscription wouldn't,
+    // leaving shortcut presses undeliverable.
+#ifdef UNISIC_DEV_BUILD
+    static constexpr const char *COMPONENT = "unisic_dev";
+    static constexpr const char *COMPONENT_FRIENDLY = "Unisic (dev)";
+#else
     static constexpr const char *COMPONENT = "unisic";
+    static constexpr const char *COMPONENT_FRIENDLY = "Unisic";
+#endif
     bool m_available = false;
     bool m_signalConnected = false;
     QSet<QString> m_registered; // actions doRegister'ed this process (idempotent skip)

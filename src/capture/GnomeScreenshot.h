@@ -39,8 +39,6 @@ public:
     // Whole workspace (all monitors) into one image. Mirrors the portal's
     // full-workspace result so CaptureManager::cropForScreen can slice it.
     void captureWorkspace(bool includeCursor, Callback cb);
-    // A region in compositor (physical) coordinates.
-    void captureArea(int x, int y, int w, int h, bool includeCursor, Callback cb);
     // The focused window (with frame).
     void captureActiveWindow(bool includeCursor, Callback cb);
 

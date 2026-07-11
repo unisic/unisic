@@ -22,7 +22,6 @@ public:
     void captureWorkspace(bool includeCursor, Callback cb);
     void captureScreen(const QString &screenName, bool includeCursor, Callback cb);
     void captureActiveWindow(bool includeCursor, Callback cb);
-    void captureArea(int x, int y, int w, int h, bool includeCursor, Callback cb);
 
 private:
     void call(const QString &method, const QVariantList &args, bool includeCursor, Callback cb);

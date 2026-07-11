@@ -27,6 +27,14 @@ Item {
         highlightQuery = searchQuery.toLowerCase()
         highlightTimer.restart()
         tab = result.tab
+        // Latch the destination pane as a REAL visit: onLoaded won't re-fire
+        // (search already built the Loader), so without this the visited pane
+        // is torn down on the next tab switch, losing its scroll position.
+        for (var i = 0; i < paneArea.children.length; ++i) {
+            var ld = paneArea.children[i]
+            if (ld && ld.tabIndex === result.tab)
+                ld.touched = true
+        }
         searchQuery = ""
         // Scroll the row's pane so the highlighted match is actually on
         // screen — panes keep their last scroll position, so without this
@@ -108,10 +116,10 @@ Item {
         return best
     }
 
-    // The Developer tab (index 5) only exists in a dev build.
+    // The Developer tab (index 6) only exists in a dev build.
     readonly property var tabNames: {
-        var t = [qsTr("General"), qsTr("Appearance"), qsTr("Editor"),
-                 qsTr("Recording"), qsTr("Hotkeys")]
+        var t = [qsTr("General"), qsTr("Preferences"), qsTr("Appearance"),
+                 qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
         return t
@@ -345,6 +353,7 @@ Item {
             spacing: Theme.spacingL
         }
         MiddleScroll { flickable: fl }
+        WheelBoost { flickable: fl }
     }
 
     // Import/Export use the DESKTOP's native file picker (C++ QFileDialog via
@@ -378,15 +387,18 @@ Item {
     }
 
     // ---------------- tab bar ----------------
-    Row {
+    // A Flow (not a Row): with the Preferences + Developer tabs added the chips
+    // no longer fit one line at narrow widths, and a Row ran them under the
+    // search field. The Flow wraps extra chips onto a second line and its right
+    // edge stops before the search box, so the two never overlap.
+    Flow {
         id: tabBar
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.leftMargin: Theme.spacingXL
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingXL
+        anchors.right: searchField.left
+        anchors.rightMargin: Theme.spacingM
         anchors.topMargin: Theme.spacingM
-        height: 38
         spacing: Theme.spacingS
         Repeater {
             model: page.tabNames
@@ -422,10 +434,13 @@ Item {
     }
 
     // Settings search: type to list matching rows across ALL tabs; click a
-    // result to jump to its tab (label flashes accent for a moment).
+    // result to jump to its tab (label flashes accent for a moment). Pinned to
+    // the top-right; the tab Flow reserves the space to its left.
     UTextField {
-        anchors.right: tabBar.right
-        anchors.verticalCenter: tabBar.verticalCenter
+        id: searchField
+        anchors.top: tabBar.top
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingXL
         width: 190
         placeholder: qsTr("Search settings…")
         text: page.searchQuery
@@ -562,7 +577,9 @@ Item {
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -571,49 +588,18 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("General") }
                     SettingRow {
-                        label: qsTr("Show notifications")
-                        help: qsTr("Master switch for all app notifications.")
-                        helpDetail: qsTr("Covers toasts and capture cards alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
-                        USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Show capture notification")
-                        help: qsTr("Shows a card with actions after every capture.")
-                        helpDetail: qsTr("The card gives quick access to Open, Copy, Upload and Delete for the capture you just took. On KDE/wlroots it is drawn as an always-on-top layer-shell card; elsewhere as a native desktop notification.")
-                        USwitch { checked: App.settings.showCapturePopup; onToggled: (c) => App.settings.showCapturePopup = c }
-                    }
-                    SettingRow {
-                        // Corner only matters for the layer-shell card we position
-                        // ourselves; a native notification is placed by the server.
-                        visible: App.settings.showCapturePopup
-                        available: App.layerShellActive
-                        hint: App.layerShellActive ? ""
-                              : qsTr("The system notification server decides the position here, because this compositor has no layer-shell card to place.")
-                        label: qsTr("Notification position")
-                        help: qsTr("Screen corner where the capture card appears.")
-                        helpDetail: qsTr("Only applies to the layer-shell card, which Unisic positions itself. Native desktop notifications are placed by the system notification server and ignore this.")
+                        label: qsTr("Language")
+                        help: qsTr("Language of the Unisic interface.")
+                        helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            model: page.popupPosNames
-                            currentIndex: Math.max(0, page.popupPosIds.indexOf(App.settings.capturePopupPosition))
-                            onActivated: (i) => App.settings.capturePopupPosition = page.popupPosIds[i]
+                            property var ids: ["system", "en", "pl", "es", "it"]
+                            // Native names on purpose — every user recognises
+                            // their own language regardless of the current UI.
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
+                            onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }
-                    }
-                    SettingRow {
-                        visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Notification auto-hide (0 = keep open)")
-                        help: qsTr("How long the capture card stays on screen.")
-                        helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
-                        USpinBox { from: 0; to: 60; value: App.settings.capturePopupDurationSec; suffix: " s"; onChanged: (v) => App.settings.capturePopupDurationSec = v }
-                    }
-                    SettingRow {
-                        visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
-                        label: qsTr("Hide it during fullscreen / Do Not Disturb")
-                        help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
-                        helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
-                        USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
                     }
                     SettingRow {
                         available: App.ocrAvailable
@@ -629,60 +615,6 @@ Item {
                             text: App.settings.ocrLanguages
                             placeholder: "pol+eng"
                             onEdited: (t) => App.settings.ocrLanguages = t
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Closing the window minimizes to tray")
-                        help: qsTr("Close button hides to the tray instead of quitting.")
-                        helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
-                        USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Start at login (minimized to tray)")
-                        help: qsTr("Launches Unisic automatically when you log in.")
-                        helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
-                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Open file after saving")
-                        help: qsTr("Opens each capture in your image viewer after saving.")
-                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
-                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Capture delay")
-                        help: qsTr("Waits this long before taking the capture.")
-                        helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
-                        USpinBox { from: 0; to: 5000; step: 50; value: App.settings.captureDelayMs; suffix: " ms"; onChanged: (v) => App.settings.captureDelayMs = v }
-                    }
-                    SettingRow {
-                        label: qsTr("Include mouse cursor")
-                        help: qsTr("Draws the mouse pointer into the capture.")
-                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
-                        USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Capture sound")
-                        help: qsTr("Plays a short sound when a screenshot is taken.")
-                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a cue — Shutter, Click, Beep, Ding or Pop — or Off. The sound plays through the system audio (pw-play/paplay/aplay).")
-                        Row {
-                            spacing: Theme.spacingS
-                            UComboBox {
-                                width: 160
-                                anchors.verticalCenter: parent.verticalCenter
-                                model: [qsTr("Off"), qsTr("Shutter"), qsTr("Click"), qsTr("Beep"), qsTr("Ding"), qsTr("Pop")]
-                                property var ids: ["off", "shutter", "click", "beep", "ding", "pop"]
-                                currentIndex: Math.max(0, ids.indexOf(App.settings.captureSound))
-                                onActivated: (i) => App.settings.captureSound = ids[i]
-                            }
-                            UIconButton {
-                                iconName: "play"; iconSize: 15
-                                width: 34; height: 34
-                                anchors.verticalCenter: parent.verticalCenter
-                                tooltip: qsTr("Preview")
-                                enabled: App.settings.captureSound !== "off"
-                                onClicked: App.previewCaptureSound()
-                            }
                         }
                     }
                 }
@@ -757,6 +689,264 @@ Item {
                 }
             }
 
+        }
+        }
+
+        // ===== Preferences =====
+        // Behavioral / workflow settings moved out of the overloaded General
+        // tab (notifications, capture behavior, app behavior, the after-capture
+        // and after-upload pipelines).
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 1
+            visible: page.tab === 1 || page.searchActive
+            opacity: (page.tab === 1 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 1 && !page.searchActive
+            property bool touched: false
+            active: touched || visible || page.searchActive
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Notifications") }
+                    SettingRow {
+                        label: qsTr("Show notifications")
+                        // No notification backend at all → the switch would do
+                        // nothing; grey it out with the reason instead.
+                        available: App.capNativeNotification || App.capCustomNotification
+                        hint: (App.capNativeNotification || App.capCustomNotification) ? ""
+                              : qsTr("No notification support was detected on this desktop: there is no notification server and the compositor has no layer-shell, so Unisic cannot show any notification.")
+                        help: qsTr("Master switch for all app notifications.")
+                        helpDetail: qsTr("Covers toasts and capture notifications alike. When off, Unisic stays completely silent: captures, uploads and errors produce no visual feedback outside the main window.")
+                        USwitch { checked: App.settings.showNotifications; onToggled: (c) => App.settings.showNotifications = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Show app notifications (stylized)")
+                        // The stylized card needs layer-shell; without it the
+                        // native desktop notification is used regardless.
+                        available: App.capCustomNotification
+                        hint: App.capCustomNotification ? ""
+                              : qsTr("This compositor has no layer-shell support, so Unisic cannot draw its own stylized card. Native desktop notifications are used instead.")
+                        help: qsTr("Draws capture notifications as Unisic's own themed card.")
+                        helpDetail: qsTr("On: the capture notification is Unisic's stylized always-on-top card (layer-shell), with the position, style and auto-hide options below.\nOff or unsupported: a native desktop notification is shown instead — the capture feedback itself never disappears; use the master switch above to silence everything.")
+                        USwitch {
+                            checked: App.settings.showCapturePopup
+                            enabled: App.settings.showNotifications
+                            onToggled: (c) => App.settings.showCapturePopup = c
+                        }
+                    }
+                    SettingRow {
+                        // Corner only matters for the layer-shell card we position
+                        // ourselves; a native notification is placed by the server.
+                        visible: App.settings.showCapturePopup
+                        available: App.layerShellActive
+                        hint: App.layerShellActive ? ""
+                              : qsTr("The system notification server decides the position here, because this compositor has no layer-shell card to place.")
+                        label: qsTr("Notification position")
+                        help: qsTr("Screen corner where the capture card appears.")
+                        helpDetail: qsTr("Only applies to the layer-shell card, which Unisic positions itself. Native desktop notifications are placed by the system notification server and ignore this.")
+                        UComboBox {
+                            width: 180
+                            model: page.popupPosNames
+                            currentIndex: Math.max(0, page.popupPosIds.indexOf(App.settings.capturePopupPosition))
+                            onActivated: (i) => App.settings.capturePopupPosition = page.popupPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Notification auto-hide")
+                        help: qsTr("How long the capture card stays on screen. 0 keeps it open.")
+                        helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
+                        UValueCombo {
+                            width: 120
+                            values: [0, 3, 5, 8, 10, 15, 30, 60]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = keep open")
+                            value: App.settings.capturePopupDurationSec
+                            onChanged: (v) => App.settings.capturePopupDurationSec = v
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Hide it during fullscreen / Do Not Disturb")
+                        help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
+                        helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
+                        USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Capture behavior") }
+                    SettingRow {
+                        label: qsTr("Capture delay")
+                        help: qsTr("Waits this long before taking the capture.")
+                        helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
+                        UValueCombo {
+                            width: 130
+                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000]
+                            from: 0; to: 5000
+                            suffix: " ms"
+                            value: App.settings.captureDelayMs
+                            onChanged: (v) => App.settings.captureDelayMs = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Include mouse cursor")
+                        help: qsTr("Draws the mouse pointer into the capture.")
+                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
+                        USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Capture sound")
+                        help: qsTr("Plays a short sound when a screenshot is taken.")
+                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                id: soundCombo
+                                width: 160
+                                anchors.verticalCenter: parent.verticalCenter
+                                property var ids: App.captureSoundIds()
+                                function labelFor(sid) {
+                                    if (sid === "off") return qsTr("Off")
+                                    if (sid === "shutter") return qsTr("Shutter")
+                                    if (sid === "click") return qsTr("Click")
+                                    if (sid === "beep") return qsTr("Beep")
+                                    if (sid === "ding") return qsTr("Ding")
+                                    if (sid === "pop") return qsTr("Pop")
+                                    return sid
+                                }
+                                model: ids.map(labelFor)
+                                currentIndex: Math.max(0, ids.indexOf(App.settings.captureSound))
+                                onActivated: (i) => App.settings.captureSound = ids[i]
+                            }
+                            UIconButton {
+                                iconName: "play"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Preview")
+                                enabled: App.settings.captureSound !== "off"
+                                onClicked: App.previewCaptureSound()
+                            }
+                            UIconButton {
+                                iconName: "list-add"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Add custom sound")
+                                onClicked: {
+                                    var id = App.addCustomSound()
+                                    if (id !== "") {
+                                        App.settings.captureSound = id
+                                        soundCombo.ids = App.captureSoundIds()
+                                        recSoundCombo.ids = App.captureSoundIds()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording sound")
+                        help: qsTr("Plays a short sound when a recording or GIF is finished.")
+                        helpDetail: qsTr("Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                id: recSoundCombo
+                                width: 160
+                                anchors.verticalCenter: parent.verticalCenter
+                                property var ids: App.captureSoundIds()
+                                model: ids.map(soundCombo.labelFor)
+                                currentIndex: Math.max(0, ids.indexOf(App.settings.recordingSound))
+                                onActivated: (i) => App.settings.recordingSound = ids[i]
+                            }
+                            UIconButton {
+                                iconName: "play"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Preview")
+                                enabled: App.settings.recordingSound !== "off"
+                                onClicked: App.previewRecordingSound()
+                            }
+                            UIconButton {
+                                iconName: "list-add"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Add custom sound")
+                                onClicked: {
+                                    var id = App.addCustomSound()
+                                    if (id !== "") {
+                                        App.settings.recordingSound = id
+                                        soundCombo.ids = App.captureSoundIds()
+                                        recSoundCombo.ids = App.captureSoundIds()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor defaults") }
+                    SettingRow {
+                        label: qsTr("Always start with the default colors")
+                        help: qsTr("Color picks made while annotating last for that session only.")
+                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults — the next session starts again from the colors configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Always start with the default tool options")
+                        help: qsTr("Stroke width, text style and fill toggles last for that session only.")
+                        helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Application") }
+                    SettingRow {
+                        label: qsTr("Closing the window minimizes to tray")
+                        help: qsTr("Close button hides to the tray instead of quitting.")
+                        helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
+                        USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Start at login (minimized to tray)")
+                        help: qsTr("Launches Unisic automatically when you log in.")
+                        helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
+                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Open file after saving")
+                        help: qsTr("Opens each capture in your image viewer after saving.")
+                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
+                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
+                    }
+                }
+            }
+
             UCard {
                 width: page.cardWidth
                 Column {
@@ -800,9 +990,9 @@ Item {
                         USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
                     }
                     SettingRow {
-                        label: qsTr("Upload to the active destination")
+                        label: qsTr("Upload to the active server")
                         help: qsTr("Uploads every capture immediately after taking it.")
-                        helpDetail: qsTr("Uses the destination selected on the Destinations page. The result link can be auto-copied or opened via the options below.")
+                        helpDetail: qsTr("Uses the server selected on the Servers page. The result link can be auto-copied or opened via the options below.")
                         USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
                     }
                     SettingRow {
@@ -844,16 +1034,18 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 1
+            readonly property int tabIndex: 2
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 1 || page.searchActive
-            opacity: (page.tab === 1 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 1 && !page.searchActive
+            visible: page.tab === 2 || page.searchActive
+            opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 2 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1110,16 +1302,18 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 2
+            readonly property int tabIndex: 3
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 2 || page.searchActive
-            opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 2 && !page.searchActive
+            visible: page.tab === 3 || page.searchActive
+            opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 3 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1144,13 +1338,27 @@ Item {
                         label: qsTr("Stroke width")
                         help: qsTr("Default line thickness for annotations.")
                         helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
-                        USpinBox { from: 1; to: 16; value: App.settings.editorStrokeWidth; suffix: " px"; onChanged: (v) => App.settings.editorStrokeWidth = v }
+                        UValueCombo {
+                            width: 110
+                            values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
+                            from: 1; to: 64
+                            suffix: " px"
+                            value: App.settings.editorStrokeWidth
+                            onChanged: (v) => App.settings.editorStrokeWidth = v
+                        }
                     }
                     SettingRow {
                         label: qsTr("Text size")
                         help: qsTr("Default font size for the text tool.")
                         helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
-                        USpinBox { from: 10; to: 72; value: App.settings.editorFontSize; suffix: " px"; onChanged: (v) => App.settings.editorFontSize = v }
+                        UValueCombo {
+                            width: 110
+                            values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
+                            from: 8; to: 144
+                            suffix: " px"
+                            value: App.settings.editorFontSize
+                            onChanged: (v) => App.settings.editorFontSize = v
+                        }
                     }
                 }
             }
@@ -1183,6 +1391,102 @@ Item {
                         help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
                         helpDetail: qsTr("EXPERIMENTAL: detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor, so a single click selects its rectangle with no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen; the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
                         USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Smart background removal") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: !App.u2netAvailable
+                        text: qsTr("This build was compiled without onnxruntime, so AI background removal (U-2-Net) is unavailable — the built-in heuristic object cutout still works. Install onnxruntime and rebuild to enable it.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        available: App.u2netAvailable
+                        label: qsTr("Use U-2-Net for object cutout")
+                        help: qsTr("Use the U-2-Net neural model (when downloaded) for the object-pick cutout and the editor's Remove background action.")
+                        helpDetail: qsTr("When off, or the model is not downloaded, cutout falls back to the dependency-free heuristic segmenter. Runs fully offline once the model is fetched.")
+                        USwitch {
+                            checked: App.settings.useU2Net
+                            enabled: App.u2netAvailable
+                            onToggled: (c) => App.settings.useU2Net = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model")
+                        help: qsTr("Which neural model performs the cutout.")
+                        helpDetail: qsTr("Models differ in size, speed and quality:\n• U-2-Net small — fastest, good general results.\n• U-2-Net full — noticeably better masks, big download.\n• U-2-Net human — tuned for people/portraits.\n• Silueta — U-2-Net full compressed to 43 MB.\n• IS-Net — newest, best fine edge detail.\n• Custom — any segmentation .onnx you provide (u2net-style input is assumed; the input size is read from the model).\nEach downloaded model is stored locally and reused; switching models applies immediately.")
+                        UComboBox {
+                            id: segModelCombo
+                            width: 240
+                            property var entries: App.u2netModels()
+                            model: entries.map(function (e) { return e.label })
+                            currentIndex: {
+                                for (var i = 0; i < entries.length; ++i)
+                                    if (entries[i].id === App.settings.segmentModel) return i
+                                return 0
+                            }
+                            onActivated: (i) => {
+                                if (entries[i].id === "custom") {
+                                    // Cancelled picker keeps the previous model —
+                                    // currentIndex re-evaluates from settings.
+                                    App.pickU2NetCustomModel()
+                                } else {
+                                    App.settings.segmentModel = entries[i].id
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: App.u2netAvailable && App.settings.segmentModel === "custom"
+                        width: parent.width
+                        wrapMode: Text.WrapAnywhere
+                        text: App.settings.segmentCustomModel
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                        font.family: "monospace"
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model file")
+                        help: qsTr("Download state of the selected model. Each model is fetched once and stored locally.")
+                        Row {
+                            spacing: Theme.spacingS
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: App.u2netModelReady ? qsTr("Downloaded") : qsTr("Not downloaded")
+                                color: App.u2netModelReady ? Theme.textSecondary : Theme.textTertiary
+                                font.pixelSize: Theme.fontS
+                            }
+                            UButton {
+                                compact: true; variant: "tonal"
+                                visible: !App.u2netModelReady && App.settings.segmentModel !== "custom"
+                                text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
+                                enabled: !App.u2netBusy
+                                onClicked: App.downloadU2NetModel()
+                            }
+                            UButton {
+                                compact: true; variant: "tonal"
+                                visible: App.settings.segmentModel === "custom"
+                                text: qsTr("Choose file…")
+                                onClicked: App.pickU2NetCustomModel()
+                            }
+                            UButton {
+                                compact: true; variant: "danger"
+                                visible: App.u2netModelReady && App.settings.segmentModel !== "custom"
+                                text: qsTr("Delete")
+                                onClicked: App.deleteU2NetModel()
+                            }
+                        }
                     }
                 }
             }
@@ -1231,16 +1535,18 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 3
+            readonly property int tabIndex: 4
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 3 || page.searchActive
-            opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 3 && !page.searchActive
+            visible: page.tab === 4 || page.searchActive
+            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 4 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1255,10 +1561,18 @@ Item {
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
-                        label: qsTr("GIF max duration (0 = unlimited)")
-                        help: qsTr("Auto-stops GIF recording after this many seconds.")
+                        label: qsTr("GIF max duration")
+                        help: qsTr("Auto-stops GIF recording after this many seconds. 0 = unlimited.")
                         helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
-                        USpinBox { from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"; onChanged: (v) => App.settings.gifMaxDurationSec = v }
+                        UValueCombo {
+                            width: 120
+                            values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = unlimited")
+                            value: App.settings.gifMaxDurationSec
+                            onChanged: (v) => App.settings.gifMaxDurationSec = v
+                        }
                     }
                     SettingRow {
                         label: qsTr("GIF quality")
@@ -1316,16 +1630,18 @@ Item {
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 4
+            readonly property int tabIndex: 5
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 4 || page.searchActive
-            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 4 && !page.searchActive
+            visible: page.tab === 5 || page.searchActive
+            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
 
             // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
@@ -1434,25 +1750,27 @@ Item {
         }
         }
 
-        // ===== Developer (dev build only, tab 5) =====
+        // ===== Developer (dev build only, tab 6) =====
         // Lazily built on first visit, then kept alive (preserves scroll
         // position). Six always-instantiated panes made opening Settings
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 5
+            readonly property int tabIndex: 6
             // Gated on App.devBuild: in a release build the pane must never
             // instantiate, or the search would list its rows and jumping to
             // one would expose the smoke-test buttons on a hidden tab.
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: App.devBuild && (page.tab === 5 || page.searchActive)
-            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 5 && !page.searchActive
+            visible: App.devBuild && (page.tab === 6 || page.searchActive)
+            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 6 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: App.devBuild && (touched || visible || page.searchActive)
-            onLoaded: touched = true
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
             UCard {
                 width: page.cardWidth
@@ -1563,6 +1881,12 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("U-2-Net segment"); enabled: App.u2netAvailable; onClicked: App.devTestU2Net() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                     }
                 }
             }

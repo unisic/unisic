@@ -33,6 +33,7 @@ class Settings : public QObject
     Q_PROPERTY(bool includeCursor READ includeCursor WRITE setIncludeCursor NOTIFY includeCursorChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
     Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
+    Q_PROPERTY(QString recordingSound READ recordingSound WRITE setRecordingSound NOTIFY recordingSoundChanged)
     Q_PROPERTY(int gifFps READ gifFps WRITE setGifFps NOTIFY gifFpsChanged)
     Q_PROPERTY(int gifMaxDurationSec READ gifMaxDurationSec WRITE setGifMaxDurationSec NOTIFY gifMaxDurationSecChanged)
     Q_PROPERTY(int gifQuality READ gifQuality WRITE setGifQuality NOTIFY gifQualityChanged)
@@ -54,6 +55,16 @@ class Settings : public QObject
     Q_PROPERTY(int editorFontSize READ editorFontSize WRITE setEditorFontSize NOTIFY editorFontSizeChanged)
     Q_PROPERTY(QString editorFillColor READ editorFillColor WRITE setEditorFillColor NOTIFY editorFillColorChanged)
     Q_PROPERTY(bool editorFillEnabled READ editorFillEnabled WRITE setEditorFillEnabled NOTIFY editorFillEnabledChanged)
+    Q_PROPERTY(QString editorFontFamily READ editorFontFamily WRITE setEditorFontFamily NOTIFY editorFontFamilyChanged)
+    Q_PROPERTY(bool editorFontBold READ editorFontBold WRITE setEditorFontBold NOTIFY editorFontBoldChanged)
+    Q_PROPERTY(bool editorFontItalic READ editorFontItalic WRITE setEditorFontItalic NOTIFY editorFontItalicChanged)
+    Q_PROPERTY(bool editorFontUnderline READ editorFontUnderline WRITE setEditorFontUnderline NOTIFY editorFontUnderlineChanged)
+    Q_PROPERTY(bool editorTextOutline READ editorTextOutline WRITE setEditorTextOutline NOTIFY editorTextOutlineChanged)
+    Q_PROPERTY(QString editorTextOutlineColor READ editorTextOutlineColor WRITE setEditorTextOutlineColor NOTIFY editorTextOutlineColorChanged)
+    Q_PROPERTY(bool editorTextBackground READ editorTextBackground WRITE setEditorTextBackground NOTIFY editorTextBackgroundChanged)
+    Q_PROPERTY(QString editorTextBgColor READ editorTextBgColor WRITE setEditorTextBgColor NOTIFY editorTextBgColorChanged)
+    Q_PROPERTY(bool editorResetColors READ editorResetColors WRITE setEditorResetColors NOTIFY editorResetColorsChanged)
+    Q_PROPERTY(bool editorResetTools READ editorResetTools WRITE setEditorResetTools NOTIFY editorResetToolsChanged)
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
@@ -74,8 +85,12 @@ class Settings : public QObject
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
+    Q_PROPERTY(bool useU2Net READ useU2Net WRITE setUseU2Net NOTIFY useU2NetChanged)
+    Q_PROPERTY(QString segmentModel READ segmentModel WRITE setSegmentModel NOTIFY segmentModelChanged)
+    Q_PROPERTY(QString segmentCustomModel READ segmentCustomModel WRITE setSegmentCustomModel NOTIFY segmentCustomModelChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
+    Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
@@ -95,6 +110,27 @@ public:
         if (qApp)
             connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { m_s.sync(); });
 
+#ifdef UNISIC_DEV_BUILD
+        // Dev build = separate app with its own config. First run: seed from
+        // the STABLE app's config so testing starts from familiar settings —
+        // EXCEPT hotkeys, which are seeded unbound: the stable component
+        // still owns its keys daemon-side, so copied bindings would lose
+        // every press and fire the conflict toast on each launch. Assign
+        // dev-specific keys in Settings → Hotkeys when needed.
+        const QString stableConf = UnisicConfig::stableConfigDir() + QStringLiteral("/unisic.conf");
+        if (m_s.allKeys().isEmpty() && QFile::exists(stableConf)) {
+            QSettings stable(stableConf, QSettings::IniFormat);
+            const QStringList keys = stable.allKeys();
+            for (const QString &k : keys)
+                m_s.setValue(k, k.startsWith(QLatin1String("hotkeys/")) ? QString()
+                                                                        : stable.value(k));
+            for (const char *hk : {"fullScreen", "region", "window", "gif", "record", "ocrRegion"})
+                m_s.setValue(QStringLiteral("hotkeys/") + QLatin1String(hk), QString());
+            m_s.sync();
+            if (m_s.status() == QSettings::NoError)
+                qInfo() << "Seeded dev settings (hotkeys unbound) from" << stable.fileName();
+        }
+#else
         // One-time migration from the old ~/.config/Unisic/unisic.conf to the
         // unified ~/.config/unisic/unisic.conf. Key-by-key through QSettings
         // (NOT a raw file copy) so INI grouping/casing stays consistent —
@@ -109,6 +145,7 @@ public:
             if (m_s.status() == QSettings::NoError)
                 qInfo() << "Migrated" << keys.size() << "settings to" << m_s.fileName();
         }
+#endif
 
         // "Settings reset to defaults on every launch" has two silent causes,
         // both of which QSettings hides unless status() is checked:
@@ -201,6 +238,9 @@ public:
     // Capture sound cue (General tab). Bare key (never a "general"-named
     // group, see the INI [%General] trap). "off" or a bundled id.
     U_SETTING(QString, captureSound, setCaptureSound, "captureSound", QStringLiteral("shutter"))
+    // Separate cue for finished recordings/GIFs — a shutter makes no sense
+    // after a minutes-long recording, and users may want it off independently.
+    U_SETTING(QString, recordingSound, setRecordingSound, "recordingSound", QStringLiteral("ding"))
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -222,6 +262,21 @@ public:
     U_SETTING(int, editorFontSize, setEditorFontSize, "editor/fontSize", 22)
     U_SETTING(QString, editorFillColor, setEditorFillColor, "editor/fillColor", QStringLiteral("#66C8ACD6"))
     U_SETTING(bool, editorFillEnabled, setEditorFillEnabled, "editor/fillEnabled", false)
+    // Text-tool styling defaults (empty family = default UI font).
+    U_SETTING(QString, editorFontFamily, setEditorFontFamily, "editor/fontFamily", QString())
+    U_SETTING(bool, editorFontBold, setEditorFontBold, "editor/fontBold", true)
+    U_SETTING(bool, editorFontItalic, setEditorFontItalic, "editor/fontItalic", false)
+    U_SETTING(bool, editorFontUnderline, setEditorFontUnderline, "editor/fontUnderline", false)
+    U_SETTING(bool, editorTextOutline, setEditorTextOutline, "editor/textOutline", false)
+    U_SETTING(QString, editorTextOutlineColor, setEditorTextOutlineColor, "editor/textOutlineColor", QStringLiteral("#000000"))
+    U_SETTING(bool, editorTextBackground, setEditorTextBackground, "editor/textBackground", false)
+    U_SETTING(QString, editorTextBgColor, setEditorTextBgColor, "editor/textBgColor", QStringLiteral("#B3000000"))
+    // When on, colour (resetColors) / non-colour tool-option (resetTools)
+    // changes made while annotating apply to that session only: nothing is
+    // written back, so every editor/overlay starts from the defaults
+    // configured in Settings → Editor again.
+    U_SETTING(bool, editorResetColors, setEditorResetColors, "editor/resetColors", false)
+    U_SETTING(bool, editorResetTools, setEditorResetTools, "editor/resetTools", false)
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
     U_SETTING(QString, hiddenTools, setHiddenTools, "editor/hiddenTools", QString())
     U_SETTING(QString, overlayToolbarPosition, setOverlayToolbarPosition, "capture/overlayToolbarPosition", QStringLiteral("follow"))
@@ -253,11 +308,23 @@ public:
     // for your own deliberate capture, so it should normally show regardless.
     U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
+    // Use U-2-Net for object cutout / background removal when the model is
+    // available (only consulted in builds with onnxruntime). Default on.
+    U_SETTING(bool, useU2Net, setUseU2Net, "segment/useU2Net", true)
+    // Which saliency model drives cutout/background removal: a catalog id
+    // (u2netp/u2net/u2net_human_seg/silueta/isnet-general-use) or "custom".
+    U_SETTING(QString, segmentModel, setSegmentModel, "segment/model", QStringLiteral("u2netp"))
+    // Absolute path of the user-provided .onnx (only used when model=="custom").
+    U_SETTING(QString, segmentCustomModel, setSegmentCustomModel, "segment/customModelPath", QString())
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
+    // UI language: "system" follows the OS locale, "en" forces English, "pl"
+    // forces Polish. BARE top-level key (never a "general" group — see the
+    // constructor's key-folding + AGENTS.md). Applied via QTranslator swap.
+    U_SETTING(QString, uiLanguage, setUiLanguage, "uiLanguage", QStringLiteral("system"))
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
@@ -271,7 +338,7 @@ public:
     {
         emit saveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
-        emit captureDelayMsChanged(); emit captureSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
+        emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
@@ -279,6 +346,10 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
+        emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
+        emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
+        emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
+        emit editorResetColorsChanged(); emit editorResetToolsChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
         emit quickCopyAfterCaptureChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
@@ -287,7 +358,9 @@ public:
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit useU2NetChanged(); emit segmentModelChanged(); emit segmentCustomModelChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
+        emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
     }
 
@@ -300,6 +373,7 @@ signals:
     void includeCursorChanged();
     void captureDelayMsChanged();
     void captureSoundChanged();
+    void recordingSoundChanged();
     void gifFpsChanged();
     void gifMaxDurationSecChanged();
     void gifQualityChanged();
@@ -321,6 +395,16 @@ signals:
     void editorFontSizeChanged();
     void editorFillColorChanged();
     void editorFillEnabledChanged();
+    void editorFontFamilyChanged();
+    void editorFontBoldChanged();
+    void editorFontItalicChanged();
+    void editorFontUnderlineChanged();
+    void editorTextOutlineChanged();
+    void editorTextOutlineColorChanged();
+    void editorTextBackgroundChanged();
+    void editorTextBgColorChanged();
+    void editorResetColorsChanged();
+    void editorResetToolsChanged();
     void recentColorsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
@@ -341,8 +425,12 @@ signals:
     void capturePopupDurationSecChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
+    void useU2NetChanged();
+    void segmentModelChanged();
+    void segmentCustomModelChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();
+    void uiLanguageChanged();
     void useSystemDecorationChanged();
     void trayIconPathChanged();
 

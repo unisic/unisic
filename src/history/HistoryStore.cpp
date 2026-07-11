@@ -12,6 +12,8 @@
 #include <QSaveFile>
 #include <QUuid>
 #include <QSet>
+#include <QDateTime>
+#include <QDebug>
 
 // Thumbnail scale in two steps: a cheap nearest-neighbour pass to ~2x the
 // target first, so the smooth pass works on ~0.5 MP instead of a full 8+ MP
@@ -155,10 +157,31 @@ QString HistoryStore::dataDir() const
 
 void HistoryStore::load()
 {
-    QFile f(dataDir() + "/history.json");
+    const QString path = dataDir() + "/history.json";
+    QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
         return;
-    const QJsonArray arr = QJsonDocument::fromJson(f.readAll()).array();
+    const QByteArray raw = f.readAll();
+    f.close();
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(raw, &err);
+    if (!doc.isArray()) {
+        // Non-empty but unparseable / not an array (hand edit, truncated write
+        // from a pre-QSaveFile version, FS corruption): move it aside instead
+        // of proceeding — the next persistNow() would otherwise atomically
+        // overwrite it with the empty model, destroying every entry and every
+        // starred favorite. Same .broken-<ts> preservation as
+        // UploadManager::loadDestinations. (An empty file just loads nothing.)
+        if (!raw.trimmed().isEmpty()) {
+            const QString bak = path + QStringLiteral(".broken-")
+                                + QString::number(QDateTime::currentSecsSinceEpoch());
+            QFile::rename(path, bak);
+            qWarning() << "history.json unparseable, preserved as" << bak
+                       << err.errorString();
+        }
+        return;
+    }
+    const QJsonArray arr = doc.array();
     for (const auto &v : arr) {
         const QJsonObject o = v.toObject();
         m_entries.append({

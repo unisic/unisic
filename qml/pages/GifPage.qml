@@ -23,6 +23,7 @@ Item {
         boundsBehavior: Flickable.StopAtBounds
 
         MiddleScroll { flickable: pageFlick }
+        WheelBoost { flickable: pageFlick }
 
         Column {
             id: col
@@ -94,11 +95,16 @@ Item {
                         width: parent.width; height: 40
                         Text {
                             anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Maximum duration (0 = unlimited)"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                            text: qsTr("Maximum duration"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
                         }
-                        USpinBox {
+                        UValueCombo {
                             anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                            from: 0; to: 600; step: 5; value: App.settings.gifMaxDurationSec; suffix: " s"
+                            width: 130
+                            values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = unlimited")
+                            value: App.settings.gifMaxDurationSec
                             onChanged: (v) => App.settings.gifMaxDurationSec = v
                         }
                     }

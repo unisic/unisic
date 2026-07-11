@@ -5,8 +5,12 @@
 #include <QRect>
 #include <QPointer>
 #include <QStringList>
+#include <QVector>
 #include <functional>
+#include <atomic>
+#include <memory>
 #include <qqmlregistration.h>
+#include "ocr/OcrWord.h"
 
 #include "Settings.h"
 #include "upload/UploadManager.h"
@@ -17,6 +21,7 @@ class QQmlEngine;
 class QMenu;
 class QIcon;
 class QSystemTrayIcon;
+class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class QQuickWindow;
@@ -27,6 +32,8 @@ class GlobalHotkeys;
 class PortalGlobalShortcuts;
 class GifRecorder;
 class OcrEngine;
+class U2NetSegmenter;
+class AnnotationCanvas;
 class CaptureNotification;
 class DesktopNotifier;
 class PreviewController;
@@ -82,6 +89,11 @@ class AppContext : public QObject
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
     Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
+    // U-2-Net smart background removal: available = onnxruntime compiled in;
+    // modelReady = the model file is downloaded. Greyed-out UI when unavailable.
+    Q_PROPERTY(bool u2netAvailable READ u2netAvailable CONSTANT)
+    Q_PROPERTY(bool u2netModelReady READ u2netModelReady NOTIFY u2netChanged)
+    Q_PROPERTY(bool u2netBusy READ u2netBusy NOTIFY u2netChanged)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -148,12 +160,42 @@ public:
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestSmartPick();
     Q_INVOKABLE void devTestCaptureSound();
+    Q_INVOKABLE void devTestRecordingSound();
     Q_INVOKABLE void devTestAltHotkeys();
+    Q_INVOKABLE void devTestTextRender();
+    Q_INVOKABLE void devTestShapeEdit();
+    Q_INVOKABLE void devTestOcrBoxes();
+    Q_INVOKABLE void devTestU2Net();
+    Q_INVOKABLE void devTestLanguage();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool qrAvailable() const;
+    // U-2-Net capability + model management.
+    bool u2netAvailable() const;
+    bool u2netModelReady() const;
+    bool u2netBusy() const { return m_u2netBusy; }
+    Q_INVOKABLE void downloadU2NetModel();
+    Q_INVOKABLE void deleteU2NetModel();
+    // Catalog for the settings combo: [{id, label}] + the "custom" entry.
+    Q_INVOKABLE QVariantList u2netModels() const;
+    // Display label of the currently selected model (download dialogs).
+    Q_INVOKABLE QString u2netModelLabel() const;
+    // Native file picker for a user-provided .onnx; sets segmentCustomModel +
+    // segmentModel="custom" on success. Returns the path ("" = cancelled).
+    Q_INVOKABLE QString pickU2NetCustomModel();
+    // Install the U-2-Net segmenter onto a canvas (object-cutout upgrade). No-op
+    // without onnxruntime; the lambda itself checks the enable setting + model.
+    void installSegmenter(AnnotationCanvas *canvas);
+    // Foreground segmentation for the editor's Remove-background action; cb gets
+    // a keep-mask (or a null image + message on failure / unavailable).
+    void segmentForeground(const QImage &img, const QRect &region,
+                           std::function<void(const QImage &, const QString &)> cb);
+    // Install the QTranslators for the current uiLanguage setting (swapping any
+    // previously installed ones). Called once before the engine loads and again
+    // whenever the language setting changes (live retranslate + tray rebuild).
+    Q_INVOKABLE void applyLanguage();
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
     bool autostartEnabled() const;
@@ -219,8 +261,19 @@ public:
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
+    // Same, for finished recordings/GIFs (General > Recording sound) —
+    // a separate cue with its own setting.
+    void playRecordingSound();
     // Preview the selected capture sound from the settings UI.
     Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
+    Q_INVOKABLE void previewRecordingSound() { playRecordingSound(); }
+    // Ids for the Settings combo: "off", the bundled cues, then any user
+    // files dropped into ~/.config/unisic/sounds (basenames incl. extension).
+    Q_INVOKABLE QStringList captureSoundIds() const;
+    // Pick an audio file and COPY it into the user sounds dir (the player is
+    // only ever handed bundled cues or files from that dir — never an
+    // arbitrary config-supplied path). Returns the new id, "" on cancel/fail.
+    Q_INVOKABLE QString addCustomSound();
     void uploadImage(const QImage &img, UploadDone done);
     void openEditor(const QImage &img, const QString &overwritePath = {});
     // Floating, pinnable, translucent preview of a capture. Returns false when
@@ -236,6 +289,9 @@ public:
     // write the resulting URL back onto its history entry.
     Q_INVOKABLE void uploadFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
+    // OCR the image and deliver per-word boxes on the GUI thread (editor's
+    // selectable-text overlay). Empty words + a message on failure/no-OCR.
+    void ocrBoxes(const QImage &img, std::function<void(const QVector<OcrWord> &, const QString &)> cb);
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
     void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path);
@@ -255,6 +311,7 @@ signals:
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
     void trayContrastColorChanged();
+    void u2netChanged();
 
 private:
     bool systemIsDark() const;                        // OS light/dark scheme
@@ -278,7 +335,10 @@ private:
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
     // keys on actions the daemon reports unbound. Lines for smoke/dev output.
-    QStringList hotkeyBindStatus(int *unbound, bool heal);
+    // `conflicts` (optional) collects keys that are in OUR binding yet resolve
+    // to ANOTHER component daemon-side (e.g. a KWin script) — those actions
+    // look bound but never fire, and healing cannot win the key back.
+    QStringList hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts = nullptr);
     // Windows (editor/preview) opened while the smoke test runs — the final
     // step closes them so F8 leaves no manual cleanup behind.
     QVector<QPointer<QQuickWindow>> m_smokeWindows;
@@ -289,6 +349,9 @@ private:
     QString altHotkeysCheck();
 
     void finishCapture(const QImage &img, bool inhibited);
+    // Shared player behind playCaptureSound/playRecordingSound: resolves a
+    // bundled or user sound id and spawns pw-play/paplay/aplay.
+    void playSoundId(const QString &id);
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
                                                  const QString &kind, bool inhibited);
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
@@ -315,8 +378,7 @@ private:
     void armQuickCopy(const QImage &img);
     void disarmQuickCopy();
     QString makeFileName() const;                    // template + extension
-    QByteArray encodeImage(const QImage &img, QString *mime) const;
-    // encodeImage off the GUI thread (a 4K PNG encode is 100+ ms): settings are
+    // Encode off the GUI thread (a 4K PNG encode is 100+ ms): settings are
     // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
     // delivered back on the GUI thread (dropped if AppContext died meanwhile).
     void encodeImageAsync(const QImage &img,
@@ -341,6 +403,13 @@ private:
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | ""
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
+    U2NetSegmenter *m_u2net = nullptr; // set only when onnxruntime is compiled in
+    QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
+    QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
+    bool m_u2netBusy = false;          // model download in flight
+    // Thread-safe mirror of Settings::useU2Net, read by the segmenter lambda on
+    // a worker thread (a direct QSettings read there would race the GUI writer).
+    std::shared_ptr<std::atomic_bool> m_u2netEnabled;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops

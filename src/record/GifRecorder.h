@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QProcess>
 #include <QPointer>
+#include <QFutureWatcher>
 
 class ScreenCastSession;
 class PipeWireGrabber;
@@ -59,6 +60,8 @@ private:
 
     Settings *m_settings;
     bool m_probeWarmed = false; // ffmpeg encoder probe kicked off once
+    bool m_orphansSwept = false; // stale-temp sweep runs once, on first start()
+    QFutureWatcher<void> m_probeWatcher; // gates beginEncoding until the probe warms
     ScreenCastSession *m_session = nullptr;
     PipeWireGrabber *m_grabber = nullptr;
     QProcess *m_ffmpeg = nullptr;

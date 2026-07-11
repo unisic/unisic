@@ -31,7 +31,10 @@ static void registerHostAppId()
         QStringLiteral("/org/freedesktop/portal/desktop"),
         QStringLiteral("org.freedesktop.host.portal.Registry"),
         QStringLiteral("Register"));
-    msg << QStringLiteral("app.unisic.Unisic") << QVariantMap{};
+    // desktopFileName() is app.unisic.Unisic / app.unisic.UnisicDev (set in
+    // main before CaptureManager exists) — never the stable id literal, so the
+    // dev build keeps its own portal-side identity/permission bucket.
+    msg << QGuiApplication::desktopFileName() << QVariantMap{};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
 
@@ -52,7 +55,7 @@ static void grantSilentScreenshotPermission()
     if (!flatpakId.isEmpty())
         appIds << flatpakId;
     else
-        appIds << QStringLiteral("app.unisic.Unisic") << QString();
+        appIds << QGuiApplication::desktopFileName() << QString();
     for (const QString &appId : std::as_const(appIds)) {
         QDBusMessage msg = QDBusMessage::createMethodCall(
             QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
@@ -311,8 +314,12 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
                     // Portal returns the whole workspace: crop to the screen.
+                    // allowInteractive=false: a dialog-picked area/window image
+                    // is NOT workspace-shaped and cropForScreen would slice it
+                    // to garbage — fail cleanly instead (captureWorkspace still
+                    // keeps the interactive safety net, since it never crops).
                     const QString kerr = QStringLiteral("KWin: %1").arg(err);
-                    portalFallback([geom, cb, kerr](const QImage &full, const QString &e2) {
+                    workspaceFallback([geom, cb, kerr](const QImage &full, const QString &e2) {
                         // Bare "cancelled" must survive uncombined for the toast suppression.
                         if (e2 == QLatin1String("cancelled")) { cb({}, e2); return; }
                         if (!e2.isEmpty()) { cb({}, combinedError(kerr, e2)); return; }
@@ -323,15 +330,16 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
                             return;
                         }
                         cb(crop, {});
-                    });
+                    }, /*allowInteractive=*/false);
                     return;
                 }
                 cb(img, {});
             });
         return;
     }
-    // Portal path: capture all and crop.
-    portalFallback([geom, hasScreen, cb](const QImage &full, const QString &err) {
+    // Portal path: capture all and crop. allowInteractive=false — a dialog-picked
+    // image is not workspace-shaped and cropForScreen would return garbage.
+    workspaceFallback([geom, hasScreen, cb](const QImage &full, const QString &err) {
         if (!err.isEmpty() || !hasScreen) { cb(full, err); return; }
         QImage crop = cropForScreen(full, geom);
         if (crop.isNull()) {
@@ -339,7 +347,7 @@ void CaptureManager::captureScreen(QScreen *screen, Callback cb)
             return;
         }
         cb(crop, {});
-    });
+    }, /*allowInteractive=*/false);
 }
 
 CaptureManager::ScreenGeom CaptureManager::snapshotScreen(QScreen *screen)
@@ -531,10 +539,16 @@ void CaptureManager::captureActiveWindow(Callback cb)
             // User cancelled the window picker: keep the bare "cancelled"
             // (exact match suppresses the error toast) and skip the rescue.
             if (portalErr == QLatin1String("cancelled")) { cb({}, portalErr); return; }
-            if (!gnomeAvail) { cb({}, combinedError(prevErr, portalErr)); return; }
-            m_gnome->captureActiveWindow(cursor, [cb, prevErr, portalErr]
+            // Self-identifying origin prefixes, matching the other entry points.
+            const QString labeledPortal = QStringLiteral("portal: %1").arg(portalErr);
+            if (!gnomeAvail) { cb({}, combinedError(prevErr, labeledPortal)); return; }
+            m_gnome->captureActiveWindow(cursor, [cb, prevErr, labeledPortal]
                                          (const QImage &gimg, const QString &gerr) {
-                if (!gerr.isEmpty()) { cb({}, combinedError(prevErr, combinedError(portalErr, gerr))); return; }
+                if (!gerr.isEmpty()) {
+                    cb({}, combinedError(prevErr, combinedError(labeledPortal,
+                             QStringLiteral("GNOME Shell: %1").arg(gerr))));
+                    return;
+                }
                 cb(gimg, {});
             });
         });
@@ -545,7 +559,7 @@ void CaptureManager::captureActiveWindow(Callback cb)
         m_gnome->captureActiveWindow(cursor, [cb, portalInteractive](const QImage &img, const QString &err) {
             if (err.isEmpty()) { cb(img, {}); return; }
             qWarning() << "niri GNOME-direct window capture failed, portal fallback:" << err;
-            portalInteractive(err);
+            portalInteractive(QStringLiteral("GNOME Shell: %1").arg(err));
         });
         return;
     }
@@ -557,7 +571,7 @@ void CaptureManager::captureActiveWindow(Callback cb)
                     qWarning() << "KWin captureActiveWindow failed, portal interactive fallback:" << err;
                     if (isKWinAuthError(err))
                         m_kwinDenied = true;
-                    portalInteractive(err);
+                    portalInteractive(QStringLiteral("KWin: %1").arg(err));
                     return;
                 }
                 cb(img, {});

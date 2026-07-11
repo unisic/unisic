@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.5.0" date="2026-07-11">
+      <description>
+        <p>Editable shapes and shape groups in the editor, OCR text selection, richer text styling, Spanish and Italian translations, and a separate sound cue when a recording or GIF finishes encoding.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-07-10">
       <description>
         <p>New app ID app.unisic.Unisic (backed by unisic.app) and first Flathub release. Stale menu and autostart entries from older installs are cleaned up automatically.</p>

@@ -16,7 +16,13 @@ public:
 
     // `msg` must be a fully prepared method call whose options vardict already
     // contains the handle_token returned by nextToken().
-    static void send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent);
+    // timeoutMs > 0 arms a watchdog: if no Response arrives in time the request
+    // completes with an error. A hung (not dead) portal backend keeps its bus
+    // name, so the service watcher never fires and the request-handle reply
+    // already landed — nothing else would ever unwedge the callback. Pass 0 for
+    // interactive dialogs, which legitimately stay open indefinitely.
+    static void send(QDBusMessage msg, const QString &handleToken, Callback cb, QObject *parent,
+                     int timeoutMs = 0);
 
     // Generates a unique handle token and the request object path it maps to.
     static QString nextToken();

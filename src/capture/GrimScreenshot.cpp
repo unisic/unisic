@@ -37,10 +37,17 @@ void GrimScreenshot::run(const QStringList &args, Callback cb)
     auto *proc = new QProcess(this);
 
     connect(proc, &QProcess::finished, this,
-            [this, proc, cb](int code, QProcess::ExitStatus) {
+            [this, proc, cb](int code, QProcess::ExitStatus status) {
         const QByteArray png = proc->readAllStandardOutput();
         const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        const bool timedOut = proc->property("timedOut").toBool();
         proc->deleteLater();
+        // The watchdog kill() delivers finished(code, CrashExit) with a code
+        // that is meaningless for a crashed process — report the real cause.
+        if (timedOut || status == QProcess::CrashExit) {
+            cb({}, QStringLiteral("grim timed out after 30 s waiting for a frame"));
+            return;
+        }
         if (code != 0 || png.isEmpty()) {
             cb({}, errOut.isEmpty()
                        ? QStringLiteral("grim exited with code %1").arg(code)
@@ -78,6 +85,7 @@ void GrimScreenshot::run(const QStringList &args, Callback cb)
     // screencopy frame that never comes (locked session, DPMS-off output)
     // would otherwise never fire finished() — the lost callback permanently
     // wedges every capture entry point (m_captureInFlight / overlay active()).
-    // kill() makes finished(code, CrashExit) deliver the error instead.
-    QTimer::singleShot(30000, proc, [proc] { proc->kill(); });
+    // kill() makes finished(code, CrashExit) deliver the error instead; the
+    // flag lets the handler distinguish this hang from a genuine grim failure.
+    QTimer::singleShot(30000, proc, [proc] { proc->setProperty("timedOut", true); proc->kill(); });
 }

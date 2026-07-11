@@ -51,21 +51,15 @@ static const QSet<QString> &ffmpegEncoders()
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings)
 {
-    // The lossless intermediates live in ~/.cache/unisic (disk-backed — see
-    // beginEncoding), which unlike /tmp is never reclaimed by a reboot: sweep
-    // recordings orphaned by a crash/SIGKILL (multi-GB each) once at startup.
-    // The recorder is constructed before any recording can start, so nothing
-    // live can be swept.
-    QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
-    const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
-    for (const QString &f : stale)
-        cache.remove(f);
-
     m_sampler.setTimerType(Qt::PreciseTimer);
     connect(&m_sampler, &QTimer::timeout, this, &GifRecorder::sampleFrame);
     m_maxTimer.setSingleShot(true);
     connect(&m_maxTimer, &QTimer::timeout, this, &GifRecorder::stop);
-    m_elapsedTick.setInterval(250);
+    // 1 s — the elapsed clock displays whole seconds (sidebar pill, REC
+    // badge), so ticking 4x/s only woke the GUI thread three extra times per
+    // second for identical text, recording-long, even with the window hidden.
+    m_elapsedTick.setInterval(1000);
+    m_elapsedTick.setTimerType(Qt::CoarseTimer);
     connect(&m_elapsedTick, &QTimer::timeout, this, &GifRecorder::elapsedChanged);
 }
 
@@ -95,15 +89,28 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 #else
     if (m_state != Idle)
         return;
+    // Sweep temp intermediates orphaned by a crash/SIGKILL (multi-GB each in
+    // ~/.cache/unisic) once, here rather than in the constructor: one-shot CLI
+    // invocations (--export-settings etc.) construct a recorder but never
+    // record, and sweeping there would unlink the *live* temp of a concurrent
+    // recording instance that shares the cache dir.
+    if (!m_orphansSwept) {
+        m_orphansSwept = true;
+        QDir cache(QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
+        const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
+        for (const QString &f : stale)
+            cache.remove(f);
+    }
     // Warm the ffmpeg encoder probe off the GUI thread while the portal
     // dialog / stream negotiation runs — without this the first beginEncoding
     // blocks the UI for up to 5 s on the synchronous "ffmpeg -encoders"
-    // round-trip. Done here, not in the constructor: one-shot CLI invocations
-    // (--export-settings etc.) construct the recorder without ever recording,
-    // and the global pool would hold process exit until the probe finished.
+    // round-trip. Keep the watcher so beginEncoding can gate on it (a portal
+    // restore token can beat the warm-up) instead of touching the blocking
+    // magic-static on the GUI thread. One-shot CLI invocations never reach
+    // start(), so the global pool never holds process exit for the probe.
     if (!m_probeWarmed) {
         m_probeWarmed = true;
-        (void)QtConcurrent::run([] { (void)ffmpegEncoders(); });
+        m_probeWatcher.setFuture(QtConcurrent::run([] { (void)ffmpegEncoders(); }));
     }
     m_state = Starting;
     m_output = output;
@@ -143,8 +150,19 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint
 #ifdef HAVE_PIPEWIRE
     m_grabber = new PipeWireGrabber(this);
     connect(m_grabber, &PipeWireGrabber::formatReady, this, &GifRecorder::beginEncoding);
-    connect(m_grabber, &PipeWireGrabber::streamError, this, [this](const QString &e) { fail(e); });
-    if (!m_grabber->start(fd, nodeId))
+    // Guard by state: a streamError queued from the PipeWire thread just before
+    // stop() is still delivered during Converting (disconnect doesn't cancel
+    // already-posted metacalls) and would abort the finalizing recording.
+    connect(m_grabber, &PipeWireGrabber::streamError, this, [this](const QString &e) {
+        if (m_state == Starting || m_state == Recording)
+            fail(e);
+    });
+    // Cap the negotiated stream framerate at the rate the sampler consumes so
+    // the compositor throttles delivery instead of running onProcess's full-
+    // frame copy at monitor refresh (most of those copies would be discarded).
+    const int targetFps = qBound(1, m_output == Gif ? m_settings->gifFps()
+                                                    : m_settings->videoFps(), 60);
+    if (!m_grabber->start(fd, nodeId, targetFps))
         fail(tr("Failed to connect to the PipeWire stream"));
 #else
     Q_UNUSED(fd) Q_UNUSED(nodeId)
@@ -155,6 +173,15 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
 {
     if (m_state != Starting)
         return;
+    // The ffmpeg encoder probe (blocking magic-static, warmed off-thread in
+    // start()) can lose the race to a portal restore-token fast path; defer the
+    // whole setup until it finishes rather than freezing the GUI on the probe.
+    // Re-entry is safe: a spurious extra call sees a non-Starting state above.
+    if (m_probeWarmed && !m_probeWatcher.isFinished()) {
+        connect(&m_probeWatcher, &QFutureWatcher<void>::finished, this,
+                [this, streamSize] { beginEncoding(streamSize); });
+        return;
+    }
     if (!streamSize.isValid() || streamSize.width() < 2 || streamSize.height() < 2) {
         fail(tr("PipeWire returned an invalid stream size"));
         return;
@@ -216,12 +243,21 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     m_outPath = m_settings->saveDirectory()
                 + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
+    // Feed ffmpeg the stream's native byte order (bgr0/bgra/rgb0/rgba) so the
+    // grabber's onProcess stays a plain row memcpy; the encoder's swscale does
+    // any conversion far faster than a per-pixel swizzle on the PipeWire thread.
+    QString pixFmt = QStringLiteral("bgra");
+#ifdef HAVE_PIPEWIRE
+    if (m_grabber)
+        pixFmt = m_grabber->pixelFormat();
+#endif
+
     // -nostats: with MergedChannels the progress spam would otherwise grow
     // unbounded in the QProcess read buffer for the whole recording.
     QStringList args{QStringLiteral("-y"),
                      QStringLiteral("-nostats"), QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-f"), QStringLiteral("rawvideo"),
-                     QStringLiteral("-pix_fmt"), QStringLiteral("bgra"),
+                     QStringLiteral("-pix_fmt"), pixFmt,
                      QStringLiteral("-video_size"),
                      QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
                      QStringLiteral("-framerate"), QString::number(fps),
@@ -398,7 +434,13 @@ void GifRecorder::sampleFrame()
     const qint64 target = m_elapsed.elapsed() * m_fps / 1000 + 1;
     if (target <= m_framesWritten)
         return; // ahead of schedule
-    const qint64 n = qMin<qint64>(target - m_framesWritten, m_fps); // ≤1 s burst
+    qint64 n = qMin<qint64>(target - m_framesWritten, m_fps); // ≤1 s burst
+    // Also clamp by the remaining write-buffer headroom: after an encoder stall
+    // drained ticks, one catch-up tick could otherwise memcpy up to fps full
+    // frames (~2 GB at 4K60) into the QProcess buffer in a single GUI-thread
+    // loop. bytesToWrite() <= writeCap here (checked above), so headroom >= 0;
+    // the +1 keeps at least one frame written so pacing still makes progress.
+    n = qMin<qint64>(n, (writeCap - m_ffmpeg->bytesToWrite()) / frameBytes + 1);
     for (qint64 i = 0; i < n; ++i)
         m_ffmpeg->write(encoded);
     m_framesWritten += n;
@@ -455,7 +497,10 @@ void GifRecorder::stop()
 
 void GifRecorder::convertToGif()
 {
-    const int fps = qBound(1, m_settings->gifFps(), 60);
+    // Captured at recording start (beginEncoding): the intermediate was encoded
+    // with -framerate m_fps, so reading a mid-recording gifFps() change here
+    // would quadruple/drop every frame relative to the container rate.
+    const int fps = m_fps;
     // quality: 0 = fast/small, 1 = balanced, 2 = best
     const int q = qBound(0, m_settings->gifQuality(), 2);
     const QString dither = q == 0 ? QStringLiteral("bayer:bayer_scale=3")

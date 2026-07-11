@@ -59,8 +59,11 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
             [this](const QString &, const QString &, const QString &newOwner) {
         if (newOwner.isEmpty()) {
             // Owner lost: session died with the daemon; flag the re-bind for
-            // the owner-gained event that follows.
-            if (!m_sessionHandle.isEmpty()) {
+            // the owner-gained event that follows. A CreateSession still in
+            // flight counts too — the in-flight request fails into a dying
+            // portal, so schedule the rebind for the new owner or hotkeys stay
+            // permanently dead for the rest of the run.
+            if (!m_sessionHandle.isEmpty() || m_sessionPending) {
                 m_sessionHandle.clear();
                 m_needRebind = true;
             }
@@ -77,24 +80,10 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
     });
 }
 
-bool PortalGlobalShortcuts::interfacePresent()
-{
-    // Deliberately NO isServiceRegistered pre-check: at cold session start the
-    // portal may not be on the bus yet, and this very call D-Bus-ACTIVATES it
-    // (a registered-name check would report a false "absent" and permanently
-    // disable hotkeys for the run). The definitive test stays the
-    // CreateSession response.
-    QDBusMessage msg = QDBusMessage::createMethodCall(
-        PORTAL_SERVICE, PORTAL_PATH,
-        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
-    msg << GS_IFACE << QStringLiteral("version");
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 3000);
-    return reply.type() == QDBusMessage::ReplyMessage;
-}
-
 void PortalGlobalShortcuts::probeInterface(QObject *ctx, std::function<void(bool)> done)
 {
-    // Same probe (and activation caveat) as interfacePresent(), but awaited
+    // Async probe (deliberately no isServiceRegistered pre-check: this call
+    // D-Bus-ACTIVATES a not-yet-started portal), awaited
     // asynchronously — the blocking form stalled the GUI thread for however
     // long D-Bus took to spin the portal up at cold session start.
     QDBusMessage msg = QDBusMessage::createMethodCall(
@@ -175,6 +164,16 @@ void PortalGlobalShortcuts::bind(const QVector<Shortcut> &shortcuts)
         m_queued = shortcuts;
         return;
     }
+    if (m_bindPending) {
+        // A BindShortcuts Response is still in flight (the backend may be
+        // showing a consent dialog): stash the newest set and issue ONE
+        // trailing BindShortcuts when it arrives — same pattern as the pending
+        // CreateSession queue. Concurrent BindShortcuts requests race and their
+        // Responses can land out of order, leaving stale trigger text.
+        m_queued = shortcuts;
+        m_bindQueued = true;
+        return;
+    }
     if (m_sessionHandle.isEmpty())
         createSession(shortcuts);
     else
@@ -239,6 +238,23 @@ void PortalGlobalShortcuts::onSessionClosed()
         bind(m_lastBound);
 }
 
+void PortalGlobalShortcuts::closeSession(const QString &handle)
+{
+    if (handle.isEmpty())
+        return;
+    // Drop our Closed subscription for this handle FIRST: neither the Close()
+    // below nor a later backend Closed on this now-abandoned session must run
+    // onSessionClosed() against a DIFFERENT (current) session handle.
+    QDBusConnection::sessionBus().disconnect(
+        PORTAL_SERVICE, handle,
+        QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
+        this, SLOT(onSessionClosed()));
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        PORTAL_SERVICE, handle,
+        QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
+
 void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
 {
     QList<PortalShortcutWire> wire;
@@ -258,7 +274,19 @@ void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
         << QString() // parent_window: none (may be triggered from the tray)
         << QVariantMap{{QStringLiteral("handle_token"), token}};
 
+    m_bindPending = true;
     PortalRequest::send(msg, token, [this](uint code, const QVariantMap &results) {
+        m_bindPending = false;
+        if (m_bindQueued) {
+            // A newer set arrived while this bind was in flight — its result
+            // supersedes this (now stale) one. Re-issue and let the trailing
+            // bind emit bindFinished; swallow this stale Response.
+            m_bindQueued = false;
+            const QVector<Shortcut> queued = std::move(m_queued);
+            m_queued.clear();
+            bind(queued);
+            return;
+        }
         if (code == 1) {
             // User cancelled the consent dialog: the backend WORKS, the set
             // just wasn't confirmed — reporting failure here used to flip the
@@ -272,6 +300,10 @@ void PortalGlobalShortcuts::bindNow(const QVector<Shortcut> &shortcuts)
             // The session may be stale (portal restarted between binds):
             // retry ONCE through a fresh session before reporting failure —
             // a failure report flips the whole hotkey UI off for the run.
+            // Close the abandoned session first so neither it nor its Closed
+            // match rule leaks daemon-side (a later Closed on it would else
+            // disconnect the CURRENT session and trigger a spurious rebind).
+            closeSession(m_sessionHandle);
             m_sessionHandle.clear();
             if (!m_retriedBind && !m_lastBound.isEmpty()) {
                 m_retriedBind = true;

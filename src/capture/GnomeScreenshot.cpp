@@ -9,6 +9,7 @@
 #include <QFutureWatcher>
 #include <QDir>
 #include <QFile>
+#include <QStandardPaths>
 #include <QUuid>
 
 static const auto GS_SERVICE = QStringLiteral("org.gnome.Shell.Screenshot");
@@ -58,7 +59,13 @@ static LoadedShot loadAndUnlink(const QString &path)
 
 void GnomeScreenshot::shoot(const QString &method, const QVariantList &leadingArgs, Callback cb)
 {
-    const QString path = QDir::tempPath() + QStringLiteral("/unisic-shot-")
+    // XDG_RUNTIME_DIR (mode 0700), not world-listable /tmp: the compositor
+    // writes the full screenshot here and another local user must not be able
+    // to read it during the D-Bus round-trip before loadAndUnlink() removes it.
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+    if (dir.isEmpty())
+        dir = QDir::tempPath(); // no XDG_RUNTIME_DIR (rare): fall back to /tmp
+    const QString path = dir + QStringLiteral("/unisic-shot-")
                          + QUuid::createUuid().toString(QUuid::Id128) + QStringLiteral(".png");
 
     QDBusMessage msg = QDBusMessage::createMethodCall(GS_SERVICE, GS_PATH, GS_IFACE, method);
@@ -101,12 +108,6 @@ void GnomeScreenshot::captureWorkspace(bool includeCursor, Callback cb)
 {
     // Screenshot(include_cursor, flash, filename)
     shoot(QStringLiteral("Screenshot"), {includeCursor, false}, std::move(cb));
-}
-
-void GnomeScreenshot::captureArea(int x, int y, int w, int h, bool /*includeCursor*/, Callback cb)
-{
-    // ScreenshotArea(x, y, width, height, flash, filename) — no cursor arg upstream.
-    shoot(QStringLiteral("ScreenshotArea"), {x, y, w, h, false}, std::move(cb));
 }
 
 void GnomeScreenshot::captureActiveWindow(bool includeCursor, Callback cb)

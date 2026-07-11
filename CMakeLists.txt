@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.4.0 LANGUAGES CXX)
+project(unisic VERSION 0.5.0 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.4.0")
+set(UNISIC_VERSION_STRING "0.5.0")
 
 include(GNUInstallDirs)
 
@@ -21,6 +21,13 @@ pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
 # GNOME/Mutter don't, and there we fall back to the native desktop notification).
 find_package(LayerShellQt QUIET)
 pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
+# Optional: U-2-Net saliency background removal via onnxruntime. Fedora ships a
+# CMake config + a pkg-config file under different names across versions, so try
+# both. Absent → the app falls back to the dependency-free heuristic segmenter.
+find_package(onnxruntime CONFIG QUIET)
+if(NOT onnxruntime_FOUND)
+    pkg_check_modules(ONNXRUNTIME IMPORTED_TARGET libonnxruntime)
+endif()
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
@@ -108,6 +115,24 @@ else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
 endif()
 
+# NOTE: no packaging channel installs onnxruntime (neither the COPR spec's
+# BuildRequires, nor the deb/rpm/arch/appimage/flatpak CI jobs), so HAVE_ONNX
+# is OFF in every shipped build — U-2-Net background removal is dev-only and the
+# app falls back to the dependency-free heuristic segmenter. This is deliberate:
+# enabling it means adding onnxruntime to the spec + all packaging deps.
+if(onnxruntime_FOUND OR ONNXRUNTIME_FOUND)
+    target_sources(unisic PRIVATE src/segment/U2NetSegmenter.h src/segment/U2NetSegmenter.cpp)
+    if(onnxruntime_FOUND)
+        target_link_libraries(unisic PRIVATE onnxruntime::onnxruntime)
+    else()
+        target_link_libraries(unisic PRIVATE PkgConfig::ONNXRUNTIME)
+    endif()
+    target_compile_definitions(unisic PRIVATE HAVE_ONNX)
+    message(STATUS "U-2-Net background removal: enabled (onnxruntime)")
+else()
+    message(STATUS "U-2-Net background removal: disabled (needs onnxruntime-devel) — heuristic cutout still works")
+endif()
+
 if(LayerShellQt_FOUND AND WAYLAND_CLIENT_FOUND)
     target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp)
     target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
@@ -151,14 +176,17 @@ qt_add_qml_module(unisic
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml
         qml/components/UComboBox.qml
+        qml/components/UValueCombo.qml
+        qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
-        qml/components/USpinBox.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
+        qml/components/ToolPropsBar.qml
         qml/components/ColorDot.qml
         qml/components/MiddleScroll.qml
+        qml/components/WheelBoost.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
@@ -184,6 +212,42 @@ file(GLOB UNISIC_TRAY_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DI
      resources/icons/tray/*.svg resources/icons/tray/*.png)
 if(UNISIC_TRAY_ICONS)
     qt_add_resources(unisic "tray_icons" PREFIX "/" FILES ${UNISIC_TRAY_ICONS})
+endif()
+
+# Translations (optional): needs Qt6 LinguistTools (lupdate/lrelease). When
+# present, the .ts files are compiled to .qm and embedded in the qrc under
+# /i18n/, and `cmake --build build --target update_translations` refreshes the
+# source strings. Without the tools the app still builds — UI falls back to the
+# English source strings and the language picker only offers "System"/"English".
+find_package(Qt6 QUIET COMPONENTS LinguistTools)
+set(UNISIC_TS_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_en.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_es.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts)
+if(Qt6LinguistTools_FOUND)
+    qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
+                    QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)
+    qt_add_resources(unisic "i18n" PREFIX "/i18n" BASE ${CMAKE_CURRENT_BINARY_DIR}
+                     FILES ${UNISIC_QM_FILES})
+    target_compile_definitions(unisic PRIVATE HAVE_TRANSLATIONS)
+    # Manual refresh target (`cmake --build build --target update_translations`):
+    # rescans C++ + QML and rewrites the .ts source strings. Not run per build.
+    file(GLOB_RECURSE UNISIC_LUPDATE_SOURCES CONFIGURE_DEPENDS
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml)
+    # The target-less qt_add_lupdate() signature is Qt 6.7+. On the declared
+    # 6.5/6.6 floor (e.g. openSUSE Leap ships 6.6) the first positional arg is
+    # the mandatory target, so pass `unisic` explicitly there.
+    if(Qt6_VERSION VERSION_GREATER_EQUAL 6.7)
+        qt_add_lupdate(TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
+    else()
+        qt_add_lupdate(unisic TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
+    endif()
+    message(STATUS "Translations: enabled (Polish, Spanish, Italian)")
+else()
+    message(STATUS "Translations: disabled (needs Qt6 LinguistTools) — English source strings only")
 endif()
 
 install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QSize>
+#include <QString>
 #include <QMutex>
 #include <QByteArray>
 #include <atomic>
@@ -20,14 +21,18 @@ public:
     explicit PipeWireGrabber(QObject *parent = nullptr);
     ~PipeWireGrabber() override;
 
-    bool start(int pipewireFd, uint nodeId);
+    bool start(int pipewireFd, uint nodeId, int maxFps);
     void stop();
 
     // Negotiated stream size (valid after formatReady).
     QSize frameSize() const { return m_size; }
 
-    // Hands out the latest frame (tightly packed BGRA, frameSize()) as a
-    // cheap implicitly-shared reference. Returns false if no frame arrived yet.
+    // ffmpeg rawvideo pix_fmt for the negotiated byte order (valid after
+    // formatReady): frames are kept in native order, not swizzled to BGRA.
+    QString pixelFormat() const;
+
+    // Hands out the latest frame (tightly packed in pixelFormat(), frameSize())
+    // as a cheap implicitly-shared reference. Returns false if none arrived yet.
     // `seq` (same mutex, so atomic with the frame) increments once per new
     // stream frame — compositor streams are damage-driven, so on a static
     // screen it lets the sampler skip re-cropping an unchanged frame.
@@ -50,9 +55,9 @@ private:
     void *m_listener = nullptr;
 
     QMutex m_mutex;
-    QByteArray m_latest; // front buffer: replaced by swap only, never written in place
-    QByteArray m_back;   // back buffer: PipeWire thread only
-    quint64 m_seq = 0;   // frame sequence, guarded by m_mutex
+    QByteArray m_latest;   // front buffer: replaced by assignment only, never written in place
+    QByteArray m_pool[3];  // rotating back buffers: PipeWire thread only
+    quint64 m_seq = 0;     // frame sequence, guarded by m_mutex
     std::atomic<bool> m_haveFrame{false};
     QSize m_size;
     uint32_t m_format = 0;

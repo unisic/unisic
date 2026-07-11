@@ -27,10 +27,13 @@ Window {
     readonly property int bw: 3
     readonly property color contrast: Qt.rgba(0, 0, 0, 0.55)
 
+    // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes (matches Main.qml).
     function fmt(s) {
-        var m = Math.floor(s / 60);
-        var ss = s % 60;
-        return m + ":" + (ss < 10 ? "0" : "") + ss;
+        var h = Math.floor(s / 3600);
+        var m = Math.floor((s % 3600) / 60);
+        var sec = s % 60;
+        function p(v) { return (v < 10 ? "0" : "") + v; }
+        return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec);
     }
 
     // Outer contrast line.

@@ -110,7 +110,8 @@ bool GlobalHotkeys::sameBinding(const QString &a, const QString &b)
 QStringList GlobalHotkeys::fullActionId(const QString &actionId, const QString &friendlyName) const
 {
     // KGlobalAccel canonical id: [componentUnique, actionUnique, componentFriendly, actionFriendly]
-    return {QString::fromLatin1(COMPONENT), actionId, QStringLiteral("Unisic"), friendlyName};
+    return {QString::fromLatin1(COMPONENT), actionId, QString::fromLatin1(COMPONENT_FRIENDLY),
+            friendlyName};
 }
 
 QList<int> GlobalHotkeys::keysFor(const QString &keySequence)
@@ -300,6 +301,22 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     return true;
 }
 
+QString GlobalHotkeys::keyOwner(int key) const
+{
+    if (!m_available)
+        return {};
+    QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("action"));
+    msg << key;
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 800);
+    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
+        return {};
+    const QStringList id = reply.arguments().first().toStringList();
+    if (id.size() < 2 || id.at(0).isEmpty())
+        return {};
+    return id.at(0) + QLatin1Char('/') + id.at(1);
+}
+
 QList<int> GlobalHotkeys::activeKeys(const QString &actionId, bool *ok) const
 {
     if (ok)
@@ -341,6 +358,20 @@ void GlobalHotkeys::unregisterAll()
     QDBusMessage msg = QDBusMessage::createMethodCall(
         KGA_SERVICE, QStringLiteral("/component/") + QString::fromLatin1(COMPONENT),
         QStringLiteral("org.kde.kglobalaccel.Component"), QStringLiteral("cleanUp"));
+    QDBusConnection::sessionBus().asyncCall(msg);
+}
+
+void GlobalHotkeys::unregisterAction(const QString &actionId)
+{
+    if (!m_available)
+        return;
+    // Fully drop a single action from the daemon (and thus the Shortcuts KCM).
+    // releaseShortcut() only unbinds the keys, which — with NoAutoloading —
+    // leaves the action PERSISTED as an unbound row; a scratch/test action must
+    // not linger there.
+    QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("unRegister"));
+    msg << QStringList{QString::fromLatin1(COMPONENT), actionId};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
 

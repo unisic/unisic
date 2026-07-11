@@ -11,7 +11,7 @@ Rectangle {
     radius: 13
     color: dotColor
     border.width: active ? 3 : 1
-    border.color: active ? "#FFFFFF" : Qt.rgba(1, 1, 1, 0.25)
+    border.color: active ? Theme.accent : Theme.alpha(Theme.textPrimary, 0.25)
     scale: mouse.containsMouse || active ? 1.12 : 1.0
     Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
 

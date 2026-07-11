@@ -50,7 +50,7 @@ PipeWireGrabber::~PipeWireGrabber()
     pw_deinit();
 }
 
-bool PipeWireGrabber::start(int pipewireFd, uint nodeId)
+bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps)
 {
     m_loop = pw_thread_loop_new("unisic-pipewire", nullptr);
     if (!m_loop) {
@@ -114,9 +114,13 @@ bool PipeWireGrabber::start(int pipewireFd, uint nodeId)
     const spa_rectangle defSize = SPA_RECTANGLE(1920, 1080);
     const spa_rectangle minSize = SPA_RECTANGLE(1, 1);
     const spa_rectangle maxSize = SPA_RECTANGLE(16384, 16384);
-    const spa_fraction defRate = SPA_FRACTION(30, 1);
+    // Cap negotiated delivery at the sampling rate: KWin/Mutter honor the max
+    // and throttle, so onProcess isn't run at monitor refresh for frames the
+    // fixed-FPS sampler would only discard.
+    const int cappedFps = qBound(1, maxFps, 240);
+    const spa_fraction defRate = SPA_FRACTION(cappedFps, 1);
     const spa_fraction minRate = SPA_FRACTION(0, 1);
-    const spa_fraction maxRate = SPA_FRACTION(240, 1);
+    const spa_fraction maxRate = SPA_FRACTION(cappedFps, 1);
     const spa_pod *params[1];
     params[0] = static_cast<const spa_pod *>(spa_pod_builder_add_object(&b,
         SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat,
@@ -211,49 +215,54 @@ void PipeWireGrabber::onProcess()
         const uint32_t offset = chunk->offset;
         const qsizetype frameBytes = qsizetype(h - 1) * stride + rowBytes;
         const qsizetype required = qsizetype(offset) + frameBytes;
-        if (stride < rowBytes
+        if (chunk->size == 0
+            || (chunk->flags & SPA_CHUNK_FLAG_CORRUPTED)
+            || stride < rowBytes
             || (data.maxsize > 0 && required > qsizetype(data.maxsize))
-            || (chunk->size > 0 && frameBytes > qsizetype(chunk->size))) {
+            || frameBytes > qsizetype(chunk->size)) {
+            // Zero-size / corrupted / undersized buffer: requeue and keep the
+            // previous frame (the sampler already sample-and-holds).
             pw_stream_queue_buffer(m_stream, b);
             return;
         }
         const auto *src = static_cast<const uint8_t *>(data.data) + offset;
 
-        // Convert into the back buffer WITHOUT the lock — a 4K copy/swizzle
-        // takes milliseconds and must never block the GUI thread's
-        // latestFrame(). m_back is touched only on this (PipeWire) thread.
-        // NOT resize(): the consumer usually still shares the previous block
-        // (sampleFrame's m_lastFrame), and resize() on a shared buffer
-        // detaches by memcpy-ing the FULL stale frame first — a wasted
-        // full-frame copy on most stream frames. A fresh uninitialized
-        // allocation skips that copy; the loop below overwrites every byte.
+        // Copy into a back buffer WITHOUT the lock — a 4K row copy takes
+        // milliseconds and must never block the GUI thread's latestFrame(); the
+        // pool is touched only on this (PipeWire) thread. Rotation pool: with
+        // the consumer pinning the published frame (sample-and-hold) plus
+        // m_latest, one of three buffers is always detached, so steady-state
+        // full-screen capture stops reallocating a frame-sized block per frame.
+        // Pick the first detached, right-sized slot; else reuse any detached
+        // slot (reallocating). Never data() a shared buffer — that would memcpy
+        // the FULL stale frame just to detach; a fresh slot skips that copy.
         const qsizetype need = qsizetype(rowBytes) * h;
-        if (m_back.size() != need || !m_back.isDetached())
-            m_back = QByteArray(need, Qt::Uninitialized);
-        char *dst = m_back.data();
-        const bool swapRB = (m_format == SPA_VIDEO_FORMAT_RGBx || m_format == SPA_VIDEO_FORMAT_RGBA);
-        const bool hasAlpha = (m_format == SPA_VIDEO_FORMAT_BGRA || m_format == SPA_VIDEO_FORMAT_RGBA);
-        for (int y = 0; y < h; ++y) {
-            const uint8_t *row = src + qsizetype(y) * stride;
-            if (!swapRB) {
-                memcpy(dst, row, rowBytes);
-                if (!hasAlpha) {
-                    for (int x = 0; x < w; ++x)
-                        dst[x * 4 + 3] = char(0xff);
-                }
-            } else {
-                for (int x = 0; x < w; ++x) { // RGBx -> BGRx
-                    dst[x * 4 + 0] = char(row[x * 4 + 2]);
-                    dst[x * 4 + 1] = char(row[x * 4 + 1]);
-                    dst[x * 4 + 2] = char(row[x * 4 + 0]);
-                    dst[x * 4 + 3] = hasAlpha ? char(row[x * 4 + 3]) : char(0xff);
-                }
+        QByteArray *back = nullptr;
+        for (QByteArray &slot : m_pool) {
+            if (slot.size() == need && slot.isDetached()) {
+                back = &slot;
+                break;
             }
+        }
+        if (!back) {
+            for (QByteArray &slot : m_pool) {
+                if (slot.isDetached()) { back = &slot; break; }
+            }
+            if (!back)
+                back = &m_pool[0];
+            *back = QByteArray(need, Qt::Uninitialized);
+        }
+        // Keep the native byte order — the encoder's -pix_fmt (pixelFormat())
+        // matches it, so no swizzle/alpha-fill is needed; the row memcpy also
+        // drops any padding stride down to a tightly packed frame.
+        char *dst = back->data();
+        for (int y = 0; y < h; ++y) {
+            memcpy(dst, src + qsizetype(y) * stride, rowBytes);
             dst += rowBytes;
         }
         {
             QMutexLocker lock(&m_mutex);
-            m_latest.swap(m_back);
+            m_latest = *back;
             ++m_seq;
         }
         m_haveFrame.store(true, std::memory_order_release);
@@ -272,4 +281,17 @@ bool PipeWireGrabber::latestFrame(QByteArray &out, quint64 *seq)
     if (seq)
         *seq = m_seq;
     return true;
+}
+
+QString PipeWireGrabber::pixelFormat() const
+{
+    // Native SPA byte order -> ffmpeg rawvideo pix_fmt (onProcess no longer
+    // swizzles): the "x" formats map to the *0 variants that ignore the padding.
+    switch (m_format) {
+    case SPA_VIDEO_FORMAT_BGRA: return QStringLiteral("bgra");
+    case SPA_VIDEO_FORMAT_RGBx: return QStringLiteral("rgb0");
+    case SPA_VIDEO_FORMAT_RGBA: return QStringLiteral("rgba");
+    case SPA_VIDEO_FORMAT_BGRx:
+    default:                    return QStringLiteral("bgr0");
+    }
 }

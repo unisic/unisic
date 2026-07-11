@@ -57,6 +57,7 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
 
             MiddleScroll { flickable: grid }
+            WheelBoost { flickable: grid }
 
             delegate: Item {
                 width: grid.cellWidth

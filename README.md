@@ -36,7 +36,7 @@ Unisic is in **early developer access**. It works, but you *will* run into rough
 
 ## Install
 
-Grab the latest build from [**Releases**](https://github.com/unisic/unisic/releases/latest) (AppImage, Flatpak bundle, deb, rpm, Arch package) or [build from source](#build-from-source). Requires a Wayland session with `xdg-desktop-portal` + a backend; recording additionally needs PipeWire and `ffmpeg`.
+**Recommended: install from a repository** (sections below) — updates then arrive automatically through your package manager like any other package. Direct downloads from [**Releases**](https://github.com/unisic/unisic/releases/latest) (AppImage, Flatpak bundle, deb, rpm, Arch package) work too: the AppImage updates itself in-app, and the deb/rpm register the repository on install so you end up on the automatic path anyway. Requires a Wayland session with `xdg-desktop-portal` + a backend; recording additionally needs PipeWire and `ffmpeg`. Or [build from source](#build-from-source).
 
 ### Fedora (COPR)
 

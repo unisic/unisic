@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.5.1
+Version:        0.6.0
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -122,6 +122,12 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.0-1
+- Fully automatic updates: daily GitHub check, AppImage self-swap with idle
+  auto-restart, deb/rpm downloads register the OBS/COPR repo on install.
+- New OBS channel home:unisic (Debian 13, Ubuntu 25.10/26.04, Arch,
+  Tumbleweed, Leap 16.0); Updates section in Settings.
+
 * Sat Jul 11 2026 Unisic maintainers <unisic@debondor.com> - 0.5.1-1
 - Fix region recording on multi-monitor setups (per-monitor portal restore
   tokens + wrong-monitor stream detection with self-heal).

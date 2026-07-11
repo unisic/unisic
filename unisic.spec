@@ -7,36 +7,73 @@ License:        GPL-3.0-or-later
 URL:            https://github.com/unisic/unisic
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
+# cmake()/pkgconfig() virtual provides instead of distro package names: the
+# real -devel names differ between Fedora (qt6-qtbase-devel) and openSUSE
+# (qt6-core-devel), but both distros auto-generate these provides — so this
+# ONE spec serves COPR/Packit (Fedora) AND the OBS openSUSE targets.
 BuildRequires:  cmake
-BuildRequires:  ninja-build
 BuildRequires:  gcc-c++
 BuildRequires:  pkgconfig
 BuildRequires:  extra-cmake-modules
-BuildRequires:  qt6-qtbase-devel
-BuildRequires:  qt6-qtdeclarative-devel
-BuildRequires:  qt6-qtsvg-devel
-BuildRequires:  qt6-qtwayland-devel
-BuildRequires:  qt6-qttools-devel
-BuildRequires:  pipewire-devel
-BuildRequires:  tesseract-devel
-BuildRequires:  leptonica-devel
-BuildRequires:  zxing-cpp-devel
-BuildRequires:  layer-shell-qt-devel
-BuildRequires:  wayland-devel
-BuildRequires:  wayland-protocols-devel
-BuildRequires:  desktop-file-utils
+%if 0%{?suse_version}
+BuildRequires:  ninja
+%else
+BuildRequires:  ninja-build
+# appstream-util for the %%check metainfo validation; Fedora-only — the
+# %%check line is `|| :`-guarded and skips quietly where the tool is absent.
 BuildRequires:  libappstream-glib
+%endif
+BuildRequires:  cmake(Qt6Core)
+BuildRequires:  cmake(Qt6Gui)
+BuildRequires:  cmake(Qt6Widgets)
+BuildRequires:  cmake(Qt6Quick)
+BuildRequires:  cmake(Qt6Qml)
+BuildRequires:  cmake(Qt6QuickControls2)
+BuildRequires:  cmake(Qt6DBus)
+BuildRequires:  cmake(Qt6Network)
+BuildRequires:  cmake(Qt6Concurrent)
+BuildRequires:  cmake(Qt6Svg)
+BuildRequires:  cmake(Qt6LinguistTools)
+BuildRequires:  cmake(Qt6WaylandClient)
+BuildRequires:  pkgconfig(libpipewire-0.3)
+BuildRequires:  pkgconfig(tesseract)
+BuildRequires:  pkgconfig(lept)
+BuildRequires:  cmake(ZXing)
+BuildRequires:  cmake(LayerShellQt)
+BuildRequires:  pkgconfig(wayland-client)
+BuildRequires:  pkgconfig(wayland-protocols)
+BuildRequires:  desktop-file-utils
 
 # Runtime helpers are optional — the app degrades gracefully without them, so
 # they are Recommends (not Requires) to keep install working on stock Fedora
 # where the GPL ffmpeg is only in RPM Fusion (ffmpeg-free covers most codecs).
+%if 0%{?fedora}
 Recommends:     ffmpeg-free
+# Capture-sound cue plays through one of these if present.
+Recommends:     pipewire-utils
+%else
+Recommends:     ffmpeg
+Recommends:     pipewire-tools
+%endif
 Recommends:     wl-clipboard
 # Region/window screenshots (PortalScreenshot) and all ScreenCast recording
 # route through xdg-desktop-portal; matches the CPack RPM/DEB dependency lists.
 Recommends:     xdg-desktop-portal
-# Capture-sound cue plays through one of these if present.
-Recommends:     pipewire-utils
+# Runtime pieces the auto-dep scanner cannot see (dlopened QML modules, the
+# SVG image plugin, the wayland platform plugin). Fedora's monolithic
+# qt6-qtdeclarative comes in via the linked libQt6Qml, but the svg/wayland
+# plugin packages do not; openSUSE additionally splits the QML imports out.
+%if 0%{?fedora}
+Requires:       qt6-qtsvg
+Requires:       qt6-qtwayland
+%endif
+%if 0%{?suse_version}
+# NOTE: verify these split-package names against the first OBS build
+# (rpm -qp --requires / build log) — see packaging/obs/README.md.
+Requires:       qt6-declarative-imports
+Requires:       qt6-svg-imageformat
+Requires:       qt6-wayland
+%endif
 
 %description
 Unisic covers the whole workflow after you press the hotkey: annotate on the

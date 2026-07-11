@@ -164,9 +164,12 @@ jobs:
           version="${version_line#*VERSION }"
           version="${version%% *}"
           git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar.gz --prefix="unisic-${version}/" HEAD > "packaging/arch/unisic-${version}.tar.gz"
+          # PKGBUILD carries a literal pkgver (OBS's server-side parser can't
+          # expand ${var:-default}); inject the CMakeLists version here.
+          sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && UNISIC_PKGVER='$version' makepkg --noconfirm --clean --cleanbuild"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
           mkdir -p dist
           cp packaging/arch/*.pkg.tar.zst dist/
 
@@ -461,3 +464,30 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Unisic ${VERSION}" \
             --notes-file NOTES.md "${prerelease[@]}"
+
+  obs:
+    name: Trigger OBS rebuild
+    # needs `release` so the v<version> tag exists when OBS's obs_scm service
+    # fetches the repo; `check` only for the should_release output. The OBS
+    # project (home:deandark:unisic) rebuilds Debian/Ubuntu/Arch/openSUSE
+    # repos from the tag — see packaging/obs/README.md.
+    needs:
+      - check
+      - release
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run OBS source services (home:deandark:unisic/unisic)
+        env:
+          OBS_TOKEN: ${{ secrets.OBS_TOKEN }}
+        run: |
+          if [[ -z "$OBS_TOKEN" ]]; then
+            echo "::error::OBS_TOKEN secret is not configured (see packaging/obs/README.md)"
+            exit 1
+          fi
+          resp="$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Token ${OBS_TOKEN}" \
+            "https://api.opensuse.org/trigger/runservice?project=home:deandark:unisic&package=unisic")"
+          echo "$resp"
+          grep -q 'code="ok"' <<<"$resp" \
+            || { echo "::error::OBS trigger did not return ok"; exit 1; }

@@ -297,8 +297,16 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const QString ext = m_output == Gif ? QStringLiteral("gif")
                       : m_output == WebM ? QStringLiteral("webm")
                                          : QStringLiteral("mp4");
-    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
-    QDir().mkpath(m_settings->videoSaveDirectory());
+    const QDateTime nowDt = QDateTime::currentDateTime();
+    const QString stamp = nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
+    // Optional per-month subfolders (yyyy-MM) — same knob as screenshots
+    // (Settings::dateSubfolders), applied to recordings too so the option
+    // actually buckets GIFs/videos and not just images. mkpath creates the
+    // subfolder as well.
+    QString outDir = m_settings->videoSaveDirectory();
+    if (m_settings->dateSubfolders())
+        outDir += QLatin1Char('/') + nowDt.toString(QStringLiteral("yyyy-MM"));
+    QDir().mkpath(outDir);
     // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
     // /tmp is tmpfs on Fedora, and minutes of lossless 4K would
     // exhaust RAM (max duration defaults to unlimited) and lose the recording
@@ -306,8 +314,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(tmpBase);
     m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
-    m_outPath = m_settings->videoSaveDirectory()
-                + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
+    m_outPath = outDir + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
 
     // Feed ffmpeg the stream's native byte order (bgr0/bgra/rgb0/rgba) so the
     // grabber's onProcess stays a plain row memcpy; the encoder's swscale does

@@ -1448,8 +1448,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Date subfolders")
-                        help: qsTr("Organises saved screenshots into per-month subfolders (yyyy-MM).")
-                        helpDetail: qsTr("Keeps a busy screenshots folder tidy. The subfolder is created under the screenshots folder above. Recordings are unaffected.")
+                        help: qsTr("Organises saved screenshots and recordings into per-month subfolders (yyyy-MM).")
+                        helpDetail: qsTr("Keeps busy capture folders tidy. The subfolder is created under both the screenshots and the recordings folder above.")
                         USwitch { checked: App.settings.dateSubfolders; onToggled: (c) => App.settings.dateSubfolders = c }
                     }
                     SettingRow {

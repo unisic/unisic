@@ -140,6 +140,10 @@ Unisic collects nothing. No telemetry, no crash reporting, no analytics, no acco
 
 Issues and pull requests welcome. Found a bug? [File an issue](https://github.com/unisic/unisic/issues) with your desktop, compositor, GPU and logs. See [CONTRIBUTING.md](CONTRIBUTING.md) for project layout and build instructions.
 
+## Development
+
+Unisic is developed with agentic AI assistance (see [`AGENTS.md`](AGENTS.md) for the contributor guide those agents follow). Every generated change is read line by line and reviewed by the maintainer before it lands — the tooling speeds things up, but nothing merges unread, so the codebase stays free of unreviewed machine output and its usual mistakes. Bug reports are still the best safety net: if something slipped through, please [file an issue](https://github.com/unisic/unisic/issues).
+
 ## License
 
 **GNU GPL v3.** See [LICENSE](LICENSE). You are free to use, study, modify, and redistribute Unisic — including commercially — but any distributed derivative must also be released under GPL v3 with full source. This keeps the project and every fork of it open, forever.

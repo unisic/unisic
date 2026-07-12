@@ -134,31 +134,14 @@ jobs:
           path: dist/*.rpm
           if-no-files-found: error
 
-  # The SAME rpm must install on openSUSE: soname autodeps + boolean Requires
-  # resolve against zypper, and copr-post.sh must take the zypp branch
-  # (register the COPR repo under /etc/zypp/repos.d). Tumbleweed also catches
-  # soname drift between the Fedora build root and openSUSE's libraries.
-  rpm-suse-gate:
-    name: openSUSE install gate
-    needs: rpm
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        container: ["opensuse/tumbleweed", "opensuse/leap:15.6"]
-    container: ${{ matrix.container }}
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: unisic-rpm
-          path: dist
-      - name: Install gate
-        run: |
-          zypper --non-interactive --no-gpg-checks install --allow-unsigned-rpm ./dist/*.rpm
-          test -e /etc/zypp/repos.d/unisic-copr.repo
-          # The registered repo must actually resolve (chroots are built by
-          # Packit into COPR deandark/Unisic).
-          zypper --non-interactive --gpg-auto-import-keys refresh unisic-copr
-
+  # NO openSUSE install gate for the CPack rpm, deliberately: QML type
+  # registration links Qt PRIVATE API symbols (QQmlPrivate via
+  # qt_add_qml_module), so the binary hard-requires the EXACT Qt minor of the
+  # build root — libQt6Qml.so.6(Qt_6.11_PRIVATE_API) from fedora:latest can
+  # never resolve against Tumbleweed's or Leap's Qt. One binary rpm across
+  # distros is impossible by construction; openSUSE installs from the COPR
+  # repo instead (Packit builds the spec in the opensuse-* chroots against
+  # their own Qt). The direct-download rpm stays a Fedora asset.
   arch:
     name: Arch package
     needs: check
@@ -425,7 +408,6 @@ jobs:
       - check
       - deb
       - rpm
-      - rpm-suse-gate
       - arch
       - appimage
     if: ${{ needs.check.outputs.should_release == 'true' }}
@@ -443,9 +425,11 @@ jobs:
       # UPDATE channel — each direct-download package self-registers its native
       # repo on first install, so a one-off download keeps updating natively:
       #   .deb      → OBS apt repo   (packaging/deb/postinst)
-      #   .rpm      → COPR (packaging/rpm/copr-post.sh — dnf repo on Fedora,
-      #               zypp repo on openSUSE; ONE rpm covers both, gated by
-      #               rpm-suse-gate above)
+      #   .rpm      → COPR (packaging/rpm/copr-post.sh). FEDORA-ONLY asset:
+      #               the binary requires the build root's exact Qt minor
+      #               (QML registration links Qt_6.x_PRIVATE_API symbols), so
+      #               it can never install on openSUSE's Qt — suse users take
+      #               the COPR repo, which builds in their own chroots.
       #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
       #   AppImage  → self-updates via the embedded zsync info
       - name: Download release assets
@@ -453,6 +437,16 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+
+      # See the .rpm note above — label the asset so openSUSE users don't
+      # grab it by mistake (their Qt can't satisfy its PRIVATE_API requires).
+      - name: Mark the RPM as the Fedora flavor
+        run: |
+          shopt -s nullglob
+          for f in dist/*.x86_64.rpm; do
+            [[ "$f" == *fedora* ]] || mv "$f" "${f%.x86_64.rpm}.fedora.x86_64.rpm"
+          done
+          ls -la dist/
 
       - name: Generate changelog
         run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md

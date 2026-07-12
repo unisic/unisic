@@ -323,8 +323,11 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-# One rpm installs on BOTH Fedora and openSUSE (%post registers the COPR repo
-# on either — packaging/rpm/copr-post.sh). Rules that make that work:
+# The CPack rpm is effectively a FEDORA asset: QML type registration links
+# Qt PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning the binary to the
+# build root's exact Qt minor — openSUSE installs from the COPR repo, whose
+# chroots build against their own Qt. The Requires below still stay
+# distro-neutral (costs nothing, and %post handles both repo flavors):
 # - "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
 #   stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
 #   GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —

@@ -5,8 +5,9 @@ built on the [openSUSE Build Service](https://build.opensuse.org)
 project `home:unisic`. rpm distros are NOT built here — Fedora AND openSUSE
 (Tumbleweed + Leap 15.6) ship from COPR `deandark/Unisic` (Packit, see
 `.packit.yaml`); COPR has no Leap 16 chroot yet, so Leap 16 users take the
-Tumbleweed repo or the AppImage. (The release-page rpm is Fedora-only: the
-binary pins the build root's exact Qt minor via Qt_6.x_PRIVATE_API symbols.)
+Tumbleweed repo or the AppImage. (The release page carries no binary rpm — a
+binary pins its build root's exact Qt minor via Qt_6.x_PRIVATE_API symbols —
+only the noarch `unisic-copr-repo` repo-installer, which works on both.)
 
 ## Data flow
 

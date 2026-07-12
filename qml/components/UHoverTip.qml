@@ -33,7 +33,7 @@ Popup {
             id: tipLabel
             anchors.centerIn: parent
             text: tip.text
-            color: Theme.isDark ? "#FFFFFF" : Theme.textOnAccent
+            color: Theme.tooltipText
             font.pixelSize: 11
         }
     }

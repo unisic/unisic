@@ -28,6 +28,13 @@ class ThemeController : public QObject
     Q_PROPERTY(QColor sysMidText READ sysMidText NOTIFY systemChanged)
     Q_PROPERTY(QColor sysAccent READ sysAccent NOTIFY systemChanged)
     Q_PROPERTY(QColor sysAccentText READ sysAccentText NOTIFY systemChanged)
+    Q_PROPERTY(QColor sysTooltipBase READ sysTooltipBase NOTIFY systemChanged)
+    Q_PROPERTY(QColor sysTooltipText READ sysTooltipText NOTIFY systemChanged)
+    // KDE-only extras read from kdeglobals (roles QPalette does not carry).
+    // Alpha-0 when unavailable — the QML side then keeps its own defaults.
+    Q_PROPERTY(QColor sysPositive READ sysPositive NOTIFY systemChanged)
+    Q_PROPERTY(QColor sysNegative READ sysNegative NOTIFY systemChanged)
+    Q_PROPERTY(QColor sysHover READ sysHover NOTIFY systemChanged)
 
 public:
     explicit ThemeController(QObject *parent = nullptr);
@@ -51,6 +58,11 @@ public:
     QColor sysMidText() const;
     QColor sysAccent() const;
     QColor sysAccentText() const;
+    QColor sysTooltipBase() const;
+    QColor sysTooltipText() const;
+    QColor sysPositive() const;
+    QColor sysNegative() const;
+    QColor sysHover() const;
 
 signals:
     void themeNameChanged();

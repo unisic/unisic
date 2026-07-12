@@ -25,54 +25,29 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
 
 ## What is Unisic
 
-Most screenshot tools on Linux hand you a rectangle of pixels and walk away. Unisic covers the whole workflow after you press the hotkey: **annotate on the selection overlay before the shot is even taken**, edit afterwards (blur, pixelate, numbered steps, crop, object cutout with background removal), record the same region as a GIF or video, and push the result wherever it belongs — clipboard, disk, or a custom upload destination with the link ready to paste.
+Most screenshot tools hand you a rectangle of pixels and walk away. Unisic covers the whole workflow after you press the hotkey: draw on the selection **before the shot is even taken**, polish it in the editor (blur, numbered steps, crop, object cutout), record the same region as a GIF or video, and send the result where it belongs - clipboard, disk, or your own upload destination with the link ready to paste.
 
-Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel, wlr-screencopy). KDE Plasma gets the fully silent native path; other desktops work through portals. **C++20 · Qt 6 · QML**, fully custom UI.
-
-## Features
-
-- **Capture** — the full screen (all monitors stitched), an interactive region on a frozen per-monitor overlay with live dimensions, or the active window. Silent KWin path on Plasma, portals elsewhere, `grim` on wlroots; configurable delay and optional cursor.
-- **Annotate before the shot** — the selection overlay is a canvas: draw arrows, shapes, text, blur and numbered steps on the frozen screen, then press Enter and they're burnt into the crop.
-- **Post-capture editor** — opens automatically (optional): 12 tools including highlight, pixelate, smart eraser, numbered steps and crop, with undo/redo and zoom, composited in image-pixel space.
-- **Object cutout** — lift the subject out of your selection and drop the background: a dependency-free segmenter by default, with optional U-2-Net (AI) for tricky edges. Exports as transparent PNG/WebP.
-- **Record GIF & video** — GIF (two-pass palette) or MP4/WebM through the ScreenCast portal → PipeWire → ffmpeg; region, full screen, or window, with optional system and microphone audio. `Ctrl+Esc` always stops.
-- **Extract text & codes** — OCR any region to copy its text (Tesseract), or decode a QR/barcode straight to its payload.
-- **Upload anywhere** — custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP via curl, and built-in hosts (catbox, 0x0.st, Imgur…); the link auto-copies.
-- **History** — every capture in a thumbnail grid; deleting moves the file to the trash, and external deletions are picked up automatically.
-- **Tray, hotkeys & 9 themes** — a quick-menu tray icon, fully rebindable global hotkeys, and nine palettes — including one that follows your system light/dark scheme and accent color.
-- **Languages** — English, Polish, Spanish and Italian; follow your system locale or pick one in Settings.
-
-## Default hotkeys
-
-| Keys | Description |
-| --- | --- |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>1</kbd> | Capture the full screen |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>2</kbd> | Capture a region |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>3</kbd> | Capture the active window |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> | Record a GIF (region) |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | Record video (region) |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR — copy text out of a region |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | Copy the last capture again |
-| <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
-
-Editable in Settings → Hotkeys (applied to the system immediately) or in KDE's Shortcuts KCM.
-
-
+Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the fully silent native path; GNOME and wlroots desktops work through portals. **C++20 · Qt 6 · QML**, fully custom UI.
 
 ## Install
 
-Requires a Wayland session with `xdg-desktop-portal`; recording also needs PipeWire and `ffmpeg`.
+Any Wayland desktop with `xdg-desktop-portal` works; recording also needs PipeWire and `ffmpeg`.
 
-Install from a repository for automatic updates through your package manager — or grab the self-updating **[AppImage](https://github.com/unisic/unisic/releases/latest)**, or [build from source](#build-from-source).
+**The quick way:** grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through `apt upgrade` / `dnf upgrade` / `pacman -Syu` like any other package.
 
-### Fedora
+Or add the repo yourself:
+
+<details open>
+<summary><b>Fedora</b></summary>
 
 ```sh
 sudo dnf copr enable deandark/Unisic
 sudo dnf install unisic
 ```
+</details>
 
-### Debian / Ubuntu
+<details>
+<summary><b>Debian / Ubuntu</b></summary>
 
 ```sh
 REPO=Debian_13   # or xUbuntu_26.04 / xUbuntu_25.10
@@ -82,17 +57,21 @@ echo "deb [signed-by=/etc/apt/keyrings/home_unisic.gpg] https://download.opensus
   | sudo tee /etc/apt/sources.list.d/home_unisic.list
 sudo apt update && sudo apt install unisic
 ```
+</details>
 
-### openSUSE
+<details>
+<summary><b>openSUSE</b></summary>
 
 ```sh
-# Tumbleweed (for Leap 16.0 replace openSUSE_Tumbleweed with 16.0)
-sudo zypper addrepo https://download.opensuse.org/repositories/home:unisic/openSUSE_Tumbleweed/home:unisic.repo
+# Tumbleweed (for Leap 15.6 replace opensuse-tumbleweed with opensuse-leap-15.6)
+sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/deandark/Unisic/repo/opensuse-tumbleweed/deandark-Unisic.repo
 sudo zypper refresh
 sudo zypper install unisic
 ```
+</details>
 
-### Arch
+<details>
+<summary><b>Arch</b></summary>
 
 ```sh
 curl -fsSL 'https://build.opensuse.org/projects/home:unisic/signing_keys/download?kind=gpg' -o /tmp/unisic-obs.key
@@ -102,6 +81,57 @@ printf '\n[home_unisic_Arch]\nServer = https://download.opensuse.org/repositorie
   | sudo tee -a /etc/pacman.conf
 sudo pacman -Syu unisic
 ```
+</details>
+
+Prefer compiling? See [Build from source](#build-from-source).
+
+## First steps
+
+Unisic starts in the background with a tray icon. Press a hotkey and go:
+
+| Keys | Description |
+| --- | --- |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>1</kbd> | Capture the full screen |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>2</kbd> | Capture a region |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>3</kbd> | Capture the active window |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> | Record a GIF (region) |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | Record video (region) |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd> | Copy the last capture again |
+| <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
+
+Every hotkey is editable in Settings → Hotkeys (applied to the system immediately), or on KDE in the Shortcuts KCM.
+
+The same actions work from the command line - a second invocation forwards the command to the running instance, which is exactly how compositor keybinds should call it:
+
+```sh
+unisic --fullscreen | --region | --window | --gif
+unisic --export-settings <file> | --import-settings <file>
+```
+
+On wlroots compositors (niri, Sway…) install `grim` for capture and bind the commands in your compositor config:
+
+```kdl
+binds {
+    Mod+Shift+S { spawn "unisic" "--region"; }
+    Print { spawn "unisic" "--fullscreen"; }
+}
+```
+
+Settings and upload destinations live in `~/.config/unisic/`, capture history in `~/.local/share/unisic/`. Filename tokens: `%date%` `%time%` `%datetime%` `%unix%` `%rand%`.
+
+## Features
+
+- **Capture** - full screen (all monitors), an interactive region with live dimensions, or the active window; configurable delay, optional cursor.
+- **Annotate before the shot** - the selection overlay is a canvas: arrows, shapes, text, blur and numbered steps on the frozen screen; Enter burns them into the crop.
+- **Post-capture editor** - opens automatically if you want it: 12 tools including highlight, pixelate, smart eraser and crop, with undo/redo and zoom.
+- **Object cutout** - lift the subject out of the shot and drop the background; optional U-2-Net (AI) for tricky edges; exports transparent PNG/WebP.
+- **Record GIF & video** - region, full screen or window → GIF, MP4 or WebM, with optional system and microphone audio. <kbd>Ctrl</kbd>+<kbd>Esc</kbd> always stops.
+- **Extract text & codes** - OCR any region to copy its text, or point it at a QR/barcode to copy the payload.
+- **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, 0x0.st, Imgur…); the link auto-copies.
+- **History** - every capture in a thumbnail grid; deleting moves the file to the trash.
+- **Tray, hotkeys & 9 themes** - quick-menu tray icon, fully rebindable global hotkeys, nine palettes including one that follows your system light/dark scheme and accent color.
+- **Languages** - English, Polish, Spanish and Italian; follows your system locale or pick one in Settings.
 
 ## Build from source
 
@@ -112,29 +142,11 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Per-distro dev packages and the optional features (recording / OCR / AI cutout) are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
-
-## Usage
-
-```sh
-unisic --fullscreen | --region | --window | --gif
-unisic --export-settings <file> | --import-settings <file>
-```
-
-No arguments = background start with tray + main window; a second invocation forwards its command to the running instance (that's how compositor keybinds work). Settings and destinations live in `~/.config/unisic/`, history in `~/.local/share/unisic/`. Filename tokens: `%date%` `%time%` `%datetime%` `%unix%` `%rand%`.
-
-On wlroots compositors (niri, Sway…) install `grim` for capture and bind keys in your compositor config — a running instance picks the command up:
-
-```kdl
-binds {
-    Mod+Shift+S { spawn "unisic" "--region"; }
-    Print { spawn "unisic" "--fullscreen"; }
-}
-```
+Per-distro dev packages and the optional features (recording / OCR / AI cutout) are listed in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 ## Privacy
 
-Unisic collects nothing. No telemetry, no crash reporting, no analytics, no account. The only network requests it makes are to `api.github.com` and `github.com` to check for a newer release — only the latest version tag is fetched, nothing about you is sent.
+Unisic collects nothing. No telemetry, no crash reporting, no analytics, no account. The only network requests it makes are to `api.github.com` and `github.com` to check for a newer release - only the latest version tag is fetched, nothing about you is sent.
 
 ## Contributing
 
@@ -142,11 +154,11 @@ Issues and pull requests welcome. Found a bug? [File an issue](https://github.co
 
 ## Development
 
-Unisic is developed with agentic AI assistance (see [`AGENTS.md`](AGENTS.md) for the contributor guide those agents follow). Every generated change is read line by line and reviewed by the maintainer before it lands — the tooling speeds things up, but nothing merges unread, so the codebase stays free of unreviewed machine output and its usual mistakes. Bug reports are still the best safety net: if something slipped through, please [file an issue](https://github.com/unisic/unisic/issues).
+Unisic is developed with agentic AI assistance (see [`AGENTS.md`](AGENTS.md) for the contributor guide those agents follow). Every generated change is read line by line and reviewed by the maintainer before it lands - the tooling speeds things up, but nothing merges unread, so the codebase stays free of unreviewed machine output and its usual mistakes. Bug reports are still the best safety net: if something slipped through, please [file an issue](https://github.com/unisic/unisic/issues).
 
 ## License
 
-**GNU GPL v3.** See [LICENSE](LICENSE). You are free to use, study, modify, and redistribute Unisic — including commercially — but any distributed derivative must also be released under GPL v3 with full source. This keeps the project and every fork of it open, forever.
+**GNU GPL v3.** See [LICENSE](LICENSE). You are free to use, study, modify, and redistribute Unisic - including commercially - but any distributed derivative must also be released under GPL v3 with full source. This keeps the project and every fork of it open, forever.
 
 ## Credits
 

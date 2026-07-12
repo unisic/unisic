@@ -284,15 +284,27 @@ Item {
                     }
                 }
             }
-            Timer { id: helpTipDelay; interval: 240; onTriggered: helpTipPopup.open() }
+            Timer { id: helpTipDelay; interval: 240; onTriggered: { helpTipPopup.updatePlacement(); helpTipPopup.open() } }
             Popup {
                 // Popup renders on the overlay layer, so the tooltip can never
                 // be buried under later rows/cards or clipped by the Flickable.
                 id: helpTipPopup
                 parent: helpBadge
+                // Flip above the badge when there isn't room below. Otherwise Qt
+                // shifts the popup up and OVER the badge near the window bottom;
+                // the popup then steals the hover, the badge's containsMouse goes
+                // false, the tip closes and immediately reopens — the flicker.
+                // Computed at open time so scrolling can't leave it stale.
+                property bool openAbove: false
+                function updatePlacement() {
+                    var winH = Overlay.overlay ? Overlay.overlay.height : 0
+                    var gy = helpBadge.mapToItem(Overlay.overlay, 0, 0).y
+                    openAbove = winH > 0
+                        && gy + helpBadge.height + 8 + implicitHeight + margins > winH
+                }
                 x: -(width / 2) + parent.width / 2
-                y: parent.height + 8
-                margins: 8 // clamp inside the window near edges
+                y: openAbove ? -(implicitHeight + 8) : parent.height + 8
+                margins: 8 // clamp horizontally inside the window near edges
                 width: Math.min(helpTipText.implicitWidth, 300) + leftPadding + rightPadding
                 closePolicy: Popup.NoAutoClose
                 padding: 12
@@ -719,6 +731,19 @@ Item {
                         }
                     }
                     SettingRow {
+                        available: App.buildNumber !== "dev"
+                        label: qsTr("Update channel")
+                        help: qsTr("Which releases to offer: stable only, or the newest including pre-releases.")
+                        helpDetail: qsTr("Beta fetches the most recent GitHub release even when it is marked a pre-release, so you get new features earlier at the cost of stability.")
+                        UComboBox {
+                            width: 160
+                            model: [qsTr("Stable"), qsTr("Beta")]
+                            readonly property var ids: ["stable", "beta"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.updateChannel))
+                            onActivated: (i) => App.settings.updateChannel = ids[i]
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Check now")
                         help: qsTr("Ask GitHub for the latest release immediately.")
                         UButton {
@@ -988,6 +1013,20 @@ Item {
                         help: qsTr("Frames per second for video recordings.")
                         helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
+                    }
+                    SettingRow {
+                        label: qsTr("Countdown before recording")
+                        help: qsTr("Waits this many seconds before recording starts, showing a 3-2-1 cue.")
+                        helpDetail: qsTr("Gives you a moment to switch windows or get ready. 0 starts immediately. Applies to GIF and video, region and full screen.")
+                        UValueCombo {
+                            width: 120
+                            values: [0, 1, 2, 3, 5, 10]
+                            from: 0; to: 10
+                            suffix: " s"
+                            tooltip: qsTr("0 = start immediately")
+                            value: App.settings.recordCountdownSec
+                            onChanged: (v) => App.settings.recordCountdownSec = v
+                        }
                     }
                 }
             }
@@ -1370,7 +1409,7 @@ Item {
                         width: parent.width
                         spacing: 4
                         Text {
-                            text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%")
+                            text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
@@ -1387,6 +1426,7 @@ Item {
                             text: {
                                 App.settings.filenameTemplate
                                 App.settings.imageFormat
+                                App.settings.filenameCounter
                                 return qsTr("Preview: %1").arg(App.filenamePreview())
                             }
                             color: Theme.accent
@@ -1399,6 +1439,24 @@ Item {
                         help: qsTr("Opens each capture in your image viewer after saving.")
                         helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
                         USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Ask where to save")
+                        help: qsTr("Prompts for a location for each capture instead of saving straight to the folder.")
+                        helpDetail: qsTr("Requires saving to be enabled. Cancelling the dialog skips the save — the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
+                        USwitch { checked: App.settings.askWhereToSave; onToggled: (c) => App.settings.askWhereToSave = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Date subfolders")
+                        help: qsTr("Organises saved screenshots into per-month subfolders (yyyy-MM).")
+                        helpDetail: qsTr("Keeps a busy screenshots folder tidy. The subfolder is created under the screenshots folder above. Recordings are unaffected.")
+                        USwitch { checked: App.settings.dateSubfolders; onToggled: (c) => App.settings.dateSubfolders = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Strip image metadata")
+                        help: qsTr("Removes text, DPI and description metadata from saved files.")
+                        helpDetail: qsTr("Captures normally carry no metadata; this guarantees a clean PNG/JPEG/WebP even when the editor or a loaded source added some.")
+                        USwitch { checked: App.settings.stripMetadata; onToggled: (c) => App.settings.stripMetadata = c }
                     }
                 }
             }
@@ -1536,6 +1594,10 @@ Item {
                                     if (sid === "beep") return qsTr("Beep")
                                     if (sid === "ding") return qsTr("Ding")
                                     if (sid === "pop") return qsTr("Pop")
+                                    if (sid === "chime") return qsTr("Chime")
+                                    if (sid === "blip") return qsTr("Blip")
+                                    if (sid === "snap") return qsTr("Snap")
+                                    if (sid === "knock") return qsTr("Knock")
                                     return sid
                                 }
                                 model: ids.map(labelFor)
@@ -1603,6 +1665,57 @@ Item {
                                     }
                                 }
                             }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Recording start sound")
+                        help: qsTr("Plays a short sound the moment recording begins (after the countdown).")
+                        helpDetail: qsTr("Separate from the finished-recording cue: this fires when capture actually starts. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                id: recStartSoundCombo
+                                width: 160
+                                anchors.verticalCenter: parent.verticalCenter
+                                property var ids: App.captureSoundIds()
+                                model: ids.map(soundCombo.labelFor)
+                                currentIndex: Math.max(0, ids.indexOf(App.settings.recordStartSound))
+                                onActivated: (i) => App.settings.recordStartSound = ids[i]
+                            }
+                            UIconButton {
+                                iconName: "play"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Preview")
+                                enabled: App.settings.recordStartSound !== "off"
+                                onClicked: App.previewRecordStartSound()
+                            }
+                            UIconButton {
+                                iconName: "list-add"; iconSize: 15
+                                width: 34; height: 34
+                                anchors.verticalCenter: parent.verticalCenter
+                                tooltip: qsTr("Add custom sound")
+                                onClicked: {
+                                    var id = App.addCustomSound()
+                                    if (id !== "") {
+                                        App.settings.recordStartSound = id
+                                        soundCombo.ids = App.captureSoundIds()
+                                        recSoundCombo.ids = App.captureSoundIds()
+                                        recStartSoundCombo.ids = App.captureSoundIds()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Sound volume: %1 %").arg(App.settings.soundVolume)
+                        help: qsTr("Playback volume for the capture and recording sound cues.")
+                        helpDetail: qsTr("0 is muted. Applied via the player (pw-play/paplay); aplay has no volume flag and plays at the sample level.")
+                        USlider {
+                            width: 200
+                            from: 0; to: 100
+                            value: App.settings.soundVolume
+                            onMoved: (v) => App.settings.soundVolume = Math.round(v)
                         }
                     }
                 }
@@ -2049,6 +2162,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Record start sound"); onClicked: App.devTestRecordStartSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trash sound"); onClicked: App.devTestTrashSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
@@ -2059,6 +2173,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Record countdown"); onClicked: App.devTestCountdown() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Toggle autostart"); onClicked: App.autostartEnabled = !App.autostartEnabled }
                     }
                 }
             }

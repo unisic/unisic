@@ -4,11 +4,13 @@
 #include <QFontMetrics>
 #include <QGuiApplication>
 #include <QPainter>
+#include <QPen>
 #include <QRasterWindow>
 #include <QScreen>
 #include <QSocketNotifier>
 #include <QTimer>
 #include <cmath>
+#include <cstdlib>
 #include <unistd.h>
 
 namespace {
@@ -20,8 +22,8 @@ namespace {
 class BorderWindow : public QRasterWindow
 {
 public:
-    BorderWindow(const QRect &region, const QColor &accent)
-        : m_region(region), m_accent(accent)
+    BorderWindow(const QRect &region, const QColor &accent, int countdown)
+        : m_region(region), m_accent(accent), m_countdown(countdown)
     {
         setFlags(Qt::BypassWindowManagerHint | Qt::FramelessWindowHint
                  | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus
@@ -29,13 +31,26 @@ public:
         QSurfaceFormat fmt = format();
         fmt.setAlphaBufferSize(8); // ARGB visual — translucency needs it on X11
         setFormat(fmt);
-        m_clock.start();
+        // With a pre-recording countdown the frame is up but recording has NOT
+        // begun — the REC clock must not start until the countdown hits 0.
+        if (m_countdown == 0)
+            m_clock.start();
         auto *tick = new QTimer(this);
         connect(tick, &QTimer::timeout, this, [this] {
             m_pulse = !m_pulse;
             update();
         });
         tick->start(500);
+    }
+
+    // Parent feeds countdown updates over stdin ("c<N>\n"). 0 = recording has
+    // begun: drop the number, start the REC clock from zero.
+    void setCountdown(int n)
+    {
+        if (n == 0 && m_countdown > 0)
+            m_clock.start();
+        m_countdown = n;
+        update();
     }
 
 protected:
@@ -59,6 +74,24 @@ protected:
         ring(bw + 1, bw, contrast); // outer contrast line
         ring(bw, 1, m_accent);      // accent frame (inner edge on the region)
         ring(1, 0, contrast);       // inner contrast line
+
+        // Pre-recording countdown: a big accent number centered in the region,
+        // no REC badge yet. Mirrors RecordBorder.qml's countdown item.
+        if (m_countdown > 0) {
+            p.setRenderHint(QPainter::Antialiasing);
+            const int d = int(qMin(r.width(), r.height()) * 0.42);
+            const QRect circle(r.center().x() - d / 2, r.center().y() - d / 2, d, d);
+            p.setPen(QPen(m_accent, 2));
+            p.setBrush(QColor(0, 0, 0, 140));
+            p.drawEllipse(circle);
+            QFont nf = p.font();
+            nf.setPixelSize(qMax(24, int(qMin(r.width(), r.height()) * 0.26)));
+            nf.setBold(true);
+            p.setFont(nf);
+            p.setPen(m_accent);
+            p.drawText(r, Qt::AlignCenter, QString::number(m_countdown));
+            return;
+        }
 
         // Badge — above the region if there is room, else below, else hidden.
         QFont f = p.font();
@@ -90,6 +123,8 @@ protected:
 private:
     QString elapsedText() const
     {
+        if (!m_clock.isValid())
+            return QStringLiteral("00:00"); // countdown still running
         const qint64 s = m_clock.elapsed() / 1000;
         const qint64 h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
         const auto pad = [](qint64 v) {
@@ -103,6 +138,7 @@ private:
     QColor m_accent;
     QElapsedTimer m_clock;
     bool m_pulse = true;
+    int m_countdown = 0; // >0 = pre-recording countdown number to show
 };
 
 } // namespace
@@ -138,6 +174,9 @@ int runRecordBorderHelper(int argc, char *argv[])
     QColor accent(args[i + 12]);
     if (!accent.isValid())
         accent = QColor(QStringLiteral("#C8ACD6"));
+    // Optional 14th arg: initial pre-recording countdown (0 = none). Further
+    // updates arrive over stdin as "c<N>\n".
+    const int countdown = (i + 13 < args.size()) ? args[i + 13].toInt() : 0;
 
     // Match the Wayland screen to an X screen. XWayland's RandR outputs often
     // carry synthetic names (XWAYLAND0…) under mutter, so fall through name →
@@ -177,17 +216,29 @@ int runRecordBorderHelper(int argc, char *argv[])
 
     BorderWindow win(QRect(QPoint(x0 - sg.x(), y0 - sg.y()),
                            QSize(x1 - x0, y1 - y0)),
-                     accent);
+                     accent, countdown);
     win.setGeometry(sg); // fill the monitor; override-redirect maps it as-is
     win.show();
 
-    // Lifetime is the parent's stdin pipe: hideRecordBorder() closes it (or the
-    // parent dies) → EOF → quit. No signals, no D-Bus, no polling.
+    // stdin carries both the countdown ("c<N>\n") and the lifetime signal:
+    // hideRecordBorder() closes it (or the parent dies) → EOF → quit. No
+    // signals, no D-Bus, no polling.
     QSocketNotifier stdinWatch(0, QSocketNotifier::Read);
-    QObject::connect(&stdinWatch, &QSocketNotifier::activated, &app, [&app] {
+    QObject::connect(&stdinWatch, &QSocketNotifier::activated, &app, [&app, &win] {
         char buf[64];
-        if (::read(0, buf, sizeof buf) <= 0)
+        const ssize_t n = ::read(0, buf, sizeof buf - 1);
+        if (n <= 0) {
             app.quit();
+            return;
+        }
+        buf[n] = '\0';
+        // Apply the last "c<N>" in the chunk (ticks can batch into one read).
+        const char *last = nullptr;
+        for (const char *c = buf; *c; ++c)
+            if (*c == 'c')
+                last = c;
+        if (last)
+            win.setCountdown(std::atoi(last + 1));
     });
 
     return app.exec();

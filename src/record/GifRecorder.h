@@ -33,12 +33,23 @@ public:
 
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
     // For Window source the portal picks the window; crop is ignored.
+    // holdForCommit: negotiate the portal immediately (so the GNOME share dialog
+    // is resolved first), then emit armed() when the stream is live and WAIT —
+    // encoding does not begin until commit() is called. The caller runs the
+    // countdown / start cue in between, so nothing (no countdown number, no start
+    // sound) lands in the recording.
     void start(Output output, SourceType source = Screen, const QRect &cropPhysical = {},
-               QScreen *screen = nullptr);
+               QScreen *screen = nullptr, bool holdForCommit = false);
+    // Release a holdForCommit start: begin encoding now. No-op unless armed.
+    void commit();
     void stop();     // finalize -> converting -> finished()
     void abort();    // discard everything
 
 signals:
+    // Portal sharing approved and the stream is live, but encoding is HELD until
+    // commit(). The UI runs the countdown / start cue on this, so the share
+    // dialog is resolved BEFORE the countdown and nothing leaks into the file.
+    void armed();
     void started();
     void converting();
     void finished(const QString &filePath);
@@ -62,6 +73,10 @@ private:
     void fail(const QString &msg);
 
     Settings *m_settings;
+    bool m_holdForCommit = false; // wait for commit() before encoding
+    bool m_armed = false;         // stream live, waiting for commit()
+    bool m_committed = false;     // commit() received; encoding may proceed
+    QSize m_heldStreamSize;       // stream size stashed while holding
     bool m_probeWarmed = false; // ffmpeg encoder probe kicked off once
     bool m_orphansSwept = false; // stale-temp sweep runs once, on first start()
     QFutureWatcher<void> m_probeWatcher; // gates beginEncoding until the probe warms

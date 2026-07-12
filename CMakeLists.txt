@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.6.4 LANGUAGES CXX)
+project(unisic VERSION 0.7.0 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.6.4")
+set(UNISIC_VERSION_STRING "0.7b")
 
 include(GNUInstallDirs)
 
@@ -207,6 +207,7 @@ qt_add_qml_module(unisic
         qml/components/UValueCombo.qml
         qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
+        qml/components/UShortcutsHelp.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
         qml/components/SidebarItem.qml

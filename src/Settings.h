@@ -54,6 +54,7 @@ class Settings : public QObject
     Q_PROPERTY(QString editorStrokeColor READ editorStrokeColor WRITE setEditorStrokeColor NOTIFY editorStrokeColorChanged)
     Q_PROPERTY(int editorStrokeWidth READ editorStrokeWidth WRITE setEditorStrokeWidth NOTIFY editorStrokeWidthChanged)
     Q_PROPERTY(int editorFontSize READ editorFontSize WRITE setEditorFontSize NOTIFY editorFontSizeChanged)
+    Q_PROPERTY(int editorStepSize READ editorStepSize WRITE setEditorStepSize NOTIFY editorStepSizeChanged)
     Q_PROPERTY(QString editorFillColor READ editorFillColor WRITE setEditorFillColor NOTIFY editorFillColorChanged)
     Q_PROPERTY(bool editorFillEnabled READ editorFillEnabled WRITE setEditorFillEnabled NOTIFY editorFillEnabledChanged)
     Q_PROPERTY(QString editorFontFamily READ editorFontFamily WRITE setEditorFontFamily NOTIFY editorFontFamilyChanged)
@@ -273,6 +274,7 @@ public:
     U_SETTING(QString, editorStrokeColor, setEditorStrokeColor, "editor/strokeColor", QStringLiteral("#FF4757"))
     U_SETTING(int, editorStrokeWidth, setEditorStrokeWidth, "editor/strokeWidth", 4)
     U_SETTING(int, editorFontSize, setEditorFontSize, "editor/fontSize", 22)
+    U_SETTING(int, editorStepSize, setEditorStepSize, "editor/stepSize", 22)
     U_SETTING(QString, editorFillColor, setEditorFillColor, "editor/fillColor", QStringLiteral("#66C8ACD6"))
     U_SETTING(bool, editorFillEnabled, setEditorFillEnabled, "editor/fillEnabled", false)
     // Text-tool styling defaults (empty family = default UI font).
@@ -366,6 +368,7 @@ public:
         emit showNotificationsChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
+        emit editorStepSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
         emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
         emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
@@ -417,6 +420,7 @@ signals:
     void editorStrokeColorChanged();
     void editorStrokeWidthChanged();
     void editorFontSizeChanged();
+    void editorStepSizeChanged();
     void editorFillColorChanged();
     void editorFillEnabledChanged();
     void editorFontFamilyChanged();

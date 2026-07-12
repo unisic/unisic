@@ -253,6 +253,7 @@ Window {
                 strokeColor = App.settings.editorStrokeColor
                 strokeWidth = App.settings.editorStrokeWidth
                 fontSize = App.settings.editorFontSize
+                stepSize = App.settings.editorStepSize
                 shapeFillColor = App.settings.editorFillColor
                 shapeFillEnabled = App.settings.editorFillEnabled
                 fontFamily = App.settings.editorFontFamily
@@ -273,6 +274,7 @@ Window {
             onStrokeColorChanged: if (!strokeColorIsAuto && persistColors) App.settings.editorStrokeColor = String(strokeColor)
             onStrokeWidthChanged: if (persistTools) App.settings.editorStrokeWidth = strokeWidth
             onFontSizeChanged: if (persistTools) App.settings.editorFontSize = fontSize
+            onStepSizeChanged: if (persistTools) App.settings.editorStepSize = stepSize
             onShapeFillColorChanged: if (persistColors) App.settings.editorFillColor = shapeFillColor
             onShapeFillEnabledChanged: if (persistTools) App.settings.editorFillEnabled = shapeFillEnabled
             onFontFamilyChanged: if (persistTools) App.settings.editorFontFamily = fontFamily

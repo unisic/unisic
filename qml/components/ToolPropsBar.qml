@@ -86,6 +86,33 @@ Row {
         anchors.verticalCenter: parent.verticalCenter
     }
 
+    // ---- step marker size ----
+    Rectangle {
+        visible: root.has("stepSize") && root.has("stroke")
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+    }
+    Column {
+        visible: root.has("stepSize")
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 2
+        Text {
+            text: qsTr("Size")
+            color: Theme.textTertiary
+            font.pixelSize: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+        }
+        UValueCombo {
+            width: 86
+            implicitHeight: 28
+            values: [16, 18, 20, 22, 26, 32, 40, 48, 56, 64, 80, 96]
+            from: 16; to: 128
+            suffix: " px"
+            value: root.canvas.stepSize
+            onChanged: (v) => root.canvas.stepSize = v
+        }
+    }
+
     // ---- shape fill ----
     ToolChip {
         visible: root.has("fill")

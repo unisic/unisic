@@ -41,6 +41,9 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool shapeFillEnabled READ shapeFillEnabled WRITE setShapeFillEnabled NOTIFY shapeFillEnabledChanged)
     Q_PROPERTY(int strokeWidth READ strokeWidth WRITE setStrokeWidth NOTIFY strokeWidthChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
+    // Step-marker badge size (px, decoupled from the text fontSize — the
+    // circle radius is max(14, stepSize*0.9)).
+    Q_PROPERTY(int stepSize READ stepSize WRITE setStepSize NOTIFY stepSizeChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -134,6 +137,8 @@ public:
     void setStrokeWidth(int w);
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
+    int stepSize() const { return m_stepSize; }
+    void setStepSize(int s);
     QString fontFamily() const { return m_fontFamily; }
     void setFontFamily(const QString &f);
     bool fontBold() const { return m_fontBold; }
@@ -248,6 +253,7 @@ signals:
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
     void fontSizeChanged();
+    void stepSizeChanged();
     void fontFamilyChanged();
     void fontBoldChanged();
     void fontItalicChanged();
@@ -304,6 +310,7 @@ private:
         bool textBg = false;        // rounded box behind the text
         QColor textBgColor = QColor(0, 0, 0, 179);
         int number = 0;             // step marker
+        int stepSize = 22;          // step marker badge size (independent of fontSize)
         // Blur/Pixelate patch cache: recomputing the smooth down/up-scale of the
         // base region on EVERY repaint (i.e. every drag mouse-move) burned
         // milliseconds per patch for byte-identical output. Keyed on the base's
@@ -418,6 +425,7 @@ private:
     bool m_textBackground = false;
     QColor m_textBgColor = QColor(0, 0, 0, 179);
     int m_stepCounter = 0;
+    int m_stepSize = 22;
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting

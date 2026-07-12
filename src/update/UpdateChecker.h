@@ -18,8 +18,7 @@ class QTimer;
 //    bootstrap in main() exec that copy on the next start. The package binary
 //    becomes a bootstrap until the distro package catches up, then the staging
 //    area is cleaned. No root, no package manager involved.
-// Flatpak stays notify-only (the sandbox can't replace itself). Owned by
-// AppContext, reached from QML as App.updater.
+// Owned by AppContext, reached from QML as App.updater.
 class UpdateChecker : public QObject
 {
     Q_OBJECT
@@ -35,7 +34,7 @@ class UpdateChecker : public QObject
     Q_PROPERTY(qreal downloadProgress READ downloadProgress NOTIFY stateChanged)
     // The new file is in place; only a restart is left.
     Q_PROPERTY(bool restartPending READ restartPending NOTIFY stateChanged)
-    // "appimage" | "flatpak" | "system" — which update affordance the UI shows.
+    // "appimage" | "system" — which update affordance the UI shows.
     Q_PROPERTY(QString installKind READ installKind CONSTANT)
     // Running from an AppImage whose file (and directory) we can replace.
     Q_PROPERTY(bool canSelfUpdate READ canSelfUpdate CONSTANT)

@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.6.1 LANGUAGES CXX)
+project(unisic VERSION 0.6.2 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.6.1")
+set(UNISIC_VERSION_STRING "0.6.2")
 
 include(GNUInstallDirs)
 
@@ -138,7 +138,7 @@ else()
 endif()
 
 # NOTE: no packaging channel installs onnxruntime (neither the COPR spec's
-# BuildRequires, nor the deb/rpm/arch/appimage/flatpak CI jobs), so HAVE_ONNX
+# BuildRequires, nor the deb/rpm/arch/appimage CI jobs), so HAVE_ONNX
 # is OFF in every shipped build — U-2-Net background removal is dev-only and the
 # app falls back to the dependency-free heuristic segmenter. This is deliberate:
 # enabling it means adding onnxruntime to the spec + all packaging deps.

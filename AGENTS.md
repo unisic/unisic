@@ -59,7 +59,7 @@ cmake --build build
 - **Do not add a new library** — Qt module, system `.so`, or bundled source — without a strong justification and maintainer sign-off. Prefer shelling out to an already-required helper, or a small self-contained implementation, over a new link-time dependency.
 - **Do not pull in Kirigami, Breeze, KDE Frameworks, Boost, or any heavy framework.** The UI is deliberately hand-built on Qt Quick Basic style. `QQuickStyle::setStyle("Basic")` is set in `main.cpp` for exactly this reason.
 - New optional features that need a heavy dep must follow the `HAVE_PIPEWIRE`/`HAVE_TESSERACT` compile-time-guard pattern so the default build stays lean.
-- Keep `CPACK_STRIP_FILES` working; don't add anything that bloats the shipped binary or the Debian/RPM/Arch/Flatpak/AppImage runtime dep lists in `CMakeLists.txt` / `packaging/` / `org.unisic.Unisic.yml` without updating them.
+- Keep `CPACK_STRIP_FILES` working; don't add anything that bloats the shipped binary or the Debian/RPM/Arch/AppImage runtime dep lists in `CMakeLists.txt` / `packaging/` without updating them.
 
 ---
 
@@ -106,7 +106,7 @@ qml/
                         USpinBox, UShortcutRecorder, SidebarItem, ToolChip, ColorDot, MiddleScroll
 
 resources/icons/sym/   Bundled monochrome SVGs recolored by IconImageProvider.
-packaging/             Arch PKGBUILD (+ Debian/RPM via CPack in CMakeLists, Flatpak yml at root).
+packaging/             Arch PKGBUILD (+ Debian/RPM via CPack in CMakeLists).
 .github/               release.yml workflow, issue templates.
 ```
 
@@ -240,7 +240,7 @@ Never report "done" for an untested runtime change. If you couldn't run it, stat
 - **Branch off `main`; don't commit or push unless the human asks.** Never force-push shared branches.
 - **One logical change per PR.** Keep it reviewable.
 - **PR description checklist** (see §12) — state what you tested and on which compositor.
-- The GitHub release pipeline is `.github/workflows/release.yml`; packaging metadata lives in `CMakeLists.txt` (CPack), `packaging/arch/PKGBUILD`, and `org.unisic.Unisic.yml` (Flatpak). If a change affects runtime deps or installed files, update all relevant ones.
+- The GitHub release pipeline is `.github/workflows/release.yml`; packaging metadata lives in `CMakeLists.txt` (CPack) and `packaging/arch/PKGBUILD`. If a change affects runtime deps or installed files, update all relevant ones.
 
 ---
 

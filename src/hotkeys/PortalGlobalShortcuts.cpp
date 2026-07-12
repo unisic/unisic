@@ -106,8 +106,6 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
 
 void PortalGlobalShortcuts::registerAppId()
 {
-    if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
-        return; // sandboxed: identity comes from the sandbox metadata
     // Must be the FIRST portal call on m_bus — the portal resolves and pins
     // the sender's identity at its first portal interaction, and Register on
     // an already-pinned connection fails. In-order dispatch (the Register

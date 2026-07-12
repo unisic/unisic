@@ -1,6 +1,7 @@
 #include "ThemeController.h"
 #include <QEvent>
 #include <QGuiApplication>
+#include <QStandardPaths>
 #include <QStyleHints>
 #include <QPalette>
 
@@ -96,3 +97,37 @@ QColor ThemeController::sysMidText() const
 }
 QColor ThemeController::sysAccent() const { return qApp->palette().color(QPalette::Active, QPalette::Highlight); }
 QColor ThemeController::sysAccentText() const { return qApp->palette().color(QPalette::Active, QPalette::HighlightedText); }
+QColor ThemeController::sysTooltipBase() const { return qApp->palette().color(QPalette::Active, QPalette::ToolTipBase); }
+QColor ThemeController::sysTooltipText() const { return qApp->palette().color(QPalette::Active, QPalette::ToolTipText); }
+
+// QPalette carries no positive/negative/hover-decoration roles; on KDE they
+// live in kdeglobals (the same file plasma-integration builds the palette
+// from), stored as "r,g,b[,a]". Alpha-0 sentinel when absent — Theme.qml then
+// keeps its theme-neutral defaults. Read per call: values are only pulled on
+// a rev bump, and the palette-change event that triggers the bump fires after
+// Plasma rewrites the file, so a fresh QSettings sees the new scheme.
+static QColor kdeGlobalsColor(const char *group, const char *key)
+{
+    static const QString path =
+        QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+        + QStringLiteral("/kdeglobals");
+    const QStringList desktops =
+        qEnvironmentVariable("XDG_CURRENT_DESKTOP").split(QLatin1Char(':'), Qt::SkipEmptyParts);
+    if (!desktops.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
+        return QColor(0, 0, 0, 0); // stale kdeglobals on a non-KDE desktop must not win
+    QSettings kdeglobals(path, QSettings::IniFormat);
+    kdeglobals.beginGroup(QString::fromLatin1(group));
+    // QSettings' INI parser already splits a comma-separated value ("39,174,96")
+    // into a QStringList — reading it back through toString() yields "" for a
+    // multi-item list, so pull the list directly (a single uncommaed value still
+    // arrives as a one-element list, caught by the size guard below).
+    const QStringList parts = kdeglobals.value(QString::fromLatin1(key)).toStringList();
+    if (parts.size() < 3)
+        return QColor(0, 0, 0, 0);
+    return QColor(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(),
+                  parts.size() > 3 ? parts[3].toInt() : 255);
+}
+
+QColor ThemeController::sysPositive() const { return kdeGlobalsColor("Colors:View", "ForegroundPositive"); }
+QColor ThemeController::sysNegative() const { return kdeGlobalsColor("Colors:View", "ForegroundNegative"); }
+QColor ThemeController::sysHover() const { return kdeGlobalsColor("Colors:Button", "DecorationHover"); }

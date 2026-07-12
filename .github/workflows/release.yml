@@ -378,41 +378,6 @@ jobs:
             dist/*.zsync
           if-no-files-found: error
 
-  flatpak:
-    name: Flatpak
-    needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
-      options: --privileged
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Inject build number into manifest
-        # flatpak-builder runs module builds in a cleaned bwrap sandbox — the
-        # workflow-level UNISIC_BUILD_NUMBER env var is NOT inherited there,
-        # so patch it into the unisic module's build-options env (the manifest
-        # ships an empty placeholder). The manifest also pins
-        # -DUNISIC_DEV_BUILD=OFF, so this only affects the footer build label.
-        run: |
-          sed -i "s/UNISIC_BUILD_NUMBER: \"\"/UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"/" app.unisic.Unisic.yml
-          grep -q "UNISIC_BUILD_NUMBER: \"${UNISIC_BUILD_NUMBER}\"" app.unisic.Unisic.yml \
-            || { echo "::error::failed to inject UNISIC_BUILD_NUMBER into the flatpak manifest"; exit 1; }
-
-      - name: Build Flatpak bundle
-        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: app.unisic.Unisic.yml
-          bundle: unisic.flatpak
-          upload-artifact: false
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-flatpak
-          path: unisic.flatpak
-          if-no-files-found: error
-
   release:
     name: GitHub Release
     needs:
@@ -421,7 +386,6 @@ jobs:
       - rpm
       - arch
       - appimage
-      - flatpak
     if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     env:
@@ -433,8 +397,15 @@ jobs:
           # release and find the last clean semver tag.
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      # Only the AppImage is attached to the GitHub release: deb/rpm/arch/
+      # openSUSE all ship through the OBS repo (home:unisic), so publishing
+      # those packages here too would just duplicate the repo channel. The
+      # deb/rpm/arch jobs still run and gate the release (their workflow
+      # artifacts stay downloadable from the Actions run for debugging).
+      - name: Download the AppImage
+        uses: actions/download-artifact@v4
         with:
+          name: unisic-appimage
           path: dist
 
       - name: Generate changelog

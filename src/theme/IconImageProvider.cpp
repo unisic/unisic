@@ -38,6 +38,27 @@ static QPixmap tintPixmap(QPixmap pm, const QColor &color)
     return QPixmap::fromImage(img);
 }
 
+// Whether a glyph survives a SourceIn flatten. Line-style/symbolic icons
+// cover a small fraction of their canvas with opaque pixels; icons drawn
+// with a FILLED body (Breeze camera-photo, monitor, …) cover most of it —
+// flattening those to one colour yields a featureless "white square" (the
+// classic bug on the System theme). Threshold picked with margin: symbolic
+// glyphs measure ~0.10-0.35 coverage, filled-body icons ~0.6+.
+static bool tintable(const QPixmap &pm)
+{
+    if (pm.isNull())
+        return false;
+    const QImage img = pm.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    qint64 opaque = 0;
+    for (int y = 0; y < img.height(); ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x)
+            opaque += qAlpha(line[x]) > 100 ? 1 : 0;
+    }
+    const qint64 total = qint64(img.width()) * img.height();
+    return total > 0 && opaque < total * 0.55;
+}
+
 QPixmap IconImageProvider::tintedBundled(const QString &name, const QColor &color, const QSize &size) const
 {
     const QString path = QStringLiteral(":/resources/icons/sym/%1.svg").arg(name);
@@ -105,8 +126,21 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
             // fromTheme pixmap follows the SYSTEM scheme and clashes with (or
             // vanishes on) a custom app theme. On the actual "system" theme the
             // colour IS the system text colour, so this is a no-op there.
-            QPixmap pm = tintPixmap(icon.pixmap(target), color);
-            if (!pm.isNull()) {
+            // ONLY for glyphs that survive a flatten, though — a filled-body
+            // icon turns into a solid square; prefer the bundled symbolic
+            // glyph for those (untinted native pixmap as the very last word).
+            QPixmap raw = icon.pixmap(target);
+            if (tintable(raw)) {
+                QPixmap pm = tintPixmap(raw, color);
+                if (!pm.isNull()) {
+                    if (size) *size = pm.size();
+                    m_cache.insert(cacheKey, pm);
+                    return pm;
+                }
+            } else {
+                QPixmap pm = tintedBundled(name, color.isValid() ? color : tc->sysText(), target);
+                if (pm.isNull())
+                    pm = raw; // no bundled twin — better native colours than a blob
                 if (size) *size = pm.size();
                 m_cache.insert(cacheKey, pm);
                 return pm;
@@ -124,9 +158,11 @@ QPixmap IconImageProvider::requestPixmap(const QString &id, QSize *size, const Q
 
     QPixmap pm = tintedBundled(name, color, target);
     if (pm.isNull()) {
-        // last resort: still try the desktop theme, tinted to the app colour.
+        // last resort: still try the desktop theme, tinted to the app colour
+        // (flatten only when the glyph survives it — see above).
         QIcon icon = QIcon::fromTheme(name);
-        pm = tintPixmap(icon.pixmap(target), color);
+        QPixmap raw = icon.pixmap(target);
+        pm = tintable(raw) ? tintPixmap(raw, color) : raw;
     }
     if (size) *size = pm.isNull() ? target : pm.size();
     m_cache.insert(cacheKey, pm);

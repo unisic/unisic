@@ -17,8 +17,8 @@
 #include <cstring>
 #include <unistd.h>
 
-// The ffmpeg found in PATH varies: the Flatpak KDE runtime ships one without
-// GPL x264. Probe the available video encoders once so both the lossless
+// The ffmpeg found in PATH varies: some builds ship one without GPL
+// x264. Probe the available video encoders once so both the lossless
 // intermediate and the MP4 output can pick a working fallback. An empty set
 // means the probe itself failed (no ffmpeg) — callers keep their preferred
 // encoder and the existing "ffmpeg could not be started" path reports it.
@@ -273,7 +273,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
     QDir().mkpath(m_settings->videoSaveDirectory());
     // Lossless intermediate goes to disk-backed XDG cache, NOT TempLocation:
-    // /tmp is tmpfs on Fedora and in Flatpak, and minutes of lossless 4K would
+    // /tmp is tmpfs on Fedora, and minutes of lossless 4K would
     // exhaust RAM (max duration defaults to unlimited) and lose the recording
     // when ffmpeg's write hits ENOSPC.
     const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -321,8 +321,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
-    // x264, else utvideo (fast intra-only RGB), else FFV1 — both ship in the
-    // Flatpak KDE runtime's ffmpeg.
+    // x264, else utvideo (fast intra-only RGB), else FFV1 — fallbacks for an
+    // ffmpeg built without GPL x264.
     const QSet<QString> &encoders = ffmpegEncoders();
     if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
@@ -668,7 +668,7 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else {
-        // No GPL x264 (Flatpak KDE runtime): OpenH264. It has no CRF mode, so
+        // No GPL x264: OpenH264. It has no CRF mode, so
         // approximate the quality setting with a bitrate.
         const int mbps = qBound(2, (51 - crf) / 3, 16);
         args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")

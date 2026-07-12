@@ -797,11 +797,9 @@ Item {
                             wrapMode: Text.WordWrap
                             text: App.buildNumber === "dev"
                                   ? qsTr("Self-update is disabled in dev builds.")
-                                  : App.updater.installKind === "flatpak"
-                                    ? qsTr("The Flatpak sandbox can't replace the app from inside — install the new bundle.")
-                                    : App.updater.installKind === "appimage"
-                                      ? qsTr("The AppImage location is read-only — it can't update itself from here.")
-                                      : qsTr("This install updates natively through your package manager (the package set up its repository).")
+                                  : App.updater.installKind === "appimage"
+                                    ? qsTr("The AppImage location is read-only — it can't update itself from here.")
+                                    : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }

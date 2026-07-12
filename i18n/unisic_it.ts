@@ -2099,11 +2099,6 @@ Le catture con stella (preferite) vengono conservate, sia la voce che il file.</
         <translation>Riavvia ora</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="798"/>
-        <source>The Flatpak sandbox can&apos;t replace the app from inside — install the new bundle.</source>
-        <translation>La sandbox di Flatpak non può sostituire l&apos;app dall&apos;interno — installa il nuovo pacchetto.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="800"/>
         <source>The AppImage location is read-only — it can&apos;t update itself from here.</source>
         <translation>La posizione dell&apos;AppImage è di sola lettura — non può aggiornarsi da qui.</translation>

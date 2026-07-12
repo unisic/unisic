@@ -95,6 +95,7 @@ QtObject {
             dangerText: d.dangerText !== undefined ? d.dangerText : (d.isDark ? "#2B0E14" : "#FFFFFF"),
             tooltipBg: d.tooltipBg !== undefined ? d.tooltipBg
                        : (d.isDark ? Qt.rgba(0, 0, 0, 0.85) : Qt.rgba(30/255, 27/255, 45/255, 0.92)),
+            tooltipText: d.tooltipText !== undefined ? d.tooltipText : "#FFFFFF",
             thumbTop: d.thumbTop !== undefined ? d.thumbTop : "#FFFFFF",
             thumbBottom: d.thumbBottom !== undefined ? d.thumbBottom : "#DDD6EC",
             isDark: d.isDark,
@@ -103,25 +104,50 @@ QtObject {
         }
     }
 
+    // Opaque blend: f of c2 over c1.
+    function _mix(c1, c2, f) {
+        c1 = Qt.color(c1); c2 = Qt.color(c2)
+        return Qt.rgba(c1.r + (c2.r - c1.r) * f,
+                       c1.g + (c2.g - c1.g) * f,
+                       c1.b + (c2.b - c1.b) * f, 1)
+    }
+
+    // "System": the real desktop colorscheme, mapped by ROLE so a KDE session
+    // looks like a native KDE app. Window -> app/panel background, Button ->
+    // cards (what Kirigami's Card color resolves to in Breeze: #FCFCFC on
+    // #EFF0F1 light, #31363B on #2A2E32 dark), Highlight -> accent, tooltip
+    // roles -> tooltips. KDE's semantic positive/negative and the hover
+    // decoration come from kdeglobals (alpha-0 = absent -> keep defaults, see
+    // ThemeController). Hover/active fills (tertiary) are a subtle blend of
+    // the hover decoration over the window bg, not the raw accent.
     function _system() {
         var dark = ThemeController.systemDark
         var win = ThemeController.sysWindow
-        var base = ThemeController.sysBase
+        var btn = ThemeController.sysButton
         var txt = ThemeController.sysText
         var acc = ThemeController.sysAccent
         var accTxt = ThemeController.sysAccentText
+        var hover = ThemeController.sysHover
+        var pos = ThemeController.sysPositive
+        var neg = ThemeController.sysNegative
+        var tip = ThemeController.sysTooltipBase
+        var hoverC = hover.a > 0 ? hover : acc
         return _expand({
             primary: win,
-            secondary: Qt.darker(win, dark ? 1.12 : 1.03),
-            tertiary: acc,
+            secondary: btn,
+            tertiary: _mix(win, hoverC, 0.32),
             accent: acc,
             bg: win,
             backgroundDeep: Qt.darker(win, 1.12),
-            surface: dark ? Qt.lighter(win, 1.28) : base,
-            surfaceHi: dark ? Qt.lighter(win, 1.5) : Qt.darker(base, 1.05),
+            surface: btn,
+            surfaceHi: dark ? Qt.lighter(btn, 1.18) : Qt.darker(btn, 1.045),
             text: txt,
             textOnAccent: accTxt,
             divider: _mixA(Qt.color(txt), 0.14),
+            success: pos.a > 0 ? pos : undefined,
+            danger: neg.a > 0 ? neg : undefined,
+            tooltipBg: _mixA(Qt.color(tip), 0.95),
+            tooltipText: ThemeController.sysTooltipText,
             isDark: dark
         })
     }
@@ -159,6 +185,7 @@ QtObject {
     readonly property bool  isDark:     pal.isDark
     readonly property color dangerText: pal.dangerText
     readonly property color tooltipBg:  pal.tooltipBg
+    readonly property color tooltipText: pal.tooltipText
     readonly property color thumbTop:   pal.thumbTop
     readonly property color thumbBottom: pal.thumbBottom
     readonly property var   swatches:   pal.swatches

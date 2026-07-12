@@ -20,8 +20,6 @@
 // the async call just fails, harmlessly.
 static void registerHostAppId()
 {
-    if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
-        return; // sandboxed: identity comes from the sandbox metadata
     // NOTE: only the INTERFACE name carries the "host" domain — the object
     // lives on the main portal path (verified live on xdg-desktop-portal
     // 1.22: the /org/freedesktop/host/... path returns "Object does not
@@ -50,12 +48,7 @@ static void registerHostAppId()
 // established trade-off (flameshot does the same).
 static void grantSilentScreenshotPermission()
 {
-    const QString flatpakId = qEnvironmentVariable("FLATPAK_ID");
-    QStringList appIds;
-    if (!flatpakId.isEmpty())
-        appIds << flatpakId;
-    else
-        appIds << QGuiApplication::desktopFileName() << QString();
+    const QStringList appIds{QGuiApplication::desktopFileName(), QString()};
     for (const QString &appId : std::as_const(appIds)) {
         QDBusMessage msg = QDBusMessage::createMethodCall(
             QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),

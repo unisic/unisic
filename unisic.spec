@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.6.3
+Version:        0.6.4
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -137,6 +137,16 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.4-1
+- Fix GNOME capture: the silent-screenshot permission is repaired before
+  every portal request (a once-denied GNOME access dialog left a sticky "no"
+  that made region capture fail with code 2 forever), and grants now cover
+  the systemd-scope app id.
+- Fix the openSUSE Leap 15.6 build: gcc13 toolchain, Qt 6.6-safe QTP0004
+  policy guard, zxing-cpp 1.x text() compatibility.
+- Release page now ships per-distro rpms (.fedora / .opensuse-tumbleweed /
+  .opensuse-leap15.6) that install the app directly and register the COPR
+  repo for updates.
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.3-1
 - openSUSE (Tumbleweed + Leap 15.6) now ships from COPR deandark/Unisic; one
   release rpm installs on Fedora and openSUSE and self-registers the matching

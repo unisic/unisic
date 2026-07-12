@@ -117,8 +117,11 @@ static QColor kdeGlobalsColor(const char *group, const char *key)
         return QColor(0, 0, 0, 0); // stale kdeglobals on a non-KDE desktop must not win
     QSettings kdeglobals(path, QSettings::IniFormat);
     kdeglobals.beginGroup(QString::fromLatin1(group));
-    const QStringList parts = kdeglobals.value(QString::fromLatin1(key)).toString()
-                                  .split(QLatin1Char(','));
+    // QSettings' INI parser already splits a comma-separated value ("39,174,96")
+    // into a QStringList — reading it back through toString() yields "" for a
+    // multi-item list, so pull the list directly (a single uncommaed value still
+    // arrives as a one-element list, caught by the size guard below).
+    const QStringList parts = kdeglobals.value(QString::fromLatin1(key)).toStringList();
     if (parts.size() < 3)
         return QColor(0, 0, 0, 0);
     return QColor(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(),

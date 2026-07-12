@@ -1,57 +1,26 @@
 name: Build
 
-# CI smoke build: does the app compile and do the tests pass, on every push
-# and pull request. Unlike release.yml this never packages or publishes —
-# it exists purely to catch "does not build" before anyone else pulls it.
+# PR smoke check: does the AppImage still build? The AppImage is the fragile
+# package (bundled Qt wayland stack, source-built layer-shell-qt + zxing via
+# linuxdeploy), so it's the one worth catching before merge. It reuses the exact
+# build release.yml publishes, so a green PR means a buildable release AppImage.
+#
+# It replaces the old Fedora compile+ctest job (that ran on every push): the
+# Fedora compile is still exercised at release time by release.yml's rpm job.
+# Only runs on pull requests (and on demand) — the AppImage build is heavy, so
+# it should not fire on every commit push.
 on:
-  push:
   pull_request:
     branches: [dev, main]
   workflow_dispatch:
 
-# A new push to the same branch cancels the still-running build of the
-# previous commit — only the newest commit's result matters.
+# A new push to the PR branch cancels the still-running check of the previous
+# commit — only the newest commit's result matters.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
-  build-and-test:
-    name: Fedora build + tests
-    runs-on: ubuntu-latest
-    # Same container as the rpm release job — matches the dev machine's
-    # package set, so "builds in CI" ≈ "builds on the Fedora box".
-    container: fedora:latest
-    steps:
-      - name: Install build dependencies
-        # Mirrors release.yml's rpm job, plus onnxruntime-devel (HAVE_ONNX,
-        # installed on the dev machine) so the optional U-2-Net path compiles
-        # in CI too instead of silently rotting behind its #ifdef.
-        run: |
-          dnf install -y \
-            ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config file \
-            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-            qt6-qttools-devel \
-            pipewire-devel \
-            tesseract-devel leptonica-devel zxing-cpp-devel \
-            layer-shell-qt-devel wayland-devel \
-            onnxruntime-devel
-
-      - uses: actions/checkout@v4
-
-      - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build --parallel
-
-      - name: Test
-        # Headless runner has no display server — Qt's offscreen platform
-        # plugin lets the QQuickPaintedItem/GUI tests run anyway.
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: ctest --test-dir build --output-on-failure
+  appimage:
+    name: AppImage build check
+    uses: ./.github/workflows/appimage.yml

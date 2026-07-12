@@ -87,10 +87,11 @@ int GifRecorder::elapsedSeconds() const
     return m_elapsed.isValid() ? int(m_elapsed.elapsed() / 1000) : 0;
 }
 
-void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysical, QScreen *screen)
+void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysical, QScreen *screen,
+                        bool holdForCommit)
 {
 #ifndef HAVE_PIPEWIRE
-    Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen)
+    Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen) Q_UNUSED(holdForCommit)
     emit failed(tr("Unisic was built without PipeWire support, so recording is unavailable"));
     return;
 #else
@@ -120,6 +121,10 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
         m_probeWatcher.setFuture(QtConcurrent::run([] { (void)ffmpegEncoders(); }));
     }
     m_state = Starting;
+    m_holdForCommit = holdForCommit;
+    m_armed = false;
+    m_committed = false;
+    m_heldStreamSize = QSize();
     m_output = output;
     m_source = source;
     m_crop = (source == Region) ? cropPhysical : QRect();
@@ -158,6 +163,16 @@ void GifRecorder::openPortalSession()
     const QString restoreToken =
         m_settings->raw()->value(restoreTokenKey(m_source, m_targetScreen)).toString();
     m_session->start(m_settings->includeCursor(), m_source == Window ? 2u : 1u, restoreToken);
+#endif
+}
+
+void GifRecorder::commit()
+{
+#ifdef HAVE_PIPEWIRE
+    if (m_state != Starting || !m_armed || m_committed)
+        return;
+    m_committed = true;
+    beginEncoding(m_heldStreamSize);
 #endif
 }
 
@@ -219,6 +234,18 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     if (m_probeWarmed && !m_probeWatcher.isFinished()) {
         connect(&m_probeWatcher, &QFutureWatcher<void>::finished, this,
                 [this, streamSize] { beginEncoding(streamSize); });
+        return;
+    }
+    // Commit hold. The portal share dialog is resolved FIRST; reaching here means
+    // it was approved and the stream is live. Announce arming (the caller runs
+    // the countdown / start cue) and WAIT — encoding begins only on commit(), so
+    // no countdown number and no start sound can land in the recording.
+    if (m_holdForCommit && !m_committed) {
+        if (!m_armed) {
+            m_armed = true;
+            m_heldStreamSize = streamSize;
+            emit armed();
+        }
         return;
     }
     if (!streamSize.isValid() || streamSize.width() < 2 || streamSize.height() < 2) {

@@ -199,6 +199,7 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 - **Reuse the `components/` primitives** (`UButton`, `USwitch`, `UComboBox`, …) — don't reinvent a styled control inline. `UComboBox`'s popup is parented to `Overlay.overlay` so dropdowns escape `Flickable` clipping; match that pattern for any new popup.
 - **No Kirigami, no Breeze QML, no Qt Quick Controls default styling.** Basic style is forced globally.
 - **Theme awareness:** the "system" theme bridges the live palette via `ThemeController`. Don't hardcode light/dark assumptions.
+- **Translate every user-facing string.** Wrap it in `qsTr()` (QML) / `tr()` (C++) **and** fill it in all four `i18n/unisic_{en,pl,es,it}.ts` files (English == source text). Workflow: add the call → `cmake --build build --target update_translations` (lupdate appends new strings as `type="unfinished"`) → fill every unfinished `<translation>` in all four and drop the marker. A plain build bakes `.qm` into the qrc, so `unfinished`/empty entries silently fall back to English — never ship those. Keep placeholders (`%1`), tokens (`%date%`), globs, and tool names verbatim; match the existing per-language sound-cue convention. New QML files must be listed in `qt_add_qml_module` so lupdate scans them.
 
 ---
 

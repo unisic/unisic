@@ -35,6 +35,7 @@ class Settings : public QObject
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
     Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
     Q_PROPERTY(QString recordingSound READ recordingSound WRITE setRecordingSound NOTIFY recordingSoundChanged)
+    Q_PROPERTY(QString recordStartSound READ recordStartSound WRITE setRecordStartSound NOTIFY recordStartSoundChanged)
     Q_PROPERTY(int gifFps READ gifFps WRITE setGifFps NOTIFY gifFpsChanged)
     Q_PROPERTY(int gifMaxDurationSec READ gifMaxDurationSec WRITE setGifMaxDurationSec NOTIFY gifMaxDurationSecChanged)
     Q_PROPERTY(int gifQuality READ gifQuality WRITE setGifQuality NOTIFY gifQualityChanged)
@@ -97,6 +98,13 @@ class Settings : public QObject
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
+    Q_PROPERTY(QString updateChannel READ updateChannel WRITE setUpdateChannel NOTIFY updateChannelChanged)
+    Q_PROPERTY(int recordCountdownSec READ recordCountdownSec WRITE setRecordCountdownSec NOTIFY recordCountdownSecChanged)
+    Q_PROPERTY(int soundVolume READ soundVolume WRITE setSoundVolume NOTIFY soundVolumeChanged)
+    Q_PROPERTY(bool askWhereToSave READ askWhereToSave WRITE setAskWhereToSave NOTIFY askWhereToSaveChanged)
+    Q_PROPERTY(bool stripMetadata READ stripMetadata WRITE setStripMetadata NOTIFY stripMetadataChanged)
+    Q_PROPERTY(bool dateSubfolders READ dateSubfolders WRITE setDateSubfolders NOTIFY dateSubfoldersChanged)
+    Q_PROPERTY(int filenameCounter READ filenameCounter WRITE setFilenameCounter NOTIFY filenameCounterChanged)
     Q_PROPERTY(bool persistent READ persistent CONSTANT)
 
 public:
@@ -255,6 +263,9 @@ public:
     // Separate cue for finished recordings/GIFs — a shutter makes no sense
     // after a minutes-long recording, and users may want it off independently.
     U_SETTING(QString, recordingSound, setRecordingSound, "recordingSound", QStringLiteral("ding"))
+    // Cue played the moment recording actually begins (after the countdown), as
+    // opposed to recordingSound which fires when encoding finishes. "off" or an id.
+    U_SETTING(QString, recordStartSound, setRecordStartSound, "recordStartSound", QStringLiteral("shutter"))
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -354,6 +365,27 @@ public:
     // Daily GitHub release check + automatic AppImage self-install
     // (UpdateChecker). Suppressed in dev builds regardless of this value.
     U_SETTING(bool, autoCheckUpdates, setAutoCheckUpdates, "updates/autoCheck", true)
+    // Release channel for the update check: "stable" = latest full release,
+    // "beta" = newest release including pre-releases (GitHub /releases[0]).
+    U_SETTING(QString, updateChannel, setUpdateChannel, "updates/channel", QStringLiteral("stable"))
+    // Countdown (seconds) shown before a recording actually starts, giving you
+    // time to arrange windows. 0 = start immediately. Screenshots are unaffected.
+    U_SETTING(int, recordCountdownSec, setRecordCountdownSec, "record/countdownSec", 0)
+    // Playback volume (0-100) for the capture/recording sound cues. 100 = the
+    // sample's own level; 0 skips playback entirely.
+    U_SETTING(int, soundVolume, setSoundVolume, "soundVolume", 100)
+    // When saving is enabled, prompt for a destination path per capture instead
+    // of writing straight into saveDirectory. Off by default.
+    U_SETTING(bool, askWhereToSave, setAskWhereToSave, "askWhereToSave", false)
+    // Strip image metadata (text chunks, DPI, description) from saved files —
+    // captures carry none by default, so this guarantees a clean PNG/JPEG. On.
+    U_SETTING(bool, stripMetadata, setStripMetadata, "image/stripMetadata", true)
+    // Organise saved screenshots into per-month subfolders (yyyy-MM) under the
+    // save directory. Off by default.
+    U_SETTING(bool, dateSubfolders, setDateSubfolders, "image/dateSubfolders", false)
+    // Monotonic counter backing the %i% filename token; incremented once per
+    // saved capture. Persisted so numbering survives restarts.
+    U_SETTING(int, filenameCounter, setFilenameCounter, "image/filenameCounter", 1)
 
     // Raw access for settings export/import.
     QSettings *raw() { return &m_s; }
@@ -361,7 +393,7 @@ public:
     {
         emit saveDirectoryChanged(); emit videoSaveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
-        emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
+        emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
@@ -388,6 +420,9 @@ public:
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
         emit autoCheckUpdatesChanged();
+        emit updateChannelChanged(); emit recordCountdownSecChanged(); emit soundVolumeChanged();
+        emit askWhereToSaveChanged(); emit stripMetadataChanged(); emit dateSubfoldersChanged();
+        emit filenameCounterChanged();
     }
 
 signals:
@@ -401,6 +436,7 @@ signals:
     void captureDelayMsChanged();
     void captureSoundChanged();
     void recordingSoundChanged();
+    void recordStartSoundChanged();
     void gifFpsChanged();
     void gifMaxDurationSecChanged();
     void gifQualityChanged();
@@ -463,6 +499,13 @@ signals:
     void useSystemDecorationChanged();
     void trayIconPathChanged();
     void autoCheckUpdatesChanged();
+    void updateChannelChanged();
+    void recordCountdownSecChanged();
+    void soundVolumeChanged();
+    void askWhereToSaveChanged();
+    void stripMetadataChanged();
+    void dateSubfoldersChanged();
+    void filenameCounterChanged();
 
 private:
     QSettings m_s{UnisicConfig::filePath(), QSettings::IniFormat};

@@ -44,7 +44,15 @@ QUrl UpdateChecker::feedUrl() const
 {
     // Env override lets tests/dev point the whole flow at a file:// feed.
     const QString env = qEnvironmentVariable("UNISIC_UPDATE_FEED_URL");
-    return env.isEmpty() ? QUrl(QLatin1String(kFeedUrl)) : QUrl(env);
+    if (!env.isEmpty())
+        return QUrl(env);
+    // Beta channel: /releases (newest first, prereleases included) — take the
+    // first entry. Stable channel: the /releases/latest object (full releases
+    // only). handleCheckReply unwraps either an array or an object.
+    if (m_settings
+        && m_settings->updateChannel().compare(QLatin1String("beta"), Qt::CaseInsensitive) == 0)
+        return QUrl(QStringLiteral("https://api.github.com/repos/unisic/unisic/releases?per_page=1"));
+    return QUrl(QLatin1String(kFeedUrl));
 }
 
 QString UpdateChecker::installKind() const
@@ -231,7 +239,20 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
         return;
     }
 
-    const QJsonObject obj = QJsonDocument::fromJson(reply->readAll()).object();
+    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+    // Stable hits /releases/latest (an object); beta hits /releases (an array,
+    // newest first) and we take the first entry. An empty array = no release
+    // yet, same as a 404 above.
+    if (doc.isArray() && doc.array().isEmpty()) {
+        res.ok = true;
+        setAvailable(false);
+        m_status = tr("Checked at %1 — up to date").arg(at);
+        emit stateChanged();
+        if (done)
+            done(res);
+        return;
+    }
+    const QJsonObject obj = doc.isArray() ? doc.array().first().toObject() : doc.object();
     const QString tag = obj.value(QLatin1String("tag_name")).toString();
     if (tag.isEmpty()) {
         res.error = tr("malformed release feed");

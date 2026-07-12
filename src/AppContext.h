@@ -61,6 +61,11 @@ class AppContext : public QObject
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
+    // True while a hotkey recorder in Settings is capturing a key combo. The
+    // built-in window Shortcuts (Ctrl+W/Q/1-6/… in Main.qml) gate on this
+    // (`enabled: !App.shortcutRecording`) so they never steal the combo the
+    // user is trying to bind — otherwise Ctrl+Q would quit the app mid-bind.
+    Q_PROPERTY(bool shortcutRecording READ shortcutRecording NOTIFY shortcutRecordingChanged)
     // True when the capture card is shown on the layer-shell overlay (KWin/wlroots)
     // rather than as a native notification — lets the UI expose card-only options
     // (e.g. corner position, which a native notification server controls itself).
@@ -133,6 +138,7 @@ public:
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
+    bool shortcutRecording() const { return m_shortcutRecording; }
     bool layerShellActive() const { return m_layerNotifier != nullptr; }
     bool devBuild() const
     {
@@ -170,6 +176,7 @@ public:
     Q_INVOKABLE void devTestSmartPick();
     Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestRecordingSound();
+    Q_INVOKABLE void devTestRecordStartSound();
     Q_INVOKABLE void devTestTrashSound();
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
@@ -181,6 +188,9 @@ public:
     Q_INVOKABLE void devTestUpdateCheck();
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
+    Q_INVOKABLE void devTestCountdown();
+    Q_INVOKABLE void devTestSaveDialog();
+    Q_INVOKABLE void devTestFilename();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -281,12 +291,15 @@ public:
     // Same, for finished recordings/GIFs (General > Recording sound) —
     // a separate cue with its own setting.
     void playRecordingSound();
+    // Cue the instant recording begins (after the countdown), own setting.
+    void playRecordStartSound();
     // Fixed trash cue for explicit deletions — always the bundled "trash"
     // sound, deliberately not user-configurable.
     void playTrashSound();
     // Preview the selected capture sound from the settings UI.
     Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
     Q_INVOKABLE void previewRecordingSound() { playRecordingSound(); }
+    Q_INVOKABLE void previewRecordStartSound() { playRecordStartSound(); }
     // "Copy last capture" hotkey: put the most recent screenshot of this
     // session back on the clipboard (toast when none exists yet).
     Q_INVOKABLE void copyLastCapture();
@@ -329,6 +342,7 @@ signals:
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
     void trayAvailableChanged();
+    void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
     void smokeTestChanged();
     void autostartEnabledChanged();
@@ -384,6 +398,22 @@ private:
     // Shared player behind playCaptureSound/playRecordingSound: resolves a
     // bundled or user sound id and spawns pw-play/paplay/aplay.
     void playSoundId(const QString &id);
+    // Approx playback length (ms) of a bundled/custom cue from its WAV header;
+    // -1 if unknown (e.g. an OGG custom). Sizes the pre-record start-cue tail.
+    int soundDurationMs(const QString &id) const;
+    // Pre-recording start sequence. Calls begin(holdForCommit) IMMEDIATELY so the
+    // portal share dialog resolves FIRST; when a countdown or a start sound is
+    // set, holdForCommit=true and the recorder waits for commit(). On armed() the
+    // countdown/cue runs, then commitRecordingAfterCue() releases encoding so no
+    // countdown number and no start sound land in the recording.
+    void startRecorderCountdown(std::function<void(bool)> begin);
+    // Ticks the visible countdown (region frame number or toast), then commits.
+    void runRecordCountdownVisuals(int secs);
+    // Clears the number, plays the start cue, then commit()s encoding after a
+    // short tail (repaint settled + cue played out, so neither is recorded).
+    void commitRecordingAfterCue();
+    bool m_recordHoldActive = false; // a hold-for-commit recording is pending
+    int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
                                                  const QString &kind, bool inhibited);
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
@@ -403,7 +433,10 @@ private:
     // landing inside the ffmpeg crop. Hosted on layer-shell (KWin/wlroots/
     // COSMIC), a KWin fullscreen-transparent fallback, or — GNOME — a separate
     // XWayland helper process (see RecordBorderHelper.h).
-    void showRecordBorder(QRect physRegion, QScreen *screen);
+    void showRecordBorder(QRect physRegion, QScreen *screen, int countdown = 0);
+    // Update the live frame's countdown number (in-process window via property,
+    // XWayland helper via its stdin). 0 clears it as recording begins.
+    void setRecordBorderCountdown(int n);
     void hideRecordBorder();
     void withDelay(std::function<void()> fn);
     // "Quick copy" grace window: when auto-copy-to-clipboard is off, the last

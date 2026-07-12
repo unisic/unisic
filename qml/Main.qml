@@ -28,6 +28,61 @@ Window {
 
     property int currentPage: 0
 
+    // Built-in WINDOW shortcuts (QtQuick Shortcut items below). These are NOT
+    // GlobalHotkeys/KGlobalAccel actions: they only fire while the main window
+    // has focus, they never register a system-wide grab, and they are
+    // deliberately fixed — they do not appear in, nor are editable from, the
+    // Settings shortcut UI. Ctrl+/ pops the cheat-sheet listing them. Keep this
+    // list and the Shortcut items in sync (single source for both).
+    function hideToTray() {
+        // "Close to tray" (a friend's Ctrl+W). Only hide when a tray icon
+        // actually exists, else the window would vanish with no way back —
+        // minimize instead on trayless compositors.
+        if (App.trayAvailable)
+            window.hide()
+        else
+            window.showMinimized()
+    }
+
+    function quitApp() {
+        // Never yank an in-flight recording/encode out from under the user.
+        if (App.recording || App.converting) {
+            App.showToast(qsTr("Recording in progress. Stop it before closing"), true)
+            return
+        }
+        if (App.editorWindowsOpen > 0) {
+            App.showToast(qsTr("Close the editor first (unsaved annotations)"), true)
+            return
+        }
+        Qt.quit()
+    }
+
+    // `enabled: !App.shortcutRecording` is REQUIRED: with the default
+    // Qt.WindowShortcut context these win Qt's shortcut-override race against a
+    // focused UShortcutRecorder, so a user binding e.g. Ctrl+Q as a global
+    // hotkey would trigger the window action (quit!) instead of recording it.
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+/"]; onActivated: shortcutsHelp.opened ? shortcutsHelp.close() : shortcutsHelp.open() }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+W"]; onActivated: window.hideToTray() }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+Q"]; onActivated: window.quitApp() }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+1"]; onActivated: window.currentPage = 0 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+2"]; onActivated: window.currentPage = 1 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 2 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 3 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 4 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 5 }
+
+    UShortcutsHelp {
+        id: shortcutsHelp
+        model: [
+            { keys: ["Ctrl", "/"], label: qsTr("Show / hide this list") },
+            { keys: ["Ctrl", "W"], label: qsTr("Hide window to tray") },
+            { keys: ["Ctrl", "Q"], label: qsTr("Quit Unisic") },
+            { keys: ["Ctrl", ","], label: qsTr("Open Settings") },
+            { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+6)") },
+        ]
+    }
+
     // Hide-to-tray only when a tray actually EXISTS — on GNOME without the
     // AppIndicator extension (or bare wlroots) hiding here would make the app
     // unreachable except by launching `unisic` again.

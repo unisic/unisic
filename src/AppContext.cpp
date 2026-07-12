@@ -130,6 +130,19 @@ AppContext::AppContext(QObject *parent)
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    // Portal approved + stream live, but encoding is HELD: run the countdown /
+    // start cue, then commit. The start sound is played here (before commit), not
+    // on started(), so it is never captured in the recording.
+    connect(m_recorder, &GifRecorder::armed, this, [this] {
+        if (!m_recordHoldActive)
+            return;
+        const int secs = m_pendingCountdownSecs;
+        m_pendingCountdownSecs = 0;
+        if (secs > 0)
+            runRecordCountdownVisuals(secs); // ends in commitRecordingAfterCue()
+        else
+            commitRecordingAfterCue();       // start-sound pre-roll only
+    });
     // Badge/unbadge the tray icon as recording starts and stops.
     connect(this, &AppContext::recordingChanged, this, &AppContext::applyTrayIcon);
     connect(m_recorder, &GifRecorder::started, this, [this] {
@@ -151,6 +164,10 @@ AppContext::AppContext(QObject *parent)
     connect(m_recorder, &GifRecorder::finished, this, &AppContext::onRecordingFinished);
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
+        // A failure can land before arming (portal denied): clear the pending
+        // hold so a later recording can't inherit it.
+        m_pendingCountdownSecs = 0;
+        m_recordHoldActive = false;
         hideRecordBorder();
         emit recordingChanged();
         if (e != QLatin1String("cancelled"))
@@ -610,7 +627,10 @@ QString AppContext::formatShortcut(int key, int modifiers, int nativeScanCode) c
 
 void AppContext::setShortcutRecording(bool recording)
 {
+    if (m_shortcutRecording == recording)
+        return;
     m_shortcutRecording = recording;
+    emit shortcutRecordingChanged();
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -738,7 +758,9 @@ void AppContext::startGifRegion()
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen);
+        startRecorderCountdown([this, phys, screen](bool hold) {
+            m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold);
+        });
     });
 }
 
@@ -746,7 +768,9 @@ void AppContext::startGifFullScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
-    m_recorder->start(GifRecorder::Gif, GifRecorder::Screen);
+    startRecorderCountdown([this](bool hold) {
+        m_recorder->start(GifRecorder::Gif, GifRecorder::Screen, {}, nullptr, hold);
+    });
 }
 
 GifRecorder::Output AppContext::videoOutput() const
@@ -759,7 +783,9 @@ void AppContext::startVideoScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
-    m_recorder->start(videoOutput(), GifRecorder::Screen);
+    startRecorderCountdown([this](bool hold) {
+        m_recorder->start(videoOutput(), GifRecorder::Screen, {}, nullptr, hold);
+    });
 }
 
 void AppContext::startVideoRegion()
@@ -769,7 +795,9 @@ void AppContext::startVideoRegion()
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen);
+        startRecorderCountdown([this, phys, screen](bool hold) {
+            m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold);
+        });
     });
 }
 
@@ -777,12 +805,108 @@ void AppContext::startVideoWindow()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
-    m_recorder->start(videoOutput(), GifRecorder::Window);
+    startRecorderCountdown([this](bool hold) {
+        m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
+    });
 }
 
 void AppContext::stopRecording()
 {
     m_recorder->stop();
+}
+
+void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
+{
+    const int secs = qBound(0, m_settings->recordCountdownSec(), 10);
+    const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
+                             && m_settings->soundVolume() > 0;
+    // No countdown AND no start cue: nothing to sequence — record immediately.
+    if (secs <= 0 && !hasStartCue) {
+        begin(false);
+        return;
+    }
+    if (m_recordHoldActive)
+        return; // a second trigger while a hold is pending must not stack
+    m_recordHoldActive = true;
+    m_pendingCountdownSecs = secs;
+    // Portal negotiates FIRST (its share dialog). The recorder holds encoding
+    // until commit(); armed() drives the countdown/cue below, then commits.
+    begin(true);
+}
+
+void AppContext::runRecordCountdownVisuals(int secs)
+{
+    // Region recordings: show the frame with the number ticking INSIDE it.
+    // showRecordBorder() copies the region by value before hideRecordBorder()
+    // clears m_pendingRecordRegion, so the later started-signal reshow is
+    // skipped (pending rect now empty). Other sources — and the GNOME helper
+    // frame without a region — use toasts.
+    bool inFrame = false;
+    if (!m_pendingRecordRegion.isEmpty() && m_pendingRecordScreen) {
+        showRecordBorder(m_pendingRecordRegion, m_pendingRecordScreen, secs);
+        // Both the in-process frame (KDE/wlroots) and the XWayland helper frame
+        // (GNOME) render the number — the helper is fed over stdin.
+        inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
+    }
+    if (!inFrame)
+        showToast(tr("Recording in %1…").arg(secs));
+
+    auto remaining = std::make_shared<int>(secs);
+    auto *timer = new QTimer(this);
+    timer->setInterval(1000);
+    connect(timer, &QTimer::timeout, this, [this, timer, remaining, inFrame]() {
+        if (--(*remaining) > 0) {
+            if (inFrame)
+                setRecordBorderCountdown(*remaining);
+            else
+                showToast(tr("Recording in %1…").arg(*remaining));
+            return;
+        }
+        timer->stop();
+        timer->deleteLater();
+        commitRecordingAfterCue();
+    });
+    timer->start();
+}
+
+void AppContext::commitRecordingAfterCue()
+{
+    m_recordHoldActive = false;
+    // Clear the countdown number FIRST so the compositor repaints without it —
+    // otherwise the "1" leaks into the recording's first frames.
+    const bool inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
+    if (inFrame)
+        setRecordBorderCountdown(0);
+    // Play the start cue NOW, before encoding — it plays out through the speakers
+    // and so is never captured in a system-audio recording.
+    const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
+                             && m_settings->soundVolume() > 0;
+    if (hasStartCue)
+        playRecordStartSound();
+    // Tail before encoding actually starts: always enough for the cleared frame
+    // to repaint, and — when a start cue plays — long enough for it to finish so
+    // it isn't captured. Sized to the cue's own length (clamped) when known.
+    int tail;
+    if (hasStartCue) {
+        const int dur = soundDurationMs(m_settings->recordStartSound());
+        tail = qBound(150, dur > 0 ? dur + 70 : 550, 900);
+    } else {
+        tail = inFrame ? 150 : 0;
+    }
+    if (tail <= 0) {
+        m_recorder->commit();
+        return;
+    }
+    QTimer::singleShot(tail, this, [this]() { m_recorder->commit(); });
+}
+
+void AppContext::setRecordBorderCountdown(int n)
+{
+    if (m_recordBorderWindow)
+        m_recordBorderWindow->setProperty("countdown", n);
+    else if (m_recordBorderHelper
+             && m_recordBorderHelper->state() != QProcess::NotRunning)
+        m_recordBorderHelper->write(QByteArray("c") + QByteArray::number(n) + "\n");
 }
 
 bool AppContext::capNativeNotification() const
@@ -817,7 +941,9 @@ static const QStringList &bundledSoundIds()
 {
     static const QStringList ids{QStringLiteral("shutter"), QStringLiteral("click"),
                                  QStringLiteral("beep"), QStringLiteral("ding"),
-                                 QStringLiteral("pop")};
+                                 QStringLiteral("pop"), QStringLiteral("chime"),
+                                 QStringLiteral("blip"), QStringLiteral("snap"),
+                                 QStringLiteral("knock")};
     return ids;
 }
 
@@ -1165,6 +1291,14 @@ void AppContext::devTestRecordingSound()
     showToast(tr("Dev: played recording sound '%1'").arg(m_settings->recordingSound()));
 }
 
+void AppContext::devTestRecordStartSound()
+{
+    if (!devBuild())
+        return;
+    playRecordStartSound();
+    showToast(tr("Dev: played record-start sound '%1'").arg(m_settings->recordStartSound()));
+}
+
 void AppContext::devTestTrashSound()
 {
     if (!devBuild())
@@ -1178,6 +1312,74 @@ void AppContext::devTestSmartPick()
     if (!devBuild())
         return;
     showToast(tr("Dev: smart pick detect: %1").arg(smartPickDetectCheck()));
+}
+
+void AppContext::devTestCountdown()
+{
+    if (!devBuild())
+        return;
+    if (m_settings->recordCountdownSec() <= 0) {
+        showToast(tr("Dev: countdown is 0s (off) — set it in Recording settings"));
+        return;
+    }
+    // Exercise the real in-frame countdown: set a centered test region (same as
+    // the record-border test) so startRecorderCountdown pops the frame with the
+    // number ticking inside it, then tears it down at the end.
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (screen && capRecordBorder()) {
+        const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+        const int pw = qRound(screen->geometry().width() * dpr);
+        const int ph = qRound(screen->geometry().height() * dpr);
+        m_pendingRecordRegion = QRect(pw * 3 / 10, ph * 3 / 10, pw * 2 / 5, ph * 2 / 5);
+        m_pendingRecordScreen = screen;
+    }
+    // Dev: no real recorder/portal, so armed() never fires — drive the countdown
+    // visuals directly (commit() no-ops with no recording), then tear the demo
+    // frame down a moment after the countdown + start-cue tail.
+    const int secs = qBound(1, m_settings->recordCountdownSec(), 10);
+    m_recordHoldActive = true; // commitRecordingAfterCue clears it
+    runRecordCountdownVisuals(secs);
+    QTimer::singleShot(secs * 1000 + 1200, this, [this]() {
+        if (!recording())
+            hideRecordBorder();
+        showToast(tr("Dev: countdown finished — recording would start now"));
+    });
+}
+
+void AppContext::devTestSaveDialog()
+{
+    if (!devBuild())
+        return;
+    QImage img(320, 200, QImage::Format_ARGB32);
+    img.fill(QColor(0x2E, 0x23, 0x6C));
+    const QString chosen = QFileDialog::getSaveFileName(
+        nullptr, tr("Save capture (dev test)"),
+        m_settings->saveDirectory() + QLatin1Char('/') + makeFileName(),
+        tr("Images (*.png *.jpg *.jpeg *.webp)"));
+    if (chosen.isEmpty()) {
+        showToast(tr("Dev: save dialog cancelled"));
+        return;
+    }
+    const QFileInfo fi(chosen);
+    const QString path = saveImageTo(img, fi.absolutePath(), fi.fileName());
+    showToast(path.isEmpty() ? tr("Dev: save FAILED")
+                             : tr("Dev: saved to %1").arg(path),
+              path.isEmpty());
+}
+
+void AppContext::devTestFilename()
+{
+    if (!devBuild())
+        return;
+    QString dir = m_settings->saveDirectory();
+    if (m_settings->dateSubfolders())
+        dir += QLatin1Char('/')
+             + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
+    showToast(tr("Dev: next file = %1/%2 (counter=%3, subfolders=%4, stripMeta=%5)")
+                  .arg(dir, makeFileName())
+                  .arg(m_settings->filenameCounter())
+                  .arg(m_settings->dateSubfolders() ? tr("on") : tr("off"),
+                       m_settings->stripMetadata() ? tr("on") : tr("off")));
 }
 
 // (devTestU2Net below reports against the ACTIVE segment model — the toast
@@ -1948,6 +2150,26 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // Essentials: filename tokens, save routing, countdown, volume, channel.
+    m_smokeSteps.append([this] {
+        const QString name = makeFileName();
+        smokeLog(QStringLiteral("filename: %1 (counter=%2, dateSubfolders=%3, stripMeta=%4) — %5")
+                     .arg(name)
+                     .arg(m_settings->filenameCounter())
+                     .arg(m_settings->dateSubfolders() ? QStringLiteral("on") : QStringLiteral("off"),
+                          m_settings->stripMetadata() ? QStringLiteral("on") : QStringLiteral("off"),
+                          name.isEmpty() ? QStringLiteral("FAIL") : QStringLiteral("PASS")));
+        smokeLog(QStringLiteral("record countdown: %1s; start sound: %2; sound volume: %3 %; ask-where-to-save: %4")
+                     .arg(m_settings->recordCountdownSec())
+                     .arg(m_settings->recordStartSound())
+                     .arg(m_settings->soundVolume())
+                     .arg(m_settings->askWhereToSave() ? QStringLiteral("on") : QStringLiteral("off")));
+        smokeLog(QStringLiteral("update channel: %1; autostart: %2")
+                     .arg(m_settings->updateChannel(),
+                          autostartEnabled() ? QStringLiteral("enabled") : QStringLiteral("disabled")));
+        smokeNext();
+    });
+
     // 7) cleanup: close every editor/preview window the run opened — F8 must
     // verify and leave the desktop exactly as it found it.
     m_smokeSteps.append([this] {
@@ -1981,7 +2203,7 @@ bool AppContext::capRecordBorder() const
     return qEnvironmentVariableIsSet("DISPLAY");
 }
 
-void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown)
 {
     hideRecordBorder(); // retire any stale frame first
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
@@ -2024,7 +2246,8 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
                             frac(physRegion.y() / phys.height()),
                             frac(physRegion.width() / phys.width()),
                             frac(physRegion.height() / phys.height()),
-                            accent.name(QColor::HexRgb)});
+                            accent.name(QColor::HexRgb),
+                            QString::number(countdown)});
         // stdin stays an open pipe on purpose: if THIS process dies without
         // reaching hideRecordBorder(), the helper sees EOF and quits — no
         // orphaned frame can outlive the recording.
@@ -2073,6 +2296,9 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
     }
     ctx->setParent(win);
     win->setScreen(screen);
+    // Pre-recording countdown number (0 = none) — RecordBorder.qml shows it
+    // centered in the region and hides the REC badge while it ticks.
+    win->setProperty("countdown", countdown);
 
 #ifdef HAVE_LAYERSHELL
     if (m_layerShellAvailable) {
@@ -2237,13 +2463,34 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     const QString fileName = makeFileName();
     QString path;
     if (m_settings->autoSave()) {
-        path = saveImageAuto(img, fileName);
-        // A failed save must be LOUD: the rest of the pipeline continues (the
-        // capture still exists in memory/history), but silently pretending it
-        // was persisted loses data on unplugged/read-only/full save targets.
-        if (path.isEmpty())
-            showToast(tr("Could not save to %1. Check the save folder in Settings")
-                          .arg(m_settings->saveDirectory()), true);
+        if (m_settings->askWhereToSave()) {
+            // Prompt for a destination per capture instead of writing straight
+            // into the save folder. A cancelled dialog skips the save silently
+            // (no error toast) — the capture still lives in memory/history.
+            QString startDir = m_settings->saveDirectory();
+            if (m_settings->dateSubfolders())
+                startDir += QLatin1Char('/')
+                          + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
+            QDir().mkpath(startDir);
+            const QString chosen = QFileDialog::getSaveFileName(
+                nullptr, tr("Save capture"),
+                startDir + QLatin1Char('/') + fileName,
+                tr("Images (*.png *.jpg *.jpeg *.webp)"));
+            if (!chosen.isEmpty()) {
+                const QFileInfo fi(chosen);
+                path = saveImageTo(img, fi.absolutePath(), fi.fileName());
+                if (path.isEmpty())
+                    showToast(tr("Could not save to %1").arg(chosen), true);
+            }
+        } else {
+            path = saveImageAuto(img, fileName);
+            // A failed save must be LOUD: the rest of the pipeline continues (the
+            // capture still exists in memory/history), but silently pretending it
+            // was persisted loses data on unplugged/read-only/full save targets.
+            if (path.isEmpty())
+                showToast(tr("Could not save to %1. Check the save folder in Settings")
+                              .arg(m_settings->saveDirectory()), true);
+        }
     }
     if (m_settings->copyToClipboard() || forceCopy)
         copyImageToClipboard(img);
@@ -2295,6 +2542,11 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     encodeImageAsync(img, [this](const QByteArray &data, const QString &) {
         m_lastCaptureData = data;
     });
+
+    // Advance the %i% counter once per capture (only when the template uses it),
+    // so the next filename gets the next number.
+    if (m_settings->filenameTemplate().contains(QLatin1String("%i%")))
+        m_settings->setFilenameCounter(m_settings->filenameCounter() + 1);
 
     scheduleMemoryTrim();
 }
@@ -2360,6 +2612,11 @@ void AppContext::playRecordingSound()
     playSoundId(m_settings->recordingSound());
 }
 
+void AppContext::playRecordStartSound()
+{
+    playSoundId(m_settings->recordStartSound());
+}
+
 void AppContext::playTrashSound()
 {
     // Deliberately fixed: "trash" is bundled but NOT in captureSoundIds(), so
@@ -2402,10 +2659,54 @@ void AppContext::playSoundId(const QString &id)
     if (!QFile::exists(file))
         return;
 
+    const int vol = qBound(0, m_settings->soundVolume(), 100);
+    if (vol == 0)
+        return; // muted
+
+    QStringList args{file};
+    // Per-player volume flags (only when not at 100% — the sample's own level).
+    // pw-play: --volume takes a linear 0.0..1.0; paplay: 0..65536 (65536=100%);
+    // aplay has no volume flag, so it always plays at the sample level.
+    if (vol != 100) {
+        const QString base = QFileInfo(player).fileName();
+        if (base == QLatin1String("pw-play"))
+            args << QStringLiteral("--volume") << QString::number(vol / 100.0, 'f', 2);
+        else if (base == QLatin1String("paplay"))
+            args << QStringLiteral("--volume") << QString::number(qRound(vol / 100.0 * 65536.0));
+    }
+
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, proc, &QObject::deleteLater);
     connect(proc, &QProcess::errorOccurred, proc, &QObject::deleteLater);
-    proc->start(player, {file});
+    proc->start(player, args);
+}
+
+int AppContext::soundDurationMs(const QString &id) const
+{
+    if (id.isEmpty() || id == QLatin1String("off"))
+        return 0;
+    QString path;
+    if (bundledSoundIds().contains(id) || id == QLatin1String("trash"))
+        path = QStringLiteral(":/resources/sounds/%1.wav").arg(id);
+    else
+        path = UnisicConfig::soundsDir() + QLatin1Char('/') + id;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return -1;
+    const QByteArray d = f.read(44);
+    const qint64 total = f.size();
+    f.close();
+    // PCM WAV only: RIFF/WAVE header with a 32-bit byteRate at offset 28.
+    if (d.size() < 44 || !d.startsWith("RIFF") || d.mid(8, 4) != "WAVE")
+        return -1;
+    const auto u32 = [&d](int o) {
+        return quint32(quint8(d[o])) | (quint32(quint8(d[o + 1])) << 8)
+             | (quint32(quint8(d[o + 2])) << 16) | (quint32(quint8(d[o + 3])) << 24);
+    };
+    const quint32 byteRate = u32(28);
+    if (byteRate == 0 || total <= 44)
+        return -1;
+    return int((total - 44) * 1000 / byteRate);
 }
 
 QStringList AppContext::captureSoundIds() const
@@ -2712,7 +3013,13 @@ void AppContext::scheduleMemoryTrim()
 
 QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
 {
-    return saveImageTo(img, m_settings->saveDirectory(), fileName);
+    QString dir = m_settings->saveDirectory();
+    // Optional per-month subfolders (yyyy-MM) keep a busy screenshots folder
+    // tidy. saveImageTo mkpath()s the directory, so no separate mkdir here.
+    if (m_settings->dateSubfolders())
+        dir += QLatin1Char('/')
+             + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
+    return saveImageTo(img, dir, fileName);
 }
 
 QString AppContext::makeFileName() const
@@ -2727,6 +3034,10 @@ QString AppContext::makeFileName() const
     t.replace(QLatin1String("%unix%"), QString::number(now.toSecsSinceEpoch()));
     t.replace(QLatin1String("%rand%"),
               QUuid::createUuid().toString(QUuid::WithoutBraces).left(8));
+    // %i% = a monotonic counter (filenameCounter), read-only here — the actual
+    // increment happens once per saved capture in finishCapture, so the preview
+    // and the real save agree on the same number.
+    t.replace(QLatin1String("%i%"), QString::number(m_settings->filenameCounter()));
     static const QRegularExpression illegal(QStringLiteral("[/\\\\:*?\"<>|]"));
     t.replace(illegal, QStringLiteral("_"));
 
@@ -2827,13 +3138,25 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
         path = dir + QLatin1Char('/') + fi.completeBaseName()
                + QStringLiteral("-%1.").arg(n) + fi.suffix();
 
+    // Metadata strip: rebuild from raw pixels so the written file carries no
+    // text chunks, description or DPI. Captures normally have NONE (built from
+    // raw screen pixels), so skip the full-frame copy unless there is actually
+    // something to strip — the editor or a loaded source can add text/DPI. Only
+    // ≥24bpp (the capture formats); a rebuild would drop an indexed palette.
+    QImage stripped;
+    if (m_settings->stripMetadata() && img.depth() >= 24
+        && (!img.textKeys().isEmpty() || img.dotsPerMeterX() != 0 || img.dotsPerMeterY() != 0))
+        stripped = QImage(img.constBits(), img.width(), img.height(),
+                          img.bytesPerLine(), img.format()).copy();
+    const QImage &toSave = stripped.isNull() ? img : stripped;
+
     bool ok;
     if (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
-        ok = img.save(path, "JPG", qBound(1, m_settings->imageQuality(), 100));
+        ok = toSave.save(path, "JPG", qBound(1, m_settings->imageQuality(), 100));
     else if (fmt == QLatin1String("webp"))
-        ok = img.save(path, "WEBP", qBound(1, m_settings->imageQuality(), 100));
+        ok = toSave.save(path, "WEBP", qBound(1, m_settings->imageQuality(), 100));
     else
-        ok = img.save(path, "PNG");
+        ok = toSave.save(path, "PNG");
     if (!ok)
         return {};
     if (m_settings->openAfterSave())

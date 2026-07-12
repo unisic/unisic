@@ -27,6 +27,11 @@ Window {
     readonly property int bw: 3
     readonly property color contrast: Qt.rgba(0, 0, 0, 0.55)
 
+    // Pre-recording countdown value, driven from C++ (0 = not counting). While
+    // >0 the frame is up but recording has not begun: a big number ticks inside
+    // the region and the REC badge is hidden.
+    property int countdown: 0
+
     // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes (matches Main.qml).
     function fmt(s) {
         var h = Math.floor(s / 3600);
@@ -71,11 +76,41 @@ Window {
     // "REC m:ss" badge, placed just outside the region (above if there is room,
     // else below); hidden when the region leaves no room on either side so the
     // badge itself never overlaps — and so never enters — the recording.
+    // Pre-recording countdown, centered inside the region. The frame shows
+    // immediately and the number ticks down (set from C++) before recording.
+    Item {
+        x: regionX; y: regionY
+        width: regionW; height: regionH
+        visible: borderWindow.countdown > 0
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width, parent.height) * 0.42
+            height: width
+            radius: width / 2
+            color: Qt.rgba(0, 0, 0, 0.55)
+            border.width: 2
+            border.color: Theme.accent
+        }
+        Text {
+            id: cdText
+            anchors.centerIn: parent
+            text: borderWindow.countdown
+            color: Theme.accent
+            font.pixelSize: Math.max(24, Math.min(parent.width, parent.height) * 0.26)
+            font.bold: true
+            onTextChanged: { scale = 1.4; cdPulse.restart() }
+            NumberAnimation {
+                id: cdPulse; target: cdText; property: "scale"
+                from: 1.4; to: 1.0; duration: 320; easing.type: Easing.OutCubic
+            }
+        }
+    }
+
     Rectangle {
         id: badge
         readonly property bool roomAbove: regionY - height - 6 >= 0
         readonly property bool roomBelow: regionY + regionH + 6 + height <= borderWindow.height
-        visible: roomAbove || roomBelow
+        visible: (roomAbove || roomBelow) && borderWindow.countdown <= 0
         width: badgeRow.width + 16
         height: 24
         radius: 12

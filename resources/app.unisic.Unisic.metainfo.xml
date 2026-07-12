@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.6.2" date="2026-07-12">
+      <description>
+        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped — install through the native repositories or the AppImage.</p>
+      </description>
+    </release>
     <release version="0.6.1" date="2026-07-12">
       <description>
         <p>Fixes global hotkeys on GNOME: shortcut registration now carries the app identity on a dedicated D-Bus connection, so binds no longer fail for terminal and AppImage launches. The version footer shows the exact git-commit date of the build, the hotkeys-unavailable card explains the GNOME custom-shortcuts route, and 42 missing translations were filled in.</p>

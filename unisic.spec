@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.6.1
+Version:        0.6.2
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -122,6 +122,17 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.2-1
+- System theme mirrors the full KDE colorscheme: the Button role drives cards,
+  dedicated tooltip base/text roles style tooltips, and the kdeglobals
+  positive/negative colours plus the hover decoration feed the accent and
+  hover fills — a KDE session now looks like a native KDE app.
+- Fix filled-body system icons (camera-photo, monitor): they no longer flatten
+  to a solid square under the SourceIn tint, falling back to the bundled
+  symbolic glyph when a themed icon would not survive the flatten.
+- Drop Flatpak packaging; the native OBS/COPR repositories and the AppImage
+  remain the supported install paths.
+
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.1-1
 - Fix global hotkeys on GNOME: the GlobalShortcuts portal binds carried an
   empty app id for terminal/AppImage launches (identity is pinned per D-Bus

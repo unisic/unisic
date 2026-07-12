@@ -42,7 +42,12 @@ BuildRequires:  pkgconfig(tesseract)
 BuildRequires:  pkgconfig(libcurl)
 BuildRequires:  pkgconfig(lept)
 BuildRequires:  cmake(ZXing)
+# Leap 15.x ships LayerShellQt only for Qt5 (its cmake(LayerShellQt) provide
+# points at layer-shell-qt5-devel, which would poison a Qt6 link) — skip it
+# there; the HAVE_LAYERSHELL features compile out gracefully.
+%if !0%{?suse_version} || 0%{?suse_version} >= 1600
 BuildRequires:  cmake(LayerShellQt)
+%endif
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-protocols)
 BuildRequires:  desktop-file-utils
@@ -71,10 +76,11 @@ Requires:       qt6-qtsvg
 Requires:       qt6-qtwayland
 %endif
 %if 0%{?suse_version}
-# NOTE: verify these split-package names against the first OBS build
-# (rpm -qp --requires / build log) — see packaging/obs/README.md.
+# Verified against Tumbleweed and Leap 15.6 (2026-07): the SVG imageformat
+# plugin ships inside libQt6Svg6 (no qt6-svg-imageformat package), and
+# libQt6Svg6 arrives via the linked-soname autodeps — only the dlopened
+# QML imports and the wayland platform plugin need explicit names.
 Requires:       qt6-declarative-imports
-Requires:       qt6-svg-imageformat
 Requires:       qt6-wayland
 %endif
 

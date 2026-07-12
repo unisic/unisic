@@ -323,13 +323,26 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-# "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
-# stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
-# GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
-# a package-name Requires would make the RPM uninstallable on stock Fedora.
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, qt6-qtdeclarative, qt6-qtsvg, qt6-qtwayland, wl-clipboard, xdg-desktop-portal, tesseract, leptonica, layer-shell-qt, zxing-cpp")
-# Direct-download rpms self-register the COPR repo on Fedora (%post) so later
-# versions arrive natively via dnf; %postun drops the entry on erase.
+# One rpm installs on BOTH Fedora and openSUSE (%post registers the COPR repo
+# on either — packaging/rpm/copr-post.sh). Rules that make that work:
+# - "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
+#   stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
+#   GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —
+#   a package-name Requires would make the RPM uninstallable on stock Fedora.
+# - Linked libraries (Qt, pipewire libs, tesseract, leptonica, ZXing,
+#   LayerShellQt) are NOT listed: rpmbuild's soname autodeps cover them with
+#   distro-neutral "libFoo.so.N()(64bit)" requires, and their package names
+#   differ per distro ("tesseract" on openSUSE is a first-person shooter —
+#   the OCR engine is "tesseract-ocr").
+# - Boolean deps pick the split-package name per distro for the dlopened
+#   pieces the autodep scanner cannot see (QML imports, wayland platform
+#   plugin). The SVG imageformat plugin needs no entry: Fedora's qt6-qtsvg
+#   and openSUSE's libQt6Svg6 both ship it and both arrive via the soname
+#   autodep (verified on Tumbleweed + Leap 15.6).
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, wl-clipboard, xdg-desktop-portal, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland)")
+# Direct-download rpms self-register the COPR repo (%post — dnf repo on
+# Fedora, zypp repo on openSUSE) so later versions arrive natively;
+# %postun drops the entry on erase.
 set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-post.sh")
 set(CPACK_RPM_POST_UNINSTALL_SCRIPT_FILE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/rpm/copr-postun.sh")
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)

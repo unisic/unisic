@@ -48,6 +48,7 @@ qt_add_executable(unisic
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
     src/overlay/OverlayController.h src/overlay/OverlayController.cpp

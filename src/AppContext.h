@@ -27,6 +27,7 @@ class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class QQuickWindow;
 class QTimer;
+class QProcess;
 class CaptureManager;
 class OverlayController;
 class GlobalHotkeys;
@@ -68,9 +69,11 @@ class AppContext : public QObject
     // a release build, where unsupported options are shown greyed-out instead.
     Q_PROPERTY(bool devBuild READ devBuild CONSTANT)
     // Compositor capabilities, resolved once at startup. The UI uses them to
-    // enable/grey the matching options. capCustomNotification/capRecordBorder ride
-    // on layer-shell (KWin/wlroots/COSMIC); capNativeNotification on a running
-    // notification server (absent on e.g. a bare Sway).
+    // enable/grey the matching options. capCustomNotification rides on
+    // layer-shell (KWin/wlroots/COSMIC); capRecordBorder additionally covers the
+    // KWin fullscreen fallback, plain X11 sessions and the XWayland helper
+    // (GNOME); capNativeNotification on a running notification server (absent
+    // on e.g. a bare Sway).
     Q_PROPERTY(bool capNativeNotification READ capNativeNotification CONSTANT)
     Q_PROPERTY(bool capCustomNotification READ capCustomNotification CONSTANT)
     Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
@@ -158,6 +161,7 @@ public:
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
     Q_INVOKABLE void devTestCopyLast();
+    Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
@@ -393,10 +397,12 @@ private:
     void defineHotkeys();
     void onRecordingFinished(const QString &path);
     void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
-    // Region recording marker: a transparent, click-through fullscreen window
+    // Region recording marker: a transparent, click-through fullscreen surface
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame
-    // landing inside the ffmpeg crop. KWin-only, like the capture popup.
+    // landing inside the ffmpeg crop. Hosted on layer-shell (KWin/wlroots/
+    // COSMIC), a KWin fullscreen-transparent fallback, or — GNOME — a separate
+    // XWayland helper process (see RecordBorderHelper.h).
     void showRecordBorder(QRect physRegion, QScreen *screen);
     void hideRecordBorder();
     void withDelay(std::function<void()> fn);
@@ -449,6 +455,7 @@ private:
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QProcess *m_recordBorderHelper = nullptr;    // XWayland helper frame (GNOME path)
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
     QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership

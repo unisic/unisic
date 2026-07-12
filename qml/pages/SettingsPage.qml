@@ -1968,7 +1968,7 @@ Item {
                     SettingRow {
                         label: qsTr("Recording border")
                         help: qsTr("Whether a border can be drawn around the recorded region.")
-                        helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself.")
+                        helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.")
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
@@ -2032,6 +2032,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (region)"); onClicked: App.startVideoRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (window)"); onClicked: App.startVideoWindow() }
                         UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }

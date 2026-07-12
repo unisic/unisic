@@ -1262,6 +1262,32 @@ void AppContext::devTestPreview()
     openPreview(devTestImage());
 }
 
+void AppContext::devTestRecordBorder()
+{
+    if (!devBuild())
+        return;
+    if (!capRecordBorder()) {
+        showToast(tr("Dev: record border: unsupported on this compositor"), true);
+        return;
+    }
+    QScreen *screen = QGuiApplication::primaryScreen();
+    if (!screen)
+        return;
+    // Centered region ≈ 40% of the primary screen, in physical pixels — the
+    // same unit a real region recording hands to showRecordBorder().
+    const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+    const int pw = qRound(screen->geometry().width() * dpr);
+    const int ph = qRound(screen->geometry().height() * dpr);
+    showRecordBorder(QRect(pw * 3 / 10, ph * 3 / 10, pw * 2 / 5, ph * 2 / 5), screen);
+    const bool up = m_recordBorderWindow || m_recordBorderHelper;
+    showToast(up ? tr("Dev: record border shown for 4 s")
+                 : tr("Dev: record border FAILED to show"), !up);
+    QTimer::singleShot(4000, this, [this] {
+        if (!recording()) // a real region recording may own the frame by now
+            hideRecordBorder();
+    });
+}
+
 void AppContext::devTestPreviewFromHistory()
 {
     if (!devBuild())
@@ -1504,7 +1530,6 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
                  .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
                       (capNativeNotification() || capCustomNotification()) ? "PASS" : "FAIL"));
-        smokeLog(QStringLiteral("record border: ") + (capRecordBorder() ? QStringLiteral("PASS") : QStringLiteral("n/a on this compositor")));
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
         if (m_hotkeys->available()) {
@@ -1526,6 +1551,39 @@ void AppContext::runSmokeTest()
                  ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
                  qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
         smokeNext();
+    });
+
+    // 1b) record border: flash the region frame on whichever host this
+    // compositor uses (layer-shell / KWin fullscreen fallback / X11 /
+    // XWayland helper) and take it down again.
+    m_smokeSteps.append([this] {
+        if (!capRecordBorder()) {
+            smokeLog(QStringLiteral("record border: SKIP (no layer-shell/KWin/XWayland)"));
+            smokeNext();
+            return;
+        }
+        QScreen *screen = QGuiApplication::primaryScreen();
+        if (!screen) {
+            smokeLog(QStringLiteral("record border: FAIL (no screen)"));
+            smokeNext();
+            return;
+        }
+        const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+        const int pw = qRound(screen->geometry().width() * dpr);
+        const int ph = qRound(screen->geometry().height() * dpr);
+        showRecordBorder(QRect(pw * 3 / 10, ph * 3 / 10, pw * 2 / 5, ph * 2 / 5), screen);
+        const bool up = m_recordBorderWindow || m_recordBorderHelper;
+        const bool helper = m_recordBorderHelper != nullptr;
+        QTimer::singleShot(1200, this, [this, up, helper] {
+            if (!recording())
+                hideRecordBorder();
+            smokeLog(QStringLiteral("record border (%1): %2")
+                         .arg(helper ? QStringLiteral("xwayland helper")
+                              : m_layerShellAvailable ? QStringLiteral("layer-shell")
+                                                      : QStringLiteral("fullscreen window"),
+                              up ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+            smokeNext();
+        });
     });
 
     // 2) real fullscreen capture -> save -> history
@@ -1908,16 +1966,68 @@ bool AppContext::capRecordBorder() const
 {
     if (m_layerShellAvailable)
         return true; // layer-shell overlay: KWin, wlroots, COSMIC…
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+        return true; // X11 session: StaysOnTop + input-transparent work natively
     // KWin can still host the fullscreen-transparent border without layer-shell.
     auto *bi = QDBusConnection::sessionBus().interface();
-    return bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+    if (bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin")))
+        return true;
+    // GNOME and friends: the XWayland override-redirect helper only needs an X
+    // socket (mutter spawns XWayland on demand when the helper connects).
+    return qEnvironmentVariableIsSet("DISPLAY");
 }
 
 void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
 {
     hideRecordBorder(); // retire any stale frame first
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
-        return; // capRecordBorder(): layer-shell (KWin/wlroots/COSMIC) or KWin trick
+        return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
+
+    // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
+    // sink below the next window the user raises — mutter has no keep-above
+    // for xdg_toplevel. Spawn the XWayland helper instead: mutter stacks
+    // override-redirect X11 windows above every application window, and the
+    // empty input shape keeps the frame click-through. The region travels as
+    // monitor FRACTIONS because XWayland's coordinate space (logical vs
+    // physical layout mode) need not match either of ours.
+    // UNISIC_RECORD_BORDER=helper forces this path on any compositor (testing).
+    const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    auto *bi = QDBusConnection::sessionBus().interface();
+    const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+    const bool forceHelper =
+        qEnvironmentVariable("UNISIC_RECORD_BORDER") == QLatin1String("helper");
+    if (forceHelper
+        || (wayland && !m_layerShellAvailable && !kwin
+            && qEnvironmentVariableIsSet("DISPLAY"))) {
+        const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+        const QRect lg = screen->geometry();
+        const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
+        // Frame color follows the active theme; the fallback is the palette accent.
+        QColor accent(QStringLiteral("#C8ACD6"));
+        if (QObject *theme = m_engine->singletonInstance<QObject *>(
+                QStringLiteral("Unisic"), QStringLiteral("Theme")))
+            accent = theme->property("accent").value<QColor>();
+        const auto frac = [](double v) { return QString::number(v, 'f', 8); };
+        auto *proc = new QProcess(this);
+        proc->setProgram(QCoreApplication::applicationFilePath());
+        proc->setArguments({QStringLiteral("--record-border-helper"),
+                            screen->name(),
+                            QString::number(lg.x()), QString::number(lg.y()),
+                            QString::number(lg.width()), QString::number(lg.height()),
+                            QString::number(qRound(phys.width())),
+                            QString::number(qRound(phys.height())),
+                            frac(physRegion.x() / phys.width()),
+                            frac(physRegion.y() / phys.height()),
+                            frac(physRegion.width() / phys.width()),
+                            frac(physRegion.height() / phys.height()),
+                            accent.name(QColor::HexRgb)});
+        // stdin stays an open pipe on purpose: if THIS process dies without
+        // reaching hideRecordBorder(), the helper sees EOF and quits — no
+        // orphaned frame can outlive the recording.
+        proc->start();
+        m_recordBorderHelper = proc;
+        return;
+    }
 
     QQmlComponent component(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/RecordBorder.qml")));
     if (component.isError()) {
@@ -1993,6 +2103,21 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen)
 void AppContext::hideRecordBorder()
 {
     m_pendingRecordRegion = QRect();
+    if (m_recordBorderHelper) {
+        QProcess *p = m_recordBorderHelper;
+        m_recordBorderHelper = nullptr;
+        connect(p, &QProcess::finished, p, &QObject::deleteLater);
+        // Clean shutdown is the stdin EOF (the helper's only lifeline); the
+        // delayed kill only reaps a wedged helper without blocking the GUI.
+        p->closeWriteChannel();
+        if (p->state() == QProcess::NotRunning)
+            p->deleteLater();
+        else
+            QTimer::singleShot(1000, p, [p] {
+                if (p->state() != QProcess::NotRunning)
+                    p->kill();
+            });
+    }
     if (m_recordBorderWindow) {
         m_recordBorderWindow->close();
         m_recordBorderWindow->deleteLater();

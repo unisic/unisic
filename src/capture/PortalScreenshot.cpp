@@ -1,12 +1,73 @@
 #include "PortalScreenshot.h"
 #include "PortalRequest.h"
+#include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QFile>
 #include <QGuiApplication>
 #include <QPointer>
 #include <QtConcurrentRun>
 #include <QDebug>
+
+// The app id xdg-desktop-portal derives for a host process from its systemd
+// unit — the same "app[-<launcher>]-<ApplicationID>-<RANDOM>.scope" rule as
+// the portal's xdp-app-info-host.c (unit read from /proc/self/cgroup; \xNN
+// escapes don't occur in our ids, so no cunescape needed). Empty when the
+// process runs in a non-app scope (terminal, ssh) — the portal sees "" then.
+static QString scopeAppId()
+{
+    QFile f(QStringLiteral("/proc/self/cgroup"));
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    const QString cgroup = QString::fromUtf8(f.readAll());
+    const QString unit = cgroup.section(QLatin1Char('/'), -1).trimmed();
+    static const QRegularExpression re(
+        QStringLiteral("^app-(?:[[:alnum:]]+-)?(.+?)(?:-[[:alnum:]]*)(?:\\.scope|\\.slice)$"));
+    const QRegularExpressionMatch m = re.match(unit);
+    return m.hasMatch() ? m.captured(1) : QString();
+}
+
+QStringList PortalScreenshot::candidateAppIds()
+{
+    QStringList ids{QGuiApplication::desktopFileName(), QString()};
+    const QString scoped = scopeAppId();
+    if (!scoped.isEmpty() && !ids.contains(scoped))
+        ids.append(scoped);
+    return ids;
+}
+
+void PortalScreenshot::ensureSilentPermission(QObject *context, std::function<void()> then)
+{
+    const QStringList appIds = candidateAppIds();
+    // Fire all writes, run `then` after the LAST one is acknowledged — the
+    // silent Screenshot request must not race its own grant.
+    auto remaining = std::make_shared<int>(appIds.size());
+    auto fire = std::make_shared<std::function<void()>>(std::move(then));
+    for (const QString &appId : appIds) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+            QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
+            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
+            QStringLiteral("SetPermission"));
+        msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
+            << appId << QStringList{QStringLiteral("yes")};
+        auto *watcher = new QDBusPendingCallWatcher(
+            QDBusConnection::sessionBus().asyncCall(msg), context);
+        QObject::connect(watcher, &QDBusPendingCallWatcher::finished, context,
+                         [watcher, remaining, fire](QDBusPendingCallWatcher *) {
+            watcher->deleteLater();
+            // Failure (no permission store on the bus) is not fatal — the
+            // request itself may still pass; proceed either way.
+            if (--*remaining == 0 && *fire)
+                (*fire)();
+        });
+    }
+    if (appIds.isEmpty() && *fire)
+        (*fire)();
+}
 
 void PortalScreenshot::capture(bool interactive, Callback cb, bool allowInteractiveFallback)
 {
@@ -24,6 +85,23 @@ void PortalScreenshot::capture(bool interactive, Callback cb, bool allowInteract
 }
 
 void PortalScreenshot::requestOnce(bool interactive, Callback cb)
+{
+    if (!interactive) {
+        // Re-assert the silent grant IMMEDIATELY before the request: a denied
+        // GNOME access dialog leaves a sticky "no" in the permission store,
+        // after which every non-interactive Screenshot fails with response
+        // code 2 (no dialog, nothing to retry) — reported live on GNOME as
+        // "region capture keeps giving Code 2". A single startup grant can't
+        // repair that; a pre-request one always does.
+        ensureSilentPermission(this, [this, cb = std::move(cb)]() mutable {
+            sendRequest(false, std::move(cb));
+        });
+        return;
+    }
+    sendRequest(true, std::move(cb));
+}
+
+void PortalScreenshot::sendRequest(bool interactive, Callback cb)
 {
     const QString token = PortalRequest::nextToken();
     QDBusMessage msg = QDBusMessage::createMethodCall(

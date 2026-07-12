@@ -2,7 +2,7 @@ pkgname=unisic
 # Plain literal on purpose: OBS parses the PKGBUILD server-side (no bash
 # ${var:-default} expansion) and its set_version service rewrites this line
 # at build time; the CI release job seds in the CMakeLists version likewise.
-pkgver=0.6.3
+pkgver=0.6.4
 pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')

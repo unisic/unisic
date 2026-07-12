@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.6.4" date="2026-07-12">
+      <description>
+        <p>Fixes capture on GNOME: region and fullscreen screenshots work silently again even after a previously denied permission dialog. The release page now carries ready-to-install rpm packages for Fedora, openSUSE Tumbleweed and Leap 15.6, each registering its update repository on first install. Also fixes building on openSUSE Leap 15.6.</p>
+      </description>
+    </release>
     <release version="0.6.3" date="2026-07-12">
       <description>
         <p>Step markers get their own size control, independent of the text font size. On GNOME, region recordings now show the record-border frame. openSUSE users install from the same COPR repository as Fedora, and every release ships packages for all supported distributions that keep updating through the native package manager. Recording uses noticeably less memory.</p>

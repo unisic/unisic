@@ -13,6 +13,11 @@ using ZXingOptions = ZXing::ReaderOptions;
 #else
 using ZXingOptions = ZXing::DecodeHints;
 #endif
+// Result::text() returns std::string in zxing-cpp 2.x but std::wstring in
+// 1.x (still what openSUSE Leap 15.6 ships) — overloads pick the right
+// conversion at compile time.
+static QString zxingText(const std::string &s) { return QString::fromStdString(s); }
+static QString zxingText(const std::wstring &s) { return QString::fromStdWString(s); }
 #endif
 
 namespace {
@@ -126,7 +131,7 @@ OcrResult runOcr(QImage img, QString langs, std::shared_ptr<std::atomic_bool> ca
         opts.setTryRotate(true);
         const auto res = ZXing::ReadBarcode(view, opts);
         if (res.isValid()) {
-            r.text = QString::fromStdString(res.text()).trimmed();
+            r.text = zxingText(res.text()).trimmed();
             if (!r.text.isEmpty())
                 return r;
         }

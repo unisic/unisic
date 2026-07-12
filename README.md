@@ -33,7 +33,7 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 
 Any Wayland desktop with `xdg-desktop-portal` works; recording also needs PipeWire and `ffmpeg`.
 
-**The quick way:** grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through `apt upgrade` / `pacman -Syu` like any other package. On Fedora and openSUSE install the tiny `unisic-copr-repo` rpm from the release, then install `unisic` with your package manager - it configures the repo, so the app arrives distro-built and keeps updating.
+**The quick way:** grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and every distro package registers its native repo on first install - from then on updates arrive through `apt upgrade` / `dnf upgrade` / `zypper up` / `pacman -Syu` like any other package. Pick the `.rpm` matching your distro (`.fedora`, `.opensuse-tumbleweed`, `.opensuse-leap15.6`) - they are built against each distro's own Qt and are not interchangeable.
 
 Or add the repo yourself:
 

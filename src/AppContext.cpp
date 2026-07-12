@@ -637,7 +637,11 @@ QString AppContext::captureErrorGuidance(const QString &err)
                    "application menu so KDE authorizes it, and check that "
                    "xdg-desktop-portal-kde is running.");
     else if (desktop.contains(QLatin1String("GNOME"), Qt::CaseInsensitive))
-        text += tr(". Allow screenshots for Unisic in GNOME Settings → Apps, and check that "
+        // "code 2" with no dialog = the permission store holds a sticky "no"
+        // (a once-denied GNOME access dialog). GNOME Settings does not list
+        // host apps, so name the actual repair command.
+        text += tr(". GNOME is blocking silent screenshots for Unisic — run "
+                   "\"flatpak permission-reset screenshot\" and retry, and check that "
                    "xdg-desktop-portal-gnome is running.");
     else if (!err.contains(QLatin1String("grim")))
         // The capture chain's own rescue may already carry grim advice

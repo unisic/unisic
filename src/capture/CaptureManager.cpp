@@ -39,27 +39,13 @@ static void registerHostAppId()
 // The SILENT portal Screenshot path is gated on the permission store's
 // "screenshot" table by BOTH GNOME (43+) and KDE (Plasma 6.4+) — without a
 // stored "yes" the first request pops a consent dialog, which the overlay
-// freeze must never do. Self-grant it up front (the store is talkable by host
-// apps too; this is the documented flameshot recipe). For host launches the
-// grant is written both for our registered id and for "" — the key the portal
-// uses for unidentifiable launches (terminal, AppImage, xdg-desktop-portal
-// < 1.20 without the Registry). Note the "" grant covers every unidentified
-// HOST app, not just us — the user installed a screenshot tool; that is the
-// established trade-off (flameshot does the same).
-static void grantSilentScreenshotPermission()
-{
-    const QStringList appIds{QGuiApplication::desktopFileName(), QString()};
-    for (const QString &appId : std::as_const(appIds)) {
-        QDBusMessage msg = QDBusMessage::createMethodCall(
-            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
-            QStringLiteral("/org/freedesktop/impl/portal/PermissionStore"),
-            QStringLiteral("org.freedesktop.impl.portal.PermissionStore"),
-            QStringLiteral("SetPermission"));
-        msg << QStringLiteral("screenshot") << true << QStringLiteral("screenshot")
-            << appId << QStringList{QStringLiteral("yes")};
-        QDBusConnection::sessionBus().asyncCall(msg);
-    }
-}
+// freeze must never do. The grant itself lives in
+// PortalScreenshot::ensureSilentPermission (covering desktop-file id, "" and
+// the systemd-scope id) and is re-asserted before EVERY silent request; the
+// startup call here just warms the store so even the first-ever interactive
+// flow never sees the GNOME access dialog. The "" grant covers every
+// unidentified HOST app, not just us — the user installed a screenshot tool;
+// that is the established trade-off (flameshot does the same).
 
 // Session family — chooses the capture chain. KDE has the KWin fast path
 // (KWin implements NEITHER screencopy protocol, grim never works there);
@@ -129,7 +115,7 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     // Order matters: Register must precede any other portal interaction on
     // this connection for the id to stick.
     registerHostAppId();
-    grantSilentScreenshotPermission();
+    PortalScreenshot::ensureSilentPermission(this, [] {});
 }
 
 // A stale WAYLAND_DISPLAY in a genuine X11 session (systemd --user env

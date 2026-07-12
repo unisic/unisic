@@ -194,8 +194,13 @@ jobs:
           CC: ${{ matrix.cc }}
           CXX: ${{ matrix.cxx }}
         run: |
+          # BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit
+          # tests need Qt6Test, which openSUSE ships as a separate
+          # qt6-test-devel — packages don't run unit tests (same reason as
+          # unisic.spec).
           cmake -B build-rpm -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DBUILD_TESTING=OFF \
             -DCPACK_GENERATOR=RPM
           cmake --build build-rpm --parallel
           cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist

@@ -95,16 +95,15 @@ jobs:
           path: dist/*.deb
           if-no-files-found: error
 
-  # PER-DISTRO binary rpms, one per Qt build root: QML type registration
-  # links Qt PRIVATE API symbols (QQmlPrivate via qt_add_qml_module), so a
-  # binary rpm hard-requires the EXACT Qt minor it was built against —
+  # The rpm asset is FEDORA-ONLY, deliberately: QML type registration links
+  # Qt PRIVATE API symbols (QQmlPrivate via qt_add_qml_module), so a binary
+  # rpm hard-requires the EXACT Qt minor it was built against —
   # libQt6Qml.so.6(Qt_6.11_PRIVATE_API) from fedora:latest can never resolve
-  # on Tumbleweed's or Leap's Qt. Hence three suffixed assets (.fedora,
-  # .opensuse-tumbleweed, .opensuse-leap15.6); each %post-registers the COPR
-  # repo (dnf or zypp flavor — packaging/rpm/copr-post.sh), so updates then
-  # arrive from per-chroot COPR builds. Caveat: the Tumbleweed asset only
-  # installs while TW ships the same Qt minor it was built against (rolling);
-  # the COPR repo and the AppImage stay the evergreen paths.
+  # on openSUSE's Qt, and one rpm across distros is impossible by
+  # construction. openSUSE ships from the OBS repos instead (TW + Leap 16,
+  # auto-rebuilt when TW's dependencies move — see packaging/obs/README.md);
+  # a COPR suse lane was tried (2026-07) and reverted after COPR's Pulp
+  # storage migration broke the opensuse chroots at mock-bootstrap time.
   rpm:
     name: RPM (Fedora)
     needs: check
@@ -144,78 +143,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: unisic-rpm-fedora
-          path: dist/*.rpm
-          if-no-files-found: error
-
-  rpm-suse:
-    name: RPM (${{ matrix.suffix }})
-    needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - container: "opensuse/tumbleweed"
-            suffix: opensuse-tumbleweed
-            cc: gcc
-            cxx: g++
-            gccpkg: gcc-c++
-          # Leap 15.x defaults to gcc7 — C++20 needs the parallel gcc13
-          # toolchain (mirrors the unisic.spec suse<1600 branch).
-          - container: "opensuse/leap:15.6"
-            suffix: opensuse-leap15.6
-            cc: gcc-13
-            cxx: g++-13
-            gccpkg: gcc13-c++
-    container: ${{ matrix.container }}
-    steps:
-      - name: Install build dependencies
-        run: |
-          # Capability names (cmake()/pkgconfig()) — the -devel package names
-          # differ across TW/Leap; capabilities are what the spec uses too.
-          # tar/gzip: the leap image lacks them and actions/checkout needs
-          # both. No cmake(LayerShellQt): Leap only has the Qt5 build, TW
-          # resolves it — install it where it exists, skip where it doesn't.
-          zypper --non-interactive install --force-resolution \
-            tar gzip git rpm-build cmake ninja ${{ matrix.gccpkg }} \
-            "cmake(Qt6Core)" "cmake(Qt6Widgets)" "cmake(Qt6Quick)" \
-            "cmake(Qt6QuickControls2)" "cmake(Qt6DBus)" "cmake(Qt6Concurrent)" \
-            "cmake(Qt6Svg)" "cmake(Qt6LinguistTools)" "cmake(Qt6WaylandClient)" \
-            "pkgconfig(libpipewire-0.3)" "pkgconfig(tesseract)" "pkgconfig(lept)" \
-            "pkgconfig(libcurl)" "cmake(ZXing)" \
-            "pkgconfig(wayland-client)" "pkgconfig(wayland-protocols)" \
-            extra-cmake-modules
-          zypper --non-interactive install "cmake(LayerShellQt)" || true
-
-      - uses: actions/checkout@v4
-
-      - name: Build RPM
-        env:
-          CC: ${{ matrix.cc }}
-          CXX: ${{ matrix.cxx }}
-        run: |
-          # BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit
-          # tests need Qt6Test, which openSUSE ships as a separate
-          # qt6-test-devel — packages don't run unit tests (same reason as
-          # unisic.spec).
-          cmake -B build-rpm -G Ninja \
-            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-            -DBUILD_TESTING=OFF \
-            -DCPACK_GENERATOR=RPM
-          cmake --build build-rpm --parallel
-          cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
-          # Install gate: Requires resolve against this distro's repos and
-          # copr-post.sh takes the zypp branch (COPR repo registered).
-          zypper --non-interactive --no-gpg-checks install --allow-unsigned-rpm ./dist/*.rpm
-          test -e /etc/zypp/repos.d/unisic-copr.repo
-          zypper --non-interactive refresh unisic-copr
-          for f in dist/*.x86_64.rpm; do
-            mv "$f" "${f%.x86_64.rpm}.${{ matrix.suffix }}.x86_64.rpm"
-          done
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-rpm-${{ matrix.suffix }}
           path: dist/*.rpm
           if-no-files-found: error
 
@@ -485,7 +412,6 @@ jobs:
       - check
       - deb
       - rpm
-      - rpm-suse
       - arch
       - appimage
     if: ${{ needs.check.outputs.should_release == 'true' }}
@@ -503,10 +429,9 @@ jobs:
       # UPDATE channel — each direct-download package self-registers its native
       # repo on first install, so a one-off download keeps updating natively:
       #   .deb      → OBS apt repo   (packaging/deb/postinst)
-      #   .rpm      → per-distro assets (.fedora / .opensuse-tumbleweed /
-      #               .opensuse-leap15.6 — one per Qt build root, see the rpm
-      #               job comment); each registers the COPR repo in %post
-      #               (dnf on Fedora, zypp on openSUSE)
+      #   .rpm      → Fedora-only asset (.fedora — see the rpm job comment);
+      #               %post registers the COPR dnf repo. openSUSE has no
+      #               release rpm: it installs from the OBS repos (README)
       #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
       #   AppImage  → self-updates via the embedded zsync info
       - name: Download release assets

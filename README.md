@@ -33,7 +33,7 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 
 Any Wayland desktop with `xdg-desktop-portal` works; recording also needs PipeWire and `ffmpeg`.
 
-**The quick way:** grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and every distro package registers its native repo on first install - from then on updates arrive through `apt upgrade` / `dnf upgrade` / `zypper up` / `pacman -Syu` like any other package. Pick the `.rpm` matching your distro (`.fedora`, `.opensuse-tumbleweed`, `.opensuse-leap15.6`) - they are built against each distro's own Qt and are not interchangeable.
+**The quick way:** grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through `apt upgrade` / `dnf upgrade` / `pacman -Syu` like any other package. openSUSE installs from the repo below (no release rpm - a binary rpm is pinned to the exact Qt it was built against).
 
 Or add the repo yourself:
 
@@ -63,8 +63,8 @@ sudo apt update && sudo apt install unisic
 <summary><b>openSUSE</b></summary>
 
 ```sh
-# Tumbleweed (for Leap 15.6 replace opensuse-tumbleweed with opensuse-leap-15.6)
-sudo zypper addrepo https://copr.fedorainfracloud.org/coprs/deandark/Unisic/repo/opensuse-tumbleweed/deandark-Unisic.repo
+# Tumbleweed (for Leap 16.0 replace openSUSE_Tumbleweed with 16.0)
+sudo zypper addrepo https://download.opensuse.org/repositories/home:unisic/openSUSE_Tumbleweed/home:unisic.repo
 sudo zypper refresh
 sudo zypper install unisic
 ```

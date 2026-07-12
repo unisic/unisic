@@ -4,3 +4,4 @@ build*/
 # Claude Code local settings
 .claude/settings.json
 .claude/settings.local.json
+dist/

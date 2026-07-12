@@ -421,9 +421,19 @@ void GifRecorder::sampleFrame()
         return;
     // Bounded buffer: drop this sample instead of aborting the recording.
     // Scale with the frame size — a fixed 64 MB is only ~2 frames at 4K BGRA,
-    // so a momentary encoder stall would drop samples immediately.
+    // so a momentary encoder stall would drop samples immediately. But keep the
+    // ceiling TIGHT: when the encoder can't sustain the frame rate at all
+    // (software encode in a VM / GNOME on weak hardware), the backlog fills to
+    // whatever this cap allows and just sits there for the whole recording —
+    // ×30 measured as a standing 462 MB RSS at 1440p (~1 GB at 4K), and every
+    // buffered byte also delays stop(): closeWriteChannel() flushes the entire
+    // backlog through the encoder before conversion can begin. A sustained
+    // deficit drops samples at ANY cap (pacing duplicates frames afterwards),
+    // so a big backlog buys nothing beyond burst absorption — ×6 (~200 ms at
+    // 30 fps) absorbs the same stalls at a fraction of the memory.
     const qsizetype frameBytes = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
-    const qsizetype writeCap = qMax<qsizetype>(64 * 1024 * 1024, frameBytes * 30);
+    const qsizetype writeCap = qBound(qsizetype(64) * 1024 * 1024, frameBytes * 6,
+                                      qsizetype(192) * 1024 * 1024);
     if (m_ffmpeg->bytesToWrite() > writeCap)
         return;
     // ffmpeg's rawvideo demuxer slices stdin into fixed m_streamSize frames. If

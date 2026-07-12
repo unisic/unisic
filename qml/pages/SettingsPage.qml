@@ -116,12 +116,22 @@ Item {
         return best
     }
 
-    // The Developer tab (index 6) only exists in a dev build.
+    // Categories in the left rail. One category = one thing the user is trying
+    // to configure; everything about that thing lives in that one pane
+    // (notifications used to be split across three tabs, editor across two).
+    // The Developer category (index 8) only exists in a dev build.
     readonly property var tabNames: {
-        var t = [qsTr("General"), qsTr("Preferences"), qsTr("Appearance"),
-                 qsTr("Editor"), qsTr("Recording"), qsTr("Hotkeys")]
+        var t = [qsTr("General"), qsTr("Capture"), qsTr("Recording"), qsTr("Editor"),
+                 qsTr("Saving"), qsTr("Notifications"), qsTr("Appearance"), qsTr("Hotkeys")]
         if (App.devBuild)
             t.push(qsTr("Developer"))
+        return t
+    }
+    readonly property var tabIcons: {
+        var t = ["configure", "camera-photo", "media-record", "edit",
+                 "document-save", "bell", "fill-color", "keyboard"]
+        if (App.devBuild)
+            t.push("terminal")
         return t
     }
 
@@ -356,6 +366,56 @@ Item {
         WheelBoost { flickable: fl }
     }
 
+    // One entry in the category rail: icon + label, accent-tinted when active.
+    component NavItem: Rectangle {
+        id: nav
+        property string iconName: ""
+        property string label: ""
+        property bool active: false
+        signal clicked()
+        width: parent ? parent.width : 180
+        height: 38
+        radius: Theme.radiusM
+        color: active ? Theme.alpha(Theme.accent, 0.18)
+             : navMouse.containsMouse ? Theme.alpha(Theme.accent, 0.10)
+             : "transparent"
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        Rectangle {
+            anchors.left: parent.left
+            anchors.leftMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            width: 3; height: 18; radius: 1.5
+            color: Theme.accent
+            visible: nav.active
+        }
+        Row {
+            anchors.left: parent.left
+            anchors.leftMargin: 14
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 10
+            UIcon {
+                name: nav.iconName
+                size: 18
+                color: nav.active ? Theme.accent : Theme.textSecondary
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: nav.label
+                color: nav.active ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: Theme.fontM
+                font.weight: nav.active ? Font.DemiBold : Font.Normal
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+        MouseArea {
+            id: navMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: nav.clicked()
+        }
+    }
+
     // Import/Export use the DESKTOP's native file picker (C++ QFileDialog via
     // the platform theme), not a QML FileDialog — the latter fell back to the
     // Basic-styled Qt Quick dialog here, which looked out of place.
@@ -386,73 +446,12 @@ Item {
         }
     }
 
-    // ---------------- tab bar ----------------
-    // A Flow (not a Row): with the Preferences + Developer tabs added the chips
-    // no longer fit one line at narrow widths, and a Row ran them under the
-    // search field. The Flow wraps extra chips onto a second line and its right
-    // edge stops before the search box, so the two never overlap.
-    Flow {
-        id: tabBar
-        anchors.top: header.bottom
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingXL
-        anchors.right: searchField.left
-        anchors.rightMargin: Theme.spacingM
-        anchors.topMargin: Theme.spacingM
-        spacing: Theme.spacingS
-        Repeater {
-            model: page.tabNames
-            delegate: Rectangle {
-                required property int index
-                required property string modelData
-                width: tabLabel.implicitWidth + 28
-                height: 34
-                radius: Theme.radiusM
-                color: page.tab === index ? Theme.accent
-                     : tabMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16)
-                     : Theme.surface
-                border.width: 1
-                border.color: page.tab === index ? Theme.accent : Theme.divider
-                Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                Text {
-                    id: tabLabel
-                    anchors.centerIn: parent
-                    text: modelData
-                    color: page.tab === index ? Theme.textOnAccent : Theme.textSecondary
-                    font.pixelSize: Theme.fontM
-                    font.weight: page.tab === index ? Font.DemiBold : Font.Normal
-                }
-                MouseArea {
-                    id: tabMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: page.tab = index
-                }
-            }
-        }
-    }
-
-    // Settings search: type to list matching rows across ALL tabs; click a
-    // result to jump to its tab (label flashes accent for a moment). Pinned to
-    // the top-right; the tab Flow reserves the space to its left.
-    UTextField {
-        id: searchField
-        anchors.top: tabBar.top
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingXL
-        width: 190
-        placeholder: qsTr("Search settings…")
-        text: page.searchQuery
-        onEdited: (t) => page.searchQuery = t
-    }
-
     // Persistence warning: the config dir isn't writable, so nothing sticks
     // across launches. Tells the user exactly why + where to fix it.
     Rectangle {
         id: persistWarn
         visible: !App.settings.persistent
-        anchors.top: tabBar.bottom
+        anchors.top: header.bottom
         anchors.topMargin: Theme.spacingM
         anchors.left: parent.left
         anchors.right: parent.right
@@ -479,16 +478,64 @@ Item {
         }
     }
 
+    // ---------------- category rail ----------------
+    // Settings search: type to list matching rows across ALL categories; click
+    // a result to jump to its pane (label flashes accent for a moment). Sits
+    // on top of the rail so "find a setting" and "browse categories" are the
+    // same place.
+    UTextField {
+        id: searchField
+        anchors.top: persistWarn.bottom
+        anchors.topMargin: persistWarn.visible ? Theme.spacingM : 0
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spacingXL
+        width: navRail.width
+        placeholder: qsTr("Search settings…")
+        text: page.searchQuery
+        onEdited: (t) => page.searchQuery = t
+    }
+
+    Flickable {
+        id: navRail
+        anchors.top: searchField.bottom
+        anchors.topMargin: Theme.spacingM
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spacingXL
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.spacingL
+        width: 180
+        clip: true
+        contentWidth: width
+        contentHeight: navCol.height
+        boundsBehavior: Flickable.StopAtBounds
+        Column {
+            id: navCol
+            width: parent.width
+            spacing: 2
+            Repeater {
+                model: page.tabNames
+                delegate: NavItem {
+                    required property int index
+                    required property string modelData
+                    label: modelData
+                    iconName: page.tabIcons[index]
+                    active: page.tab === index && !page.searchActive
+                    // Picking a category is a navigation intent — leave search.
+                    onClicked: { page.searchQuery = ""; page.tab = index }
+                }
+            }
+        }
+    }
+
     // ---------------- panes ----------------
     Item {
         id: paneArea
-        anchors.top: persistWarn.visible ? persistWarn.bottom : tabBar.bottom
-        anchors.topMargin: Theme.spacingM
-        anchors.left: parent.left
+        anchors.top: searchField.top
+        anchors.left: navRail.right
+        anchors.leftMargin: Theme.spacingL
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: Theme.spacingXL
         anchors.rightMargin: Theme.spacingXL
+        anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
         clip: true
 
@@ -508,7 +555,7 @@ Item {
                 spacing: Theme.spacingS
                 Text {
                     visible: page.searchResults.length === 0
-                    text: qsTr("No settings match \u201C%1\u201D").arg(page.searchQuery)
+                    text: qsTr("No settings match “%1”").arg(page.searchQuery)
                     color: Theme.textTertiary
                     font.pixelSize: Theme.fontM
                 }
@@ -562,9 +609,9 @@ Item {
             }
         }
 
-        // ===== General =====
+        // ===== General (0): language, app behavior, updates =====
         // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
+        // position). Nine always-instantiated panes made opening Settings
         // build hundreds of controls for tabs never shown.
         Loader {
             anchors.fill: parent
@@ -625,86 +672,18 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Storage & file naming") }
-                    Text {
-                        text: qsTr("Screenshots folder")
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Row {
-                        width: parent.width
-                        spacing: Theme.spacingM
-                        UTextField {
-                            width: parent.width - 110 - Theme.spacingM
-                            text: App.settings.saveDirectory
-                            onEdited: (t) => App.settings.saveDirectory = t
-                        }
-                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory("") }
-                    }
-                    Text {
-                        text: qsTr("Recordings folder (GIF and video)")
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Row {
-                        width: parent.width
-                        spacing: Theme.spacingM
-                        UTextField {
-                            width: parent.width - 110 - Theme.spacingM
-                            text: App.settings.videoSaveDirectory
-                            onEdited: (t) => App.settings.videoSaveDirectory = t
-                        }
-                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory(App.settings.videoSaveDirectory) }
+                    SectionTitle { text: qsTr("Application") }
+                    SettingRow {
+                        label: qsTr("Closing the window minimizes to tray")
+                        help: qsTr("Close button hides to the tray instead of quitting.")
+                        helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
+                        USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
                     }
                     SettingRow {
-                        label: qsTr("Image format")
-                        help: qsTr("File format for saved captures: PNG, JPEG or WebP.")
-                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. The format also applies to uploads and to the clipboard-encoded image where relevant.")
-                        UComboBox {
-                            width: 150
-                            model: ["png", "jpg", "webp"]
-                            currentIndex: Math.max(0, model.indexOf(App.settings.imageFormat))
-                            onActivated: (i) => App.settings.imageFormat = model[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Quality (JPEG/WebP): %1").arg(App.settings.imageQuality)
-                        help: qsTr("Compression quality for lossy formats.")
-                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless.")
-                        USlider {
-                            width: 200
-                            from: 10; to: 100
-                            value: App.settings.imageQuality
-                            onMoved: (v) => App.settings.imageQuality = Math.round(v)
-                        }
-                    }
-                    Column {
-                        width: parent.width
-                        spacing: 4
-                        Text {
-                            text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%")
-                            color: Theme.textTertiary
-                            font.pixelSize: Theme.fontS
-                        }
-                        UTextField {
-                            id: templateField
-                            width: parent.width
-                            text: App.settings.filenameTemplate
-                            onEdited: (t) => App.settings.filenameTemplate = t
-                        }
-                        Text {
-                            // filenamePreview() is a plain Q_INVOKABLE with no
-                            // dependency tracking — reference the settings it
-                            // uses so the preview updates while typing.
-                            text: {
-                                App.settings.filenameTemplate
-                                App.settings.imageFormat
-                                return qsTr("Preview: %1").arg(App.filenamePreview())
-                            }
-                            color: Theme.accent
-                            font.pixelSize: Theme.fontS
-                            font.family: "monospace"
-                        }
+                        label: qsTr("Start at login (minimized to tray)")
+                        help: qsTr("Launches Unisic automatically when you log in.")
+                        helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
+                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
                     }
                 }
             }
@@ -810,16 +789,632 @@ Item {
         }
         }
 
-        // ===== Preferences =====
-        // Behavioral / workflow settings moved out of the overloaded General
-        // tab (notifications, capture behavior, app behavior, the after-capture
-        // and after-upload pipelines).
+        // ===== Capture (1): taking the shot — behavior, the selection
+        // overlay, and what happens right after (the pipeline). =====
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 1
             visible: page.tab === 1 || page.searchActive
             opacity: (page.tab === 1 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 1 && !page.searchActive
+            property bool touched: false
+            active: touched || visible || page.searchActive
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Capture behavior") }
+                    SettingRow {
+                        label: qsTr("Capture delay")
+                        help: qsTr("Waits this long before taking the capture.")
+                        helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
+                        UValueCombo {
+                            width: 130
+                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000]
+                            from: 0; to: 5000
+                            suffix: " ms"
+                            value: App.settings.captureDelayMs
+                            onChanged: (v) => App.settings.captureDelayMs = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Include mouse cursor")
+                        help: qsTr("Draws the mouse pointer into the capture.")
+                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
+                        USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Capture on release")
+                        help: qsTr("Takes the screenshot the moment you release the selection.")
+                        helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately — no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
+                        USwitch { checked: App.settings.captureOnRelease; onToggled: (c) => App.settings.captureOnRelease = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Capture overlay") }
+                    SettingRow {
+                        label: qsTr("Toolbar position")
+                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
+                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
+                        UComboBox {
+                            width: 200
+                            model: page.toolbarPosNames
+                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
+                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show alignment guides while selecting")
+                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
+                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Smart pick (experimental)")
+                        help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
+                        helpDetail: qsTr("EXPERIMENTAL: detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor, so a single click selects its rectangle with no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen; the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
+                        USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("After capture") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Each enabled action runs immediately when the region is dropped. The editor opens alongside the others without blocking them.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Copy image to clipboard")
+                        help: qsTr("Puts every capture on the clipboard automatically.")
+                        helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
+                        USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Save to disk automatically")
+                        help: qsTr("Saves every capture into your save folder without asking.")
+                        helpDetail: qsTr("Files are named from the filename template. When off, a capture exists only in the notification/editor until you save it explicitly.")
+                        USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Upload to the active server")
+                        help: qsTr("Uploads every capture immediately after taking it.")
+                        helpDetail: qsTr("Uses the server selected on the Servers page. The result link can be auto-copied or opened via the options below.")
+                        USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Open the editor")
+                        help: qsTr("Opens every capture in the annotation editor.")
+                        helpDetail: qsTr("The editor never blocks other after-capture actions: saving, copying and uploading run independently at the same time.")
+                        USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("After upload") }
+                    SettingRow {
+                        label: qsTr("Copy link to clipboard")
+                        help: qsTr("Copies the upload URL once the upload finishes.")
+                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.")
+                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Open link in browser")
+                        help: qsTr("Opens the uploaded file's URL in your browser.")
+                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
+                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    }
+                }
+            }
+
+        }
+        }
+
+        // ===== Recording (2): GIF + video parameters and audio =====
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 2
+            visible: page.tab === 2 || page.searchActive
+            opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 2 && !page.searchActive
+            property bool touched: false
+            active: touched || visible || page.searchActive
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Recording") }
+                    SettingRow {
+                        label: qsTr("GIF frame rate")
+                        help: qsTr("Frames per second sampled into the GIF.")
+                        helpDetail: qsTr("Higher is smoother but grows the file quickly. 10–15 fps is usually plenty for UI demos.")
+                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
+                    }
+                    SettingRow {
+                        label: qsTr("GIF max duration")
+                        help: qsTr("Auto-stops GIF recording after this many seconds. 0 = unlimited.")
+                        helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
+                        UValueCombo {
+                            width: 120
+                            values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
+                            from: 0; to: 600
+                            suffix: " s"
+                            tooltip: qsTr("0 = unlimited")
+                            value: App.settings.gifMaxDurationSec
+                            onChanged: (v) => App.settings.gifMaxDurationSec = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("GIF quality")
+                        help: qsTr("Color fidelity of the generated GIF.")
+                        helpDetail: qsTr("Higher quality uses a richer palette (two-pass palettegen) at the cost of file size and conversion time.")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Fast / small"), qsTr("Balanced"), qsTr("Best")]
+                            currentIndex: App.settings.gifQuality
+                            onActivated: (i) => App.settings.gifQuality = i
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("MP4 frame rate")
+                        help: qsTr("Frames per second for video recordings.")
+                        helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
+                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Audio") }
+                    SettingRow {
+                        label: qsTr("Record system audio")
+                        help: qsTr("Captures what you hear (system output) into video recordings.")
+                        helpDetail: qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Record microphone")
+                        help: qsTr("Captures your microphone into video recordings.")
+                        helpDetail: qsTr("Uses the default input device. Mixed with system audio when both are enabled. GIFs have no audio.")
+                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+        }
+        }
+
+        // ===== Editor (3): everything about annotating — defaults, session
+        // persistence, background removal, the tool set and its icons. =====
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 3
+            visible: page.tab === 3 || page.searchActive
+            opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 3 && !page.searchActive
+            property bool touched: false
+            active: touched || visible || page.searchActive
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor defaults") }
+                    SettingRow {
+                        label: qsTr("Stroke color")
+                        help: qsTr("Default color for new annotations.")
+                        helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
+                        Row {
+                            spacing: 6
+                            ColorDot { dotColor: "#FF4757"; active: App.settings.editorStrokeColor.toLowerCase() === "#ff4757"; onClicked: App.settings.editorStrokeColor = "#FF4757" }
+                            ColorDot { dotColor: "#FFD84D"; active: App.settings.editorStrokeColor.toLowerCase() === "#ffd84d"; onClicked: App.settings.editorStrokeColor = "#FFD84D" }
+                            ColorDot { dotColor: "#2ED573"; active: App.settings.editorStrokeColor.toLowerCase() === "#2ed573"; onClicked: App.settings.editorStrokeColor = "#2ED573" }
+                            ColorDot { dotColor: "#1E90FF"; active: App.settings.editorStrokeColor.toLowerCase() === "#1e90ff"; onClicked: App.settings.editorStrokeColor = "#1E90FF" }
+                            ColorDot { dotColor: "#C8ACD6"; active: App.settings.editorStrokeColor.toLowerCase() === "#c8acd6"; onClicked: App.settings.editorStrokeColor = "#C8ACD6" }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Stroke width")
+                        help: qsTr("Default line thickness for annotations.")
+                        helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
+                        UValueCombo {
+                            width: 110
+                            values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
+                            from: 1; to: 64
+                            suffix: " px"
+                            value: App.settings.editorStrokeWidth
+                            onChanged: (v) => App.settings.editorStrokeWidth = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Text size")
+                        help: qsTr("Default font size for the text tool.")
+                        helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
+                        UValueCombo {
+                            width: 110
+                            values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
+                            from: 8; to: 144
+                            suffix: " px"
+                            value: App.settings.editorFontSize
+                            onChanged: (v) => App.settings.editorFontSize = v
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Always start with the default colors")
+                        help: qsTr("Color picks made while annotating last for that session only.")
+                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults — the next session starts again from the colors configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Always start with the default tool options")
+                        help: qsTr("Stroke width, text style and fill toggles last for that session only.")
+                        helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
+                        USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Smart background removal") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: !App.u2netAvailable
+                        text: qsTr("This build was compiled without onnxruntime, so AI background removal (U-2-Net) is unavailable — the built-in heuristic object cutout still works. Install onnxruntime and rebuild to enable it.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        available: App.u2netAvailable
+                        label: qsTr("Use U-2-Net for object cutout")
+                        help: qsTr("Use the U-2-Net neural model (when downloaded) for the object-pick cutout and the editor's Remove background action.")
+                        helpDetail: qsTr("When off, or the model is not downloaded, cutout falls back to the dependency-free heuristic segmenter. Runs fully offline once the model is fetched.")
+                        USwitch {
+                            checked: App.settings.useU2Net
+                            enabled: App.u2netAvailable
+                            onToggled: (c) => App.settings.useU2Net = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model")
+                        help: qsTr("Which neural model performs the cutout.")
+                        helpDetail: qsTr("Models differ in size, speed and quality:\n• U-2-Net small — fastest, good general results.\n• U-2-Net full — noticeably better masks, big download.\n• U-2-Net human — tuned for people/portraits.\n• Silueta — U-2-Net full compressed to 43 MB.\n• IS-Net — newest, best fine edge detail.\n• Custom — any segmentation .onnx you provide (u2net-style input is assumed; the input size is read from the model).\nEach downloaded model is stored locally and reused; switching models applies immediately.")
+                        UComboBox {
+                            id: segModelCombo
+                            width: 240
+                            property var entries: App.u2netModels()
+                            model: entries.map(function (e) { return e.label })
+                            currentIndex: {
+                                for (var i = 0; i < entries.length; ++i)
+                                    if (entries[i].id === App.settings.segmentModel) return i
+                                return 0
+                            }
+                            onActivated: (i) => {
+                                if (entries[i].id === "custom") {
+                                    // Cancelled picker keeps the previous model —
+                                    // currentIndex re-evaluates from settings.
+                                    App.pickU2NetCustomModel()
+                                } else {
+                                    App.settings.segmentModel = entries[i].id
+                                }
+                            }
+                        }
+                    }
+                    Text {
+                        visible: App.u2netAvailable && App.settings.segmentModel === "custom"
+                        width: parent.width
+                        wrapMode: Text.WrapAnywhere
+                        text: App.settings.segmentCustomModel
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                        font.family: "monospace"
+                    }
+                    SettingRow {
+                        visible: App.u2netAvailable
+                        label: qsTr("Model file")
+                        help: qsTr("Download state of the selected model. Each model is fetched once and stored locally.")
+                        Row {
+                            spacing: Theme.spacingS
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: App.u2netModelReady ? qsTr("Downloaded") : qsTr("Not downloaded")
+                                color: App.u2netModelReady ? Theme.textSecondary : Theme.textTertiary
+                                font.pixelSize: Theme.fontS
+                            }
+                            UButton {
+                                compact: true; variant: "tonal"
+                                visible: !App.u2netModelReady && App.settings.segmentModel !== "custom"
+                                text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
+                                enabled: !App.u2netBusy
+                                onClicked: App.downloadU2NetModel()
+                            }
+                            UButton {
+                                compact: true; variant: "tonal"
+                                visible: App.settings.segmentModel === "custom"
+                                text: qsTr("Choose file…")
+                                onClicked: App.pickU2NetCustomModel()
+                            }
+                            UButton {
+                                compact: true; variant: "danger"
+                                visible: App.u2netModelReady && App.settings.segmentModel !== "custom"
+                                text: qsTr("Delete")
+                                onClicked: App.deleteU2NetModel()
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor tools") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Hide tools you don't use; they disappear from the editor and the capture overlay.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Repeater {
+                        model: ToolCatalog.tools.filter(function (t) { return t.hideable })
+                        delegate: Item {
+                            width: parent.width
+                            height: 40
+                            Row {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                UIcon { name: modelData.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            USwitch {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                checked: !page.toolHidden(modelData.id)
+                                onToggled: (c) => page.setToolHidden(modelData.id, !c)
+                            }
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Editor tool icons") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Choose the icon set for the drawing tools only; the main app icons stay fixed.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Icon style")
+                        help: qsTr("Icon set used by the editor toolbars.")
+                        helpDetail: qsTr("“System” takes icons from your desktop icon theme (with Breeze as fallback); “custom” uses the bundled monochrome set that follows the app theme.")
+                        UComboBox {
+                            width: 220
+                            model: [qsTr("Custom (bundled)"), qsTr("System (desktop theme)")]
+                            currentIndex: App.settings.editorIconStyle === "system" ? 1 : 0
+                            onActivated: (i) => App.settings.editorIconStyle = (i === 1 ? "system" : "custom")
+                        }
+                    }
+                    Text {
+                        visible: App.settings.editorIconStyle === "system"
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Optional: override individual tools with a freedesktop icon name.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Repeater {
+                        model: App.settings.editorIconStyle === "system"
+                               ? ToolCatalog.tools.filter(function (t) { return t.editor || t.overlay })
+                               : []
+                        delegate: Item {
+                            width: parent.width
+                            height: 44
+                            Row {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                UIcon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    name: page.iconOverride(modelData.id) || modelData.iconName
+                                    iconStyle: "system"
+                                    size: 18
+                                    color: Theme.textSecondary
+                                }
+                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            UTextField {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 200
+                                text: page.iconOverride(modelData.id)
+                                placeholder: modelData.iconName
+                                onEdited: (t) => page.setIconOverride(modelData.id, t.trim())
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        }
+
+        // ===== Saving (4): where files land and what they're called =====
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 4
+            visible: page.tab === 4 || page.searchActive
+            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 4 && !page.searchActive
+            property bool touched: false
+            active: touched || visible || page.searchActive
+            // Search-driven loads stay transient: latch only a REAL visit, or one
+            // search would pin every pane (~thousands of items) for the app lifetime.
+            onLoaded: if (!page.searchActive) touched = true
+            sourceComponent: ScrollPane {
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Storage & file naming") }
+                    Text {
+                        text: qsTr("Screenshots folder")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            text: App.settings.saveDirectory
+                            onEdited: (t) => App.settings.saveDirectory = t
+                        }
+                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory("") }
+                    }
+                    Text {
+                        text: qsTr("Recordings folder (GIF and video)")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        UTextField {
+                            width: parent.width - 110 - Theme.spacingM
+                            text: App.settings.videoSaveDirectory
+                            onEdited: (t) => App.settings.videoSaveDirectory = t
+                        }
+                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory(App.settings.videoSaveDirectory) }
+                    }
+                    SettingRow {
+                        label: qsTr("Image format")
+                        help: qsTr("File format for saved captures: PNG, JPEG or WebP.")
+                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. The format also applies to uploads and to the clipboard-encoded image where relevant.")
+                        UComboBox {
+                            width: 150
+                            model: ["png", "jpg", "webp"]
+                            currentIndex: Math.max(0, model.indexOf(App.settings.imageFormat))
+                            onActivated: (i) => App.settings.imageFormat = model[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Quality (JPEG/WebP): %1").arg(App.settings.imageQuality)
+                        help: qsTr("Compression quality for lossy formats.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless.")
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.imageQuality
+                            onMoved: (v) => App.settings.imageQuality = Math.round(v)
+                        }
+                    }
+                    Column {
+                        width: parent.width
+                        spacing: 4
+                        Text {
+                            text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                        UTextField {
+                            id: templateField
+                            width: parent.width
+                            text: App.settings.filenameTemplate
+                            onEdited: (t) => App.settings.filenameTemplate = t
+                        }
+                        Text {
+                            // filenamePreview() is a plain Q_INVOKABLE with no
+                            // dependency tracking — reference the settings it
+                            // uses so the preview updates while typing.
+                            text: {
+                                App.settings.filenameTemplate
+                                App.settings.imageFormat
+                                return qsTr("Preview: %1").arg(App.filenamePreview())
+                            }
+                            color: Theme.accent
+                            font.pixelSize: Theme.fontS
+                            font.family: "monospace"
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Open file after saving")
+                        help: qsTr("Opens each capture in your image viewer after saving.")
+                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
+                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
+                    }
+                }
+            }
+        }
+        }
+
+        // ===== Notifications (5): all capture feedback in one place — the
+        // cards (master switch, style, position, timing) AND the sound cues.
+        // The style row lived on Appearance and the rest on Preferences; that
+        // split is exactly what made these settings hard to find. =====
+        Loader {
+            anchors.fill: parent
+            readonly property int tabIndex: 5
+            visible: page.tab === 5 || page.searchActive
+            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
             active: touched || visible || page.searchActive
             // Search-driven loads stay transient: latch only a REAL visit, or one
@@ -856,6 +1451,21 @@ Item {
                             checked: App.settings.showCapturePopup
                             enabled: App.settings.showNotifications
                             onToggled: (c) => App.settings.showCapturePopup = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        available: App.layerShellActive
+                        hint: App.layerShellActive ? ""
+                              : qsTr("The style only applies to the layer-shell card; a native notification is drawn by the system server.")
+                        label: qsTr("Notification style")
+                        help: qsTr("How the capture card looks, from full card to tiny pill.")
+                        helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
+                            currentIndex: Math.max(0, ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(App.settings.capturePopupStyle))
+                            onActivated: (i) => App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
                         }
                     }
                     SettingRow {
@@ -907,32 +1517,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Capture behavior") }
-                    SettingRow {
-                        label: qsTr("Capture delay")
-                        help: qsTr("Waits this long before taking the capture.")
-                        helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
-                        UValueCombo {
-                            width: 130
-                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000]
-                            from: 0; to: 5000
-                            suffix: " ms"
-                            value: App.settings.captureDelayMs
-                            onChanged: (v) => App.settings.captureDelayMs = v
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Include mouse cursor")
-                        help: qsTr("Draws the mouse pointer into the capture.")
-                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
-                        USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Capture on release")
-                        help: qsTr("Takes the screenshot the moment you release the selection.")
-                        helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately — no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
-                        USwitch { checked: App.settings.captureOnRelease; onToggled: (c) => App.settings.captureOnRelease = c }
-                    }
+                    SectionTitle { text: qsTr("Sounds") }
                     SettingRow {
                         label: qsTr("Capture sound")
                         help: qsTr("Plays a short sound when a screenshot is taken.")
@@ -1022,133 +1607,17 @@ Item {
                     }
                 }
             }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Editor defaults") }
-                    SettingRow {
-                        label: qsTr("Always start with the default colors")
-                        help: qsTr("Color picks made while annotating last for that session only.")
-                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults — the next session starts again from the colors configured in Settings → Editor.")
-                        USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Always start with the default tool options")
-                        help: qsTr("Stroke width, text style and fill toggles last for that session only.")
-                        helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
-                        USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Application") }
-                    SettingRow {
-                        label: qsTr("Closing the window minimizes to tray")
-                        help: qsTr("Close button hides to the tray instead of quitting.")
-                        helpDetail: qsTr("The app keeps running in the background: global hotkeys, uploads and recordings stay active. Quit for real from the tray icon's menu.")
-                        USwitch { checked: App.settings.minimizeToTrayOnClose; onToggled: (c) => App.settings.minimizeToTrayOnClose = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Start at login (minimized to tray)")
-                        help: qsTr("Launches Unisic automatically when you log in.")
-                        helpDetail: qsTr("Creates an XDG autostart entry that starts the app hidden in the tray, so hotkeys work right away without a visible window.")
-                        USwitch { checked: App.autostartEnabled; onToggled: (c) => App.autostartEnabled = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Open file after saving")
-                        help: qsTr("Opens each capture in your image viewer after saving.")
-                        helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
-                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("After capture") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Each enabled action runs immediately when the region is dropped. The editor opens alongside the others without blocking them.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Copy image to clipboard")
-                        help: qsTr("Puts every capture on the clipboard automatically.")
-                        helpDetail: qsTr("On Wayland the copy is mirrored through wl-copy (when installed), which keeps the clipboard content alive reliably even when no Unisic window has focus.")
-                        USwitch { checked: App.settings.copyToClipboard; onToggled: (c) => App.settings.copyToClipboard = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Save to disk automatically")
-                        help: qsTr("Saves every capture into your save folder without asking.")
-                        helpDetail: qsTr("Files are named from the filename template. When off, a capture exists only in the notification/editor until you save it explicitly.")
-                        USwitch { checked: App.settings.autoSave; onToggled: (c) => App.settings.autoSave = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Upload to the active server")
-                        help: qsTr("Uploads every capture immediately after taking it.")
-                        helpDetail: qsTr("Uses the server selected on the Servers page. The result link can be auto-copied or opened via the options below.")
-                        USwitch { checked: App.settings.uploadAfterCapture; onToggled: (c) => App.settings.uploadAfterCapture = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Open the editor")
-                        help: qsTr("Opens every capture in the annotation editor.")
-                        helpDetail: qsTr("The editor never blocks other after-capture actions: saving, copying and uploading run independently at the same time.")
-                        USwitch { checked: App.settings.openEditor; onToggled: (c) => App.settings.openEditor = c }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("After upload") }
-                    SettingRow {
-                        label: qsTr("Copy link to clipboard")
-                        help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.")
-                        USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Open link in browser")
-                        help: qsTr("Opens the uploaded file's URL in your browser.")
-                        helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
-                        USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
-                    }
-                }
-            }
-
         }
         }
 
-        // ===== Appearance =====
-        // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
-        // build hundreds of controls for tabs never shown.
+        // ===== Appearance (6): theme, window chrome, tray icon =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 2
-            // Visible-but-inert while searching: per-row `visible:` gates keep
-            // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 2 || page.searchActive
-            opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 2 && !page.searchActive
+            readonly property int tabIndex: 6
+            visible: page.tab === 6 || page.searchActive
+            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 6 && !page.searchActive
             property bool touched: false
-            // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
@@ -1169,21 +1638,6 @@ Item {
                             model: page.themeNames
                             currentIndex: Math.max(0, page.themeIds.indexOf(ThemeController.themeName))
                             onActivated: (i) => ThemeController.themeName = page.themeIds[i]
-                        }
-                    }
-                    SettingRow {
-                        visible: App.settings.showCapturePopup
-                        available: App.layerShellActive
-                        hint: App.layerShellActive ? ""
-                              : qsTr("The style only applies to the layer-shell card; a native notification is drawn by the system server.")
-                        label: qsTr("Notification style")
-                        help: qsTr("How the capture card looks, from full card to tiny pill.")
-                        helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
-                        UComboBox {
-                            width: 180
-                            model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
-                            currentIndex: Math.max(0, ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(App.settings.capturePopupStyle))
-                            onActivated: (i) => App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
                         }
                     }
                     Text {
@@ -1334,417 +1788,17 @@ Item {
                     }
                 }
             }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Editor tool icons") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Choose the icon set for the drawing tools only; the main app icons stay fixed.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Icon style")
-                        help: qsTr("Icon set used by the editor toolbars.")
-                        helpDetail: qsTr("“System” takes icons from your desktop icon theme (with Breeze as fallback); “custom” uses the bundled monochrome set that follows the app theme.")
-                        UComboBox {
-                            width: 220
-                            model: [qsTr("Custom (bundled)"), qsTr("System (desktop theme)")]
-                            currentIndex: App.settings.editorIconStyle === "system" ? 1 : 0
-                            onActivated: (i) => App.settings.editorIconStyle = (i === 1 ? "system" : "custom")
-                        }
-                    }
-                    Text {
-                        visible: App.settings.editorIconStyle === "system"
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Optional: override individual tools with a freedesktop icon name.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Repeater {
-                        model: App.settings.editorIconStyle === "system"
-                               ? ToolCatalog.tools.filter(function (t) { return t.editor || t.overlay })
-                               : []
-                        delegate: Item {
-                            width: parent.width
-                            height: 44
-                            Row {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 10
-                                UIcon {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    name: page.iconOverride(modelData.id) || modelData.iconName
-                                    iconStyle: "system"
-                                    size: 18
-                                    color: Theme.textSecondary
-                                }
-                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
-                            }
-                            UTextField {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 200
-                                text: page.iconOverride(modelData.id)
-                                placeholder: modelData.iconName
-                                onEdited: (t) => page.setIconOverride(modelData.id, t.trim())
-                            }
-                        }
-                    }
-                }
-            }
-
         }
         }
 
-        // ===== Editor =====
-        // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
-        // build hundreds of controls for tabs never shown.
+        // ===== Hotkeys (7) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 3
-            // Visible-but-inert while searching: per-row `visible:` gates keep
-            // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 3 || page.searchActive
-            opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 3 && !page.searchActive
+            readonly property int tabIndex: 7
+            visible: page.tab === 7 || page.searchActive
+            opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 7 && !page.searchActive
             property bool touched: false
-            // Search needs every pane instantiated so it can walk the rows.
-            active: touched || visible || page.searchActive
-            // Search-driven loads stay transient: latch only a REAL visit, or one
-            // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
-            sourceComponent: ScrollPane {
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Editor defaults") }
-                    SettingRow {
-                        label: qsTr("Stroke color")
-                        help: qsTr("Default color for new annotations.")
-                        helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
-                        Row {
-                            spacing: 6
-                            ColorDot { dotColor: "#FF4757"; active: App.settings.editorStrokeColor.toLowerCase() === "#ff4757"; onClicked: App.settings.editorStrokeColor = "#FF4757" }
-                            ColorDot { dotColor: "#FFD84D"; active: App.settings.editorStrokeColor.toLowerCase() === "#ffd84d"; onClicked: App.settings.editorStrokeColor = "#FFD84D" }
-                            ColorDot { dotColor: "#2ED573"; active: App.settings.editorStrokeColor.toLowerCase() === "#2ed573"; onClicked: App.settings.editorStrokeColor = "#2ED573" }
-                            ColorDot { dotColor: "#1E90FF"; active: App.settings.editorStrokeColor.toLowerCase() === "#1e90ff"; onClicked: App.settings.editorStrokeColor = "#1E90FF" }
-                            ColorDot { dotColor: "#C8ACD6"; active: App.settings.editorStrokeColor.toLowerCase() === "#c8acd6"; onClicked: App.settings.editorStrokeColor = "#C8ACD6" }
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Stroke width")
-                        help: qsTr("Default line thickness for annotations.")
-                        helpDetail: qsTr("Also scales arrow heads and the pixelate block size. Adjustable per-annotation in the editor toolbar.")
-                        UValueCombo {
-                            width: 110
-                            values: [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32, 48, 64]
-                            from: 1; to: 64
-                            suffix: " px"
-                            value: App.settings.editorStrokeWidth
-                            onChanged: (v) => App.settings.editorStrokeWidth = v
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Text size")
-                        help: qsTr("Default font size for the text tool.")
-                        helpDetail: qsTr("Measured in image pixels, so it stays consistent regardless of display scaling.")
-                        UValueCombo {
-                            width: 110
-                            values: [8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 56, 64, 72, 96, 144]
-                            from: 8; to: 144
-                            suffix: " px"
-                            value: App.settings.editorFontSize
-                            onChanged: (v) => App.settings.editorFontSize = v
-                        }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Capture overlay") }
-                    SettingRow {
-                        label: qsTr("Toolbar position")
-                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
-                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
-                        UComboBox {
-                            width: 200
-                            model: page.toolbarPosNames
-                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
-                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Show alignment guides while selecting")
-                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
-                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
-                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Smart pick (experimental)")
-                        help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
-                        helpDetail: qsTr("EXPERIMENTAL: detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor, so a single click selects its rectangle with no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen; the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
-                        USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Smart background removal") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        visible: !App.u2netAvailable
-                        text: qsTr("This build was compiled without onnxruntime, so AI background removal (U-2-Net) is unavailable — the built-in heuristic object cutout still works. Install onnxruntime and rebuild to enable it.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        available: App.u2netAvailable
-                        label: qsTr("Use U-2-Net for object cutout")
-                        help: qsTr("Use the U-2-Net neural model (when downloaded) for the object-pick cutout and the editor's Remove background action.")
-                        helpDetail: qsTr("When off, or the model is not downloaded, cutout falls back to the dependency-free heuristic segmenter. Runs fully offline once the model is fetched.")
-                        USwitch {
-                            checked: App.settings.useU2Net
-                            enabled: App.u2netAvailable
-                            onToggled: (c) => App.settings.useU2Net = c
-                        }
-                    }
-                    SettingRow {
-                        visible: App.u2netAvailable
-                        label: qsTr("Model")
-                        help: qsTr("Which neural model performs the cutout.")
-                        helpDetail: qsTr("Models differ in size, speed and quality:\n• U-2-Net small — fastest, good general results.\n• U-2-Net full — noticeably better masks, big download.\n• U-2-Net human — tuned for people/portraits.\n• Silueta — U-2-Net full compressed to 43 MB.\n• IS-Net — newest, best fine edge detail.\n• Custom — any segmentation .onnx you provide (u2net-style input is assumed; the input size is read from the model).\nEach downloaded model is stored locally and reused; switching models applies immediately.")
-                        UComboBox {
-                            id: segModelCombo
-                            width: 240
-                            property var entries: App.u2netModels()
-                            model: entries.map(function (e) { return e.label })
-                            currentIndex: {
-                                for (var i = 0; i < entries.length; ++i)
-                                    if (entries[i].id === App.settings.segmentModel) return i
-                                return 0
-                            }
-                            onActivated: (i) => {
-                                if (entries[i].id === "custom") {
-                                    // Cancelled picker keeps the previous model —
-                                    // currentIndex re-evaluates from settings.
-                                    App.pickU2NetCustomModel()
-                                } else {
-                                    App.settings.segmentModel = entries[i].id
-                                }
-                            }
-                        }
-                    }
-                    Text {
-                        visible: App.u2netAvailable && App.settings.segmentModel === "custom"
-                        width: parent.width
-                        wrapMode: Text.WrapAnywhere
-                        text: App.settings.segmentCustomModel
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                        font.family: "monospace"
-                    }
-                    SettingRow {
-                        visible: App.u2netAvailable
-                        label: qsTr("Model file")
-                        help: qsTr("Download state of the selected model. Each model is fetched once and stored locally.")
-                        Row {
-                            spacing: Theme.spacingS
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: App.u2netModelReady ? qsTr("Downloaded") : qsTr("Not downloaded")
-                                color: App.u2netModelReady ? Theme.textSecondary : Theme.textTertiary
-                                font.pixelSize: Theme.fontS
-                            }
-                            UButton {
-                                compact: true; variant: "tonal"
-                                visible: !App.u2netModelReady && App.settings.segmentModel !== "custom"
-                                text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
-                                enabled: !App.u2netBusy
-                                onClicked: App.downloadU2NetModel()
-                            }
-                            UButton {
-                                compact: true; variant: "tonal"
-                                visible: App.settings.segmentModel === "custom"
-                                text: qsTr("Choose file…")
-                                onClicked: App.pickU2NetCustomModel()
-                            }
-                            UButton {
-                                compact: true; variant: "danger"
-                                visible: App.u2netModelReady && App.settings.segmentModel !== "custom"
-                                text: qsTr("Delete")
-                                onClicked: App.deleteU2NetModel()
-                            }
-                        }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Editor tools") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Hide tools you don't use; they disappear from the editor and the capture overlay.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Repeater {
-                        model: ToolCatalog.tools.filter(function (t) { return t.hideable })
-                        delegate: Item {
-                            width: parent.width
-                            height: 40
-                            Row {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 10
-                                UIcon { name: modelData.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
-                            }
-                            USwitch {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                checked: !page.toolHidden(modelData.id)
-                                onToggled: (c) => page.setToolHidden(modelData.id, !c)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        }
-
-        // ===== Recording =====
-        // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
-        // build hundreds of controls for tabs never shown.
-        Loader {
-            anchors.fill: parent
-            readonly property int tabIndex: 4
-            // Visible-but-inert while searching: per-row `visible:` gates keep
-            // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 4 || page.searchActive
-            opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 4 && !page.searchActive
-            property bool touched: false
-            // Search needs every pane instantiated so it can walk the rows.
-            active: touched || visible || page.searchActive
-            // Search-driven loads stay transient: latch only a REAL visit, or one
-            // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
-            sourceComponent: ScrollPane {
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Recording") }
-                    SettingRow {
-                        label: qsTr("GIF frame rate")
-                        help: qsTr("Frames per second sampled into the GIF.")
-                        helpDetail: qsTr("Higher is smoother but grows the file quickly. 10–15 fps is usually plenty for UI demos.")
-                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
-                    }
-                    SettingRow {
-                        label: qsTr("GIF max duration")
-                        help: qsTr("Auto-stops GIF recording after this many seconds. 0 = unlimited.")
-                        helpDetail: qsTr("A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.")
-                        UValueCombo {
-                            width: 120
-                            values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
-                            from: 0; to: 600
-                            suffix: " s"
-                            tooltip: qsTr("0 = unlimited")
-                            value: App.settings.gifMaxDurationSec
-                            onChanged: (v) => App.settings.gifMaxDurationSec = v
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("GIF quality")
-                        help: qsTr("Color fidelity of the generated GIF.")
-                        helpDetail: qsTr("Higher quality uses a richer palette (two-pass palettegen) at the cost of file size and conversion time.")
-                        UComboBox {
-                            width: 180
-                            model: [qsTr("Fast / small"), qsTr("Balanced"), qsTr("Best")]
-                            currentIndex: App.settings.gifQuality
-                            onActivated: (i) => App.settings.gifQuality = i
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("MP4 frame rate")
-                        help: qsTr("Frames per second for video recordings.")
-                        helpDetail: qsTr("30 fps suits most screen content; 60 fps doubles smoothness and file size.")
-                        UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Audio") }
-                    SettingRow {
-                        label: qsTr("Record system audio")
-                        help: qsTr("Captures what you hear (system output) into video recordings.")
-                        helpDetail: qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
-                        USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Record microphone")
-                        help: qsTr("Captures your microphone into video recordings.")
-                        helpDetail: qsTr("Uses the default input device. Mixed with system audio when both are enabled. GIFs have no audio.")
-                        USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                }
-            }
-        }
-        }
-
-        // ===== Hotkeys =====
-        // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
-        // build hundreds of controls for tabs never shown.
-        Loader {
-            anchors.fill: parent
-            readonly property int tabIndex: 5
-            // Visible-but-inert while searching: per-row `visible:` gates keep
-            // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 5 || page.searchActive
-            opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 5 && !page.searchActive
-            property bool touched: false
-            // Search needs every pane instantiated so it can walk the rows.
             active: touched || visible || page.searchActive
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
@@ -1865,21 +1919,18 @@ Item {
         }
         }
 
-        // ===== Developer (dev build only, tab 6) =====
-        // Lazily built on first visit, then kept alive (preserves scroll
-        // position). Six always-instantiated panes made opening Settings
-        // build hundreds of controls for tabs never shown.
+        // ===== Developer (dev build only, tab 8) =====
         Loader {
             anchors.fill: parent
-            readonly property int tabIndex: 6
+            readonly property int tabIndex: 8
             // Gated on App.devBuild: in a release build the pane must never
             // instantiate, or the search would list its rows and jumping to
             // one would expose the smoke-test buttons on a hidden tab.
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: App.devBuild && (page.tab === 6 || page.searchActive)
-            opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
-            enabled: page.tab === 6 && !page.searchActive
+            visible: App.devBuild && (page.tab === 8 || page.searchActive)
+            opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
+            enabled: page.tab === 8 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
             active: App.devBuild && (touched || visible || page.searchActive)
@@ -1917,7 +1968,7 @@ Item {
                     SettingRow {
                         label: qsTr("Recording border")
                         help: qsTr("Whether a border can be drawn around the recorded region.")
-                        helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself.")
+                        helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.")
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
@@ -1981,6 +2032,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (region)"); onClicked: App.startVideoRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (window)"); onClicked: App.startVideoWindow() }
                         UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -2014,4 +2066,3 @@ Item {
         }
     }
 }
-

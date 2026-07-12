@@ -1,9 +1,11 @@
 # OBS distribution channel
 
-Auto-updating signed repos for **Debian 13, Ubuntu 25.10/26.04, Arch, openSUSE
-Tumbleweed + Leap 16.0**, built on the [openSUSE Build Service](https://build.opensuse.org)
-project `home:unisic`. Fedora is NOT built here — it stays on COPR
-`deandark/Unisic` (Packit, see `.packit.yaml`).
+Auto-updating signed repos for **Debian 13, Ubuntu 25.10/26.04 and Arch**,
+built on the [openSUSE Build Service](https://build.opensuse.org)
+project `home:unisic`. rpm distros are NOT built here — Fedora AND openSUSE
+(Tumbleweed + Leap 15.6) ship from COPR `deandark/Unisic` (Packit, see
+`.packit.yaml`); COPR has no Leap 16 chroot yet, so Leap 16 users take the
+Tumbleweed repo or the release rpm.
 
 ## Data flow
 
@@ -18,7 +20,7 @@ push to main with version bump
       recompress    .tar → .tar.gz (what debtransform expects)
       set_version   rewrites spec/dsc/changelog/PKGBUILD versions to the tag
   → per-target builds → signed repos published on download.opensuse.org
-  → users get the update via apt upgrade / zypper up / pacman -Syu
+  → users get the update via apt upgrade / pacman -Syu
 ```
 
 Hard-won details (each cost a broken round — don't regress them):
@@ -26,8 +28,9 @@ Hard-won details (each cost a broken round — don't regress them):
   line on purpose; debtransform auto-discovers the single tarball at any version.
 - Package builds pass `-DBUILD_TESTING=OFF` (spec + debian.rules) and
   debian.rules has an empty `override_dh_auto_test:`.
-- openSUSE needs `pkgconfig(libcurl)` (tesseract link interface) and builds
-  with make (no `-G Ninja` — its %cmake_build drives make); Fedora keeps Ninja.
+- openSUSE (now built on COPR, same `unisic.spec`) needs `pkgconfig(libcurl)`
+  (tesseract link interface) and builds with make (no `-G Ninja` — its
+  %cmake_build drives make); Fedora keeps Ninja.
 - Installed binaries carry no RPATH (CMakeLists sets INSTALL_RPATH "") or
   openSUSE's rpmlint hard-fails the build.
 
@@ -40,13 +43,13 @@ the next service run overwrites them.
 
 | Git file | Feeds |
 |---|---|
-| `unisic.spec` (repo root) | openSUSE TW + Leap 16.0 (and COPR Fedora via Packit) |
+| `unisic.spec` (repo root) | COPR via Packit: Fedora + openSUSE TW/Leap 15.6 (no longer built on OBS) |
 | `packaging/arch/PKGBUILD` | Arch (and the CI release asset) |
 | `packaging/obs/unisic.dsc` + `debian.control/rules/changelog` | Debian 13, Ubuntu (via debtransform) |
 | `packaging/obs/_service` | source-of-truth copy of the one file living in OBS |
 | `packaging/obs/home_unisic.key` | project signing key (armored), installed as `/usr/share/unisic/obs-signing-key.asc` by CMake |
-| `packaging/arch/unisic.install` | pacman post_install note offering the OBS repo |
-| `packaging/deb/postinst`+`postrm`, `packaging/rpm/copr-post*.sh` | CI (CPack) packages ONLY: self-register the OBS apt repo / COPR dnf repo so direct downloads update natively; repo-built packages skip them on purpose |
+| `packaging/arch/unisic.install` | shared by the OBS build AND the CI asset: post_install auto-registers the OBS pacman repo on direct-download installs (skipped when pacman.conf already references the repo — i.e. repo installs), post_remove deletes only its own marker block |
+| `packaging/deb/postinst`+`postrm`, `packaging/rpm/copr-post*.sh` | CI (CPack) packages ONLY: self-register the OBS apt repo / COPR repo (dnf on Fedora, zypp on openSUSE) so direct downloads update natively; repo-built packages skip them on purpose |
 
 Sync rules: `debian.control` Depends mirrors the CPack DEB block in
 `CMakeLists.txt`; `unisic.dsc` Build-Depends mirrors `debian.control`;
@@ -67,18 +70,10 @@ configured (`osc whois` to test).
    osc meta prj home:unisic -F - <<'XML'
    <project name="home:unisic">
      <title>Unisic</title>
-     <description>Auto-updating release repos for Unisic (Debian, Ubuntu, openSUSE, Arch).
-   Fedora is served from COPR deandark/Unisic. Rebuilt on each GitHub release via runservice token.</description>
+     <description>Auto-updating release repos for Unisic (Debian, Ubuntu, Arch).
+   Fedora and openSUSE are served from COPR deandark/Unisic. Rebuilt on each GitHub release via runservice token.</description>
      <person userid="unisic" role="maintainer"/>
      <publish><enable/></publish>
-     <repository name="openSUSE_Tumbleweed">
-       <path project="openSUSE:Factory" repository="snapshot"/>
-       <arch>x86_64</arch>
-     </repository>
-     <repository name="16.0">
-       <path project="openSUSE:Leap:16.0" repository="standard"/>
-       <arch>x86_64</arch>
-     </repository>
      <repository name="Debian_13">
        <path project="Debian:13" repository="standard"/>
        <arch>x86_64</arch>
@@ -139,16 +134,9 @@ configured (`osc whois` to test).
    osc results home:unisic unisic
    osc buildlog home:unisic unisic Debian_13 x86_64
    # local reproduction (much faster iteration):
-   osc build openSUSE_Tumbleweed x86_64   # runs in a local chroot
    osc build Debian_13 x86_64             # runs debtransform locally
    osc build Arch x86_64
    ```
-
-   Expected first-build iteration points: openSUSE runtime `Requires:` names
-   in `unisic.spec` (`qt6-declarative-imports`, `qt6-svg-imageformat` — verify
-   against the build log / `rpm -qp --requires`), Leap 16.0 availability of
-   `zxing-cpp`/`layer-shell-qt` devel packages (fallback: `%if` them out —
-   the features compile out gracefully).
 
 6. Create the trigger token and GitHub secret:
 
@@ -194,6 +182,8 @@ configured (`osc whois` to test).
 ## Don'ts
 
 - Don't edit package files in the OBS web UI (overwritten by the next run).
-- Don't add Fedora targets here — Fedora is COPR's job (`.packit.yaml`).
+- Don't add rpm targets (Fedora, openSUSE) here — they are COPR's job
+  (`.packit.yaml`); the openSUSE repos were removed from the project meta
+  when the suse channel moved to COPR.
 - Don't rename `packaging/obs/debian.*` files — `extract_file` globs and the
   debtransform `debian.<x>` → `debian/<x>` convention both depend on the names.

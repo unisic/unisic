@@ -163,7 +163,7 @@ void AnnotationCanvas::setColorPicking(bool on)
 namespace {
 enum PropId { PStroke, PFillColor, PFillEnabled, PWidth, PFontSize, PFontFamily,
               PBold, PItalic, PUnderline, POutline, POutlineColor, PTextBg,
-              PTextBgColor, PGeometry };
+              PTextBgColor, PGeometry, PStepSize };
 }
 
 void AnnotationCanvas::setStrokeColor(const QColor &c)
@@ -208,6 +208,14 @@ void AnnotationCanvas::setFontSize(int s)
     m_fontSize = s;
     emit fontSizeChanged();
     routeToSelected(PFontSize);
+}
+
+void AnnotationCanvas::setStepSize(int s)
+{
+    if (m_stepSize == s) return;
+    m_stepSize = s;
+    emit stepSizeChanged();
+    routeToSelected(PStepSize);
 }
 
 void AnnotationCanvas::setFontFamily(const QString &f)
@@ -535,6 +543,7 @@ void AnnotationCanvas::applyStyleToSelected()
     a.filled = m_fillEnabled && (a.type == Rect || a.type == Ellipse);
     a.width = m_strokeWidth;
     a.fontSize = m_fontSize;
+    a.stepSize = m_stepSize;
     a.fontFamily = m_fontFamily;
     a.bold = m_fontBold;
     a.italic = m_fontItalic;
@@ -573,7 +582,8 @@ void AnnotationCanvas::selectAnnot(int index)
         if (!hadSelection) {
             Annot &b = m_styleBackup;
             b.color = m_color; b.fillColor = m_fillColor; b.filled = m_fillEnabled;
-            b.width = m_strokeWidth; b.fontSize = m_fontSize; b.fontFamily = m_fontFamily;
+            b.width = m_strokeWidth; b.fontSize = m_fontSize; b.stepSize = m_stepSize;
+            b.fontFamily = m_fontFamily;
             b.bold = m_fontBold; b.italic = m_fontItalic; b.underline = m_fontUnderline;
             b.outlined = m_textOutline; b.outlineColor = m_textOutlineColor;
             b.textBg = m_textBackground; b.textBgColor = m_textBgColor;
@@ -593,6 +603,7 @@ void AnnotationCanvas::selectAnnot(int index)
         setShapeFillEnabled(a.filled);
         setStrokeWidth(int(a.width));
         setFontSize(a.fontSize);
+        setStepSize(a.stepSize);
         setFontFamily(a.fontFamily);
         setFontBold(a.bold);
         setFontItalic(a.italic);
@@ -627,6 +638,7 @@ void AnnotationCanvas::restoreStyleBackup()
     setShapeFillEnabled(b.filled);
     setStrokeWidth(int(b.width));
     setFontSize(b.fontSize);
+    setStepSize(b.stepSize);
     setFontFamily(b.fontFamily);
     setFontBold(b.bold);
     setFontItalic(b.italic);
@@ -904,7 +916,7 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
             if (textBoundsImg(a).adjusted(-tol, -tol, tol, tol).contains(pos)) return i;
             break;
         case Step: {
-            const qreal r = qMax(14.0, a.fontSize * 0.9);
+            const qreal r = qMax(14.0, a.stepSize * 0.9);
             if (QLineF(a.rect.topLeft(), pos).length() <= r) return i;
             break;
         }
@@ -1290,7 +1302,7 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         break;
     }
     case Step: {
-        const qreal r = qMax(14.0, a.fontSize * 0.9);
+        const qreal r = qMax(14.0, a.stepSize * 0.9);
         const QPointF c = a.rect.topLeft();
         p.setPen(QPen(QColor(255, 255, 255, 230), 2));
         p.setBrush(a.color);
@@ -1356,11 +1368,11 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
     // Stroke width + the arrow head (largest overdraw any tool does) + slack
     // for antialiasing; over-estimating only repaints a few extra pixels.
     qreal pad = a.width / 2.0 + arrowHeadLen(a.width) + 4.0;
-    // Step draws a circle of radius max(14, fontSize*0.9) centred on rect's
+    // Step draws a circle of radius max(14, stepSize*0.9) centred on rect's
     // top-left (plus a 2px white ring + selection halo) — far past the default
     // width-based pad, which otherwise left drag trails at large sizes / zoom.
     if (a.type == Step)
-        pad = qMax(pad, qMax(14.0, a.fontSize * 0.9) + 4.0);
+        pad = qMax(pad, qMax(14.0, a.stepSize * 0.9) + 4.0);
     return r.adjusted(-pad, -pad, pad, pad);
 }
 
@@ -1451,7 +1463,7 @@ void AnnotationCanvas::paint(QPainter *painter)
             for (const QPointF &pt : a.points) bounds |= QRectF(pt, QSizeF(0, 0));
         }
         if (a.type == Step) {
-            const qreal r = qMax(14.0, a.fontSize * 0.9);
+            const qreal r = qMax(14.0, a.stepSize * 0.9);
             bounds = QRectF(a.rect.topLeft() - QPointF(r, r), QSizeF(2 * r, 2 * r));
         }
         painter->setBrush(Qt::NoBrush);
@@ -1646,7 +1658,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         a.type = Step;
         a.rect = QRectF(img, img);
         a.color = m_color;
-        a.fontSize = m_fontSize;
+        a.stepSize = m_stepSize;
         a.number = ++m_stepCounter;
         m_items.append(a);
         update();

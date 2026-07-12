@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.6.3" date="2026-07-12">
+      <description>
+        <p>Step markers get their own size control, independent of the text font size. On GNOME, region recordings now show the record-border frame. openSUSE users install from the same COPR repository as Fedora, and every release ships packages for all supported distributions that keep updating through the native package manager. Recording uses noticeably less memory.</p>
+      </description>
+    </release>
     <release version="0.6.2" date="2026-07-12">
       <description>
         <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped — install through the native repositories or the AppImage.</p>

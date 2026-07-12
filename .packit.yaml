@@ -19,3 +19,5 @@ jobs:
       - fedora-43-x86_64
       - fedora-44-x86_64
       - fedora-rawhide-x86_64
+      - opensuse-tumbleweed-x86_64
+      - opensuse-leap-15.6-x86_64

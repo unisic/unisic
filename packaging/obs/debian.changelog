@@ -1,3 +1,10 @@
+unisic (0.6.3-0) unstable; urgency=medium
+
+  * Automated OBS build from the GitHub release tag. Changelog:
+    https://github.com/unisic/unisic/releases
+
+ -- Unisic maintainers <unisic@debondor.com>  Sun, 12 Jul 2026 00:00:00 +0000
+
 unisic (0.6.2-0) unstable; urgency=medium
 
   * Automated OBS build from the GitHub release tag. Changelog:

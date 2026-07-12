@@ -123,12 +123,41 @@ jobs:
             -DCPACK_GENERATOR=RPM
           cmake --build build-rpm --parallel
           cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
+          # Install gate: resolves the runtime Requires against Fedora repos
+          # and runs the COPR %post (self-registration) in the container.
+          dnf install -y ./dist/*.rpm
+          test -e /etc/yum.repos.d/unisic-copr.repo
 
       - uses: actions/upload-artifact@v4
         with:
           name: unisic-rpm
           path: dist/*.rpm
           if-no-files-found: error
+
+  # The SAME rpm must install on openSUSE: soname autodeps + boolean Requires
+  # resolve against zypper, and copr-post.sh must take the zypp branch
+  # (register the COPR repo under /etc/zypp/repos.d). Tumbleweed also catches
+  # soname drift between the Fedora build root and openSUSE's libraries.
+  rpm-suse-gate:
+    name: openSUSE install gate
+    needs: rpm
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        container: ["opensuse/tumbleweed", "opensuse/leap:15.6"]
+    container: ${{ matrix.container }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: unisic-rpm
+          path: dist
+      - name: Install gate
+        run: |
+          zypper --non-interactive --no-gpg-checks install --allow-unsigned-rpm ./dist/*.rpm
+          test -e /etc/zypp/repos.d/unisic-copr.repo
+          # The registered repo must actually resolve (chroots are built by
+          # Packit into COPR deandark/Unisic).
+          zypper --non-interactive --gpg-auto-import-keys refresh unisic-copr
 
   arch:
     name: Arch package
@@ -172,6 +201,18 @@ jobs:
           runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
           mkdir -p dist
           cp packaging/arch/*.pkg.tar.zst dist/
+          # Install gate: runs unisic.install's post_install in the container.
+          # Either outcome is valid — repo added (container keyring is
+          # populated, so the key import should succeed) or the printed
+          # fallback (uninitialized keyring). INVALID is the half-state:
+          # repo entry present without the trusted key.
+          pacman -U --noconfirm dist/*.pkg.tar.zst
+          if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
+            pacman-key --list-keys E5057FCB0F3DF876 >/dev/null
+            pacman -Sy   # the registered OBS repo must actually resolve
+          else
+            echo "post_install took the manual-instructions fallback (no repo entry) — OK"
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
@@ -384,6 +425,7 @@ jobs:
       - check
       - deb
       - rpm
+      - rpm-suse-gate
       - arch
       - appimage
     if: ${{ needs.check.outputs.should_release == 'true' }}
@@ -397,16 +439,20 @@ jobs:
           # release and find the last clean semver tag.
           fetch-depth: 0
 
-      # Only the AppImage is attached to the GitHub release: deb/rpm/arch/
-      # openSUSE all ship through the OBS repo (home:unisic), so publishing
-      # those packages here too would just duplicate the repo channel. The
-      # deb/rpm/arch jobs still run and gate the release (their workflow
-      # artifacts stay downloadable from the Actions run for debugging).
-      - name: Download the AppImage
+      # Every package is attached to the GitHub release. The repos stay the
+      # UPDATE channel — each direct-download package self-registers its native
+      # repo on first install, so a one-off download keeps updating natively:
+      #   .deb      → OBS apt repo   (packaging/deb/postinst)
+      #   .rpm      → COPR (packaging/rpm/copr-post.sh — dnf repo on Fedora,
+      #               zypp repo on openSUSE; ONE rpm covers both, gated by
+      #               rpm-suse-gate above)
+      #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
+      #   AppImage  → self-updates via the embedded zsync info
+      - name: Download release assets
         uses: actions/download-artifact@v4
         with:
-          name: unisic-appimage
           path: dist
+          merge-multiple: true
 
       - name: Generate changelog
         run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md

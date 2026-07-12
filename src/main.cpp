@@ -1,4 +1,5 @@
 #include "AppContext.h"
+#include "record/RecordBorderHelper.h"
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
 #include "update/VersionCompare.h"
@@ -7,6 +8,7 @@
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQuickStyle>
+#include <QQuickWindow>
 #include <QIcon>
 #include <QStyleHints>
 #include <QLocalServer>
@@ -26,6 +28,9 @@
 #include <csignal>
 #include <sys/socket.h>
 #include <unistd.h>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 
 // SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
 // cleanup, tray teardown) — the default handlers kill the process cold and
@@ -343,7 +348,25 @@ static void execStagedUpdate(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    // Record-border helper FIRST — before QApplication (it must boot on xcb,
+    // not wayland; the platform is fixed at construction) and before the
+    // single-instance handshake (the helper is a child of the running
+    // instance, never a peer).
+    for (int i = 1; i < argc; ++i)
+        if (qstrcmp(argv[i], "--record-border-helper") == 0)
+            return runRecordBorderHelper(argc, argv);
     execStagedUpdate(argc, argv);
+#if defined(__GLIBC__)
+    // Pin the dynamic mmap threshold. Recording pushes a frame-sized (8–33 MB)
+    // QByteArray per sample through QProcess's write buffer; glibc raises its
+    // mmap threshold to that block size after the first such free, after which
+    // every frame is served from the heap — where freed pages linger until
+    // malloc_trim, inflating RSS for the whole recording. A fixed 1 MB
+    // threshold keeps frame-sized blocks in mmap so the kernel reclaims them
+    // the moment they are freed (measured: −25% steady recording RSS; the
+    // per-frame memcpy dominates the mmap cost either way).
+    mallopt(M_MMAP_THRESHOLD, 1 << 20);
+#endif
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     // Dev builds are a SEPARATE app: own application name (which moves every
     // QStandardPaths location: cache, history, U-2-Net model), own desktop id,
@@ -515,6 +538,23 @@ int main(int argc, char *argv[])
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/Main.qml")));
+
+    // Tray app: the main window spends most of its life hidden. Qt Quick's
+    // default is to keep the whole scene graph AND the graphics context alive
+    // across hide, so after the first open every close-to-tray pins the
+    // window's textures, glyph atlases and swapchain in RAM until the next
+    // show — for the lifetime of a background process. Non-persistent flags
+    // let the render loop drop all of it on hide (releaseResources() nudges it
+    // immediately); re-show pays a one-time scene-graph rebuild, invisible
+    // next to the window-open animation itself.
+    if (auto *mainWin = qobject_cast<QQuickWindow *>(engine.rootObjects().value(0))) {
+        mainWin->setPersistentSceneGraph(false);
+        mainWin->setPersistentGraphics(false);
+        QObject::connect(mainWin, &QWindow::visibleChanged, mainWin, [mainWin](bool visible) {
+            if (!visible)
+                mainWin->releaseResources();
+        });
+    }
 
     // ShareX-style CLI triggers: unisic --region | --fullscreen | --window | --gif
     QTimer::singleShot(300, &context, [&context, args] {

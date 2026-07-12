@@ -1,12 +1,46 @@
-# pacman has no drop-in repo mechanism (pacman.conf must be edited), so the
-# package can only *offer* the OBS repo — one copy-paste, then updates flow
-# through `pacman -Syu` like any other package.
+# Direct-download installs self-register the OBS pacman repo, so later
+# versions arrive through plain `pacman -Syu` — the same pattern as the CI
+# deb (postinst → apt .sources) and the Fedora rpm (%post → COPR repo).
+# Installs FROM the OBS repo skip this automatically: their pacman.conf
+# already references the repo URL (the guard below). pacman has no drop-in
+# repo directory, so the entry is appended to /etc/pacman.conf between
+# marker lines and post_remove deletes exactly that block — a manually
+# added entry (no markers) is never touched.
+
 post_install() {
-  cat <<'EOF'
-==> Optional: enable the Unisic repository for automatic updates:
-      curl -fsSL 'https://build.opensuse.org/projects/home:unisic/signing_keys/download?kind=gpg' | sudo pacman-key --add -
+  # Repo already known (OBS-repo install, manual setup, or a re-install
+  # after the block was added) — nothing to do.
+  if grep -q 'repositories/home:/unisic/Arch' /etc/pacman.conf 2>/dev/null; then
+    return 0
+  fi
+  # Import + locally sign the OBS signing key so pacman trusts the repo.
+  # Best effort: an uninitialized keyring (fresh chroot/container) falls
+  # back to the printed instructions instead of half-configuring the repo.
+  if [ -r /usr/share/unisic/obs-signing-key.asc ] \
+     && pacman-key --add /usr/share/unisic/obs-signing-key.asc >/dev/null 2>&1 \
+     && pacman-key --lsign-key E5057FCB0F3DF876 >/dev/null 2>&1; then
+    {
+      printf '\n# >>> unisic OBS repo (added by the unisic package) >>>\n'
+      printf '[home_unisic_Arch]\n'
+      printf 'Server = https://download.opensuse.org/repositories/home:/unisic/Arch/$arch\n'
+      printf '# <<< unisic OBS repo <<<\n'
+    } >> /etc/pacman.conf
+    echo '==> Unisic: OBS repository enabled — updates arrive via pacman -Syu.'
+  else
+    cat <<'EOF'
+==> Unisic: could not import the repo signing key automatically.
+    Enable the repository manually for automatic updates:
+      sudo pacman-key --add /usr/share/unisic/obs-signing-key.asc
       sudo pacman-key --lsign-key E5057FCB0F3DF876
       printf '\n[home_unisic_Arch]\nServer = https://download.opensuse.org/repositories/home:/unisic/Arch/$arch\n' | sudo tee -a /etc/pacman.conf
       sudo pacman -Sy
 EOF
+  fi
+}
+
+post_remove() {
+  # Drop exactly the block post_install appended; anything else in
+  # pacman.conf that mentions the repo was user-made and stays.
+  sed -i '/^# >>> unisic OBS repo (added by the unisic package) >>>$/,/^# <<< unisic OBS repo <<<$/d' \
+      /etc/pacman.conf 2>/dev/null || true
 }

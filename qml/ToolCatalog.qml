@@ -27,7 +27,7 @@ QtObject {
         { id: "blur",       tool: 7,  iconName: "blur",               label: qsTr("Blur"),         overlay: true,  editor: true,  hideable: true,  props: [] },
         { id: "pixelate",   tool: 8,  iconName: "pixelate",           label: qsTr("Pixelate"),     overlay: true,  editor: true,  hideable: true,  props: ["width"] },
         { id: "smarterase", tool: 12, iconName: "draw-eraser",        label: qsTr("Smart eraser"), overlay: true,  editor: true,  hideable: true,  props: [] },
-        { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  overlay: true,  editor: true,  hideable: true,  props: ["stroke"] },
+        { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  overlay: true,  editor: true,  hideable: true,  props: ["stroke", "stepSize"] },
         { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         overlay: false, editor: true,  hideable: true,  props: [] }
     ]
 

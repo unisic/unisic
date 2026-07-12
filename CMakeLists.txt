@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.6.2 LANGUAGES CXX)
+project(unisic VERSION 0.6.3 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.6.2")
+set(UNISIC_VERSION_STRING "0.6.3")
 
 include(GNUInstallDirs)
 

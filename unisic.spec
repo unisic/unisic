@@ -1,5 +1,5 @@
 Name:           unisic
-Version:        0.6.2
+Version:        0.6.3
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
@@ -128,6 +128,13 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.3-1
+- openSUSE (Tumbleweed + Leap 15.6) now ships from COPR deandark/Unisic; one
+  release rpm installs on Fedora and openSUSE and self-registers the matching
+  COPR repo (dnf or zypp) on first install.
+- Step markers get their own size setting, decoupled from the text font size.
+- GNOME: the region-recording border frame is drawn by an XWayland helper
+  (mutter has no layer-shell); recording memory use drops measurably.
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.2-1
 - System theme mirrors the full KDE colorscheme: the Button role drives cards,
   dedicated tooltip base/text roles style tooltips, and the kdeglobals

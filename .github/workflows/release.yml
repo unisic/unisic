@@ -397,8 +397,15 @@ jobs:
           # release and find the last clean semver tag.
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      # Only the AppImage is attached to the GitHub release: deb/rpm/arch/
+      # openSUSE all ship through the OBS repo (home:unisic), so publishing
+      # those packages here too would just duplicate the repo channel. The
+      # deb/rpm/arch jobs still run and gate the release (their workflow
+      # artifacts stay downloadable from the Actions run for debugging).
+      - name: Download the AppImage
+        uses: actions/download-artifact@v4
         with:
+          name: unisic-appimage
           path: dist
 
       - name: Generate changelog

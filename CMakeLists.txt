@@ -33,7 +33,12 @@ qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
 # QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
 # pages/) so tooling resolves them; also silences the configure warning.
-qt_policy(SET QTP0004 NEW)
+# The policy only exists since Qt 6.8 — setting it unguarded is a hard
+# configure error on Leap 15.6's Qt 6.6 (the qmldir convenience is lost
+# there; the build itself is unaffected).
+if(QT_KNOWN_POLICY_QTP0004)
+    qt_policy(SET QTP0004 NEW)
+endif()
 
 qt_add_executable(unisic
     src/main.cpp
@@ -323,13 +328,12 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-# The CPack rpm is NOT shipped on releases (kept for local `cpack -G RPM`):
-# QML type registration links Qt PRIVATE API symbols (Qt_6.x_PRIVATE_API),
-# pinning the binary to the build root's exact Qt minor, so releases carry
-# the noarch repo-installer (packaging/rpm/unisic-copr-repo.spec) instead and
-# the app installs from COPR, built per-chroot against each distro's own Qt.
-# The Requires below still stay distro-neutral (costs nothing, and %post
-# handles both repo flavors):
+# The CPack rpm is shipped as PER-DISTRO release assets (.fedora /
+# .opensuse-tumbleweed / .opensuse-leap15.6): QML type registration links Qt
+# PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning each binary to its build
+# root's exact Qt minor — one rpm can never span distros. The Requires below
+# stay distro-neutral so the SAME CPack config builds all three (%post
+# registers the matching COPR repo flavor for updates):
 # - "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
 #   stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
 #   GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —

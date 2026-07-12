@@ -12,7 +12,13 @@ Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 # (qt6-core-devel), but both distros auto-generate these provides — so this
 # ONE spec serves COPR/Packit (Fedora) AND the OBS openSUSE targets.
 BuildRequires:  cmake
+%if 0%{?suse_version} && 0%{?suse_version} < 1600
+# Leap 15.x defaults to gcc7 — C++20 needs the parallel gcc13 toolchain
+# (exported as CC/CXX in %%build).
+BuildRequires:  gcc13-c++
+%else
 BuildRequires:  gcc-c++
+%endif
 BuildRequires:  pkgconfig
 BuildRequires:  extra-cmake-modules
 %if !0%{?suse_version}
@@ -102,6 +108,9 @@ on KDE Plasma. Zero telemetry.
 # the RPM release as the build number ("build 1.fc44"); bump Release: (or let
 # rpkg/tito bump it) for a new number.
 export UNISIC_BUILD_NUMBER=%{release}
+%if 0%{?suse_version} && 0%{?suse_version} < 1600
+export CC=gcc-13 CXX=g++-13
+%endif
 # BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit tests need
 # Qt6Test, which openSUSE ships as a separate qt6-test-devel — packages
 # don't run unit tests (CI does).

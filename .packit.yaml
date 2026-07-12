@@ -15,9 +15,11 @@ jobs:
     trigger: release
     owner: deandark
     project: Unisic
+    # Fedora ONLY: the openSUSE chroots were tried (2026-07) and moved back
+    # to OBS — COPR's suse lane broke on infra (Pulp storage serves no signed
+    # repomd for suse chroots, TW bootstrap failed GPG), and OBS auto-rebuilds
+    # Tumbleweed on dependency changes, which COPR cannot do.
     targets:
       - fedora-43-x86_64
       - fedora-44-x86_64
       - fedora-rawhide-x86_64
-      - opensuse-tumbleweed-x86_64
-      - opensuse-leap-15.6-x86_64

@@ -328,12 +328,12 @@ set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
 set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
-# The CPack rpm is shipped as PER-DISTRO release assets (.fedora /
-# .opensuse-tumbleweed / .opensuse-leap15.6): QML type registration links Qt
-# PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning each binary to its build
-# root's exact Qt minor — one rpm can never span distros. The Requires below
-# stay distro-neutral so the SAME CPack config builds all three (%post
-# registers the matching COPR repo flavor for updates):
+# The CPack rpm ships as the FEDORA release asset only: QML type
+# registration links Qt PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning
+# the binary to its build root's exact Qt minor — one rpm can never span
+# distros, and openSUSE is served by the OBS repos instead. The Requires
+# below stay distro-neutral anyway (boolean picks per distro; costs nothing
+# and keeps a local `cpack -G RPM` on openSUSE installable):
 # - "/usr/bin/ffmpeg" (file dependency) instead of the package name "ffmpeg":
 #   stock Fedora ships ffmpeg-free, which installs the binary (sufficient for
 #   GifRecorder's CLI usage) but only RPM Fusion Provides the name "ffmpeg" —

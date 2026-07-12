@@ -138,7 +138,7 @@ else()
 endif()
 
 # NOTE: no packaging channel installs onnxruntime (neither the COPR spec's
-# BuildRequires, nor the deb/rpm/arch/appimage/flatpak CI jobs), so HAVE_ONNX
+# BuildRequires, nor the deb/rpm/arch/appimage CI jobs), so HAVE_ONNX
 # is OFF in every shipped build — U-2-Net background removal is dev-only and the
 # app falls back to the dependency-free heuristic segmenter. This is deliberate:
 # enabling it means adding onnxruntime to the spec + all packaging deps.

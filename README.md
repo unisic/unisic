@@ -36,7 +36,7 @@ Unisic is in **early developer access**. It works, but you *will* run into rough
 
 ## Install
 
-**Recommended: install from a repository** (sections below) — updates then arrive automatically through your package manager like any other package. Direct downloads from [**Releases**](https://github.com/unisic/unisic/releases/latest) (AppImage, Flatpak bundle, deb, rpm, Arch package) work too: the AppImage updates itself in-app, and the deb/rpm register the repository on install so you end up on the automatic path anyway. Requires a Wayland session with `xdg-desktop-portal` + a backend; recording additionally needs PipeWire and `ffmpeg`. Or [build from source](#build-from-source).
+**Recommended: install from a repository** (sections below) — updates then arrive automatically through your package manager like any other package. Direct downloads from [**Releases**](https://github.com/unisic/unisic/releases/latest) (AppImage, deb, rpm, Arch package) work too: the AppImage updates itself in-app, and the deb/rpm register the repository on install so you end up on the automatic path anyway. Requires a Wayland session with `xdg-desktop-portal` + a backend; recording additionally needs PipeWire and `ffmpeg`. Or [build from source](#build-from-source).
 
 ### Fedora (COPR)
 
@@ -97,7 +97,6 @@ nothing else is sent) and updates fully automatically:
 | **OBS repos (Debian, Ubuntu, openSUSE, Arch)** | Native system updates — `apt upgrade` / `zypper up` / `pacman -Syu` pick up every release automatically. |
 | **AppImage** | The app downloads the new AppImage and swaps itself in place, then restarts when idle — no clicks needed. (`.zsync` for [`AppImageUpdate`](https://github.com/AppImageCommunity/AppImageUpdate) still ships too.) |
 | **Arch package from Releases** | `pacman -U` installs print a one-paste snippet enabling the OBS repo — after that `pacman -Syu` covers it. |
-| **Flatpak** | The release bundle is a sideload — re-download to update (the app notifies when a new version exists). |
 | **Manually downloaded deb / rpm / Arch assets** | Download the new package from Releases and install it over the old one — or switch to the repos above for automatic updates. |
 
 ## Features

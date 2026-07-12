@@ -49,8 +49,6 @@ QUrl UpdateChecker::feedUrl() const
 
 QString UpdateChecker::installKind() const
 {
-    if (qEnvironmentVariableIsSet("FLATPAK_ID"))
-        return QStringLiteral("flatpak");
     if (!qEnvironmentVariable("APPIMAGE").isEmpty())
         return QStringLiteral("appimage");
     return QStringLiteral("system");
@@ -88,7 +86,6 @@ bool UpdateChecker::canSelfUpdate() const
     // postinst registered the OBS/COPR repo, so apt/dnf owns the upgrade
     // path — staging would only shadow the package manager's copy. Staging
     // stays for manual installs outside /usr (e.g. a tarball in $HOME).
-    // Flatpak can't replace itself from inside the sandbox.
     if (kind == QLatin1String("system"))
         return !QCoreApplication::applicationFilePath().startsWith(QLatin1String("/usr/"));
     return false;

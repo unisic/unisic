@@ -92,7 +92,7 @@
     </release>
     <release version="0.4.0" date="2026-07-10">
       <description>
-        <p>New app ID app.unisic.Unisic (backed by unisic.app) and first Flathub release. Stale menu and autostart entries from older installs are cleaned up automatically.</p>
+        <p>New app ID app.unisic.Unisic (backed by unisic.app). Stale menu and autostart entries from older installs are cleaned up automatically.</p>
       </description>
     </release>
     <release version="0.3.1" date="2026-07-10" />

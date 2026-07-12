@@ -2099,11 +2099,6 @@ Las capturas destacadas (favoritas) se conservan, tanto la entrada como el archi
         <translation>Reiniciar ahora</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="798"/>
-        <source>The Flatpak sandbox can&apos;t replace the app from inside — install the new bundle.</source>
-        <translation>El sandbox de Flatpak no puede reemplazar la aplicación desde dentro — instala el nuevo paquete.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="800"/>
         <source>The AppImage location is read-only — it can&apos;t update itself from here.</source>
         <translation>La ubicación del AppImage es de solo lectura — no puede actualizarse desde aquí.</translation>

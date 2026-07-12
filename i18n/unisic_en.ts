@@ -2337,11 +2337,6 @@ Starred (favorite) captures are kept, both the entry and the file.</translation>
         <translation>Restart now</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="798"/>
-        <source>The Flatpak sandbox can&apos;t replace the app from inside — install the new bundle.</source>
-        <translation>The Flatpak sandbox can&apos;t replace the app from inside — install the new bundle.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="800"/>
         <source>The AppImage location is read-only — it can&apos;t update itself from here.</source>
         <translation>The AppImage location is read-only — it can&apos;t update itself from here.</translation>

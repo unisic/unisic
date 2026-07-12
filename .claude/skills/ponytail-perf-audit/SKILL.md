@@ -54,7 +54,7 @@ The allocator (glibc malloc/jemalloc) may retain freed pages as cached arenas. M
 ## Start
 
 1. Inspect the complete repository structure.
-2. Detect the `CMakeLists.txt` (or `.pro`/qmake files), build presets, targets, tests, D-Bus service files, `.desktop` file, COPR/Flatpak/AppImage packaging, and any Qt/QML modules or plugins.
+2. Detect the `CMakeLists.txt` (or `.pro`/qmake files), build presets, targets, tests, D-Bus service files, `.desktop` file, COPR/AppImage packaging, and any Qt/QML modules or plugins.
 3. Read the application entry point (`main.cpp`) and trace:
 
    * application launch (`QGuiApplication`/`QApplication` setup, `QQmlApplicationEngine` load),

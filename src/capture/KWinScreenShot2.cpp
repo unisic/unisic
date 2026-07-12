@@ -14,11 +14,6 @@
 
 bool KWinScreenShot2::isAvailable()
 {
-    // KWin's restricted-interface check rejects sandboxed clients even when
-    // the exported desktop file carries X-KDE-DBUS-Restricted-Interfaces —
-    // inside Flatpak, go straight to the portal instead of failing first.
-    if (qEnvironmentVariableIsSet("FLATPAK_ID"))
-        return false;
     auto *iface = QDBusConnection::sessionBus().interface();
     return iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
 }

@@ -152,7 +152,7 @@ appstream-util validate-relax --nonet \
 - Separate sound cue when a recording/GIF finishes encoding; custom sounds.
 
 * Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.4.0-1
-- Rename app ID to app.unisic.Unisic (unisic.app); Flathub submission prep.
+- Rename app ID to app.unisic.Unisic (unisic.app).
 
 * Fri Jul 10 2026 Unisic maintainers <unisic@debondor.com> - 0.3.1-1
 - Add Unisic to COPR (dnf install/upgrade).

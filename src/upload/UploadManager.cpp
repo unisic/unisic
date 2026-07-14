@@ -19,6 +19,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 #include <QDebug>
+#include <memory>
 
 // Imgur's anonymous image endpoint needs an "Authorization: Client-ID <id>"
 // header. Register a free application at https://api.imgur.com/oauth2/addclient
@@ -398,7 +399,11 @@ QString UploadManager::importSxcu(const QString &pathOrUrl)
 
 QJsonObject UploadManager::activeDestination() const
 {
-    const QString name = m_settings->activeDestination();
+    return destinationNamed(m_settings->activeDestination());
+}
+
+QJsonObject UploadManager::destinationNamed(const QString &name) const
+{
     for (const QJsonValue &v : std::as_const(m_destinations))
         if (v.toObject().value(QStringLiteral("name")).toString() == name)
             return v.toObject();
@@ -425,19 +430,27 @@ void UploadManager::uploadFile(const QString &filePath, Callback cb)
         }
     }
     const QString mime = QMimeDatabase().mimeTypeForFile(filePath).name();
-    startUpload({}, filePath, QFileInfo(filePath).fileName(), mime, std::move(cb));
+    startUpload({}, filePath, QFileInfo(filePath).fileName(), mime, {}, std::move(cb));
 }
 
 void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
                                const QString &mime, Callback cb)
 {
-    startUpload(data, {}, fileName, mime, std::move(cb));
+    startUpload(data, {}, fileName, mime, {}, std::move(cb));
+}
+
+void UploadManager::uploadDataTo(const QString &destination, const QByteArray &data,
+                                 const QString &fileName, const QString &mime, Callback cb)
+{
+    startUpload(data, {}, fileName, mime, destination, std::move(cb));
 }
 
 void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
-                                const QString &fileName, const QString &mime, Callback cb)
+                                const QString &fileName, const QString &mime,
+                                const QString &destination, Callback cb)
 {
-    const QJsonObject dest = activeDestination();
+    const QJsonObject dest = destination.isEmpty() ? activeDestination()
+                                                    : destinationNamed(destination);
     if (dest.isEmpty()) {
         cb({}, {}, tr("No upload server configured"));
         return;

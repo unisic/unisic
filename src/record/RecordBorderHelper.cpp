@@ -6,35 +6,106 @@
 #include <QPainter>
 #include <QPen>
 #include <QRasterWindow>
+#include <QRegion>
 #include <QScreen>
 #include <QSocketNotifier>
 #include <QTimer>
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <unistd.h>
+#include <vector>
 
 namespace {
 
-// Mirrors RecordBorder.qml: a 3px accent frame with a 1px dark contrast line on
-// each side, all drawn strictly OUTSIDE the recorded rect (the ffmpeg crop must
-// never contain a frame pixel), plus a pulsing "REC h:mm:ss" badge placed just
-// outside the region.
-class BorderWindow : public QRasterWindow
+// The record-region frame under GNOME/mutter. Once ONE full-monitor
+// override-redirect XWayland window drew the whole frame and masked itself down
+// to the ring (XShape bounding). That works for plain clicks (empty input
+// shape) but mutter picks the drop-target actor for its OWN Clutter
+// drag-and-drop (Ubuntu Dock icon reorder) by the actor's allocation, NOT the
+// XShape bounding — so the full-monitor surface still blocked the Dock drag
+// even with the ring mask, and equally blocked any drag INSIDE the recorded
+// region (bug #44). The dependency-free cure is to have NO large surface at
+// all: draw the frame as four thin bar windows around the region, the REC clock
+// as its own small window, and the pre-recording countdown number as a window
+// over the region interior that is destroyed the instant recording begins.
+// Nothing then overlays the Dock or the region, so there is no actor for
+// mutter's DnD to catch.
+
+const int kBw = 3;            // accent frame base thickness
+const int kFramePad = kBw + 1; // the ring reaches this many px outside the region
+const QColor kContrast(0, 0, 0, 140);
+
+const Qt::WindowFlags kFrameFlags = Qt::BypassWindowManagerHint
+                                    | Qt::FramelessWindowHint
+                                    | Qt::WindowStaysOnTopHint
+                                    | Qt::WindowDoesNotAcceptFocus
+                                    | Qt::WindowTransparentForInput;
+
+QSurfaceFormat argbFormat(const QSurfaceFormat &base)
+{
+    QSurfaceFormat fmt = base;
+    fmt.setAlphaBufferSize(8); // ARGB visual — translucency needs it on X11
+    return fmt;
+}
+
+// Concentric rings around `r` (window-local): from the region edge outward,
+// [0..1) contrast, [1..3) accent, [3..4) contrast. Drawn strictly OUTSIDE r so
+// the ffmpeg crop (= the region) never contains a frame pixel.
+void paintRing(QPainter &p, const QRect &r, const QColor &accent)
+{
+    const auto ring = [&p, &r](int outPad, int inPad, const QColor &c) {
+        QRegion reg(r.adjusted(-outPad, -outPad, outPad, outPad));
+        reg -= QRegion(r.adjusted(-inPad, -inPad, inPad, inPad));
+        for (const QRect &part : reg)
+            p.fillRect(part, c);
+    };
+    ring(kBw + 1, kBw, kContrast); // outer contrast line
+    ring(kBw, 1, accent);          // accent frame
+    ring(1, 0, kContrast);         // inner contrast line
+}
+
+// One side of the frame. Its geometry is that side's ring segment; it paints the
+// WHOLE ring (translated into window-local space) and lets its geometry clip the
+// result to just this side — so the four bars together reproduce the exact ring
+// the old single window drew, with no surface between them.
+class BarWindow : public QRasterWindow
 {
 public:
-    BorderWindow(const QRect &region, const QColor &accent, int countdown)
-        : m_region(region), m_accent(accent), m_countdown(countdown)
+    BarWindow(const QRect &absRegion, const QRect &absGeom, const QColor &accent)
+        : m_localRegion(absRegion.translated(-absGeom.topLeft())), m_accent(accent)
     {
-        setFlags(Qt::BypassWindowManagerHint | Qt::FramelessWindowHint
-                 | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus
-                 | Qt::WindowTransparentForInput);
-        QSurfaceFormat fmt = format();
-        fmt.setAlphaBufferSize(8); // ARGB visual — translucency needs it on X11
-        setFormat(fmt);
-        // With a pre-recording countdown the frame is up but recording has NOT
-        // begun — the REC clock must not start until the countdown hits 0.
-        if (m_countdown == 0)
-            m_clock.start();
+        setFlags(kFrameFlags);
+        setFormat(argbFormat(format()));
+        setGeometry(absGeom);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setCompositionMode(QPainter::CompositionMode_Source);
+        p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        paintRing(p, m_localRegion, m_accent);
+    }
+
+private:
+    QRect m_localRegion;
+    QColor m_accent;
+};
+
+// The pulsing "REC h:mm:ss" badge, a small window just outside the region. Its
+// clock starts only when recording actually begins (countdown → 0).
+class BadgeWindow : public QRasterWindow
+{
+public:
+    explicit BadgeWindow(const QRect &absGeom)
+    {
+        setFlags(kFrameFlags);
+        setFormat(argbFormat(format()));
+        setGeometry(absGeom);
         auto *tick = new QTimer(this);
         connect(tick, &QTimer::timeout, this, [this] {
             m_pulse = !m_pulse;
@@ -43,13 +114,10 @@ public:
         tick->start(500);
     }
 
-    // Parent feeds countdown updates over stdin ("c<N>\n"). 0 = recording has
-    // begun: drop the number, start the REC clock from zero.
-    void setCountdown(int n)
+    void startClock()
     {
-        if (n == 0 && m_countdown > 0)
+        if (!m_clock.isValid())
             m_clock.start();
-        m_countdown = n;
         update();
     }
 
@@ -61,39 +129,6 @@ protected:
         p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
         p.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-        const QRect &r = m_region;
-        const int bw = 3;
-        const QColor contrast(0, 0, 0, 140);
-        // Concentric rings around the region: [outPad..inPad) outside its edge.
-        const auto ring = [&p, &r](int outPad, int inPad, const QColor &c) {
-            QRegion reg(r.adjusted(-outPad, -outPad, outPad, outPad));
-            reg -= QRegion(r.adjusted(-inPad, -inPad, inPad, inPad));
-            for (const QRect &part : reg)
-                p.fillRect(part, c);
-        };
-        ring(bw + 1, bw, contrast); // outer contrast line
-        ring(bw, 1, m_accent);      // accent frame (inner edge on the region)
-        ring(1, 0, contrast);       // inner contrast line
-
-        // Pre-recording countdown: a big accent number centered in the region,
-        // no REC badge yet. Mirrors RecordBorder.qml's countdown item.
-        if (m_countdown > 0) {
-            p.setRenderHint(QPainter::Antialiasing);
-            const int d = int(qMin(r.width(), r.height()) * 0.42);
-            const QRect circle(r.center().x() - d / 2, r.center().y() - d / 2, d, d);
-            p.setPen(QPen(m_accent, 2));
-            p.setBrush(QColor(0, 0, 0, 140));
-            p.drawEllipse(circle);
-            QFont nf = p.font();
-            nf.setPixelSize(qMax(24, int(qMin(r.width(), r.height()) * 0.26)));
-            nf.setBold(true);
-            p.setFont(nf);
-            p.setPen(m_accent);
-            p.drawText(r, Qt::AlignCenter, QString::number(m_countdown));
-            return;
-        }
-
-        // Badge — above the region if there is room, else below, else hidden.
         QFont f = p.font();
         f.setPixelSize(12);
         f.setBold(true);
@@ -101,23 +136,17 @@ protected:
         const int textW = QFontMetrics(f).horizontalAdvance(text);
         const int bh = 24;
         const int bwid = 8 + 6 + textW + 16; // dot + spacing + text + padding
-        const bool roomAbove = r.y() - bh - 6 >= 0;
-        const bool roomBelow = r.y() + r.height() + 6 + bh <= height();
-        if (!roomAbove && !roomBelow)
-            return;
-        const int bx = qMax(0, qMin(width() - bwid, r.x()));
-        const int by = roomAbove ? r.y() - bh - 6 : r.y() + r.height() + 6;
         p.setRenderHint(QPainter::Antialiasing);
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(0, 0, 0, 184));
-        p.drawRoundedRect(QRect(bx, by, bwid, bh), 12, 12);
+        p.drawRoundedRect(QRect(0, 0, bwid, bh), 12, 12);
         QColor dot(0xff, 0x4d, 0x4d);
         dot.setAlphaF(m_pulse ? 1.0 : 0.25);
         p.setBrush(dot);
-        p.drawEllipse(QRect(bx + 8, by + (bh - 8) / 2, 8, 8));
+        p.drawEllipse(QRect(8, (bh - 8) / 2, 8, 8));
         p.setFont(f);
         p.setPen(Qt::white);
-        p.drawText(QRect(bx + 8 + 8 + 6, by, textW, bh), Qt::AlignVCenter, text);
+        p.drawText(QRect(8 + 8 + 6, 0, textW, bh), Qt::AlignVCenter, text);
     }
 
 private:
@@ -134,11 +163,58 @@ private:
                + QLatin1Char(':') + pad(sec);
     }
 
-    QRect m_region; // window-local
-    QColor m_accent;
     QElapsedTimer m_clock;
     bool m_pulse = true;
-    int m_countdown = 0; // >0 = pre-recording countdown number to show
+};
+
+// The pre-recording countdown: a big accent number in a circle, centered in the
+// region. Lives only while the countdown ticks — destroyed on the transition to
+// recording so the region interior becomes a genuine gap (no surface to catch
+// mutter's DnD, and nothing over the content being recorded).
+class CountdownWindow : public QRasterWindow
+{
+public:
+    CountdownWindow(const QRect &absGeom, const QColor &accent, int n)
+        : m_accent(accent), m_n(n)
+    {
+        setFlags(kFrameFlags);
+        setFormat(argbFormat(format()));
+        setGeometry(absGeom);
+    }
+
+    void setNumber(int n)
+    {
+        m_n = n;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setCompositionMode(QPainter::CompositionMode_Source);
+        p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        if (m_n <= 0)
+            return;
+        const QRect local(0, 0, width(), height());
+        p.setRenderHint(QPainter::Antialiasing);
+        const int d = int(qMin(width(), height()) * 0.42);
+        const QRect circle(local.center().x() - d / 2, local.center().y() - d / 2, d, d);
+        p.setPen(QPen(m_accent, 2));
+        p.setBrush(QColor(0, 0, 0, 140));
+        p.drawEllipse(circle);
+        QFont nf = p.font();
+        nf.setPixelSize(qMax(24, int(qMin(width(), height()) * 0.26)));
+        nf.setBold(true);
+        p.setFont(nf);
+        p.setPen(m_accent);
+        p.drawText(local, Qt::AlignCenter, QString::number(m_n));
+    }
+
+private:
+    QColor m_accent;
+    int m_n;
 };
 
 } // namespace
@@ -156,7 +232,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     // --record-border-helper <name> <lx> <ly> <lw> <lh> <pw> <ph>
-    //                        <fx> <fy> <fw> <fh> <#accent>
+    //                        <fx> <fy> <fw> <fh> <#accent> [countdown]
     // name/l*/p*: the Wayland screen's name, logical geometry and physical size,
     // used only to pick the matching X screen. f*: region as fractions of the
     // monitor — XWayland's coordinate space (logical vs physical layout mode)
@@ -176,7 +252,7 @@ int runRecordBorderHelper(int argc, char *argv[])
         accent = QColor(QStringLiteral("#C8ACD6"));
     // Optional 14th arg: initial pre-recording countdown (0 = none). Further
     // updates arrive over stdin as "c<N>\n".
-    const int countdown = (i + 13 < args.size()) ? args[i + 13].toInt() : 0;
+    int countdown = (i + 13 < args.size()) ? args[i + 13].toInt() : 0;
 
     // Match the Wayland screen to an X screen. XWayland's RandR outputs often
     // carry synthetic names (XWAYLAND0…) under mutter, so fall through name →
@@ -214,32 +290,89 @@ int runRecordBorderHelper(int argc, char *argv[])
     const int x1 = sg.x() + int(std::ceil((fx + fw) * sg.width())) + 2;
     const int y1 = sg.y() + int(std::ceil((fy + fh) * sg.height())) + 2;
 
-    BorderWindow win(QRect(QPoint(x0 - sg.x(), y0 - sg.y()),
-                           QSize(x1 - x0, y1 - y0)),
-                     accent, countdown);
-    win.setGeometry(sg); // fill the monitor; override-redirect maps it as-is
-    win.show();
+    // The padded region in absolute X coordinates. The frame is drawn OUTSIDE
+    // it; nothing is drawn inside it.
+    const QRect region(x0, y0, x1 - x0, y1 - y0);
+    const QRect frame = region.adjusted(-kFramePad, -kFramePad, kFramePad, kFramePad);
+
+    // Four thin bars covering the ring (top/bottom span the corners; left/right
+    // fill between them). Each paints the whole ring translated and is clipped
+    // by its geometry.
+    std::vector<std::unique_ptr<BarWindow>> bars;
+    const auto addBar = [&](const QRect &g) {
+        auto w = std::make_unique<BarWindow>(region, g, accent);
+        w->show();
+        bars.push_back(std::move(w));
+    };
+    addBar(QRect(frame.left(), frame.top(), frame.width(), kFramePad));
+    addBar(QRect(frame.left(), region.bottom() + 1, frame.width(), kFramePad));
+    addBar(QRect(frame.left(), region.top(), kFramePad, region.height()));
+    addBar(QRect(region.right() + 1, region.top(), kFramePad, region.height()));
+
+    // Countdown number over the region interior (only while it ticks).
+    std::unique_ptr<CountdownWindow> countdownWin;
+    if (countdown > 0) {
+        countdownWin = std::make_unique<CountdownWindow>(region, accent, countdown);
+        countdownWin->show();
+    }
+
+    // REC badge just above the region (or below if there is no room above),
+    // shown only once recording has begun. A fixed generous width means the
+    // ticking clock never needs the window resized.
+    std::unique_ptr<BadgeWindow> badgeWin;
+    {
+        const int bh = 24, maxW = 200;
+        const bool roomAbove = (region.top() - bh - 6) >= sg.top();
+        const bool roomBelow = (region.bottom() + 6 + bh) <= sg.bottom();
+        if (roomAbove || roomBelow) {
+            const int by = roomAbove ? region.top() - bh - 6 : region.bottom() + 6;
+            const int bx = std::max(sg.left(),
+                                    std::min(sg.right() - maxW + 1, region.left()));
+            badgeWin = std::make_unique<BadgeWindow>(QRect(bx, by, maxW, bh));
+            if (countdown == 0) {
+                badgeWin->show();
+                badgeWin->startClock();
+            }
+        }
+    }
 
     // stdin carries both the countdown ("c<N>\n") and the lifetime signal:
     // hideRecordBorder() closes it (or the parent dies) → EOF → quit. No
     // signals, no D-Bus, no polling.
     QSocketNotifier stdinWatch(0, QSocketNotifier::Read);
-    QObject::connect(&stdinWatch, &QSocketNotifier::activated, &app, [&app, &win] {
-        char buf[64];
-        const ssize_t n = ::read(0, buf, sizeof buf - 1);
-        if (n <= 0) {
-            app.quit();
-            return;
-        }
-        buf[n] = '\0';
-        // Apply the last "c<N>" in the chunk (ticks can batch into one read).
-        const char *last = nullptr;
-        for (const char *c = buf; *c; ++c)
-            if (*c == 'c')
-                last = c;
-        if (last)
-            win.setCountdown(std::atoi(last + 1));
-    });
+    QObject::connect(&stdinWatch, &QSocketNotifier::activated, &app,
+                     [&app, &countdownWin, &badgeWin] {
+                         char buf[64];
+                         const ssize_t n = ::read(0, buf, sizeof buf - 1);
+                         if (n <= 0) {
+                             app.quit();
+                             return;
+                         }
+                         buf[n] = '\0';
+                         // Apply the last "c<N>" in the chunk (ticks can batch).
+                         const char *last = nullptr;
+                         for (const char *c = buf; *c; ++c)
+                             if (*c == 'c')
+                                 last = c;
+                         if (!last)
+                             return;
+                         const int val = std::atoi(last + 1);
+                         if (val > 0) {
+                             if (countdownWin)
+                                 countdownWin->setNumber(val);
+                             return;
+                         }
+                         // val == 0: recording has begun. Drop the countdown
+                         // number (frees the region interior) and raise the clock.
+                         if (countdownWin) {
+                             countdownWin->hide();
+                             countdownWin.reset();
+                         }
+                         if (badgeWin) {
+                             badgeWin->show();
+                             badgeWin->startClock();
+                         }
+                     });
 
     return app.exec();
 }

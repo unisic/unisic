@@ -23,7 +23,6 @@ Window {
         readonly property bool guidesUseful:
             App.settings.selectionGuides
             && canvas.tool === AnnotationCanvas.None
-            && canvas.hoverObjectRect.width <= 0
 
         // Non-KDE compositors (Mutter, sway) routinely deny requestActivate()
         // issued from a hotkey with no focused window — keyboard (Esc/Enter/
@@ -196,6 +195,22 @@ Window {
                 else canvas.undo()
             } else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) {
                 canvas.redo()
+            } else if (annotationToolsEnabled && canvas.hasSelection && e.modifiers === Qt.NoModifier
+                       && (e.key === Qt.Key_T || e.key === Qt.Key_P || e.key === Qt.Key_L
+                           || e.key === Qt.Key_A || e.key === Qt.Key_R || e.key === Qt.Key_E
+                           || e.key === Qt.Key_B || e.key === Qt.Key_H || e.key === Qt.Key_M)) {
+                // Only switch to a drawing tool once a region exists — the region
+                // path needs tool==None to arm, so a tool press before selecting
+                // would trap the user unable to make a selection (toolbar hidden).
+                if (e.key === Qt.Key_T) canvas.tool = AnnotationCanvas.Text
+                else if (e.key === Qt.Key_P) canvas.tool = AnnotationCanvas.Pen
+                else if (e.key === Qt.Key_L) canvas.tool = AnnotationCanvas.Line
+                else if (e.key === Qt.Key_A) canvas.tool = AnnotationCanvas.Arrow
+                else if (e.key === Qt.Key_R) canvas.tool = AnnotationCanvas.Rect
+                else if (e.key === Qt.Key_E) canvas.tool = AnnotationCanvas.Ellipse
+                else if (e.key === Qt.Key_B) canvas.tool = AnnotationCanvas.Blur
+                else if (e.key === Qt.Key_H) canvas.tool = AnnotationCanvas.Highlight
+                else canvas.tool = AnnotationCanvas.Measure
             } else if (e.key === Qt.Key_Left)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? -10 : -1, 0) }
             else if (e.key === Qt.Key_Right)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? 10 : 1, 0) }
             else if (e.key === Qt.Key_Up)     { canvas.nudgeSelection(0, e.modifiers & Qt.ShiftModifier ? -10 : -1) }
@@ -240,9 +255,10 @@ Window {
             anchors.fill: parent
             selectionMode: true
             tool: AnnotationCanvas.None
-            // Smart pick: click = select the detected object under the cursor;
-            // drag still draws a manual rectangle (Settings > Capture).
-            smartPick: App.settings.smartPick
+            onCopyRequested: {
+                if (annotationToolsEnabled)
+                    overlayController.confirmAndCopy(overlayWindow)
+            }
             // Capture on release: screenshot flow only — the GIF region picker
             // (annotationToolsEnabled false) keeps its explicit Start button.
             confirmOnRelease: App.settings.captureOnRelease && annotationToolsEnabled
@@ -350,35 +366,6 @@ Window {
             }
         }
 
-        // Smart-pick hover badge: highlighted object's size + nesting level
-        // (scroll cycles inner element ⇄ container ⇄ whole screen).
-        Rectangle {
-            visible: !canvas.hasSelection && canvas.hoverObjectRect.width > 0
-            readonly property real hx: canvas.hoverObjectRect.x * canvas.renderScale
-            readonly property real hy: canvas.hoverObjectRect.y * canvas.renderScale
-            readonly property real hw: canvas.hoverObjectRect.width * canvas.renderScale
-            x: Math.max(4, Math.min(hx + hw / 2 - width / 2, parent.width - width - 8))
-            y: Math.max(4, hy - height - 10)
-            width: hoverDimText.implicitWidth + 22
-            height: 28
-            radius: 14
-            color: "#000000"
-            opacity: 0.8
-            Text {
-                id: hoverDimText
-                anchors.centerIn: parent
-                text: canvas.hoverObjectKind + "  ·  "
-                      + Math.round(canvas.hoverObjectRect.width) + " × "
-                      + Math.round(canvas.hoverObjectRect.height)
-                      + (canvas.hoverDepthCount > 1
-                         ? "   " + (canvas.hoverDepth + 1) + "/" + canvas.hoverDepthCount + " ↕"
-                         : "")
-                color: "#FFFFFF"
-                font.pixelSize: 12
-                font.family: "monospace"
-            }
-        }
-
         // Dimension readout — follows the selection
         Rectangle {
             visible: canvas.hasSelection
@@ -399,34 +386,6 @@ Window {
             }
         }
 
-        // Object-pick status (segmentation progress / cutout ready).
-        // Sits opposite the toolbar: with a top-anchored toolbar the pill
-        // moves to the bottom so the two never overlap.
-        Rectangle {
-            readonly property bool toolbarOnTop:
-                App.settings.overlayToolbarPosition.indexOf("top") >= 0
-            visible: canvas.tool === AnnotationCanvas.ObjectPick && canvas.hasSelection
-                     && (canvas.segmenting || canvas.hasObjectMask)
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: toolbarOnTop ? parent.height - height - 42 : 42
-            width: segText.implicitWidth + 40
-            height: 36
-            radius: 18
-            color: Theme.primary
-            opacity: 0.92
-            border.width: 1
-            border.color: Theme.divider
-            Text {
-                id: segText
-                anchors.centerIn: parent
-                text: canvas.segmenting
-                      ? qsTr("Separating object from background…")
-                      : qsTr("Background removed. Enter or double-click captures the cutout")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontS + 1
-            }
-        }
-
         // Hint bar (before first selection)
         Rectangle {
             visible: !canvas.hasSelection
@@ -444,9 +403,7 @@ Window {
                 id: hintText
                 anchors.centerIn: parent
                 text: {
-                    const drag = App.settings.smartPick
-                               ? qsTr("Click an object (scroll = level) or drag to select")
-                               : qsTr("Drag to select")
+                    const drag = qsTr("Drag to select")
                     return annotationToolsEnabled
                            ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
                            : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")

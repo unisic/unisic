@@ -1,5 +1,6 @@
 #include "AppContext.h"
 #include "record/RecordBorderHelper.h"
+#include "notify/NotificationHelper.h"
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
 #include "update/VersionCompare.h"
@@ -80,19 +81,179 @@ static QString singleInstanceServerName()
 #endif
 }
 
+// Returns -1 when --delay is absent, -2 when it is malformed. Keep parsing at
+// the CLI boundary: the setting stays untouched and the local socket gets a
+// bounded millisecond value rather than arbitrary argv text.
+static int cliDelayMs(const QStringList &args)
+{
+    QString seconds;
+    for (int i = 1; i < args.size(); ++i) {
+        const QString &arg = args.at(i);
+        if (arg == QLatin1String("--delay")) {
+            if (i + 1 >= args.size())
+                return -2;
+            seconds = args.at(++i);
+            break;
+        }
+        if (arg.startsWith(QLatin1String("--delay="))) {
+            seconds = arg.mid(8);
+            break;
+        }
+    }
+    if (seconds.isEmpty())
+        return -1;
+    bool ok = false;
+    const int parsed = seconds.toInt(&ok);
+    return ok && parsed >= 0 && parsed <= 60 ? parsed * 1000 : -2;
+}
+
+static QString cliValue(const QStringList &args, const QString &name)
+{
+    for (int i = 1; i < args.size(); ++i) {
+        if (args.at(i) == name && i + 1 < args.size())
+            return args.at(i + 1);
+        const QString prefix = name + QLatin1Char('=');
+        if (args.at(i).startsWith(prefix))
+            return args.at(i).mid(prefix.size());
+    }
+    return {};
+}
+
+static QString cliFormat(const QStringList &args)
+{
+    QString fmt = cliValue(args, QStringLiteral("--format")).toLower();
+    if (fmt == QLatin1String("jpeg")) fmt = QStringLiteral("jpg");
+    return fmt.isEmpty() ? QStringLiteral("png") : fmt;
+}
+
 // Capture flag from argv, mapped to the command sent over the local socket —
 // `unisic --region` with a running instance must trigger a capture there, not
 // just raise its window.
 static QByteArray cliCommand(const QStringList &args)
 {
-    if (args.contains(QLatin1String("--fullscreen"))) return "fullscreen";
-    if (args.contains(QLatin1String("--region"))) return "region";
-    if (args.contains(QLatin1String("--window"))) return "window";
+    QByteArray command;
+    if (args.contains(QLatin1String("--fullscreen"))) command = "fullscreen";
+    else if (args.contains(QLatin1String("--region"))) command = "region";
+    else if (args.contains(QLatin1String("--window"))) command = "window";
+    else if (args.contains(QLatin1String("--measure"))) command = "measure";
+    const int delay = cliDelayMs(args);
+    if (!command.isEmpty()) {
+        if (delay >= 0)
+            command += " delay=" + QByteArray::number(delay);
+        QString output = cliValue(args, QStringLiteral("--output"));
+        if (!output.isEmpty()) {
+            if (output != QLatin1String("-"))
+                output = QFileInfo(output).absoluteFilePath();
+            command += " output=" + output.toUtf8().toBase64(QByteArray::Base64UrlEncoding
+                                                               | QByteArray::OmitTrailingEquals);
+            command += " format=" + cliFormat(args).toUtf8();
+            if (output == QLatin1String("-"))
+                command += " stdout=1";
+        }
+        return command;
+    }
     if (args.contains(QLatin1String("--gif"))) return "gif";
     // Autostart path: if an instance is somehow already running, do nothing
     // (never raise its window) — the flag only shapes a FRESH launch.
     if (args.contains(QLatin1String("--tray-only"))) return "tray";
     return "show";
+}
+
+// Commands cross the single-instance socket as a tiny, deliberately boring
+// protocol. Parse the optional one-shot delay here too so a running instance
+// has identical CLI behavior to a fresh launch.
+static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &context,
+                               QLocalSocket *replySocket = nullptr)
+{
+    const QList<QByteArray> parts = wireCommand.split(' ');
+    const QByteArray command = parts.value(0);
+    int delayMs = -1;
+    QString outputPath;
+    QString format = QStringLiteral("png");
+    bool toStdout = false;
+    for (const QByteArray &part : parts) {
+        if (part.startsWith("delay=")) {
+            bool ok = false;
+            const int parsed = part.mid(6).toInt(&ok);
+            if (ok && parsed >= 0 && parsed <= 60 * 1000)
+                delayMs = parsed;
+        } else if (part.startsWith("output=")) {
+            outputPath = QString::fromUtf8(QByteArray::fromBase64(
+                part.mid(7), QByteArray::Base64UrlEncoding));
+        } else if (part.startsWith("format=")) {
+            format = QString::fromUtf8(part.mid(7));
+        } else if (part == "stdout=1") {
+            toStdout = true;
+        }
+    }
+    if (delayMs >= 0 && (command == "fullscreen" || command == "region"
+                         || command == "window" || command == "measure"))
+        context.setNextCaptureDelayMs(delayMs);
+    if (!outputPath.isEmpty()) {
+        context.setNextCaptureOutput(toStdout ? QString() : outputPath, format, toStdout);
+        if (toStdout && replySocket) {
+            QObject::connect(&context, &AppContext::cliCaptureReady, replySocket,
+                             [replySocket](const QByteArray &data, const QString &error) {
+                if (!error.isEmpty()) {
+                    replySocket->write("ERR " + error.toUtf8().toBase64() + "\n");
+                } else {
+                    replySocket->write("OK " + QByteArray::number(data.size()) + "\n");
+                    replySocket->write(data);
+                }
+                replySocket->disconnectFromServer();
+            });
+        }
+    }
+    if (command == "fullscreen") context.captureFullScreen();
+    else if (command == "region") context.captureRegion();
+    else if (command == "window") context.captureWindow();
+    else if (command == "measure") context.captureMeasure();
+    else if (command == "gif") context.startGifRegion();
+    else if (command == "tray") { /* already running — stay in tray */ }
+    else QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
+    return toStdout;
+}
+
+// Returns -1 when there is no running peer, otherwise the command's exit code.
+static int requestExistingStdoutCapture(const QString &serverName,
+                                        const QByteArray &command)
+{
+    QLocalSocket socket;
+    socket.connectToServer(serverName, QIODevice::ReadWrite);
+    if (!socket.waitForConnected(200))
+        return -1;
+    socket.write(command + '\n');
+    socket.flush();
+    if (!socket.waitForBytesWritten(1000))
+        return 1;
+    QByteArray response;
+    while (socket.state() != QLocalSocket::UnconnectedState) {
+        if (!socket.waitForReadyRead(10 * 60 * 1000)
+            && socket.state() != QLocalSocket::UnconnectedState)
+            return 1;
+        response += socket.readAll();
+        if (response.size() > 256 * 1024 * 1024)
+            return 1;
+    }
+    response += socket.readAll();
+    const int newline = response.indexOf('\n');
+    if (newline < 0)
+        return 1;
+    const QByteArray header = response.left(newline);
+    if (header.startsWith("ERR ")) {
+        qWarning().noquote() << QString::fromUtf8(QByteArray::fromBase64(header.mid(4)));
+        return 1;
+    }
+    bool sizeOk = false;
+    const qint64 size = header.mid(3).toLongLong(&sizeOk);
+    const QByteArray data = response.mid(newline + 1);
+    if (!header.startsWith("OK ") || !sizeOk || size != data.size())
+        return 1;
+    QFile out;
+    if (!out.open(stdout, QIODevice::WriteOnly) || out.write(data) != data.size())
+        return 1;
+    out.close();
+    return 0;
 }
 
 static bool notifyExistingInstance(const QString &serverName, const QByteArray &command = "show")
@@ -109,9 +270,11 @@ static bool notifyExistingInstance(const QString &serverName, const QByteArray &
 }
 
 static QLocalServer *createSingleInstanceServer(const QString &serverName, QCoreApplication *app,
-                                                const QByteArray &command, bool *handedOff)
+                                                const QByteArray &command, bool expectsReply,
+                                                bool *handedOff, int *handoffResult)
 {
     *handedOff = false;
+    *handoffResult = 0;
     auto *server = new QLocalServer(app);
     if (server->listen(serverName))
         return server;
@@ -129,7 +292,17 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     // the REAL command, and signal main() to exit: continuing would boot a
     // duplicate instance with duplicate hotkey registrations (every press
     // would then fire twice). Otherwise remove the stale socket left by a crash.
-    if (notifyExistingInstance(serverName, command)) {
+    const auto tryHandoff = [&] {
+        if (expectsReply) {
+            const int result = requestExistingStdoutCapture(serverName, command);
+            if (result < 0)
+                return false;
+            *handoffResult = result;
+            return true;
+        }
+        return notifyExistingInstance(serverName, command);
+    };
+    if (tryHandoff()) {
         *handedOff = true;
         delete server;
         return nullptr;
@@ -142,7 +315,7 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     // hand off instead of continuing as an unguarded duplicate. Only the
     // genuinely environmental no-peer case (broken runtime dir) falls through
     // to warn-and-continue.
-    if (notifyExistingInstance(serverName, command)) {
+    if (tryHandoff()) {
         *handedOff = true;
         delete server;
         return nullptr;
@@ -352,9 +525,14 @@ int main(int argc, char *argv[])
     // not wayland; the platform is fixed at construction) and before the
     // single-instance handshake (the helper is a child of the running
     // instance, never a peer).
-    for (int i = 1; i < argc; ++i)
+    for (int i = 1; i < argc; ++i) {
         if (qstrcmp(argv[i], "--record-border-helper") == 0)
             return runRecordBorderHelper(argc, argv);
+        // Styled capture card for GNOME/mutter — same xcb-before-QApplication
+        // reason as the record border (one process can't host two QPA platforms).
+        if (qstrcmp(argv[i], "--notification-helper") == 0)
+            return runNotificationHelper(argc, argv);
+    }
     execStagedUpdate(argc, argv);
 #if defined(__GLIBC__)
     // Pin the dynamic mmap threshold. Recording pushes a frame-sized (8–33 MB)
@@ -430,18 +608,52 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    const int delayMs = cliDelayMs(args);
+    if (delayMs == -2) {
+        qWarning() << "--delay expects whole seconds from 0 to 60";
+        return 2;
+    }
+    const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
+                                   || args.contains(QLatin1String("--region"))
+                                   || args.contains(QLatin1String("--window"))
+                                   || args.contains(QLatin1String("--measure"));
+    if (delayMs >= 0 && !screenshotRequested) {
+        qWarning() << "--delay requires --fullscreen, --region, --window, or --measure";
+        return 2;
+    }
+    const QString outputArg = cliValue(args, QStringLiteral("--output"));
+    if (!outputArg.isEmpty() && !screenshotRequested) {
+        qWarning() << "--output requires --fullscreen, --region, --window, or --measure";
+        return 2;
+    }
+    const QString outputFormat = cliFormat(args);
+    if (!outputArg.isEmpty() && outputFormat != QLatin1String("png")
+        && outputFormat != QLatin1String("jpg") && outputFormat != QLatin1String("webp")) {
+        qWarning() << "--format expects png, jpg, or webp";
+        return 2;
+    }
+
     // Batch mode above runs without an event loop — the self-pipe notifier
     // would never fire there; default signal dispositions are correct for it.
     installSignalHandlers(&app);
 
     const QString serverName = singleInstanceServerName();
-    if (notifyExistingInstance(serverName, cliCommand(args)))
+    const QByteArray startupCommand = cliCommand(args);
+    const bool stdoutCapture = outputArg == QLatin1String("-");
+    if (stdoutCapture) {
+        const int forwarded = requestExistingStdoutCapture(serverName, startupCommand);
+        if (forwarded >= 0)
+            return forwarded;
+    } else if (notifyExistingInstance(serverName, startupCommand)) {
         return 0;
+    }
     bool handedOff = false;
+    int handoffResult = 0;
     QLocalServer *singleInstanceServer =
-        createSingleInstanceServer(serverName, &app, cliCommand(args), &handedOff);
+        createSingleInstanceServer(serverName, &app, startupCommand, stdoutCapture,
+                                   &handedOff, &handoffResult);
     if (handedOff)
-        return 0;
+        return handoffResult;
     if (singleInstanceServer) {
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });
@@ -505,7 +717,8 @@ int main(int argc, char *argv[])
     // main window (Main.qml binds `visible: !startHidden`). A manual `unisic`
     // still shows the window. Set BEFORE load so there is no visible flash.
     const bool trayOnly = args.contains(QLatin1String("--tray-only"));
-    engine.rootContext()->setContextProperty(QStringLiteral("startHidden"), trayOnly);
+    engine.rootContext()->setContextProperty(QStringLiteral("startHidden"),
+                                             trayOnly || stdoutCapture);
     context.initialize(&engine);
 
     if (singleInstanceServer) {
@@ -519,14 +732,9 @@ int main(int argc, char *argv[])
                     const QByteArray cmd = socket->readAll().trimmed();
                     if (cmd.isEmpty())
                         return; // second delivery (readyRead after manual call)
-                    if (cmd == "fullscreen") context.captureFullScreen();
-                    else if (cmd == "region") context.captureRegion();
-                    else if (cmd == "window") context.captureWindow();
-                    else if (cmd == "gif") context.startGifRegion();
-                    else if (cmd == "tray") { /* already running — stay in tray */ }
-                    else QMetaObject::invokeMethod(&context, "showMainWindowRequested",
-                                                   Qt::QueuedConnection);
-                    socket->disconnectFromServer();
+                    const bool waitsForReply = dispatchCliCommand(cmd, context, socket);
+                    if (!waitsForReply)
+                        socket->disconnectFromServer();
                 };
                 QObject::connect(socket, &QLocalSocket::readyRead, &context, dispatch);
                 if (socket->bytesAvailable() > 0)
@@ -556,11 +764,38 @@ int main(int argc, char *argv[])
         });
     }
 
-    // ShareX-style CLI triggers: unisic --region | --fullscreen | --window | --gif
-    QTimer::singleShot(300, &context, [&context, args] {
+    // ShareX-style CLI triggers: screenshot modes, measure overlay, or GIF.
+    if (stdoutCapture) {
+        QObject::connect(&context, &AppContext::cliCaptureReady, &app,
+                         [&app](const QByteArray &data, const QString &error) {
+            if (!error.isEmpty()) {
+                qWarning().noquote() << error;
+                app.exit(1);
+                return;
+            }
+            QFile out;
+            if (!out.open(stdout, QIODevice::WriteOnly)
+                || out.write(data) != data.size()) {
+                app.exit(1);
+                return;
+            }
+            out.close();
+            app.exit(0);
+        });
+    }
+    QTimer::singleShot(300, &context, [&context, args, delayMs, outputArg, outputFormat] {
+        if (delayMs >= 0)
+            context.setNextCaptureDelayMs(delayMs);
+        if (!outputArg.isEmpty()) {
+            const bool toStdout = outputArg == QLatin1String("-");
+            context.setNextCaptureOutput(
+                toStdout ? QString() : QFileInfo(outputArg).absoluteFilePath(),
+                outputFormat, toStdout);
+        }
         if (args.contains(QLatin1String("--fullscreen"))) context.captureFullScreen();
         else if (args.contains(QLatin1String("--region"))) context.captureRegion();
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
+        else if (args.contains(QLatin1String("--measure"))) context.captureMeasure();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
     });
 

@@ -211,5 +211,4 @@ QtObject {
     // Motion
     readonly property int animFast: 130
     readonly property int animMed: 220
-    readonly property var easeOut: Easing.OutCubic
 }

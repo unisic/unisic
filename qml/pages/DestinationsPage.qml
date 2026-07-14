@@ -98,18 +98,25 @@ Item {
                     border.color: App.settings.activeDestination === modelData.name ? Theme.accent : Theme.divider
 
                     Row {
+                        id: infoRow
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.spacingL
+                        // Stop before the action buttons so a long request URL
+                        // elides instead of sliding under Use/Edit/Delete.
+                        anchors.right: actionRow.left
+                        anchors.rightMargin: Theme.spacingM
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Theme.spacingM
                         UIcon { name: modelData.type === "curl" ? "lock" : "globe"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
                         Column {
+                            width: infoRow.width - 22 - Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
-                            Text { text: modelData.name; color: Theme.textPrimary; font.pixelSize: Theme.fontM; font.weight: Font.DemiBold }
-                            Text { text: modelData.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS }
+                            Text { width: parent.width; text: modelData.name; color: Theme.textPrimary; font.pixelSize: Theme.fontM; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                            Text { width: parent.width; text: modelData.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS; elide: Text.ElideMiddle }
                         }
                     }
                     Row {
+                        id: actionRow
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spacingM
                         anchors.verticalCenter: parent.verticalCenter

@@ -1,6 +1,8 @@
 build
 build*/
 
+To-Do
+
 # Claude Code local settings
 .claude/settings.json
 .claude/settings.local.json

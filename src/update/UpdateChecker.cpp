@@ -25,7 +25,6 @@
 #include <memory>
 
 static const char *kFeedUrl = "https://api.github.com/repos/unisic/unisic/releases/latest";
-static const char *kReleasesPage = "https://github.com/unisic/unisic/releases";
 
 UpdateChecker::UpdateChecker(Settings *settings, QObject *parent)
     : QObject(parent)
@@ -268,9 +267,6 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     if (version.startsWith(QLatin1Char('v')) || version.startsWith(QLatin1Char('V')))
         version.remove(0, 1);
     m_latest = version;
-    m_releaseUrl = obj.value(QLatin1String("html_url")).toString();
-    if (m_releaseUrl.isEmpty())
-        m_releaseUrl = QLatin1String(kReleasesPage);
 
     // The release's AppImage asset (self-update download). ".zsync" must not
     // match — it satisfies the same prefix.
@@ -546,8 +542,6 @@ void UpdateChecker::simulateAvailable(const QString &version)
 {
     m_latest = version;
     m_restartPending = false;
-    if (m_releaseUrl.isEmpty())
-        m_releaseUrl = QLatin1String(kReleasesPage);
     m_status = tr("Simulated: version %1 is available").arg(version);
     setAvailable(true);
     emit stateChanged();

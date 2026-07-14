@@ -28,11 +28,12 @@ OverlayController::OverlayController(AppContext *app, QObject *parent)
     });
 }
 
-void OverlayController::pickAnnotatedImage(ImageCallback cb)
+void OverlayController::pickAnnotatedImage(ImageCallback cb, int initialTool)
 {
     if (active()) return;
     m_imageCb = std::move(cb);
     m_regionCb = nullptr;
+    m_initialTool = initialTool;
     begin(true);
 }
 
@@ -41,6 +42,7 @@ void OverlayController::pickRegion(RegionCallback cb)
     if (active()) return;
     m_regionCb = std::move(cb);
     m_imageCb = nullptr;
+    m_initialTool = AnnotationCanvas::None;
     begin(false);
 }
 
@@ -116,9 +118,13 @@ void OverlayController::createWindows()
         if (auto *canvas = win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas"))) {
             QImage img = m_frozen[i];
             canvas->setImage(img);
-            // Upgrade the object-cutout segmentation to U-2-Net when available
-            // (no-op / heuristic fallback otherwise).
-            m_app->installSegmenter(canvas);
+            if (m_initialTool != AnnotationCanvas::None) {
+                // Dedicated full-screen tool modes start with the complete
+                // frozen output selected, so the first drag measures/draws
+                // immediately and Enter can export without a crop gesture.
+                canvas->selectAll();
+                canvas->setTool(m_initialTool);
+            }
         }
 
         bool shown = false;
@@ -178,35 +184,6 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
     if (!canvas || !canvas->hasSelection())
         return;
 
-    // Object pick: a confirm arriving while the cutout is still being computed
-    // (or a nudge re-run is pending) must WAIT for the mask — otherwise the
-    // raw rectangle, background included, would be exported with no warning.
-    // One armed wait per window; repeated confirms while armed are dropped.
-    if (canvas->tool() == AnnotationCanvas::ObjectPick && canvas->segmenting()) {
-        if (win->property("confirmArmed").toBool())
-            return;
-        win->setProperty("confirmArmed", true);
-        QPointer<QQuickWindow> wp(win);
-        auto conn = std::make_shared<QMetaObject::Connection>();
-        *conn = connect(canvas, &AnnotationCanvas::segmentingChanged, this,
-                        [this, wp, canvas, conn] {
-            if (canvas->segmenting())
-                return; // another run started (nudge burst) — keep waiting
-            QObject::disconnect(*conn);
-            // m_windows guard: a cancelled/replaced session must not let a
-            // stale armed confirm fire into the new session's callback.
-            if (wp && m_windows.contains(wp.data())) {
-                wp->setProperty("confirmArmed", false);
-                // Only auto-fire when the awaited cutout actually exists; a
-                // failed segmentation or a tool switch must not silently
-                // export the raw rectangle the user never saw.
-                if (canvas->tool() == AnnotationCanvas::ObjectPick && canvas->hasObjectMask())
-                    confirmFromWindow(wp);
-            }
-        });
-        return;
-    }
-
     const int idx = m_windows.indexOf(win);
     QScreen *screen = (idx >= 0 && idx < m_screens.size()) ? m_screens[idx] : nullptr;
 
@@ -246,9 +223,22 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
 void OverlayController::cancel()
 {
     ++m_generation;
-    closeAll();
+    // Notify the pending callback of cancellation (empty result) BEFORE dropping
+    // it. The caller (AppContext) clears its capture-in-flight guard, ends
+    // Do-Not-Disturb and answers any CLI request from inside that callback.
+    // Dropping the callback WITHOUT calling it — the old behaviour — leaked
+    // m_captureInFlight = true after every Esc / Cancel / failed freeze, which
+    // then blocked every subsequent capture ("Another capture is already
+    // active"). The region consumers already treat an empty QRect as "no-op".
+    auto imageCb = std::move(m_imageCb);
+    auto regionCb = std::move(m_regionCb);
     m_imageCb = nullptr;
     m_regionCb = nullptr;
+    closeAll();
+    if (imageCb)
+        imageCb(QImage());
+    else if (regionCb)
+        regionCb(QRect(), nullptr);
 }
 
 void OverlayController::closeAll()

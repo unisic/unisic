@@ -1,5 +1,6 @@
 #include "CaptureNotification.h"
 #include "AppContext.h"
+#include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
@@ -45,6 +46,33 @@ CaptureNotification::~CaptureNotification()
 {
     if (!m_thumbFile.isEmpty())
         QFile::remove(m_thumbFile);
+    if (!m_dragFile.isEmpty())
+        QFile::remove(m_dragFile);
+}
+
+QString CaptureNotification::dragUri()
+{
+    // Prefer the real saved file (recordings always have one; so do saved
+    // screenshots). For an unsaved image, write the full-resolution frame to a
+    // private temp PNG once — mirrors AppContext::openPreview so a drag doesn't
+    // litter the user's save folder on cancel. The poster frame of a recording
+    // is never dragged: a recording always has m_filePath, so we never reach the
+    // temp branch for it.
+    if (m_filePath.isEmpty() && m_dragFile.isEmpty() && !m_image.isNull()) {
+        const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        const QString f = dir + QStringLiteral("/") + QCoreApplication::applicationName()
+                          + QStringLiteral("-drag-")
+                          + QUuid::createUuid().toString(QUuid::WithoutBraces)
+                          + QStringLiteral(".png");
+        if (m_image.save(f, "PNG")) {
+            // /tmp is world-listable; keep the frame owner-only.
+            QFile::setPermissions(f, QFile::ReadOwner | QFile::WriteOwner);
+            m_dragFile = f;
+        }
+    }
+    const QString path = !m_filePath.isEmpty() ? m_filePath : m_dragFile;
+    return path.isEmpty() ? QString()
+                          : QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded);
 }
 
 QString CaptureNotification::fileName() const
@@ -92,12 +120,28 @@ void CaptureNotification::copyImage()
     m_app->showToast(tr("Copied to clipboard"));
 }
 
+void CaptureNotification::copyAs(const QString &format)
+{
+    // A notification can represent an unsaved, clipboard-only capture. Path
+    // based forms need a durable file, so save only for that explicit request;
+    // data URI and an uploaded URL keep working without an unnecessary write.
+    if (format == QLatin1String("path") && m_filePath.isEmpty())
+        save();
+    m_app->copyImageAs(m_image, m_filePath, m_url, format);
+}
+
 void CaptureNotification::copyUrl()
 {
     if (m_url.isEmpty())
         return;
     m_app->copyText(m_url);
     m_app->showToast(tr("Link copied"));
+}
+
+void CaptureNotification::showQr()
+{
+    if (!m_url.isEmpty())
+        m_app->showQr(m_url);
 }
 
 void CaptureNotification::save()

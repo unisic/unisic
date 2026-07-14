@@ -6,6 +6,9 @@
 #                                               # install, flash record border
 #   ./scripts/vm-test.sh rpm                    # just build dist/*.rpm
 #   ./scripts/vm-test.sh deb                    # just build dist/*.deb
+#   ./scripts/vm-test.sh appimage               # portable dist/*.AppImage (built
+#                                               # in an ubuntu:22.04 container so
+#                                               # it runs on old-glibc distros)
 #
 # Source flow (dev build on the VM: F8 smoke test + Developer pane):
 #   ./scripts/vm-test.sh setup user@gnome-vm    # push sources + deps + build
@@ -14,7 +17,9 @@
 #
 # Packages are RELEASE builds (same flavor as CI: UNISIC_BUILD_NUMBER set, so
 # no Developer pane) — the record border, --gif, --region etc. all work there.
-# AppImage is CI-only (needs aqt Qt + linuxdeploy; see .github/workflows).
+# The `appimage` command produces the same portable AppImage CI does, locally,
+# by driving scripts/build-appimage.sh inside an ubuntu:22.04 container (needs
+# podman or docker); build once on the host, run on any VM without a toolchain.
 set -euo pipefail
 
 VM_DIR="${UNISIC_VM_DIR:-unisic-src}"   # source-flow repo dir on the VM (under ~)
@@ -33,6 +38,9 @@ Usage: scripts/vm-test.sh <command> [args]
 Package commands:
   rpm                Build dist/*.rpm (CPack; release flavor)
   deb                Build dist/*.deb (CPack; release flavor)
+  appimage           Build a portable dist/*.AppImage inside an ubuntu:22.04
+                     container (podman/docker) so it runs on old-glibc distros;
+                     Qt/tools/build cache in ~/.cache → later runs are fast
   deploy HOST        Detect the VM's package manager over ssh, build the
                      matching package, scp + install it, then flash the record
                      border on the VM screen and print the checklist
@@ -155,6 +163,44 @@ deb)
     mkdir -p "$DIST_DIR"
     cp -f "$(newest "$CPACK_WORK"/*.deb)" "$DIST_DIR"/
     echo "Built: $(newest "$DIST_DIR"/*.deb)"
+    ;;
+appimage)
+    # Portable AppImage, built in an ubuntu:22.04 container so its glibc floor
+    # (2.35) is low enough to run on Debian/older Ubuntu — building on this
+    # Fedora host would bake in a glibc too new for the VM. The heavy artifacts
+    # (Qt via aqt, layer-shell-qt/zxing, the build tree) live in $cache on a
+    # REAL fs, never on the exFAT repo (no symlinks there), and persist across
+    # runs so only changed sources recompile.
+    engine="$(command -v podman || command -v docker || true)"
+    [ -n "$engine" ] || {
+        echo "Need podman or docker for a portable AppImage (old-glibc base)." >&2
+        echo "Install one, e.g.: sudo dnf install -y podman" >&2
+        exit 1
+    }
+    cache="${UNISIC_APPIMAGE_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/unisic-appimage}"
+    mkdir -p "$cache" "$DIST_DIR"
+    echo "Building portable AppImage in ubuntu:22.04 via $(basename "$engine")…"
+    echo "  (first run downloads Qt ~1.5 GB into $cache; later runs are incremental)"
+    # label=disable, not :Z — the repo is on exFAT, which cannot store the
+    # SELinux xattr a :Z relabel writes (the relabel fails / access is denied).
+    "$engine" run --rm \
+        --security-opt label=disable \
+        -v "$REPO_ROOT":/src:ro \
+        -v "$cache":/cache \
+        -e UNISIC_SRC=/src -e UNISIC_CACHE=/cache \
+        -e QT_VERSION="${QT_VERSION:-6.8.3}" \
+        -e UNISIC_BUILD_NUMBER="${UNISIC_BUILD_NUMBER:-vm}" \
+        -w /cache \
+        docker.io/library/ubuntu:22.04 \
+        bash /src/scripts/build-appimage.sh
+    art="$(newest "$cache"/dist/*.AppImage)"
+    [ -n "$art" ] || { echo "No AppImage produced — see the container output above." >&2; exit 1; }
+    cp -f "$art" "$DIST_DIR"/
+    out="$DIST_DIR/$(basename "$art")"
+    chmod +x "$out" 2>/dev/null || true
+    echo "Built: $out"
+    echo "Copy to any VM and run (no toolchain needed):"
+    echo "  chmod +x $(basename "$out") && ./$(basename "$out")"
     ;;
 deploy)
     host="${1:?usage: vm-test.sh deploy HOST}"

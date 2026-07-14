@@ -35,8 +35,6 @@ public:
 
     // Full virtual desktop (all monitors, one image in workspace coordinates).
     void captureWorkspace(Callback cb);
-    // One screen by QScreen (KWin path uses screen->name()).
-    void captureScreen(QScreen *screen, Callback cb);
     // All screens at once (overlay freeze): KWin per-screen serially, or ONE
     // portal workspace capture cropped per screen — never N portal requests.
     void captureAllScreens(const QVector<QScreen *> &screens, MultiCallback cb);

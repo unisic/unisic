@@ -11,6 +11,12 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Release notes for the running version, opened from the "Current version" row.
+    UPatchNotes {
+        id: settingsPatchNotes
+        version: App.appVersion
+    }
+
     // ---- settings search ----
     property string searchQuery: ""
     readonly property bool searchActive: searchQuery.length > 0
@@ -115,6 +121,19 @@ Item {
         }
         return best
     }
+    property var appAudioNodes: []
+    // Async: pw-dump runs off the GUI thread and returns via onAudioApplicationNodesReady.
+    function refreshAppAudioNodes() { App.requestAudioApplicationNodes() }
+    Connections {
+        target: App
+        function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
+    }
+    // Load once on open so a previously-saved node shows correctly instead of "Off".
+    Component.onCompleted: if (App.perAppAudioAvailable) page.refreshAppAudioNodes()
+    readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
+    readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
+    readonly property var taskDestinationIds: [""].concat(App.uploads.destinations.map(function(d) { return d.name }))
+    readonly property var taskDestinationLabels: [qsTr("Use active destination")].concat(App.uploads.destinations.map(function(d) { return d.name }))
 
     // Categories in the left rail. One category = one thing the user is trying
     // to configure; everything about that thing lives in that one pane
@@ -149,6 +168,13 @@ Item {
                                         "bottom-left", "bottom-center", "bottom-right"]
     readonly property var popupPosNames: [qsTr("Top left"), qsTr("Top center"), qsTr("Top right"),
                                           qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right")]
+    // Watermark gets its OWN list: it supports a true middle-of-image "center"
+    // that the notification popup positions (edge-anchored) must not offer.
+    readonly property var watermarkPosIds: ["top-left", "top-center", "top-right",
+                                            "bottom-left", "bottom-center", "bottom-right", "center"]
+    readonly property var watermarkPosNames: [qsTr("Top left"), qsTr("Top center"), qsTr("Top right"),
+                                              qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right"),
+                                              qsTr("Center")]
 
     function toolHidden(id) {
         var csv = App.settings.hiddenTools
@@ -228,7 +254,10 @@ Item {
             anchors.top: parent.top
             height: 44
             verticalAlignment: Text.AlignVCenter
-            width: slot.x - Theme.spacingM
+            // Reserve the "?" badge footprint (8 gap + 16 badge) when a help
+            // badge is present, so a long label elides BEFORE the badge instead
+            // of the badge landing on top of a wide control (e.g. a URL field).
+            width: Math.max(0, slot.x - Theme.spacingM - (settingRow.help !== "" ? 24 : 0))
             elide: Text.ElideRight
             // Briefly tinted when this row was just jumped to from the search.
             color: page.highlightQuery.length > 0
@@ -267,7 +296,9 @@ Item {
                 id: helpMouse
                 anchors.fill: parent
                 hoverEnabled: true
-                cursorShape: Qt.WhatsThisCursor
+                // Pointing hand (it's a click target): Qt.WhatsThisCursor paints a
+                // second blue "?" right next to the pink badge — a jarring duplicate.
+                cursorShape: Qt.PointingHandCursor
                 onClicked: {
                     helpTipDelay.stop()
                     helpTipPopup.close()
@@ -708,15 +739,23 @@ Item {
                     SectionTitle { text: qsTr("Updates") }
                     SettingRow {
                         label: qsTr("Current version")
-                        help: qsTr("The Unisic version you are running.")
+                        help: qsTr("The Unisic version you are running. Click it to see what's new.")
                         Text {
+                            id: settingsVersion
                             height: 44
                             verticalAlignment: Text.AlignVCenter
                             text: "v" + App.appVersion
                                   + (App.buildNumber === "dev" ? " · dev" : " · build " + App.buildNumber)
                                   + (App.buildDate ? " · " + App.buildDate : "")
-                            color: Theme.textSecondary
+                            color: settingsVersionMouse.containsMouse ? Theme.accent : Theme.textSecondary
                             font.pixelSize: Theme.fontM
+                            MouseArea {
+                                id: settingsVersionMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: { settingsPatchNotes.open(); App.markPatchNotesSeen() }
+                            }
                         }
                     }
                     SettingRow {
@@ -840,8 +879,8 @@ Item {
                         helpDetail: qsTr("Gives you time to open menus or tooltips that would close when the capture UI appears. Applies to every capture mode, including hotkeys.")
                         UValueCombo {
                             width: 130
-                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000]
-                            from: 0; to: 5000
+                            values: [0, 50, 100, 200, 300, 500, 1000, 2000, 3000, 5000, 10000]
+                            from: 0; to: 10000
                             suffix: " ms"
                             value: App.settings.captureDelayMs
                             onChanged: (v) => App.settings.captureDelayMs = v
@@ -849,9 +888,21 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Include mouse cursor")
-                        help: qsTr("Draws the mouse pointer into the capture.")
-                        helpDetail: qsTr("When supported by the active backend (portal or KWin), the cursor is composited into the image exactly where it was at capture time.")
-                        USwitch { checked: App.settings.includeCursor; onToggled: (c) => App.settings.includeCursor = c }
+                        help: App.capScreenshotCursor ? qsTr("Draws the mouse pointer into the capture.") : qsTr("The plain Screenshot portal cannot include the cursor on this desktop.")
+                        helpDetail: qsTr("KWin ScreenShot2, grim and recording ScreenCast streams support cursor embedding. The plain portal Screenshot API does not expose a cursor mode.")
+                        USwitch { checked: App.settings.includeCursor; enabled: App.capScreenshotCursor || App.devBuild; onToggled: (c) => App.settings.includeCursor = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Do not disturb while capturing")
+                        help: App.capDoNotDisturb
+                              ? qsTr("Temporarily pauses desktop notifications during captures and recordings.")
+                              : qsTr("Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.")
+                        helpDetail: qsTr("The previous notification state is restored as soon as capture stops, fails, or is cancelled. Encoding and uploads do not keep notifications paused.")
+                        USwitch {
+                            checked: App.settings.doNotDisturbWhileCapturing
+                            enabled: App.capDoNotDisturb || App.devBuild
+                            onToggled: (c) => App.settings.doNotDisturbWhileCapturing = c
+                        }
                     }
                     SettingRow {
                         label: qsTr("Capture on release")
@@ -884,12 +935,6 @@ Item {
                         help: qsTr("Crosshair lines from the cursor to the screen edges.")
                         helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Smart pick (experimental)")
-                        help: qsTr("Experimental: click once during region selection to pick the detected object (window, panel, image) under the cursor.")
-                        helpDetail: qsTr("EXPERIMENTAL: detection is purely visual (pixels, no ML, no network, no compositor help), so it will not recognize every window or element and results vary with theme and content. With Smart pick on, the region overlay highlights the element under your cursor, so a single click selects its rectangle with no press-and-drag needed. It finds single elements (buttons, icons, text lines, thumbnails), groups of elements (a toolbar with its buttons, an icon grid, a form) and window-like frames. The scroll wheel changes the level: innermost element, its group, panels, up to the whole screen; the badge above the highlight shows size and level. Dragging always draws a manual rectangle, and the selection stays adjustable afterwards.")
-                        USwitch { checked: App.settings.smartPick; onToggled: (c) => App.settings.smartPick = c }
                     }
                 }
             }
@@ -951,6 +996,44 @@ Item {
                         help: qsTr("Opens the uploaded file's URL in your browser.")
                         helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
                         USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("External action") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Command")
+                        help: qsTr("Example: oxipng -o 4 $input --out $output")
+                        helpDetail: qsTr("If the program is missing or exits with an error, the other save/copy/upload/editor actions still continue.")
+                        UTextField {
+                            // Caps at 420 on wide windows but shrinks with the card
+                            // so the label + field never overflow the narrow (min
+                            // window) card and clip the label off-screen.
+                            width: Math.min(420, page.cardWidth - 140)
+                            text: App.settings.externalActionCommand
+                            placeholder: qsTr("program $input $output")
+                            onEdited: (t) => App.settings.externalActionCommand = t
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Run after capture")
+                        USwitch {
+                            checked: App.settings.externalActionEnabled
+                            enabled: App.settings.externalActionCommand.trim() !== ""
+                            onToggled: (c) => App.settings.externalActionEnabled = c
+                        }
                     }
                 }
             }
@@ -1028,6 +1111,12 @@ Item {
                             onChanged: (v) => App.settings.recordCountdownSec = v
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Instant replay length")
+                        help: qsTr("Keeps only the most recent encoded seconds while replay is active.")
+                        helpDetail: qsTr("The ring uses fixed-count two-second segments in the disk cache, not raw frames in RAM. Saving snapshots completed segments without stopping the ring.")
+                        UValueCombo { width: 130; values: [10,15,30,60,120,300,600]; from: 10; to: 600; suffix: " s"; value: App.settings.instantReplaySeconds; onChanged: (v) => App.settings.instantReplaySeconds = v }
+                    }
                 }
             }
 
@@ -1049,12 +1138,57 @@ Item {
                         helpDetail: qsTr("Uses the default input device. Mixed with system audio when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
                     }
+                    SettingRow {
+                        label: qsTr("Application audio only")
+                        help: App.perAppAudioAvailable
+                              ? qsTr("Capture one selected application's PipeWire audio stream.")
+                              : qsTr("Requires the pw-dump and pw-record helpers.")
+                        helpDetail: qsTr("Start audio playback in the application, press Refresh, then select it. This can be mixed with the microphone or system audio. A kernel FIFO keeps PCM buffering bounded.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 170
+                                enabled: App.perAppAudioAvailable
+                                model: page.appAudioLabels
+                                currentIndex: Math.max(0, page.appAudioIds.indexOf(App.settings.recordAppAudioNode))
+                                onActivated: (i) => App.settings.recordAppAudioNode = page.appAudioIds[i]
+                            }
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
+                        }
+                    }
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("Applies to video recordings (MP4/WebM); GIFs have no audio.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Video acceleration") }
+                    SettingRow {
+                        label: qsTr("MP4 encoder")
+                        help: qsTr("Use the CPU encoder or an available VAAPI/NVENC hardware encoder.")
+                        helpDetail: qsTr("Hardware encoding accelerates the final MP4 conversion. If the selected backend is unavailable, Unisic falls back to software. WebM remains software VP9.")
+                        UComboBox {
+                            width: 240
+                            property var ids: ["software", "vaapi", "nvenc"]
+                            model: [qsTr("Software (portable)"),
+                                    App.vaapiAvailable ? qsTr("VAAPI") : qsTr("VAAPI (unavailable)"),
+                                    App.nvencAvailable ? qsTr("NVENC") : qsTr("NVENC (unavailable)")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.videoEncoder))
+                            onActivated: (i) => {
+                                if ((i === 1 && !App.vaapiAvailable) || (i === 2 && !App.nvencAvailable))
+                                    return
+                                App.settings.videoEncoder = ids[i]
+                            }
+                        }
                     }
                 }
             }
@@ -1131,102 +1265,6 @@ Item {
                         help: qsTr("Stroke width, text style and fill toggles last for that session only.")
                         helpDetail: qsTr("Covers everything except colors: stroke width, font family and size, bold/italic/underline, the text outline and background toggles, and shape fill. With this on the next session starts again from the defaults configured in Settings → Editor.")
                         USwitch { checked: App.settings.editorResetTools; onToggled: (c) => App.settings.editorResetTools = c }
-                    }
-                }
-            }
-
-            UCard {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Smart background removal") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        visible: !App.u2netAvailable
-                        text: qsTr("This build was compiled without onnxruntime, so AI background removal (U-2-Net) is unavailable — the built-in heuristic object cutout still works. Install onnxruntime and rebuild to enable it.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        available: App.u2netAvailable
-                        label: qsTr("Use U-2-Net for object cutout")
-                        help: qsTr("Use the U-2-Net neural model (when downloaded) for the object-pick cutout and the editor's Remove background action.")
-                        helpDetail: qsTr("When off, or the model is not downloaded, cutout falls back to the dependency-free heuristic segmenter. Runs fully offline once the model is fetched.")
-                        USwitch {
-                            checked: App.settings.useU2Net
-                            enabled: App.u2netAvailable
-                            onToggled: (c) => App.settings.useU2Net = c
-                        }
-                    }
-                    SettingRow {
-                        visible: App.u2netAvailable
-                        label: qsTr("Model")
-                        help: qsTr("Which neural model performs the cutout.")
-                        helpDetail: qsTr("Models differ in size, speed and quality:\n• U-2-Net small — fastest, good general results.\n• U-2-Net full — noticeably better masks, big download.\n• U-2-Net human — tuned for people/portraits.\n• Silueta — U-2-Net full compressed to 43 MB.\n• IS-Net — newest, best fine edge detail.\n• Custom — any segmentation .onnx you provide (u2net-style input is assumed; the input size is read from the model).\nEach downloaded model is stored locally and reused; switching models applies immediately.")
-                        UComboBox {
-                            id: segModelCombo
-                            width: 240
-                            property var entries: App.u2netModels()
-                            model: entries.map(function (e) { return e.label })
-                            currentIndex: {
-                                for (var i = 0; i < entries.length; ++i)
-                                    if (entries[i].id === App.settings.segmentModel) return i
-                                return 0
-                            }
-                            onActivated: (i) => {
-                                if (entries[i].id === "custom") {
-                                    // Cancelled picker keeps the previous model —
-                                    // currentIndex re-evaluates from settings.
-                                    App.pickU2NetCustomModel()
-                                } else {
-                                    App.settings.segmentModel = entries[i].id
-                                }
-                            }
-                        }
-                    }
-                    Text {
-                        visible: App.u2netAvailable && App.settings.segmentModel === "custom"
-                        width: parent.width
-                        wrapMode: Text.WrapAnywhere
-                        text: App.settings.segmentCustomModel
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                        font.family: "monospace"
-                    }
-                    SettingRow {
-                        visible: App.u2netAvailable
-                        label: qsTr("Model file")
-                        help: qsTr("Download state of the selected model. Each model is fetched once and stored locally.")
-                        Row {
-                            spacing: Theme.spacingS
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: App.u2netModelReady ? qsTr("Downloaded") : qsTr("Not downloaded")
-                                color: App.u2netModelReady ? Theme.textSecondary : Theme.textTertiary
-                                font.pixelSize: Theme.fontS
-                            }
-                            UButton {
-                                compact: true; variant: "tonal"
-                                visible: !App.u2netModelReady && App.settings.segmentModel !== "custom"
-                                text: App.u2netBusy ? qsTr("Downloading…") : qsTr("Download")
-                                enabled: !App.u2netBusy
-                                onClicked: App.downloadU2NetModel()
-                            }
-                            UButton {
-                                compact: true; variant: "tonal"
-                                visible: App.settings.segmentModel === "custom"
-                                text: qsTr("Choose file…")
-                                onClicked: App.pickU2NetCustomModel()
-                            }
-                            UButton {
-                                compact: true; variant: "danger"
-                                visible: App.u2netModelReady && App.settings.segmentModel !== "custom"
-                                text: qsTr("Delete")
-                                onClicked: App.deleteU2NetModel()
-                            }
-                        }
                     }
                 }
             }
@@ -1460,6 +1498,84 @@ Item {
                     }
                 }
             }
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Watermark") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Adds a text or logo stamp to the captured image before it is saved, copied, uploaded, shown in history or opened in the editor.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Apply watermark")
+                        help: qsTr("Applies the selected stamp to every new screenshot.")
+                        helpDetail: qsTr("The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter recordings or existing files.")
+                        USwitch { checked: App.settings.watermarkEnabled; onToggled: (c) => App.settings.watermarkEnabled = c }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Watermark type")
+                        help: qsTr("Use a text label or an image logo.")
+                        UComboBox {
+                            width: 180
+                            model: [qsTr("Text"), qsTr("Logo image")]
+                            currentIndex: App.settings.watermarkType === "image" ? 1 : 0
+                            onActivated: (i) => App.settings.watermarkType = i === 1 ? "image" : "text"
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled && App.settings.watermarkType === "text"
+                        label: qsTr("Watermark text")
+                        help: qsTr("The label stamped onto the screenshot.")
+                        UTextField {
+                            width: 260
+                            text: App.settings.watermarkText
+                            onEdited: (t) => App.settings.watermarkText = t
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled && App.settings.watermarkType === "image"
+                        label: qsTr("Logo image")
+                        help: App.settings.watermarkImagePath.length > 0
+                              ? App.settings.watermarkImagePath
+                              : qsTr("Choose a PNG, SVG, JPEG or WebP image.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: App.settings.watermarkImagePath.length > 0
+                                  ? qsTr("Change image…") : qsTr("Choose image…")
+                            onClicked: App.pickWatermarkImage()
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Position")
+                        help: qsTr("Corner, centre edge, or middle of the image for the watermark.")
+                        UComboBox {
+                            width: 180
+                            model: page.watermarkPosNames
+                            currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.watermarkPosition))
+                            onActivated: (i) => App.settings.watermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Opacity: %1%").arg(App.settings.watermarkOpacity)
+                        help: qsTr("How strongly the watermark appears over the capture.")
+                        USlider {
+                            width: 200
+                            from: 10; to: 100
+                            value: App.settings.watermarkOpacity
+                            onMoved: (v) => App.settings.watermarkOpacity = Math.round(v)
+                        }
+                    }
+                }
+            }
         }
         }
 
@@ -1513,9 +1629,9 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        available: App.layerShellActive
-                        hint: App.layerShellActive ? ""
-                              : qsTr("The style only applies to the layer-shell card; a native notification is drawn by the system server.")
+                        available: App.capCustomNotification
+                        hint: App.capCustomNotification ? ""
+                              : qsTr("The style only applies to the card Unisic draws itself; a native notification is drawn by the system server.")
                         label: qsTr("Notification style")
                         help: qsTr("How the capture card looks, from full card to tiny pill.")
                         helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
@@ -1527,15 +1643,17 @@ Item {
                         }
                     }
                     SettingRow {
-                        // Corner only matters for the layer-shell card we position
-                        // ourselves; a native notification is placed by the server.
+                        // Corner applies to any card Unisic positions itself — the
+                        // layer-shell card AND the GNOME XWayland helper (which is
+                        // handed this corner). Only a native server-drawn
+                        // notification ignores it.
                         visible: App.settings.showCapturePopup
-                        available: App.layerShellActive
-                        hint: App.layerShellActive ? ""
-                              : qsTr("The system notification server decides the position here, because this compositor has no layer-shell card to place.")
+                        available: App.capCustomNotification
+                        hint: App.capCustomNotification ? ""
+                              : qsTr("The system notification server decides the position here, because this compositor has no card for Unisic to place.")
                         label: qsTr("Notification position")
                         help: qsTr("Screen corner where the capture card appears.")
-                        helpDetail: qsTr("Only applies to the layer-shell card, which Unisic positions itself. Native desktop notifications are placed by the system notification server and ignore this.")
+                        helpDetail: qsTr("Applies to the card Unisic draws itself (the layer-shell card or the GNOME XWayland card). Native desktop notifications are placed by the system notification server and ignore this.")
                         UComboBox {
                             width: 180
                             model: page.popupPosNames
@@ -1932,7 +2050,7 @@ Item {
                         wrapMode: Text.WordWrap
                         textFormat: Text.MarkdownText
                         text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Bind keys in your desktop instead; a running Unisic instance picks the command up:\n\n" +
-                                   "```\nunisic --region | --fullscreen | --window | --gif\n```\n\n" +
+                                   "```\nunisic --region | --fullscreen | --window | --gif | --measure\nunisic --delay 5 --region\n```\n\n" +
                                    "GNOME: Settings → Keyboard → Custom Shortcuts, one entry per command above. GNOME 48+ normally supports in-app hotkeys; if this card shows there, update xdg-desktop-portal-gnome or launch Unisic once from its menu entry.\n\n" +
                                    "niri (`config.kdl`):\n\n" +
                                    "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
@@ -2012,6 +2130,20 @@ Item {
                         shortcuts: App.settings.hotkeyCopyLast
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
+                    HotkeyRow {
+                        label: qsTr("Quick task chooser")
+                        help: qsTr("One hotkey opens a compact capture-mode and action chooser.")
+                        helpDetail: qsTr("Choose full screen, region, window, GIF or video, and optionally override the screenshot's normal after-capture actions for this one run.")
+                        shortcuts: App.settings.hotkeyQuickTask
+                        onChanged: (t) => { App.settings.hotkeyQuickTask = t; App.applyHotkey("quick-task") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Instant replay")
+                        help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
+                        helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
+                        shortcuts: App.settings.hotkeyInstantReplay
+                        onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
+                    }
                     UButton {
                         anchors.right: parent.right
                         text: qsTr("Apply hotkeys")
@@ -2026,6 +2158,82 @@ Item {
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            UCard {
+                id: taskPresetCard
+                visible: App.hotkeysAvailable
+                width: page.cardWidth
+                property var taskIds: ["default", "copy", "edit", "save", "upload",
+                                       "copy-save", "copy-edit", "copy-upload", "save-upload",
+                                       "copy-save-upload", "all"]
+                property var taskLabels: [qsTr("Use global actions"), qsTr("Copy only"), qsTr("Edit only"), qsTr("Save only"), qsTr("Upload only"),
+                                          qsTr("Copy + save"), qsTr("Copy + edit"), qsTr("Copy + upload"), qsTr("Save + upload"),
+                                          qsTr("Copy + save + upload"), qsTr("All actions")]
+                function usesUpload(id) { return id === "default" || id.indexOf("upload") >= 0 || id === "all" }
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Per-hotkey task presets") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Each screenshot hotkey can run its own action profile without changing the global After capture switches.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Full screen hotkey")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 150; model: taskPresetCard.taskLabels
+                                currentIndex: Math.max(0, taskPresetCard.taskIds.indexOf(App.settings.fullScreenTask))
+                                onActivated: (i) => App.settings.fullScreenTask = taskPresetCard.taskIds[i]
+                            }
+                            UComboBox {
+                                width: 150; model: page.taskDestinationLabels
+                                enabled: taskPresetCard.usesUpload(App.settings.fullScreenTask)
+                                currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.fullScreenTaskDestination))
+                                onActivated: (i) => App.settings.fullScreenTaskDestination = page.taskDestinationIds[i]
+                            }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Region hotkey")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 150; model: taskPresetCard.taskLabels
+                                currentIndex: Math.max(0, taskPresetCard.taskIds.indexOf(App.settings.regionTask))
+                                onActivated: (i) => App.settings.regionTask = taskPresetCard.taskIds[i]
+                            }
+                            UComboBox {
+                                width: 150; model: page.taskDestinationLabels
+                                enabled: taskPresetCard.usesUpload(App.settings.regionTask)
+                                currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.regionTaskDestination))
+                                onActivated: (i) => App.settings.regionTaskDestination = page.taskDestinationIds[i]
+                            }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Window hotkey")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 150; model: taskPresetCard.taskLabels
+                                currentIndex: Math.max(0, taskPresetCard.taskIds.indexOf(App.settings.windowTask))
+                                onActivated: (i) => App.settings.windowTask = taskPresetCard.taskIds[i]
+                            }
+                            UComboBox {
+                                width: 150; model: page.taskDestinationLabels
+                                enabled: taskPresetCard.usesUpload(App.settings.windowTask)
+                                currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.windowTaskDestination))
+                                onActivated: (i) => App.settings.windowTaskDestination = page.taskDestinationIds[i]
+                            }
+                        }
                     }
                 }
             }
@@ -2085,11 +2293,28 @@ Item {
                         Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
-                    UButton {
-                        compact: true; variant: "tonal"
-                        text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run full smoke test (F8)")
-                        enabled: !App.smokeTestRunning
-                        onClicked: App.runSmokeTest()
+                    SettingRow {
+                        label: qsTr("Video preview")
+                        help: qsTr("Whether the trim editor can show a live video preview.")
+                        helpDetail: qsTr("Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capVideoPlayback ? "✓" : "—"
+                               color: App.capVideoPlayback ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        UButton {
+                            compact: true; variant: "tonal"
+                            text: App.smokeTestRunning ? qsTr("Running…") : qsTr("Run full smoke test (F8)")
+                            enabled: !App.smokeTestRunning
+                            onClicked: App.runSmokeTest()
+                        }
+                        UButton {
+                            compact: true; variant: "tonal"
+                            text: qsTr("Copy log")
+                            visible: App.smokeTestLog !== ""
+                            onClicked: { App.copyText(App.smokeTestLog); App.showToast(qsTr("Smoke test log copied")) }
+                        }
                     }
                     Rectangle {
                         visible: App.smokeTestLog !== ""
@@ -2158,17 +2383,35 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("History drag payload"); onClicked: App.devTestHistoryDrag() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Notification drag payload"); onClicked: App.devTestNotificationDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Smart pick detect"); onClicked: App.devTestSmartPick() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record start sound"); onClicked: App.devTestRecordStartSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trash sound"); onClicked: App.devTestTrashSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Paste clipboard"); onClicked: App.devTestClipboardPaste() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture delay"); onClicked: App.devTestCaptureDelay() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy as"); onClicked: App.devTestCopyAs() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Watermark"); onClicked: App.devTestWatermark() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("External action"); onClicked: App.devTestExternalAction() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Measure"); onClicked: App.devTestMeasureTools() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Hardware encoder"); onClicked: App.devTestHardwareEncoder() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Per-app audio"); onClicked: App.devTestPerAppAudio() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Instant replay"); enabled: App.recordingAvailable; onClicked: App.devTestInstantReplay() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trim recording"); onClicked: App.devTestTrimRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("U-2-Net segment"); enabled: App.u2netAvailable; onClicked: App.devTestU2Net() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

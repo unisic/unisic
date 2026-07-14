@@ -44,16 +44,34 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
+    Q_PROPERTY(QString hotkeyQuickTask READ hotkeyQuickTask WRITE setHotkeyQuickTask NOTIFY hotkeyQuickTaskChanged)
+    Q_PROPERTY(QString fullScreenTask READ fullScreenTask WRITE setFullScreenTask NOTIFY fullScreenTaskChanged)
+    Q_PROPERTY(QString regionTask READ regionTask WRITE setRegionTask NOTIFY regionTaskChanged)
+    Q_PROPERTY(QString windowTask READ windowTask WRITE setWindowTask NOTIFY windowTaskChanged)
+    Q_PROPERTY(QString fullScreenTaskDestination READ fullScreenTaskDestination WRITE setFullScreenTaskDestination NOTIFY fullScreenTaskDestinationChanged)
+    Q_PROPERTY(QString regionTaskDestination READ regionTaskDestination WRITE setRegionTaskDestination NOTIFY regionTaskDestinationChanged)
+    Q_PROPERTY(QString windowTaskDestination READ windowTaskDestination WRITE setWindowTaskDestination NOTIFY windowTaskDestinationChanged)
     Q_PROPERTY(QString imageFormat READ imageFormat WRITE setImageFormat NOTIFY imageFormatChanged)
     Q_PROPERTY(int imageQuality READ imageQuality WRITE setImageQuality NOTIFY imageQualityChanged)
     Q_PROPERTY(QString filenameTemplate READ filenameTemplate WRITE setFilenameTemplate NOTIFY filenameTemplateChanged)
+    Q_PROPERTY(bool watermarkEnabled READ watermarkEnabled WRITE setWatermarkEnabled NOTIFY watermarkEnabledChanged)
+    Q_PROPERTY(QString watermarkText READ watermarkText WRITE setWatermarkText NOTIFY watermarkTextChanged)
+    Q_PROPERTY(int watermarkOpacity READ watermarkOpacity WRITE setWatermarkOpacity NOTIFY watermarkOpacityChanged)
+    Q_PROPERTY(QString watermarkPosition READ watermarkPosition WRITE setWatermarkPosition NOTIFY watermarkPositionChanged)
+    Q_PROPERTY(QString watermarkType READ watermarkType WRITE setWatermarkType NOTIFY watermarkTypeChanged)
+    Q_PROPERTY(QString watermarkImagePath READ watermarkImagePath WRITE setWatermarkImagePath NOTIFY watermarkImagePathChanged)
     Q_PROPERTY(bool showNotifications READ showNotifications WRITE setShowNotifications NOTIFY showNotificationsChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
     Q_PROPERTY(bool afterUploadOpenInBrowser READ afterUploadOpenInBrowser WRITE setAfterUploadOpenInBrowser NOTIFY afterUploadOpenInBrowserChanged)
+    Q_PROPERTY(bool doNotDisturbWhileCapturing READ doNotDisturbWhileCapturing WRITE setDoNotDisturbWhileCapturing NOTIFY doNotDisturbWhileCapturingChanged)
+    Q_PROPERTY(bool externalActionEnabled READ externalActionEnabled WRITE setExternalActionEnabled NOTIFY externalActionEnabledChanged)
+    Q_PROPERTY(QString externalActionCommand READ externalActionCommand WRITE setExternalActionCommand NOTIFY externalActionCommandChanged)
     Q_PROPERTY(QString editorStrokeColor READ editorStrokeColor WRITE setEditorStrokeColor NOTIFY editorStrokeColorChanged)
     Q_PROPERTY(int editorStrokeWidth READ editorStrokeWidth WRITE setEditorStrokeWidth NOTIFY editorStrokeWidthChanged)
+    Q_PROPERTY(int editorHighlightMode READ editorHighlightMode WRITE setEditorHighlightMode NOTIFY editorHighlightModeChanged)
+    Q_PROPERTY(QString lastSeenVersion READ lastSeenVersion WRITE setLastSeenVersion NOTIFY lastSeenVersionChanged)
     Q_PROPERTY(int editorFontSize READ editorFontSize WRITE setEditorFontSize NOTIFY editorFontSizeChanged)
     Q_PROPERTY(int editorStepSize READ editorStepSize WRITE setEditorStepSize NOTIFY editorStepSizeChanged)
     Q_PROPERTY(QString editorFillColor READ editorFillColor WRITE setEditorFillColor NOTIFY editorFillColorChanged)
@@ -72,7 +90,6 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
-    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
@@ -81,6 +98,10 @@ class Settings : public QObject
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
+    Q_PROPERTY(QString recordAppAudioNode READ recordAppAudioNode WRITE setRecordAppAudioNode NOTIFY recordAppAudioNodeChanged)
+    Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
+    Q_PROPERTY(int instantReplaySeconds READ instantReplaySeconds WRITE setInstantReplaySeconds NOTIFY instantReplaySecondsChanged)
+    Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
@@ -89,9 +110,6 @@ class Settings : public QObject
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
-    Q_PROPERTY(bool useU2Net READ useU2Net WRITE setUseU2Net NOTIFY useU2NetChanged)
-    Q_PROPERTY(QString segmentModel READ segmentModel WRITE setSegmentModel NOTIFY segmentModelChanged)
-    Q_PROPERTY(QString segmentCustomModel READ segmentCustomModel WRITE setSegmentCustomModel NOTIFY segmentCustomModelChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
@@ -136,7 +154,12 @@ public:
             for (const QString &k : keys)
                 m_s.setValue(k, k.startsWith(QLatin1String("hotkeys/")) ? QString()
                                                                         : stable.value(k));
-            for (const char *hk : {"fullScreen", "region", "window", "gif", "record", "ocrRegion"})
+            // MUST list EVERY hotkey: the loop above only blanks hotkeys/* keys
+            // physically present in stable's file, but a hotkey left at its code
+            // default is never written there, so it would ship BOUND on a fresh
+            // dev config and collide with the stable KGlobalAccel component.
+            for (const char *hk : {"fullScreen", "region", "window", "gif", "record",
+                                   "ocrRegion", "copyLast", "quickTask", "instantReplay"})
                 m_s.setValue(QStringLiteral("hotkeys/") + QLatin1String(hk), QString());
             m_s.sync();
             if (m_s.status() == QSettings::NoError)
@@ -265,7 +288,7 @@ public:
     U_SETTING(QString, recordingSound, setRecordingSound, "recordingSound", QStringLiteral("ding"))
     // Cue played the moment recording actually begins (after the countdown), as
     // opposed to recordingSound which fires when encoding finishes. "off" or an id.
-    U_SETTING(QString, recordStartSound, setRecordStartSound, "recordStartSound", QStringLiteral("shutter"))
+    U_SETTING(QString, recordStartSound, setRecordStartSound, "recordStartSound", QStringLiteral("beep"))
     U_SETTING(int, gifFps, setGifFps, "gif/fps", 15)
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
@@ -274,16 +297,48 @@ public:
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
+    U_SETTING(QString, hotkeyQuickTask, setHotkeyQuickTask, "hotkeys/quickTask", QStringLiteral("Meta+Shift+Space"))
+    U_SETTING(QString, fullScreenTask, setFullScreenTask, "tasks/fullScreen", QStringLiteral("default"))
+    U_SETTING(QString, regionTask, setRegionTask, "tasks/region", QStringLiteral("default"))
+    U_SETTING(QString, windowTask, setWindowTask, "tasks/window", QStringLiteral("default"))
+    U_SETTING(QString, fullScreenTaskDestination, setFullScreenTaskDestination,
+              "tasks/fullScreenDestination", QString())
+    U_SETTING(QString, regionTaskDestination, setRegionTaskDestination,
+              "tasks/regionDestination", QString())
+    U_SETTING(QString, windowTaskDestination, setWindowTaskDestination,
+              "tasks/windowDestination", QString())
     U_SETTING(QString, imageFormat, setImageFormat, "image/format", QStringLiteral("png"))
     U_SETTING(int, imageQuality, setImageQuality, "image/quality", 90)
     U_SETTING(QString, filenameTemplate, setFilenameTemplate, "image/filenameTemplate", QStringLiteral("Unisic_%date%_%time%"))
+    // A small text stamp applied once to the captured image before the
+    // independent save/copy/upload/history/editor fan-out. The settings stay
+    // under image/ so export/import picks them up without the INI General trap.
+    U_SETTING(bool, watermarkEnabled, setWatermarkEnabled, "image/watermarkEnabled", false)
+    U_SETTING(QString, watermarkText, setWatermarkText, "image/watermarkText", QStringLiteral("Unisic"))
+    U_SETTING(int, watermarkOpacity, setWatermarkOpacity, "image/watermarkOpacity", 75)
+    U_SETTING(QString, watermarkPosition, setWatermarkPosition, "image/watermarkPosition", QStringLiteral("bottom-right"))
+    U_SETTING(QString, watermarkType, setWatermarkType, "image/watermarkType", QStringLiteral("text"))
+    U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
     U_SETTING(bool, afterUploadOpenInBrowser, setAfterUploadOpenInBrowser, "upload/afterUploadOpenInBrowser", false)
+    U_SETTING(bool, doNotDisturbWhileCapturing, setDoNotDisturbWhileCapturing,
+              "capture/doNotDisturb", false)
+    U_SETTING(bool, externalActionEnabled, setExternalActionEnabled,
+              "actions/enabled", false)
+    U_SETTING(QString, externalActionCommand, setExternalActionCommand,
+              "actions/command", QString())
     U_SETTING(QString, editorStrokeColor, setEditorStrokeColor, "editor/strokeColor", QStringLiteral("#FF4757"))
     U_SETTING(int, editorStrokeWidth, setEditorStrokeWidth, "editor/strokeWidth", 4)
+    // Highlighter sub-mode: 0 freehand marker, 1 rectangle band, 2 text-snap
+    // (default: text-aware, matching the pre-mode behaviour).
+    U_SETTING(int, editorHighlightMode, setEditorHighlightMode, "editor/highlightMode", 2)
+    // App version whose release notes the user has already seen. When it differs
+    // from the running version, Main.qml blinks a "See patch notes" hint at the
+    // version label. Empty on a fresh install.
+    U_SETTING(QString, lastSeenVersion, setLastSeenVersion, "ui/lastSeenVersion", QString())
     U_SETTING(int, editorFontSize, setEditorFontSize, "editor/fontSize", 22)
     U_SETTING(int, editorStepSize, setEditorStepSize, "editor/stepSize", 22)
     U_SETTING(QString, editorFillColor, setEditorFillColor, "editor/fillColor", QStringLiteral("#66C8ACD6"))
@@ -313,7 +368,6 @@ public:
     // panel, image) under the cursor; dragging still draws a manual rect.
     // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
     // window/element reliably without heavy vision libraries.
-    U_SETTING(bool, smartPick, setSmartPick, "capture/smartPick", false)
     // Region screenshot: releasing the selection drag captures immediately
     // (skips the annotate/confirm stage). GIF region picking is unaffected.
     U_SETTING(bool, captureOnRelease, setCaptureOnRelease, "capture/captureOnRelease", false)
@@ -327,6 +381,13 @@ public:
     // Video recording audio (never GIF). Both OFF by default.
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
+    U_SETTING(QString, recordAppAudioNode, setRecordAppAudioNode,
+              "audio/recordAppAudioNode", QString())
+    U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("software"))
+    U_SETTING(int, instantReplaySeconds, setInstantReplaySeconds,
+              "video/instantReplaySeconds", 30)
+    U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
+              "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
     U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
@@ -339,14 +400,6 @@ public:
     // for your own deliberate capture, so it should normally show regardless.
     U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
-    // Use U-2-Net for object cutout / background removal when the model is
-    // available (only consulted in builds with onnxruntime). Default on.
-    U_SETTING(bool, useU2Net, setUseU2Net, "segment/useU2Net", true)
-    // Which saliency model drives cutout/background removal: a catalog id
-    // (u2netp/u2net/u2net_human_seg/silueta/isnet-general-use) or "custom".
-    U_SETTING(QString, segmentModel, setSegmentModel, "segment/model", QStringLiteral("u2netp"))
-    // Absolute path of the user-provided .onnx (only used when model=="custom").
-    U_SETTING(QString, segmentCustomModel, setSegmentCustomModel, "segment/customModelPath", QString())
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
@@ -358,7 +411,7 @@ public:
     U_SETTING(QString, uiLanguage, setUiLanguage, "uiLanguage", QStringLiteral("system"))
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
-    U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", true)
+    U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", false)
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
@@ -396,26 +449,34 @@ public:
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
+        emit hotkeyQuickTaskChanged(); emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
+        emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
+        emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
+        emit watermarkTypeChanged(); emit watermarkImagePathChanged();
         emit showNotificationsChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
+        emit doNotDisturbWhileCapturingChanged();
+        emit externalActionEnabledChanged(); emit externalActionCommandChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
+        emit editorHighlightModeChanged(); emit lastSeenVersionChanged();
         emit editorStepSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
         emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
         emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
         emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
         emit editorResetColorsChanged(); emit editorResetToolsChanged();
-        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged(); emit smartPickChanged();
+        emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
         emit captureOnReleaseChanged();
         emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
+        emit recordAppAudioNodeChanged(); emit videoEncoderChanged();
+        emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
-        emit useU2NetChanged(); emit segmentModelChanged(); emit segmentCustomModelChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
@@ -445,16 +506,34 @@ signals:
     void hotkeyRegionChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
+    void hotkeyQuickTaskChanged();
+    void fullScreenTaskChanged();
+    void regionTaskChanged();
+    void windowTaskChanged();
+    void fullScreenTaskDestinationChanged();
+    void regionTaskDestinationChanged();
+    void windowTaskDestinationChanged();
     void imageFormatChanged();
     void imageQualityChanged();
     void filenameTemplateChanged();
+    void watermarkEnabledChanged();
+    void watermarkTextChanged();
+    void watermarkOpacityChanged();
+    void watermarkPositionChanged();
+    void watermarkTypeChanged();
+    void watermarkImagePathChanged();
     void showNotificationsChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();
     void afterUploadOpenInBrowserChanged();
+    void doNotDisturbWhileCapturingChanged();
+    void externalActionEnabledChanged();
+    void externalActionCommandChanged();
     void editorStrokeColorChanged();
     void editorStrokeWidthChanged();
+    void editorHighlightModeChanged();
+    void lastSeenVersionChanged();
     void editorFontSizeChanged();
     void editorStepSizeChanged();
     void editorFillColorChanged();
@@ -473,7 +552,6 @@ signals:
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
-    void smartPickChanged();
     void captureOnReleaseChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();
@@ -482,6 +560,10 @@ signals:
     void videoMaxDurationSecChanged();
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
+    void recordAppAudioNodeChanged();
+    void videoEncoderChanged();
+    void instantReplaySecondsChanged();
+    void hotkeyInstantReplayChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
     void showCapturePopupChanged();
@@ -490,9 +572,6 @@ signals:
     void capturePopupDurationSecChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
-    void useU2NetChanged();
-    void segmentModelChanged();
-    void segmentCustomModelChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();
     void uiLanguageChanged();

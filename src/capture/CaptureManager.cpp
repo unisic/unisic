@@ -278,57 +278,6 @@ void CaptureManager::captureWorkspace(Callback cb)
     portalFallback(std::move(cb));
 }
 
-void CaptureManager::captureScreen(QScreen *screen, Callback cb)
-{
-    // Snapshot the geometry now; the QScreen* must not be dereferenced inside the
-    // async callbacks below (the monitor may be gone by the time they run).
-    const ScreenGeom geom = snapshotScreen(screen);
-    const bool hasScreen = screen != nullptr;
-
-    if (!m_kwinDenied && KWinScreenShot2::isAvailable() && screen) {
-        m_kwin->captureScreen(screen->name(), m_settings->includeCursor(),
-            [this, geom, cb](const QImage &img, const QString &err) {
-                if (!err.isEmpty()) {
-                    qWarning() << "KWin captureScreen failed, portal fallback:" << err;
-                    if (isKWinAuthError(err))
-                        m_kwinDenied = true;
-                    // Portal returns the whole workspace: crop to the screen.
-                    // allowInteractive=false: a dialog-picked area/window image
-                    // is NOT workspace-shaped and cropForScreen would slice it
-                    // to garbage — fail cleanly instead (captureWorkspace still
-                    // keeps the interactive safety net, since it never crops).
-                    const QString kerr = QStringLiteral("KWin: %1").arg(err);
-                    workspaceFallback([geom, cb, kerr](const QImage &full, const QString &e2) {
-                        // Bare "cancelled" must survive uncombined for the toast suppression.
-                        if (e2 == QLatin1String("cancelled")) { cb({}, e2); return; }
-                        if (!e2.isEmpty()) { cb({}, combinedError(kerr, e2)); return; }
-                        QImage crop = CaptureManager::cropForScreen(full, geom);
-                        if (crop.isNull()) {
-                            cb({}, combinedError(kerr, QStringLiteral("portal screenshot does not contain screen %1")
-                                                 .arg(screenLabel(geom))));
-                            return;
-                        }
-                        cb(crop, {});
-                    }, /*allowInteractive=*/false);
-                    return;
-                }
-                cb(img, {});
-            });
-        return;
-    }
-    // Portal path: capture all and crop. allowInteractive=false — a dialog-picked
-    // image is not workspace-shaped and cropForScreen would return garbage.
-    workspaceFallback([geom, hasScreen, cb](const QImage &full, const QString &err) {
-        if (!err.isEmpty() || !hasScreen) { cb(full, err); return; }
-        QImage crop = cropForScreen(full, geom);
-        if (crop.isNull()) {
-            cb({}, QStringLiteral("portal screenshot does not contain screen %1").arg(screenLabel(geom)));
-            return;
-        }
-        cb(crop, {});
-    }, /*allowInteractive=*/false);
-}
-
 CaptureManager::ScreenGeom CaptureManager::snapshotScreen(QScreen *screen)
 {
     ScreenGeom g;

@@ -35,10 +35,14 @@ public:
     // callers that never inspect the result — avoids blocking the GUI thread.
     void releaseShortcut(const QString &actionId, const QString &friendlyName);
 
-    void unregisterAll();
     // Fully remove a single action from the daemon (and the Shortcuts KCM),
     // unlike releaseShortcut() which only unbinds its keys.
     void unregisterAction(const QString &actionId);
+    // cleanUp an ARBITRARY component by its unique name (not our COMPONENT).
+    // Used to purge a stale duplicate left by an older binary that registered
+    // under the desktop-file name instead of the fixed unique name — that
+    // zombie component still claims the key grab and routes presses nowhere.
+    void cleanUpComponent(const QString &componentUnique);
 
     // False when org.kde.kglobalaccel is absent (non-KDE session) — callers
     // must not report a bind "conflict" that is really just no daemon.

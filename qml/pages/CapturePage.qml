@@ -149,28 +149,44 @@ Item {
                         font.weight: Font.DemiBold
                     }
 
-                    Repeater {
-                        model: [
-                            { label: qsTr("Open the editor"), key: "openEditor" },
-                            { label: qsTr("Copy image to clipboard"), key: "copyToClipboard" },
-                            { label: qsTr("Save to disk automatically"), key: "autoSave" },
-                            { label: qsTr("Upload and copy the link"), key: "uploadAfterCapture" },
-                        ]
-                        delegate: Item {
-                            width: parent.width
-                            height: 38
-                            Text {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.label
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontM
-                            }
-                            USwitch {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                checked: App.settings[modelData.key]
-                                onToggled: (c) => App.settings[modelData.key] = c
+                    // Two-column toggle grid: these are all label + switch rows,
+                    // so pairing them halves the card's height and keeps the
+                    // page off the Flickable's scrollbar at the default size.
+                    Flow {
+                        id: toggleFlow
+                        width: parent.width
+                        spacing: Theme.spacingM
+                        readonly property real cellW: (width - Theme.spacingM) / 2
+
+                        Repeater {
+                            model: [
+                                { label: qsTr("Open the editor"), key: "openEditor", cursor: false },
+                                { label: qsTr("Copy image to clipboard"), key: "copyToClipboard", cursor: false },
+                                { label: qsTr("Save to disk automatically"), key: "autoSave", cursor: false },
+                                { label: qsTr("Upload and copy the link"), key: "uploadAfterCapture", cursor: false },
+                                { label: qsTr("Include mouse cursor"), key: "includeCursor", cursor: true },
+                            ]
+                            delegate: Item {
+                                width: toggleFlow.cellW
+                                height: 38
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.right: sw.left
+                                    anchors.rightMargin: Theme.spacingM
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: modelData.label
+                                    elide: Text.ElideRight
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontM
+                                }
+                                USwitch {
+                                    id: sw
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    checked: App.settings[modelData.key]
+                                    enabled: !modelData.cursor || App.capScreenshotCursor || App.devBuild
+                                    onToggled: (c) => App.settings[modelData.key] = c
+                                }
                             }
                         }
                     }

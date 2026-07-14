@@ -21,7 +21,7 @@ class GifRecorder : public QObject
 {
     Q_OBJECT
 public:
-    enum Output { Gif, Mp4, WebM };
+    enum Output { Gif, Mp4, WebM, Replay };
     enum SourceType { Screen, Region, Window };
 
     explicit GifRecorder(Settings *settings, QObject *parent = nullptr);
@@ -29,7 +29,11 @@ public:
 
     bool recording() const { return m_state != Idle; }
     SourceType sourceType() const { return m_source; } // valid while recording
+    bool instantReplayActive() const { return m_state != Idle && m_output == Replay; }
     int elapsedSeconds() const;
+    static bool hardwareEncoderAvailable(const QString &id);
+    static int replaySegmentCount(int seconds)
+    { return qBound(3, qBound(10, seconds, 600) / 2 + 2, 302); }
 
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
     // For Window source the portal picks the window; crop is ignored.
@@ -44,6 +48,7 @@ public:
     void commit();
     void stop();     // finalize -> converting -> finished()
     void abort();    // discard everything
+    void saveInstantReplay();
 
 signals:
     // Portal sharing approved and the stream is live, but encoding is HELD until
@@ -54,6 +59,7 @@ signals:
     void converting();
     void finished(const QString &filePath);
     void failed(const QString &error);
+    void replayExportFailed(const QString &error);
     void elapsedChanged();
 
 private:
@@ -84,6 +90,7 @@ private:
     PipeWireGrabber *m_grabber = nullptr;
     QProcess *m_ffmpeg = nullptr;
     QProcess *m_converter = nullptr;
+    QProcess *m_appAudio = nullptr;
     QTimer m_sampler;
     QTimer m_maxTimer;
     QElapsedTimer m_elapsed;
@@ -106,5 +113,9 @@ private:
     QString m_tempPath;
     QString m_palettePath;
     QString m_outPath;
+    QString m_audioFifoPath;
+    QString m_replayDir;
+    QString m_replaySnapshotDir;
+    QString m_replayExportPath;
+    QProcess *m_replayExporter = nullptr;
 };
-

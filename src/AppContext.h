@@ -34,10 +34,11 @@ class GlobalHotkeys;
 class PortalGlobalShortcuts;
 class GifRecorder;
 class OcrEngine;
-class U2NetSegmenter;
 class AnnotationCanvas;
 class CaptureNotification;
 class DesktopNotifier;
+class NotificationInhibitor;
+class ExternalActionRunner;
 class PreviewController;
 class LayerShellNotifier;
 
@@ -56,6 +57,7 @@ class AppContext : public QObject
     Q_PROPERTY(UpdateChecker *updater READ updater CONSTANT)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
+    Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable NOTIFY recordingAvailableChanged)
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
@@ -82,6 +84,11 @@ class AppContext : public QObject
     Q_PROPERTY(bool capNativeNotification READ capNativeNotification CONSTANT)
     Q_PROPERTY(bool capCustomNotification READ capCustomNotification CONSTANT)
     Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
+    Q_PROPERTY(bool capDoNotDisturb READ capDoNotDisturb CONSTANT)
+    Q_PROPERTY(bool capScreenshotCursor READ capScreenshotCursor CONSTANT)
+    // QtMultimedia QML module present → the trim editor shows a live video
+    // preview; otherwise it degrades to the slider-only range picker.
+    Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
     Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
     Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
@@ -99,11 +106,11 @@ class AppContext : public QObject
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
     Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
+    Q_PROPERTY(bool vaapiAvailable READ vaapiAvailable NOTIFY recordingCapabilitiesChanged)
+    Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
+    Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
     // U-2-Net smart background removal: available = onnxruntime compiled in;
     // modelReady = the model file is downloaded. Greyed-out UI when unavailable.
-    Q_PROPERTY(bool u2netAvailable READ u2netAvailable CONSTANT)
-    Q_PROPERTY(bool u2netModelReady READ u2netModelReady NOTIFY u2netChanged)
-    Q_PROPERTY(bool u2netBusy READ u2netBusy NOTIFY u2netChanged)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -117,6 +124,10 @@ class AppContext : public QObject
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
     Q_PROPERTY(QString buildDate READ buildDate CONSTANT)
+    // True until the user opens the release notes for the RUNNING version: drives
+    // the blinking "See patch notes" hint pointing at the version label after an
+    // update. Cleared by markPatchNotesSeen().
+    Q_PROPERTY(bool patchNotesUnseen READ patchNotesUnseen NOTIFY patchNotesUnseenChanged)
 
 public:
     using UploadDone = std::function<void(const QString &url, const QString &error)>;
@@ -135,6 +146,7 @@ public:
 
     bool recording() const;
     bool converting() const;
+    bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool trayAvailable() const { return m_tray != nullptr; }
@@ -149,8 +161,14 @@ public:
 #endif
     }
     bool capNativeNotification() const;
-    bool capCustomNotification() const { return m_layerShellAvailable; }
+    bool capCustomNotification() const; // layer-shell OR the GNOME XWayland card
     bool capRecordBorder() const;
+    bool capVideoPlayback() const;
+    // GNOME/mutter (Wayland, no layer-shell, no KWin) with an X socket: the
+    // styled capture card rides the --notification-helper XWayland process.
+    bool capNotificationHelper() const;
+    bool capDoNotDisturb() const;
+    bool capScreenshotCursor() const;
     // True when the compositor exposes wlr-layer-shell — the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
@@ -166,6 +184,8 @@ public:
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
+    Q_INVOKABLE void devTestHistoryDrag();
+    Q_INVOKABLE void devTestNotificationDrag();
     Q_INVOKABLE void devTestCopyLast();
     Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
@@ -173,7 +193,6 @@ public:
     Q_INVOKABLE void devTestHotkeyBinds();
     Q_INVOKABLE void devTestUpload();
     Q_INVOKABLE void devTestSettingsRoundTrip();
-    Q_INVOKABLE void devTestSmartPick();
     Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestRecordingSound();
     Q_INVOKABLE void devTestRecordStartSound();
@@ -183,7 +202,24 @@ public:
     Q_INVOKABLE void devTestShapeEdit();
     Q_INVOKABLE void devTestCaptureOnRelease();
     Q_INVOKABLE void devTestOcrBoxes();
-    Q_INVOKABLE void devTestU2Net();
+    Q_INVOKABLE void devTestOcrHighlight();
+    Q_INVOKABLE void devTestClipboardPaste();
+    Q_INVOKABLE void devTestCaptureDelay();
+    Q_INVOKABLE void devTestCopyAs();
+    Q_INVOKABLE void devTestWatermark();
+    Q_INVOKABLE void devTestCallout();
+    Q_INVOKABLE void devTestShiftSnap();
+    Q_INVOKABLE void devTestQrPreview();
+    Q_INVOKABLE void devTestDoNotDisturb();
+    Q_INVOKABLE void devTestExternalAction();
+    Q_INVOKABLE void devTestTaskPreset();
+    Q_INVOKABLE void devTestCliOutput();
+    Q_INVOKABLE void devTestMeasureTools();
+    Q_INVOKABLE void devTestHardwareEncoder();
+    Q_INVOKABLE void devTestPerAppAudio();
+    Q_INVOKABLE void devTestInstantReplay();
+    Q_INVOKABLE void devTestTrimRecording();
+    Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
     Q_INVOKABLE void devTestUpdateCheck();
     Q_INVOKABLE void devTestUpdateAvailable();
@@ -196,26 +232,13 @@ public:
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
     bool qrAvailable() const;
-    // U-2-Net capability + model management.
-    bool u2netAvailable() const;
-    bool u2netModelReady() const;
-    bool u2netBusy() const { return m_u2netBusy; }
-    Q_INVOKABLE void downloadU2NetModel();
-    Q_INVOKABLE void deleteU2NetModel();
-    // Catalog for the settings combo: [{id, label}] + the "custom" entry.
-    Q_INVOKABLE QVariantList u2netModels() const;
-    // Display label of the currently selected model (download dialogs).
-    Q_INVOKABLE QString u2netModelLabel() const;
-    // Native file picker for a user-provided .onnx; sets segmentCustomModel +
-    // segmentModel="custom" on success. Returns the path ("" = cancelled).
-    Q_INVOKABLE QString pickU2NetCustomModel();
-    // Install the U-2-Net segmenter onto a canvas (object-cutout upgrade). No-op
-    // without onnxruntime; the lambda itself checks the enable setting + model.
-    void installSegmenter(AnnotationCanvas *canvas);
-    // Foreground segmentation for the editor's Remove-background action; cb gets
-    // a keep-mask (or a null image + message on failure / unavailable).
-    void segmentForeground(const QImage &img, const QRect &region,
-                           std::function<void(const QImage &, const QString &)> cb);
+    bool vaapiAvailable() const { return m_vaapiAvailable; }
+    bool nvencAvailable() const { return m_nvencAvailable; }
+    bool perAppAudioAvailable() const;
+    Q_INVOKABLE QVariantList audioApplicationNodes() const; // synchronous (dev/smoke only)
+    // Async variant for the UI: enumerates off-thread and emits
+    // audioApplicationNodesReady so opening the audio dropdown never blocks.
+    Q_INVOKABLE void requestAudioApplicationNodes();
     // Install the QTranslators for the current uiLanguage setting (swapping any
     // previously installed ones). Called once before the engine loads and again
     // whenever the language setting changes (live retranslate + tray rebuild).
@@ -233,23 +256,51 @@ public:
     // In the .cpp: the generated unisic_build_date.h changes on every commit —
     // including it here would recompile every AppContext.h dependent each time.
     QString buildDate() const;
+    // Release notes (markdown) for the RUNNING version in `lang` ("en"/"pl"):
+    // the `### English`/`### Polski` block of the bundled CHANGELOG.md section
+    // whose `##` heading matches appVersion(). Empty when there is no such entry.
+    // Shown when the user clicks the version label.
+    Q_INVOKABLE QString changelog(const QString &lang) const;
+    bool patchNotesUnseen() const { return m_settings->lastSeenVersion() != appVersion(); }
+    // Record the running version as seen so the hint stops (idempotent).
+    Q_INVOKABLE void markPatchNotesSeen();
 
     // Capture entry points (also bound to hotkeys and tray).
+    // One-shot override used by `unisic --delay SECONDS --region` et al. It is
+    // consumed by the next screenshot delay and never writes the saved default.
+    void setNextCaptureDelayMs(int delayMs);
+    void setNextCaptureOutput(const QString &path, const QString &format, bool toStdout);
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
+    Q_INVOKABLE void captureMeasure();
     // Region selection -> OCR/QR -> clipboard. No save/history/notification.
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
+    Q_INVOKABLE QString pickWatermarkImage();
+    Q_INVOKABLE void openTrimRecording(const QString &path);
+    Q_INVOKABLE void trimRecording(const QString &path, qreal startSeconds, qreal endSeconds);
+    Q_INVOKABLE void captureWithTask(const QString &mode, const QString &task);
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
     Q_INVOKABLE void startVideoScreen();
     Q_INVOKABLE void startVideoRegion();
     Q_INVOKABLE void startVideoWindow();
     Q_INVOKABLE void stopRecording();
+    Q_INVOKABLE void startInstantReplay();
+    Q_INVOKABLE void saveInstantReplay();
 
     Q_INVOKABLE void copyText(const QString &text);
+    Q_INVOKABLE void showQr(const QString &url);
+    // Text representations of a capture. The data URI encode is asynchronous
+    // because a full-resolution PNG must never stall the GUI thread.
+    void copyImageAs(const QImage &img, const QString &filePath, const QString &url,
+                     const QString &format, std::function<void(bool)> done = {});
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
+    // "text/uri-list" payload for dragging a history capture out to another
+    // app (file manager, or a video editor like LosslessCut). Fully-encoded so
+    // spaces/# in the path survive the drop (external consumers percent-decode).
+    Q_INVOKABLE QString fileDragUri(const QString &path) const;
     // important: shown even when the user disabled notifications (errors
     // must not vanish silently).
     Q_INVOKABLE void showToast(const QString &text, bool important = false);
@@ -267,11 +318,10 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     Q_INVOKABLE QString filenamePreview() const;
-    // Custom tray icon. pickTrayIcon = native file picker; selectTrayIcon =
-    // pick a known path (gallery tile; "" reverts to default); clear = default.
-    // trayIconsDir = the folder the user drops their own icons into.
-    Q_INVOKABLE void pickTrayIcon();
-    Q_INVOKABLE void addTrayIcon();   // pick a file, COPY it into trayIconsDir(), select it
+    // Custom tray icon. addTrayIcon = pick a file, COPY it into trayIconsDir;
+    // selectTrayIcon = pick a known path (gallery tile; "" reverts to default);
+    // clear = default. trayIconsDir = the folder the user drops their icons into.
+    Q_INVOKABLE void addTrayIcon();
     Q_INVOKABLE void selectTrayIcon(const QString &path);
     Q_INVOKABLE void clearTrayIcon();
     Q_INVOKABLE QString trayIconsDir() const;
@@ -321,6 +371,8 @@ public:
     Q_INVOKABLE void previewFromHistory(const QString &filePath);
     // Copy a saved image file's pixels to the clipboard (history card).
     Q_INVOKABLE void copyImageFromHistory(const QString &filePath);
+    Q_INVOKABLE void copyAsFromHistory(const QString &filePath, const QString &url,
+                                       const QString &format);
     // Upload a saved capture file (history card) to the active destination and
     // write the resulting URL back onto its history entry.
     Q_INVOKABLE void uploadFromHistory(const QString &filePath);
@@ -335,20 +387,24 @@ public:
     QString captureErrorGuidance(const QString &err);
 
 signals:
+    void audioApplicationNodesReady(const QVariantList &nodes);
     void recordingChanged();
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
+    void showQuickTaskChooserRequested();
+    void cliCaptureReady(const QByteArray &data, const QString &error);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
     void smokeTestChanged();
+    void patchNotesUnseenChanged();
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
     void trayContrastColorChanged();
-    void u2netChanged();
+    void recordingCapabilitiesChanged();
 
 private:
     bool systemIsDark() const;                        // OS light/dark scheme
@@ -416,6 +472,9 @@ private:
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
                                                  const QString &kind, bool inhibited);
+    // Spawn the GNOME XWayland card process for one capture. Returns false when
+    // it could not be started (caller then falls back to a native notification).
+    bool showNotificationHelper(CaptureNotification *n);
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
     // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
     // overlay opens, so the overlay can't self-suppress the resulting card — and
@@ -447,10 +506,26 @@ private:
     // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
     // delivered back on the GUI thread (dropped if AppContext died meanwhile).
     void encodeImageAsync(const QImage &img,
-                          std::function<void(const QByteArray &, const QString &)> done);
+                          std::function<void(const QByteArray &, const QString &)> done,
+                          const QString &formatOverride = {});
     // Continuation of openPreview after the worker-thread PNG save.
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
     void afterUploadActions(const QString &url);
+    void beginDoNotDisturb();
+    void endDoNotDisturb();
+    void captureRegionWithTool(int initialTool);
+    void runExternalAction(const QImage &image, const QString &savedPath);
+    void refreshWatermarkImage();
+    void showTrimWindow(const QString &path, qreal duration);
+    struct CaptureTask {
+        bool active = false;
+        bool save = false;
+        bool copy = false;
+        bool edit = false;
+        bool upload = false;
+    };
+    static CaptureTask taskFromId(const QString &id);
+    void clearCliCapture(const QString &error = {});
     GifRecorder::Output videoOutput() const;
     // Coalesced, debounced malloc_trim(0): after a capture/record/upload cycle
     // frees large QImage/encode buffers, hand the pages back to the OS instead of
@@ -469,13 +544,8 @@ private:
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | ""
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
-    U2NetSegmenter *m_u2net = nullptr; // set only when onnxruntime is compiled in
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
-    bool m_u2netBusy = false;          // model download in flight
-    // Thread-safe mirror of Settings::useU2Net, read by the segmenter lambda on
-    // a worker thread (a direct QSettings read there would race the GUI writer).
-    std::shared_ptr<std::atomic_bool> m_u2netEnabled;
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
@@ -485,19 +555,33 @@ private:
     // QImage) — the "Copy last capture" hotkey decodes and copies it.
     QByteArray m_lastCaptureData;
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
+    NotificationInhibitor *m_dnd = nullptr;
+    ExternalActionRunner *m_actionRunner = nullptr;
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     QProcess *m_recordBorderHelper = nullptr;    // XWayland helper frame (GNOME path)
+    QList<QProcess *> m_notifHelpers;            // live GNOME capture-card helpers
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
     QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership
     QString m_toast;
     bool m_screenCastPortalPresent = true; // optimistic until the async probe answers
+    bool m_vaapiAvailable = false;
+    bool m_nvencAvailable = false;
     int m_editorWindows = 0;
     bool m_converting = false;
     bool m_shortcutRecording = false;
     bool m_captureInFlight = false; // re-entry guard for portal captures
+    int m_nextCaptureDelayMs = -1;  // CLI-only one-shot override; -1 = settings
+    CaptureTask m_nextCaptureTask;
+    QString m_nextCaptureDestination; // one-shot per-hotkey upload override
+    QString m_nextCaptureOutputPath;
+    QString m_nextCaptureOutputFormat;
+    bool m_nextCaptureToStdout = false;
+    // Decoded once when the setting changes, never in the per-capture fan-out.
+    // Capped in refreshWatermarkImage() so a logo cannot pin an enormous source.
+    QImage m_watermarkImage;
     // Monotonic copy-request id: the deferred wl-copy mirror only fires when
     // its request is still the newest (GUI-thread only, no atomics).
     quint64 m_clipboardSeq = 0;
@@ -509,4 +593,3 @@ private:
     QVector<std::function<void()>> m_smokeSteps;
     int m_smokeIdx = 0;
 };
-

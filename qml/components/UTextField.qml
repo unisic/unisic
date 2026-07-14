@@ -16,7 +16,6 @@ Rectangle {
     signal accepted()
 
     function forceFocus() { input.forceActiveFocus() }
-    function selectAll() { input.selectAll() }
 
     implicitWidth: 260
     implicitHeight: 40

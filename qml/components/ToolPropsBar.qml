@@ -23,6 +23,42 @@ Row {
 
     function has(p) { return props.indexOf(p) >= 0 }
 
+    // Stroke width is only meaningful for the freehand highlighter mode; the
+    // rectangle/text bands ignore it, so hide the control there.
+    readonly property bool showWidth:
+        has("width") && (!has("highlightMode")
+                         || canvas.highlightMode === AnnotationCanvas.HlFreehand)
+
+    // ---- highlighter mode (freehand marker / rectangle band / text snap) ----
+    Row {
+        visible: root.has("highlightMode")
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 4
+        ToolChip {
+            iconName: "draw-freehand"; iconStyle: "custom"; label: qsTr("Freehand")
+            active: root.canvas.highlightMode === AnnotationCanvas.HlFreehand
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.canvas.highlightMode = AnnotationCanvas.HlFreehand
+        }
+        ToolChip {
+            iconName: "draw-rectangle"; iconStyle: "custom"; label: qsTr("Rectangle")
+            active: root.canvas.highlightMode === AnnotationCanvas.HlRect
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.canvas.highlightMode = AnnotationCanvas.HlRect
+        }
+        ToolChip {
+            iconName: "draw-text"; iconStyle: "custom"; label: qsTr("Text")
+            active: root.canvas.highlightMode === AnnotationCanvas.HlText
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.canvas.highlightMode = AnnotationCanvas.HlText
+        }
+    }
+    Rectangle {
+        visible: root.has("highlightMode")
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+    }
+
     // ---- stroke color ----
     Repeater {
         model: root.has("stroke") ? Theme.swatches : []
@@ -53,14 +89,14 @@ Row {
     }
 
     Rectangle {
-        visible: root.has("stroke") && (root.has("width") || root.has("fill"))
+        visible: root.has("stroke") && (root.showWidth || root.has("fill"))
         width: 1; height: 28; color: Theme.divider
         anchors.verticalCenter: parent.verticalCenter
     }
 
     // ---- stroke width ----
     Column {
-        visible: root.has("width")
+        visible: root.showWidth
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
         Text {
@@ -78,6 +114,15 @@ Row {
             value: root.canvas.strokeWidth
             onChanged: (v) => root.canvas.strokeWidth = v
         }
+    }
+
+    UComboBox {
+        visible: root.has("arrowhead")
+        width: 112
+        anchors.verticalCenter: parent.verticalCenter
+        model: [qsTr("Filled head"), qsTr("Open head"), qsTr("Double head")]
+        currentIndex: root.canvas.arrowHeadStyle
+        onActivated: (i) => root.canvas.arrowHeadStyle = i
     }
 
     Rectangle {

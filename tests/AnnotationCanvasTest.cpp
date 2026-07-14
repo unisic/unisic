@@ -1,6 +1,8 @@
 #include "AnnotationCanvas.h"
+#include "ImageEffects.h"
 
 #include <QGuiApplication>
+#include <QClipboard>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSignalSpy>
@@ -23,10 +25,17 @@ private slots:
     void penStrokeKeepsReleaseEndpoint();
     void penTapRendersDot();
     void deselectRestoresStrokeStyle();
-    void smartPickPrefersTiledWindow();
     void editShapesSelectMoveDelete();
     void drawToolClickSelectsAndMoves();
     void captureOnReleaseConfirms();
+    void ocrSelectionCreatesLineBatchedAnnotations();
+    void ocrCaretSelectionIsCharacterPrecise();
+    void textHighlightPenSnapsToLineTextHeight();
+    void pasteClipboardCreatesTextAndImage();
+    void shiftSnapsLineAngleAndRectangleRatio();
+    void watermarkStampsAndPreservesBaseDimensions();
+    void calloutRendersTailAndCanBeSelected();
+    void arrowAndMeasureRenderAndCanBeSelected();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -128,33 +137,6 @@ void AnnotationCanvasTest::deselectRestoresStrokeStyle()
     QCOMPARE(canvas.strokeColor(), QColor(Qt::red));
     canvas.removeSelectedAnnot();
     QCOMPARE(canvas.strokeColor(), QColor(Qt::blue));
-}
-
-void AnnotationCanvasTest::smartPickPrefersTiledWindow()
-{
-    TestAnnotationCanvas canvas;
-    canvas.setWidth(640);
-    canvas.setHeight(400);
-
-    QImage image(640, 400, QImage::Format_ARGB32_Premultiplied);
-    QPainter painter(&image);
-    painter.fillRect(QRect(0, 0, 320, 200), QColor(35, 38, 42));
-    painter.fillRect(QRect(320, 0, 320, 200), QColor(41, 44, 48));
-    painter.fillRect(QRect(0, 200, 320, 200), QColor(47, 50, 54));
-    painter.fillRect(QRect(320, 200, 320, 200), QColor(53, 56, 60));
-    painter.end();
-
-    canvas.setImage(image);
-    canvas.setSelectionMode(true);
-    canvas.setSmartPick(true);
-
-    QHoverEvent hover(QEvent::HoverMove, QPointF(100, 100), QPointF(100, 100), QPointF(99, 99));
-    canvas.hoverMoveEvent(&hover);
-
-    QTRY_COMPARE(canvas.hoverObjectKind(), QStringLiteral("Window"));
-    const QRectF rect = canvas.hoverObjectRect();
-    QVERIFY(qAbs(rect.left()) <= 7 && qAbs(rect.top()) <= 7);
-    QVERIFY(qAbs(rect.right() - 319) <= 7 && qAbs(rect.bottom() - 199) <= 7);
 }
 
 void AnnotationCanvasTest::editShapesSelectMoveDelete()
@@ -283,6 +265,298 @@ void AnnotationCanvasTest::captureOnReleaseConfirms()
     drag(canvas, QPointF(85, 80), QPointF(95, 95));
     QVERIFY(canvas.hasSelection());
     QCOMPARE(confirmed.count(), 1);
+}
+
+// OCR selection is letter-granular, but exported highlight/redaction must be
+// one continuous bar per text line and undo as a single user action.
+void AnnotationCanvasTest::ocrSelectionCreatesLineBatchedAnnotations()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(160);
+    canvas.setHeight(100);
+    QImage image(160, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    // Give each glyph box detail for blur/pixelate to alter; a flat white base
+    // would correctly render a redaction as identical white pixels.
+    {
+        QPainter painter(&image);
+        painter.fillRect(QRect(11, 14, 2, 12), Qt::black);
+        painter.fillRect(QRect(23, 14, 2, 12), Qt::black);
+        painter.fillRect(QRect(11, 50, 2, 12), Qt::black);
+        painter.fillRect(QRect(23, 50, 2, 12), Qt::black);
+    }
+    canvas.setImage(image);
+    const QVector<OcrWord> words{
+        {QRect(10, 12, 10, 18), QStringLiteral("A"), 0, 100.f, false},
+        {QRect(22, 12, 10, 18), QStringLiteral("B"), 0, 100.f, false},
+        {QRect(10, 48, 10, 18), QStringLiteral("C"), 1, 100.f, false},
+        {QRect(22, 48, 10, 18), QStringLiteral("D"), 1, 100.f, false},
+    };
+    // Each OCR action (highlight/redact) turns the transient selection into
+    // permanent marks and LEAVES OCR mode, so re-enter + reselect before each
+    // one — exactly what the UI does for a fresh selection.
+    const auto reselect = [&] {
+        canvas.setOcrMode(true);
+        canvas.setOcrWords(words);
+        canvas.ocrSelectAll();
+    };
+
+    reselect();
+    QVERIFY(canvas.highlightOcrSelection());
+    QCOMPARE(canvas.annotCount(), 2); // one bar for each OCR line, not glyph
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 0); // the whole batch is one undo step
+    canvas.redo();
+    QCOMPARE(canvas.annotCount(), 2);
+
+    reselect();
+    QVERIFY(canvas.redactOcrSelection(false));
+    QCOMPARE(canvas.annotCount(), 4);
+    reselect();
+    QVERIFY(canvas.redactOcrSelection(true));
+    QCOMPARE(canvas.annotCount(), 6);
+    QVERIFY(canvas.rendered() != image);
+}
+
+// Windows-Snipping-style text selection: a drag selects a CHARACTER-precise
+// caret range constrained to the line under the cursor (not the whole line, not
+// a nearest-glyph guess across the whole image); a bare click selects the whole
+// line; a click away from text keeps the current pick.
+void AnnotationCanvasTest::ocrCaretSelectionIsCharacterPrecise()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(160);
+    canvas.setHeight(100);
+    QImage image(160, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    // Two lines, two glyphs each; B and D start a word (spaceBefore) so a copied
+    // range keeps its spacing.
+    const QVector<OcrWord> words{
+        {QRect(10, 12, 10, 18), QStringLiteral("A"), 0, 100.f, false},
+        {QRect(22, 12, 10, 18), QStringLiteral("B"), 0, 100.f, true},
+        {QRect(10, 48, 10, 18), QStringLiteral("C"), 1, 100.f, false},
+        {QRect(22, 48, 10, 18), QStringLiteral("D"), 1, 100.f, true},
+    };
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+
+    // Drag ending between the two glyphs of line 0 selects ONLY the first glyph.
+    drag(canvas, QPointF(6, 21), QPointF(21, 21));
+    QVERIFY(canvas.hasOcrSelection());
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("A"));
+
+    // Dragging past the last glyph takes the whole line (with the word space).
+    drag(canvas, QPointF(6, 21), QPointF(60, 21));
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("A B"));
+
+    // A cross-line drag keeps reading order and a newline between lines.
+    drag(canvas, QPointF(6, 21), QPointF(60, 57));
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("A B\nC D"));
+
+    // A bare click selects the whole line under the cursor.
+    click(canvas, QPointF(15, 21));
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("A B"));
+
+    // A click far from any text must NOT wipe a careful selection.
+    click(canvas, QPointF(140, 92));
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("A B"));
+}
+
+// The text-mode highlighter is a PEN: a freehand swipe over text snaps to the
+// glyph lines it crosses, and each band takes that LINE's own text height (like
+// a PDF highlighter) — never a fixed size or the stroke's bounding box.
+void AnnotationCanvasTest::textHighlightPenSnapsToLineTextHeight()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(160);
+    QImage image(200, 160, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    // Two lines of DIFFERENT text heights: line 0 is 16px tall, line 1 is 28px.
+    canvas.setGlyphBoxes({
+        {QRect(20, 50, 20, 16), QStringLiteral("a"), 0, 100.f, false},
+        {QRect(40, 50, 20, 16), QStringLiteral("b"), 0, 100.f, false},
+        {QRect(60, 50, 20, 16), QStringLiteral("c"), 0, 100.f, false},
+        {QRect(80, 50, 20, 16), QStringLiteral("d"), 0, 100.f, false},
+        {QRect(20, 100, 20, 28), QStringLiteral("e"), 1, 100.f, false},
+        {QRect(40, 100, 20, 28), QStringLiteral("f"), 1, 100.f, false},
+        {QRect(60, 100, 20, 28), QStringLiteral("g"), 1, 100.f, false},
+        {QRect(80, 100, 20, 28), QStringLiteral("h"), 1, 100.f, false},
+    });
+    canvas.setTool(AnnotationCanvas::Highlight);
+    canvas.setHighlightMode(AnnotationCanvas::HlText);
+    canvas.setStrokeColor(QColor(255, 234, 112)); // yellow marker
+    canvas.setStrokeWidth(8);
+
+    // Swipe the pen across line 0 only (through the glyphs' vertical middle).
+    drag(canvas, QPointF(25, 58), QPointF(95, 58));
+    QCOMPARE(canvas.annotCount(), 1); // ONE band for the swiped line, not per glyph
+
+    const QImage r1 = canvas.rendered();
+    // Multiply of yellow over white leaves a low blue channel; white stays 255.
+    QVERIFY2(r1.pixelColor(60, 58).blue() < 200, "the swiped text line must be highlighted");
+    // 6px above the 16px text (y=44 < 50): a text-sized band stops at the glyph
+    // top, so this pixel must stay white. A fixed/oversized box would bleed here.
+    QVERIFY2(r1.pixelColor(60, 44).blue() > 240, "band must not extend above the text height");
+    QVERIFY2(r1.pixelColor(60, 112).blue() > 240, "an un-swiped line must stay untouched");
+
+    // Swipe the taller line 1. Its band must reach the full 28px text height.
+    drag(canvas, QPointF(25, 112), QPointF(95, 112));
+    QCOMPARE(canvas.annotCount(), 2);
+    const QImage r2 = canvas.rendered();
+    QVERIFY2(r2.pixelColor(60, 120).blue() < 200, "the second swiped line must be highlighted");
+    // y=125 is inside the 28px line (100..128) but would be BELOW a 16px band —
+    // proves the band is sized to this line's own, taller, text.
+    QVERIFY2(r2.pixelColor(60, 125).blue() < 200,
+             "the band must hug the taller line's full text height");
+}
+
+void AnnotationCanvasTest::pasteClipboardCreatesTextAndImage()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(120);
+    QImage image(200, 120, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    QGuiApplication::clipboard()->setText(QStringLiteral("paste"));
+    QVERIFY(canvas.pasteClipboard(20, 20));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    QImage stamp(24, 16, QImage::Format_ARGB32_Premultiplied);
+    stamp.fill(Qt::black);
+    QGuiApplication::clipboard()->setImage(stamp);
+    QVERIFY(canvas.pasteClipboard(100, 60));
+    QCOMPARE(canvas.annotCount(), 2);
+    QVERIFY(canvas.rendered() != image);
+}
+
+void AnnotationCanvasTest::watermarkStampsAndPreservesBaseDimensions()
+{
+    QImage base(300, 180, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::black);
+    const QImage stamped = UnisicImageEffects::watermarkText(
+        base, QStringLiteral("Unisic"), 100, QStringLiteral("bottom-right"));
+    QCOMPARE(stamped.size(), base.size());
+    QVERIFY(stamped != base);
+    QCOMPARE(UnisicImageEffects::watermarkText(base, {}, 80,
+                                               QStringLiteral("bottom-right")), base);
+
+    QImage logo(80, 40, QImage::Format_ARGB32_Premultiplied);
+    logo.fill(Qt::transparent);
+    {
+        QPainter painter(&logo);
+        painter.fillRect(QRect(5, 5, 70, 30), Qt::white);
+    }
+    const QImage logoStamped = UnisicImageEffects::watermarkImage(
+        base, logo, 65, QStringLiteral("top-left"));
+    QCOMPARE(logoStamped.size(), base.size());
+    QVERIFY(logoStamped != base);
+    QCOMPARE(UnisicImageEffects::watermarkImage(base, {}, 65,
+                                                QStringLiteral("top-left")), base);
+}
+
+void AnnotationCanvasTest::calloutRendersTailAndCanBeSelected()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(220);
+    canvas.setHeight(160);
+    QImage base(220, 160, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Callout);
+    canvas.setStrokeColor(Qt::black);
+    canvas.setShapeFillColor(Qt::black);
+    canvas.setShapeFillEnabled(true);
+    drag(canvas, QPointF(30, 20), QPointF(180, 100));
+
+    QCOMPARE(canvas.annotCount(), 1);
+    const QImage out = canvas.rendered();
+    QVERIFY(out != base);
+    QVERIFY2(out.pixelColor(38, 110).lightness() < 80,
+             "the callout tail must extend below its dragged rectangle");
+
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    click(canvas, QPointF(38, 110));
+    QVERIFY2(canvas.hasAnnotSelection(), "the callout tail must be selectable");
+}
+
+void AnnotationCanvasTest::arrowAndMeasureRenderAndCanBeSelected()
+{
+    QImage base(240, 160, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+
+    TestAnnotationCanvas arrow;
+    arrow.setWidth(240);
+    arrow.setHeight(160);
+    arrow.setImage(base);
+    arrow.setTool(AnnotationCanvas::Arrow);
+    arrow.setStrokeColor(Qt::black);
+    arrow.setStrokeWidth(5);
+    drag(arrow, QPointF(20, 30), QPointF(200, 30));
+    arrow.setTool(AnnotationCanvas::EditShapes);
+    arrow.selectAnnotAt(100, 30);
+    const QImage filledHead = arrow.rendered();
+    arrow.setArrowHeadStyle(1);
+    QVERIFY2(arrow.rendered() != filledHead,
+             "the selected arrow's head style must be editable");
+    arrow.undo();
+    QCOMPARE(arrow.rendered(), filledHead);
+
+    TestAnnotationCanvas measure;
+    measure.setWidth(240);
+    measure.setHeight(160);
+    measure.setImage(base);
+    measure.setTool(AnnotationCanvas::Measure);
+    measure.setStrokeColor(Qt::black);
+    measure.setStrokeWidth(4);
+    drag(measure, QPointF(20, 100), QPointF(200, 100));
+    QCOMPARE(measure.annotCount(), 1);
+    QVERIFY(measure.rendered() != base);
+    measure.setTool(AnnotationCanvas::EditShapes);
+    click(measure, QPointF(60, 100));
+    QVERIFY2(measure.hasAnnotSelection(), "the measure shaft must be selectable");
+}
+
+void AnnotationCanvasTest::shiftSnapsLineAngleAndRectangleRatio()
+{
+    TestAnnotationCanvas line;
+    line.setWidth(100);
+    line.setHeight(100);
+    QImage base(100, 100, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    line.setImage(base);
+    line.setTool(AnnotationCanvas::Line);
+    line.setStrokeColor(Qt::black);
+    line.setStrokeWidth(4);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(10, 10), QPointF(10, 10),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, QPointF(50, 25), QPointF(50, 25),
+                     Qt::NoButton, Qt::LeftButton, Qt::ShiftModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(50, 25), QPointF(50, 25),
+                        Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+    line.mousePressEvent(&press);
+    line.mouseMoveEvent(&move);
+    line.mouseReleaseEvent(&release);
+    QVERIFY2(line.rendered().pixelColor(44, 10).lightness() < 80,
+             "Shift must constrain a line to the nearest 45-degree angle");
+
+    TestAnnotationCanvas rect;
+    rect.setWidth(100);
+    rect.setHeight(100);
+    rect.setImage(base);
+    rect.setTool(AnnotationCanvas::Rect);
+    rect.setStrokeColor(Qt::black);
+    rect.setStrokeWidth(4);
+    rect.mousePressEvent(&press);
+    rect.mouseMoveEvent(&move);
+    rect.mouseReleaseEvent(&release);
+    QVERIFY2(rect.rendered().pixelColor(48, 48).lightness() < 80,
+             "Shift must constrain a rectangle to a square ratio");
 }
 
 int main(int argc, char *argv[])

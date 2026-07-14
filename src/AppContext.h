@@ -109,8 +109,6 @@ class AppContext : public QObject
     Q_PROPERTY(bool vaapiAvailable READ vaapiAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
-    // U-2-Net smart background removal: available = onnxruntime compiled in;
-    // modelReady = the model file is downloaded. Greyed-out UI when unavailable.
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.

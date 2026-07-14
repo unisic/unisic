@@ -12,9 +12,17 @@ whole per release (not per individual change).
 **Fixed**
 - On GNOME, reordering pinned Ubuntu Dock icons while recording a region now works. The record frame is drawn as four thin edges around the region instead of one full-screen surface, so nothing covers the rest of the desktop (and drags inside the recorded region work too). Thanks to the user report that pinned this down.
 
+**Removed**
+- **Smart pick** (the experimental click-to-pick-an-object option in Settings › Capture) is gone. Detection was purely visual and never recognized windows and elements reliably enough to keep. Region selection by dragging is unchanged.
+- The editor's **Remove background** action and the U-2-Net model settings are gone, along with the optional onnxruntime dependency. The smart eraser is unaffected.
+
 ### Polski
 **Naprawiono**
 - Na GNOME zmiana kolejności przypiętych ikon w Ubuntu Dock podczas nagrywania obszaru już działa. Ramka nagrywania jest rysowana jako cztery cienkie krawędzie wokół obszaru zamiast jednej pełnoekranowej powierzchni, więc nic nie zasłania reszty pulpitu (a przeciąganie wewnątrz nagrywanego obszaru też działa). Dzięki zgłoszeniu użytkownika, które to namierzyło.
+
+**Usunięto**
+- **Inteligentny wybór** (eksperymentalna opcja klikania w obiekt w Ustawieniach › Przechwytywanie) zniknął. Wykrywanie było czysto wizualne i nigdy nie rozpoznawało okien ani elementów na tyle pewnie, by je zostawić. Zaznaczanie obszaru przeciąganiem działa bez zmian.
+- Akcja **Usuń tło** w edytorze i ustawienia modelu U-2-Net zniknęły wraz z opcjonalną zależnością onnxruntime. Inteligentna gumka działa bez zmian.
 
 ## 0.7b
 

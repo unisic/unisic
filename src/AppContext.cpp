@@ -4278,10 +4278,10 @@ void AppContext::encodeImageAsync(const QImage &img,
         QString mime;
         QBuffer buf(&out);
         buf.open(QIODevice::WriteOnly);
-        // JPEG has no alpha: a transparent cutout (object pick / background
-        // removal) would flatten to solid black. Mirror saveImageTo's auto-
-        // switch and encode PNG instead, so the uploaded bytes match the saved
-        // file. WEBP keeps alpha, so it needs no such guard.
+        // JPEG has no alpha: a source image carrying transparency would flatten
+        // to solid black. Mirror saveImageTo's auto-switch and encode PNG
+        // instead, so the uploaded bytes match the saved file. WEBP keeps
+        // alpha, so it needs no such guard.
         const bool wantJpg = (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"));
         if (wantJpg && !imageHasTransparency(img) && img.save(&buf, "JPG", q)) {
             mime = QStringLiteral("image/jpeg");
@@ -4331,8 +4331,8 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
     if (fmt != QLatin1String("png") && fmt != QLatin1String("jpg")
         && fmt != QLatin1String("jpeg") && fmt != QLatin1String("webp"))
         fmt = m_settings->imageFormat().toLower();
-    // JPEG can't hold an alpha channel — a transparent cutout (object pick /
-    // background removal) would flatten to black. Auto-switch such saves to PNG
+    // JPEG can't hold an alpha channel — a source image carrying transparency
+    // would flatten to black. Auto-switch such saves to PNG
     // (and fix the extension) BEFORE the collision-dedup loop below, so the
     // switched name is what the loop de-duplicates against — otherwise two
     // transparent saves in the same second (or a pre-existing same-named .png)

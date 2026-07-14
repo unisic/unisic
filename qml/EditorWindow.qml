@@ -41,8 +41,8 @@ Window {
         editorSession.bindCanvas(canvas)
     }
 
-    // True once the user has taken any export action (save/copy/upload/OCR/
-    // cutout) — statusText is only ever set by those. Used to skip the
+    // True once the user has taken any export action (save/copy/upload/OCR)
+    // — statusText is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.
@@ -781,7 +781,7 @@ Window {
                 elide: Text.ElideMiddle
             }
 
-            // Primary exports stay labeled; the occasional OCR / cutout actions
+            // Primary exports stay labeled; the occasional OCR actions
             // live behind one "More" menu, and Close is an icon — so the row
             // fits the fixed bar at the minimum window width with no scrolling
             // and never grows the window (it is right-anchored; the status text
@@ -816,7 +816,7 @@ Window {
                     width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                // "More": the occasional text/cutout actions, greyed with a reason
+                // "More": the occasional text actions, greyed with a reason
                 // when the build lacks the dependency (kept discoverable, not hidden).
                 UMenuButton {
                     visible: !canvas.ocrMode

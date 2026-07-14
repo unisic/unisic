@@ -120,6 +120,15 @@ binds {
 
 Settings and upload destinations live in `~/.config/unisic/`, capture history in `~/.local/share/unisic/`. Filename tokens: `%date%` `%time%` `%datetime%` `%unix%` `%rand%`.
 
+## Compositor support
+
+Unisic targets KDE Plasma first and stays portable everywhere else, but how *complete* it feels depends on what the compositor exposes:
+
+- **KDE Plasma / KWin** — the full experience: silent native capture, in-app editable global hotkeys, layer-shell surfaces, tray, and window-state queries.
+- **wlroots** (Sway, Hyprland, river, Wayfire, labwc, COSMIC…) — nearly complete: layer-shell surfaces work, capture via `grim` or portals, window state via `wlr-foreign-toplevel-management`; bind the hotkeys in your compositor config.
+- **X11 sessions** (e.g. Cinnamon) — screenshots and the editor work through the portal; screen recording is unavailable (no ScreenCast backend).
+- **GNOME / Mutter** — **not as fully functional as it could be, by compositor limitation, not by choice.** Mutter exposes no protocol or API for a client to read window state (e.g. whether an application is fullscreen), has no layer-shell (the record-region frame falls back to an XWayland helper), needs the AppIndicator extension for a tray, and routes hotkeys through the portal. Everything core still works; some niceties that other compositors allow simply cannot be implemented on GNOME.
+
 ## Features
 
 - **Capture** - full screen (all monitors), an interactive region with live dimensions, or the active window; configurable delay, optional cursor.

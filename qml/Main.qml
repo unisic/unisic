@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
+import QtQuick.Controls as C
 import Unisic
 import "components"
 import "pages"
@@ -28,12 +29,12 @@ Window {
 
     property int currentPage: 0
 
-    // Built-in WINDOW shortcuts (QtQuick Shortcut items below). These are NOT
-    // GlobalHotkeys/KGlobalAccel actions: they only fire while the main window
-    // has focus, they never register a system-wide grab, and they are
+    // Built-in WINDOW shortcuts (the QtQuick Shortcut items below). These are
+    // NOT GlobalHotkeys/KGlobalAccel actions: they only fire while the main
+    // window has focus, they never register a system-wide grab, and they are
     // deliberately fixed — they do not appear in, nor are editable from, the
-    // Settings shortcut UI. Ctrl+/ pops the cheat-sheet listing them. Keep this
-    // list and the Shortcut items in sync (single source for both).
+    // Settings shortcut UI. Keep the Ctrl+1..6 list in sync with the sidebar
+    // items and the page Loaders (one source of truth for the page indices).
     function hideToTray() {
         // "Close to tray" (a friend's Ctrl+W). Only hide when a tray icon
         // actually exists, else the window would vanish with no way back —
@@ -61,7 +62,6 @@ Window {
     // Qt.WindowShortcut context these win Qt's shortcut-override race against a
     // focused UShortcutRecorder, so a user binding e.g. Ctrl+Q as a global
     // hotkey would trigger the window action (quit!) instead of recording it.
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+/"]; onActivated: shortcutsHelp.opened ? shortcutsHelp.close() : shortcutsHelp.open() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+W"]; onActivated: window.hideToTray() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+Q"]; onActivated: window.quitApp() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 5 }
@@ -71,17 +71,6 @@ Window {
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 3 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 4 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 5 }
-
-    UShortcutsHelp {
-        id: shortcutsHelp
-        model: [
-            { keys: ["Ctrl", "/"], label: qsTr("Show / hide this list") },
-            { keys: ["Ctrl", "W"], label: qsTr("Hide window to tray") },
-            { keys: ["Ctrl", "Q"], label: qsTr("Quit Unisic") },
-            { keys: ["Ctrl", ","], label: qsTr("Open Settings") },
-            { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+6)") },
-        ]
-    }
 
     // Hide-to-tray only when a tray actually EXISTS — on GNOME without the
     // AppIndicator extension (or bare wlroots) hiding here would make the app
@@ -119,6 +108,95 @@ Window {
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
                     && !App.recording && !App.converting)
                 Qt.quit()
+        }
+        function onShowQuickTaskChooserRequested() {
+            window.show()
+            window.raise()
+            window.requestActivate()
+            quickTask.open()
+        }
+    }
+
+    C.Popup {
+        id: quickTask
+        parent: C.Overlay.overlay
+        anchors.centerIn: parent
+        width: 520
+        padding: Theme.spacingL
+        modal: true
+        focus: true
+        closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
+        property string mode: "region"
+        property var taskIds: ["default", "copy", "edit", "save", "upload"]
+        background: Rectangle {
+            radius: Theme.radiusXL
+            color: Theme.surfaceHi
+            border.width: 1
+            border.color: Theme.divider
+        }
+        contentItem: Column {
+            spacing: Theme.spacingM
+            Text {
+                text: qsTr("Quick task")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontXL
+                font.weight: Font.Bold
+            }
+            Text {
+                text: qsTr("Choose what to capture and what to do with this one result.")
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontM
+            }
+            Flow {
+                width: parent.width
+                spacing: Theme.spacingS
+                Repeater {
+                    model: [
+                        { id: "fullscreen", label: qsTr("Full screen") },
+                        { id: "region", label: qsTr("Region") },
+                        { id: "window", label: qsTr("Window") },
+                        { id: "gif", label: qsTr("GIF") },
+                        { id: "video", label: qsTr("Video") }
+                    ]
+                    delegate: UButton {
+                        compact: true
+                        variant: quickTask.mode === modelData.id ? "primary" : "tonal"
+                        text: modelData.label
+                        onClicked: quickTask.mode = modelData.id
+                    }
+                }
+            }
+            Row {
+                spacing: Theme.spacingM
+                Text {
+                    text: qsTr("Screenshot actions")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontM
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                UComboBox {
+                    id: quickTaskActions
+                    width: 210
+                    enabled: quickTask.mode !== "gif" && quickTask.mode !== "video"
+                    model: [qsTr("Use global actions"), qsTr("Copy only"), qsTr("Edit only"), qsTr("Save only"), qsTr("Upload only")]
+                    currentIndex: 0
+                }
+            }
+            Row {
+                anchors.right: parent.right
+                spacing: Theme.spacingS
+                UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: quickTask.close() }
+                UButton {
+                    text: qsTr("Start")
+                    onClicked: {
+                        let mode = quickTask.mode
+                        let task = quickTask.taskIds[quickTaskActions.currentIndex]
+                        quickTask.close()
+                        window.hideToTray()
+                        App.captureWithTask(mode, task)
+                    }
+                }
+            }
         }
     }
 
@@ -324,8 +402,10 @@ Window {
             }
         }
 
-        // Version / build footer — hidden while the recording pill occupies the bottom.
+        // Version / build footer — hidden while the recording pill occupies the
+        // bottom. Click it to see the running version's release notes.
         Text {
+            id: versionLabel
             visible: !App.recording && !App.converting
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Theme.spacingM
@@ -335,9 +415,73 @@ Window {
                     ? " · dev"
                     : " · build " + App.buildNumber)
                   + (App.buildDate ? "\n" + App.buildDate : "")
-            color: Theme.textTertiary
+            color: versionMouse.containsMouse ? Theme.accent : Theme.textTertiary
             font.pixelSize: Theme.fontS
+
+            MouseArea {
+                id: versionMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { patchNotes.open(); App.markPatchNotesSeen() }
+            }
+            UHoverTip {
+                anchor: versionLabel
+                text: qsTr("What's new")
+                show: versionMouse.containsMouse
+            }
         }
+
+        // One-time "new version" nudge: a blinking arrow pointing at the version
+        // label after an update, until the release notes are opened. Gated on
+        // window.visible so it never animates while the app sits in the tray.
+        Item {
+            id: patchHint
+            visible: App.patchNotesUnseen && !App.recording && !App.converting
+            anchors.bottom: versionLabel.top
+            anchors.bottomMargin: Theme.spacingXS
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: hintCol.width
+            height: hintCol.height
+
+            Column {
+                id: hintCol
+                anchors.centerIn: parent
+                spacing: 0
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("See patch notes")
+                    color: Theme.accent
+                    font.pixelSize: Theme.fontS
+                    font.weight: Font.DemiBold
+                }
+                UIcon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: "chevron-down"
+                    size: 16
+                    color: Theme.accent
+                }
+            }
+
+            SequentialAnimation on opacity {
+                running: patchHint.visible && window.visible
+                loops: Animation.Infinite
+                NumberAnimation { from: 1.0; to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
+                NumberAnimation { from: 0.25; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { patchNotes.open(); App.markPatchNotesSeen() }
+            }
+        }
+    }
+
+    // Release notes for the running version, opened from the version label.
+    UPatchNotes {
+        id: patchNotes
+        version: App.appVersion
     }
 
     Item { // content

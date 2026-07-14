@@ -10,7 +10,7 @@ Contributor guide for **any** AI coding agent working on Unisic — Cursor, Aide
 
 Unisic is a **ShareX-like screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
 
-Core workflow it owns end-to-end: press hotkey → annotate *on the selection overlay before the shot is taken* → post-capture editor (arrows, shapes, text, blur/pixelate, crop, numbered steps, object cutout) → route the result to clipboard / disk / a custom upload destination with the link auto-copied → or record the same region as GIF/MP4/WebM.
+Core workflow it owns end-to-end: press hotkey → annotate *on the selection overlay before the shot is taken* → post-capture editor (arrows, shapes, text, blur/pixelate, crop, numbered steps, smart eraser) → route the result to clipboard / disk / a custom upload destination with the link auto-copied → or record the same region as GIF/MP4/WebM.
 
 **It is NOT:** a general image editor, a cloud service, a cross-platform app, an X11 tool, or a kitchen-sink utility. Every feature request is measured against "does a screenshot/record/share workflow genuinely need this?" The answer is usually no.
 
@@ -83,7 +83,7 @@ src/
                         selection, undo/redo, compositing in IMAGE-PIXEL space, DPR forced 1.0;
                         used by BOTH overlay and editor), EditorSession.
   overlay/             OverlayController (freezes each screen, one fullscreen OverlayWindow per
-                        monitor), ObjectDetector (object-cutout region detection).
+                        monitor).
   record/              PipeWireGrabber (libpipewire thread, keeps latest SHM frame), GifRecorder
                         (samples to ffmpeg; also drives MP4/WebM).
   upload/              UploadManager (.sxcu-like destinations.json; $text$/$json:$/$regex:$;

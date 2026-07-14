@@ -30,6 +30,11 @@ Window {
     // mid-flight would overflow/clip the fixed window. New cards pick up the
     // changed setting because LayerShellNotifier re-reads it per show().
     property string style: "casual"
+    // True while a thumbnail is being dragged out. A native drag can take many
+    // seconds (aiming at another app), and the pointer leaves the card the moment
+    // it starts — without this the 8s auto-hide would fire mid-drag and destroy
+    // the drag's origin surface. Pauses auto-hide + the countdown drain.
+    property bool dragging: false
     Component.onCompleted: {
         const s = App.settings.capturePopupStyle
         if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(s) >= 0)
@@ -40,7 +45,7 @@ Window {
     Timer {
         id: dismissTimer
         interval: Math.max(1, popup.autoHideSec) * 1000
-        running: popup.autoHideSec > 0 && !hover.hovered
+        running: popup.autoHideSec > 0 && !hover.hovered && !popup.dragging
         onTriggered: notif.dismiss()
     }
 
@@ -65,6 +70,11 @@ Window {
             onClicked: notif.copyUrl()
         }
         UIconButton {
+            iconName: "view-preview"; iconSize: parent.icon; width: parent.btn; height: parent.btn
+            tooltip: qsTr("Show QR code"); visible: App.qrAvailable && notif.url !== ""
+            onClicked: notif.showQr()
+        }
+        UIconButton {
             iconName: "folder-open"; iconSize: parent.icon; width: parent.btn; height: parent.btn
             tooltip: qsTr("Show in folder")
             onClicked: notif.showInFolder()
@@ -84,6 +94,55 @@ Window {
             iconName: "edit-delete"; iconSize: parent.icon; width: parent.btn; height: parent.btn
             tooltip: qsTr("Delete"); visible: notif.filePath !== ""
             onClicked: notif.deleteCapture()
+        }
+    }
+
+    // Thumbnail interaction, shared by every style that shows one. A plain
+    // click opens the floating preview; dragging past the threshold pulls the
+    // capture FILE out to another app (file manager, chat, editor) via a native
+    // text/uri-list drag — the same 1x1-proxy pattern the History grid uses.
+    // Idle until a real gesture starts, so it costs nothing while the card sits.
+    component DragThumb: MouseArea {
+        anchors.fill: parent
+        // Images preview + drag; recordings (with a file) drag only.
+        enabled: notif.kind === "image" || notif.filePath !== ""
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        hoverEnabled: true
+        drag.target: dragProxy
+        drag.threshold: 8
+        property string uri: ""
+        // Hover cue: the thumbnail is interactive — click = preview, drag = pull
+        // the file out. Suppressed in the image-first "thumbnail" style, which
+        // shows its own hover action overlay. A menu/tooltip would be clipped by
+        // the tiny card surface, so the affordance lives INSIDE the thumbnail.
+        Rectangle {
+            anchors.fill: parent
+            visible: parent.containsMouse && !parent.pressed
+                     && notif.kind === "image" && popup.style !== "thumbnail"
+            color: Qt.rgba(0, 0, 0, 0.32)
+            UIcon {
+                anchors.centerIn: parent
+                name: "fullscreen"
+                size: Math.min(22, Math.round(parent.height * 0.4))
+                color: "#FFFFFF"
+            }
+        }
+        // Resolve the payload once, at press: dragUri() may write a temp PNG for
+        // an unsaved image, so it must not run from a reactive binding. Pausing
+        // auto-hide from press (not just drag start) keeps it simple; a plain
+        // click clears it again on release, long before the 8s timer matters.
+        onPressed: { uri = notif.dragUri(); popup.dragging = true }
+        onReleased: { dragProxy.x = 0; dragProxy.y = 0; popup.dragging = false }
+        onCanceled: popup.dragging = false
+        onClicked: if (!drag.active && notif.kind === "image") notif.preview()
+        Item {
+            id: dragProxy
+            width: 1; height: 1
+            Drag.active: parent.drag.active
+            Drag.dragType: Drag.Automatic
+            Drag.supportedActions: Qt.CopyAction
+            Drag.mimeData: { "text/uri-list": parent.uri }
+            Drag.imageSource: notif.thumbSource
         }
     }
 
@@ -127,7 +186,7 @@ Window {
         Timer {
             interval: Math.max(50, dismissTimer.interval / 30)
             repeat: true
-            running: popup.autoHideSec > 0 && !hover.hovered
+            running: popup.autoHideSec > 0 && !hover.hovered && !popup.dragging
             onRunningChanged: if (running) card.drain = 1.0
             onTriggered: card.drain = Math.max(0, card.drain - 1 / 30)
         }
@@ -165,13 +224,8 @@ Window {
                         font.pixelSize: 9; font.bold: true
                     }
                 }
-                // Click the thumbnail to pop out a floating, pinnable preview.
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: notif.kind === "image"
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: notif.preview()
-                }
+                // Click = floating preview; drag = pull the file out (DragThumb).
+                DragThumb {}
             }
 
             Column {
@@ -209,12 +263,7 @@ Window {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: notif.kind === "image"
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: notif.preview()
-                }
+                DragThumb {}
             }
             Column {
                 anchors.left: compactThumb.right
@@ -248,12 +297,7 @@ Window {
                     asynchronous: true
                     sourceSize: Qt.size(72, 72)
                 }
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: notif.kind === "image"
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: notif.preview()
-                }
+                DragThumb {}
             }
             UIconButton {
                 id: smallClose
@@ -336,13 +380,10 @@ Window {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                 }
-                // Click anywhere = floating preview (when no button hit first).
-                MouseArea {
-                    anchors.fill: parent
-                    enabled: notif.kind === "image"
-                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                    onClicked: notif.preview()
-                }
+                // Click = preview, drag = pull the file out. Declared before the
+                // scrim/actions overlay so those (higher in the stack) keep their
+                // own clicks; the drag starts from the rest of the image.
+                DragThumb {}
                 // Bottom strip: filename over a scrim.
                 Rectangle {
                     anchors.left: parent.left

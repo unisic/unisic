@@ -34,7 +34,6 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
-    QString kindText() const { return m_kind; }
     QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
     // The history entry created for this capture (0 = none). Save/upload use
     // it to address exactly this entry — never "the newest pathless one".
@@ -44,10 +43,19 @@ public:
     void setUrl(const QString &url);
     void setUploading(bool on);
 
+    // A file URL the drop target can copy when the thumbnail is dragged out to
+    // another app. Saved captures/recordings hand over their real file; an
+    // unsaved (clipboard-only) image is written to a private temp PNG once so it
+    // can still be dragged before the user explicitly saves. Not const — it may
+    // materialize that temp file; call it at drag-start, never from a binding.
+    Q_INVOKABLE QString dragUri();
+
     Q_INVOKABLE void edit();
     Q_INVOKABLE void preview();       // open the floating pinnable preview window
     Q_INVOKABLE void copyImage();
+    Q_INVOKABLE void copyAs(const QString &format);
     Q_INVOKABLE void copyUrl();
+    Q_INVOKABLE void showQr();
     Q_INVOKABLE void showInFolder();
     Q_INVOKABLE void openCapture();   // open the saved file (saving first if needed)
     Q_INVOKABLE void save();
@@ -68,6 +76,7 @@ private:
     QString m_url;
     QString m_thumbSource;
     QString m_thumbFile;
+    QString m_dragFile;         // temp full-res PNG for dragging an unsaved capture
     quint64 m_historyId = 0;    // cached on-disk thumbnail, removed in the destructor
     bool m_uploading = false;
 };

@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.7.0 LANGUAGES CXX)
+project(unisic VERSION 0.7.1 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.7b")
+set(UNISIC_VERSION_STRING "0.7.1b")
 
 include(GNUInstallDirs)
 
@@ -21,14 +21,6 @@ pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
 # GNOME/Mutter don't, and there we fall back to the native desktop notification).
 find_package(LayerShellQt QUIET)
 pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
-# Optional: U-2-Net saliency background removal via onnxruntime. Fedora ships a
-# CMake config + a pkg-config file under different names across versions, so try
-# both. Absent → the app falls back to the dependency-free heuristic segmenter.
-find_package(onnxruntime CONFIG QUIET)
-if(NOT onnxruntime_FOUND)
-    pkg_check_modules(ONNXRUNTIME IMPORTED_TARGET libonnxruntime)
-endif()
-
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
 # QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
@@ -56,8 +48,10 @@ qt_add_executable(unisic
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
+    src/editor/ImageEffects.h src/editor/ImageEffects.cpp
     src/overlay/OverlayController.h src/overlay/OverlayController.cpp
     src/upload/UploadManager.h src/upload/UploadManager.cpp
+    src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
@@ -67,7 +61,8 @@ qt_add_executable(unisic
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
-    src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+    src/notify/NotificationHelper.h src/notify/NotificationHelper.cpp
+    src/notify/NotificationInhibitor.h src/notify/NotificationInhibitor.cpp
 )
 
 # qt_standard_project_setup bakes an $ORIGIN install-RPATH into the binary;
@@ -143,24 +138,6 @@ else()
     message(WARNING "tesseract/leptonica not found — OCR (copy text from capture) will be disabled")
 endif()
 
-# NOTE: no packaging channel installs onnxruntime (neither the COPR spec's
-# BuildRequires, nor the deb/rpm/arch/appimage CI jobs), so HAVE_ONNX
-# is OFF in every shipped build — U-2-Net background removal is dev-only and the
-# app falls back to the dependency-free heuristic segmenter. This is deliberate:
-# enabling it means adding onnxruntime to the spec + all packaging deps.
-if(onnxruntime_FOUND OR ONNXRUNTIME_FOUND)
-    target_sources(unisic PRIVATE src/segment/U2NetSegmenter.h src/segment/U2NetSegmenter.cpp)
-    if(onnxruntime_FOUND)
-        target_link_libraries(unisic PRIVATE onnxruntime::onnxruntime)
-    else()
-        target_link_libraries(unisic PRIVATE PkgConfig::ONNXRUNTIME)
-    endif()
-    target_compile_definitions(unisic PRIVATE HAVE_ONNX)
-    message(STATUS "U-2-Net background removal: enabled (onnxruntime)")
-else()
-    message(STATUS "U-2-Net background removal: disabled (needs onnxruntime-devel) — heuristic cutout still works")
-endif()
-
 if(LayerShellQt_FOUND AND WAYLAND_CLIENT_FOUND)
     target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp)
     target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
@@ -188,6 +165,7 @@ qt_add_qml_module(unisic
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
         qml/PreviewWindow.qml
+        qml/TrimWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
@@ -197,6 +175,7 @@ qt_add_qml_module(unisic
         qml/components/UButton.qml
         qml/components/UIcon.qml
         qml/components/UIconButton.qml
+        qml/components/USplitIconButton.qml
         qml/components/UCard.qml
         qml/components/USwitch.qml
         qml/components/USlider.qml
@@ -207,9 +186,10 @@ qt_add_qml_module(unisic
         qml/components/UValueCombo.qml
         qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
-        qml/components/UShortcutsHelp.qml
+        qml/components/UPatchNotes.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml
+        qml/components/VideoPreview.qml
         qml/components/SidebarItem.qml
         qml/components/ToolChip.qml
         qml/components/ToolPropsBar.qml
@@ -226,6 +206,7 @@ target_link_libraries(unisic PRIVATE
 )
 
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
+qt_add_resources(unisic "changelog" PREFIX "/" FILES resources/CHANGELOG.md)
 
 file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
@@ -298,7 +279,7 @@ set(CPACK_PACKAGE_NAME "unisic")
 set(CPACK_PACKAGE_VENDOR "Unisic")
 set(CPACK_PACKAGE_CONTACT "Unisic maintainers")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Capture, annotate, record and share your screen on Linux Wayland")
-set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, object cutout), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
+set(CPACK_PACKAGE_DESCRIPTION "Unisic covers the whole workflow after you press the hotkey: annotate on the selection overlay before the shot is taken, keep editing afterwards (blur, pixelate, numbered steps, crop, smart eraser), record the same region as GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path on KDE Plasma. Zero telemetry.")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/unisic/unisic")
 set(CPACK_PACKAGE_VERSION ${UNISIC_VERSION_STRING})
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${UNISIC_VERSION_STRING}-${CMAKE_SYSTEM_PROCESSOR}")
@@ -378,22 +359,14 @@ if(BUILD_TESTING)
     target_include_directories(unisic_version_compare_test PRIVATE src/update)
     add_test(NAME unisic_version_compare_test COMMAND unisic_version_compare_test)
 
-    qt_add_executable(unisic_object_detector_test
-        tests/ObjectDetectorTest.cpp
-        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
-    )
-    target_link_libraries(unisic_object_detector_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-    target_include_directories(unisic_object_detector_test PRIVATE src/overlay)
-    add_test(NAME unisic_object_detector_test COMMAND unisic_object_detector_test)
-
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
-        src/overlay/ObjectDetector.h src/overlay/ObjectDetector.cpp
+        src/editor/ImageEffects.h src/editor/ImageEffects.cpp
     )
     target_link_libraries(unisic_annotation_canvas_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
-    target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor src/overlay)
+    target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor)
     add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
     set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

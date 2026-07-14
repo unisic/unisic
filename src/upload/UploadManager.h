@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <functional>
 #include <qqmlregistration.h>
+#include <QUrl>
 
 class QNetworkAccessManager;
 class Settings;
@@ -53,6 +54,8 @@ public:
 
     void uploadFile(const QString &filePath, Callback cb);
     void uploadData(const QByteArray &data, const QString &fileName, const QString &mime, Callback cb);
+    void uploadDataTo(const QString &destination, const QByteArray &data,
+                      const QString &fileName, const QString &mime, Callback cb);
 
     QVariantList destinationsVariant() const;
     bool busy() const { return m_busy; }
@@ -79,6 +82,7 @@ signals:
 
 private:
     QJsonObject activeDestination() const;
+    QJsonObject destinationNamed(const QString &name) const;
     void loadDestinations();
     void persistDestinations();
     void ensureBuiltins();
@@ -92,7 +96,7 @@ private:
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                     const QString &fileName, Callback cb);
     void startUpload(const QByteArray &data, const QString &srcPath, const QString &fileName,
-                     const QString &mime, Callback cb);
+                     const QString &mime, const QString &destination, Callback cb);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
     void setBusy(bool b);

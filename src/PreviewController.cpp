@@ -82,12 +82,6 @@ void PreviewController::applyWindowFlags()
     m_win->setFlag(Qt::WindowStaysOnTopHint, m_pinned);
 }
 
-void PreviewController::closeWindow()
-{
-    if (m_win)
-        m_win->close();
-}
-
 void PreviewController::startMove()
 {
     if (m_win && !m_layerShell)

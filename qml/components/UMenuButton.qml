@@ -13,10 +13,35 @@ Rectangle {
 
     property string text: ""
     property string iconName: ""
+    property string tooltip: ""
+    // Keeps menus usable in dense action rows without creating a separate,
+    // subtly different icon-menu control.
+    property bool iconOnly: false
     property var actions: []
 
+    // The popup used to be pinned at 220px with the label growing right and the
+    // hint growing left, so long (esp. localized) strings collided and clipped.
+    // Measure the widest label+hint row and size the popup to fit (clamped to
+    // the overlay); the row layout below also elides the label as a backstop.
+    TextMetrics { id: _tmLabel; font.pixelSize: Theme.fontM; font.weight: Font.DemiBold }
+    TextMetrics { id: _tmHint;  font.pixelSize: Theme.fontS }
+    function measureContentWidth() {
+        var w = 220
+        for (var i = 0; i < actions.length; ++i) {
+            var a = actions[i]
+            _tmLabel.text = a.label || ""
+            var lw = _tmLabel.width
+            var hw = 0
+            if (a.hint) { _tmHint.text = a.hint; hw = _tmHint.width + 24 }
+            var iconw = (a.iconName !== undefined && a.iconName !== "") ? 27 : 0
+            // 10 left pad + icon + label + hint(+gap) + 10 right pad + 12 popup padding
+            w = Math.max(w, 10 + iconw + lw + hw + 10 + 12)
+        }
+        return Math.ceil(w)
+    }
+
     readonly property bool _hovered: mouse.containsMouse && !mouse.pressed
-    implicitWidth: rowC.implicitWidth + 34
+    implicitWidth: iconOnly ? 38 : rowC.implicitWidth + 34
     implicitHeight: 42
     radius: height / 2
     color: (popup.opened || _hovered) ? Qt.lighter(Theme.tertiary, 1.12) : Theme.tertiary
@@ -36,12 +61,13 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {
-            visible: root.text !== ""
+            visible: !root.iconOnly && root.text !== ""
             text: root.text; font.pixelSize: Theme.fontM; font.weight: Font.DemiBold
             color: Theme.textPrimary
             anchors.verticalCenter: parent.verticalCenter
         }
         UIcon {
+            visible: !root.iconOnly
             name: "chevron-down"; size: 14; color: Theme.textSecondary
             rotation: popup.opened ? 180 : 0
             anchors.verticalCenter: parent.verticalCenter
@@ -68,10 +94,22 @@ Rectangle {
         onClicked: popup.opened ? popup.close() : popup.open()
     }
 
+    UHoverTip {
+        anchor: root
+        text: root.tooltip
+        show: mouse.containsMouse && root.tooltip !== ""
+    }
+
     C.Popup {
         id: popup
         parent: C.Overlay.overlay
-        width: Math.max(root.width, 220)
+        // Recomputed on open (onAboutToShow) so newly-bound actions are measured.
+        // (Not named contentWidth — that shadows QQuickPopup's final property.)
+        property real measuredWidth: 220
+        width: {
+            var maxW = C.Overlay.overlay ? C.Overlay.overlay.width - 16 : 600
+            return Math.min(maxW, Math.max(root.width, measuredWidth))
+        }
         height: col.implicitHeight + 12
         z: catcher.z + 1
         padding: 6
@@ -81,6 +119,7 @@ Rectangle {
         // The bar is at the window's bottom edge → prefer opening above; flip
         // below only if there is no room above. x is clamped to the overlay.
         onAboutToShow: {
+            measuredWidth = root.measureContentWidth()
             var o = C.Overlay.overlay
             var p = root.mapToItem(o, 0, root.height + 6)
             x = Math.max(0, Math.min(p.x, o.width - width))
@@ -116,26 +155,33 @@ Rectangle {
                         readonly property bool _on: modelData.enabled !== false
                         opacity: _on ? 1 : 0.4
                         color: rMouse.containsMouse && _on ? Theme.tertiary : "transparent"
-                        Row {
+                        // Anchored icon / label / hint: the hint owns the right
+                        // edge, the label fills the gap and elides — so a long
+                        // label or hint can never overlap or clip the other.
+                        UIcon {
+                            id: rowIcon
+                            visible: modelData.iconName !== undefined && modelData.iconName !== ""
+                            name: modelData.iconName || ""; size: 17; color: Theme.textPrimary
                             anchors.left: parent.left; anchors.leftMargin: 10
-                            anchors.verticalCenter: parent.verticalCenter; spacing: 10
-                            UIcon {
-                                visible: modelData.iconName !== undefined && modelData.iconName !== ""
-                                name: modelData.iconName || ""; size: 17; color: Theme.textPrimary
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Text {
-                                text: modelData.label; color: Theme.textPrimary
-                                font.pixelSize: Theme.fontM
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                            anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
+                            id: rowHint
                             visible: !!modelData.hint
                             anchors.right: parent.right; anchors.rightMargin: 10
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.hint || ""; color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                        }
+                        Text {
+                            text: modelData.label; color: Theme.textPrimary
+                            font.pixelSize: Theme.fontM
+                            elide: Text.ElideRight
+                            anchors.left: rowIcon.visible ? rowIcon.right : parent.left
+                            anchors.leftMargin: 10
+                            anchors.right: rowHint.visible ? rowHint.left : parent.right
+                            anchors.rightMargin: rowHint.visible ? 12 : 10
+                            anchors.verticalCenter: parent.verticalCenter
                         }
                         MouseArea {
                             id: rMouse

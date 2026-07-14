@@ -40,7 +40,6 @@ public:
     // platform window can still be created as a layer surface.
     void attach();
 
-    Q_INVOKABLE void closeWindow();
     Q_INVOKABLE void startMove();               // non-layer: hand a move-grab to the compositor
     // Layer mode: clip pointer input to the card's rect (logical px in window
     // coords) so everything outside it clicks through to the desktop.

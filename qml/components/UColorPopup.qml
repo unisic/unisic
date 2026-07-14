@@ -10,8 +10,6 @@ import Unisic
 Popup {
     id: root
 
-    // Live value; open() decomposes it into h/s/v/a.
-    property color selected: "#ffffff"
     property bool showAlpha: false
     // Scrim darkness behind the picker. Kept LIGHT by default: the whole point
     // of the in-scene picker is comparing the colour against the image, which
@@ -46,7 +44,6 @@ Popup {
     readonly property color col: Qt.hsva(hue, sat, val, alpha)
 
     function openWith(c) {
-        selected = c
         hue = c.hsvHue >= 0 ? c.hsvHue : 0
         sat = c.hsvSaturation
         val = c.hsvValue

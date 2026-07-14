@@ -14,16 +14,15 @@ QtObject {
     readonly property var tools: [
         { id: "select",     tool: 0,  iconName: "select-rectangular", label: qsTr("Select"),       overlay: true,  editor: false, hideable: false, props: [] },
         { id: "edit",       tool: 14, iconName: "hand-pointing",      label: qsTr("Edit shapes"),  overlay: true,  editor: true,  hideable: true,  props: [] },
-        // Superseded in the overlay by "Smart pick" (Settings > Capture):
-        // a plain CLICK during region selection picks the detected object.
-        { id: "object",     tool: 13, iconName: "object-pick",        label: qsTr("Pick object"),  overlay: false, editor: false, hideable: false, props: [] },
         { id: "pen",        tool: 1,  iconName: "draw-freehand",      label: qsTr("Pen"),          overlay: true,  editor: true,  hideable: true,  props: ["stroke", "width"] },
         { id: "line",       tool: 2,  iconName: "draw-line",          label: qsTr("Line"),         overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width"] },
-        { id: "arrow",      tool: 3,  iconName: "draw-arrow",         label: qsTr("Arrow"),        overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width"] },
+        { id: "arrow",      tool: 3,  iconName: "draw-arrow",         label: qsTr("Arrow"),        overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width", "arrowhead"] },
+        { id: "measure",    tool: 17, iconName: "measure",            label: qsTr("Measure"),      overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width"] },
         { id: "rect",       tool: 4,  iconName: "draw-rectangle",     label: qsTr("Rectangle"),    overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width", "fill"] },
         { id: "ellipse",    tool: 5,  iconName: "draw-ellipse",       label: qsTr("Ellipse"),      overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width", "fill"] },
+        { id: "callout",    tool: 16, iconName: "dialog-information", label: qsTr("Callout"),      overlay: true,  editor: true,  hideable: true,  group: "shapes", props: ["stroke", "width", "fill"] },
         { id: "text",       tool: 6,  iconName: "draw-text",          label: qsTr("Text"),         overlay: true,  editor: true,  hideable: true,  props: ["stroke", "font"] },
-        { id: "highlight",  tool: 9,  iconName: "draw-highlight",     label: qsTr("Highlight"),    overlay: true,  editor: true,  hideable: true,  props: ["stroke"] },
+        { id: "highlight",  tool: 9,  iconName: "draw-highlight",     label: qsTr("Highlight"),    overlay: true,  editor: true,  hideable: true,  props: ["highlightMode", "stroke", "width"] },
         { id: "blur",       tool: 7,  iconName: "blur",               label: qsTr("Blur"),         overlay: true,  editor: true,  hideable: true,  props: [] },
         { id: "pixelate",   tool: 8,  iconName: "pixelate",           label: qsTr("Pixelate"),     overlay: true,  editor: true,  hideable: true,  props: ["width"] },
         { id: "smarterase", tool: 12, iconName: "draw-eraser",        label: qsTr("Smart eraser"), overlay: true,  editor: true,  hideable: true,  props: [] },
@@ -63,11 +62,6 @@ QtObject {
             out.push(t)
         }
         return out
-    }
-
-    // The main toolbar row: visible tools that are NOT behind a group chip.
-    function visibleUngrouped(ctx, hiddenCsv) {
-        return visibleFor(ctx, hiddenCsv).filter(function (t) { return !t.group })
     }
 
     // Visible members of a group (the group chip hides when this is empty).

@@ -1,36 +1,61 @@
 #include "AnnotationCanvas.h"
-#include "overlay/ObjectDetector.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
+#include <QLinearGradient>
 #include <QFontMetricsF>
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QHoverEvent>
 #include <QCursor>
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QMimeData>
 #include <QtMath>
 #include <QtConcurrent>
 #include <QFutureWatcher>
 #include <algorithm>
 #include <cmath>
 
+// A callout is intentionally just a shape: the established Text tool remains
+// responsible for multilingual/font-aware content and can be placed inside the
+// bubble. This keeps a placed annotation compact (one rect, no text editor
+// state) while still making directions and notes stand out in a capture.
+static qreal calloutTailHeight(const QRectF &rect)
+{
+    return qBound(10.0, rect.normalized().height() * 0.25, 42.0);
+}
+
+static QPainterPath calloutPath(const QRectF &rect)
+{
+    const QRectF r = rect.normalized();
+    QPainterPath path;
+    if (r.width() < 2 || r.height() < 2)
+        return path;
+
+    const qreal radius = qMin(12.0, qMin(r.width(), r.height()) / 4.0);
+    path.addRoundedRect(r, radius, radius);
+    if (r.width() < 12 || r.height() < 12)
+        return path;
+
+    const qreal tailWidth = qBound(12.0, r.width() * 0.24, 42.0);
+    const qreal baseLeft = r.left() + qMax(radius, tailWidth * 0.35);
+    const qreal baseRight = qMin(r.right() - radius, baseLeft + tailWidth);
+    QPainterPath tail;
+    tail.moveTo(baseLeft, r.bottom() - 1.0);
+    tail.lineTo(baseLeft - tailWidth * 0.42, r.bottom() + calloutTailHeight(r));
+    tail.lineTo(baseRight, r.bottom() - 1.0);
+    tail.closeSubpath();
+    return path.united(tail);
+}
+
 AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
     : QQuickPaintedItem(parent)
 {
-    setAcceptedMouseButtons(Qt::LeftButton);
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
     setAcceptHoverEvents(true);
     setAntialiasing(true);
     setCursor(Qt::CrossCursor);
-    // Debounce for nudge-driven re-segmentation: arrow-key autorepeat would
-    // otherwise queue one full segmentation job per repeat.
-    m_nudgeTimer = new QTimer(this);
-    m_nudgeTimer->setSingleShot(true);
-    m_nudgeTimer->setInterval(150);
-    connect(m_nudgeTimer, &QTimer::timeout, this, &AnnotationCanvas::startSegmentation);
-}
-
-bool AnnotationCanvas::segmenting() const
-{
-    return m_segmentActive > 0 || (m_nudgeTimer && m_nudgeTimer->isActive());
 }
 
 void AnnotationCanvas::setImage(const QImage &img)
@@ -49,31 +74,22 @@ void AnnotationCanvas::setImage(const QImage &img)
     ++m_ocrSeq;
     if (m_ocrMode || !m_ocrWords.isEmpty()) {
         m_ocrMode = false; m_ocrBusy = false; m_ocrDragging = false;
-        m_ocrWords.clear(); m_ocrSelAnchor = m_ocrSelCaret = -1;
-        m_ocrHoverGlyph = -1; m_ocrDidDrag = false;
+        m_ocrWords.clear(); m_ocrLines.clear();
+        m_ocrCaretA = m_ocrCaretB = m_ocrPressCaret = -1;
+        m_ocrHoverLine = -1; m_ocrDidDrag = false;
         emit ocrChanged();
     }
-    // Object-pick state belongs to the previous image; stale rects would also
-    // block re-detection (setTool only detects when candidates are empty).
-    m_objectCandidates.clear();
-    m_hoverChain.clear();
-    m_pickOffset = 0;
-    m_hoverObject = QRect();
-    m_hoverObjectKind.clear();
-    clearObjectMask();
-    if (m_detectWatcher) {
-        // Let the stale run finish detached; its lambda must not deliver.
-        m_detectWatcher->disconnect(this);
-        connect(m_detectWatcher, &QFutureWatcher<QVector<QRect>>::finished,
-                m_detectWatcher, &QObject::deleteLater);
-        m_detectWatcher = nullptr;
-    }
+    // Text-aware Highlight glyph boxes are in the old base's pixel space; drop
+    // them and allow one fresh request when the Highlight tool is next used.
+    m_glyphBoxes.clear();
+    m_glyphBoxesReady = false;
+    m_glyphBoxesRequested = false;
+    m_glyphBoxesBaseKey = -1;
     emit imageChanged();
     emit historyChanged();
     emit selectionRectChanged();
     emit renderScaleChanged();
-    update();    if (m_smartPick && m_selectionMode)
-        ensureObjectCandidates();
+    update();
 }
 
 qreal AnnotationCanvas::renderScale() const
@@ -85,10 +101,16 @@ qreal AnnotationCanvas::renderScale() const
 void AnnotationCanvas::setTool(int t)
 {
     if (m_tool == t) return;
-    const bool leftObjectPick = (m_tool == ObjectPick);
     const bool leftHighlight = (m_tool == Highlight);
     m_tool = t;
     emit toolChanged();
+    // Text-aware Highlight: request glyph boxes once so the next drag over text
+    // can snap to the line(s). The editor answers via setGlyphBoxes(); the
+    // overlay has no OCR wiring and simply leaves the highlighter plain.
+    if (t == Highlight && !m_glyphBoxesReady && !m_glyphBoxesRequested) {
+        m_glyphBoxesRequested = true;
+        emit glyphBoxesRequested();
+    }
     // Until the user explicitly picks a color, the highlighter defaults to
     // yellow instead of the stock red. Flip the live color both ways so the
     // toolbar dot always shows exactly what a stroke will draw — and an
@@ -104,47 +126,10 @@ void AnnotationCanvas::setTool(int t)
             emit strokeColorChanged();
         }
     }
-    if (leftObjectPick)
-        clearObjectMask();
     // Leaving EditShapes drops the placed-shape selection (its handles/outline
     // must not linger under a drawing tool).
     if (t != EditShapes && m_selectedAnnot >= 0)
         clearAnnotSelection();
-    if (t == ObjectPick) {
-        m_hoverObject = QRect();
-        m_hoverObjectKind.clear();
-        ensureObjectCandidates();
-    }
-    update();
-}
-
-void AnnotationCanvas::ensureObjectCandidates()
-{
-    // Detect candidate objects once, off the GUI thread (a few tens of ms).
-    if (m_objectCandidates.isEmpty() && !m_base.isNull() && !m_detectWatcher) {
-        m_detectWatcher = new QFutureWatcher<QVector<ObjectDetector::Candidate>>(this);
-        connect(m_detectWatcher, &QFutureWatcher<QVector<ObjectDetector::Candidate>>::finished, this, [this] {
-            m_objectCandidates = m_detectWatcher->result();
-            m_detectWatcher->deleteLater();
-            m_detectWatcher = nullptr;
-            if (!m_lastHoverImg.isNull())
-                updateHoverObject(m_lastHoverImg);
-            update();
-        });
-        m_detectWatcher->setFuture(QtConcurrent::run(ObjectDetector::detectCandidates, m_base));
-    }
-}
-
-void AnnotationCanvas::setSmartPick(bool on)
-{
-    if (m_smartPick == on)
-        return;
-    m_smartPick = on;
-    // Start detecting right away: the candidates must be ready by the time
-    // the user's first click lands (the pass runs off-thread).
-    if (on && m_selectionMode)
-        ensureObjectCandidates();
-    emit smartPickChanged();
     update();
 }
 
@@ -163,7 +148,7 @@ void AnnotationCanvas::setColorPicking(bool on)
 namespace {
 enum PropId { PStroke, PFillColor, PFillEnabled, PWidth, PFontSize, PFontFamily,
               PBold, PItalic, PUnderline, POutline, POutlineColor, PTextBg,
-              PTextBgColor, PGeometry, PStepSize };
+              PTextBgColor, PGeometry, PStepSize, PArrowHead };
 }
 
 void AnnotationCanvas::setStrokeColor(const QColor &c)
@@ -200,6 +185,31 @@ void AnnotationCanvas::setStrokeWidth(int w)
     m_strokeWidth = w;
     emit strokeWidthChanged();
     routeToSelected(PWidth);
+}
+
+void AnnotationCanvas::setArrowHeadStyle(int style)
+{
+    style = qBound(0, style, 2);
+    if (m_arrowHeadStyle == style) return;
+    m_arrowHeadStyle = style;
+    emit arrowHeadStyleChanged();
+    routeToSelected(PArrowHead);
+}
+
+void AnnotationCanvas::setHighlightMode(int mode)
+{
+    mode = qBound(int(HlFreehand), mode, int(HlText));
+    if (m_highlightMode == mode) return;
+    m_highlightMode = mode;
+    emit highlightModeChanged();
+    // Text-snap needs the glyph boxes; request them once if the switch happened
+    // while already on the Highlight tool (setTool only asks on tool entry).
+    if (m_tool == Highlight && mode == HlText
+        && !m_glyphBoxesReady && !m_glyphBoxesRequested) {
+        m_glyphBoxesRequested = true;
+        emit glyphBoxesRequested();
+    }
+    update();
 }
 
 void AnnotationCanvas::setFontSize(int s)
@@ -290,125 +300,10 @@ void AnnotationCanvas::setSelectionMode(bool on)
     update();
 }
 
-// Grayscale8 -> Alpha8 the only reliable way: convertToFormat routes through
-// RGB (gray becomes an opaque color) and yields an all-255 alpha image, which
-// silently turned both the cutout and its preview into no-ops. Both formats
-// are 1 byte/px, so a per-scanline copy of the gray values IS the alpha plane.
-static QImage grayToAlpha(const QImage &gray)
-{
-    QImage a(gray.size(), QImage::Format_Alpha8);
-    for (int y = 0; y < gray.height(); ++y)
-        memcpy(a.scanLine(y), gray.constScanLine(y), size_t(gray.width()));
-    return a;
-}
-
-void AnnotationCanvas::startSegmentation()
-{
-    if (m_base.isNull() || !hasSelection()) {
-        // A pending nudge-debounce timer counted as segmenting() until this
-        // fire — notify, or the pill and a deferred confirm wait forever.
-        emit segmentingChanged();
-        return;
-    }
-    const QRect r = m_selection.toAlignedRect().intersected(m_base.rect());
-    m_objectMask = {};
-    m_objectMaskRect = {};
-    m_maskOverlay = {};
-    m_segmentRect = r;
-    const quint64 seq = ++m_segmentSeq; // invalidates any in-flight run
-    if (r.width() < 12 || r.height() < 12) {
-        m_segmentRect = {};
-        emit segmentingChanged();
-        update();
-        return;
-    }
-    ++m_segmentActive;
-    emit segmentingChanged();
-    auto *w = new QFutureWatcher<QImage>(this);
-    connect(w, &QFutureWatcher<QImage>::finished, this, [this, w, seq, r] {
-        const QImage mask = w->result();
-        w->deleteLater();
-        --m_segmentActive;
-        // A degenerate result must not poison m_segmentRect: re-clicking the
-        // same candidate should retry, not become a permanent no-op.
-        if (seq == m_segmentSeq && mask.isNull())
-            m_segmentRect = {};
-        if (seq == m_segmentSeq && !mask.isNull()) {
-            m_objectMask = mask;
-            m_objectMaskRect = r;
-            // Preview overlay: dark tint exactly where the mask removes pixels.
-            QImage inv = mask;
-            inv.invertPixels();
-            m_maskOverlay = QImage(mask.size(), QImage::Format_ARGB32_Premultiplied);
-            { QColor sc = m_uiScrim; sc.setAlpha(200); m_maskOverlay.fill(sc); }
-            QPainter p(&m_maskOverlay);
-            p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-            p.drawImage(0, 0, grayToAlpha(inv));
-            p.end();
-        }
-        emit segmentingChanged();
-        update();
-    });
-    const QImage base = m_base; // shared copy; the worker only reads it
-    // Prefer the external (U-2-Net) segmenter when installed; a null result
-    // (missing model / inference error) falls back to the heuristic pass so the
-    // cutout still works without onnxruntime.
-    const auto external = m_externalSegmenter;
-    w->setFuture(QtConcurrent::run([base, r, external] {
-        if (external) {
-            const QImage m = external(base, r);
-            if (!m.isNull())
-                return m;
-        }
-        return ObjectDetector::segment(base, r);
-    }));
-}
-
-void AnnotationCanvas::applyBaseMask(const QImage &mask)
-{
-    if (m_base.isNull() || mask.isNull())
-        return;
-    // Composite the keep-mask into the base's alpha: everything the mask
-    // rejects becomes transparent. Undoable like a crop.
-    const QImage m = (mask.size() == m_base.size())
-                         ? mask
-                         : mask.scaled(m_base.size(), Qt::IgnoreAspectRatio,
-                                       Qt::SmoothTransformation);
-    pushUndo();
-    QPainter p(&m_base);
-    p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-    p.drawImage(0, 0, grayToAlpha(m.convertToFormat(QImage::Format_Grayscale8)));
-    p.end();
-    emit imageChanged();
-    update();
-}
-
-void AnnotationCanvas::clearObjectMask()
-{
-    ++m_segmentSeq; // drop any in-flight result
-    const bool wasSegmenting = segmenting();
-    const bool had = !m_objectMask.isNull();
-    if (m_nudgeTimer)
-        m_nudgeTimer->stop();
-    m_objectMask = {};
-    m_objectMaskRect = {};
-    m_maskOverlay = {};
-    m_segmentRect = {};
-    if (had || wasSegmenting != segmenting())
-        emit segmentingChanged();
-}
-
 QPointF AnnotationCanvas::toImage(qreal itemX, qreal itemY) const
 {
     const qreal s = renderScale();
     return s > 0 ? QPointF(itemX / s, itemY / s) : QPointF(itemX, itemY);
-}
-
-QRectF AnnotationCanvas::selectionInItemCoords() const
-{
-    const qreal s = renderScale();
-    return QRectF(m_selection.x() * s, m_selection.y() * s,
-                  m_selection.width() * s, m_selection.height() * s);
 }
 
 void AnnotationCanvas::geometryChange(const QRectF &n, const QRectF &o)
@@ -482,16 +377,6 @@ void AnnotationCanvas::redo()
     update();
 }
 
-void AnnotationCanvas::clearAnnotations()
-{
-    if (m_items.isEmpty()) return;
-    pushUndo();
-    m_items.clear();
-    m_stepCounter = 0;
-    if (m_selectedAnnot >= 0) { m_selectedAnnot = -1; restoreStyleBackup(); emit selectedAnnotChanged(); }
-    update();
-}
-
 void AnnotationCanvas::commitText(qreal imgX, qreal imgY, const QString &text)
 {
     if (text.trimmed().isEmpty()) return;
@@ -512,6 +397,43 @@ void AnnotationCanvas::commitText(qreal imgX, qreal imgY, const QString &text)
     a.textBgColor = m_textBgColor;
     m_items.append(a);
     update();
+}
+
+bool AnnotationCanvas::pasteClipboard(qreal imgX, qreal imgY)
+{
+    const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
+    if (!mime)
+        return false;
+    const QPointF origin(imgX, imgY);
+    if (mime->hasImage()) {
+        QImage image = qvariant_cast<QImage>(mime->imageData());
+        if (image.isNull())
+            return false;
+        image.setDevicePixelRatio(1.0);
+        QSizeF size = image.size();
+        // A pasted full-screen image should stay movable/editable instead of
+        // covering the whole canvas by default. Downscale ONCE here rather
+        // than asking QPainter to resample a 4K source on every canvas repaint;
+        // the visible/exported rect cannot use those discarded pixels anyway.
+        const QSizeF maxSize(m_base.width() * 0.6, m_base.height() * 0.6);
+        if (size.width() > maxSize.width() || size.height() > maxSize.height()) {
+            size.scale(maxSize, Qt::KeepAspectRatio);
+            image = image.scaled(size.toSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            size = image.size();
+        }
+        pushUndo();
+        Annot a;
+        a.type = PastedImage;
+        a.rect = QRectF(origin - QPointF(size.width() / 2.0, size.height() / 2.0), size);
+        a.image = image;
+        m_items.append(a);
+        updateImgRect(annotBoundsImg(a));
+        return true;
+    }
+    if (!mime->hasText() || mime->text().trimmed().isEmpty())
+        return false;
+    commitText(imgX, imgY, mime->text());
+    return true;
 }
 
 // ------------------------------------------------------ EditShapes: selection
@@ -540,8 +462,9 @@ void AnnotationCanvas::applyStyleToSelected()
     Annot &a = m_items[m_selectedAnnot];
     a.color = m_color;
     a.fillColor = m_fillColor;
-    a.filled = m_fillEnabled && (a.type == Rect || a.type == Ellipse);
+    a.filled = m_fillEnabled && (a.type == Rect || a.type == Ellipse || a.type == Callout);
     a.width = m_strokeWidth;
+    a.arrowHeadStyle = m_arrowHeadStyle;
     a.fontSize = m_fontSize;
     a.stepSize = m_stepSize;
     a.fontFamily = m_fontFamily;
@@ -583,6 +506,7 @@ void AnnotationCanvas::selectAnnot(int index)
             Annot &b = m_styleBackup;
             b.color = m_color; b.fillColor = m_fillColor; b.filled = m_fillEnabled;
             b.width = m_strokeWidth; b.fontSize = m_fontSize; b.stepSize = m_stepSize;
+            b.arrowHeadStyle = m_arrowHeadStyle;
             b.fontFamily = m_fontFamily;
             b.bold = m_fontBold; b.italic = m_fontItalic; b.underline = m_fontUnderline;
             b.outlined = m_textOutline; b.outlineColor = m_textOutlineColor;
@@ -602,6 +526,7 @@ void AnnotationCanvas::selectAnnot(int index)
         setShapeFillColor(a.fillColor);
         setShapeFillEnabled(a.filled);
         setStrokeWidth(int(a.width));
+        setArrowHeadStyle(a.arrowHeadStyle);
         setFontSize(a.fontSize);
         setStepSize(a.stepSize);
         setFontFamily(a.fontFamily);
@@ -637,6 +562,7 @@ void AnnotationCanvas::restoreStyleBackup()
     setShapeFillColor(b.fillColor);
     setShapeFillEnabled(b.filled);
     setStrokeWidth(int(b.width));
+    setArrowHeadStyle(b.arrowHeadStyle);
     setFontSize(b.fontSize);
     setStepSize(b.stepSize);
     setFontFamily(b.fontFamily);
@@ -665,10 +591,11 @@ void AnnotationCanvas::setOcrMode(bool on)
     m_ocrMode = on;
     if (!on) {
         m_ocrWords.clear();
-        m_ocrSelAnchor = m_ocrSelCaret = -1;
+        m_ocrLines.clear();
+        m_ocrCaretA = m_ocrCaretB = m_ocrPressCaret = -1;
         m_ocrBusy = false;
         m_ocrDragging = false;
-        m_ocrHoverGlyph = -1;
+        m_ocrHoverLine = -1;
         m_ocrDidDrag = false;
     } else {
         // Entering: any placed-shape selection chrome would clutter the overlay.
@@ -691,42 +618,127 @@ void AnnotationCanvas::setOcrBusy(bool on)
 void AnnotationCanvas::setOcrWords(const QVector<OcrWord> &words)
 {
     m_ocrWords = words;
-    m_ocrSelAnchor = m_ocrSelCaret = -1;
-    m_ocrHoverGlyph = -1;
+    rebuildOcrLines();
+    m_ocrCaretA = m_ocrCaretB = m_ocrPressCaret = -1;
+    m_ocrHoverLine = -1;
+    // Abandon any gesture in flight: a press-hold begun while OCR was still busy
+    // recorded m_ocrPressCaret=-1 (no words yet). Without clearing m_ocrDragging
+    // the continued drag would pin m_ocrCaretA at -1 and never form a selection.
+    m_ocrDragging = false;
     m_ocrDidDrag = false;
     m_ocrBusy = false;
     emit ocrChanged();
     update();
 }
 
-bool AnnotationCanvas::hasOcrSelection() const
+// Group the reading-order glyphs into text lines. A line is a contiguous run of
+// equal OcrWord::line (tesseract increments it monotonically per text line), and
+// its band is the union of the run's glyph rects — one clean rectangle per line.
+void AnnotationCanvas::rebuildOcrLines()
 {
-    return m_ocrSelAnchor >= 0 && m_ocrSelCaret >= 0;
+    m_ocrLines.clear();
+    const int n = m_ocrWords.size();
+    int i = 0;
+    while (i < n) {
+        const int ln = m_ocrWords[i].line;
+        OcrLine L;
+        L.first = i;
+        QRectF band(m_ocrWords[i].rect);
+        int j = i;
+        while (j < n && m_ocrWords[j].line == ln) { band |= QRectF(m_ocrWords[j].rect); ++j; }
+        L.last = j - 1;
+        L.band = band;
+        m_ocrLines.append(L);
+        i = j;
+    }
 }
 
-int AnnotationCanvas::ocrGlyphAt(const QPointF &pos) const
+bool AnnotationCanvas::hasOcrSelection() const
 {
-    // A glyph whose box contains the point wins; otherwise the nearest glyph
-    // by centre distance (so a click just above/below a line still selects).
+    return m_ocrCaretA >= 0 && m_ocrCaretB >= 0 && m_ocrCaretA != m_ocrCaretB;
+}
+
+int AnnotationCanvas::ocrLineOfGlyph(int g) const
+{
+    for (int k = 0; k < m_ocrLines.size(); ++k)
+        if (g >= m_ocrLines[k].first && g <= m_ocrLines[k].last)
+            return k;
+    return -1;
+}
+
+int AnnotationCanvas::ocrLineAt(const QPointF &p) const
+{
+    // Nearest text line, vertical distance dominating: a point in the gutter
+    // between two lines snaps to the vertically closer one, and horizontal
+    // position only breaks ties (e.g. two lines starting at the same y). -1 when
+    // there are no lines.
     int best = -1;
     qreal bestD = 1e18;
-    for (int i = 0; i < m_ocrWords.size(); ++i) {
-        const QRectF r(m_ocrWords[i].rect);
-        if (r.contains(pos))
-            return i;
-        const qreal d = QLineF(pos, r.center()).length();
-        if (d < bestD) { bestD = d; best = i; }
+    for (int k = 0; k < m_ocrLines.size(); ++k) {
+        const QRectF b = m_ocrLines[k].band;
+        qreal dy = 0;
+        if (p.y() < b.top()) dy = b.top() - p.y();
+        else if (p.y() > b.bottom()) dy = p.y() - b.bottom();
+        qreal dx = 0;
+        if (p.x() < b.left()) dx = b.left() - p.x();
+        else if (p.x() > b.right()) dx = p.x() - b.right();
+        const qreal d = dy * 4096.0 + dx; // y dominates; x is only a tiebreak
+        if (d < bestD) { bestD = d; best = k; }
     }
     return best;
 }
 
-void AnnotationCanvas::ocrExpandLine(int i, int &lo, int &hi) const
+bool AnnotationCanvas::ocrOverLine(const QPointF &p, int line) const
 {
-    if (m_ocrWords.isEmpty() || i < 0) { lo = hi = -1; return; }
-    const int ln = m_ocrWords[i].line;
-    lo = hi = i;
-    while (lo > 0 && m_ocrWords[lo - 1].line == ln) --lo;
-    while (hi + 1 < m_ocrWords.size() && m_ocrWords[hi + 1].line == ln) ++hi;
+    if (line < 0 || line >= m_ocrLines.size())
+        return false;
+    // A small margin around the band so an I-beam / line-click still lands when
+    // the cursor grazes the line's top/bottom or sits just past its ends.
+    const QRectF b = m_ocrLines[line].band;
+    const qreal padY = b.height() * 0.35;
+    const qreal padX = b.height() * 0.6;
+    return b.adjusted(-padX, -padY, padX, padY).contains(p);
+}
+
+int AnnotationCanvas::ocrCaretAt(const QPointF &p) const
+{
+    if (m_ocrWords.isEmpty())
+        return -1;
+    const int k = ocrLineAt(p);
+    if (k < 0)
+        return -1;
+    const OcrLine &L = m_ocrLines[k];
+    if (p.x() <= QRectF(m_ocrWords[L.first].rect).left())
+        return L.first;                       // caret before the line's first glyph
+    if (p.x() >= QRectF(m_ocrWords[L.last].rect).right())
+        return L.last + 1;                    // caret after the line's last glyph
+    // Otherwise the nearest inter-glyph gap on this line: for each glyph decide
+    // left- or right-edge by which side of its centre the cursor falls on.
+    for (int i = L.first; i <= L.last; ++i) {
+        const QRectF r(m_ocrWords[i].rect);
+        if (p.x() < r.center().x())
+            return i;                         // caret before glyph i
+        if (p.x() <= r.right())
+            return i + 1;                     // caret after glyph i
+    }
+    return L.last + 1;
+}
+
+int AnnotationCanvas::ocrGlyphAtOnLine(int line, qreal x) const
+{
+    if (line < 0 || line >= m_ocrLines.size())
+        return -1;
+    const OcrLine &L = m_ocrLines[line];
+    int best = L.first;
+    qreal bestD = 1e18;
+    for (int i = L.first; i <= L.last; ++i) {
+        const QRectF r(m_ocrWords[i].rect);
+        if (x >= r.left() && x <= r.right())
+            return i;
+        const qreal d = qMin(qAbs(x - r.left()), qAbs(x - r.right()));
+        if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
 }
 
 void AnnotationCanvas::ocrExpandWord(int i, int &lo, int &hi) const
@@ -742,34 +754,33 @@ void AnnotationCanvas::ocrExpandWord(int i, int &lo, int &hi) const
            && m_ocrWords[hi + 1].line == ln) ++hi;
 }
 
-QRectF AnnotationCanvas::ocrRangeBoxImg(int a, int b) const
+QRectF AnnotationCanvas::ocrCaretSpanDirty(int cA, int cB) const
 {
-    if (m_ocrWords.isEmpty() || a < 0 || b < 0)
+    const int n = m_ocrWords.size();
+    if (n == 0 || m_ocrLines.isEmpty())
         return {};
-    const int lo = qBound(0, qMin(a, b), int(m_ocrWords.size()) - 1);
-    const int hi = qBound(0, qMax(a, b), int(m_ocrWords.size()) - 1);
+    // Carets are glyph boundaries; the affected glyphs are [min .. max-1]. The
+    // selection bar for each touched line spans that line's FULL band height, so
+    // dirty whole line bands (not just the glyph rects) or a partial selection
+    // on a tall line would leave its ascenders/descenders un-repainted.
+    const int g0 = qBound(0, qMin(cA, cB), n - 1);
+    const int g1 = qBound(0, qMax(cA, cB) - 1, n - 1);
+    int k0 = ocrLineOfGlyph(g0);
+    int k1 = ocrLineOfGlyph(qMax(g0, g1));
+    if (k0 < 0) k0 = 0;
+    if (k1 < 0) k1 = m_ocrLines.size() - 1;
+    if (k1 < k0) { const int t = k0; k0 = k1; k1 = t; }
     QRectF box;
-    for (int i = lo; i <= hi; ++i)
-        box |= QRectF(m_ocrWords[i].rect);
-    // A few image px of slack for the highlight's -2 outset + rounded border
-    // (scales with the box in item space via updateImgRect).
+    for (int k = k0; k <= k1 && k < m_ocrLines.size(); ++k)
+        box |= m_ocrLines[k].band;
     return box.isNull() ? box : box.adjusted(-3, -3, 3, 3);
-}
-
-QRectF AnnotationCanvas::ocrLineBoxImg(int glyph) const
-{
-    if (glyph < 0 || glyph >= m_ocrWords.size())
-        return {};
-    int lo, hi;
-    ocrExpandLine(glyph, lo, hi);
-    return ocrRangeBoxImg(lo, hi);
 }
 
 void AnnotationCanvas::ocrSelectAll()
 {
     if (m_ocrWords.isEmpty()) return;
-    m_ocrSelAnchor = 0;
-    m_ocrSelCaret = m_ocrWords.size() - 1;
+    m_ocrCaretA = 0;
+    m_ocrCaretB = m_ocrWords.size();
     emit ocrChanged();
     update();
 }
@@ -778,13 +789,13 @@ QString AnnotationCanvas::ocrSelectedText() const
 {
     if (!hasOcrSelection())
         return {};
-    const int lo = qMin(m_ocrSelAnchor, m_ocrSelCaret);
-    const int hi = qMax(m_ocrSelAnchor, m_ocrSelCaret);
+    const int lo = qMin(m_ocrCaretA, m_ocrCaretB);
+    const int hiEx = qMax(m_ocrCaretA, m_ocrCaretB);
     // Glyphs joined in reading order: a space before a word boundary, a newline
     // where the line index advances. m_ocrWords is already in reading order.
     QString out;
     int lastLine = -1;
-    for (int i = lo; i <= hi && i < m_ocrWords.size(); ++i) {
+    for (int i = lo; i < hiEx && i < m_ocrWords.size(); ++i) {
         const OcrWord &g = m_ocrWords[i];
         if (lastLine < 0) {
             // first glyph
@@ -797,6 +808,173 @@ QString AnnotationCanvas::ocrSelectedText() const
         lastLine = g.line;
     }
     return out;
+}
+
+bool AnnotationCanvas::addOcrSelectionAnnotations(Tool type, const QColor &color,
+                                                  bool filled, const QColor &fillColor)
+{
+    if (!hasOcrSelection() || m_ocrWords.isEmpty())
+        return false;
+
+    // OCR glyphs are in reading order. Therefore the contiguous [lo..hi]
+    // range naturally clips the first line at the anchor and the last one at
+    // the caret; middle lines contain their complete spans. Keep every line
+    // separate so a multi-line selection produces real highlighter/redaction
+    // bars instead of one giant rectangle over the intervening blank space.
+    const int n = m_ocrWords.size();
+    const int lo = qBound(0, qMin(m_ocrCaretA, m_ocrCaretB), n - 1);
+    const int hiEx = qBound(0, qMax(m_ocrCaretA, m_ocrCaretB), n);
+    QVector<Annot> batch;
+    QRectF dirty;
+    int k = -1;
+    qreal xL = 0, xR = 0;
+    QRectF band;
+    auto flush = [&] {
+        if (k < 0)
+            return;
+        Annot a;
+        a.type = type;
+        // Full line-band height (a redaction bar must fully hide the text's
+        // ascenders/descenders), hugging the selected glyphs horizontally.
+        a.rect = QRectF(xL, band.top(), xR - xL, band.height());
+        a.color = color;
+        a.filled = filled;
+        a.fillColor = fillColor;
+        a.width = m_strokeWidth;
+        batch.append(a);
+        dirty |= annotBoundsImg(a);
+    };
+    for (int i = lo; i < hiEx; ++i) {
+        const int lk = ocrLineOfGlyph(i);
+        const QRectF gr(m_ocrWords[i].rect);
+        if (lk != k) {
+            flush();
+            k = lk;
+            band = (k >= 0 && k < m_ocrLines.size()) ? m_ocrLines[k].band : gr;
+            xL = gr.left();
+            xR = gr.right();
+        } else {
+            xL = qMin(xL, gr.left());
+            xR = qMax(xR, gr.right());
+        }
+    }
+    flush();
+    if (batch.isEmpty())
+        return false;
+
+    // The selection is one user action even when it spans several text lines.
+    pushUndo();
+    m_items += batch;
+    updateImgRect(dirty);
+    // Stay in OCR mode so highlight/redact can CHAIN (mark one phrase, then
+    // another) — the fresh marks are re-drawn on top of the scrim in paint().
+    // Just drop the transient range so the selection bar clears and the action
+    // buttons disable until the next pick; the explicit Done button exits.
+    m_ocrCaretA = m_ocrCaretB = -1;
+    m_ocrHoverLine = -1;
+    emit ocrChanged();
+    update();
+    return true;
+}
+
+bool AnnotationCanvas::highlightOcrSelection()
+{
+    // Match the Highlight tool's automatic yellow without changing the active
+    // tool or persisting an OCR-specific colour. A deliberate stroke pick is
+    // still honoured for users who want a different highlighter colour.
+    const QColor color = (m_strokeAuto || !m_strokeColorTouched)
+                             ? QColor(255, 234, 112) : m_color;
+    return addOcrSelectionAnnotations(Highlight, color);
+}
+
+bool AnnotationCanvas::redactOcrSelection(bool pixelate)
+{
+    Q_UNUSED(pixelate);
+    // Redaction must DESTROY the underlying signal: a blur/mosaic of text is
+    // partially recoverable (de-pixelation, known-font attacks), so a saved or
+    // uploaded "redacted" password/token could still leak. Paint an opaque
+    // filled bar over each text line instead.
+    const QColor bar(0, 0, 0);
+    return addOcrSelectionAnnotations(Rect, bar, /*filled=*/true, /*fillColor=*/bar);
+}
+
+void AnnotationCanvas::setGlyphBoxes(const QVector<OcrWord> &words)
+{
+    m_glyphBoxes = words;
+    m_glyphBoxesReady = true;
+    m_glyphBoxesBaseKey = m_base.cacheKey();
+}
+
+// Does the segment a→b touch rect r (an endpoint inside, or crossing any edge)?
+static bool segIntersectsRect(const QPointF &a, const QPointF &b, const QRectF &r)
+{
+    if (r.contains(a) || r.contains(b))
+        return true;
+    const QLineF seg(a, b);
+    const QLineF edges[4] = {
+        QLineF(r.topLeft(), r.topRight()),
+        QLineF(r.topRight(), r.bottomRight()),
+        QLineF(r.bottomRight(), r.bottomLeft()),
+        QLineF(r.bottomLeft(), r.topLeft())
+    };
+    QPointF ip;
+    for (const QLineF &e : edges)
+        if (seg.intersects(e, &ip) == QLineF::BoundedIntersection)
+            return true;
+    return false;
+}
+
+bool AnnotationCanvas::applyTextAwareHighlight(const Annot &stroke)
+{
+    if (!m_glyphBoxesReady || m_glyphBoxes.isEmpty()
+        || m_glyphBoxesBaseKey != m_base.cacheKey())
+        return false;
+    // Text mode is a PEN: highlight every glyph the freehand stroke passes
+    // through. Needs a real path, not a single tap.
+    const QVector<QPointF> &pts = stroke.points;
+    if (pts.size() < 2)
+        return false;
+
+    // Group the crossed glyphs by text line and union their rects. The band
+    // therefore takes each LINE's own glyph height — sized to the text like a
+    // PDF highlighter — and spans exactly the glyphs the pen crossed (not a
+    // fixed box or the stroke's bounding rect).
+    const qreal hw = qMax<qreal>(stroke.width / 2.0, 2.0); // pen radius
+    QMap<int, QRectF> lineRects;
+    int hitCount = 0;
+    for (const OcrWord &g : std::as_const(m_glyphBoxes)) {
+        const QRectF gr(g.rect);
+        if (gr.isEmpty())
+            continue;
+        // Inflate by the pen radius so a stroke grazing a glyph still counts.
+        const QRectF hitRect = gr.adjusted(-hw, -hw, hw, hw);
+        bool crossed = false;
+        for (int i = 1; i < pts.size() && !crossed; ++i)
+            crossed = segIntersectsRect(pts[i - 1], pts[i], hitRect);
+        if (!crossed)
+            continue;
+        ++hitCount;
+        if (lineRects.contains(g.line)) lineRects[g.line] |= gr;
+        else lineRects.insert(g.line, gr);
+    }
+    // A couple of glyphs minimum: a stray graze over a picture's OCR noise must
+    // not turn into a highlight (the caller then keeps the freehand marker).
+    if (hitCount < 2 || lineRects.isEmpty())
+        return false;
+
+    pushUndo();
+    QRectF dirty;
+    for (const QRectF &b : std::as_const(lineRects)) {
+        Annot a;
+        a.type = Highlight;
+        a.rect = b;                 // text-height band over the crossed glyphs
+        a.color = stroke.color;
+        a.width = stroke.width;
+        m_items.append(a);
+        dirty |= annotBoundsImg(a);
+    }
+    updateImgRect(dirty);
+    return true;
 }
 
 void AnnotationCanvas::clearAnnotSelection()
@@ -858,10 +1036,11 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
         const Annot &a = m_items[i];
         const qreal tol = qMax(a.width / 2.0 + 3.0, 6.0 / qMax(0.05, renderScale()));
         switch (a.type) {
-        case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: {
+        case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: {
             const QRectF r = a.rect.normalized();
             const bool solid = a.filled || a.type == Blur || a.type == Pixelate
-                               || a.type == Highlight || a.type == SmartErase;
+                               || a.type == Highlight || a.type == SmartErase
+                               || a.type == PastedImage;
             if (solid) {
                 if (r.contains(pos)) return i;
             } else {
@@ -869,6 +1048,17 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
                 const QRectF outer = r.adjusted(-tol, -tol, tol, tol);
                 const QRectF inner = r.adjusted(tol, tol, -tol, -tol);
                 if (outer.contains(pos) && !inner.contains(pos)) return i;
+            }
+            break;
+        }
+        case Callout: {
+            const QPainterPath path = calloutPath(a.rect);
+            if (a.filled) {
+                if (path.contains(pos)) return i;
+            } else {
+                QPainterPathStroker stroker;
+                stroker.setWidth(a.width + 2.0 * tol);
+                if (stroker.createStroke(path).contains(pos)) return i;
             }
             break;
         }
@@ -888,7 +1078,7 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
             }
             break;
         }
-        case Line: case Arrow: {
+        case Line: case Arrow: case Measure: {
             if (QLineF(a.rect.topLeft(), pos).length() <= tol
                 || QLineF(a.rect.bottomRight(), pos).length() <= tol)
                 return i;
@@ -937,6 +1127,9 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
         if (a.type == Rect) {
             if (a.rect.normalized().contains(pos))
                 return i;
+        } else if (a.type == Callout) {
+            if (calloutPath(a.rect).contains(pos))
+                return i;
         } else if (a.type == Ellipse) {
             const QRectF r = a.rect.normalized();
             if (r.width() < 1 || r.height() < 1)
@@ -951,21 +1144,25 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
 }
 
 // Handle points for the selected annotation. Rect-like shapes get 8 handles
-// (same order as the crop-rect handles). Line/Arrow get 2 endpoint handles.
+// (same order as the crop-rect handles), line tools get 2 endpoints.
 // Pen/Text/Step are move-only → 0 handles.
 int AnnotationCanvas::handlesForSelected(QPointF out[8]) const
 {
     if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return 0;
     const Annot &a = m_items[m_selectedAnnot];
+    // A freehand highlighter stroke is points-based (like Pen) → move-only, no
+    // rect resize handles.
+    if (a.type == Highlight && !a.points.isEmpty())
+        return 0;
     switch (a.type) {
-    case Rect: case Ellipse: case Blur: case Pixelate: case Highlight: case SmartErase: {
+    case Rect: case Ellipse: case Callout: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: {
         const QRectF r = a.rect.normalized();
         out[0] = r.topLeft();  out[1] = {r.center().x(), r.top()};    out[2] = r.topRight();
         out[3] = {r.left(), r.center().y()}; out[4] = {r.right(), r.center().y()};
         out[5] = r.bottomLeft(); out[6] = {r.center().x(), r.bottom()}; out[7] = r.bottomRight();
         return 8;
     }
-    case Line: case Arrow:
+    case Line: case Arrow: case Measure:
         out[0] = a.rect.topLeft();
         out[1] = a.rect.bottomRight();
         return 2;
@@ -994,7 +1191,7 @@ Qt::CursorShape AnnotationCanvas::annotEditCursor(const QPointF &pos) const
     if (h >= 0) {
         QPointF pts[8];
         const int n = handlesForSelected(pts);
-        if (n == 2) return Qt::SizeAllCursor;
+        if (n == 2 || n == 3) return Qt::SizeAllCursor;
         if (h == 0 || h == 7) return Qt::SizeFDiagCursor;
         if (h == 2 || h == 5) return Qt::SizeBDiagCursor;
         if (h == 1 || h == 6) return Qt::SizeVerCursor;
@@ -1013,39 +1210,21 @@ void AnnotationCanvas::nudgeSelection(qreal dx, qreal dy)
     dy = qBound(bounds.top() - m_selection.top(), dy, bounds.bottom() - m_selection.bottom());
     m_selection.translate(dx, dy);
     emit selectionRectChanged();
-    // The mask was computed for the old rectangle — re-segment, debounced so
-    // key autorepeat runs ONE job after the burst instead of one per repeat.
-    // The pending timer counts as segmenting(), so a confirm in the window
-    // between keypress and timer fire waits instead of exporting stale state.
-    if (m_tool == ObjectPick) {
-        const bool wasIdle = !segmenting();
-        m_nudgeTimer->start();
-        if (wasIdle)
-            emit segmentingChanged();
-    }
     update();
 }
 
 void AnnotationCanvas::selectAll()
 {
     m_selection = QRectF(QPointF(0, 0), QSizeF(m_base.size()));
-    // Any object mask was computed for the old rect — drop it, or the status
-    // pill keeps promising a cutout that renderedSelection() would skip. No
-    // auto re-segment: select-all is a change of intent and a full-frame
-    // segmentation is costly; clicking a candidate re-segments as before.
-    if (m_tool == ObjectPick)
-        clearObjectMask();
     emit selectionRectChanged();
     update();
 }
 
-// Escape-cancel for an in-progress selection: drops the rect (and any object
-// mask computed for it) without touching annotations or the base image.
+// Escape-cancel for an in-progress selection: drops the rect without touching
+// annotations or the base image.
 void AnnotationCanvas::clearSelection()
 {
     m_selection = {};
-    if (m_tool == ObjectPick)
-        clearObjectMask();
     emit selectionRectChanged();
     update();
 }
@@ -1070,13 +1249,6 @@ void AnnotationCanvas::applyCrop()
     }
     m_selection = {};
     if (m_selectedAnnot >= 0) { m_selectedAnnot = -1; emit selectedAnnotChanged(); }
-    // Candidates and masks are in pre-crop coordinates now — invalidate.
-    m_objectCandidates.clear();
-    m_hoverChain.clear();
-    m_pickOffset = 0;
-    m_hoverObject = QRect();
-    m_hoverObjectKind.clear();
-    clearObjectMask();
     emit imageChanged();
     emit renderScaleChanged();
     emit selectionRectChanged();
@@ -1117,7 +1289,8 @@ QRectF AnnotationCanvas::textBoundsImg(const Annot &a) const
 
 // Draws the filled arrowhead with its apex exactly at `to`. Assumes the brush
 // is already set to the fill color.
-static void drawArrowHead(QPainter &p, const QPointF &from, const QPointF &to, qreal w)
+static void drawArrowHead(QPainter &p, const QPointF &from, const QPointF &to,
+                          qreal w, int style)
 {
     const qreal len = arrowHeadLen(w);
     QLineF line(to, from);
@@ -1129,9 +1302,20 @@ static void drawArrowHead(QPainter &p, const QPointF &from, const QPointF &to, q
         return QPointF(d.x() * qCos(a) - d.y() * qSin(a),
                        d.x() * qSin(a) + d.y() * qCos(a)) + to;
     };
-    QPolygonF head{to, rot(angle), rot(-angle)};
-    p.setPen(Qt::NoPen);
-    p.drawPolygon(head);
+    const QPointF left = rot(angle);
+    const QPointF right = rot(-angle);
+    if (style == 1) {
+        const QColor color = p.brush().color();
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(color, qMax<qreal>(1.0, w), Qt::SolidLine,
+                      Qt::RoundCap, Qt::RoundJoin));
+        p.drawLine(left, to);
+        p.drawLine(to, right);
+    } else {
+        QPolygonF head{to, left, right};
+        p.setPen(Qt::NoPen);
+        p.drawPolygon(head);
+    }
 }
 
 void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
@@ -1173,15 +1357,48 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         // the arrowhead apex (the tip is the arrowhead, not a round line cap).
         QLineF shaft(tail, tip);
         const qreal headLen = arrowHeadLen(a.width);
-        if (shaft.length() > headLen * 0.9) {
-            QLineF s = shaft;
-            s.setLength(shaft.length() - headLen * 0.82);
+        const bool bothEnds = a.arrowHeadStyle == 2;
+        if (shaft.length() > headLen * (bothEnds ? 1.8 : 0.9)) {
+            const QPointF unit = (tip - tail) / shaft.length();
+            const QPointF start = bothEnds ? tail + unit * (headLen * 0.82) : tail;
+            const QPointF end = tip - unit * (headLen * 0.82);
             QPen shaftPen(a.color, a.width, Qt::SolidLine, Qt::FlatCap, Qt::RoundJoin);
             p.setPen(shaftPen);
-            p.drawLine(s);
+            p.drawLine(start, end);
         }
         p.setBrush(a.color);
-        drawArrowHead(p, tail, tip, a.width);
+        drawArrowHead(p, tail, tip, a.width, a.arrowHeadStyle);
+        if (bothEnds)
+            drawArrowHead(p, tip, tail, a.width, a.arrowHeadStyle);
+        break;
+    }
+    case Measure: {
+        const QPointF from = a.rect.topLeft();
+        const QPointF to = a.rect.bottomRight();
+        const QLineF line(from, to);
+        if (line.length() < 1.0)
+            break;
+        p.drawLine(line);
+        QLineF tick = line.normalVector();
+        tick.setLength(qMax<qreal>(8.0, a.width * 2.5));
+        const QPointF half = (tick.p2() - tick.p1()) / 2.0;
+        p.drawLine(from - half, from + half);
+        p.drawLine(to - half, to + half);
+        QFont f = p.font();
+        f.setPixelSize(qMax(12, int(a.width * 4)));
+        f.setBold(true);
+        p.setFont(f);
+        const QString label = QStringLiteral("%1 px · %2°")
+                                  .arg(qRound(line.length()))
+                                  .arg(qRound(-line.angle()));
+        const QFontMetricsF fm(f);
+        QRectF box = fm.boundingRect(label).adjusted(-5, -3, 5, 3);
+        box.moveCenter((from + to) / 2.0 - half * 1.8);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(23, 21, 59, 220));
+        p.drawRoundedRect(box, 4, 4);
+        p.setPen(Qt::white);
+        p.drawText(box, Qt::AlignCenter, label);
         break;
     }
     case Rect:
@@ -1191,6 +1408,10 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
     case Ellipse:
         if (a.filled) p.setBrush(a.fillColor);
         p.drawEllipse(a.rect.normalized());
+        break;
+    case Callout:
+        if (a.filled) p.setBrush(a.fillColor);
+        p.drawPath(calloutPath(a.rect));
         break;
     case SmartErase:
         p.setPen(Qt::NoPen);
@@ -1245,6 +1466,10 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         }
         break;
     }
+    case PastedImage:
+        if (!a.image.isNull())
+            p.drawImage(a.rect.normalized(), a.image);
+        break;
     case Blur: {
         const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
         if (r.width() > 4 && r.height() > 4) {
@@ -1296,9 +1521,29 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         QColor c = a.color;
         p.setCompositionMode(QPainter::CompositionMode_Multiply);
         c.setAlpha(255);
-        p.setPen(Qt::NoPen);
-        p.setBrush(c);
-        p.drawRect(a.rect.normalized());
+        if (!a.points.isEmpty()) {
+            // Freehand marker: a translucent stroke that follows the pen.
+            if (a.points.size() == 1) {
+                p.setPen(Qt::NoPen);
+                p.setBrush(c);
+                const qreal rad = qMax(a.width, 1.0) / 2.0;
+                p.drawEllipse(a.points.first(), rad, rad);
+            } else {
+                QPainterPath path;
+                path.moveTo(a.points.first());
+                for (int i = 1; i < a.points.size(); ++i)
+                    path.lineTo(a.points[i]);
+                p.setPen(QPen(c, qMax<qreal>(1.0, a.width),
+                              Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+                p.setBrush(Qt::NoBrush);
+                p.drawPath(path);
+            }
+        } else {
+            // Rectangle band (rect mode) or per-line text-snap band.
+            p.setPen(Qt::NoPen);
+            p.setBrush(c);
+            p.drawRect(a.rect.normalized());
+        }
         break;
     }
     case Step: {
@@ -1354,6 +1599,26 @@ void AnnotationCanvas::updateImgRect(const QRectF &imgRect)
 QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
 {
     QRectF r;
+    if (a.type == Measure) {
+        // Measure draws far outside its line rect: perpendicular end ticks and
+        // a floating label box near the midpoint (see drawAnnot Measure). The
+        // default width-based pad misses both, so move/resize left a ghost trail
+        // and clipped the label. Union the tick extents and a generous label box.
+        const QPointF from = a.rect.topLeft();
+        const QPointF to = a.rect.bottomRight();
+        QLineF tick = QLineF(from, to).normalVector();
+        tick.setLength(qMax<qreal>(8.0, a.width * 2.5));
+        const QPointF half = (tick.p2() - tick.p1()) / 2.0;
+        r = QRectF(from, to).normalized();
+        r |= QRectF(from - half, from + half).normalized();
+        r |= QRectF(to - half, to + half).normalized();
+        const qreal fontPx = qMax<qreal>(12.0, a.width * 4.0);
+        QRectF label(0, 0, fontPx * 9.0, fontPx * 1.8); // over-estimate the text box
+        label.moveCenter((from + to) / 2.0 - half * 1.8);
+        r |= label;
+        const qreal pad = a.width / 2.0 + 4.0;
+        return r.adjusted(-pad, -pad, pad, pad);
+    }
     if (!a.points.isEmpty()) {
         r = QRectF(a.points.first(), QSizeF(0, 0));
         for (const QPointF &pt : a.points)
@@ -1365,6 +1630,8 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
     } else {
         r = a.rect.normalized();
     }
+    if (a.type == Callout)
+        r.setBottom(r.bottom() + calloutTailHeight(r));
     // Stroke width + the arrow head (largest overdraw any tool does) + slack
     // for antialiasing; over-estimating only repaints a few extra pixels.
     qreal pad = a.width / 2.0 + arrowHeadLen(a.width) + 4.0;
@@ -1388,28 +1655,7 @@ void AnnotationCanvas::paint(QPainter *painter)
     painter->drawImage(0, 0, m_base);
     drawAll(*painter);
 
-    if ((m_tool == ObjectPick
-         || (m_selectionMode && m_tool == None && m_smartPick)) && !hasSelection()) {
-        // Highlight the object under the cursor: dim the rest, outline it in accent.
-        if (!m_hoverObject.isNull()) {
-            QPainterPath full;
-            full.addRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
-            QPainterPath hole;
-            hole.addRect(QRectF(m_hoverObject));
-            full = full.subtracted(hole);
-            QColor scrim = m_uiScrim; scrim.setAlpha(150);
-            painter->setPen(Qt::NoPen);
-            painter->setBrush(scrim);
-            painter->drawPath(full);
-            painter->setBrush(Qt::NoBrush);
-            // White halo under the accent line: keeps the highlight readable
-            // over dark and light content alike.
-            painter->setPen(QPen(QColor(255, 255, 255, 160), 4.0 / s));
-            painter->drawRect(QRectF(m_hoverObject));
-            painter->setPen(QPen(m_uiAccent, 2.0 / s)); // themed accent
-            painter->drawRect(QRectF(m_hoverObject));
-        }
-    } else if (m_selectionMode) {
+    if (m_selectionMode) {
         // Dim everything outside the selection.
         QPainterPath full;
         full.addRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
@@ -1424,11 +1670,6 @@ void AnnotationCanvas::paint(QPainter *painter)
         painter->drawPath(full);
 
         if (hasSelection()) {
-            // Object-pick preview: dim the pixels the mask will remove so the
-            // user sees the exact cutout before confirming.
-            if (m_tool == ObjectPick && !m_maskOverlay.isNull()
-                && m_objectMaskRect == m_selection.toAlignedRect().intersected(m_base.rect()))
-                painter->drawImage(m_objectMaskRect.topLeft(), m_maskOverlay);
             QPen border(m_uiAccent, 1.5 / s); // themed accent
             border.setStyle(Qt::SolidLine);
             painter->setPen(border);
@@ -1483,50 +1724,66 @@ void AnnotationCanvas::paint(QPainter *painter)
             painter->drawEllipse(pts[i], hs, hs);
     }
 
-    // OCR text-pick overlay: a light scrim keeps the screenshot readable, the
-    // line under the cursor is highlighted (telegraphs "click = line"), and the
-    // selection is drawn as ONE continuous bar per line so it reads as text.
+    // OCR text-pick overlay: a light scrim keeps the screenshot readable, every
+    // recognized line is boxed so the user sees exactly what is selectable
+    // (Windows-Snipping-style), and the selection is drawn as ONE clean bar per
+    // line — full line-band height — so it reads as text.
     if (m_ocrMode) {
         QColor scrim = m_uiScrim; scrim.setAlpha(90);
         painter->setPen(Qt::NoPen);
         painter->setBrush(scrim);
         painter->drawRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
 
-        // Hover highlight: the whole line under the cursor (not while dragging).
-        if (!m_ocrDragging && m_ocrHoverGlyph >= 0 && m_ocrHoverGlyph < m_ocrWords.size()) {
-            int lo, hi;
-            ocrExpandLine(m_ocrHoverGlyph, lo, hi);
-            QRectF lb;
-            for (int i = lo; i <= hi && i < m_ocrWords.size(); ++i)
-                lb |= QRectF(m_ocrWords[i].rect);
-            if (lb.isValid()) {
-                QColor h = m_uiAccent; h.setAlpha(45);
-                painter->setPen(Qt::NoPen);
-                painter->setBrush(h);
-                painter->drawRoundedRect(lb.adjusted(-2, -2, 2, 2), 3.0 / s, 3.0 / s);
-            }
+        // Always-visible selectable-text regions: a faint rounded box hugging
+        // each recognized line so the text to be selected is obvious over the
+        // scrim, not hidden. The line under the pointer brightens.
+        const qreal rad = 3.0 / s;
+        for (int k = 0; k < m_ocrLines.size(); ++k) {
+            const bool hot = (k == m_ocrHoverLine) && !m_ocrDragging;
+            const QRectF b = m_ocrLines[k].band.adjusted(-2, -1, 2, 1);
+            QColor fill = m_uiAccent; fill.setAlpha(hot ? 55 : 22);
+            QColor bord = m_uiAccent; bord.setAlpha(hot ? 140 : 70);
+            painter->setBrush(fill);
+            painter->setPen(QPen(bord, 1.0 / s));
+            painter->drawRoundedRect(b, rad, rad);
         }
 
-        // Selection: one continuous rounded bar per line spanned by the range.
+        // Selection: one clean bar per line — full line-band height (consistent
+        // regardless of which glyphs are picked), hugging the selected glyphs.
         if (hasOcrSelection()) {
-            const int lo = qMin(m_ocrSelAnchor, m_ocrSelCaret);
-            const int hi = qMax(m_ocrSelAnchor, m_ocrSelCaret);
+            const int lo = qMin(m_ocrCaretA, m_ocrCaretB);
+            const int hiEx = qMax(m_ocrCaretA, m_ocrCaretB);
             QColor fill = m_uiAccent; fill.setAlpha(150);
             painter->setPen(Qt::NoPen);
             painter->setBrush(fill);
-            QRectF lineBox;
-            int curLine = -1;
+            int k = -1;
+            qreal xL = 0, xR = 0;
+            QRectF band;
             auto flush = [&] {
-                if (lineBox.isValid())
-                    painter->drawRoundedRect(lineBox.adjusted(-1, -1, 1, 1), 3.0 / s, 3.0 / s);
+                if (k < 0) return;
+                const QRectF r(xL, band.top(), xR - xL, band.height());
+                painter->drawRoundedRect(r.adjusted(-1, -1, 1, 1), rad, rad);
             };
-            for (int i = lo; i <= hi && i < m_ocrWords.size(); ++i) {
-                const OcrWord &g = m_ocrWords[i];
-                if (g.line != curLine) { flush(); curLine = g.line; lineBox = QRectF(g.rect); }
-                else lineBox |= QRectF(g.rect);
+            for (int i = lo; i < hiEx && i < m_ocrWords.size(); ++i) {
+                const int lk = ocrLineOfGlyph(i);
+                const QRectF gr(m_ocrWords[i].rect);
+                if (lk != k) {
+                    flush();
+                    k = lk;
+                    band = (k >= 0 && k < m_ocrLines.size()) ? m_ocrLines[k].band : gr;
+                    xL = gr.left(); xR = gr.right();
+                } else {
+                    xL = qMin(xL, gr.left()); xR = qMax(xR, gr.right());
+                }
             }
             flush();
         }
+
+        // Re-draw already-placed annotations ON TOP of the scrim so a fresh
+        // highlight/redact stays visible and the actions can CHAIN without
+        // leaving OCR mode (the scrim above would otherwise hide the new mark).
+        for (const Annot &a : m_items)
+            drawAnnot(*painter, a);
     }
     painter->restore();
 }
@@ -1556,14 +1813,6 @@ QImage AnnotationCanvas::renderedSelection() const
     p.translate(-r.topLeft());
     drawAll(p);
     p.end();
-    // Object pick: cut the segmented foreground out — everything the mask
-    // rejects becomes fully transparent (survives png/webp/clipboard).
-    if (m_tool == ObjectPick && !m_objectMask.isNull() && m_objectMaskRect == r) {
-        QPainter pm(&crop);
-        pm.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        pm.drawImage(0, 0, grayToAlpha(m_objectMask));
-        pm.end();
-    }
     return crop;
 }
 
@@ -1591,6 +1840,16 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
     m_dragStart = img;
 
+    if (e->button() == Qt::RightButton) {
+        // Don't fire the copy/confirm shortcut mid-gesture: a right press during
+        // an active left-drag would commit a half-drawn annotation, because
+        // renderedSelection() draws m_current while m_drawing is true.
+        if (!m_drawing && m_drag == NoDrag)
+            emit copyRequested();
+        e->accept();
+        return;
+    }
+
     if (m_colorPicking) {
         // Sample the pixel under the cursor from the frozen screenshot.
         const QPoint p = img.toPoint();
@@ -1602,51 +1861,17 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
     }
 
     if (m_ocrMode) {
-        // Press just arms a gesture: a drag refines to letters (mouseMove), a
-        // bare release selects the whole line, a double-click narrows to a word.
-        const int g = ocrGlyphAt(img);
-        m_ocrSelAnchor = g;
-        m_ocrSelCaret = g;
+        // Press only arms a gesture; the selection is NOT changed yet, so a
+        // mis-aimed click in a gutter keeps the current pick. A drag refines to a
+        // caret range (mouseMove), a bare release selects the whole line under
+        // the cursor, a double-click narrows to a word.
+        m_ocrPressCaret = ocrCaretAt(img);
         m_ocrDragging = true;
         m_ocrDidDrag = false;
-        emit ocrChanged();
-        update();
         e->accept();
         return;
     }
 
-    if (m_tool == ObjectPick) {
-        // Click on a detected candidate, or drag a rectangle around the object.
-        // Either way the foreground inside the region is segmented off-thread
-        // and previewed; the user confirms with Enter / double-click / the
-        // Capture button once the cutout looks right (a click no longer
-        // captures blindly — the whole point is seeing what gets removed).
-        if (!m_hoverObject.isNull()) {
-            // Pad the tight bounding box so the border ring the segmenter
-            // treats as background actually samples background pixels.
-            const int pad = qMax(6, qMax(m_hoverObject.width(), m_hoverObject.height()) / 20);
-            const QRect padded = m_hoverObject.adjusted(-pad, -pad, pad, pad)
-                                     .intersected(m_base.rect());
-            // Same region as the current (or in-flight) run: leave it alone.
-            // This press may be the first half of double-click-confirm, and
-            // restarting would wipe the mask right before the confirm fires.
-            if (padded != m_segmentRect) {
-                m_selection = QRectF(padded);
-                normalizeSelection();
-                emit selectionRectChanged();
-                startSegmentation();
-                update();
-            }
-        } else {
-            // Defer everything: a bare press must not destroy the selection or
-            // the mask (double-click-confirm arrives as press,press,dblclick).
-            // mouseMoveEvent promotes this to a real NewSelection once the
-            // pointer actually moves.
-            m_drag = PendingNewSelection;
-        }
-        e->accept();
-        return;
-    }
     if (m_tool == Text) {
         emit textRequested(img.x(), img.y());
         e->accept();
@@ -1674,6 +1899,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
             m_drag = ResizeAnnot;
             m_resizeHandle = h;
             m_annotStartRect = m_items[m_selectedAnnot].rect;
+            m_annotStartPoints = m_items[m_selectedAnnot].points;
             // Defer the undo snapshot to the first real move, so clicking a
             // handle without dragging leaves no empty undo entry.
             m_resizeUndoPending = true;
@@ -1714,11 +1940,6 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         } else if (hasSelection() && m_selection.contains(img)) {
             m_drag = MoveSelection;
             m_selStart = m_selection;
-        } else if (m_smartPick && m_tool == None) {
-            // Smart pick: defer — a genuine drag promotes to NewSelection
-            // (mouseMoveEvent), a plain click selects the detected object
-            // under the cursor on release.
-            m_drag = PendingNewSelection;
         } else {
             m_drag = NewSelection;
             m_selection = QRectF(img, img);
@@ -1743,6 +1964,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
                 m_drag = ResizeAnnot;
                 m_resizeHandle = h;
                 m_annotStartRect = m_items[m_selectedAnnot].rect;
+                m_annotStartPoints = m_items[m_selectedAnnot].points;
                 m_resizeUndoPending = true;
                 update();
                 e->accept();
@@ -1757,7 +1979,11 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
                 return;
             }
         }
-        if (m_tool == Pen) {
+        // Pen and the freehand-input highlighter modes (marker + text pen)
+        // accumulate points from the first press; only the rectangle highlighter
+        // and the other tools arm a drag-rect.
+        if (m_tool == Pen
+            || (m_tool == Highlight && m_highlightMode != HlRect)) {
             beginDraw(img);
         } else {
             m_drag = PendingDraw;
@@ -1776,12 +2002,48 @@ void AnnotationCanvas::beginDraw(const QPointF &at)
     m_current.type = Tool(m_tool);
     m_current.color = m_color;
     m_current.fillColor = m_fillColor;
-    m_current.filled = m_fillEnabled && (m_tool == Rect || m_tool == Ellipse);
+    m_current.filled = m_fillEnabled && (m_tool == Rect || m_tool == Ellipse || m_tool == Callout);
     m_current.width = m_strokeWidth;
+    m_current.arrowHeadStyle = m_arrowHeadStyle;
     m_current.fontSize = m_fontSize;
     m_current.rect = QRectF(m_dragStart, at);
-    if (m_tool == Pen)
+    m_penShiftAnchor = -1;
+    if (m_tool == Pen || (m_tool == Highlight && m_highlightMode != HlRect))
         m_current.points = {at};
+}
+
+// Shift is a precision modifier for geometry tools: first snap the cursor to
+// the small image-pixel grid, then constrain lines/arrows to 45° increments
+// and rectangles/ellipses to a square. Pen does NOT use this quantizing path
+// (it would make freehand ink look broken); instead the Pen draw loop treats
+// Shift as a straight-segment modifier (see mouseMoveEvent DrawDrag/Pen).
+static QPointF snapToGrid(const QPointF &p)
+{
+    constexpr qreal step = 8.0;
+    return {std::round(p.x() / step) * step, std::round(p.y() / step) * step};
+}
+
+static QPointF shiftConstrainedPoint(AnnotationCanvas::Tool tool, const QPointF &origin,
+                                     QPointF point)
+{
+    point = snapToGrid(point);
+    const qreal dx = point.x() - origin.x();
+    const qreal dy = point.y() - origin.y();
+    if (tool == AnnotationCanvas::Line || tool == AnnotationCanvas::Arrow
+        || tool == AnnotationCanvas::Measure) {
+        constexpr qreal pi = 3.14159265358979323846;
+        const qreal length = std::hypot(dx, dy);
+        if (length < 0.001)
+            return origin;
+        const qreal angle = std::round(std::atan2(dy, dx) / (pi / 4.0)) * (pi / 4.0);
+        return origin + QPointF(std::cos(angle) * length, std::sin(angle) * length);
+    }
+    if (tool == AnnotationCanvas::Rect || tool == AnnotationCanvas::Ellipse
+        || tool == AnnotationCanvas::Callout) {
+        const qreal side = qMax(std::abs(dx), std::abs(dy));
+        return origin + QPointF(dx < 0 ? -side : side, dy < 0 ? -side : side);
+    }
+    return point;
 }
 
 // Samples the perimeter of `r` in the current base image and returns the
@@ -1819,21 +2081,34 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
     const QPointF img = toImage(e->position().x(), e->position().y());
 
     if (m_ocrMode && m_ocrDragging) {
-        // Only a real drag (past a threshold) refines to letter granularity; a
-        // small jitter on a click stays a click (→ whole-line select on release).
+        // Only a real drag (past a threshold) starts a caret range; a small
+        // jitter on a click stays a click (→ whole-line select on release).
+        const int c = ocrCaretAt(img);
         if (!m_ocrDidDrag) {
             const qreal thr = 5.0 / qMax(0.05, renderScale());
             if (QLineF(m_dragStart, img).length() < thr) { e->accept(); return; }
             m_ocrDidDrag = true;
-        }
-        const int g = ocrGlyphAt(img);
-        if (g >= 0 && g != m_ocrSelCaret) {
-            const int prev = m_ocrSelCaret;
-            m_ocrSelCaret = g;
+            // A fresh range spanning the press caret to the current caret (so a
+            // single fast flick already selects). FULL repaint — not a partial
+            // updateImgRect — so a prior selection's bars, which may be anywhere
+            // on screen, are cleared; and RETURN, because a partial rect in this
+            // same event would clobber the full repaint (QQuickPaintedItem
+            // coalesces a null dirty-rect |= rect down to just rect) and re-ghost
+            // the old bars. Later moves extend caretB incrementally.
+            m_ocrCaretA = m_ocrPressCaret;
+            m_ocrCaretB = c;
             emit ocrChanged();
-            // Only the selection bars between the old and new caret changed —
-            // repaint just that range, not the whole scrim + base resample.
-            updateImgRect(ocrRangeBoxImg(prev, g));
+            update();
+            e->accept();
+            return;
+        }
+        if (c >= 0 && c != m_ocrCaretB) {
+            const int prev = m_ocrCaretB;
+            m_ocrCaretB = c;
+            emit ocrChanged();
+            // Only the lines whose selection bars changed need repainting — not
+            // the whole scrim + base resample.
+            updateImgRect(ocrCaretSpanDirty(prev, c));
         }
         e->accept();
         return;
@@ -1842,24 +2117,45 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
     switch (m_drag) {
     case DrawDrag: {
         QRectF nowB;
-        if (m_current.type == Pen) {
-            // Retain enough detail for a smooth path while coalescing
-            // sub-pixel duplicate samples from high-frequency mice/tablets.
-            const qreal minDistance = qMax(0.75, m_current.width / 3.0);
-            const QPointF prev = m_current.points.isEmpty()
-                                     ? img : m_current.points.constLast();
-            if (m_current.points.isEmpty()
-                || QLineF(m_current.points.constLast(), img).length() >= minDistance)
-                m_current.points.append(img);
-            // Only the newest segment changed — the rest of the stroke is
-            // already in the texture. Dirty just that segment; annotBoundsImg
-            // would union ALL points, degrading to a near-full-canvas repaint
-            // as a long freehand stroke grows.
+        if (isFreehandStroke(m_current)) {
             const qreal pad = m_current.width / 2.0 + 4.0;
-            nowB = QRectF(prev, m_current.points.constLast()).normalized()
-                       .adjusted(-pad, -pad, pad, pad);
+            if ((e->modifiers() & Qt::ShiftModifier) && !m_current.points.isEmpty()) {
+                // Hold Shift mid-stroke to lay a STRAIGHT segment from the last
+                // committed point to the cursor (any angle). Releasing Shift
+                // resumes freehand from that endpoint — chained straight +
+                // freehand segments. A single live tail point is retained and
+                // moved with the cursor; it is committed as an anchor on
+                // release of Shift (below).
+                if (m_penShiftAnchor < 0) {
+                    m_penShiftAnchor = m_current.points.size() - 1;
+                    m_current.points.append(img); // live straight-segment tail
+                }
+                const QPointF anchor = m_current.points[m_penShiftAnchor];
+                m_current.points.last() = img;
+                nowB = QRectF(anchor, img).normalized().adjusted(-pad, -pad, pad, pad);
+            } else {
+                // Shift just released mid-stroke: the straight endpoint becomes
+                // a permanent anchor and freehand continues from it.
+                m_penShiftAnchor = -1;
+                // Retain enough detail for a smooth path while coalescing
+                // sub-pixel duplicate samples from high-frequency mice/tablets.
+                const qreal minDistance = qMax(0.75, m_current.width / 3.0);
+                const QPointF prev = m_current.points.isEmpty()
+                                         ? img : m_current.points.constLast();
+                if (m_current.points.isEmpty()
+                    || QLineF(m_current.points.constLast(), img).length() >= minDistance)
+                    m_current.points.append(img);
+                // Only the newest segment changed — the rest of the stroke is
+                // already in the texture. Dirty just that segment; annotBoundsImg
+                // would union ALL points, degrading to a near-full-canvas repaint
+                // as a long freehand stroke grows.
+                nowB = QRectF(prev, m_current.points.constLast()).normalized()
+                           .adjusted(-pad, -pad, pad, pad);
+            }
         } else {
-            m_current.rect.setBottomRight(img);
+            const QPointF endpoint = (e->modifiers() & Qt::ShiftModifier)
+                                     ? shiftConstrainedPoint(m_current.type, m_dragStart, img) : img;
+            m_current.rect.setBottomRight(endpoint);
             // Smart eraser: show the sampled surrounding colour live instead of
             // the opaque stroke colour (release re-samples for the final fill).
             if (m_current.type == SmartErase)
@@ -1887,29 +2183,18 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         if (QLineF(m_dragStart, img).length() >= threshold) {
             if (m_selectedAnnot >= 0)
                 selectAnnot(-1);
-            beginDraw(img);
-            update();
-        }
-        break;
-    }
-    case PendingNewSelection: {
-        // Promote to a real selection only after a genuine drag (threshold in
-        // item pixels, converted to image space so it feels the same at any
-        // zoom); until then the previous selection + mask stay intact.
-        const qreal threshold = 5.0 / qMax(0.05, renderScale());
-        if (QLineF(m_dragStart, img).length() >= threshold) {
-            m_drag = NewSelection;
-            clearObjectMask();
-            m_selection = QRectF(m_dragStart, img).normalized();
-            normalizeSelection();
-            emit selectionRectChanged();
+            const QPointF endpoint = (e->modifiers() & Qt::ShiftModifier)
+                                     ? shiftConstrainedPoint(Tool(m_tool), m_dragStart, img) : img;
+            beginDraw(endpoint);
             update();
         }
         break;
     }
     case NewSelection: {
         const QRectF oldSel = m_selection;
-        m_selection = QRectF(m_dragStart, img).normalized();
+        const QPointF endpoint = (e->modifiers() & Qt::ShiftModifier)
+                                 ? shiftConstrainedPoint(Rect, m_dragStart, img) : img;
+        m_selection = QRectF(m_dragStart, endpoint).normalized();
         normalizeSelection();
         emit selectionRectChanged();
         // Only the scrim ring between the old and new selection edges changes.
@@ -1979,7 +2264,7 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         const QRectF oldB = annotBoundsImg(a);
         QRectF r = m_annotStartRect;
         const QPointF d = img - m_dragStart;
-        if (a.type == Line || a.type == Arrow) {
+        if (a.type == Line || a.type == Arrow || a.type == Measure) {
             // 2 endpoint handles map to the raw rect corners (p1→p2), so a
             // dragged endpoint follows the cursor without normalization.
             if (m_resizeHandle == 0) r.setTopLeft(r.topLeft() + d);
@@ -2012,23 +2297,14 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     if (m_ocrMode && m_ocrDragging) {
         m_ocrDragging = false;
         const QPointF img = toImage(e->position().x(), e->position().y());
-        // A bare click (no letter-drag) selects the WHOLE LINE under the cursor;
-        // a click far from any text clears the selection. A drag already set the
-        // letter range.
+        // A bare click (no letter-drag) selects the WHOLE LINE under the cursor.
+        // A click away from any text KEEPS the current selection (a mis-aimed
+        // click in a gap must not wipe a careful pick); Esc exits OCR mode.
         if (!m_ocrDidDrag) {
-            const int g = ocrGlyphAt(img);
-            bool near = false;
-            if (g >= 0) {
-                const qreal h = m_ocrWords[g].rect.height();
-                near = QRectF(m_ocrWords[g].rect).adjusted(-h, -h / 2.0, h, h / 2.0).contains(img);
-            }
-            if (near) {
-                int lo, hi;
-                ocrExpandLine(g, lo, hi);
-                m_ocrSelAnchor = lo;
-                m_ocrSelCaret = hi;
-            } else {
-                m_ocrSelAnchor = m_ocrSelCaret = -1;
+            const int k = ocrLineAt(img);
+            if (ocrOverLine(img, k)) {
+                m_ocrCaretA = m_ocrLines[k].first;
+                m_ocrCaretB = m_ocrLines[k].last + 1;
             }
         }
         emit ocrChanged();
@@ -2037,27 +2313,6 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
         return;
     }
 
-    if (m_tool == ObjectPick && m_drag == NewSelection && hasSelection())
-        startSegmentation();
-    // Smart pick: the press never moved (still pending), so this is a CLICK —
-    // select the evidence-ranked detected object under it. No candidate = no-op,
-    // exactly like today's empty click. (An ObjectPick pending click keeps
-    // its existing no-op semantics.)
-    if (m_drag == PendingNewSelection && m_selectionMode && m_tool == None && m_smartPick) {
-        // The highlighted rect IS the promise — select exactly it (including
-        // the scroll-chosen nesting level), not a recomputed first hit.
-        updateHoverObject(m_dragStart.toPoint());
-        if (!m_hoverObject.isNull()) {
-            m_selection = QRectF(m_hoverObject);
-            normalizeSelection();
-            m_hoverObject = QRect();
-            m_hoverObjectKind.clear();
-            m_hoverChain.clear();
-            emit hoverObjectChanged();
-            emit selectionRectChanged();
-            update();
-        }
-    }
     // A drawing-tool press that never moved: a plain CLICK — select (or
     // deselect, on empty space) the shape under the cursor, Edit-tool style.
     if (m_drag == PendingDraw) {
@@ -2067,20 +2322,30 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     if (m_drag == DrawDrag && m_drawing) {
         // Preserve the stroke endpoint even when it falls within the sampling
         // threshold used while the pointer is moving.
-        if (m_current.type == Pen && !m_current.points.isEmpty()) {
+        if (isFreehandStroke(m_current) && !m_current.points.isEmpty()) {
             const QPointF releasePoint = toImage(e->position().x(), e->position().y());
             if (QLineF(m_current.points.constLast(), releasePoint).length() > 0.0)
                 m_current.points.append(releasePoint);
         }
         m_drawing = false;
-        const bool tiny = m_current.type != Pen &&
+        const bool tiny = !isFreehandStroke(m_current) &&
                           QLineF(m_current.rect.topLeft(), m_current.rect.bottomRight()).length() < 3;
         if (!tiny) {
             // Smart eraser: fill the region with the sampled surrounding color.
             if (m_current.type == SmartErase)
                 m_current.color = sampleEdgeColor(m_current.rect);
-            pushUndo();
-            m_items.append(m_current);
+            // Text-mode Highlight is a pen: snap the stroke to the per-line text
+            // boxes it crossed (applyTextAwareHighlight appends its own annots +
+            // one undo). Over a picture, or with no glyph boxes cached, it fails
+            // and the freehand marker stroke is kept instead. Rect mode never
+            // snaps; the freehand marker mode always appends its path.
+            if (m_current.type == Highlight && m_highlightMode == HlText
+                && applyTextAwareHighlight(m_current)) {
+                // snapped to text — nothing else to append
+            } else {
+                pushUndo();
+                m_items.append(m_current);
+            }
         }
         update();
     }
@@ -2089,7 +2354,7 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // corners (they encode p1→p2); everything else normalizes on release.
     if (m_drag == ResizeAnnot && m_selectedAnnot >= 0) {
         Annot &a = m_items[m_selectedAnnot];
-        if (a.type != Line && a.type != Arrow)
+        if (a.type != Line && a.type != Arrow && a.type != Measure)
             a.rect = a.rect.normalized();
         update();
     }
@@ -2099,11 +2364,10 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // is deferred, so the coalesced paint runs with m_fxFast already false.
     if (m_fxFast) { m_fxFast = false; update(); }
     // Capture-on-release: only a gesture that PRODUCED the selection confirms
-    // (manual drag = NewSelection, smart-pick click = PendingNewSelection that
-    // set m_selection above). Move/resize of an existing selection and empty
-    // clicks (hasSelection false) fall through to the normal confirm paths.
+    // (manual drag = NewSelection). Move/resize of an existing selection and
+    // empty clicks (hasSelection false) fall through to the normal confirm paths.
     if (m_confirmOnRelease && m_selectionMode && m_tool == None
-        && (m_drag == NewSelection || m_drag == PendingNewSelection)
+        && m_drag == NewSelection
         && hasSelection()) {
         m_drag = NoDrag;
         m_resizeHandle = -1;
@@ -2125,12 +2389,13 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
         // this sets the word absolutely; the trailing Release is a no-op
         // (m_ocrDragging is false).
         const QPointF img = toImage(e->position().x(), e->position().y());
-        const int g = ocrGlyphAt(img);
+        const int k = ocrLineAt(img);
+        const int g = ocrOverLine(img, k) ? ocrGlyphAtOnLine(k, img.x()) : -1;
         if (g >= 0) {
             int lo, hi;
             ocrExpandWord(g, lo, hi);
-            m_ocrSelAnchor = lo;
-            m_ocrSelCaret = hi;
+            m_ocrCaretA = lo;
+            m_ocrCaretB = hi + 1;
             m_ocrDragging = false;
             m_ocrDidDrag = false;
             emit ocrChanged();
@@ -2159,105 +2424,9 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
     e->accept();
 }
 
-void AnnotationCanvas::updateHoverObject(const QPoint &imgPos)
-{
-    m_lastHoverImg = imgPos;
-    QVector<ObjectDetector::Candidate> chain;
-    for (const ObjectDetector::Candidate &candidate : std::as_const(m_objectCandidates))
-        if (candidate.rect.contains(imgPos))
-            chain.append(candidate); // candidates are area-sorted -> chain is inner→outer
-
-    const auto sameChain = [](const QVector<ObjectDetector::Candidate> &a,
-                              const QVector<ObjectDetector::Candidate> &b) {
-        if (a.size() != b.size())
-            return false;
-        for (qsizetype i = 0; i < a.size(); ++i)
-            if (a[i].rect != b[i].rect || a[i].kind != b[i].kind)
-                return false;
-        return true;
-    };
-    const bool chainChanged = !sameChain(chain, m_hoverChain);
-    if (chain.isEmpty()) {
-        m_pickOffset = 0;
-        m_hoverDefaultIndex = 0;
-    } else if (chainChanged) {
-        // An element's visual evidence matters as much as its size. The old
-        // "smallest bounding box always wins" rule regularly picked a bright
-        // speck in a photo/video over the actual panel beneath the cursor.
-        // Prefer a high-confidence, specific candidate, while preserving all
-        // other candidates as scrollable levels.
-        const double imageArea = qMax<qint64>(1, qint64(m_base.width()) * m_base.height());
-        double best = -1.0;
-        m_hoverDefaultIndex = 0;
-        for (qsizetype i = 0; i < chain.size(); ++i) {
-            const ObjectDetector::Candidate &candidate = chain[i];
-            const double area = qint64(candidate.rect.width()) * candidate.rect.height();
-            const double specificity = 1.0 - std::sqrt(std::min(1.0, area / imageArea));
-            double kindBonus = 0.0;
-            switch (candidate.kind) {
-            case ObjectDetector::CandidateKind::Element: kindBonus = 0.025; break;
-            case ObjectDetector::CandidateKind::Group: kindBonus = 0.01; break;
-            case ObjectDetector::CandidateKind::Container: break;
-            case ObjectDetector::CandidateKind::Window: kindBonus = 0.04; break;
-            case ObjectDetector::CandidateKind::Screen: kindBonus = -0.20; break;
-            }
-            // Confidence intentionally dominates specificity. A small region
-            // in a video is often more specific, but its colour/edge evidence
-            // is weaker than the clear frame of the app or content panel.
-            const double score = candidate.confidence * 0.90 + specificity * 0.10 + kindBonus;
-            if (score > best) {
-                best = score;
-                m_hoverDefaultIndex = int(i);
-            }
-        }
-        m_pickOffset = 0;
-    }
-    const int idx = chain.isEmpty()
-        ? 0
-        : qBound(0, m_hoverDefaultIndex + m_pickOffset, int(chain.size()) - 1);
-    const QRect found = chain.isEmpty() ? QRect() : chain.at(idx).rect;
-    const QString foundKind = [&] {
-        if (chain.isEmpty())
-            return QString();
-        switch (chain.at(idx).kind) {
-        case ObjectDetector::CandidateKind::Element: return tr("Element");
-        case ObjectDetector::CandidateKind::Group: return tr("Group");
-        case ObjectDetector::CandidateKind::Container: return tr("Panel");
-        case ObjectDetector::CandidateKind::Window: return tr("Window");
-        case ObjectDetector::CandidateKind::Screen: return tr("Screen");
-        }
-        return QString();
-    }();
-    const bool changed = (found != m_hoverObject) || (chain.size() != m_hoverChain.size())
-                         || (idx != m_hoverIndex) || (foundKind != m_hoverObjectKind);
-    m_hoverChain = chain;
-    m_hoverIndex = idx;
-    if (changed) {
-        m_hoverObject = found;
-        m_hoverObjectKind = foundKind;
-        emit hoverObjectChanged();
-        update();
-    }
-}
-
 void AnnotationCanvas::wheelEvent(QWheelEvent *e)
 {
-    // Scroll cycles the nesting level while hovering in a pick mode: down =
-    // inner detected elements, up = enclosing windows/containers, topmost =
-    // whole screen.
-    const bool pickHover = !hasSelection()
-        && (m_tool == ObjectPick || (m_selectionMode && m_tool == None && m_smartPick));
-    if (!pickHover || m_hoverChain.size() < 2) {
-        e->ignore();
-        return;
-    }
-    const int dir = e->angleDelta().y() > 0 ? 1 : -1;
-    const int before = m_hoverIndex;
-    m_pickOffset += dir;
-    updateHoverObject(m_lastHoverImg);
-    if (m_hoverIndex == before)
-        m_pickOffset -= dir; // chain end — don't bank invisible steps
-    e->accept();
+    e->ignore();
 }
 
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
@@ -2271,37 +2440,24 @@ void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
         return;
     }
     if (m_ocrMode) {
-        // Highlight the line under the pointer and show an I-beam only over
-        // text; a plain arrow over blank pixels tells the user where text is.
-        const int g = ocrGlyphAt(img);
-        bool near = false;
-        if (g >= 0) {
-            const qreal h = m_ocrWords[g].rect.height();
-            near = QRectF(m_ocrWords[g].rect).adjusted(-h, -h / 2.0, h, h / 2.0).contains(img);
+        // Brighten the line under the pointer and show an I-beam only over text;
+        // a plain arrow over blank pixels tells the user where text is.
+        const int k = ocrLineAt(img);
+        const bool over = ocrOverLine(img, k);
+        const int hv = over ? k : -1;
+        if (hv != m_ocrHoverLine) {
+            const int prev = m_ocrHoverLine;
+            m_ocrHoverLine = hv;
+            // Only the old/new hovered line's box changed — repaint just those
+            // instead of the whole scrim + base resample.
+            QRectF d;
+            if (prev >= 0 && prev < m_ocrLines.size())
+                d |= m_ocrLines[prev].band.adjusted(-3, -3, 3, 3);
+            if (hv >= 0 && hv < m_ocrLines.size())
+                d |= m_ocrLines[hv].band.adjusted(-3, -3, 3, 3);
+            updateImgRect(d);
         }
-        const int hv = near ? g : -1;
-        if (hv != m_ocrHoverGlyph) {
-            const int prev = m_ocrHoverGlyph;
-            m_ocrHoverGlyph = hv;
-            // Only the old/new hovered line's highlight box changed — repaint
-            // just those instead of the whole scrim + base resample.
-            updateImgRect(ocrLineBoxImg(prev).united(ocrLineBoxImg(hv)));
-        }
-        setCursor(near ? Qt::IBeamCursor : Qt::ArrowCursor);
-        e->accept();
-        return;
-    }
-    if (m_tool == ObjectPick) {
-        updateHoverObject(img.toPoint());
-        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
-        e->accept();
-        return;
-    }
-    if (m_selectionMode && m_tool == None && m_smartPick && !hasSelection()) {
-        // Smart pick: highlight the detected object under the cursor at the
-        // current nesting depth (same candidate list as the ObjectPick tool).
-        updateHoverObject(img.toPoint());
-        setCursor(m_hoverObject.isNull() ? Qt::CrossCursor : Qt::PointingHandCursor);
+        setCursor(over ? Qt::IBeamCursor : Qt::ArrowCursor);
         e->accept();
         return;
     }

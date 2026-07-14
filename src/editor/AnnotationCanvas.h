@@ -9,7 +9,6 @@
 #include <QElapsedTimer>
 #include <functional>
 #include <qqmlregistration.h>
-#include "overlay/ObjectDetector.h"
 #include "ocr/OcrWord.h"
 
 template <typename T> class QFutureWatcher;
@@ -26,9 +25,9 @@ class AnnotationCanvas : public QQuickPaintedItem
 
     Q_PROPERTY(int tool READ tool WRITE setTool NOTIFY toolChanged)
     Q_PROPERTY(QColor strokeColor READ strokeColor WRITE setStrokeColor NOTIFY strokeColorChanged)
-    // Theme colours for the selection chrome (border, handles, smart-pick
-    // highlight, dim-outside scrim). Bound to Theme.accent / Theme.primary so
-    // the overlay follows the SELECTED app theme instead of a fixed purple.
+    // Theme colours for the selection chrome (border, handles, dim-outside
+    // scrim). Bound to Theme.accent / Theme.primary so the overlay follows
+    // the SELECTED app theme instead of a fixed purple.
     Q_PROPERTY(QColor uiAccent READ uiAccent WRITE setUiAccent NOTIFY uiChromeChanged)
     Q_PROPERTY(QColor uiScrim READ uiScrim WRITE setUiScrim NOTIFY uiChromeChanged)
     Q_PROPERTY(bool colorPicking READ colorPicking WRITE setColorPicking NOTIFY colorPickingChanged)
@@ -40,10 +39,14 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(QColor shapeFillColor READ shapeFillColor WRITE setShapeFillColor NOTIFY shapeFillColorChanged)
     Q_PROPERTY(bool shapeFillEnabled READ shapeFillEnabled WRITE setShapeFillEnabled NOTIFY shapeFillEnabledChanged)
     Q_PROPERTY(int strokeWidth READ strokeWidth WRITE setStrokeWidth NOTIFY strokeWidthChanged)
+    Q_PROPERTY(int arrowHeadStyle READ arrowHeadStyle WRITE setArrowHeadStyle NOTIFY arrowHeadStyleChanged)
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     // Step-marker badge size (px, decoupled from the text fontSize — the
     // circle radius is max(14, stepSize*0.9)).
     Q_PROPERTY(int stepSize READ stepSize WRITE setStepSize NOTIFY stepSizeChanged)
+    // Highlighter sub-mode (HighlightMode): freehand marker / rectangle band /
+    // OCR text-snap. The Highlight tool paints and gestures differently per mode.
+    Q_PROPERTY(int highlightMode READ highlightMode WRITE setHighlightMode NOTIFY highlightModeChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -54,22 +57,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool textBackground READ textBackground WRITE setTextBackground NOTIFY textBackgroundChanged)
     Q_PROPERTY(QColor textBackgroundColor READ textBackgroundColor WRITE setTextBackgroundColor NOTIFY textBackgroundColorChanged)
     Q_PROPERTY(bool selectionMode READ selectionMode WRITE setSelectionMode NOTIFY selectionModeChanged)
-    // Overlay smart pick: with the plain selection tool (None), hovering
-    // highlights the detected object under the cursor and a CLICK (no drag)
-    // selects its rect; dragging still draws a manual rectangle.
-    Q_PROPERTY(bool smartPick READ smartPick WRITE setSmartPick NOTIFY smartPickChanged)
-    // Overlay capture-on-release: finishing a selection gesture (drag or
-    // smart-pick click) with the plain selection tool confirms immediately —
-    // no Enter/double-click. Annotation drags never confirm.
+    // Overlay capture-on-release: finishing a selection gesture (drag) with the
+    // plain selection tool confirms immediately — no Enter/double-click.
+    // Annotation drags never confirm.
     Q_PROPERTY(bool confirmOnRelease READ confirmOnRelease WRITE setConfirmOnRelease NOTIFY confirmOnReleaseChanged)
-    // Hover state for the pick modes (smart pick / ObjectPick): the currently
-    // highlighted object rect (image px; null when none), plus the nesting
-    // position — hoverDepth-th of hoverDepthCount rects under the cursor
-    // (inner→outer, scroll wheel cycles). QML draws the size/level badge.
-    Q_PROPERTY(QRectF hoverObjectRect READ hoverObjectRect NOTIFY hoverObjectChanged)
-    Q_PROPERTY(QString hoverObjectKind READ hoverObjectKind NOTIFY hoverObjectChanged)
-    Q_PROPERTY(int hoverDepth READ hoverDepth NOTIFY hoverObjectChanged)
-    Q_PROPERTY(int hoverDepthCount READ hoverDepthCount NOTIFY hoverObjectChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -80,10 +71,6 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
     Q_PROPERTY(QSize imageSize READ imageSize NOTIFY imageChanged)
     Q_PROPERTY(qreal renderScale READ renderScale NOTIFY renderScaleChanged)
-    // Object-pick: true while the foreground segmentation runs off-thread;
-    // hasObjectMask flips once a usable mask is previewed on the selection.
-    Q_PROPERTY(bool segmenting READ segmenting NOTIFY segmentingChanged)
-    Q_PROPERTY(bool hasObjectMask READ hasObjectMask NOTIFY segmentingChanged)
     // EditShapes tool: index into m_items of the currently selected annotation
     // (-1 = none). selectedAnnotTool is that annotation's Tool enum (or -1) so
     // the QML props bar can show the right controls; hasAnnotSelection gates
@@ -103,10 +90,19 @@ public:
         None = 0, Pen, Line, Arrow, Rect, Ellipse, Text,
         Blur, Pixelate, Highlight, Step, Crop,
         SmartErase,
-        ObjectPick,  // 13 — overlay-only: hover to highlight a detected object, click to capture it
-        EditShapes   // 14 — select a placed annotation to move/resize/restyle/delete it
+        ObjectPick,   // 13 — reserved (removed: was smart-pick overlay tool)
+        EditShapes,  // 14 — select a placed annotation to move/resize/restyle/delete it
+        PastedImage, // 15 — editor-only image inserted from the system clipboard
+        Callout,     // 16 — speech-bubble shape; text is added with the text tool
+        Measure      // 17 — distance/angle ruler retained in the export
     };
     Q_ENUM(Tool)
+
+    // Highlighter sub-mode (Highlight tool). Freehand = translucent marker
+    // stroke (follows the pen), Rect = drawn rectangular band, Text = snaps to
+    // the OCR text lines the drag crosses. Persisted via Settings/highlightMode.
+    enum HighlightMode { HlFreehand = 0, HlRect = 1, HlText = 2 };
+    Q_ENUM(HighlightMode)
 
     explicit AnnotationCanvas(QQuickItem *parent = nullptr);
 
@@ -135,6 +131,10 @@ public:
     void setShapeFillEnabled(bool on);
     int strokeWidth() const { return m_strokeWidth; }
     void setStrokeWidth(int w);
+    int arrowHeadStyle() const { return m_arrowHeadStyle; }
+    void setArrowHeadStyle(int style);
+    int highlightMode() const { return m_highlightMode; }
+    void setHighlightMode(int mode);
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
     int stepSize() const { return m_stepSize; }
@@ -156,8 +156,6 @@ public:
     QColor textBackgroundColor() const { return m_textBgColor; }
     void setTextBackgroundColor(const QColor &c);
     bool selectionMode() const { return m_selectionMode; }
-    bool smartPick() const { return m_smartPick; }
-    void setSmartPick(bool on);
     bool confirmOnRelease() const { return m_confirmOnRelease; }
     void setConfirmOnRelease(bool on)
     {
@@ -165,10 +163,6 @@ public:
         m_confirmOnRelease = on;
         emit confirmOnReleaseChanged();
     }
-    QRectF hoverObjectRect() const { return QRectF(m_hoverObject); }
-    QString hoverObjectKind() const { return m_hoverObjectKind; }
-    int hoverDepth() const { return m_hoverIndex; }
-    int hoverDepthCount() const { return int(m_hoverChain.size()); }
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -177,10 +171,6 @@ public:
     bool canRedo() const { return !m_redo.isEmpty(); }
     QSize imageSize() const { return m_base.size(); }
     qreal renderScale() const;
-    // "Segmenting" includes a pending nudge-debounce: a confirm arriving in
-    // that window must also wait, or it would export the stale/absent mask.
-    bool segmenting() const;
-    bool hasObjectMask() const { return !m_objectMask.isNull(); }
     bool hasAnnotSelection() const { return m_selectedAnnot >= 0; }
     int selectedAnnotTool() const {
         return (m_selectedAnnot >= 0 && m_selectedAnnot < m_items.size())
@@ -189,8 +179,10 @@ public:
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
-    Q_INVOKABLE void clearAnnotations();
     Q_INVOKABLE void commitText(qreal imgX, qreal imgY, const QString &text);
+    // Insert the current GUI clipboard at an image-space point. Images retain
+    // their pixels as an annotation; plain text uses the existing Text path.
+    Q_INVOKABLE bool pasteClipboard(qreal imgX, qreal imgY);
     // EditShapes: delete the selected annotation, nudge it by whole image
     // pixels, or replace a selected Text annotation's string (double-click
     // re-edit). No-ops when nothing / a non-Text shape is selected.
@@ -214,28 +206,25 @@ public:
     bool hasOcrSelection() const;
     // Called from the OCR callback with the recognized words (image px).
     void setOcrWords(const QVector<OcrWord> &words);
-    int ocrWordCount() const { return int(m_ocrWords.size()); }
     Q_INVOKABLE void ocrSelectAll();
     Q_INVOKABLE void clearOcrMode();
     // Selected words joined in reading order (spaces within a line, newlines
     // between lines).
     Q_INVOKABLE QString ocrSelectedText() const;
+    // Turn the transient OCR range into permanent, exportable annotations.
+    // A multi-line range becomes one annotation per line and one undo step.
+    Q_INVOKABLE bool highlightOcrSelection();
+    Q_INVOKABLE bool redactOcrSelection(bool pixelate);
+    // Text-aware Highlight: the editor recognizes glyph boxes and feeds them
+    // here so a plain Highlight drag over text snaps to the text line(s).
+    // Requested lazily via glyphBoxesRequested() when the Highlight tool is
+    // picked; the overlay (no OCR) simply never delivers and stays plain.
+    void setGlyphBoxes(const QVector<OcrWord> &words);
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
-    Q_INVOKABLE QRectF selectionInItemCoords() const;
-
-    // Install an external foreground segmenter (U-2-Net). Called on a worker
-    // thread inside startSegmentation; must be thread-safe and return a
-    // Grayscale8 keep-mask the size of the region, or a null image to fall back
-    // to the built-in heuristic. Also used by applyBaseMask via the app.
-    using Segmenter = std::function<QImage(const QImage &, const QRect &)>;
-    void setExternalSegmenter(Segmenter s) { m_externalSegmenter = std::move(s); }
-    // Composite a keep-mask (255 = keep) into the base image's alpha, making
-    // the rejected pixels transparent. Undoable. Used by "Remove background".
-    Q_INVOKABLE void applyBaseMask(const QImage &mask);
 
     // Final composite at full image resolution (annotations burnt in).
     QImage rendered() const;
@@ -252,6 +241,7 @@ signals:
     void shapeFillColorChanged();
     void shapeFillEnabledChanged();
     void strokeWidthChanged();
+    void arrowHeadStyleChanged();
     void fontSizeChanged();
     void stepSizeChanged();
     void fontFamilyChanged();
@@ -263,9 +253,7 @@ signals:
     void textBackgroundChanged();
     void textBackgroundColorChanged();
     void selectionModeChanged();
-    void smartPickChanged();
     void confirmOnReleaseChanged();
-    void hoverObjectChanged();
     void selectionRectChanged();
     void hoverPointChanged();
     void historyChanged();
@@ -277,9 +265,15 @@ signals:
     // writes the result back into the selected annotation.
     void textEditRequested(qreal imgX, qreal imgY, const QString &text);
     void selectionConfirmed();
-    void segmentingChanged();
+    // Right click is deliberately a context-free quick copy. The editor copies
+    // its composite; the screenshot overlay confirms + forces a copy.
+    void copyRequested();
     void selectedAnnotChanged();
     void ocrChanged();
+    // Emitted when the Highlight tool is selected and no glyph boxes are cached
+    // yet — the editor answers by OCR-ing the base and calling setGlyphBoxes().
+    void glyphBoxesRequested();
+    void highlightModeChanged();
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -299,7 +293,9 @@ private:
         QColor fillColor;           // shape fill (when filled)
         bool filled = false;
         qreal width = 3;
+        int arrowHeadStyle = 0;      // 0 filled, 1 open, 2 both ends
         QString text;               // Text tool: may contain '\n' (multi-line)
+        QImage image;                // PastedImage: implicitly shared, image-pixel space
         int fontSize = 18;
         QString fontFamily;         // empty = default UI font
         bool bold = true;
@@ -325,10 +321,6 @@ private:
         mutable bool fxFast = false;
     };
 
-    // PendingNewSelection: an ObjectPick press that did NOT hit a candidate is
-    // held back until real drag movement — a bare press must not destroy the
-    // current selection/mask, because it may be the first half of the
-    // double-click-confirm gesture.
     // MoveAnnot/ResizeAnnot: drag the selected placed annotation (EditShapes).
     // PendingMoveAnnot: a press that selected/re-hit a shape but has not yet
     // moved — a bare click just selects; a real drag promotes it to MoveAnnot.
@@ -337,7 +329,6 @@ private:
     // selects/deselects the shape under the cursor (direct shape editing
     // without switching to the Edit tool).
     enum DragMode { NoDrag, DrawDrag, PendingDraw, NewSelection, MoveSelection, ResizeSelection,
-                    PendingNewSelection,
                     PendingMoveAnnot, MoveAnnot, ResizeAnnot };
 
     // Start a fresh in-progress annotation for the active tool at `at`
@@ -347,6 +338,10 @@ private:
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
     void drawAll(QPainter &p) const;
+    // A stroke drawn as a freehand path (accumulated points) rather than a
+    // dragged rect: the Pen, or the Highlight tool in freehand marker mode.
+    static bool isFreehandStroke(const Annot &a)
+    { return a.type == Pen || (a.type == Highlight && !a.points.isEmpty()); }
     // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
     // to repaint only the dirty region while drag-drawing.
     QRectF annotBoundsImg(const Annot &a) const;
@@ -388,15 +383,6 @@ private:
     // a short window — a slider drag becomes one undo entry, not dozens.
     void pushUndoCoalesced(int propId);
     QColor sampleEdgeColor(const QRectF &r) const;
-    void startSegmentation();
-    void clearObjectMask();
-    // Kick off (once) the async edge-detection pass that fills
-    // m_objectCandidates — shared by the ObjectPick tool and smart pick.
-    void ensureObjectCandidates();
-    // Rebuild the containing-candidates chain for imgPos and pick the
-    // evidence-weighted default plus m_pickOffset (clamped); emits
-    // hoverObjectChanged + repaints on change.
-    void updateHoverObject(const QPoint &imgPos);
 
     QImage m_base;
     QVector<Annot> m_items;
@@ -426,6 +412,8 @@ private:
     QColor m_textBgColor = QColor(0, 0, 0, 179);
     int m_stepCounter = 0;
     int m_stepSize = 22;
+    int m_arrowHeadStyle = 0;
+    int m_highlightMode = HlText; // see HighlightMode; text-snap by default
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting
@@ -434,11 +422,14 @@ private:
     bool m_styleBackupValid = false;
 
     bool m_selectionMode = false;
-    bool m_smartPick = false;
     bool m_confirmOnRelease = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
+    // Pen straight-line: while Shift is held mid-stroke, the freehand tail is
+    // replaced by a single straight segment from this committed anchor index to
+    // the cursor. -1 = not currently in a Shift straight-segment.
+    int m_penShiftAnchor = -1;
     DragMode m_drag = NoDrag;
     int m_resizeHandle = -1;
     QPointF m_dragStart;      // image coords
@@ -456,60 +447,64 @@ private:
     bool m_suppressStyleToSelected = false;// true while selectAnnot seeds props
     bool m_resizeUndoPending = false;      // push one undo on the resize's first move
 
-    // OCR text-pick mode. Glyphs are in reading order; the selection is a
-    // contiguous index range [min(anchor,caret) .. max] (letter-granular),
-    // dragged like a text cursor. -1 = no selection.
+    // OCR text-pick mode. Glyphs are in reading order; the selection is two
+    // CARET positions in [0..N] (a caret at k sits before glyph k), dragged like
+    // a text cursor. Selected glyphs = [min..max-1]; equal carets = empty; -1 =
+    // no selection. m_ocrLines caches each text line's contiguous glyph run and
+    // its clean band (union of the line's glyph rects) — the source of the
+    // always-visible selectable-text boxes, line-constrained caret hit-testing,
+    // and consistent-height selection bands.
+    struct OcrLine { int first = 0; int last = 0; QRectF band; };
     quint64 m_ocrSeq = 0;                  // staleness guard for async OCR results
     bool m_ocrMode = false;
     bool m_ocrBusy = false;
     QVector<OcrWord> m_ocrWords;
-    int m_ocrSelAnchor = -1;
-    int m_ocrSelCaret = -1;
+    QVector<OcrLine> m_ocrLines;
+    int m_ocrCaretA = -1;       // anchor caret [0..N]
+    int m_ocrCaretB = -1;       // active caret [0..N]
+    int m_ocrPressCaret = -1;   // caret under the press, applied on the first drag
     bool m_ocrDragging = false;
-    int m_ocrHoverGlyph = -1;   // glyph whose line is hover-highlighted (-1 none)
+    int m_ocrHoverLine = -1;    // line (cache index) hover-highlighted (-1 none)
     bool m_ocrDidDrag = false;  // a press-drag passed the letter-select threshold
-    // Nearest glyph index to an image-space point (-1 when there are none).
-    int ocrGlyphAt(const QPointF &imgPos) const;
+
+    // Text-aware Highlight glyph cache — DISTINCT from m_ocrWords / OCR mode:
+    // populated silently so a normal Highlight drag can snap to text without
+    // entering the OCR selection overlay.
+    QVector<OcrWord> m_glyphBoxes;
+    bool m_glyphBoxesReady = false;
+    bool m_glyphBoxesRequested = false;  // don't re-ask on every tool switch
+    qint64 m_glyphBoxesBaseKey = -1;     // invalidate when the base image changes
+    // Snap a plain Highlight drag to per-line text boxes when it lands over
+    // detected text. Returns true when it appended snapped annots (the caller
+    // then skips the single plain rectangle); false to fall back to a plain rect.
+    bool applyTextAwareHighlight(const Annot &drag);
+    // Rebuild m_ocrLines from m_ocrWords (contiguous same-line glyph runs).
+    void rebuildOcrLines();
+    // Cache index of the line containing glyph g (-1 if none).
+    int ocrLineOfGlyph(int g) const;
+    // Line (cache index) nearest an image point, vertical distance dominating;
+    // -1 when there are no lines.
+    int ocrLineAt(const QPointF &imgPos) const;
+    // Is the point actually over line k's text band (with a small margin)?
+    bool ocrOverLine(const QPointF &imgPos, int line) const;
+    // Caret position [0..N] under an image point: the inter-glyph gap nearest the
+    // cursor x, constrained to the line under the cursor. -1 when there is no text.
+    int ocrCaretAt(const QPointF &imgPos) const;
+    // Nearest glyph on line k to x (for the word double-click). -1 out of range.
+    int ocrGlyphAtOnLine(int line, qreal x) const;
     // Expand a glyph index to the inclusive [lo..hi] range of its whole word
-    // (word boundary = OcrWord::spaceBefore) or whole text line.
+    // (word boundary = OcrWord::spaceBefore), within its text line.
     void ocrExpandWord(int i, int &lo, int &hi) const;
-    void ocrExpandLine(int i, int &lo, int &hi) const;
-    // Image-space bounding box (with slack) of the OCR word rects in the
-    // inclusive index range [min(a,b)..max(a,b)] — used to dirty just the
-    // changed selection/hover bars instead of the whole scrim. Null when the
-    // range is out of bounds (callers then fall back to a full repaint).
-    QRectF ocrRangeBoxImg(int a, int b) const;
-    QRectF ocrLineBoxImg(int glyph) const; // box of the glyph's whole text line
+    // Union (with slack) of the full line bands touched by the caret range
+    // [min..max] — dirties exactly the lines whose selection bars changed.
+    QRectF ocrCaretSpanDirty(int cA, int cB) const;
+    // Adds one permanent annotation for each text line spanned by the current
+    // OCR range. Keeping the batch here ensures highlight/redact share the
+    // same endpoint clipping and a single undo snapshot.
+    bool addOcrSelectionAnnotations(Tool type, const QColor &color,
+                                    bool filled = false, const QColor &fillColor = QColor());
     // Coalesce-window bookkeeping (see pushUndoCoalesced).
     int m_lastCoalesceProp = -1;
     int m_lastCoalesceIndex = -1;
     QElapsedTimer m_coalesceTimer;
-
-    // Object-pick mode (overlay): detected candidate rects + the one under the
-    // cursor. Detection runs off-thread the first time the tool is selected.
-    QVector<ObjectDetector::Candidate> m_objectCandidates;
-    QVector<ObjectDetector::Candidate> m_hoverChain; // candidates containing the cursor, inner→outer
-    // Scroll offset relative to the evidence-weighted default candidate.
-    int m_pickOffset = 0;
-    int m_hoverDefaultIndex = 0;
-    int m_hoverIndex = 0; // resolved chain index (for the QML badge)
-    QPoint m_lastHoverImg;
-    QRect m_hoverObject;
-    QString m_hoverObjectKind;
-    QFutureWatcher<QVector<ObjectDetector::Candidate>> *m_detectWatcher = nullptr;
-
-    // Object-pick foreground mask for the current selection (Grayscale8 at
-    // region size, 255 = keep). Computed off-thread; m_segmentSeq drops stale
-    // results, m_maskOverlay is the cached dim-the-background preview,
-    // m_segmentRect is the region of the last started run (done OR in flight —
-    // re-clicking it must not restart and wipe the mask mid-double-click),
-    // m_nudgeTimer debounces re-segmentation during arrow-key autorepeat.
-    Segmenter m_externalSegmenter;
-    QImage m_objectMask;
-    QRect m_objectMaskRect;
-    QImage m_maskOverlay;
-    QRect m_segmentRect;
-    quint64 m_segmentSeq = 0;
-    int m_segmentActive = 0;
-    QTimer *m_nudgeTimer = nullptr;
 };

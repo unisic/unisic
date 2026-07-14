@@ -2,7 +2,6 @@
 #include "AnnotationCanvas.h"
 #include "AppContext.h"
 #include <QPointer>
-#include <QUrl>
 #include <QFileInfo>
 #include <QVector>
 
@@ -22,6 +21,20 @@ void EditorSession::bindCanvas(AnnotationCanvas *canvas)
         // the editor window's lifetime. Re-share the canvas's buffer instead
         // (pixel-identical; only the internal format differs).
         m_image = m_canvas->image();
+        // Text-aware Highlight: when the user selects the Highlight tool the
+        // canvas asks (once) for glyph boxes. OCR the clean base off-thread and
+        // feed them back so a plain highlight drag over text snaps to the line.
+        // If OCR is unavailable, the highlighter simply stays a plain rectangle.
+        connect(m_canvas, &AnnotationCanvas::glyphBoxesRequested, this, [this] {
+            if (!m_canvas || !m_app->ocrAvailable())
+                return;
+            QPointer<AnnotationCanvas> canvas(m_canvas);
+            m_app->ocrBoxes(m_canvas->image(),
+                            [canvas](const QVector<OcrWord> &words, const QString &) {
+                if (canvas)
+                    canvas->setGlyphBoxes(words);
+            });
+        });
     }
 }
 
@@ -43,7 +56,6 @@ QString EditorSession::save()
     // place and refresh its history thumbnail, rather than making a new file.
     if (!m_overwritePath.isEmpty()) {
         if (img.save(m_overwritePath)) {
-            m_lastSavedPath = m_overwritePath;
             m_app->history()->refreshEntry(m_overwritePath, img);
             setStatus(tr("Saved (overwrote %1)").arg(QFileInfo(m_overwritePath).fileName()));
             return m_overwritePath;
@@ -53,21 +65,10 @@ QString EditorSession::save()
     }
     const QString path = m_app->saveImageAuto(img);
     if (!path.isEmpty()) {
-        m_lastSavedPath = path;
         m_app->history()->addEntry(path, img, QStringLiteral("image"));
         setStatus(tr("Saved to %1").arg(path));
     } else {
         setStatus(tr("Save failed"));
-    }
-    return path;
-}
-
-QString EditorSession::saveAs(const QUrl &dir)
-{
-    const QString path = m_app->saveImageTo(composited(), dir.toLocalFile());
-    if (!path.isEmpty()) {
-        m_lastSavedPath = path;
-        setStatus(tr("Saved to %1").arg(path));
     }
     return path;
 }
@@ -141,24 +142,21 @@ void EditorSession::copyOcrSelection()
     setStatus(tr("Copied selected text"));
 }
 
-void EditorSession::removeBackground()
+void EditorSession::highlightOcrSelection()
 {
-    if (!m_canvas)
+    if (!m_canvas || !m_canvas->highlightOcrSelection()) {
+        setStatus(tr("No text selected"));
         return;
-    setStatus(tr("Removing background…"));
-    const QImage base = m_canvas->image();
-    QPointer<EditorSession> self(this);
-    QPointer<AnnotationCanvas> canvas(m_canvas);
-    m_app->segmentForeground(base, base.rect(), [self, canvas](const QImage &mask, const QString &err) {
-        if (!canvas)
-            return;
-        if (mask.isNull()) {
-            if (self)
-                self->setStatus(err.isEmpty() ? tr("Background removal failed") : err);
-            return;
-        }
-        canvas->applyBaseMask(mask);
-        if (self)
-            self->setStatus(tr("Background removed — save as PNG or WebP to keep transparency"));
-    });
+    }
+    setStatus(tr("Highlighted selected text"));
 }
+
+void EditorSession::redactOcrSelection()
+{
+    if (!m_canvas || !m_canvas->redactOcrSelection(false)) {
+        setStatus(tr("No text selected"));
+        return;
+    }
+    setStatus(tr("Redacted selected text"));
+}
+

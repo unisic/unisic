@@ -24,15 +24,13 @@ public:
     bool start(int pipewireFd, uint nodeId, int maxFps);
     void stop();
 
-    // Negotiated stream size (valid after formatReady).
-    QSize frameSize() const { return m_size; }
-
     // ffmpeg rawvideo pix_fmt for the negotiated byte order (valid after
     // formatReady): frames are kept in native order, not swizzled to BGRA.
     QString pixelFormat() const;
 
-    // Hands out the latest frame (tightly packed in pixelFormat(), frameSize())
-    // as a cheap implicitly-shared reference. Returns false if none arrived yet.
+    // Hands out the latest frame (tightly packed in pixelFormat() and the
+    // negotiated size) as a cheap implicitly-shared reference. Returns false if
+    // none arrived yet.
     // `seq` (same mutex, so atomic with the frame) increments once per new
     // stream frame — compositor streams are damage-driven, so on a static
     // screen it lets the sampler skip re-cropping an unchanged frame.

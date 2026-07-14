@@ -9,13 +9,17 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QSaveFile>
+#include <QUuid>
 #include <QScreen>
 #include <QSet>
 #include <QDebug>
 #include <QtConcurrent>
 #include <climits>
 #include <cstring>
+#include <memory>
 #include <unistd.h>
+#include <sys/stat.h>
 
 // The ffmpeg found in PATH varies: some builds ship one without GPL
 // x264. Probe the available video encoders once so both the lossless
@@ -48,6 +52,16 @@ static const QSet<QString> &ffmpegEncoders()
 {
     static const QSet<QString> cached = probeFfmpegEncoders();
     return cached;
+}
+
+bool GifRecorder::hardwareEncoderAvailable(const QString &id)
+{
+    if (id == QLatin1String("vaapi"))
+        return ffmpegEncoders().contains(QStringLiteral("h264_vaapi"))
+               && QFileInfo::exists(QStringLiteral("/dev/dri/renderD128"));
+    if (id == QLatin1String("nvenc"))
+        return ffmpegEncoders().contains(QStringLiteral("h264_nvenc"));
+    return false;
 }
 
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
@@ -313,8 +327,16 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // when ffmpeg's write hits ENOSPC.
     const QString tmpBase = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(tmpBase);
-    m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
-    m_outPath = outDir + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
+    if (m_output == Replay) {
+        m_replayDir = tmpBase + QStringLiteral("/unisic-replay-ring");
+        QDir(m_replayDir).removeRecursively();
+        QDir().mkpath(m_replayDir);
+        m_tempPath = m_replayDir + QStringLiteral("/segment-%03d.mkv");
+        m_outPath.clear();
+    } else {
+        m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
+        m_outPath = outDir + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
+    }
 
     // Feed ffmpeg the stream's native byte order (bgr0/bgra/rgb0/rgba) so the
     // grabber's onProcess stays a plain row memcpy; the encoder's swscale does
@@ -334,14 +356,22 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                      QStringLiteral("-video_size"),
                      QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
                      QStringLiteral("-framerate"), QString::number(fps),
-                     QStringLiteral("-thread_queue_size"), QStringLiteral("512"),
+                     // A raw packet is a whole frame. 512 here can make ffmpeg
+                     // retain tens of gigabytes independently of QProcess's
+                     // bounded writeCap; two frames absorb hand-off jitter
+                     // without recreating a second large frame reservoir.
+                     QStringLiteral("-thread_queue_size"), QStringLiteral("2"),
                      QStringLiteral("-i"), QStringLiteral("-")};
 
-    // Optional audio — video output only (GIF has none). Each enabled source is
-    // a live pulse capture indexed after the video (input 0): @DEFAULT_MONITOR@
-    // is the default sink's monitor (system sound), "default" is the mic.
+    // Audio inputs are added after raw screen input 0.
+    int nextInput = 1;
+
+    // Optional audio — video output only (GIF has none). Pulse sources are
+    // followed by an optional PipeWire application node captured through a
+    // bounded kernel FIFO (pw-record writes raw PCM; no audio accumulates in RAM).
     m_hasAudio = false;
     QStringList audioSources;
+    QVector<int> audioInputs;
     if (m_output != Gif) {
         if (m_settings->recordSystemAudio())
             audioSources << QStringLiteral("@DEFAULT_MONITOR@");
@@ -352,13 +382,44 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         args << QStringLiteral("-f") << QStringLiteral("pulse")
              << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
              << QStringLiteral("-i") << dev;
+        audioInputs << nextInput++;
+    }
+    const QString appNode = m_output == Gif ? QString()
+                                             : m_settings->recordAppAudioNode().trimmed();
+    if (!appNode.isEmpty()
+        && !QStandardPaths::findExecutable(QStringLiteral("pw-record")).isEmpty()) {
+        m_audioFifoPath = tmpBase + QStringLiteral("/unisic-audio-%1.fifo").arg(stamp);
+        QFile::remove(m_audioFifoPath);
+        if (::mkfifo(QFile::encodeName(m_audioFifoPath).constData(), 0600) == 0) {
+            args << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
+                 << QStringLiteral("-f") << QStringLiteral("s16le")
+                 << QStringLiteral("-ar") << QStringLiteral("48000")
+                 << QStringLiteral("-ac") << QStringLiteral("2")
+                 << QStringLiteral("-i") << m_audioFifoPath;
+            audioInputs << nextInput++;
+        } else {
+            m_audioFifoPath.clear();
+        }
     }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
     // x264, else utvideo (fast intra-only RGB), else FFV1 — fallbacks for an
     // ffmpeg built without GPL x264.
     const QSet<QString> &encoders = ffmpegEncoders();
-    if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
+    if (m_output == Replay) {
+        if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
+            args << QStringLiteral("-c:v") << QStringLiteral("libx264")
+                 << QStringLiteral("-preset") << QStringLiteral("ultrafast")
+                 << QStringLiteral("-crf") << QString::number(qBound(0, m_settings->videoQuality(), 40));
+        } else if (encoders.contains(QStringLiteral("libopenh264"))) {
+            args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+                 << QStringLiteral("-b:v") << QStringLiteral("6M");
+        } else {
+            args << QStringLiteral("-c:v") << QStringLiteral("mpeg4")
+                 << QStringLiteral("-q:v") << QStringLiteral("3");
+        }
+        args << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+    } else if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
              << QStringLiteral("-preset") << QStringLiteral("ultrafast")
              << QStringLiteral("-qp") << QStringLiteral("0");
@@ -368,26 +429,66 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
     }
 
-    // Audio mux: one source maps straight through, two are mixed. Stored as
+    QStringList filters;
+    QString videoMap = QStringLiteral("0:v");
+
+    QString audioMap;
+    if (audioInputs.size() == 1) {
+        audioMap = QStringLiteral("%1:a").arg(audioInputs.first());
+    } else if (audioInputs.size() >= 2) {
+        QString labels;
+        for (int index : std::as_const(audioInputs))
+            labels += QStringLiteral("[%1:a]").arg(index);
+        filters << labels + QStringLiteral("amix=inputs=%1:duration=longest:normalize=0[aout]")
+                             .arg(audioInputs.size());
+        audioMap = QStringLiteral("[aout]");
+    }
+    if (!filters.isEmpty())
+        args << QStringLiteral("-filter_complex") << filters.join(QLatin1Char(';'));
+
+    args << QStringLiteral("-map") << videoMap;
+
+    // Audio mux: one source maps straight through, two or more are mixed. Stored as
     // lossless FLAC in the intermediate (convertVideo re-encodes to AAC/Opus).
     // -shortest ends the file when the video (pipe) stops so the live pulse
     // captures — which never EOF on their own — don't hang the encoder.
-    if (audioSources.size() == 1) {
-        args << QStringLiteral("-map") << QStringLiteral("0:v")
-             << QStringLiteral("-map") << QStringLiteral("1:a")
-             << QStringLiteral("-c:a") << QStringLiteral("flac")
-             << QStringLiteral("-shortest");
+    if (audioInputs.size() == 1) {
+        args << QStringLiteral("-map") << audioMap
+             << QStringLiteral("-c:a") << QStringLiteral("flac");
+        // -shortest lets a never-EOF pulse capture end together with the video
+        // pipe. But an app-audio FIFO CAN EOF early (pw-record dies / the target
+        // node vanishes); with -shortest that truncates the WHOLE recording to a
+        // fraction of a second. When app audio is the SOLE source, drop it: our
+        // explicit stop closes the video pipe and kills pw-record so ffmpeg still
+        // ends, and a mid-recording pw-record death just ends the audio stream
+        // instead of the file. (m_audioFifoPath non-empty ⟺ the sole input is
+        // the FIFO, since any pulse source would add a second input.)
+        if (m_audioFifoPath.isEmpty())
+            args << QStringLiteral("-shortest");
         m_hasAudio = true;
-    } else if (audioSources.size() >= 2) {
-        args << QStringLiteral("-filter_complex")
-             << QStringLiteral("[1:a][2:a]amix=inputs=2:duration=longest:normalize=0[aout]")
-             << QStringLiteral("-map") << QStringLiteral("0:v")
-             << QStringLiteral("-map") << QStringLiteral("[aout]")
+    } else if (audioInputs.size() >= 2) {
+        args << QStringLiteral("-map") << audioMap
              << QStringLiteral("-c:a") << QStringLiteral("flac")
              << QStringLiteral("-shortest");
         m_hasAudio = true;
     }
-    args << m_tempPath;
+    if (m_output == Replay) {
+        const int segments = replaySegmentCount(m_settings->instantReplaySeconds());
+        // The segment muxer can only cut on a keyframe. libx264(rgb) at
+        // -preset ultrafast has no forced GOP, so keyint defaults to 250 frames
+        // (~4-8s) and every "2s" segment is really ~8s — the ring then holds far
+        // more than the requested window and an early Save-replay (before two
+        // segments exist) yields nothing. Force an IDR every 2s so segment_time
+        // is honoured and replaySegmentCount's /2 maths hold.
+        args << QStringLiteral("-force_key_frames") << QStringLiteral("expr:gte(t,n_forced*2)")
+             << QStringLiteral("-f") << QStringLiteral("segment")
+             << QStringLiteral("-segment_time") << QStringLiteral("2")
+             << QStringLiteral("-segment_wrap") << QString::number(segments)
+             << QStringLiteral("-reset_timestamps") << QStringLiteral("1")
+             << m_tempPath;
+    } else {
+        args << m_tempPath;
+    }
 
     m_ffmpeg = new QProcess(this);
     m_ffmpeg->setProcessChannelMode(QProcess::MergedChannels);
@@ -420,13 +521,39 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
             fail(tr("Recording encoder failed (code %1)").arg(code));
             return;
         }
-        if (m_output == Gif)
+        if (m_output == Replay) {
+            cleanup();
+            emit finished({});
+        } else if (m_output == Gif)
             convertToGif();
         else
             convertVideo();
     });
     auto *encoder = m_ffmpeg;
     encoder->start(QStringLiteral("ffmpeg"), args);
+    if (!m_audioFifoPath.isEmpty()) {
+        m_appAudio = new QProcess(this);
+        connect(m_appAudio, &QProcess::errorOccurred, this,
+                [this](QProcess::ProcessError error) {
+            if (error == QProcess::FailedToStart
+                && (m_state == Starting || m_state == Recording))
+                fail(tr("pw-record could not capture the selected application audio"));
+        });
+        // A pw-record that exits mid-recording (target node closed) used to be
+        // silent. Surface it as a warning; the recording keeps going without
+        // -shortest driving the file end (see the audio-map branch above).
+        connect(m_appAudio, &QProcess::finished, this,
+                [](int code, QProcess::ExitStatus status) {
+            if (status != QProcess::NormalExit || code != 0)
+                qWarning() << "unisic: application-audio capture (pw-record) exited early, code" << code;
+        });
+        m_appAudio->start(QStringLiteral("pw-record"),
+                          {QStringLiteral("--target"), appNode,
+                           QStringLiteral("--rate"), QStringLiteral("48000"),
+                           QStringLiteral("--channels"), QStringLiteral("2"),
+                           QStringLiteral("--format"), QStringLiteral("s16"),
+                           QStringLiteral("--raw"), m_audioFifoPath});
+    }
     if (!encoder->waitForStarted(3000)) {
         // errorOccurred may already have fired fail() synchronously (state now
         // Idle); guard so we don't emit failed() twice.
@@ -466,9 +593,13 @@ void GifRecorder::sampleFrame()
     // so a big backlog buys nothing beyond burst absorption — ×6 (~200 ms at
     // 30 fps) absorbs the same stalls at a fraction of the memory.
     const qsizetype frameBytes = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
-    const qsizetype writeCap = qBound(qsizetype(64) * 1024 * 1024, frameBytes * 6,
-                                      qsizetype(192) * 1024 * 1024);
-    if (m_ffmpeg->bytesToWrite() > writeCap)
+    if (frameBytes <= 0)
+        return;
+    const qsizetype absoluteCap = qsizetype(192) * 1024 * 1024;
+    const qsizetype queuedFrames = qBound(qsizetype(1), absoluteCap / frameBytes,
+                                          qsizetype(6));
+    const qsizetype writeCap = frameBytes * queuedFrames;
+    if (m_ffmpeg->bytesToWrite() + frameBytes > writeCap)
         return;
     // ffmpeg's rawvideo demuxer slices stdin into fixed m_streamSize frames. If
     // the source renegotiated a different size mid-recording (e.g. a window was
@@ -522,11 +653,23 @@ void GifRecorder::sampleFrame()
     // drained ticks, one catch-up tick could otherwise memcpy up to fps full
     // frames (~2 GB at 4K60) into the QProcess buffer in a single GUI-thread
     // loop. bytesToWrite() <= writeCap here (checked above), so headroom >= 0;
-    // the +1 keeps at least one frame written so pacing still makes progress.
-    n = qMin<qint64>(n, (writeCap - m_ffmpeg->bytesToWrite()) / frameBytes + 1);
-    for (qint64 i = 0; i < n; ++i)
-        m_ffmpeg->write(encoded);
-    m_framesWritten += n;
+    // If there is not room for one whole frame, wait for the next tick; rawvideo
+    // cannot safely accept a partial frame as a pacing unit.
+    n = qMin<qint64>(n, (writeCap - m_ffmpeg->bytesToWrite()) / frameBytes);
+    qint64 accepted = 0;
+    for (; accepted < n; ++accepted) {
+        qsizetype offset = 0;
+        while (offset < encoded.size()) {
+            const qint64 written = m_ffmpeg->write(encoded.constData() + offset,
+                                                    encoded.size() - offset);
+            if (written <= 0)
+                break;
+            offset += written;
+        }
+        if (offset != encoded.size())
+            break;
+    }
+    m_framesWritten += accepted;
 #endif
 }
 
@@ -574,8 +717,123 @@ void GifRecorder::stop()
         fail(tr("Recording encoder is not running"));
         return;
     }
+    stopProcess(m_appAudio);
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
+}
+
+void GifRecorder::saveInstantReplay()
+{
+    if (m_state != Recording || m_output != Replay || m_replayExporter)
+        return;
+    QDir ring(m_replayDir);
+    QFileInfoList segments = ring.entryInfoList({QStringLiteral("segment-*.mkv")},
+                                                QDir::Files, QDir::Time | QDir::Reversed);
+    if (segments.size() < 2) {
+        emit replayExportFailed(tr("Instant replay needs at least one completed segment"));
+        return;
+    }
+    // The newest segment is still being written. COPY the completed files into
+    // an independent snapshot before concatenating: a symlink (what QFile::link
+    // makes on Unix) OR even a hard link is insufficient, because segment_wrap
+    // reopens the ring names with O_TRUNC and rewrites the SAME inode — ffmpeg
+    // would then read a truncated/mutating file. Only a byte copy isolates the
+    // export from the live ring.
+    segments.removeLast();
+    const QString snapshot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+                             + QStringLiteral("/unisic-replay-save-")
+                             + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QDir().mkpath(snapshot);
+    QStringList linked;
+    int number = 0;
+    for (const QFileInfo &source : std::as_const(segments)) {
+        const QString target = snapshot + QStringLiteral("/%1.mkv").arg(number++, 4, 10, QLatin1Char('0'));
+        if (QFile::copy(source.absoluteFilePath(), target))
+            linked << target;
+    }
+    if (linked.isEmpty()) {
+        QDir(snapshot).removeRecursively();
+        emit replayExportFailed(tr("Could not snapshot the replay segments"));
+        return;
+    }
+    QSaveFile concat(snapshot + QStringLiteral("/concat.txt"));
+    if (!concat.open(QIODevice::WriteOnly)) {
+        QDir(snapshot).removeRecursively();
+        emit replayExportFailed(tr("Could not prepare the replay export"));
+        return;
+    }
+    for (QString path : std::as_const(linked)) {
+        path.replace(QLatin1Char('\''), QLatin1String("'\\''"));
+        concat.write("file '" + path.toUtf8() + "'\n");
+    }
+    const QString concatPath = concat.fileName();
+    if (!concat.commit()) {
+        QDir(snapshot).removeRecursively();
+        emit replayExportFailed(tr("Could not prepare the replay export"));
+        return;
+    }
+
+    QString outDir = m_settings->videoSaveDirectory();
+    QDir().mkpath(outDir);
+    const QString stem = QStringLiteral("Unisic_Replay_%1")
+                             .arg(QDateTime::currentDateTime().toString(
+                                 QStringLiteral("yyyy-MM-dd_HH-mm-ss")));
+    QString out = outDir + QLatin1Char('/') + stem + QStringLiteral(".mp4");
+    for (int i = 1; QFileInfo::exists(out); ++i)
+        out = outDir + QLatin1Char('/') + stem + QStringLiteral("-%1.mp4").arg(i);
+    auto *process = new QProcess(this);
+    m_replayExporter = process;
+    m_replaySnapshotDir = snapshot;
+    m_replayExportPath = out;
+    const auto completed = std::make_shared<bool>(false);
+    process->setProcessChannelMode(QProcess::MergedChannels);
+    connect(process, &QProcess::finished, this,
+            [this, process, snapshot, out, completed](int code, QProcess::ExitStatus status) {
+        if (*completed)
+            return;
+        *completed = true;
+        const QString diagnostic = QString::fromUtf8(process->readAll()).trimmed();
+        if (m_replayExporter == process)
+            m_replayExporter = nullptr;
+        process->deleteLater();
+        QDir(snapshot).removeRecursively();
+        m_replaySnapshotDir.clear();
+        m_replayExportPath.clear();
+        if (code != 0 || status != QProcess::NormalExit) {
+            QFile::remove(out);
+            emit replayExportFailed(diagnostic.isEmpty() ? tr("Instant replay export failed")
+                                                          : diagnostic);
+            return;
+        }
+        emit finished(out);
+    });
+    connect(process, &QProcess::errorOccurred, this,
+            [this, process, snapshot, out, completed](QProcess::ProcessError error) {
+        if (error != QProcess::FailedToStart || *completed)
+            return;
+        *completed = true;
+        if (m_replayExporter == process)
+            m_replayExporter = nullptr;
+        process->deleteLater();
+        QFile::remove(out);
+        QDir(snapshot).removeRecursively();
+        m_replaySnapshotDir.clear();
+        m_replayExportPath.clear();
+        emit replayExportFailed(tr("Instant replay export failed"));
+    });
+    process->start(QStringLiteral("ffmpeg"),
+                   {QStringLiteral("-y"), QStringLiteral("-nostats"),
+                    QStringLiteral("-loglevel"), QStringLiteral("error"),
+                    QStringLiteral("-f"), QStringLiteral("concat"),
+                    QStringLiteral("-safe"), QStringLiteral("0"),
+                    QStringLiteral("-i"), concatPath,
+                    QStringLiteral("-c:v"), QStringLiteral("copy"),
+                    // Ring segments keep optional live audio as FLAC. MP4 does
+                    // not support FLAC portably, so only audio is converted;
+                    // the already-encoded video remains a zero-copy concat.
+                    QStringLiteral("-c:a"), QStringLiteral("aac"),
+                    QStringLiteral("-b:a"), QStringLiteral("192k"),
+                    QStringLiteral("-movflags"), QStringLiteral("+faststart"), out});
 }
 
 void GifRecorder::convertToGif()
@@ -704,6 +962,22 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-cpu-used") << QStringLiteral("4")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
+    } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
+               && hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+        const int qp = qBound(1, crf, 40);
+        args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
+             << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
+             << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
+             << QStringLiteral("-qp") << QString::number(qp)
+             << QStringLiteral("-movflags") << QStringLiteral("+faststart");
+    } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
+               && hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+        args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+             << QStringLiteral("-preset") << QStringLiteral("p4")
+             << QStringLiteral("-cq") << QString::number(crf)
+             << QStringLiteral("-b:v") << QStringLiteral("0")
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
+             << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else if (ffmpegEncoders().contains(QStringLiteral("libx264"))
                || ffmpegEncoders().isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264")
@@ -818,6 +1092,8 @@ void GifRecorder::abort()
     }
     stopProcess(m_ffmpeg);
     stopProcess(m_converter);
+    stopProcess(m_appAudio);
+    stopProcess(m_replayExporter);
     if (!m_tempPath.isEmpty())
         QFile::remove(m_tempPath);
     if (!m_palettePath.isEmpty())
@@ -825,6 +1101,8 @@ void GifRecorder::abort()
     // Aborting mid-conversion leaves a truncated file in the save directory.
     if (m_state == Converting && !m_outPath.isEmpty())
         QFile::remove(m_outPath);
+    if (!m_audioFifoPath.isEmpty())
+        QFile::remove(m_audioFifoPath);
     cleanup();
 }
 
@@ -834,6 +1112,24 @@ void GifRecorder::cleanup()
     m_tempPath.clear();
     m_palettePath.clear();
     m_outPath.clear();
+    if (!m_audioFifoPath.isEmpty())
+        QFile::remove(m_audioFifoPath);
+    // Never delete an in-flight replay export's inputs/output: the Replay stop
+    // path reaches cleanup() via the segment-muxer finished handler while a Save
+    // may still be running. Its own finished/errorOccurred handlers own the
+    // snapshot dir + output file; only reclaim them here when no exporter is live.
+    if (!m_replayExporter) {
+        if (!m_replayExportPath.isEmpty())
+            QFile::remove(m_replayExportPath);
+        if (!m_replaySnapshotDir.isEmpty())
+            QDir(m_replaySnapshotDir).removeRecursively();
+        m_replayExportPath.clear();
+        m_replaySnapshotDir.clear();
+    }
+    m_audioFifoPath.clear();
+    if (!m_replayDir.isEmpty())
+        QDir(m_replayDir).removeRecursively();
+    m_replayDir.clear();
     m_encodeCrop = {};
     m_encodeSize = {};
     m_targetScreen = nullptr;

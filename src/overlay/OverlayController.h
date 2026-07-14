@@ -38,7 +38,7 @@ public:
         emit textEditingChanged();
     }
 
-    void pickAnnotatedImage(ImageCallback cb);   // full capture flow
+    void pickAnnotatedImage(ImageCallback cb, int initialTool = 0); // full capture flow
     void pickRegion(RegionCallback cb);          // GIF region flow (no annotation tools)
 
     // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
@@ -74,5 +74,6 @@ private:
     bool m_starting = false;
     bool m_textEditing = false;
     bool m_copyRequested = false;
+    int m_initialTool = 0; // optional full-screen tool mode (e.g. CLI --measure)
     int m_generation = 0; // invalidates in-flight freeze callbacks
 };

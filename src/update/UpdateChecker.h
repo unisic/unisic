@@ -28,7 +28,6 @@ class UpdateChecker : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY stateChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY stateChanged)
     Q_PROPERTY(QString latestVersion READ latestVersion NOTIFY stateChanged)
-    Q_PROPERTY(QString releaseUrl READ releaseUrl NOTIFY stateChanged)
     Q_PROPERTY(QString statusText READ statusText NOTIFY stateChanged)
     Q_PROPERTY(bool downloading READ downloading NOTIFY stateChanged)
     Q_PROPERTY(qreal downloadProgress READ downloadProgress NOTIFY stateChanged)
@@ -53,7 +52,6 @@ public:
     bool busy() const { return m_checking || m_downloading; }
     bool updateAvailable() const { return m_available; }
     QString latestVersion() const { return m_latest; }
-    QString releaseUrl() const { return m_releaseUrl; }
     QString statusText() const { return m_status; }
     bool downloading() const { return m_downloading; }
     qreal downloadProgress() const { return m_progress; }
@@ -120,7 +118,6 @@ private:
     bool m_restartPending = false;
     qreal m_progress = 0.0;
     QString m_latest;
-    QString m_releaseUrl;
     QString m_status;
     QString m_assetName; // matching AppImage asset of the latest release
     QString m_assetUrl;

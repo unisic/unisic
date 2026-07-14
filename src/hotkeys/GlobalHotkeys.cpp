@@ -356,12 +356,27 @@ QList<int> GlobalHotkeys::activeKeys(const QString &actionId, bool *ok) const
     return keys;
 }
 
-void GlobalHotkeys::unregisterAll()
+void GlobalHotkeys::cleanUpComponent(const QString &componentUnique)
 {
-    if (!m_available)
+    if (!m_available || componentUnique.isEmpty())
         return;
+    // KGlobalAccel maps a component's unique name to its D-Bus object path by
+    // replacing every character outside [A-Za-z0-9_] with '_' (and prefixing an
+    // underscore if it starts with a digit). e.g. app.unisic.UnisicDev →
+    // /component/app_unisic_UnisicDev. cleanUp on a component that does not exist
+    // is a harmless no-op, so this is safe to run every launch on both builds.
+    QString path;
+    path.reserve(componentUnique.size());
+    for (const QChar ch : componentUnique) {
+        const char c = ch.toLatin1();
+        const bool ok = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                        || (c >= '0' && c <= '9') || c == '_';
+        path.append(ok ? ch : QLatin1Char('_'));
+    }
+    if (!path.isEmpty() && path.at(0).isDigit())
+        path.prepend(QLatin1Char('_'));
     QDBusMessage msg = QDBusMessage::createMethodCall(
-        KGA_SERVICE, QStringLiteral("/component/") + QString::fromLatin1(COMPONENT),
+        KGA_SERVICE, QStringLiteral("/component/") + path,
         QStringLiteral("org.kde.kglobalaccel.Component"), QStringLiteral("cleanUp"));
     QDBusConnection::sessionBus().asyncCall(msg);
 }

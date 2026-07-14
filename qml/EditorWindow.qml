@@ -37,10 +37,12 @@ Window {
     readonly property int reservedTopBar: 2 * 40 + Theme.spacingS + 18   // = 104
     readonly property int reservedBottomBar: 64                          // == bottomBar.height
 
-    Component.onCompleted: editorSession.bindCanvas(canvas)
+    Component.onCompleted: {
+        editorSession.bindCanvas(canvas)
+    }
 
-    // True once the user has taken any export action (save/copy/upload/OCR/
-    // cutout) — statusText is only ever set by those. Used to skip the
+    // True once the user has taken any export action (save/copy/upload/OCR)
+    // — statusText is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.
@@ -179,15 +181,6 @@ Window {
         destructive: true
         onAccepted: { editorWindow.closeConfirmed = true; editorWindow.close() }
     }
-    UConfirmDialog {
-        id: u2netDownloadConfirm
-        title: qsTr("Download background-removal model?")
-        text: qsTr("Smart background removal needs a one-time download of the selected model: %1. It is stored locally and reused. Download now?")
-              .arg(App.u2netModelLabel())
-        confirmText: qsTr("Download")
-        onAccepted: App.downloadU2NetModel()
-    }
-
     Item {
         id: shortcutScope
         anchors.fill: parent
@@ -202,6 +195,10 @@ Window {
                 if (canvas.ocrMode) editorSession.copyOcrSelection()
                 else { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
             }
+            else if (!canvas.ocrMode && (e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) {
+                var pasteAt = canvas.toImage(canvas.width / 2, canvas.height / 2)
+                canvas.pasteClipboard(pasteAt.x, pasteAt.y)
+            }
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_A && canvas.ocrMode) canvas.ocrSelectAll()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) { editorWindow.commitPendingText(); editorSession.upload() }
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
@@ -210,6 +207,34 @@ Window {
             // Delete / Backspace removes the selected shape (Edit tool).
             else if ((e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) && canvas.hasAnnotSelection)
                 canvas.removeSelectedAnnot()
+            // Single-key tool switching: the editor stays usable without
+            // reaching for the toolbar. Text inputs consume their own keys
+            // before this parent scope, so typing an annotation is unaffected.
+            else if (!canvas.ocrMode && e.modifiers === Qt.NoModifier
+                     && (e.key === Qt.Key_T || e.key === Qt.Key_P || e.key === Qt.Key_L
+                         || e.key === Qt.Key_A || e.key === Qt.Key_R || e.key === Qt.Key_E
+                         || e.key === Qt.Key_B || e.key === Qt.Key_H || e.key === Qt.Key_M
+                         || e.key === Qt.Key_C)) {
+                if (e.key === Qt.Key_T) canvas.tool = AnnotationCanvas.Text
+                else if (e.key === Qt.Key_P) canvas.tool = AnnotationCanvas.Pen
+                else if (e.key === Qt.Key_L) canvas.tool = AnnotationCanvas.Line
+                else if (e.key === Qt.Key_A) canvas.tool = AnnotationCanvas.Arrow
+                else if (e.key === Qt.Key_R) canvas.tool = AnnotationCanvas.Rect
+                else if (e.key === Qt.Key_E) canvas.tool = AnnotationCanvas.Ellipse
+                else if (e.key === Qt.Key_B) canvas.tool = AnnotationCanvas.Blur
+                else if (e.key === Qt.Key_H) canvas.tool = AnnotationCanvas.Highlight
+                else if (e.key === Qt.Key_M) canvas.tool = AnnotationCanvas.Measure
+                else canvas.tool = AnnotationCanvas.Crop
+            }
+            // Ctrl+Enter = quick copy-and-close. A BARE Enter must not end the
+            // session (it copies to the clipboard and the copy marks the session
+            // "exported", which then skips the unsaved-annotations discard prompt).
+            else if (!canvas.ocrMode && (e.modifiers & Qt.ControlModifier)
+                     && (e.key === Qt.Key_Return || e.key === Qt.Key_Enter)) {
+                editorWindow.commitPendingText()
+                editorSession.copyToClipboard()
+                editorWindow.close()
+            }
             // Arrow keys nudge the selected shape (Shift = ×10).
             else if (canvas.hasAnnotSelection && (e.key === Qt.Key_Left || e.key === Qt.Key_Right
                      || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
@@ -561,6 +586,10 @@ Window {
                     id: canvas
                     width: imageSize.width * canvasFlick.effectiveScale
                     height: imageSize.height * canvasFlick.effectiveScale
+                    onCopyRequested: {
+                        editorWindow.commitPendingText()
+                        editorSession.copyToClipboard()
+                    }
                     x: Math.max(0, (canvasFlick.width - width) / 2)
                     y: Math.max(0, (canvasFlick.height - height) / 2)
                     selectionMode: canvas.tool === AnnotationCanvas.Crop
@@ -569,6 +598,7 @@ Window {
                     Component.onCompleted: {
                         strokeColor = App.settings.editorStrokeColor
                         strokeWidth = App.settings.editorStrokeWidth
+                        highlightMode = App.settings.editorHighlightMode
                         fontSize = App.settings.editorFontSize
                         stepSize = App.settings.editorStepSize
                         shapeFillColor = App.settings.editorFillColor
@@ -594,6 +624,7 @@ Window {
                     readonly property bool persistTools: !hasAnnotSelection && !App.settings.editorResetTools
                     onStrokeColorChanged: if (!strokeColorIsAuto && persistColors) App.settings.editorStrokeColor = String(strokeColor)
                     onStrokeWidthChanged: if (persistTools) App.settings.editorStrokeWidth = strokeWidth
+                    onHighlightModeChanged: if (persistTools) App.settings.editorHighlightMode = highlightMode
                     onFontSizeChanged: if (persistTools) App.settings.editorFontSize = fontSize
                     onStepSizeChanged: if (persistTools) App.settings.editorStepSize = stepSize
                     onShapeFillColorChanged: if (persistColors) App.settings.editorFillColor = String(shapeFillColor)
@@ -750,7 +781,7 @@ Window {
                 elide: Text.ElideMiddle
             }
 
-            // Primary exports stay labeled; the occasional OCR / cutout actions
+            // Primary exports stay labeled; the occasional OCR actions
             // live behind one "More" menu, and Close is an icon — so the row
             // fits the fixed bar at the minimum window width with no scrolling
             // and never grows the window (it is right-anchored; the status text
@@ -781,14 +812,14 @@ Window {
                     onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                 }
                 Rectangle {
-                    visible: !canvas.ocrMode && (App.ocrAvailable || App.u2netAvailable)
+                    visible: !canvas.ocrMode
                     width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                // "More": the occasional text/cutout actions, greyed with a reason
+                // "More": the occasional text actions, greyed with a reason
                 // when the build lacks the dependency (kept discoverable, not hidden).
                 UMenuButton {
-                    visible: !canvas.ocrMode && (App.ocrAvailable || App.u2netAvailable)
+                    visible: !canvas.ocrMode
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("More")
                     actions: [
@@ -797,13 +828,7 @@ Window {
                           trigger: function () { editorSession.ocrCopyText() } },
                         { label: qsTr("Select text…"), iconName: "select",
                           enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
-                          trigger: function () { editorSession.startOcrPick() } },
-                        { separatorBefore: true, iconName: "object-pick",
-                          label: App.u2netBusy ? qsTr("Downloading model…") : qsTr("Remove background"),
-                          enabled: App.u2netAvailable && !App.u2netBusy,
-                          hint: App.u2netAvailable ? "" : qsTr("Needs U-2-Net"),
-                          trigger: function () { App.u2netModelReady ? editorSession.removeBackground()
-                                                                     : u2netDownloadConfirm.open() } }
+                          trigger: function () { editorSession.startOcrPick() } }
                     ]
                 }
                 UIconButton {
@@ -821,6 +846,23 @@ Window {
                     text: canvas.ocrBusy ? qsTr("Recognizing…") : qsTr("Copy selection")
                     enabled: canvas.hasOcrSelection
                     onClicked: editorSession.copyOcrSelection()
+                }
+                UButton {
+                    visible: canvas.ocrMode
+                    iconName: "draw-highlight"
+                    text: qsTr("Highlight selection")
+                    enabled: canvas.hasOcrSelection
+                    onClicked: editorSession.highlightOcrSelection()
+                }
+                UButton {
+                    visible: canvas.ocrMode
+                    // No "blur" icon — redaction paints an OPAQUE black bar (a
+                    // blur/mosaic of a password is recoverable); the wrong icon
+                    // misrepresented the result.
+                    iconName: "edit-delete"
+                    text: qsTr("Redact selection")
+                    enabled: canvas.hasOcrSelection
+                    onClicked: editorSession.redactOcrSelection()
                 }
                 UButton {
                     visible: canvas.ocrMode

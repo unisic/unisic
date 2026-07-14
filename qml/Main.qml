@@ -29,11 +29,12 @@ Window {
 
     property int currentPage: 0
 
-    // Built-in WINDOW shortcuts (the two QtQuick Shortcut items below). These
-    // are NOT GlobalHotkeys/KGlobalAccel actions: they only fire while the main
+    // Built-in WINDOW shortcuts (the QtQuick Shortcut items below). These are
+    // NOT GlobalHotkeys/KGlobalAccel actions: they only fire while the main
     // window has focus, they never register a system-wide grab, and they are
     // deliberately fixed — they do not appear in, nor are editable from, the
-    // Settings shortcut UI.
+    // Settings shortcut UI. Keep the Ctrl+1..6 list in sync with the sidebar
+    // items and the page Loaders (one source of truth for the page indices).
     function hideToTray() {
         // "Close to tray" (a friend's Ctrl+W). Only hide when a tray icon
         // actually exists, else the window would vanish with no way back —
@@ -63,6 +64,13 @@ Window {
     // hotkey would trigger the window action (quit!) instead of recording it.
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+W"]; onActivated: window.hideToTray() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+Q"]; onActivated: window.quitApp() }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+1"]; onActivated: window.currentPage = 0 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+2"]; onActivated: window.currentPage = 1 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 2 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 3 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 4 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 5 }
 
     // Hide-to-tray only when a tray actually EXISTS — on GNOME without the
     // AppIndicator extension (or bare wlroots) hiding here would make the app

@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.7.1 LANGUAGES CXX)
+project(unisic VERSION 0.7 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.7.1b")
+set(UNISIC_VERSION_STRING "0.7")
 
 include(GNUInstallDirs)
 
@@ -61,6 +61,7 @@ qt_add_executable(unisic
     src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
+    src/notify/NotifCard.h
     src/notify/NotificationHelper.h src/notify/NotificationHelper.cpp
     src/notify/NotificationInhibitor.h src/notify/NotificationInhibitor.cpp
 )
@@ -169,6 +170,7 @@ qt_add_qml_module(unisic
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
         qml/pages/GifPage.qml
+        qml/pages/EditPage.qml
         qml/pages/HistoryPage.qml
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
@@ -182,6 +184,7 @@ qt_add_qml_module(unisic
         qml/components/UTextField.qml
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml
+        qml/components/UShortcutsHelp.qml
         qml/components/UComboBox.qml
         qml/components/UValueCombo.qml
         qml/components/UMenuButton.qml

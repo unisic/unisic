@@ -190,6 +190,8 @@ Window {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
+            // Ctrl+W closes the editor window (the discard prompt still applies).
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) editorWindow.close()
             // Ctrl+C copies the OCR text selection while in OCR mode, else the image.
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) {
                 if (canvas.ocrMode) editorSession.copyOcrSelection()

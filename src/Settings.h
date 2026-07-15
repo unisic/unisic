@@ -108,6 +108,8 @@ class Settings : public QObject
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
+    Q_PROPERTY(int capturePopupMargin READ capturePopupMargin WRITE setCapturePopupMargin NOTIFY capturePopupMarginChanged)
+    Q_PROPERTY(QString hiddenNotifActions READ hiddenNotifActions WRITE setHiddenNotifActions NOTIFY hiddenNotifActionsChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
@@ -395,6 +397,17 @@ public:
     // "casual" (full card) | "compact" (single slim row)
     U_SETTING(QString, capturePopupStyle, setCapturePopupStyle, "capturePopupStyle", QStringLiteral("casual"))
     U_SETTING(int, capturePopupDurationSec, setCapturePopupDurationSec, "capturePopupDurationSec", 8) // 0 = stay open
+    // Gap between the card and the screen edge, in logical px. A setting because
+    // panel geometry is not knowable on Wayland: layer-shell keeps the card clear
+    // of panels by itself (exclusive zones), but the XWayland card path can only
+    // read _NET_WORKAREA — and neither covers a dock the user wants extra room
+    // for. 8 = the previous hardcoded inset, so the default changes nothing.
+    U_SETTING(int, capturePopupMargin, setCapturePopupMargin, "capturePopupMargin", 8)
+    // CSV of action ids the capture card must NOT offer ("upload,ocr,delete"),
+    // same opt-out shape as hiddenTools. Empty = show everything the capture
+    // actually supports; the per-action conditions (a URL exists, OCR is built
+    // in, …) still apply on top — this only ever removes buttons.
+    U_SETTING(QString, hiddenNotifActions, setHiddenNotifActions, "hiddenNotifActions", QString())
     // Skip the capture card while notifications are inhibited (a fullscreen app,
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
     // for your own deliberate capture, so it should normally show regardless.
@@ -476,7 +489,8 @@ public:
         emit recordAppAudioNodeChanged(); emit videoEncoderChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
-        emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
+        emit hiddenNotifActionsChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
@@ -570,6 +584,8 @@ signals:
     void capturePopupPositionChanged();
     void capturePopupStyleChanged();
     void capturePopupDurationSecChanged();
+    void capturePopupMarginChanged();
+    void hiddenNotifActionsChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();

@@ -15,6 +15,12 @@ Rectangle {
     readonly property string currentText: model && model.length > currentIndex && currentIndex >= 0
                                           ? String(model[currentIndex]) : ""
     signal activated(int index)
+    // Live-preview hooks. `highlighted` fires for the entry under the pointer
+    // WITHOUT committing it, so a consumer can show what picking it would do;
+    // `listOpen` says the user is mid-choice, which is when such a preview is
+    // wanted and when a plain hover of the field is not.
+    signal highlighted(int index)
+    readonly property alias listOpen: popup.opened
 
     property string _filter: ""
     // Entries carry their SOURCE index so filtering never breaks activation.
@@ -177,6 +183,7 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onContainsMouseChanged: if (containsMouse) root.highlighted(modelData.idx)
                         // Emit only — writing currentIndex here would destroy the
                         // consumer's binding; the handler updates the source.
                         onClicked: {

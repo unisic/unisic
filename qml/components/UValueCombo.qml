@@ -16,6 +16,10 @@ Rectangle {
     property string suffix: ""
     property string tooltip: ""
     signal changed(int value)
+    // Same live-preview hooks as UComboBox: the entry under the pointer, and
+    // whether the list is open (i.e. the user is choosing).
+    signal highlighted(int value)
+    readonly property alias listOpen: popup.opened
 
     implicitWidth: 130
     implicitHeight: 40
@@ -154,6 +158,7 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
+                        onContainsMouseChanged: if (containsMouse) root.highlighted(Number(modelData))
                         onClicked: {
                             popup.close()
                             root._apply(Number(modelData))

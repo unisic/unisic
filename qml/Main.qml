@@ -33,8 +33,10 @@ Window {
     // NOT GlobalHotkeys/KGlobalAccel actions: they only fire while the main
     // window has focus, they never register a system-wide grab, and they are
     // deliberately fixed — they do not appear in, nor are editable from, the
-    // Settings shortcut UI. Keep the Ctrl+1..6 list in sync with the sidebar
-    // items and the page Loaders (one source of truth for the page indices).
+    // Settings shortcut UI. Ctrl+/ pops the cheat-sheet listing them — keep its
+    // model in sync with the Shortcut items below. Keep the Ctrl+1..6 list in
+    // sync with the sidebar items and the page Loaders (one source of truth for
+    // the page indices).
     function hideToTray() {
         // "Close to tray" (a friend's Ctrl+W). Only hide when a tray icon
         // actually exists, else the window would vanish with no way back —
@@ -62,15 +64,28 @@ Window {
     // Qt.WindowShortcut context these win Qt's shortcut-override race against a
     // focused UShortcutRecorder, so a user binding e.g. Ctrl+Q as a global
     // hotkey would trigger the window action (quit!) instead of recording it.
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+/"]; onActivated: shortcutsHelp.opened ? shortcutsHelp.close() : shortcutsHelp.open() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+W"]; onActivated: window.hideToTray() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+Q"]; onActivated: window.quitApp() }
-    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 6 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+1"]; onActivated: window.currentPage = 0 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+2"]; onActivated: window.currentPage = 1 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 2 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+4"]; onActivated: window.currentPage = 3 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+5"]; onActivated: window.currentPage = 4 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+6"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+7"]; onActivated: window.currentPage = 6 }
+
+    UShortcutsHelp {
+        id: shortcutsHelp
+        model: [
+            { keys: ["Ctrl", "/"], label: qsTr("Show / hide this list") },
+            { keys: ["Ctrl", "W"], label: qsTr("Hide window to tray") },
+            { keys: ["Ctrl", "Q"], label: qsTr("Quit Unisic") },
+            { keys: ["Ctrl", ","], label: qsTr("Open Settings") },
+            { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+7)") },
+        ]
+    }
 
     // Hide-to-tray only when a tray actually EXISTS — on GNOME without the
     // AppIndicator extension (or bare wlroots) hiding here would make the app
@@ -342,9 +357,10 @@ Window {
             SidebarItem { iconName: "camera-photo";  label: qsTr("Capture");      active: currentPage === 0; onClicked: currentPage = 0 }
             SidebarItem { iconName: "media-record";  label: qsTr("Record");       active: currentPage === 1; onClicked: currentPage = 1 }
             SidebarItem { iconName: "gif";           label: qsTr("GIF");          active: currentPage === 2; onClicked: currentPage = 2 }
-            SidebarItem { iconName: "view-history";  label: qsTr("History");      active: currentPage === 3; onClicked: currentPage = 3 }
-            SidebarItem { iconName: "folder-cloud";  label: qsTr("Servers"); active: currentPage === 4; onClicked: currentPage = 4 }
-            SidebarItem { iconName: "configure";     label: qsTr("Settings");     active: currentPage === 5; onClicked: currentPage = 5 }
+            SidebarItem { iconName: "edit";          label: qsTr("Edit");         active: currentPage === 3; onClicked: currentPage = 3 }
+            SidebarItem { iconName: "view-history";  label: qsTr("History");      active: currentPage === 4; onClicked: currentPage = 4 }
+            SidebarItem { iconName: "folder-cloud";  label: qsTr("Servers"); active: currentPage === 5; onClicked: currentPage = 5 }
+            SidebarItem { iconName: "configure";     label: qsTr("Settings");     active: currentPage === 6; onClicked: currentPage = 6 }
         }
 
         // Recording pill
@@ -496,6 +512,7 @@ Window {
         Component { id: capturePage;      CapturePage {} }
         Component { id: recordPage;       RecordPage {} }
         Component { id: gifPage;          GifPage {} }
+        Component { id: editPage;         EditPage {} }
         Component { id: historyPage;      HistoryPage {} }
         Component { id: destinationsPage; DestinationsPage {} }
         Component { id: settingsPage;     SettingsPage {} }
@@ -503,9 +520,10 @@ Window {
         Loader { anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
         Loader { anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
         Loader { anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: gifPage }
-        Loader { anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: historyPage }
-        Loader { anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: destinationsPage }
-        Loader { anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: settingsPage }
+        Loader { anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: editPage }
+        Loader { anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: historyPage }
+        Loader { anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: destinationsPage }
+        Loader { anchors.fill: parent; active: currentPage === 6; visible: active; sourceComponent: settingsPage }
     }
 
     // Toast

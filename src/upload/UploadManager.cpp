@@ -116,21 +116,23 @@ void UploadManager::ensureBuiltins()
         });
         changed = true;
     }
-    if (!has(QStringLiteral("0x0.st"))) {
-        m_destinations.append(QJsonObject{
-            {QStringLiteral("name"), QStringLiteral("0x0.st")},
-            {QStringLiteral("type"), QStringLiteral("http")},
-            {QStringLiteral("requestUrl"), QStringLiteral("https://0x0.st")},
-            {QStringLiteral("method"), QStringLiteral("POST")},
-            {QStringLiteral("fileFormName"), QStringLiteral("file")},
-            {QStringLiteral("responseType"), QStringLiteral("text")},
-            {QStringLiteral("urlPath"), QStringLiteral("$text$")},
-            {QStringLiteral("headers"), QJsonObject{{QStringLiteral("User-Agent"),
-                QStringLiteral("Unisic/" UNISIC_VERSION " (screenshot tool)")}}},
-            {QStringLiteral("builtin"), true},
-        });
-        changed = true;
+    // 0x0.st was a builtin up to 0.7.1b and is dropped: the host rejects the
+    // uploads in practice, so it only ever produced failures. Prune the stored
+    // copy from existing configs (builtin-flagged only — a user's renamed clone
+    // drops that flag, and a hand-made 0x0.st destination is theirs to keep).
+    for (int i = m_destinations.size() - 1; i >= 0; --i) {
+        const QJsonObject d = m_destinations.at(i).toObject();
+        if (d.value(QStringLiteral("name")).toString() == QStringLiteral("0x0.st")
+            && d.value(QStringLiteral("builtin")).toBool()) {
+            m_destinations.removeAt(i);
+            changed = true;
+        }
     }
+    // The pruned host may still be the selected one; destinationNamed() would
+    // silently fall back to the first destination while the UI shows a dead
+    // name. Point the setting at the default instead.
+    if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st"))
+        m_settings->setActiveDestination(QStringLiteral("catbox.moe"));
     // Only ship the Imgur builtin once a real Client-ID is compiled in. With the
     // placeholder it 403s on every upload, and since builtins are matched by name
     // a later build with a real ID would never repair the stored destination — so

@@ -137,7 +137,7 @@ Unisic targets KDE Plasma first and stays portable everywhere else, but how *com
 - **Object cutout** - lift the subject out of the shot and drop the background; optional U-2-Net (AI) for tricky edges; exports transparent PNG/WebP.
 - **Record GIF & video** - region, full screen or window → GIF, MP4 or WebM, with optional system and microphone audio. <kbd>Ctrl</kbd>+<kbd>Esc</kbd> always stops.
 - **Extract text & codes** - OCR any region to copy its text, or point it at a QR/barcode to copy the payload.
-- **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, 0x0.st, Imgur…); the link auto-copies.
+- **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, Imgur…); the link auto-copies.
 - **History** - every capture in a thumbnail grid; deleting moves the file to the trash.
 - **Tray, hotkeys & 9 themes** - quick-menu tray icon, fully rebindable global hotkeys, nine palettes including one that follows your system light/dark scheme and accent color.
 - **Languages** - English, Polish, Spanish and Italian; follows your system locale or pick one in Settings.

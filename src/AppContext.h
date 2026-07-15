@@ -5,6 +5,7 @@
 #include <QRect>
 #include <QPointer>
 #include <QStringList>
+#include <QVariantMap>
 #include <QVector>
 #include <functional>
 #include <atomic>
@@ -60,6 +61,15 @@ class AppContext : public QObject
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable NOTIFY recordingAvailableChanged)
+    // Why recording is off, so the UI can name the actual missing piece. The two
+    // causes are unrelated: capPipeWireBuild is compile-time (the package was
+    // built without pipewire-devel), capScreenCastPortal is runtime (the desktop
+    // ships no org.freedesktop.impl.portal.ScreenCast backend — Cinnamon, MATE
+    // and XFCE run -xapp, LXQt runs -lxqt; neither implements ScreenCast). A
+    // running pipewire daemon says nothing about the latter: it serves audio on
+    // those desktops with no screen-cast portal in sight.
+    Q_PROPERTY(bool capPipeWireBuild READ capPipeWireBuild CONSTANT)
+    Q_PROPERTY(bool capScreenCastPortal READ capScreenCastPortal NOTIFY recordingAvailableChanged)
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
@@ -147,6 +157,8 @@ public:
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
     int recordSeconds() const;
     bool recordingAvailable() const;
+    bool capPipeWireBuild() const;
+    bool capScreenCastPortal() const;
     bool trayAvailable() const { return m_tray != nullptr; }
     bool shortcutRecording() const { return m_shortcutRecording; }
     bool layerShellActive() const { return m_layerNotifier != nullptr; }
@@ -178,6 +190,9 @@ public:
     // exercises ONE path in isolation. Capture/record reuse the public entry
     // points; these three cover the non-capture paths with a throwaway image.
     Q_INVOKABLE void devTestNotification();
+    // Drives the settings hover preview without a pointer: show, then withdraw
+    // after 3 s exactly as leaving the row does.
+    Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
@@ -275,6 +290,17 @@ public:
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
     Q_INVOKABLE QString pickWatermarkImage();
+    // Bring a file you already have into the app: an image opens in the editor,
+    // a recording in the trim window. One entry point, routed by what the file
+    // actually is — the two windows are the same ones a capture would open.
+    // kind: "image" (editor), "video" (trim window), or empty for both. It only
+    // preselects the dialog's filter — where the file actually lands is decided
+    // by what it IS (editableKindFor), so picking an mp4 under "Images" still
+    // opens the trim window instead of failing.
+    Q_INVOKABLE void openFileForEditing(const QString &kind = {});
+    // "image" | "video" | "" — which window (if any) can take this file. Split
+    // out of openFileForEditing so the routing is checkable without a dialog.
+    static QString editableKindFor(const QString &path);
     Q_INVOKABLE void openTrimRecording(const QString &path);
     Q_INVOKABLE void trimRecording(const QString &path, qreal startSeconds, qreal endSeconds);
     Q_INVOKABLE void captureWithTask(const QString &mode, const QString &task);
@@ -348,6 +374,20 @@ public:
     Q_INVOKABLE void previewCaptureSound() { playCaptureSound(); }
     Q_INVOKABLE void previewRecordingSound() { playRecordingSound(); }
     Q_INVOKABLE void previewRecordStartSound() { playRecordStartSound(); }
+    // Live preview of the capture card while the user edits its style, corner or
+    // edge margin: the REAL card, on the real screen, through the real path (the
+    // layer surface or the XWayland helper), with a placeholder image. A drawn
+    // mock-up would have to guess what only the compositor knows — where panels
+    // and docks push the card to — which is the one thing worth previewing.
+    // Re-entrant: each call replaces the card still on screen, so dragging a
+    // slider re-renders it live. Never fires the native-notification fallback:
+    // an unwanted desktop notification is not a preview.
+    // `overrides` (setting name -> value, see NotifCard::settingKeys) renders a
+    // card for values the user has NOT saved — pointing at "Top left" in the
+    // dropdown must show a top-left card without committing it. Empty = preview
+    // exactly what is saved.
+    Q_INVOKABLE void previewCapturePopup(const QVariantMap &overrides = {});
+    Q_INVOKABLE void hideCapturePopupPreview();
     // "Copy last capture" hotkey: put the most recent screenshot of this
     // session back on the clipboard (toast when none exists yet).
     Q_INVOKABLE void copyLastCapture();
@@ -469,10 +509,11 @@ private:
     bool m_recordHoldActive = false; // a hold-for-commit recording is pending
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
-                                                 const QString &kind, bool inhibited);
+                                                 const QString &kind, bool inhibited,
+                                                 const QVariantMap &overrides = {});
     // Spawn the GNOME XWayland card process for one capture. Returns false when
     // it could not be started (caller then falls back to a native notification).
-    bool showNotificationHelper(CaptureNotification *n);
+    bool showNotificationHelper(CaptureNotification *n, const QVariantMap &overrides = {});
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
     // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
     // overlay opens, so the overlay can't self-suppress the resulting card — and
@@ -558,6 +599,9 @@ private:
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    // The card currently shown as a settings preview. QPointer: the notifier (or
+    // the helper's process exit) owns and destroys it whenever it closes itself.
+    QPointer<CaptureNotification> m_previewNotif;
     QProcess *m_recordBorderHelper = nullptr;    // XWayland helper frame (GNOME path)
     QList<QProcess *> m_notifHelpers;            // live GNOME capture-card helpers
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty

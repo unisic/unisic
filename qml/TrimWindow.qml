@@ -10,6 +10,12 @@ Window {
     visible: true
     title: qsTr("Trim recording")
     color: Theme.background
+    // Same decoration policy as the main and editor windows: the stylized
+    // frameless title bar unless the user opted into system decorations.
+    flags: App.settings.useSystemDecoration
+           ? Qt.Window
+           : (Qt.Window | Qt.FramelessWindowHint)
+    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 
     // Video preview is optional: it needs the QtMultimedia QML module
     // (qt6-qtmultimedia). Without it the window falls back to two sliders.
@@ -74,6 +80,10 @@ Window {
         anchors.fill: parent
         focus: true
         Keys.onPressed: (e) => {
+            // Window keys first — they must work without a video preview.
+            if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) {
+                trimWindow.close(); e.accepted = true; return
+            }
             if (!hasPreview) return
             switch (e.key) {
             case Qt.Key_Space: previewLoader.item.togglePlay(); e.accepted = true; break
@@ -88,9 +98,73 @@ Window {
         Component.onCompleted: keys.forceActiveFocus()
     }
 
+    // ---------- custom title bar (frameless decoration) ----------
+    Rectangle {
+        id: trimTitleBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: trimWindow.chromeTop
+        visible: !App.settings.useSystemDecoration
+        z: 20
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
+            GradientStop { position: 1.0; color: Theme.primary }
+        }
+        // Deferred startSystemMove past a drag threshold — same pattern
+        // (and reason) as Main.qml's title bar.
+        MouseArea {
+            anchors.fill: parent
+            property real pressX: 0
+            property real pressY: 0
+            property bool moving: false
+            onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+            onPositionChanged: (m) => {
+                if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                    moving = true
+                    trimWindow.startSystemMove()
+                }
+            }
+            onDoubleClicked: trimWindow.visibility === Window.Maximized
+                             ? trimWindow.showNormal() : trimWindow.showMaximized()
+        }
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spacingL
+            anchors.verticalCenter: parent.verticalCenter
+            text: trimWindow.title
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontM
+            font.weight: Font.DemiBold
+        }
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 6
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
+            UIconButton {
+                iconName: "minus"; iconSize: 14; width: 30; height: 30
+                tooltip: qsTr("Minimize")
+                onClicked: trimWindow.showMinimized()
+            }
+            UIconButton {
+                iconName: "window"; iconSize: 13; width: 30; height: 30
+                tooltip: qsTr("Maximize")
+                onClicked: trimWindow.visibility === Window.Maximized
+                           ? trimWindow.showNormal() : trimWindow.showMaximized()
+            }
+            UIconButton {
+                iconName: "close"; iconSize: 14; width: 30; height: 30
+                tooltip: qsTr("Close")
+                onClicked: trimWindow.close()
+            }
+        }
+    }
+
     UCard {
         anchors.fill: parent
         anchors.margins: Theme.spacingL
+        anchors.topMargin: Theme.spacingL + trimWindow.chromeTop
 
         // --- Header (top) ---
         Column {

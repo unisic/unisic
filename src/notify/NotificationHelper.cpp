@@ -1,4 +1,6 @@
 #include "NotificationHelper.h"
+#include "NotifCard.h"
+#include <QJsonDocument>
 #include "theme/IconImageProvider.h"
 
 #include <QFileInfo>
@@ -14,6 +16,8 @@
 #include <QRegion>
 #include <QScreen>
 #include <QSocketNotifier>
+#include <QTimer>
+#include <QDBusConnection>
 #include <QStyleHints>
 #include <QSurfaceFormat>
 #include <QTranslator>
@@ -23,22 +27,12 @@
 
 namespace {
 
-// Stub `App` (+ its `settings`) exposed to NotificationPopup.qml. The real
-// AppContext can't exist in this xcb-only helper process; the popup only reads
-// a handful of values, all passed on the command line.
-class SettingsStub : public QObject
-{
-    Q_OBJECT
-    Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle CONSTANT)
-    Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec CONSTANT)
-public:
-    using QObject::QObject;
-    QString m_style;
-    int m_duration = 0;
-    QString capturePopupStyle() const { return m_style; }
-    int capturePopupDurationSec() const { return m_duration; }
-};
-
+// Stub `App` exposed to NotificationPopup.qml. The real AppContext cannot exist
+// in this xcb-only helper process, so the QML gets an object with the same shape
+// for the handful of members the card touches. `settings` is a QQmlPropertyMap
+// built from the parent's config (NotifCard::makeSettingsMap) rather than a
+// hand-mirrored class: the QML reads the real property names, and a card setting
+// added later needs no change here at all.
 class AppStub : public QObject
 {
     Q_OBJECT
@@ -47,7 +41,7 @@ class AppStub : public QObject
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
 public:
     using QObject::QObject;
-    SettingsStub *m_settings = nullptr;
+    QQmlPropertyMap *m_settings = nullptr;
     bool m_qr = false;
     bool m_ocr = false;
     QObject *settings() const { return m_settings; }
@@ -110,6 +104,7 @@ public:
     Q_INVOKABLE void upload() { emit action(QStringLiteral("upload")); }
     Q_INVOKABLE void ocr() { emit action(QStringLiteral("ocr")); }
     Q_INVOKABLE void deleteCapture() { emit action(QStringLiteral("delete")); }
+    Q_INVOKABLE void trim() { emit action(QStringLiteral("trim")); }
     // dismiss closes the card locally (auto-hide / close button) AND tells the
     // parent, so it can retire its CaptureNotification.
     Q_INVOKABLE void dismiss()
@@ -152,26 +147,38 @@ int runNotificationHelper(int argc, char *argv[])
 #endif
     app.setOrganizationName(QStringLiteral("Unisic"));
 
-    // --notification-helper <name> <lx> <ly> <lw> <lh> <corner> <style>
-    //   <durationSec> <lang> <qr> <ocr> <kind> <uploading> <url> <thumbPath> [filePath]
+    // --notification-helper <name> <lx> <ly> <lw> <lh> <configJson> <lang>
+    //   <kind> <uploading> <url> <thumbPath> [filePath]
+    // The helper is this same binary, so the argument list never version-skews
+    // against the parent — positional is fine. Everything the card's look is
+    // driven by rides in <configJson> (NotifCard::encodeConfig), so adding a
+    // card setting never touches this list again — which is what the old
+    // one-arg-per-setting shape cost: every addition shifted every index below
+    // it, silently, at runtime.
     const QStringList args = app.arguments();
     const int i = args.indexOf(QStringLiteral("--notification-helper"));
-    if (i < 0 || i + 15 >= args.size())
+    if (i < 0 || i + 12 >= args.size())
         return 2;
     const QString name = args[i + 1];
     const QRect logical(args[i + 2].toInt(), args[i + 3].toInt(),
                         args[i + 4].toInt(), args[i + 5].toInt());
-    const QString corner = args[i + 6];
-    QString style = args[i + 7];
-    const int durationSec = args[i + 8].toInt();
-    const QString lang = args[i + 9];
-    const bool qrAvail = args[i + 10] == QLatin1String("1");
-    const bool ocrAvail = args[i + 11] == QLatin1String("1");
-    const QString kind = args[i + 12];
-    const bool uploading = args[i + 13] == QLatin1String("1");
-    const QString url = args[i + 14];
-    const QString thumbPath = args[i + 15];
-    const QString filePath = (i + 16 < args.size()) ? args[i + 16] : QString();
+    const QJsonObject config =
+        QJsonDocument::fromJson(args[i + 6].toUtf8()).object();
+    const QJsonObject settingsJson = config.value(QStringLiteral("settings")).toObject();
+    const QString corner = settingsJson.value(QStringLiteral("capturePopupPosition"))
+                               .toString(QStringLiteral("bottom-right"));
+    const int edgeArg = settingsJson.value(QStringLiteral("capturePopupMargin")).toInt(8);
+    const QString style =
+        NotifCard::normalizeStyle(settingsJson.value(QStringLiteral("capturePopupStyle")).toString());
+    const int durationSec = settingsJson.value(QStringLiteral("capturePopupDurationSec")).toInt(8);
+    const bool qrAvail = config.value(QStringLiteral("qrAvailable")).toBool();
+    const bool ocrAvail = config.value(QStringLiteral("ocrAvailable")).toBool();
+    const QString lang = args[i + 7];
+    const QString kind = args[i + 8];
+    const bool uploading = args[i + 9] == QLatin1String("1");
+    const QString url = args[i + 10];
+    const QString thumbPath = args[i + 11];
+    const QString filePath = (i + 12 < args.size()) ? args[i + 12] : QString();
 
     // UI language: the popup's qsTr strings resolve against the parent's language.
     QTranslator appTr;
@@ -186,24 +193,14 @@ int runNotificationHelper(int argc, char *argv[])
     const bool dark = app.styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     QIcon::setFallbackThemeName(dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze"));
 
-    // Style -> surface size (must match NotificationPopup.qml's layout table and
-    // LayerShellNotifier). Unknown values fall back to casual on both sides.
-    static const QStringList styles = {QStringLiteral("casual"), QStringLiteral("compact"),
-                                       QStringLiteral("small"), QStringLiteral("minimal"),
-                                       QStringLiteral("thumbnail")};
-    if (!styles.contains(style))
-        style = QStringLiteral("casual");
-    int cardW = 400, cardH = 150;                            // casual
-    if (style == QLatin1String("compact"))        { cardW = 380; cardH = 96;  }
-    else if (style == QLatin1String("small"))     { cardW = 380; cardH = 52;  }
-    else if (style == QLatin1String("minimal"))   { cardW = 300; cardH = 36;  }
-    else if (style == QLatin1String("thumbnail")) { cardW = 240; cardH = 150; }
-    const int pad = 16, edge = 8;
+    // Same table as the layer-shell host — NotifCard is the only copy.
+    const QSize card = NotifCard::sizeForStyle(style);
+    const int cardW = card.width(), cardH = card.height();
+    const int pad = NotifCard::kPad;
+    const int edge = qMax(0, edgeArg);
 
     auto *appStub = new AppStub(&app);
-    appStub->m_settings = new SettingsStub(appStub);
-    appStub->m_settings->m_style = style;
-    appStub->m_settings->m_duration = durationSec;
+    appStub->m_settings = NotifCard::makeSettingsMap(settingsJson, appStub);
     appStub->m_qr = qrAvail;
     appStub->m_ocr = ocrAvail;
 
@@ -224,6 +221,13 @@ int runNotificationHelper(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("popupY"), pad);
     engine.rootContext()->setContextProperty(QStringLiteral("popupW"), cardW);
     engine.rootContext()->setContextProperty(QStringLiteral("popupH"), cardH);
+    // Same three the layer-shell host sets, from the same snapshot — the card
+    // QML reads these, never App.settings.
+    engine.rootContext()->setContextProperty(QStringLiteral("popupStyle"), style);
+    engine.rootContext()->setContextProperty(QStringLiteral("popupAutoHideSec"), qMax(0, durationSec));
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("popupHiddenActions"),
+        settingsJson.value(QStringLiteral("hiddenNotifActions")).toString());
 
     QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/NotificationPopup.qml")));
     if (component.isError()) {
@@ -263,7 +267,18 @@ int runNotificationHelper(int argc, char *argv[])
     win->setFormat(fmt);
 
     const int winW = cardW + 2 * pad, winH = cardH + 2 * pad;
-    const QRect sg = target ? target->geometry() : QRect(0, 0, 1920, 1080);
+    // availableGeometry, not geometry: this helper runs on xcb, where Qt derives
+    // it from _NET_WORKAREA — so panels and docks that reserve space are already
+    // subtracted and the card lands beside them instead of under them. The
+    // layer-shell path gets the same clearance from exclusive zones. Nothing to
+    // guard: with no strut (or no reader for it) the two rects are identical, so
+    // the worst case is exactly the old full-screen behaviour. Intersected with
+    // the screen because _NET_WORKAREA is one rect for the whole X screen, not
+    // one per monitor — on a multi-head layout Qt's per-screen clamp can still
+    // hand back a rect that is empty or off this monitor.
+    QRect sg = target ? target->availableGeometry() : QRect(0, 0, 1920, 1080);
+    if (target && (sg.isEmpty() || !target->geometry().intersects(sg)))
+        sg = target->geometry();
     // Anchor the WINDOW at `edge`; the card sits `pad` inside, so the visible
     // card lands edge+pad from the screen — the same inset as the layer-shell card.
     int x = sg.x() + edge, y = sg.y() + edge;
@@ -278,6 +293,8 @@ int runNotificationHelper(int argc, char *argv[])
     // Only the card region takes pointer input; the transparent shadow pad around
     // it stays click-through so it can't eat clicks on windows in that corner.
     win->setMask(QRegion(pad, pad, cardW, cardH));
+
+
 
     // Close the card when the QML asks (auto-hide, close button, or a parent
     // "close" command routed through dismiss()).

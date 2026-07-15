@@ -203,6 +203,16 @@ void CaptureNotification::ocr()
     m_app->ocrImage(m_image);
 }
 
+void CaptureNotification::trim()
+{
+    // Recordings only, and only once they are on disk — the trim window works on
+    // a file, not on the in-memory capture.
+    if (m_filePath.isEmpty())
+        return;
+    m_app->openTrimRecording(m_filePath);
+    emit closeRequested();
+}
+
 void CaptureNotification::dismiss()
 {
     emit closeRequested();

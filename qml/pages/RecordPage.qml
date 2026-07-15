@@ -49,9 +49,14 @@ Item {
                 font.weight: Font.Bold
             }
             Text {
+                // Two unrelated causes, named apart: a package built without
+                // PipeWire vs. a desktop with no ScreenCast portal backend (a
+                // running pipewire daemon does not imply one — it serves audio).
                 text: App.recordingAvailable
                       ? qsTr("Record the full screen, a region, or a single window to a video file.")
-                      : qsTr("Recording is unavailable: Unisic was built without PipeWire support.")
+                      : App.capPipeWireBuild
+                        ? qsTr("Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough — the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.")
+                        : qsTr("Recording is unavailable: Unisic was built without PipeWire support.")
                 color: App.recordingAvailable ? Theme.textSecondary : Theme.danger
                 font.pixelSize: Theme.fontM
             }

@@ -23,12 +23,17 @@ Window {
     color: "transparent"
     visible: false   // AppContext sizes, layers, then show()s it
 
+    // Card values come from the HOST as context properties (popupStyle,
+    // popupAutoHideSec, popupHiddenActions), never from App.settings directly:
+    // the settings preview renders a card with overridden values that were
+    // deliberately not saved, and both hosts feed these from one snapshot
+    // (NotifCard::effectiveSettings).
     // 0 = stay open until manually closed.
-    readonly property int autoHideSec: App.settings.capturePopupDurationSec
+    readonly property int autoHideSec: popupAutoHideSec
     // Latched ONCE at creation, not live-bound: C++ sized the surface and the
-    // input mask for the creation-time style, so an open card switching layout
-    // mid-flight would overflow/clip the fixed window. New cards pick up the
-    // changed setting because LayerShellNotifier re-reads it per show().
+    // input mask for this style, so an open card switching layout mid-flight
+    // would overflow/clip the fixed window. New cards pick up the changed
+    // setting because the host re-reads it per show().
     property string style: "casual"
     // True while a thumbnail is being dragged out. A native drag can take many
     // seconds (aiming at another app), and the pointer leaves the card the moment
@@ -36,9 +41,10 @@ Window {
     // the drag's origin surface. Pauses auto-hide + the countdown drain.
     property bool dragging: false
     Component.onCompleted: {
-        const s = App.settings.capturePopupStyle
-        if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(s) >= 0)
-            style = s
+        if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(popupStyle) >= 0)
+            style = popupStyle
+        const csv = popupHiddenActions
+        hiddenActions = csv ? csv.split(",").filter(function (x) { return x.length > 0 }) : []
     }
 
     // Auto-dismiss, paused while the pointer is over the card.
@@ -49,50 +55,66 @@ Window {
         onTriggered: notif.dismiss()
     }
 
-    // The full action set, reused by every style that shows buttons.
+    // Action ids the user switched off in Settings > Notifications. Latched at
+    // creation like `style`, and from the same host snapshot.
+    property var hiddenActions: []
+    function actionShown(id) { return popup.hiddenActions.indexOf(id) < 0 }
+
+    // The full action set, reused by every style that shows buttons. Every
+    // button ANDs actionShown() over its own condition — the user's opt-out only
+    // ever subtracts, it can never force a button the capture can't back.
     component ActionRow: Row {
         property int btn: 32
         property int icon: 16
         spacing: 1
         UIconButton {
             iconName: "edit"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Edit"); visible: notif.kind === "image"
+            tooltip: qsTr("Edit"); visible: popup.actionShown("edit") && notif.kind === "image"
             onClicked: notif.edit()
         }
         UIconButton {
             iconName: "edit-copy"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Copy image"); visible: notif.kind === "image"
+            tooltip: qsTr("Copy image"); visible: popup.actionShown("copy") && notif.kind === "image"
             onClicked: notif.copyImage()
         }
         UIconButton {
             iconName: "globe"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Copy link"); visible: notif.url !== ""
+            tooltip: qsTr("Copy link"); visible: popup.actionShown("link") && notif.url !== ""
             onClicked: notif.copyUrl()
         }
         UIconButton {
             iconName: "view-preview"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Show QR code"); visible: App.qrAvailable && notif.url !== ""
+            tooltip: qsTr("Show QR code"); visible: popup.actionShown("qr") && App.qrAvailable && notif.url !== ""
             onClicked: notif.showQr()
         }
         UIconButton {
             iconName: "folder-open"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Show in folder")
+            tooltip: qsTr("Show in folder"); visible: popup.actionShown("folder")
             onClicked: notif.showInFolder()
         }
         UIconButton {
             iconName: "upload-cloud"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Upload"); visible: notif.url === "" && !notif.uploading
+            tooltip: qsTr("Upload"); visible: popup.actionShown("upload") && notif.url === "" && !notif.uploading
             onClicked: notif.upload()
         }
         UIconButton {
             iconName: "ocr"; iconSize: parent.icon; width: parent.btn; height: parent.btn
             tooltip: qsTr("Copy text (OCR)")
-            visible: App.ocrAvailable && notif.kind === "image"
+            visible: popup.actionShown("ocr") && App.ocrAvailable && notif.kind === "image"
             onClicked: notif.ocr()
         }
         UIconButton {
+            // Recordings only: the editor is for images, the trim window is the
+            // recording's equivalent — and it needs the file on disk.
+            iconName: "cut"; iconSize: parent.icon; width: parent.btn; height: parent.btn
+            tooltip: qsTr("Trim recording")
+            visible: popup.actionShown("trim") && notif.filePath !== ""
+                     && (notif.kind === "video" || notif.kind === "gif")
+            onClicked: notif.trim()
+        }
+        UIconButton {
             iconName: "edit-delete"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Delete"); visible: notif.filePath !== ""
+            tooltip: qsTr("Delete"); visible: popup.actionShown("delete") && notif.filePath !== ""
             onClicked: notif.deleteCapture()
         }
     }

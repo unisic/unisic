@@ -16,6 +16,7 @@
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
 #include "PreviewController.h"
+#include "notify/NotifCard.h"
 #include "notify/CaptureNotification.h"
 #include "notify/DesktopNotifier.h"
 #include "notify/NotificationInhibitor.h"
@@ -416,6 +417,23 @@ bool AppContext::recordingAvailable() const
 #else
     return false;
 #endif
+}
+
+bool AppContext::capPipeWireBuild() const
+{
+#ifdef HAVE_PIPEWIRE
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool AppContext::capScreenCastPortal() const
+{
+    // Probed on the session bus at startup, independent of HAVE_PIPEWIRE: a
+    // dev-tab "—" here means the desktop has no ScreenCast portal backend even
+    // when the build does have PipeWire.
+    return m_screenCastPortalPresent;
 }
 
 bool AppContext::ocrAvailable() const
@@ -1956,6 +1974,45 @@ void AppContext::devTestFilename()
                        m_settings->stripMetadata() ? tr("on") : tr("off")));
 }
 
+void AppContext::previewCapturePopup(const QVariantMap &overrides)
+{
+    // Only the stylized card is previewable. With it off, showCaptureNotification
+    // would fall through to a native desktop notification — hovering a settings
+    // row must never post one of those to the user's notification history.
+    if (!m_settings->showCapturePopup() || !m_settings->showNotifications())
+        return;
+    hideCapturePopupPreview();
+    // inhibited=false: the user asked for this card by pointing at the setting;
+    // muteOnFullscreen is about unattended capture feedback, not this.
+    m_previewNotif = showCaptureNotification(devTestImage(), QString(),
+                                             QStringLiteral("image"), false, overrides);
+}
+
+void AppContext::hideCapturePopupPreview()
+{
+    if (m_previewNotif)
+        m_previewNotif->dismiss();
+    m_previewNotif.clear();
+}
+
+void AppContext::devTestCardPreview()
+{
+    if (!devBuild())
+        return;
+    if (!m_settings->showCapturePopup() || !m_settings->showNotifications()) {
+        showToast(tr("Dev: card preview needs the stylized card enabled "
+                     "(Preferences → Show notifications / capture card)"), true);
+        return;
+    }
+    previewCapturePopup();
+    if (!m_previewNotif) {
+        showToast(tr("Dev: card preview FAILED (no card was created)"), true);
+        return;
+    }
+    showToast(tr("Dev: card preview — withdrawing in 3 s"));
+    QTimer::singleShot(3000, this, [this] { hideCapturePopupPreview(); });
+}
+
 void AppContext::devTestNotification()
 {
     if (!devBuild())
@@ -2356,10 +2413,38 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("screenshot cursor: ")
                  + (capScreenshotCursor() ? QStringLiteral("PASS")
                                           : QStringLiteral("SKIP (portal screenshot has no cursor mode)")));
-        smokeLog(QStringLiteral("recording: ") + (recordingAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no PipeWire/portal)")));
+        smokeLog(QStringLiteral("recording: ")
+                 + (recordingAvailable() ? QStringLiteral("PASS")
+                    : capPipeWireBuild() ? QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")
+                                         : QStringLiteral("SKIP (built without PipeWire)")));
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
                  .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
                       (capNativeNotification() || capCustomNotification()) ? "PASS" : "FAIL"));
+        // Settings hover preview: the same show/withdraw pair the pointer drives.
+        // Only the creation is asserted — withdrawal tears the card down through
+        // deleteLater / the helper's exit, so nothing observable has happened yet
+        // by the next line. The dev button ("Card preview (3 s)") is where the
+        // withdrawal gets checked, by eye.
+        if (!m_settings->showNotifications() || !m_settings->showCapturePopup()) {
+            smokeLog(QStringLiteral("card preview: SKIP (stylized card disabled)"));
+        } else {
+            previewCapturePopup();
+            const bool shown = !m_previewNotif.isNull();
+            hideCapturePopupPreview();
+            // "Open a file": the dialog cannot run headless, so assert the routing
+        // table it feeds — the part that decides which window a file lands in.
+        {
+            const bool ok = editableKindFor(QStringLiteral("/tmp/a.PNG")) == QLatin1String("image")
+                            && editableKindFor(QStringLiteral("/tmp/b.mp4")) == QLatin1String("video")
+                            && editableKindFor(QStringLiteral("/tmp/c.gif")) == QLatin1String("video")
+                            && editableKindFor(QStringLiteral("/tmp/d.txt")).isEmpty();
+            smokeLog(QStringLiteral("open own file: ")
+                     + (ok ? QStringLiteral("PASS (image -> editor, recording -> trim, other -> refused)")
+                           : QStringLiteral("FAIL (wrong routing)")));
+        }
+        smokeLog(QStringLiteral("card preview: ")
+                     + (shown ? QStringLiteral("PASS") : QStringLiteral("FAIL (no card created)")));
+        }
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
         if (m_hotkeys->available()) {
@@ -2951,7 +3036,7 @@ bool AppContext::capCustomNotification() const
     return m_layerShellAvailable || capNotificationHelper();
 }
 
-bool AppContext::showNotificationHelper(CaptureNotification *n)
+bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMap &overrides)
 {
     if (!n)
         return false;
@@ -2959,9 +3044,6 @@ bool AppContext::showNotificationHelper(CaptureNotification *n)
     if (!screen)
         return false;
     const QRect lg = screen->geometry();
-    QString corner = m_settings->capturePopupPosition();
-    if (corner.isEmpty())
-        corner = QStringLiteral("top-right");
 
     // Resolve the UI language exactly as applyLanguage() does, so the card's
     // qsTr strings render in the same language as the rest of the app.
@@ -2978,16 +3060,19 @@ bool AppContext::showNotificationHelper(CaptureNotification *n)
     proc->setProgram(QCoreApplication::applicationFilePath());
     // The helper hosts the real NotificationPopup.qml; it reads the thumbnail
     // CaptureNotification already wrote to the cache (owned + removed by `n`).
+    // Everything that shapes the card travels as ONE blob, read off Settings'
+    // metaobject by NotifCard — the same values the layer-shell host reads
+    // straight from Settings. Adding a card setting means adding it to
+    // NotifCard::settingKeys(); this call site does not change.
+    const QString config = QString::fromUtf8(
+        QJsonDocument(NotifCard::encodeConfig(m_settings, qrAvailable(), ocrAvailable(), overrides))
+            .toJson(QJsonDocument::Compact));
     proc->setArguments({QStringLiteral("--notification-helper"),
                         screen->name(),
                         QString::number(lg.x()), QString::number(lg.y()),
                         QString::number(lg.width()), QString::number(lg.height()),
-                        corner,
-                        m_settings->capturePopupStyle(),
-                        QString::number(qMax(0, m_settings->capturePopupDurationSec())),
+                        config,
                         lang,
-                        qrAvailable() ? QStringLiteral("1") : QStringLiteral("0"),
-                        ocrAvailable() ? QStringLiteral("1") : QStringLiteral("0"),
                         n->kind(),
                         n->uploading() ? QStringLiteral("1") : QStringLiteral("0"),
                         n->url(),
@@ -3002,6 +3087,7 @@ bool AppContext::showNotificationHelper(CaptureNotification *n)
             if (tok.isEmpty())
                 continue;
             if (tok == QLatin1String("edit"))              n->edit();
+            else if (tok == QLatin1String("trim"))         n->trim();
             else if (tok == QLatin1String("preview"))      n->preview();
             else if (tok == QLatin1String("copy-image"))   n->copyImage();
             else if (tok.startsWith(QLatin1String("copy-as:"))) n->copyAs(tok.mid(8));
@@ -3567,6 +3653,65 @@ void AppContext::refreshWatermarkImage()
     m_watermarkImage = reader.read().convertToFormat(QImage::Format_ARGB32_Premultiplied);
 }
 
+
+QString AppContext::editableKindFor(const QString &path)
+{
+    static const QStringList imageExt = {QStringLiteral("png"), QStringLiteral("jpg"),
+                                         QStringLiteral("jpeg"), QStringLiteral("webp"),
+                                         QStringLiteral("bmp"), QStringLiteral("tif"),
+                                         QStringLiteral("tiff"), QStringLiteral("avif")};
+    static const QStringList videoExt = {QStringLiteral("mp4"), QStringLiteral("webm"),
+                                         QStringLiteral("gif"), QStringLiteral("mkv"),
+                                         QStringLiteral("mov")};
+    const QString ext = QFileInfo(path).suffix().toLower();
+    if (imageExt.contains(ext))
+        return QStringLiteral("image");
+    if (videoExt.contains(ext))
+        return QStringLiteral("video");
+    return {};
+}
+
+void AppContext::openFileForEditing(const QString &kind)
+{
+    // One dialog for both kinds: picking by extension beats making the user
+    // choose "image or video?" before they have chosen the file. An image opens
+    // in the very editor a screenshot opens; a recording in the trim window the
+    // history's Trim button opens.
+    const QString start = m_settings->saveDirectory().isEmpty()
+                              ? QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
+                              : m_settings->saveDirectory();
+    const QString images = tr("Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)");
+    const QString videos = tr("Recordings (*.mp4 *.webm *.gif *.mkv *.mov)");
+    const QString both = tr("Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff "
+                            "*.avif *.mp4 *.webm *.gif *.mkv *.mov)");
+    const QString anyFile = tr("All files (*)");
+    QString filter;
+    QString title;
+    if (kind == QLatin1String("image")) {
+        filter = images + QStringLiteral(";;") + videos + QStringLiteral(";;") + anyFile;
+        title = tr("Open an image to edit");
+    } else if (kind == QLatin1String("video")) {
+        filter = videos + QStringLiteral(";;") + images + QStringLiteral(";;") + anyFile;
+        title = tr("Open a recording to trim");
+    } else {
+        filter = both + QStringLiteral(";;") + images + QStringLiteral(";;") + videos
+                 + QStringLiteral(";;") + anyFile;
+        title = tr("Open image or recording");
+    }
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, title, start.isEmpty() ? QDir::homePath() : start, filter);
+    if (path.isEmpty())
+        return; // cancelled
+
+    // What the file IS decides, not what the dialog was filtered to.
+    const QString actual = editableKindFor(path);
+    if (actual == QLatin1String("video"))
+        openTrimRecording(path);
+    else if (actual == QLatin1String("image"))
+        editFromHistory(path);
+    else
+        showToast(tr("Unisic cannot edit this file type"), true);
+}
 
 void AppContext::openTrimRecording(const QString &path)
 {
@@ -4160,7 +4305,8 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
 }
 
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
-                                                         const QString &kind, bool inhibited)
+                                                         const QString &kind, bool inhibited,
+                                                         const QVariantMap &overrides)
 {
     // The master "Show notifications" switch promises complete silence — it
     // must cover capture cards (layer-shell AND native) exactly like toasts.
@@ -4182,24 +4328,28 @@ CaptureNotification *AppContext::showCaptureNotification(const QImage &img, cons
         // (muteOnFullscreen) do we honour KDE's inhibition — which conflates a
         // fullscreen app, Do-Not-Disturb, AND stuck third-party inhibitors, so
         // auto-suppressing by default wrongly killed the user's own capture
-        // feedback. sampled when THIS capture began (before our own overlay).
+        // feedback. Sampled when THIS capture began (before our own overlay).
         if (inhibited && m_settings->muteOnFullscreen()) {
             notif->deleteLater();
             return nullptr;
         }
-        m_layerNotifier->show(notif); // on-top custom card (layer-shell)
+        m_layerNotifier->show(notif, overrides); // on-top custom card (layer-shell)
         return notif;
     }
 #endif
     // GNOME/mutter (no layer-shell): the SAME styled NotificationPopup.qml rides
-    // an XWayland override-redirect helper, the only surface mutter keeps above
-    // everything. showNotificationHelper owns `notif` for the card's lifetime.
+    // an XWayland override-redirect helper — the Steam-style toast, and the only
+    // surface mutter keeps above everything. A plain Wayland window cannot be
+    // placed by its own client, and the fullscreen-and-mask trick that works for
+    // the capture overlay renders BLACK here: mutter unredirects fullscreen
+    // surfaces, so their transparency is never composited.
+    // showNotificationHelper owns `notif` for the card's lifetime.
     if (capNotificationHelper() && m_settings->showCapturePopup()) {
         if (inhibited && m_settings->muteOnFullscreen()) {
             notif->deleteLater();
             return nullptr;
         }
-        if (showNotificationHelper(notif))
+        if (showNotificationHelper(notif, overrides))
             return notif;
         // Could not spawn the helper → fall through to the native notification.
     }

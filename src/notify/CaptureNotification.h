@@ -58,6 +58,7 @@ public:
     Q_INVOKABLE void showQr();
     Q_INVOKABLE void showInFolder();
     Q_INVOKABLE void openCapture();   // open the saved file (saving first if needed)
+    Q_INVOKABLE void trim();          // recordings only: open the trim window on this file
     Q_INVOKABLE void save();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void deleteCapture();

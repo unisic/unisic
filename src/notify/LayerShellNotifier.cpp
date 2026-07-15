@@ -1,4 +1,5 @@
 #include "LayerShellNotifier.h"
+#include "NotifCard.h"
 #include "CaptureNotification.h"
 #include "AppContext.h"
 #include "Settings.h"
@@ -47,7 +48,7 @@ bool LayerShellNotifier::compositorSupportsLayerShell()
     return found;
 }
 
-void LayerShellNotifier::show(CaptureNotification *n)
+void LayerShellNotifier::show(CaptureNotification *n, const QVariantMap &overrides)
 {
     if (!n)
         return;
@@ -63,17 +64,22 @@ void LayerShellNotifier::show(CaptureNotification *n)
         return;
     }
 
-    // Card + a small transparent pad so the drop shadow isn't clipped.
-    // Style -> surface size; the QML picks the matching layout (see the
-    // style table in NotificationPopup.qml). Unknown values fall back to
-    // casual on both sides.
-    const QString style = m_app->settings()->capturePopupStyle();
-    int cardW = 400, cardH = 150;                       // casual
-    if (style == QLatin1String("compact"))   { cardW = 380; cardH = 96;  }
-    else if (style == QLatin1String("small"))     { cardW = 380; cardH = 52;  }
-    else if (style == QLatin1String("minimal"))   { cardW = 300; cardH = 36;  }
-    else if (style == QLatin1String("thumbnail")) { cardW = 240; cardH = 150; }
-    const int pad = 16, edge = 8;
+    // One snapshot drives everything below AND the QML — the same call the xcb
+    // helper's config is built from, so the two hosts cannot drift, and the
+    // settings preview's unsaved overrides reach both.
+    const QVariantMap eff = NotifCard::effectiveSettings(m_app->settings(), overrides);
+    const QString style = NotifCard::normalizeStyle(eff.value(QStringLiteral("capturePopupStyle")).toString());
+    const QSize card = NotifCard::sizeForStyle(style);
+    const int cardW = card.width(), cardH = card.height();
+    // `edge` is the user-set gap to the screen edge. Layer-shell measures margins
+    // from the anchored edge AFTER other clients' exclusive zones, so this adds
+    // to the panel clearance the compositor already grants — it never fights it.
+    const int pad = NotifCard::kPad;
+    const int edge = qMax(0, eff.value(QStringLiteral("capturePopupMargin")).toInt());
+
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
 
     auto *ctx = new QQmlContext(engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("notif"), n);
@@ -81,6 +87,11 @@ void LayerShellNotifier::show(CaptureNotification *n)
     ctx->setContextProperty(QStringLiteral("popupY"), pad);
     ctx->setContextProperty(QStringLiteral("popupW"), cardW);
     ctx->setContextProperty(QStringLiteral("popupH"), cardH);
+    ctx->setContextProperty(QStringLiteral("popupStyle"), style);
+    ctx->setContextProperty(QStringLiteral("popupAutoHideSec"),
+                            qMax(0, eff.value(QStringLiteral("capturePopupDurationSec")).toInt()));
+    ctx->setContextProperty(QStringLiteral("popupHiddenActions"),
+                            eff.value(QStringLiteral("hiddenNotifActions")).toString());
 
     QObject *obj = component.create(ctx);
     auto *win = qobject_cast<QQuickWindow *>(obj);
@@ -93,9 +104,6 @@ void LayerShellNotifier::show(CaptureNotification *n)
     ctx->setParent(win);
     n->setParent(win); // window owns the backing object for its lifetime
 
-    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-    if (!screen)
-        screen = QGuiApplication::primaryScreen();
     if (screen)
         win->setScreen(screen);
     win->resize(cardW + 2 * pad, cardH + 2 * pad);
@@ -109,7 +117,7 @@ void LayerShellNotifier::show(CaptureNotification *n)
         ls->setExclusiveZone(0); // don't reserve space / push other windows
         ls->setKeyboardInteractivity(LW::KeyboardInteractivityNone); // never steal keyboard
 
-        const QString posName = m_app->settings()->capturePopupPosition();
+        const QString posName = eff.value(QStringLiteral("capturePopupPosition")).toString();
         const bool top = posName.startsWith(QLatin1String("top"));
         const bool left = posName.endsWith(QLatin1String("left"));
         const bool right = posName.endsWith(QLatin1String("right"));

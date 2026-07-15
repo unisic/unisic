@@ -176,6 +176,32 @@ Item {
                                               qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right"),
                                               qsTr("Center")]
 
+    // The capture card's action buttons, in the order NotificationPopup.qml's
+    // ActionRow draws them. Ids and icons MUST match that file — it is the one
+    // that decides what a card shows; this list only names them for the UI.
+    readonly property var notifActions: [
+        { id: "edit",   iconName: "edit",         label: qsTr("Edit") },
+        { id: "copy",   iconName: "edit-copy",    label: qsTr("Copy image") },
+        { id: "link",   iconName: "globe",        label: qsTr("Copy link") },
+        { id: "qr",     iconName: "view-preview", label: qsTr("Show QR code") },
+        { id: "folder", iconName: "folder-open",  label: qsTr("Show in folder") },
+        { id: "upload", iconName: "upload-cloud", label: qsTr("Upload") },
+        { id: "ocr",    iconName: "ocr",          label: qsTr("Copy text (OCR)") },
+        { id: "trim",   iconName: "cut",          label: qsTr("Trim recording") },
+        { id: "delete", iconName: "edit-delete",  label: qsTr("Delete") },
+    ]
+    function notifActionHidden(id) {
+        var csv = App.settings.hiddenNotifActions
+        return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
+    }
+    function setNotifActionHidden(id, hidden) {
+        var csv = App.settings.hiddenNotifActions
+        var list = csv ? csv.split(",").filter(function (x) { return x.length > 0 }) : []
+        list = list.filter(function (x) { return x !== id })
+        if (hidden) list.push(id)
+        App.settings.hiddenNotifActions = list.join(",")
+    }
+
     function toolHidden(id) {
         var csv = App.settings.hiddenTools
         return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
@@ -1595,6 +1621,54 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
+            // Live preview of the capture card: point at the style / position /
+            // margin row and the real card appears where the next capture's
+            // will. Lives HERE, inside the pane, for two reasons: the rows' ids
+            // only resolve within this component (the page root cannot see
+            // them), and the pane's Loader unloads — taking the preview's
+            // hover state with it instead of stranding a card on screen.
+            // A QtObject, not an Item: ScrollPane's default property is a
+            // Column, which would lay an Item out and leave a gap.
+            QtObject {
+                id: cardPreview
+                // Shows the REAL card while you are CHOOSING — a dropdown is
+                // open, or a value just changed — not merely because the
+                // pointer crossed the row. Hover-to-show meant the card popped
+                // up on the way to anything else on this page.
+                // Declarative, not a counter: a counter leaks (a row can be
+                // destroyed, or the window deactivate, with no exit event) and a
+                // leaked count pins a card whose auto-hide is "never".
+                readonly property bool choosing: (popupStyleCombo.visible && popupStyleCombo.listOpen)
+                                                 || (popupPosCombo.visible && popupPosCombo.listOpen)
+                                                 || (popupMarginCombo.visible && popupMarginCombo.listOpen)
+                onChoosingChanged: {
+                    if (choosing) App.previewCapturePopup({})
+                    else hideTimer.restart()
+                }
+                // The entry under the pointer, previewed WITHOUT saving it, so
+                // walking the list walks the card through the options.
+                function option(key, value) {
+                    if (!choosing) return
+                    var o = {}
+                    o[key] = value
+                    App.previewCapturePopup(o)
+                }
+                // A committed change: re-render from the saved values and hold
+                // the card briefly, since picking closes the list and the
+                // pointer is usually gone by then.
+                function touch() {
+                    App.previewCapturePopup({})
+                    holdTimer.restart()
+                }
+                function maybeHide() {
+                    if (!choosing && !holdTimer.running)
+                        App.hideCapturePopupPreview()
+                }
+                property Timer hideTimer: Timer { interval: 250; onTriggered: cardPreview.maybeHide() }
+                property Timer holdTimer: Timer { interval: 2500; onTriggered: cardPreview.maybeHide() }
+                // Leaving Settings must not strand a card with auto-hide off.
+                Component.onDestruction: App.hideCapturePopupPreview()
+            }
             UCard {
                 width: page.cardWidth
                 Column {
@@ -1636,10 +1710,16 @@ Item {
                         help: qsTr("How the capture card looks, from full card to tiny pill.")
                         helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
                         UComboBox {
+                            id: popupStyleCombo
                             width: 180
                             model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
                             currentIndex: Math.max(0, ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(App.settings.capturePopupStyle))
-                            onActivated: (i) => App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
+                            onHighlighted: (i) => cardPreview.option("capturePopupStyle",
+                                                                     ["casual", "compact", "small", "minimal", "thumbnail"][i])
+                            onActivated: (i) => {
+                                App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
+                                cardPreview.touch()
+                            }
                         }
                     }
                     SettingRow {
@@ -1655,10 +1735,32 @@ Item {
                         help: qsTr("Screen corner where the capture card appears.")
                         helpDetail: qsTr("Applies to the card Unisic draws itself (the layer-shell card or the GNOME XWayland card). Native desktop notifications are placed by the system notification server and ignore this.")
                         UComboBox {
+                            id: popupPosCombo
                             width: 180
                             model: page.popupPosNames
                             currentIndex: Math.max(0, page.popupPosIds.indexOf(App.settings.capturePopupPosition))
-                            onActivated: (i) => App.settings.capturePopupPosition = page.popupPosIds[i]
+                            onHighlighted: (i) => cardPreview.option("capturePopupPosition", page.popupPosIds[i])
+                            onActivated: (i) => {
+                                App.settings.capturePopupPosition = page.popupPosIds[i]
+                                cardPreview.touch()
+                            }
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.showCapturePopup
+                        height: App.settings.showCapturePopup ? 44 : 0
+                        label: qsTr("Distance from the screen edge")
+                        help: qsTr("Gap between the capture card and the edge of the screen.")
+                        helpDetail: qsTr("Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way — Wayland gives an app no way to see where those are, so this is the manual knob.")
+                        UValueCombo {
+                            id: popupMarginCombo
+                            width: 120
+                            values: [0, 8, 16, 24, 48, 64, 96]
+                            from: 0; to: 400
+                            suffix: " px"
+                            value: App.settings.capturePopupMargin
+                            onHighlighted: (v) => cardPreview.option("capturePopupMargin", v)
+                            onChanged: (v) => { App.settings.capturePopupMargin = v; cardPreview.touch() }
                         }
                     }
                     SettingRow {
@@ -1684,6 +1786,46 @@ Item {
                         help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
                         helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
                         USwitch { checked: App.settings.muteOnFullscreen; onToggled: (c) => App.settings.muteOnFullscreen = c }
+                    }
+                }
+            }
+
+            UCard {
+                id: notifActionsCard
+                width: page.cardWidth
+                visible: App.settings.showCapturePopup && App.capCustomNotification
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Notification actions") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it — an upload link, OCR support, a saved file.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Repeater {
+                        model: page.notifActions
+                        delegate: Item {
+                            width: parent.width
+                            height: 40
+                            Row {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 10
+                                UIcon { name: modelData.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
+                            }
+                            USwitch {
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                checked: !page.notifActionHidden(modelData.id)
+                                // Re-render the preview card: the point of switching
+                                // a button off is seeing what the card becomes.
+                                onToggled: (c) => { page.setNotifActionHidden(modelData.id, !c); cardPreview.touch() }
+                            }
+                        }
                     }
                 }
             }
@@ -2294,6 +2436,20 @@ Item {
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
+                        label: qsTr("PipeWire (build)")
+                        help: qsTr("Whether this build was compiled against PipeWire.")
+                        helpDetail: qsTr("Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capPipeWireBuild ? "✓" : "—"
+                               color: App.capPipeWireBuild ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
+                        label: qsTr("ScreenCast portal")
+                        help: qsTr("Whether this desktop has a ScreenCast portal backend.")
+                        helpDetail: qsTr("Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it — the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capScreenCastPortal ? "✓" : "—"
+                               color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
                         label: qsTr("Video preview")
                         help: qsTr("Whether the trim editor can show a live video preview.")
                         helpDetail: qsTr("Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.")
@@ -2372,8 +2528,10 @@ Item {
                         UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Open a file…"); onClicked: App.openFileForEditing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }

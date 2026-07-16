@@ -17,6 +17,9 @@ whole per release (not per individual change).
 **Improved**
 - **OCR detects the language for you**: on by default, it now recognizes text using every installed Tesseract language pack, so you no longer have to type language codes. Turn it off in Settings › OCR to pin a specific, faster set.
 
+**Fixed**
+- **Screenshots now land in KDE Plasma's clipboard history (Klipper)**: a copied capture was pasteable but never appeared in the clipboard applet, so it was gone the moment you copied anything else. Unisic now tags the image the way KDE expects, so Klipper keeps it in history just like Spectacle does. Thanks to Augusto-Lescano for reporting this ([#51](https://github.com/unisic/unisic/issues/51)).
+
 ### Polski
 **Nowości**
 - **Pauza i wznawianie nagrywania**: przyciski pauzy/wznowienia i zatrzymania są zarówno na pasku nagrywania, jak i na samej pływającej ramce regionu, więc sterujesz nagraniem bez szukania głównego okna (ramka pokazuje **PAUZA**, gdy wstrzymane). Wstrzymany fragment jest wycinany z gotowego pliku, obraz i dźwięk razem, więc nagranie kontynuuje dokładnie tam, gdzie je zatrzymano. Działa dla nagrań ekranu, regionu i okna oraz GIF-ów, z dźwiękiem lub bez (nie dla instant replay).
@@ -25,6 +28,9 @@ whole per release (not per individual change).
 
 **Ulepszone**
 - **OCR sam wykrywa język**: domyślnie włączony, rozpoznaje teraz tekst przy użyciu wszystkich zainstalowanych pakietów językowych Tesseract, więc nie musisz już wpisywać kodów języków. Wyłącz to w Ustawienia › OCR, aby ustawić konkretny, szybszy zestaw.
+
+**Naprawione**
+- **Zrzuty ekranu trafiają teraz do historii schowka KDE Plasma (Klipper)**: skopiowany zrzut dało się wkleić, ale nie pojawiał się w aplecie schowka, więc znikał, gdy tylko skopiowałeś cokolwiek innego. Unisic oznacza teraz obraz tak, jak oczekuje tego KDE, dzięki czemu Klipper zachowuje go w historii, tak jak robi to Spectacle. Dziękujemy Augusto-Lescano za zgłoszenie ([#51](https://github.com/unisic/unisic/issues/51)).
 
 ## 0.7.1
 

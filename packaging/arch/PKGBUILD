@@ -11,8 +11,8 @@ license=('GPL-3.0-or-later')
 # tesseract/leptonica/layer-shell-qt are hard deps: the CI build links them
 # (HAVE_TESSERACT / HAVE_LAYERSHELL), so the binary needs the libs at runtime.
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal'
-         'tesseract' 'leptonica' 'layer-shell-qt' 'zxing-cpp')
-makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp')
+         'tesseract' 'leptonica' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons')
+makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons')
 optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'

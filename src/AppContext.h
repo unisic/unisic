@@ -211,6 +211,7 @@ public:
     Q_INVOKABLE void devTestHistoryFilter();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestCopyLast();
+    Q_INVOKABLE void devTestClipboardHistory();
     Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();

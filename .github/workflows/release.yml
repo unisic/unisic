@@ -75,7 +75,7 @@ jobs:
             qt6-tools-dev qt6-l10n-tools \
             libpipewire-0.3-dev \
             libtesseract-dev libleptonica-dev libzxing-dev \
-            liblayershellqtinterface-dev libwayland-dev
+            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev
 
       - uses: actions/checkout@v4
 

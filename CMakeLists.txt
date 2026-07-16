@@ -21,6 +21,8 @@ pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
 # GNOME/Mutter don't, and there we fall back to the native desktop notification).
 find_package(LayerShellQt QUIET)
 pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
+# Optional: KDE Plasma clipboard-history integration (KSystemClipboard).
+find_package(KF6GuiAddons QUIET)
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0001 NEW)
 # QTP0004 NEW: auto-generate qmldir for qml/ subdirectories (components/,
@@ -149,6 +151,23 @@ if(LayerShellQt_FOUND AND WAYLAND_CLIENT_FOUND)
     message(STATUS "Layer-shell on-top capture card: enabled")
 else()
     message(STATUS "Layer-shell on-top capture card: disabled (needs layer-shell-qt-devel + wayland-client) — native notification only")
+endif()
+
+# Optional: KDE Plasma clipboard-history (Klipper) integration. Klipper only
+# copies an image into its HISTORY (the tray applet, paste-it-later) when the
+# clipboard offer carries the x-kde-force-image-copy marker MIME — plain
+# image/png (what QClipboard and wl-copy send) is pasteable now but never
+# recorded, so the shot vanishes as soon as anything else is copied (issue #51).
+# KF6::GuiAddons' KSystemClipboard sets a full QMimeData (hint included) over the
+# wlr data-control protocol, which also lands without a focused window — the very
+# thing the wl-copy fallback papers over. Optional and NOT KDE-only to build:
+# without it images still copy and paste fine, they just skip Klipper history.
+if(KF6GuiAddons_FOUND)
+    target_link_libraries(unisic PRIVATE KF6::GuiAddons)
+    target_compile_definitions(unisic PRIVATE HAVE_KGUIADDONS)
+    message(STATUS "KDE clipboard-history (Klipper) integration: enabled (KF6GuiAddons)")
+else()
+    message(STATUS "KDE clipboard-history (Klipper) integration: disabled (needs kf6-kguiaddons-devel) — images copy but skip Klipper history")
 endif()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)

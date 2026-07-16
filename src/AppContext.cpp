@@ -38,6 +38,10 @@
 #include <ZXing/BitMatrix.h>
 #include <ZXing/MultiFormatWriter.h>
 #endif
+#ifdef HAVE_KGUIADDONS
+#include <KSystemClipboard>
+#include <QMimeData>
+#endif
 #include <QGuiApplication>
 #include <QtMath>
 #include <QScreen>
@@ -1253,6 +1257,42 @@ static QString textRenderCheck()
                 ++diff;
     return diff > 20 ? QStringLiteral("PASS (%1 sampled pixels changed)").arg(diff)
                      : QStringLiteral("FAIL (render left the base blank)");
+}
+
+#ifdef HAVE_KGUIADDONS
+// KDE Plasma / KWin: Klipper only copies an image into its HISTORY (the tray
+// applet, i.e. paste-it-later) when the clipboard offer carries the
+// x-kde-force-image-copy marker MIME. Plain image/png — what QClipboard and
+// wl-copy advertise — is pasteable right now but is never recorded, so the
+// shot drops out of history the moment anything else is copied (issue #51,
+// reported by Augusto-Lescano). The marker is an empty payload wl-copy cannot
+// attach, so the offer must be built as a QMimeData. Spectacle/Flameshot do
+// exactly this. Ownership passes to KSystemClipboard::setMimeData.
+static QMimeData *makeForceImageMime(const QImage &img)
+{
+    auto *mime = new QMimeData;
+    mime->setImageData(img);
+    mime->setData(QStringLiteral("x-kde-force-image-copy"), QByteArray());
+    return mime;
+}
+#endif
+
+// The KDE clipboard-history offer MUST carry the x-kde-force-image-copy hint or
+// Klipper never records the image (issue #51). Reuses the live builder, so
+// dropping the hint fails this. Shared by the developer button and F8 smoke test.
+static QString clipboardHistoryHintCheck()
+{
+#ifdef HAVE_KGUIADDONS
+    QImage img(8, 8, QImage::Format_RGB32);
+    img.fill(Qt::blue);
+    QScopedPointer<QMimeData> mime(makeForceImageMime(img));
+    const bool ok = mime->hasImage()
+                    && mime->hasFormat(QStringLiteral("x-kde-force-image-copy"));
+    return ok ? QStringLiteral("PASS (Klipper history hint attached)")
+              : QStringLiteral("FAIL (hint missing)");
+#else
+    return QStringLiteral("SKIP (no KF6GuiAddons; images still copy but skip Klipper history)");
+#endif
 }
 
 // Clipboard paste must create a real text annotation and retain a pasted image
@@ -2503,6 +2543,18 @@ void AppContext::devTestCopyLast()
                   .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
 }
 
+void AppContext::devTestClipboardHistory()
+{
+    if (!devBuild())
+        return;
+    // Live side effect first: on Plasma the image should now appear in the
+    // clipboard applet's history (issue #51). Hand-checkable in Klipper.
+    copyImageToClipboard(devTestImage());
+    const QString status = clipboardHistoryHintCheck();
+    showToast(tr("Dev: Klipper clipboard history: %1").arg(status),
+              status.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestPreview()
 {
     if (!devBuild())
@@ -3208,6 +3260,14 @@ void AppContext::runSmokeTest()
                  + (QGuiApplication::clipboard()->image().isNull()
                         ? QStringLiteral("FAIL (clipboard empty)")
                         : QStringLiteral("PASS")));
+        smokeNext();
+    });
+
+    // 3c2) KDE clipboard-history hint — the offer must carry
+    // x-kde-force-image-copy or Klipper never records the image (issue #51).
+    m_smokeSteps.append([this] {
+        copyImageToClipboard(devTestImage());
+        smokeLog(QStringLiteral("clipboard history hint: ") + clipboardHistoryHintCheck());
         smokeNext();
     });
 
@@ -5426,6 +5486,18 @@ static void spawnWlCopy(AppContext *app, const QString &wlCopy, const QStringLis
 void AppContext::copyImageToClipboard(const QImage &img)
 {
     QGuiApplication::clipboard()->setImage(img);
+#ifdef HAVE_KGUIADDONS
+    // On Plasma re-assert the image through KSystemClipboard WITH the history
+    // hint (above). data-control also sets the selection without a focused
+    // window, so this alone is reliable — no wl-copy mirror needed here.
+    if (auto *bus = QDBusConnection::sessionBus().interface();
+        bus && bus->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
+        KSystemClipboard::instance()->setMimeData(makeForceImageMime(img),
+                                                  QClipboard::Clipboard);
+        ++m_clipboardSeq; // a stale deferred wl-copy mirror must not clobber this
+        return;
+    }
+#endif
     // Wayland: clipboard offers can be lost when no window has focus.
     // wl-copy (if present) makes it stick regardless. NOT under XWayland:
     // there Qt owns the X11 CLIPBOARD while wl-copy would set a second,

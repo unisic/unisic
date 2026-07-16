@@ -3859,6 +3859,21 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
                             frac(physRegion.height() / phys.height()),
                             accent.name(QColor::HexRgb),
                             QString::number(countdown)});
+        // The helper's badge carries clickable stop/pause controls; a click there
+        // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
+        // like the in-process border's buttons (the resulting paused state is
+        // pushed back over stdin in togglePauseRecording()).
+        connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc] {
+            const QByteArray out = proc->readAllStandardOutput();
+            const QList<QByteArray> lines = out.split('\n');
+            for (const QByteArray &line : lines) {
+                const QByteArray cmd = line.trimmed();
+                if (cmd == "pause")
+                    togglePauseRecording();
+                else if (cmd == "stop")
+                    stopRecording();
+            }
+        });
         // stdin stays an open pipe on purpose: if THIS process dies without
         // reaching hideRecordBorder(), the helper sees EOF and quits — no
         // orphaned frame can outlive the recording.

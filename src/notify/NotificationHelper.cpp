@@ -221,13 +221,16 @@ int runNotificationHelper(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("popupY"), pad);
     engine.rootContext()->setContextProperty(QStringLiteral("popupW"), cardW);
     engine.rootContext()->setContextProperty(QStringLiteral("popupH"), cardH);
-    // Same three the layer-shell host sets, from the same snapshot — the card
+    // Same card settings the layer-shell host sets, from the same snapshot — the card
     // QML reads these, never App.settings.
     engine.rootContext()->setContextProperty(QStringLiteral("popupStyle"), style);
     engine.rootContext()->setContextProperty(QStringLiteral("popupAutoHideSec"), qMax(0, durationSec));
     engine.rootContext()->setContextProperty(
         QStringLiteral("popupHiddenActions"),
         settingsJson.value(QStringLiteral("hiddenNotifActions")).toString());
+    engine.rootContext()->setContextProperty(
+        QStringLiteral("popupActionOrder"),
+        settingsJson.value(QStringLiteral("notificationActionOrder")).toString());
 
     QQmlComponent component(&engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/NotificationPopup.qml")));
     if (component.isError()) {
@@ -290,11 +293,15 @@ int runNotificationHelper(int argc, char *argv[])
         y = sg.y() + sg.height() - winH - edge;
     win->setGeometry(QRect(x, y, winW, winH));
     win->show();
-    // Only the card region takes pointer input; the transparent shadow pad around
-    // it stays click-through so it can't eat clicks on windows in that corner.
-    win->setMask(QRegion(pad, pad, cardW, cardH));
-
-
+    // Keep the transparent shadow gutter inside the X input shape on this host.
+    // Mutter can move the pointer straight from an XWayland surface to a native
+    // Wayland one without delivering XLeaveWindow; when the input shape ended at
+    // the card edge, Qt therefore kept HoverHandler/containsMouse stuck forever.
+    // The gutter is an exit moat: crossing the VISIBLE card edge is still motion
+    // within this X window, so QML clears hover before XWayland loses the pointer.
+    // This intentionally differs from the honest layer-shell path's card-only
+    // mask and costs at most the existing 16 px transparent shadow margin.
+    win->setMask(QRegion(0, 0, winW, winH));
 
     // Close the card when the QML asks (auto-hide, close button, or a parent
     // "close" command routed through dismiss()).

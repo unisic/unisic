@@ -113,6 +113,15 @@ Window {
         if (!pick && shapesTools.length > 0) pick = shapesTools[0]
         if (pick) canvas.tool = pick.tool
     }
+    function activateToolShortcut(key) {
+        const picked = ToolCatalog.toolForShortcut(key, "editor")
+        if (!picked)
+            return false
+        canvas.tool = picked.tool
+        if (picked.group)
+            currentShapeId = picked.id
+        return true
+    }
     // Main-row model: ungrouped tools in catalog order, with each group's chip
     // inserted at its first member's position.
     function mainRowModel() {
@@ -209,25 +218,10 @@ Window {
             // Delete / Backspace removes the selected shape (Edit tool).
             else if ((e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) && canvas.hasAnnotSelection)
                 canvas.removeSelectedAnnot()
-            // Single-key tool switching: the editor stays usable without
-            // reaching for the toolbar. Text inputs consume their own keys
+            // Single-key tool switching. Text inputs consume their own keys
             // before this parent scope, so typing an annotation is unaffected.
             else if (!canvas.ocrMode && e.modifiers === Qt.NoModifier
-                     && (e.key === Qt.Key_T || e.key === Qt.Key_P || e.key === Qt.Key_L
-                         || e.key === Qt.Key_A || e.key === Qt.Key_R || e.key === Qt.Key_E
-                         || e.key === Qt.Key_B || e.key === Qt.Key_H || e.key === Qt.Key_M
-                         || e.key === Qt.Key_C)) {
-                if (e.key === Qt.Key_T) canvas.tool = AnnotationCanvas.Text
-                else if (e.key === Qt.Key_P) canvas.tool = AnnotationCanvas.Pen
-                else if (e.key === Qt.Key_L) canvas.tool = AnnotationCanvas.Line
-                else if (e.key === Qt.Key_A) canvas.tool = AnnotationCanvas.Arrow
-                else if (e.key === Qt.Key_R) canvas.tool = AnnotationCanvas.Rect
-                else if (e.key === Qt.Key_E) canvas.tool = AnnotationCanvas.Ellipse
-                else if (e.key === Qt.Key_B) canvas.tool = AnnotationCanvas.Blur
-                else if (e.key === Qt.Key_H) canvas.tool = AnnotationCanvas.Highlight
-                else if (e.key === Qt.Key_M) canvas.tool = AnnotationCanvas.Measure
-                else canvas.tool = AnnotationCanvas.Crop
-            }
+                     && editorWindow.activateToolShortcut(e.key)) {}
             // Ctrl+Enter = quick copy-and-close. A BARE Enter must not end the
             // session (it copies to the clipboard and the copy marks the session
             // "exported", which then skips the unsaved-annotations discard prompt).
@@ -377,7 +371,9 @@ Window {
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 // The group glyph has no freedesktop equivalent — always bundled.
                                 iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
-                                label: modelData.kind === "group" ? modelData.group.label : modelData.tool.label
+                                label: modelData.kind === "group"
+                                       ? modelData.group.label
+                                       : ToolCatalog.labelWithShortcut(modelData.tool)
                                 active: modelData.kind === "group"
                                         ? editorWindow.shapesActive
                                         : canvas.tool === modelData.tool.tool
@@ -431,7 +427,7 @@ Window {
                             delegate: ToolChip {
                                 iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 iconStyle: App.settings.editorIconStyle
-                                label: modelData.label
+                                label: ToolCatalog.labelWithShortcut(modelData)
                                 active: canvas.tool === modelData.tool
                                 onClicked: {
                                     canvas.tool = modelData.tool

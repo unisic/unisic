@@ -36,6 +36,9 @@ private slots:
     void watermarkStampsAndPreservesBaseDimensions();
     void calloutRendersTailAndCanBeSelected();
     void arrowAndMeasureRenderAndCanBeSelected();
+    void smartEraseRebuildsFlatBackground();
+    void smartEraseFollowsGradientBackground();
+    void smartEraseOverlappingStrokesStayOnBackground();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -567,3 +570,141 @@ int main(int argc, char *argv[])
 }
 
 #include "AnnotationCanvasTest.moc"
+
+// The smart eraser must reconstruct the BACKGROUND the object sat on. Its first
+// job: leave nothing of the object behind, and no tinted patch where it was.
+void AnnotationCanvasTest::smartEraseRebuildsFlatBackground()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(120);
+
+    QImage base(200, 120, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(60, 50, 80, 20), Qt::black);   // a line of "text"
+    }
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::SmartErase);
+    drag(canvas, QPointF(40, 40), QPointF(160, 80));
+
+    QCOMPARE(canvas.annotCount(), 1);
+    const QImage out = canvas.rendered();
+    // Every pixel of the erased region is the surrounding white — not a grey
+    // average of white background and black text.
+    for (int y = 41; y < 80; ++y) {
+        for (int x = 41; x < 160; ++x) {
+            const QColor c = out.pixelColor(x, y);
+            QVERIFY2(c.red() > 250 && c.green() > 250 && c.blue() > 250,
+                     qPrintable(QStringLiteral("erased pixel %1,%2 is %3, expected the white "
+                                               "background").arg(x).arg(y).arg(c.name())));
+        }
+    }
+    // ...and nothing outside the stroke was touched.
+    QCOMPARE(out.pixelColor(20, 60), QColor(Qt::white));
+}
+
+// A single averaged fill colour cannot sit on a gradient without showing as a
+// patch — the reason the tool used to read as a smudge. Reconstruct the
+// gradient instead.
+void AnnotationCanvasTest::smartEraseFollowsGradientBackground()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(120);
+
+    QImage clean(200, 120, QImage::Format_ARGB32_Premultiplied);
+    {
+        QPainter p(&clean);
+        QLinearGradient g(0, 0, 199, 0);
+        g.setColorAt(0, QColor(20, 20, 20));
+        g.setColorAt(1, QColor(230, 230, 230));
+        p.fillRect(clean.rect(), g);
+    }
+    QImage base = clean;
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(75, 45, 50, 30), QColor(255, 0, 0));   // the object to erase
+    }
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::SmartErase);
+    drag(canvas, QPointF(60, 30), QPointF(140, 90));
+
+    const QImage out = canvas.rendered();
+    int worst = 0;
+    for (int y = 32; y < 89; ++y) {
+        for (int x = 62; x < 139; ++x) {
+            const QColor got = out.pixelColor(x, y);
+            const QColor want = clean.pixelColor(x, y);   // the background, object-free
+            worst = qMax(worst, qAbs(got.red() - want.red()));
+            worst = qMax(worst, qAbs(got.green() - want.green()));
+            worst = qMax(worst, qAbs(got.blue() - want.blue()));
+        }
+    }
+    QVERIFY2(worst <= 8, qPrintable(QStringLiteral("erased region drifts from the gradient it "
+                                                   "replaced by up to %1/255").arg(worst)));
+    // Guard against the fix regressing to a flat fill that happens to average
+    // out: the patch must actually run dark→light across the erased region.
+    const int leftV = out.pixelColor(64, 60).red();
+    const int rightV = out.pixelColor(137, 60).red();
+    QVERIFY2(rightV - leftV > 60,
+             qPrintable(QStringLiteral("erased region is flat (%1 → %2), not a gradient")
+                            .arg(leftV).arg(rightV)));
+}
+
+// The reported failure: several overlapping strokes scrubbed over text produced
+// smears and bright bands. Each stroke's edge cuts THROUGH the text, so the
+// boundary strip on that side is text, not background — and an interpolation
+// that trusts it drags that colour across the whole patch.
+void AnnotationCanvasTest::smartEraseOverlappingStrokesStayOnBackground()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(400);
+    canvas.setHeight(240);
+
+    // A plausible screenshot: a panel with a vertical gradient and rows of text.
+    QImage clean(400, 240, QImage::Format_ARGB32_Premultiplied);
+    {
+        QPainter p(&clean);
+        QLinearGradient g(0, 0, 0, 239);
+        g.setColorAt(0, QColor(245, 245, 248));
+        g.setColorAt(1, QColor(205, 208, 220));
+        p.fillRect(clean.rect(), g);
+    }
+    QImage base = clean;
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(40, 60, 300, 14), QColor(30, 30, 30));
+        p.fillRect(QRect(40, 100, 220, 14), QColor(30, 30, 30));
+        p.fillRect(QRect(40, 140, 260, 14), QColor(30, 30, 30));
+    }
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::SmartErase);
+    const QVector<QRect> strokes{QRect(30, 50, 170, 35), QRect(150, 70, 180, 55),
+                                 QRect(60, 110, 220, 55)};
+    for (const QRect &s : strokes)
+        drag(canvas, s.topLeft(), s.bottomRight());
+    QCOMPARE(canvas.annotCount(), strokes.size());
+
+    const QImage out = canvas.rendered();
+    // Every erased pixel must land on the panel's gradient — the same thing a
+    // perfect eraser would leave — instead of a smear of the text it replaced.
+    int worst = 0;
+    for (const QRect &s : strokes) {
+        for (int y = s.top() + 2; y < s.bottom() - 1; ++y) {
+            for (int x = s.left() + 2; x < s.right() - 1; ++x) {
+                const QColor got = out.pixelColor(x, y);
+                const QColor want = clean.pixelColor(x, y);
+                worst = qMax(worst, qMax(qMax(qAbs(got.red() - want.red()),
+                                              qAbs(got.green() - want.green())),
+                                         qAbs(got.blue() - want.blue())));
+            }
+        }
+    }
+    QVERIFY2(worst <= 12, qPrintable(QStringLiteral("erased pixels drift up to %1/255 from the "
+                                                    "background they should have been rebuilt as")
+                                         .arg(worst)));
+    // Text the strokes never covered is untouched.
+    QCOMPARE(out.pixelColor(335, 66), QColor(30, 30, 30));
+}

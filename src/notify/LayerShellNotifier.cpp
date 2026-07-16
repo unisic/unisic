@@ -92,6 +92,8 @@ void LayerShellNotifier::show(CaptureNotification *n, const QVariantMap &overrid
                             qMax(0, eff.value(QStringLiteral("capturePopupDurationSec")).toInt()));
     ctx->setContextProperty(QStringLiteral("popupHiddenActions"),
                             eff.value(QStringLiteral("hiddenNotifActions")).toString());
+    ctx->setContextProperty(QStringLiteral("popupActionOrder"),
+                            eff.value(QStringLiteral("notificationActionOrder")).toString());
 
     QObject *obj = component.create(ctx);
     auto *win = qobject_cast<QQuickWindow *>(obj);

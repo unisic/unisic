@@ -109,9 +109,43 @@ Item {
                         spacing: Theme.spacingM
                         UIcon { name: modelData.type === "curl" ? "lock" : "globe"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
                         Column {
+                            id: infoCol
                             width: infoRow.width - 22 - Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
-                            Text { width: parent.width; text: modelData.name; color: Theme.textPrimary; font.pixelSize: Theme.fontM; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                            // Imgur ships without a Client-ID (it is per-user), so
+                            // say so on the row instead of letting every upload fail.
+                            readonly property bool needsClientId:
+                                App.uploads.isImgurDestination(modelData)
+                                && App.uploads.imgurClientIdOf(modelData) === ""
+                            Row {
+                                width: parent.width
+                                spacing: Theme.spacingS
+                                Text {
+                                    text: modelData.name; color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontM; font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    width: Math.min(implicitWidth, parent.width - (setupChip.visible ? setupChip.width + Theme.spacingS : 0))
+                                }
+                                Rectangle {
+                                    id: setupChip
+                                    visible: infoCol.needsClientId
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: setupChipText.implicitWidth + 12
+                                    height: 18
+                                    radius: 9
+                                    color: Theme.alpha(Theme.danger, 0.18)
+                                    border.width: 1
+                                    border.color: Theme.alpha(Theme.danger, 0.5)
+                                    Text {
+                                        id: setupChipText
+                                        anchors.centerIn: parent
+                                        text: qsTr("Needs a Client-ID")
+                                        color: Theme.danger
+                                        font.pixelSize: Theme.fontS - 2
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+                            }
                             Text { width: parent.width; text: modelData.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS; elide: Text.ElideMiddle }
                         }
                     }
@@ -180,11 +214,16 @@ Item {
             fArgs.text = e.arguments ? JSON.stringify(e.arguments) : ""
             fUrlPath.text = e.urlPath || ""
             fHeaders.text = e.headers ? JSON.stringify(e.headers) : ""
+            fClientId.text = App.uploads.imgurClientIdOf(e)
             fUser.text = e.user || ""
             fPublicBase.text = e.publicUrlBase || ""
             visible = true
         }
         function close() { visible = false; page.editing = null }
+        // Live off the URL field (not page.editing) so retyping the URL swaps the
+        // credential field immediately. The host test lives in C++ — one rule for
+        // the editor, the list badge and the upload precheck.
+        readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
         visible: false
         anchors.fill: parent
         color: Qt.rgba(0, 0, 0, 0.55)
@@ -263,9 +302,26 @@ Item {
                     visible: fType.currentIndex === 0
                     placeholder: qsTr("URL extractor: $text$, $json:files[0].url$ or $regex:…$")
                 }
+                // Imgur's only credential is the Client-ID, so ask for it plainly
+                // instead of making the user hand-write an Authorization header.
+                // Keyed off the live URL field, so a hand-made Imgur destination
+                // gets the same field.
+                UTextField {
+                    id: fClientId; width: parent.width
+                    visible: fType.currentIndex === 0 && editSheet.imgurMode
+                    placeholder: qsTr("Imgur Client-ID")
+                }
+                Text {
+                    width: parent.width
+                    visible: fClientId.visible
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient — pick “Anonymous usage without user authorisation” — and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.")
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontS
+                }
                 UTextField {
                     id: fHeaders; width: parent.width
-                    visible: fType.currentIndex === 0
+                    visible: fType.currentIndex === 0 && !editSheet.imgurMode
                     placeholder: qsTr("Headers as JSON, e.g. {\"Authorization\":\"Bearer x\"}")
                 }
                 UTextField {
@@ -302,7 +358,17 @@ Item {
                             if (d.type === "http") {
                                 d.urlPath = fUrlPath.text.trim() || "$text$"
                                 d.responseType = d.urlPath.indexOf("$json:") === 0 ? "json" : "text"
-                                if (fHeaders.text.trim() !== "") {
+                                if (editSheet.imgurMode) {
+                                    // Client-ID field owns the Authorization header;
+                                    // any other header the destination carries survives.
+                                    var h = d.headers || {}
+                                    if (fClientId.text.trim() !== "")
+                                        h["Authorization"] = "Client-ID " + fClientId.text.trim()
+                                    else
+                                        delete h["Authorization"]
+                                    if (Object.keys(h).length > 0) d.headers = h
+                                    else delete d.headers
+                                } else if (fHeaders.text.trim() !== "") {
                                     try { d.headers = JSON.parse(fHeaders.text) }
                                     catch (e) {
                                         // Silently dropping the auth header would be worse.

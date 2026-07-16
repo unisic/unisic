@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.7 LANGUAGES CXX)
+project(unisic VERSION 0.7.2 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.7")
+set(UNISIC_VERSION_STRING "0.7.1")
 
 include(GNUInstallDirs)
 
@@ -45,6 +45,7 @@ qt_add_executable(unisic
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/TrimController.h src/record/TrimController.cpp
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
@@ -53,6 +54,7 @@ qt_add_executable(unisic
     src/upload/UploadManager.h src/upload/UploadManager.cpp
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
+    src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
@@ -179,6 +181,7 @@ qt_add_qml_module(unisic
         qml/components/UIconButton.qml
         qml/components/USplitIconButton.qml
         qml/components/UCard.qml
+        qml/components/UFilterChip.qml
         qml/components/USwitch.qml
         qml/components/USlider.qml
         qml/components/UTextField.qml
@@ -202,7 +205,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify src/update)
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify src/update src/record)
 target_link_libraries(unisic PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
     Qt6::DBus Qt6::Network Qt6::Concurrent
@@ -372,4 +375,17 @@ if(BUILD_TESTING)
     target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor)
     add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
     set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_history_filter_test
+        tests/HistoryFilterTest.cpp
+        src/history/HistoryStore.h src/history/HistoryStore.cpp
+        src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
+    )
+    target_link_libraries(unisic_history_filter_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
+    target_include_directories(unisic_history_filter_test PRIVATE src src/history)
+    add_test(NAME unisic_history_filter_test COMMAND unisic_history_filter_test)
+    # HistoryStore writes thumbnails; QStandardPaths test mode keeps them out of
+    # the real data dir, but it still needs a QGuiApplication.
+    set_tests_properties(unisic_history_filter_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 endif()

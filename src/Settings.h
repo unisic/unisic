@@ -44,7 +44,6 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
-    Q_PROPERTY(QString hotkeyQuickTask READ hotkeyQuickTask WRITE setHotkeyQuickTask NOTIFY hotkeyQuickTaskChanged)
     Q_PROPERTY(QString fullScreenTask READ fullScreenTask WRITE setFullScreenTask NOTIFY fullScreenTaskChanged)
     Q_PROPERTY(QString regionTask READ regionTask WRITE setRegionTask NOTIFY regionTaskChanged)
     Q_PROPERTY(QString windowTask READ windowTask WRITE setWindowTask NOTIFY windowTaskChanged)
@@ -110,6 +109,7 @@ class Settings : public QObject
     Q_PROPERTY(int capturePopupDurationSec READ capturePopupDurationSec WRITE setCapturePopupDurationSec NOTIFY capturePopupDurationSecChanged)
     Q_PROPERTY(int capturePopupMargin READ capturePopupMargin WRITE setCapturePopupMargin NOTIFY capturePopupMarginChanged)
     Q_PROPERTY(QString hiddenNotifActions READ hiddenNotifActions WRITE setHiddenNotifActions NOTIFY hiddenNotifActionsChanged)
+    Q_PROPERTY(QString notificationActionOrder READ notificationActionOrder WRITE setNotificationActionOrder NOTIFY notificationActionOrderChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
@@ -161,7 +161,7 @@ public:
             // default is never written there, so it would ship BOUND on a fresh
             // dev config and collide with the stable KGlobalAccel component.
             for (const char *hk : {"fullScreen", "region", "window", "gif", "record",
-                                   "ocrRegion", "copyLast", "quickTask", "instantReplay"})
+                                   "ocrRegion", "copyLast", "instantReplay"})
                 m_s.setValue(QStringLiteral("hotkeys/") + QLatin1String(hk), QString());
             m_s.sync();
             if (m_s.status() == QSettings::NoError)
@@ -299,7 +299,6 @@ public:
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
-    U_SETTING(QString, hotkeyQuickTask, setHotkeyQuickTask, "hotkeys/quickTask", QStringLiteral("Meta+Shift+Space"))
     U_SETTING(QString, fullScreenTask, setFullScreenTask, "tasks/fullScreen", QStringLiteral("default"))
     U_SETTING(QString, regionTask, setRegionTask, "tasks/region", QStringLiteral("default"))
     U_SETTING(QString, windowTask, setWindowTask, "tasks/window", QStringLiteral("default"))
@@ -408,6 +407,12 @@ public:
     // actually supports; the per-action conditions (a URL exists, OCR is built
     // in, …) still apply on top — this only ever removes buttons.
     U_SETTING(QString, hiddenNotifActions, setHiddenNotifActions, "hiddenNotifActions", QString())
+    // Stable action ids in display order. CSV keeps this human-editable beside
+    // hiddenNotifActions and lets newer builds append action ids an older config
+    // did not know without a schema migration.
+    U_SETTING(QString, notificationActionOrder, setNotificationActionOrder,
+              "notificationActionOrder",
+              QStringLiteral("edit,copy,link,qr,folder,upload,ocr,trim,delete"))
     // Skip the capture card while notifications are inhibited (a fullscreen app,
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
     // for your own deliberate capture, so it should normally show regardless.
@@ -462,7 +467,7 @@ public:
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
-        emit hotkeyQuickTaskChanged(); emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
+        emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
@@ -490,7 +495,8 @@ public:
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
-        emit hiddenNotifActionsChanged(); emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
+        emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
+        emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
@@ -520,7 +526,6 @@ signals:
     void hotkeyRegionChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
-    void hotkeyQuickTaskChanged();
     void fullScreenTaskChanged();
     void regionTaskChanged();
     void windowTaskChanged();
@@ -586,6 +591,7 @@ signals:
     void capturePopupDurationSecChanged();
     void capturePopupMarginChanged();
     void hiddenNotifActionsChanged();
+    void notificationActionOrderChanged();
     void muteOnFullscreenChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();

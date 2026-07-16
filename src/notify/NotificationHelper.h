@@ -9,7 +9,9 @@
 // same card the layer-shell path draws. `App`/`notif` are lightweight stubs; the
 // action buttons print one-word tokens on stdout for the parent to route onto the
 // real CaptureNotification, and the parent pushes url/upload state back over
-// stdin ("state:…"). It self-dismisses after a timeout, never touches the
+// stdin ("state:…"). Its transparent shadow gutter remains in the X input shape
+// so Qt sees the pointer leave the visible card before mutter hands it back to a
+// native Wayland surface. It self-dismisses after a timeout, never touches the
 // single-instance socket, and quits on stdin EOF so a crashed parent can never
 // leave an orphaned card on screen.
 int runNotificationHelper(int argc, char *argv[]);

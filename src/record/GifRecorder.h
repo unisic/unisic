@@ -32,6 +32,16 @@ public:
     bool instantReplayActive() const { return m_state != Idle && m_output == Replay; }
     int elapsedSeconds() const;
     static bool hardwareEncoderAvailable(const QString &id);
+    // True when this ffmpeg can encode with `name` — or when the encoder probe
+    // itself failed (empty set), where callers keep their preferred encoder and
+    // let the "ffmpeg could not be started" path report the real problem.
+    static bool encoderUsable(const QString &name);
+    // The two halves of the palettegen/paletteuse GIF pipeline, without the
+    // fps/trim filters in front of them. Shared with the trim editor, which cuts
+    // a GIF by re-rendering the selection through the same quality settings.
+    // quality: 0 = fast/small, 1 = balanced, 2 = best.
+    static QString gifPaletteGenFilter(int quality);
+    static QString gifPaletteUseFilter(int quality);
     static int replaySegmentCount(int seconds)
     { return qBound(3, qBound(10, seconds, 600) / 2 + 2, 302); }
 
@@ -57,7 +67,10 @@ signals:
     void armed();
     void started();
     void converting();
-    void finished(const QString &filePath);
+    // fromInstantReplay: the file came out of the replay ring's export, not a
+    // recording the user started and stopped. Both produce an .mp4, so the path
+    // alone cannot tell them apart, and history categorizes them separately.
+    void finished(const QString &filePath, bool fromInstantReplay = false);
     void failed(const QString &error);
     void replayExportFailed(const QString &error);
     void elapsedChanged();
@@ -72,7 +85,7 @@ private:
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
     void convertToGif();                                     // pass 1: palettegen
-    void convertToGifRender(int fps, const QString &dither); // pass 2: paletteuse
+    void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
     void convertVideo();
     void stopProcess(QProcess *&process);
     void cleanup();

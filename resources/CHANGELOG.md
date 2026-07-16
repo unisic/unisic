@@ -10,7 +10,7 @@ whole per release (not per individual change).
 
 ### English
 **New**
-- **Pause and resume a recording**: a pause button on the recording bar (the region frame reads **PAUSED**) — the paused span is cut out of the finished file, video and audio together, so the recording carries on exactly where you left off. Works for screen, region and window recordings and GIFs, with or without audio (not for instant replay).
+- **Pause and resume a recording**: pause/resume and stop buttons live both on the recording bar and on the floating region frame itself, so you can control a recording without hunting for the main window (the frame reads **PAUSED** while held). The paused span is cut out of the finished file, video and audio together, so the recording carries on exactly where you left off. Works for screen, region and window recordings and GIFs, with or without audio (not for instant replay).
 - **Eyedropper tool** (editor and capture overlay, shortcut **I**): click any pixel to adopt its colour as the current annotation colour.
 - **Export selected captures to a ZIP**: pick several in History, then **Export ZIP** bundles them into one archive to save anywhere.
 
@@ -19,7 +19,7 @@ whole per release (not per individual change).
 
 ### Polski
 **Nowości**
-- **Pauza i wznawianie nagrywania**: przycisk pauzy na pasku nagrywania (ramka regionu pokazuje **PAUZA**) — wstrzymany fragment jest wycinany z gotowego pliku, obraz i dźwięk razem, więc nagranie kontynuuje dokładnie tam, gdzie je zatrzymano. Działa dla nagrań ekranu, regionu i okna oraz GIF-ów, z dźwiękiem lub bez (nie dla instant replay).
+- **Pauza i wznawianie nagrywania**: przyciski pauzy/wznowienia i zatrzymania są zarówno na pasku nagrywania, jak i na samej pływającej ramce regionu, więc sterujesz nagraniem bez szukania głównego okna (ramka pokazuje **PAUZA**, gdy wstrzymane). Wstrzymany fragment jest wycinany z gotowego pliku, obraz i dźwięk razem, więc nagranie kontynuuje dokładnie tam, gdzie je zatrzymano. Działa dla nagrań ekranu, regionu i okna oraz GIF-ów, z dźwiękiem lub bez (nie dla instant replay).
 - **Narzędzie Pipeta** (edytor i nakładka przechwytywania, skrót **I**): kliknij dowolny piksel, aby przejąć jego kolor jako bieżący kolor adnotacji.
 - **Eksport zaznaczonych zrzutów do ZIP**: zaznacz kilka w Historii, a **Eksport ZIP** spakuje je do jednego archiwum, które zapiszesz gdziekolwiek.
 

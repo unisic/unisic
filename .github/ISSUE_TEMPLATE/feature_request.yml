@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Unisic is a Wayland-first, ShareX-like tool. Keep requests within Wayland-legit paths (portals, KWin ScreenShot2, PipeWire, KGlobalAccel) — no X11-only hacks.
+        Unisic is a Wayland-first capture tool. Keep requests within Wayland-legit paths (portals, KWin ScreenShot2, PipeWire, KGlobalAccel) — no X11-only hacks.
 
   - type: textarea
     id: problem
@@ -53,6 +53,6 @@ body:
     id: context
     attributes:
       label: Additional context
-      description: Mockups, ShareX parity references, links.
+      description: Mockups, reference tools, links.
     validations:
       required: false

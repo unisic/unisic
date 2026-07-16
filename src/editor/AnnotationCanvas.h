@@ -84,7 +84,7 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool ocrMode READ ocrMode WRITE setOcrMode NOTIFY ocrChanged)
     Q_PROPERTY(bool ocrBusy READ ocrBusy NOTIFY ocrChanged)
     Q_PROPERTY(bool hasOcrSelection READ hasOcrSelection NOTIFY ocrChanged)
-    // ShareX-style pixel loupe (region overlay): a panel following the cursor
+    // Pixel loupe (region overlay): a panel following the cursor
     // with a magnified pixel grid, the hovered pixel highlighted and a
     // position/colour readout — so the user sees the exact pixel a selection
     // edge lands on. Drawn only while picking a region (selectionMode, no

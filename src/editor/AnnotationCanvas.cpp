@@ -1828,7 +1828,7 @@ void AnnotationCanvas::paint(QPainter *painter)
     }
     painter->restore();
 
-    // ShareX-style pixel loupe — drawn last, in ITEM space (UI chrome, never
+    // Pixel loupe — drawn last, in ITEM space (UI chrome, never
     // exported: rendered()/renderedSelection() go through drawAll, not here).
     const QRectF panel = pixelLoupeRect();
     if (!panel.isEmpty()) {

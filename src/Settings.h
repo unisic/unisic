@@ -367,7 +367,7 @@ public:
     // Crosshair guide lines from the cursor to the screen edges while selecting a
     // region (screenshot AND recording overlay). Off by default.
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
-    // ShareX-style pixel loupe on the region overlay: a magnifier by the cursor
+    // Pixel loupe on the region overlay: a magnifier by the cursor
     // showing the exact pixel the selection edge will land on. Zoom is the
     // magnification factor (even, 4–16), adjusted with Ctrl+scroll live.
     U_SETTING(bool, pixelLoupe, setPixelLoupe, "capture/pixelLoupe", true)

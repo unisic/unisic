@@ -1276,8 +1276,8 @@
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="59"/>
-        <source>Modular uploaders, ShareX-style: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
-        <translation>Modularne uploadery w stylu ShareX: własne API HTTP oraz FTP/SFTP przez curl. Po każdym wysłaniu link jest kopiowany do schowka.</translation>
+        <source>Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
+        <translation>Modularne uploadery: własne API HTTP oraz FTP/SFTP przez curl. Po każdym wysłaniu link jest kopiowany do schowka.</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="282"/>
@@ -4509,8 +4509,8 @@ Dotyczy następnego przechwycenia.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1079"/>
-        <source>Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.</source>
-        <translation>Gotowe do wklejenia gdziekolwiek. Połącz z auto-wysyłaniem, aby uzyskać przepływ przechwycenie-do-linku w stylu ShareX.</translation>
+        <source>Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.</source>
+        <translation>Gotowe do wklejenia gdziekolwiek. Połącz z auto-wysyłaniem, aby uzyskać płynny przepływ przechwycenie-do-linku.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2664"/>

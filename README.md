@@ -6,7 +6,7 @@
 
 **Most snipping tools stop at a screenshot. Unisic is everything that should happen after.**
 
-Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · Zero telemetry · GPLv3
+Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Zero telemetry · GPLv3
 
 [![Download latest release](https://img.shields.io/badge/Download_Latest_Release-C8ACD6?style=for-the-badge&logo=linux&logoColor=17153B)](https://github.com/unisic/unisic/releases/latest)
 
@@ -26,7 +26,7 @@ Silent capture · Annotate · Object cutout · Record GIF/MP4/WebM · Upload · 
 
 ## What is Unisic
 
-Most screenshot tools hand you a rectangle of pixels and walk away. Unisic covers the whole workflow after you press the hotkey: draw on the selection **before the shot is even taken**, polish it in the editor (blur, numbered steps, crop, object cutout), record the same region as a GIF or video, and send the result where it belongs - clipboard, disk, or your own upload destination with the link ready to paste.
+Most screenshot tools hand you a rectangle of pixels and walk away. Unisic covers the whole workflow after you press the hotkey: draw on the selection **before the shot is even taken**, polish it in the editor (blur, numbered steps, crop, smart eraser), record the same region as a GIF or video, and send the result where it belongs - clipboard, disk, or your own upload destination with the link ready to paste.
 
 Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the fully silent native path; GNOME and wlroots desktops work through portals. **C++20 · Qt 6 · QML**, fully custom UI.
 
@@ -135,7 +135,6 @@ Unisic targets KDE Plasma first and stays portable everywhere else, but how *com
 - **Capture** - full screen (all monitors), an interactive region with live dimensions, or the active window; configurable delay, optional cursor.
 - **Annotate before the shot** - the selection overlay is a canvas: arrows, shapes, text, blur and numbered steps on the frozen screen; Enter burns them into the crop.
 - **Post-capture editor** - opens automatically if you want it: 12 tools including highlight, pixelate, smart eraser and crop, with undo/redo and zoom.
-- **Object cutout** - lift the subject out of the shot and drop the background; optional U-2-Net (AI) for tricky edges; exports transparent PNG/WebP.
 - **Record GIF & video** - region, full screen or window → GIF, MP4 or WebM, with optional system and microphone audio. <kbd>Ctrl</kbd>+<kbd>Esc</kbd> always stops.
 - **Extract text & codes** - OCR any region to copy its text, or point it at a QR/barcode to copy the payload.
 - **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, Imgur…); the link auto-copies.
@@ -172,4 +171,4 @@ Unisic is developed with agentic AI assistance (see [`AGENTS.md`](AGENTS.md) for
 
 ## Credits
 
-Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.com/D3anDark). Inspired by [Flameshot](https://flameshot.org/), [ShareX](https://getsharex.com/), and [Spectacle](https://apps.kde.org/spectacle/).
+Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.com/D3anDark). Inspired by [Flameshot](https://flameshot.org/) and [Spectacle](https://apps.kde.org/spectacle/).

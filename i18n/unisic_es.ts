@@ -1196,8 +1196,8 @@
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="59"/>
-        <source>Modular uploaders, ShareX-style: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
-        <translation>Subidores modulares al estilo ShareX: APIs HTTP personalizadas más FTP/SFTP mediante curl. Tras cada subida, el enlace se copia al portapapeles.</translation>
+        <source>Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
+        <translation>Subidores modulares: APIs HTTP personalizadas más FTP/SFTP mediante curl. Tras cada subida, el enlace se copia al portapapeles.</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="75"/>
@@ -3254,8 +3254,8 @@ Desactivado o no compatible: en su lugar se muestra una notificación nativa del
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1079"/>
-        <source>Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.</source>
-        <translation>Lista para pegar en cualquier parte. Combínalo con la subida automática para un flujo de captura a enlace al estilo ShareX.</translation>
+        <source>Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.</source>
+        <translation>Lista para pegar en cualquier parte. Combínalo con la subida automática para un flujo de captura a enlace fluido.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1083"/>

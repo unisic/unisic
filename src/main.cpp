@@ -764,7 +764,7 @@ int main(int argc, char *argv[])
         });
     }
 
-    // ShareX-style CLI triggers: screenshot modes, measure overlay, or GIF.
+    // CLI triggers: screenshot modes, measure overlay, or GIF.
     if (stdoutCapture) {
         QObject::connect(&context, &AppContext::cliCaptureReady, &app,
                          [&app](const QByteArray &data, const QString &error) {

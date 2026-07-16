@@ -264,7 +264,7 @@ Window {
             // Selection chrome follows the selected app theme (was fixed purple).
             uiAccent: Theme.accent
             uiScrim: Theme.primary
-            // ShareX-style pixel loupe while picking the region. The zoom is
+            // Pixel loupe while picking the region. The zoom is
             // seeded once and written back (Ctrl+scroll edits it live) — a
             // two-way binding would fight the C++ setter.
             pixelLoupe: App.settings.pixelLoupe

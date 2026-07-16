@@ -8,7 +8,7 @@ Contributor guide for **any** AI coding agent working on Unisic — Cursor, Aide
 
 ## 1. What Unisic is (and is not)
 
-Unisic is a **ShareX-like screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
+Unisic is a **screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
 
 Core workflow it owns end-to-end: press hotkey → annotate *on the selection overlay before the shot is taken* → post-capture editor (arrows, shapes, text, blur/pixelate, crop, numbered steps, smart eraser) → route the result to clipboard / disk / a custom upload destination with the link auto-copied → or record the same region as GIF/MP4/WebM.
 

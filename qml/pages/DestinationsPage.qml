@@ -56,7 +56,7 @@ Item {
             Text {
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: qsTr("Modular uploaders, ShareX-style: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
+                text: qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontM
             }

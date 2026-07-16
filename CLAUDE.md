@@ -40,12 +40,12 @@ Every user-facing string MUST be wrapped in `qsTr()` (QML) / `tr()` (C++) **and*
 
 ## What Unisic Is
 
-Unisic is a planned ShareX-like screenshot and screen-recording tool for **Linux Wayland**, prioritizing KDE Plasma/KWin but portable via xdg-desktop-portal. Tech stack: **C++17+ with Qt 6, Qt Quick/QML UI**.
+Unisic is a planned screenshot and screen-recording tool for **Linux Wayland**, prioritizing KDE Plasma/KWin but portable via xdg-desktop-portal. Tech stack: **C++17+ with Qt 6, Qt Quick/QML UI**.
 
 Required features (in rough build-priority order):
 
 1. **Capture**: full screen (multi-monitor), interactive region (live selection with dimension readout), specific window.
-2. **On-overlay annotation** during region selection (arrows, shapes, text) *before* the capture is finalized — ShareX-style.
+2. **On-overlay annotation** during region selection (arrows, shapes, text) *before* the capture is finalized.
 3. **Post-capture editor** auto-opened after every capture: arrows, lines, rectangles, ellipses, freehand, text, blur/pixelate, crop, numbered step markers, highlight, undo/redo.
 4. **Modular upload destinations** (custom HTTP/FTP/SFTP/API + public services), auto-copy URL to clipboard, upload history.
 5. **GIF screen recording** (distinct from normal video recording): record region/full screen, convert to .gif via ffmpeg; options for FPS, area, max duration.
@@ -59,4 +59,4 @@ Lower priority: tray icon + quick menu, configurable global hotkeys per capture 
 
 ## Planning Workflow
 
-`.claude/workflows/unisic-plan-research.js` (invocable as the `unisic-plan-research` workflow/skill) runs a three-phase multi-agent plan: 7 parallel research agents (portals, KWin/hotkeys, PipeWire, overlay selection, ShareX parity, upload stack, GIF encoding) → 2 independent architecture designs (pragmatic vs KDE-native lens) → a synthesis into one final architecture + milestone plan. Its `REQ` constant is the canonical requirements statement for the project.
+`.claude/workflows/unisic-plan-research.js` (invocable as the `unisic-plan-research` workflow/skill) runs a three-phase multi-agent plan: 7 parallel research agents (portals, KWin/hotkeys, PipeWire, overlay selection, capture-tool parity, upload stack, GIF encoding) → 2 independent architecture designs (pragmatic vs KDE-native lens) → a synthesis into one final architecture + milestone plan. Its `REQ` constant is the canonical requirements statement for the project.

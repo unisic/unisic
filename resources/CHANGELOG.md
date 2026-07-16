@@ -10,7 +10,7 @@ whole per release (not per individual change).
 
 ### English
 **New**
-- **Pixel loupe while selecting a region** (ShareX-style): a magnifier follows the cursor with a zoomed pixel grid, the exact hovered pixel highlighted, and its position and colour — so a selection edge lands on exactly the pixel you mean. Hold **Ctrl** and scroll to change the magnification; toggle it in Settings › Capture overlay.
+- **Pixel loupe while selecting a region**: a magnifier follows the cursor with a zoomed pixel grid, the exact hovered pixel highlighted, and its position and colour — so a selection edge lands on exactly the pixel you mean. Hold **Ctrl** and scroll to change the magnification; toggle it in Settings › Capture overlay.
 - **Magnifier tool** (editor and capture overlay, shortcut **Z**): drag over a detail and a loupe appears with a 2× enlarged copy of it. Move the loupe anywhere, resize it to change the magnification, restyle its border — the source area stays anchored, so it keeps showing the pixels you picked.
 - **Ctrl + scroll zooms at the cursor** in the editor — the pixel under the pointer stays put, so you zoom into what you are aiming at instead of the window centre.
 
@@ -41,7 +41,7 @@ whole per release (not per individual change).
 
 ### Polski
 **Nowości**
-- **Lupa pikselowa przy zaznaczaniu regionu** (w stylu ShareX): lupa podąża za kursorem z powiększoną siatką pikseli, podświetlonym pikselem pod kursorem oraz jego pozycją i kolorem — krawędź zaznaczenia trafia dokładnie w ten piksel, o który chodzi. Przytrzymaj **Ctrl** i przewiń, aby zmienić powiększenie; przełącznik w Ustawienia › Nakładka przechwytywania.
+- **Lupa pikselowa przy zaznaczaniu regionu**: lupa podąża za kursorem z powiększoną siatką pikseli, podświetlonym pikselem pod kursorem oraz jego pozycją i kolorem — krawędź zaznaczenia trafia dokładnie w ten piksel, o który chodzi. Przytrzymaj **Ctrl** i przewiń, aby zmienić powiększenie; przełącznik w Ustawienia › Nakładka przechwytywania.
 - **Narzędzie Lupa** (edytor i nakładka przechwytywania, skrót **Z**): przeciągnij po detalu, a nad nim pojawi się lupa z jego 2× powiększoną kopią. Przesuwaj ją gdziekolwiek, zmieniaj rozmiar (zmienia powiększenie), przestylizuj ramkę — obszar źródłowy zostaje zakotwiczony, więc lupa cały czas pokazuje wybrane piksele.
 - **Ctrl + scroll przybliża pod kursorem** w edytorze — piksel pod wskaźnikiem stoi w miejscu, więc przybliżasz to, w co celujesz, a nie środek okna.
 

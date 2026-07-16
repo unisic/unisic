@@ -1076,7 +1076,7 @@ Item {
                     SettingRow {
                         label: qsTr("Copy link to clipboard")
                         help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.")
+                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.")
                         USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                     SettingRow {

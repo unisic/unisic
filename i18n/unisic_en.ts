@@ -1191,8 +1191,8 @@
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="59"/>
-        <source>Modular uploaders, ShareX-style: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
-        <translation>Modular uploaders, ShareX-style: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</translation>
+        <source>Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</source>
+        <translation>Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="159"/>
@@ -3258,8 +3258,8 @@ Off or unsupported: a native desktop notification is shown instead — the captu
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1079"/>
-        <source>Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.</source>
-        <translation>Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.</translation>
+        <source>Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.</source>
+        <translation>Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1083"/>

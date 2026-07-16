@@ -11,7 +11,7 @@ class QNetworkAccessManager;
 class Settings;
 class HistoryStore;
 
-// ShareX-style modular destinations. Each destination is a JSON object
+// Modular upload destinations. Each destination is a JSON object
 // (~/.config/unisic/destinations.json), analogous to .sxcu:
 // {
 //   "name": "my-server", "type": "http",

@@ -14,6 +14,7 @@
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
+#include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
@@ -3896,15 +3897,23 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     ctx->setContextProperty(QStringLiteral("regionY"), ry);
     ctx->setContextProperty(QStringLiteral("regionW"), rw);
     ctx->setContextProperty(QStringLiteral("regionH"), rh);
+    // Masks input to the badge so its stop/pause controls are clickable while the
+    // rest of the frame stays click-through. Must exist before create() so QML
+    // resolves the context property; its window is bound right after.
+    auto *borderCtl = new RecordBorderController(this);
+    ctx->setContextProperty(QStringLiteral("recordBorderCtl"), borderCtl);
 
     QObject *obj = component.create(ctx);
     auto *win = qobject_cast<QQuickWindow *>(obj);
     if (!win) {
         delete obj;
         delete ctx;
+        delete borderCtl;
         return;
     }
     ctx->setParent(win);
+    borderCtl->setParent(win);
+    borderCtl->setWindow(win);
     win->setScreen(screen);
     // Pre-recording countdown number (0 = none) — RecordBorder.qml shows it
     // centered in the region and hides the REC badge while it ticks.

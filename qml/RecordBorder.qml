@@ -17,10 +17,51 @@ Window {
     // compositor that both ignores the hint AND lets a raised window cover an
     // inactive fullscreen surface, the frame may be occluded — acceptable
     // degradation; recording itself is unaffected.
+    // NOT WindowTransparentForInput: the badge carries clickable stop/pause
+    // controls, so pointer input is instead masked (recordBorderCtl.setInputRect)
+    // down to just the badge rect — everything else stays click-through.
     flags: Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnTopHint
-           | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput
+           | Qt.WindowDoesNotAcceptFocus
     color: "transparent"
     visible: false   // C++ sizes then showFullScreen()s it
+
+    // Clip the window's input region to the badge (or nothing while the countdown
+    // hides it), so the controls are clickable but the frame never blocks the app
+    // being recorded. Re-run whenever the badge geometry or visibility changes.
+    function updateMask() {
+        if (typeof recordBorderCtl === "undefined" || !recordBorderCtl)
+            return
+        if (badge.visible)
+            recordBorderCtl.setInputRect(badge.x, badge.y, badge.width, badge.height)
+        else
+            recordBorderCtl.setInputRect(0, 0, 0, 0)
+    }
+    onWidthChanged: updateMask()
+    onHeightChanged: updateMask()
+    onCountdownChanged: updateMask()
+
+    // Compact clickable control for the badge (small dot-sized icon button).
+    component BadgeButton: Rectangle {
+        id: bb
+        property string iconName
+        signal clicked()
+        width: 22; height: 22; radius: 11
+        color: bbMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
+        Behavior on color { ColorAnimation { duration: 90 } }
+        UIcon {
+            anchors.centerIn: parent
+            name: bb.iconName
+            color: "white"
+            size: 14
+        }
+        MouseArea {
+            id: bbMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: bb.clicked()
+        }
+    }
 
     // Accent frame thickness (drawn outside the region), with a 1px dark line on
     // each side so it reads over both light and dark content underneath.
@@ -111,12 +152,19 @@ Window {
         readonly property bool roomAbove: regionY - height - 6 >= 0
         readonly property bool roomBelow: regionY + regionH + 6 + height <= borderWindow.height
         visible: (roomAbove || roomBelow) && borderWindow.countdown <= 0
-        width: badgeRow.width + 16
-        height: 24
-        radius: 12
-        color: Qt.rgba(0, 0, 0, 0.72)
+        width: badgeRow.width + 14
+        height: 28
+        radius: 14
+        color: Qt.rgba(0, 0, 0, 0.78)
         x: Math.max(0, Math.min(borderWindow.width - width, regionX))
         y: roomAbove ? regionY - height - 6 : regionY + regionH + 6
+
+        onXChanged: borderWindow.updateMask()
+        onYChanged: borderWindow.updateMask()
+        onWidthChanged: borderWindow.updateMask()
+        onHeightChanged: borderWindow.updateMask()
+        onVisibleChanged: borderWindow.updateMask()
+        Component.onCompleted: borderWindow.updateMask()
 
         Row {
             id: badgeRow
@@ -141,6 +189,22 @@ Window {
                 color: "white"
                 font.pixelSize: 12
                 font.bold: true
+            }
+            // Thin divider before the controls.
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 1; height: 16
+                color: Qt.rgba(1, 1, 1, 0.22)
+            }
+            BadgeButton {
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: App.recordingPaused ? "play" : "pause"
+                onClicked: App.togglePauseRecording()
+            }
+            BadgeButton {
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "stop"
+                onClicked: App.stopRecording()
             }
         }
     }

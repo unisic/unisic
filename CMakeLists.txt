@@ -47,6 +47,7 @@ qt_add_executable(unisic
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/TrimController.h src/record/TrimController.cpp
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
+    src/record/RecordBorderController.h src/record/RecordBorderController.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
     src/editor/ImageEffects.h src/editor/ImageEffects.cpp

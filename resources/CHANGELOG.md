@@ -6,6 +6,14 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.7.2b
+
+### English
+_Development build. Release notes for 0.7.2 land here as changes are made._
+
+### Polski
+_Wersja rozwojowa. Informacje o wydaniu 0.7.2 pojawiają się tutaj wraz z kolejnymi zmianami._
+
 ## 0.7.1
 
 ### English

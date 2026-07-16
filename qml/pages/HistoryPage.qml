@@ -303,6 +303,11 @@ Item {
                 }
                 UButton {
                     anchors.verticalCenter: parent.verticalCenter
+                    compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export ZIP")
+                    onClicked: App.exportEntriesToZipDialog(page.selectedIds())
+                }
+                UButton {
+                    anchors.verticalCenter: parent.verticalCenter
                     compact: true; variant: "tonal"; iconName: "edit-delete"; text: qsTr("Delete")
                     onClicked: deleteSelectedConfirm.open()
                 }

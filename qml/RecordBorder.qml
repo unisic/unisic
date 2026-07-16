@@ -123,18 +123,21 @@ Window {
             anchors.centerIn: parent
             spacing: 6
             Rectangle {
+                id: badgeDot
                 anchors.verticalCenter: parent.verticalCenter
                 width: 8; height: 8; radius: 4
                 color: "#ff4d4d"
+                opacity: 1
                 SequentialAnimation on opacity {
-                    loops: Animation.Infinite; running: badge.visible
+                    loops: Animation.Infinite; running: badge.visible && !App.recordingPaused
+                    onStopped: badgeDot.opacity = 1
                     NumberAnimation { from: 1.0; to: 0.25; duration: 700; easing.type: Easing.InOutSine }
                     NumberAnimation { from: 0.25; to: 1.0; duration: 700; easing.type: Easing.InOutSine }
                 }
             }
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: "REC  " + borderWindow.fmt(App.recordSeconds)
+                text: (App.recordingPaused ? qsTr("PAUSED") : qsTr("REC")) + "  " + borderWindow.fmt(App.recordSeconds)
                 color: "white"
                 font.pixelSize: 12
                 font.bold: true

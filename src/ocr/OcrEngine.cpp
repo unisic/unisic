@@ -2,6 +2,8 @@
 #include <QtConcurrent>
 #include <QFutureWatcher>
 #include <QDir>
+#include <QFileInfo>
+#include <QSet>
 #include <tesseract/baseapi.h>
 #include <tesseract/ocrclass.h> // ETEXT_DESC — cancellable Recognize()
 #ifdef HAVE_ZXING
@@ -196,6 +198,55 @@ OcrEngine::~OcrEngine()
     // Abort any in-flight worker (see m_cancelled in the header). The watcher
     // and callback die with us, so the discarded result is never consumed.
     m_cancelled->store(true);
+}
+
+QString OcrEngine::detectedLanguages()
+{
+    // Enumerate installed *.traineddata across the same tessdata dirs the Init
+    // fallback loop uses, and join every real langpack into one spec. Tesseract
+    // can't pick a language per region, so "auto" = load them all together;
+    // osd (orientation/script) and equ (math) are not text languages. The first
+    // directory that actually holds langpacks wins — mixing dirs would list a
+    // language twice under different tessdata versions.
+    // Mirror the loader's search scope (runOcr's Init fallback): when
+    // TESSDATA_PREFIX is set, only its dir is consulted — advertising languages
+    // from the distro dirs there would name packs Init then refuses to load.
+    QStringList dirs;
+    const QByteArray prefix = qgetenv("TESSDATA_PREFIX");
+    if (!prefix.isEmpty()) {
+        const QString p = QString::fromLocal8Bit(prefix);
+        dirs << p << QDir(p).filePath(QStringLiteral("tessdata"));
+    } else {
+        dirs << QStringLiteral("/usr/share/tesseract/tessdata")
+             << QStringLiteral("/usr/share/tessdata")
+             << QStringLiteral("/usr/share/tesseract-ocr/5/tessdata")
+             << QStringLiteral("/usr/share/tesseract-ocr/4.00/tessdata");
+    }
+
+    QStringList langs;
+    QSet<QString> seen;
+    for (const QString &d : std::as_const(dirs)) {
+        QDir dir(d);
+        if (!dir.exists())
+            continue;
+        const QStringList files =
+            dir.entryList({QStringLiteral("*.traineddata")}, QDir::Files, QDir::Name);
+        for (const QString &f : files) {
+            const QString code = QFileInfo(f).completeBaseName();
+            if (code.isEmpty() || code == QLatin1String("osd") || code == QLatin1String("equ"))
+                continue;
+            if (!seen.contains(code)) {
+                seen.insert(code);
+                langs << code;
+            }
+        }
+        if (!langs.isEmpty())
+            break;
+    }
+    // Tesseract weights the first language most; English is the safe primary.
+    if (langs.removeAll(QStringLiteral("eng")) > 0)
+        langs.prepend(QStringLiteral("eng"));
+    return langs.join(QLatin1Char('+'));
 }
 
 void OcrEngine::recognize(const QImage &img, const QString &langs, Result cb)

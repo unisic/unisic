@@ -103,7 +103,8 @@ public:
         PastedImage, // 15 — editor-only image inserted from the system clipboard
         Callout,     // 16 — speech-bubble shape; text is added with the text tool
         Measure,     // 17 — distance/angle ruler retained in the export
-        Magnify      // 18 — loupe: enlarged copy of a dragged source region
+        Magnify,     // 18 — loupe: enlarged copy of a dragged source region
+        Eyedropper   // 19 — click a pixel to adopt its colour as the stroke colour
     };
     Q_ENUM(Tool)
 

@@ -108,6 +108,8 @@ public:
         setGeometry(absGeom);
         auto *tick = new QTimer(this);
         connect(tick, &QTimer::timeout, this, [this] {
+            if (m_paused) // hold the dot solid + the clock frozen while paused
+                return;
             m_pulse = !m_pulse;
             update();
         });
@@ -118,6 +120,23 @@ public:
     {
         if (!m_clock.isValid())
             m_clock.start();
+        update();
+    }
+
+    // Mirror the recorder: freeze the clock at the pause point and exclude every
+    // paused span, and read "PAUSED" instead of "REC" with a solid (non-pulsing)
+    // dot. Driven by the "p1"/"p0" stdin messages.
+    void setPaused(bool p)
+    {
+        if (p == m_paused)
+            return;
+        const qint64 now = m_clock.isValid() ? m_clock.elapsed() : 0;
+        if (p)
+            m_pausedAtMs = now;
+        else
+            m_pausedTotalMs += now - m_pausedAtMs;
+        m_paused = p;
+        m_pulse = true; // solid dot while paused; toggling resumes with the tick
         update();
     }
 
@@ -132,7 +151,8 @@ protected:
         QFont f = p.font();
         f.setPixelSize(12);
         f.setBold(true);
-        const QString text = QStringLiteral("REC  ") + elapsedText();
+        const QString text = (m_paused ? QStringLiteral("PAUSED  ")
+                                        : QStringLiteral("REC  ")) + elapsedText();
         const int textW = QFontMetrics(f).horizontalAdvance(text);
         const int bh = 24;
         const int bwid = 8 + 6 + textW + 16; // dot + spacing + text + padding
@@ -154,7 +174,9 @@ private:
     {
         if (!m_clock.isValid())
             return QStringLiteral("00:00"); // countdown still running
-        const qint64 s = m_clock.elapsed() / 1000;
+        // Recorded (un-paused) time: freeze at the pause point, drop every span.
+        const qint64 base = m_paused ? m_pausedAtMs : m_clock.elapsed();
+        const qint64 s = qMax<qint64>(0, base - m_pausedTotalMs) / 1000;
         const qint64 h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
         const auto pad = [](qint64 v) {
             return QString::number(v).rightJustified(2, QLatin1Char('0'));
@@ -165,6 +187,9 @@ private:
 
     QElapsedTimer m_clock;
     bool m_pulse = true;
+    bool m_paused = false;
+    qint64 m_pausedAtMs = 0;    // clock reading when the current pause began
+    qint64 m_pausedTotalMs = 0; // accumulated paused wall-clock, excluded above
 };
 
 // The pre-recording countdown: a big accent number in a circle, centered in the
@@ -349,6 +374,13 @@ int runRecordBorderHelper(int argc, char *argv[])
                              return;
                          }
                          buf[n] = '\0';
+                         // Pause toggles arrive as "p1"/"p0"; apply the last one.
+                         const char *lastP = nullptr;
+                         for (const char *c = buf; *c; ++c)
+                             if (*c == 'p')
+                                 lastP = c;
+                         if (lastP && badgeWin)
+                             badgeWin->setPaused(lastP[1] == '1');
                          // Apply the last "c<N>" in the chunk (ticks can batch).
                          const char *last = nullptr;
                          for (const char *c = buf; *c; ++c)

@@ -1974,6 +1974,17 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         return;
     }
 
+    if (m_tool == Eyedropper) {
+        // Click adopts the pixel under the cursor as the stroke colour (same
+        // sampling the loupe/colour-pick mode use: m_base is premultiplied, so
+        // pixelColor un-premultiplies rather than converting the whole image).
+        const QPoint p = img.toPoint();
+        if (m_base.rect().contains(p))
+            setStrokeColor(m_base.pixelColor(p));
+        e->accept();
+        return;
+    }
+
     if (m_tool == Text) {
         emit textRequested(img.x(), img.y());
         e->accept();

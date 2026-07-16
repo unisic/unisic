@@ -113,6 +113,7 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenNotifActions READ hiddenNotifActions WRITE setHiddenNotifActions NOTIFY hiddenNotifActionsChanged)
     Q_PROPERTY(QString notificationActionOrder READ notificationActionOrder WRITE setNotificationActionOrder NOTIFY notificationActionOrderChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
+    Q_PROPERTY(bool ocrAutoLanguage READ ocrAutoLanguage WRITE setOcrAutoLanguage NOTIFY ocrAutoLanguageChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
@@ -236,6 +237,15 @@ public:
         }
         if (migratedGeneral)
             m_s.sync();
+        // OCR auto-language defaults ON for fresh installs, but must not override
+        // a spec an upgraded user deliberately pinned before this setting existed:
+        // if ocr/languages was written (only happens when the user edited it) and
+        // ocr/autoLanguage is absent, keep the manual spec by seeding it OFF.
+        if (m_s.contains(QStringLiteral("ocr/languages"))
+            && !m_s.contains(QStringLiteral("ocr/autoLanguage"))) {
+            m_s.setValue(QStringLiteral("ocr/autoLanguage"), false);
+            m_s.sync();
+        }
         // Writability probe: round-trip a marker through a fresh reader.
         m_s.setValue(QStringLiteral("_probe"), 1);
         m_s.sync();
@@ -424,6 +434,11 @@ public:
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
     // for your own deliberate capture, so it should normally show regardless.
     U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
+    // Auto-detect OCR languages: recognize using every installed Tesseract
+    // langpack (osd/equ dropped) instead of the fixed `ocrLanguages` spec. ON by
+    // default so OCR works without the user knowing Tesseract language codes;
+    // turn it off to pin a specific, faster spec.
+    U_SETTING(bool, ocrAutoLanguage, setOcrAutoLanguage, "ocr/autoLanguage", true)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
@@ -603,6 +618,7 @@ signals:
     void hiddenNotifActionsChanged();
     void notificationActionOrderChanged();
     void muteOnFullscreenChanged();
+    void ocrAutoLanguageChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();

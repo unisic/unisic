@@ -6,6 +6,8 @@
 #include <QProcess>
 #include <QPointer>
 #include <QFutureWatcher>
+#include <QList>
+#include <functional>
 
 class ScreenCastSession;
 class PipeWireGrabber;
@@ -30,6 +32,13 @@ public:
     bool recording() const { return m_state != Idle; }
     SourceType sourceType() const { return m_source; } // valid while recording
     bool instantReplayActive() const { return m_state != Idle && m_output == Replay; }
+    // Pause/resume: the frame sampler keeps writing (frozen) frames and audio
+    // keeps flowing so the intermediate stays A/V-synced through the gap; the
+    // paused wall-clock spans are excised from BOTH streams before conversion.
+    // Not offered for instant replay (the ring records continuously).
+    bool paused() const { return m_paused; }
+    bool canPause() const { return m_state == Recording && m_output != Replay; }
+    void togglePause();
     int elapsedSeconds() const;
     static bool hardwareEncoderAvailable(const QString &id);
     // True when this ffmpeg can encode with `name` — or when the encoder probe
@@ -42,6 +51,12 @@ public:
     // quality: 0 = fast/small, 1 = balanced, 2 = best.
     static QString gifPaletteGenFilter(int quality);
     static QString gifPaletteUseFilter(int quality);
+    // ffmpeg args that excise the given paused wall-clock spans (ms) from `input`
+    // into `output`, cutting the SAME ranges from video and audio so they stay
+    // synced. Public so the dev/smoke harness exercises the exact filtergraph.
+    static QStringList pauseExciseArgs(const QString &input, const QString &output,
+                                       const QList<QPair<qint64, qint64>> &intervalsMs,
+                                       bool hasAudio);
     static int replaySegmentCount(int seconds)
     { return qBound(3, qBound(10, seconds, 600) / 2 + 2, 302); }
 
@@ -74,6 +89,7 @@ signals:
     void failed(const QString &error);
     void replayExportFailed(const QString &error);
     void elapsedChanged();
+    void pausedChanged();
 
 private:
     enum State { Idle, Starting, Recording, Converting };
@@ -84,6 +100,10 @@ private:
     void openPortalSession();
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
+    // If the user paused during the recording, excise those wall-clock spans
+    // from the intermediate (video + audio together) before conversion, then run
+    // `thenConvert`. With no pauses it calls `thenConvert` straight away.
+    void maybeExcisePauses(std::function<void()> thenConvert);
     void convertToGif();                                     // pass 1: palettegen
     void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
     void convertVideo();
@@ -113,6 +133,11 @@ private:
     Output m_output = Gif;
     SourceType m_source = Screen;
     bool m_hasAudio = false; // pulse audio captured into the temp (video only)
+    bool m_paused = false;
+    qint64 m_pauseStartMs = 0;   // m_elapsed.elapsed() when the current pause began
+    qint64 m_pausedTotalMs = 0;  // accumulated paused wall-clock (excluded from the readout)
+    qint64 m_maxRemainingMs = 0; // max-duration budget held across a pause
+    QVector<QPair<qint64, qint64>> m_pauseIntervals; // completed [startMs,endMs] spans to excise
     int m_fps = 15;
     qint64 m_framesWritten = 0; // wall-clock pacing (see sampleFrame)
     QRect m_crop;

@@ -9,10 +9,22 @@ whole per release (not per individual change).
 ## 0.7.2b
 
 ### English
-_Development build. Release notes for 0.7.2 land here as changes are made._
+**New**
+- **Pause and resume a recording**: a pause button on the recording bar (the region frame reads **PAUSED**) — the paused span is cut out of the finished file, video and audio together, so the recording carries on exactly where you left off. Works for screen, region and window recordings and GIFs, with or without audio (not for instant replay).
+- **Eyedropper tool** (editor and capture overlay, shortcut **I**): click any pixel to adopt its colour as the current annotation colour.
+- **Export selected captures to a ZIP**: pick several in History, then **Export ZIP** bundles them into one archive to save anywhere.
+
+**Improved**
+- **OCR detects the language for you**: on by default, it now recognizes text using every installed Tesseract language pack, so you no longer have to type language codes. Turn it off in Settings › OCR to pin a specific, faster set.
 
 ### Polski
-_Wersja rozwojowa. Informacje o wydaniu 0.7.2 pojawiają się tutaj wraz z kolejnymi zmianami._
+**Nowości**
+- **Pauza i wznawianie nagrywania**: przycisk pauzy na pasku nagrywania (ramka regionu pokazuje **PAUZA**) — wstrzymany fragment jest wycinany z gotowego pliku, obraz i dźwięk razem, więc nagranie kontynuuje dokładnie tam, gdzie je zatrzymano. Działa dla nagrań ekranu, regionu i okna oraz GIF-ów, z dźwiękiem lub bez (nie dla instant replay).
+- **Narzędzie Pipeta** (edytor i nakładka przechwytywania, skrót **I**): kliknij dowolny piksel, aby przejąć jego kolor jako bieżący kolor adnotacji.
+- **Eksport zaznaczonych zrzutów do ZIP**: zaznacz kilka w Historii, a **Eksport ZIP** spakuje je do jednego archiwum, które zapiszesz gdziekolwiek.
+
+**Ulepszone**
+- **OCR sam wykrywa język**: domyślnie włączony, rozpoznaje teraz tekst przy użyciu wszystkich zainstalowanych pakietów językowych Tesseract, więc nie musisz już wpisywać kodów języków. Wyłącz to w Ustawienia › OCR, aby ustawić konkretny, szybszy zestaw.
 
 ## 0.7.1
 

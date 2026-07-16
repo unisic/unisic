@@ -290,15 +290,19 @@ Window {
                 anchors.centerIn: parent
                 spacing: 8
                 Rectangle {
+                    id: recDot
                     width: 10; height: 10; radius: 5
                     color: Theme.danger
+                    opacity: 1
                     anchors.verticalCenter: parent.verticalCenter
                     SequentialAnimation on opacity {
                         // Gate on window visibility too: with the window hidden to
                         // tray during a long recording, an infinite animation keeps
-                        // the GUI thread waking ~60x/s for an invisible dot.
-                        running: App.recording && window.visible
+                        // the GUI thread waking ~60x/s for an invisible dot. Freeze
+                        // solid while paused so the pill reads "held", not "live".
+                        running: App.recording && !App.recordingPaused && window.visible
                         loops: Animation.Infinite
+                        onStopped: recDot.opacity = 1
                         NumberAnimation { to: 0.2; duration: 600 }
                         NumberAnimation { to: 1.0; duration: 600 }
                     }
@@ -312,10 +316,20 @@ Window {
                         function p(v) { return (v < 10 ? "0" : "") + v }
                         return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
                     }
-                    text: App.converting ? qsTr("Encoding…") : fmtElapsed(App.recordSeconds)
+                    text: App.converting ? qsTr("Encoding…")
+                          : (fmtElapsed(App.recordSeconds)
+                             + (App.recordingPaused ? " " + qsTr("(paused)") : ""))
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontM
                     anchors.verticalCenter: parent.verticalCenter
+                }
+                UIconButton {
+                    visible: App.recordingCanPause && !App.converting
+                    iconName: App.recordingPaused ? "play" : "pause"
+                    iconSize: 15
+                    width: 30; height: 30
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: App.togglePauseRecording()
                 }
                 UIconButton {
                     visible: App.recording && !App.converting

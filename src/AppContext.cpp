@@ -145,6 +145,7 @@ AppContext::AppContext(QObject *parent)
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    connect(m_recorder, &GifRecorder::pausedChanged, this, &AppContext::recordingChanged);
     // Portal approved + stream live, but encoding is HELD: run the countdown /
     // start cue, then commit. The start sound is played here (before commit), not
     // on started(), so it is never captured in the recording.
@@ -584,6 +585,21 @@ bool AppContext::hotkeysAvailable() const
     return !m_hotkeyBackend.isEmpty();
 }
 
+QString AppContext::effectiveOcrLanguages() const
+{
+#ifdef HAVE_TESSERACT
+    // Auto-detect: recognize with every installed langpack. Fall back to the
+    // manual spec when the scan finds nothing (libtesseract may still resolve a
+    // baked-in TESSDATA_PREFIX we didn't enumerate), so Init never gets "".
+    if (m_settings->ocrAutoLanguage()) {
+        const QString detected = OcrEngine::detectedLanguages();
+        if (!detected.isEmpty())
+            return detected;
+    }
+#endif
+    return m_settings->ocrLanguages();
+}
+
 void AppContext::ocrImage(const QImage &img)
 {
 #ifdef HAVE_TESSERACT
@@ -592,7 +608,7 @@ void AppContext::ocrImage(const QImage &img)
         return;
     }
     showToast(tr("Recognizing text…"));
-    m_ocr->recognize(img, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+    m_ocr->recognize(img, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
         if (!err.isEmpty())
             showToast(err);
         else if (text.isEmpty())
@@ -621,7 +637,7 @@ void AppContext::ocrBoxes(const QImage &img,
         cb({}, tr("Nothing to recognize"));
         return;
     }
-    m_ocr->recognizeBoxes(img, m_settings->ocrLanguages(), std::move(cb));
+    m_ocr->recognizeBoxes(img, effectiveOcrLanguages(), std::move(cb));
 #else
     Q_UNUSED(img);
     cb({}, tr("OCR is not available in this build"));
@@ -1032,6 +1048,17 @@ void AppContext::startVideoWindow()
 void AppContext::stopRecording()
 {
     m_recorder->stop();
+}
+
+void AppContext::togglePauseRecording()
+{
+    m_recorder->togglePause();
+    // The GNOME/mutter record-border runs in a separate XWayland helper process
+    // that renders its own badge — the reactive QML binding only reaches the KDE
+    // in-process border. Push the pause state over the same stdin channel the
+    // countdown uses so the helper's badge reads PAUSED and freezes its clock.
+    if (m_recordBorderHelper && m_recordBorderHelper->state() != QProcess::NotRunning)
+        m_recordBorderHelper->write(m_recorder->paused() ? "p1\n" : "p0\n");
 }
 
 void AppContext::startInstantReplay()
@@ -1674,6 +1701,63 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     });
 }
 
+void AppContext::devTestPauseExcise()
+{
+    if (!devBuild()) return;
+    pauseExciseCheck([this](const QString &result) {
+        showToast(tr("Dev: pause excise: %1").arg(result),
+                  result.contains(QLatin1String("FAIL")));
+    });
+}
+
+void AppContext::pauseExciseCheck(std::function<void(const QString &)> done)
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffmpeg.isEmpty() || ffprobe.isEmpty()) {
+        done(QStringLiteral("SKIP (ffmpeg/ffprobe missing)"));
+        return;
+    }
+    // A 3 s clip with audio; excising the middle second must yield ~2 s. This is
+    // the same filtergraph the recorder runs when the user paused mid-capture.
+    const QString source = QDir::temp().filePath(QStringLiteral("unisic-pausecheck-src.mkv"));
+    const QString out = QDir::temp().filePath(QStringLiteral("unisic-pausecheck-out.mkv"));
+    QFile::remove(source);
+    QFile::remove(out);
+    QStringList fixture{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                        QStringLiteral("-loglevel"), QStringLiteral("error"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("testsrc=size=160x120:rate=15:duration=3"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=440:sample_rate=48000:duration=3")};
+    fixture << trimFixtureEncoderArgs() << QStringLiteral("-c:a") << QStringLiteral("flac")
+            << QStringLiteral("-shortest") << source;
+    QProcess::execute(ffmpeg, fixture);
+    if (!QFileInfo::exists(source)) {
+        done(QStringLiteral("FAIL (test clip)"));
+        return;
+    }
+    const QList<QPair<qint64, qint64>> intervals{{1000, 2000}};
+    QProcess::execute(ffmpeg, GifRecorder::pauseExciseArgs(source, out, intervals, true));
+    if (!QFileInfo::exists(out)) {
+        QFile::remove(source);
+        done(QStringLiteral("FAIL (excise produced nothing)"));
+        return;
+    }
+    QProcess p;
+    p.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                      QStringLiteral("-show_entries"), QStringLiteral("format=duration"),
+                      QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), out});
+    p.waitForFinished(2000);
+    const qreal dur = QString::fromLatin1(p.readAllStandardOutput().trimmed()).toDouble();
+    QFile::remove(source);
+    QFile::remove(out);
+    const bool ok = qAbs(dur - 2.0) < 0.3;
+    done(QStringLiteral("%1 (%2s, expected ~2.0)")
+             .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+             .arg(dur, 0, 'f', 2));
+}
+
 void AppContext::devTestCursorCapability()
 {
     if (devBuild())
@@ -1807,6 +1891,41 @@ void AppContext::devTestMagnify()
     if (!devBuild())
         return;
     showToast(tr("Dev: magnifier: %1").arg(magnifyCheck()));
+}
+
+// Eyedropper tool: a click adopts the pixel under the cursor as the stroke
+// colour (dev button + smoke step).
+static QString eyedropperCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    const QColor target(17, 153, 59);
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(80, 80, 20, 20), target); // a known opaque patch
+    }
+    c.setImage(base);
+    c.setStrokeColor(Qt::white);
+    c.setTool(AnnotationCanvas::Eyedropper);
+    const QPointF at(90, 90); // renderScale is 1.0 in tests, so item == image
+    QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&press);
+    const QColor got = c.strokeColor();
+    if (got.red() != target.red() || got.green() != target.green() || got.blue() != target.blue())
+        return QStringLiteral("FAIL (picked %1, expected %2)").arg(got.name(), target.name());
+    return QStringLiteral("PASS (stroke colour adopted from pixel)");
+}
+
+void AppContext::devTestEyedropper()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: eyedropper: %1").arg(eyedropperCheck()));
 }
 
 // Pixel loupe (region overlay): the panel must appear once the pointer hovers
@@ -2058,6 +2177,52 @@ void AppContext::devTestOcrHighlight()
 #else
     showToast(tr("Dev: OCR highlight + redact: SKIP (built without tesseract)"));
 #endif
+}
+
+void AppContext::devTestOcrAutoLang()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_TESSERACT
+    const QString detected = OcrEngine::detectedLanguages();
+    const QString effective = effectiveOcrLanguages();
+    showToast(tr("Dev: OCR auto language: %1 (installed: %2; using: %3)")
+                  .arg(detected.isEmpty() ? QStringLiteral("no langpacks found")
+                                          : QStringLiteral("PASS"),
+                       detected.isEmpty() ? QStringLiteral("none") : detected,
+                       effective),
+              detected.isEmpty());
+#else
+    showToast(tr("Dev: OCR auto language: SKIP (built without tesseract)"));
+#endif
+}
+
+void AppContext::devTestZipExport()
+{
+    if (!devBuild())
+        return;
+    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        showToast(tr("Dev: ZIP export: SKIP (zip not installed)"));
+        return;
+    }
+    const QString dir = QDir::tempPath();
+    QStringList files;
+    for (int i = 1; i <= 2; ++i) {
+        QImage im(64, 64, QImage::Format_ARGB32);
+        im.fill(i == 1 ? Qt::red : Qt::blue);
+        const QString p = dir + QStringLiteral("/unisic-zip-test-%1.png").arg(i);
+        im.save(p, "PNG");
+        files << p;
+    }
+    const QString dest = dir + QStringLiteral("/unisic-zip-test.zip");
+    exportFilesToZip(files, dest, [this, files, dest](bool ok, const QString &msg) {
+        showToast(tr("Dev: ZIP export: %1")
+                      .arg(ok ? tr("PASS (%1)").arg(msg) : tr("FAIL (%1)").arg(msg)),
+                  !ok);
+        for (const QString &f : files)
+            QFile::remove(f);
+        QFile::remove(dest);
+    });
 }
 
 void AppContext::devTestCaptureSound()
@@ -2924,6 +3089,15 @@ void AppContext::runSmokeTest()
         });
     });
 
+    // 1a3) recording pause: excising a known pause span from a clip must drop its
+    // duration by that span (the real filtergraph a paused recording runs).
+    m_smokeSteps.append([this] {
+        pauseExciseCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("recording pause excise: ") + result);
+            smokeNext();
+        });
+    });
+
     // 1b) record border: flash the region frame on whichever host this
     // compositor uses (layer-shell / KWin fullscreen fallback / X11 /
     // XWayland helper) and take it down again.
@@ -3153,6 +3327,40 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e3d2) eyedropper: a click adopts the pixel colour under the cursor.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("eyedropper: ") + eyedropperCheck());
+        smokeNext();
+    });
+
+    // 3e3d3) ZIP export: archive two fixture PNGs and confirm the zip lands.
+    m_smokeSteps.append([this] {
+        if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+            smokeLog(QStringLiteral("zip export: SKIP (zip not installed)"));
+            smokeNext();
+            return;
+        }
+        const QString dir = QDir::tempPath();
+        QStringList files;
+        for (int i = 1; i <= 2; ++i) {
+            QImage im(48, 48, QImage::Format_ARGB32);
+            im.fill(i == 1 ? Qt::green : Qt::magenta);
+            const QString p = dir + QStringLiteral("/unisic-smoke-zip-%1.png").arg(i);
+            im.save(p, "PNG");
+            files << p;
+        }
+        const QString dest = dir + QStringLiteral("/unisic-smoke-zip.zip");
+        exportFilesToZip(files, dest, [this, files, dest](bool ok, const QString &msg) {
+            smokeLog(QStringLiteral("zip export: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(msg)
+                           : QStringLiteral("FAIL (%1)").arg(msg)));
+            for (const QString &f : files)
+                QFile::remove(f);
+            QFile::remove(dest);
+            smokeNext();
+        });
+    });
+
     // 3e3e) pixel loupe: hover placement, edge flip, Ctrl+scroll zoom clamp.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("pixel loupe: ") + pixelLoupeCheck());
@@ -3215,6 +3423,23 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3f0) OCR auto language: the tessdata scan enumerates installed langpacks
+    // and the effective spec is non-empty (auto-detected list or manual spec).
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        const QString detected = OcrEngine::detectedLanguages();
+        const QString effective = effectiveOcrLanguages();
+        if (effective.isEmpty())
+            smokeLog(QStringLiteral("ocr auto language: FAIL (empty spec)"));
+        else
+            smokeLog(QStringLiteral("ocr auto language: PASS (installed: %1; using: %2)")
+                         .arg(detected.isEmpty() ? QStringLiteral("none") : detected, effective));
+#else
+        smokeLog(QStringLiteral("ocr auto language: SKIP (built without tesseract)"));
+#endif
+        smokeNext();
+    });
+
     // 3f) OCR recognition — a real tesseract run on a rendered known token
     // (digits: language-neutral, works with any installed traineddata).
     m_smokeSteps.append([this] {
@@ -3230,7 +3455,7 @@ void AppContext::runSmokeTest()
             p.setFont(f);
             p.drawText(t.rect(), Qt::AlignCenter, QStringLiteral("1234"));
         }
-        m_ocr->recognize(t, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+        m_ocr->recognize(t, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
             if (!err.isEmpty())
                 smokeLog(QStringLiteral("ocr recognize: FAIL (%1)").arg(err));
             else if (text.contains(QLatin1String("1234")))
@@ -5353,6 +5578,122 @@ void AppContext::importSettingsDialog()
         return; // cancelled
     const QString err = importSettings(QUrl::fromLocalFile(path));
     showToast(err.isEmpty() ? tr("Settings imported") : err, !err.isEmpty());
+}
+
+void AppContext::exportEntriesToZipDialog(const QVariantList &ids)
+{
+    // Resolve the selection to on-disk files first, so a save dialog only opens
+    // when there is actually something to archive (mirrors the Copy-paths guard).
+    QStringList files;
+    for (const QVariant &v : ids) {
+        const QVariantMap e = m_history->entryById(v.toULongLong());
+        const QString fp = e.value(QStringLiteral("filePath")).toString();
+        if (!fp.isEmpty() && QFileInfo::exists(fp))
+            files << fp;
+    }
+    if (files.isEmpty()) {
+        showToast(tr("None of the selected captures are saved on disk."), true);
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        nullptr, tr("Export captures to ZIP"),
+        QDir::homePath() + QStringLiteral("/unisic-captures.zip"),
+        tr("ZIP archive (*.zip)"));
+    if (path.isEmpty())
+        return; // cancelled
+    showToast(tr("Exporting %1 captures…").arg(files.size()));
+    exportFilesToZip(files, path); // default reporting toasts the outcome
+}
+
+void AppContext::exportFilesToZip(const QStringList &files, const QString &destPath,
+                                  std::function<void(bool, const QString &)> done)
+{
+    auto report = [this, done](bool ok, const QString &msg) {
+        if (done)
+            done(ok, msg);
+        else
+            showToast(msg, !ok);
+    };
+
+    // No zip library is linked (see the header note): shell out to Info-ZIP.
+    const QString zipBin = QStandardPaths::findExecutable(QStringLiteral("zip"));
+    if (zipBin.isEmpty()) {
+        report(false, tr("The “zip” program is not installed — install it and try again."));
+        return;
+    }
+
+    QStringList real;
+    for (const QString &f : files)
+        if (!f.isEmpty() && QFileInfo::exists(f))
+            real << f;
+    if (real.isEmpty()) {
+        report(false, tr("None of the selected captures are saved on disk."));
+        return;
+    }
+
+    QString dest = destPath;
+    if (!dest.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive))
+        dest += QLatin1String(".zip");
+    QFile::remove(dest); // zip *appends* to an existing archive; we want a fresh one
+
+    // Stage uniquely-named symlinks in a temp dir. Duplicate basenames (e.g. two
+    // imported files called screenshot.png) would otherwise overwrite each other
+    // inside the archive; default zip (no -y) follows each link and stores the
+    // real content under the staged name.
+    auto *staging = new QTemporaryDir;
+    if (!staging->isValid()) {
+        const QString e = staging->errorString();
+        delete staging;
+        report(false, tr("Could not create a temporary folder: %1").arg(e));
+        return;
+    }
+    QStringList members;
+    QSet<QString> used;
+    for (const QString &f : real) {
+        const QFileInfo fi(f);
+        const QString base = fi.completeBaseName();
+        const QString suf = fi.suffix();
+        QString name = fi.fileName();
+        for (int n = 2; used.contains(name); ++n)
+            name = suf.isEmpty() ? QStringLiteral("%1-%2").arg(base).arg(n)
+                                 : QStringLiteral("%1-%2.%3").arg(base).arg(n).arg(suf);
+        used.insert(name);
+        QFile::link(f, staging->filePath(name));
+        members << name;
+    }
+
+    auto *proc = new QProcess(this);
+    proc->setWorkingDirectory(staging->path());
+    const int count = members.size();
+    connect(proc, &QProcess::finished, this,
+            [this, proc, staging, dest, count, report](int code, QProcess::ExitStatus st) {
+                const QString errOut = QString::fromLocal8Bit(proc->readAllStandardError()).trimmed();
+                proc->deleteLater();
+                delete staging; // removes the staged symlinks
+                if (st == QProcess::NormalExit && code == 0 && QFileInfo::exists(dest))
+                    report(true, tr("Exported %1 captures to %2")
+                                     .arg(count)
+                                     .arg(QDir::toNativeSeparators(dest)));
+                else
+                    report(false, tr("Export failed: %1")
+                                      .arg(errOut.isEmpty() ? tr("zip exited with code %1").arg(code)
+                                                            : errOut));
+            });
+    connect(proc, &QProcess::errorOccurred, this,
+            [this, proc, staging, report](QProcess::ProcessError e) {
+                if (e != QProcess::FailedToStart)
+                    return; // a crash after start still emits finished(), which cleans up
+                proc->deleteLater();
+                delete staging;
+                report(false, tr("Could not run the “zip” program."));
+            });
+    // "./" prefix so a staged name starting with '-' is a path, not a zip flag
+    // (Info-ZIP parses leading-dash argv anywhere as options); -j still stores
+    // just the basename, so the archive entries are unchanged.
+    QStringList zipArgs{QStringLiteral("-j"), QStringLiteral("-q"), dest};
+    for (const QString &m : std::as_const(members))
+        zipArgs << (QStringLiteral("./") + m);
+    proc->start(zipBin, zipArgs);
 }
 
 QString AppContext::exportSettings(const QUrl &file)

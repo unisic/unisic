@@ -9,6 +9,11 @@ whole per release (not per individual change).
 ## 0.7.1
 
 ### English
+**New**
+- **Pixel loupe while selecting a region** (ShareX-style): a magnifier follows the cursor with a zoomed pixel grid, the exact hovered pixel highlighted, and its position and colour — so a selection edge lands on exactly the pixel you mean. Hold **Ctrl** and scroll to change the magnification; toggle it in Settings › Capture overlay.
+- **Magnifier tool** (editor and capture overlay, shortcut **Z**): drag over a detail and a loupe appears with a 2× enlarged copy of it. Move the loupe anywhere, resize it to change the magnification, restyle its border — the source area stays anchored, so it keeps showing the pixels you picked.
+- **Ctrl + scroll zooms at the cursor** in the editor — the pixel under the pointer stays put, so you zoom into what you are aiming at instead of the window centre.
+
 **Improved**
 - The **trim window now shows what you are cutting**: the timeline is a filmstrip of the recording, everything outside your selection is dimmed, and dragging a handle scrubs the preview to that exact frame.
 - **Play previews the cut, not the file** — playback stays inside the selection and loops it (**L** toggles the loop).
@@ -26,8 +31,20 @@ whole per release (not per individual change).
 - **Uploading to Imgur never worked**: the built-in destination shipped a placeholder Client-ID, so Imgur rejected every upload. Unisic now asks for your own Client-ID (Servers › Imgur › Edit — register a free one at api.imgur.com/oauth2/addclient), repairs the broken stored destination, and tells you what is missing instead of failing silently. Uploads stay anonymous — they never appear in the ID owner's gallery.
 - **Trimming a GIF produced the whole GIF**, ignoring the range you picked. GIFs are now re-rendered through the same palette pipeline a recording uses, so the cut lands on the frame you chose.
 - **A trimmed WebM started up to several seconds early**: cutting by stream copy can only start on a keyframe. Trimming now re-encodes the selection by default, so the saved file starts on the exact frame the window showed. The old instant copy is still there as **Fast lossless cut** — with it on, the start visibly snaps onto a keyframe (marked with ticks) so the preview keeps matching the file.
+- **Trimming without a video preview could ignore keyframe snapping**: with qt6-qtmultimedia missing, the fallback Start slider bypassed the snap — with **Fast lossless cut** on, the file silently began at an earlier keyframe than the window showed.
+- **A lossless cut landed on the wrong keyframe for recordings that do not start at zero** (some phone/OBS files): keyframe times are now measured from the start of the file, the same way the timeline and ffmpeg measure.
+- **The "Last frame" preview showed a frame the saved file did not contain** — the out-point is the first excluded frame. Dragging the end handle now previews the actual last frame of the cut.
+- **Trimming an imported video with an odd width or height failed** ("width not divisible by 2"): the re-encode now trims at most one edge pixel, the same rule the recorder applies.
+- **Quitting mid-way through a GIF trim left a stray palette file next to the recording** — the palette is scratch now, lives in the cache and cleans itself up.
+- **The trim window froze on long clips with very frequent keyframes** (all-intra / short-GOP files): the timeline now draws only as many keyframe ticks as fit its pixels; snapping still uses the full list.
+- **At the trim window's minimum width the cut-mode description ran underneath the Cancel/Save buttons**; it wraps now.
 
 ### Polski
+**Nowości**
+- **Lupa pikselowa przy zaznaczaniu regionu** (w stylu ShareX): lupa podąża za kursorem z powiększoną siatką pikseli, podświetlonym pikselem pod kursorem oraz jego pozycją i kolorem — krawędź zaznaczenia trafia dokładnie w ten piksel, o który chodzi. Przytrzymaj **Ctrl** i przewiń, aby zmienić powiększenie; przełącznik w Ustawienia › Nakładka przechwytywania.
+- **Narzędzie Lupa** (edytor i nakładka przechwytywania, skrót **Z**): przeciągnij po detalu, a nad nim pojawi się lupa z jego 2× powiększoną kopią. Przesuwaj ją gdziekolwiek, zmieniaj rozmiar (zmienia powiększenie), przestylizuj ramkę — obszar źródłowy zostaje zakotwiczony, więc lupa cały czas pokazuje wybrane piksele.
+- **Ctrl + scroll przybliża pod kursorem** w edytorze — piksel pod wskaźnikiem stoi w miejscu, więc przybliżasz to, w co celujesz, a nie środek okna.
+
 **Ulepszone**
 - **Okno przycinania pokazuje, co tniesz**: oś czasu to pasek miniatur nagrania, wszystko poza zaznaczeniem jest przygaszone, a przeciąganie uchwytu przewija podgląd dokładnie do tej klatki.
 - **Odtwarzanie pokazuje wycinek, nie cały plik** — playback trzyma się zaznaczenia i zapętla je (**L** przełącza pętlę).
@@ -45,6 +62,13 @@ whole per release (not per individual change).
 - **Wysyłka na Imgur nigdy nie działała**: wbudowana destynacja miała zaślepkę zamiast Client-ID, więc Imgur odrzucał każdy upload. Unisic prosi teraz o twój własny Client-ID (Serwery › Imgur › Edytuj — darmowy do zarejestrowania na api.imgur.com/oauth2/addclient), naprawia zepsutą zapisaną destynację i mówi, czego brakuje, zamiast po cichu zawodzić. Wysyłki pozostają anonimowe — nie trafiają do galerii właściciela ID.
 - **Przycinanie GIF-a zapisywało cały GIF**, ignorując wybrany zakres. GIF-y są teraz renderowane od nowa tym samym torem palety co nagrania, więc cięcie trafia w wybraną klatkę.
 - **Przycięty WebM zaczynał się nawet o kilka sekund za wcześnie**: cięcie przez kopiowanie strumienia może zacząć się tylko na klatce kluczowej. Przycinanie domyślnie przekodowuje zaznaczenie, więc zapisany plik zaczyna się na dokładnie tej klatce, którą pokazało okno. Dawne błyskawiczne kopiowanie zostaje jako **Szybkie cięcie bezstratne** — przy nim początek widocznie przeskakuje na klatkę kluczową (oznaczone kreskami), więc podgląd nadal zgadza się z plikiem.
+- **Przycinanie bez podglądu wideo mogło pominąć przyciąganie do klatek kluczowych**: bez qt6-qtmultimedia zapasowy suwak Start omijał przyciąganie — przy włączonym **Szybkim cięciu bezstratnym** plik po cichu zaczynał się na wcześniejszej klatce kluczowej, niż pokazywało okno.
+- **Cięcie bezstratne trafiało w złą klatkę kluczową dla nagrań, które nie zaczynają się od zera** (niektóre pliki z telefonów/OBS): czasy klatek kluczowych są teraz liczone od początku pliku — tak samo, jak liczy oś czasu i ffmpeg.
+- **Podgląd „Ostatnia klatka" pokazywał klatkę, której zapisany plik nie zawierał** — punkt końcowy to pierwsza wykluczona klatka. Przeciąganie uchwytu końca pokazuje teraz faktycznie ostatnią klatkę wycinka.
+- **Przycinanie zaimportowanego wideo o nieparzystej szerokości lub wysokości kończyło się błędem** („width not divisible by 2"): przekodowanie przycina teraz najwyżej jeden piksel krawędzi — ta sama zasada, którą stosuje rejestrator.
+- **Wyjście z aplikacji w trakcie przycinania GIF-a zostawiało zabłąkany plik palety obok nagrania** — paleta jest teraz plikiem roboczym, mieszka w cache i sama się sprząta.
+- **Okno przycinania zamarzało na długich klipach z bardzo częstymi klatkami kluczowymi** (pliki all-intra / z krótkim GOP): oś czasu rysuje teraz tylko tyle kresek klatek kluczowych, ile mieści się w jej pikselach; przyciąganie nadal używa pełnej listy.
+- **Przy minimalnej szerokości okna przycinania opis trybu cięcia wchodził pod przyciski Anuluj/Zapisz**; teraz się zawija.
 
 ## 0.7
 

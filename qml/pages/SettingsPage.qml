@@ -1018,6 +1018,12 @@ Item {
                         helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
+                    SettingRow {
+                        label: qsTr("Show a pixel loupe while selecting")
+                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour — so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
+                    }
                 }
             }
 
@@ -2707,6 +2713,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim cut (exact + lossless)"); onClicked: App.devTestTrimCut() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }

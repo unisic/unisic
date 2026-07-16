@@ -89,6 +89,8 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
+    Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
+    Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
@@ -365,6 +367,11 @@ public:
     // Crosshair guide lines from the cursor to the screen edges while selecting a
     // region (screenshot AND recording overlay). Off by default.
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
+    // ShareX-style pixel loupe on the region overlay: a magnifier by the cursor
+    // showing the exact pixel the selection edge will land on. Zoom is the
+    // magnification factor (even, 4–16), adjusted with Ctrl+scroll live.
+    U_SETTING(bool, pixelLoupe, setPixelLoupe, "capture/pixelLoupe", true)
+    U_SETTING(int, pixelLoupeZoom, setPixelLoupeZoom, "capture/pixelLoupeZoom", 8)
     // Region overlay: a plain CLICK selects the detected object (window,
     // panel, image) under the cursor; dragging still draws a manual rect.
     // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
@@ -485,6 +492,7 @@ public:
         emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
         emit editorResetColorsChanged(); emit editorResetToolsChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
+        emit pixelLoupeChanged(); emit pixelLoupeZoomChanged();
         emit captureOnReleaseChanged();
         emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
@@ -571,6 +579,8 @@ signals:
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
+    void pixelLoupeChanged();
+    void pixelLoupeZoomChanged();
     void captureOnReleaseChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();

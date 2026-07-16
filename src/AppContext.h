@@ -218,6 +218,8 @@ public:
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
     Q_INVOKABLE void devTestShapeEdit();
+    Q_INVOKABLE void devTestMagnify();
+    Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
@@ -583,7 +585,7 @@ private:
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
-    void showTrimWindow(const QString &path, qreal duration);
+    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0);
     // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
     // the GIF cut chains two of these (palettegen, then paletteuse).
     void runTrimStep(const QStringList &args,

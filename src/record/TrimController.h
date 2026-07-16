@@ -25,6 +25,10 @@ class TrimController : public QObject
     QML_UNCREATABLE("Created by AppContext")
     Q_PROPERTY(QString sourcePath READ sourcePath CONSTANT)
     Q_PROPERTY(qreal duration READ duration CONSTANT)
+    // Seconds per source frame (from ffprobe avg_frame_rate; 0 = unknown).
+    // The window uses it to preview the last frame the cut CONTAINS — the
+    // out-point itself is the first excluded frame.
+    Q_PROPERTY(qreal frameDuration READ frameDuration CONSTANT)
     // GIF has no keyframes to cut on and no stream-copy path — it is always
     // re-rendered through palettegen/paletteuse.
     Q_PROPERTY(bool gif READ gif CONSTANT)
@@ -38,11 +42,13 @@ public:
     enum ProbeState { Idle, Busy, Ready, Failed };
     Q_ENUM(ProbeState)
 
-    TrimController(const QString &path, qreal duration, QObject *parent = nullptr);
+    TrimController(const QString &path, qreal duration, qreal frameDuration = 0,
+                   QObject *parent = nullptr);
     ~TrimController() override;
 
     QString sourcePath() const { return m_path; }
     qreal duration() const { return m_duration; }
+    qreal frameDuration() const { return m_frameDuration; }
     bool gif() const { return m_gif; }
     QString filmstrip() const { return m_stripUrl; }
     int filmstripTiles() const { return m_tiles; }
@@ -69,6 +75,7 @@ private:
 
     QString m_path;
     qreal m_duration = 0;
+    qreal m_frameDuration = 0;
     bool m_gif = false;
 
     QString m_stripPath;      // temp PNG, removed with this object

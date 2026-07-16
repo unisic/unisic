@@ -1036,11 +1036,12 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
         const Annot &a = m_items[i];
         const qreal tol = qMax(a.width / 2.0 + 3.0, 6.0 / qMax(0.05, renderScale()));
         switch (a.type) {
-        case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: {
+        case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage:
+        case Magnify: {
             const QRectF r = a.rect.normalized();
             const bool solid = a.filled || a.type == Blur || a.type == Pixelate
                                || a.type == Highlight || a.type == SmartErase
-                               || a.type == PastedImage;
+                               || a.type == PastedImage || a.type == Magnify;
             if (solid) {
                 if (r.contains(pos)) return i;
             } else {
@@ -1155,7 +1156,7 @@ int AnnotationCanvas::handlesForSelected(QPointF out[8]) const
     if (a.type == Highlight && !a.points.isEmpty())
         return 0;
     switch (a.type) {
-    case Rect: case Ellipse: case Callout: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: {
+    case Rect: case Ellipse: case Callout: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: case Magnify: {
         const QRectF r = a.rect.normalized();
         out[0] = r.topLeft();  out[1] = {r.center().x(), r.top()};    out[2] = r.topRight();
         out[3] = {r.left(), r.center().y()}; out[4] = {r.right(), r.center().y()};
@@ -1244,6 +1245,7 @@ void AnnotationCanvas::applyCrop()
     // Shift annotations into the new coordinate space.
     for (Annot &a : m_items) {
         a.rect.translate(-r.x(), -r.y());
+        a.srcRect.translate(-r.x(), -r.y());   // Magnify source region
         for (QPointF &p : a.points)
             p -= QPointF(r.x(), r.y());
     }
@@ -1482,6 +1484,33 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         if (!a.image.isNull())
             p.drawImage(a.rect.normalized(), a.image);
         break;
+    case Magnify: {
+        const QRectF dest = a.rect.normalized();
+        if (a.srcRect.isEmpty()) {
+            // Live drag: the rect is still the SOURCE being picked out — show
+            // it as a dashed frame so the user sees what will be magnified.
+            p.setPen(QPen(a.color, a.width, Qt::DashLine, Qt::RoundCap, Qt::RoundJoin));
+            p.drawRect(dest);
+            break;
+        }
+        if (dest.width() < 2 || dest.height() < 2)
+            break;
+        // The loupe: the source pixels blown up to the destination rect.
+        // Nearest-neighbour while enlarging — the point is readability, and
+        // smooth sampling blurs the very pixels it is meant to blow up.
+        p.setRenderHint(QPainter::SmoothPixmapTransform,
+                        dest.width() < a.srcRect.width());
+        p.drawImage(dest, m_base, a.srcRect);
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        // Halo under the border separates the loupe from identical content.
+        p.setBrush(Qt::NoBrush);
+        p.setPen(QPen(QColor(0, 0, 0, 90), a.width + 2.0,
+                      Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        p.drawRect(dest);
+        p.setPen(QPen(a.color, a.width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        p.drawRect(dest);
+        break;
+    }
     case Blur: {
         const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
         if (r.width() > 4 && r.height() > 4) {
@@ -1798,6 +1827,67 @@ void AnnotationCanvas::paint(QPainter *painter)
             drawAnnot(*painter, a);
     }
     painter->restore();
+
+    // ShareX-style pixel loupe — drawn last, in ITEM space (UI chrome, never
+    // exported: rendered()/renderedSelection() go through drawAll, not here).
+    const QRectF panel = pixelLoupeRect();
+    if (!panel.isEmpty()) {
+        const int z = m_pixelLoupeZoom;
+        const int n = loupeGridCells();
+        // The exact image pixel under the cursor = the loupe's centre cell.
+        QPoint c = toImage(m_hoverPoint.x(), m_hoverPoint.y()).toPoint();
+        c.setX(qBound(0, c.x(), m_base.width() - 1));
+        c.setY(qBound(0, c.y(), m_base.height() - 1));
+        // copy() zero-fills the part of the window that falls outside the
+        // image, which reads as the dark panel background — no clamping shift.
+        const QImage patch = m_base.copy(c.x() - n / 2, c.y() - n / 2, n, n)
+                                 .scaled(n * z, n * z, Qt::IgnoreAspectRatio,
+                                         Qt::FastTransformation);
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->fillRect(panel, QColor(20, 18, 45, 240));
+        const QRectF body(panel.x() + 1, panel.y() + 1, n * z, n * z);
+        painter->drawImage(body.topLeft(), patch);
+        // Pixel grid once the cells are big enough to have one.
+        if (z >= 6) {
+            painter->setPen(QColor(0, 0, 0, 70));
+            for (int i = 1; i < n; ++i) {
+                const qreal gx = body.x() + i * z;
+                const qreal gy = body.y() + i * z;
+                painter->drawLine(QPointF(gx, body.top()), QPointF(gx, body.bottom()));
+                painter->drawLine(QPointF(body.left(), gy), QPointF(body.right(), gy));
+            }
+        }
+        // Crosshair bands through the hovered pixel's row/column + the cell
+        // itself outlined accent-on-white so it reads on any content.
+        const QRectF cell(body.x() + (n / 2) * z, body.y() + (n / 2) * z, z, z);
+        QColor band = m_uiAccent;
+        band.setAlpha(45);
+        painter->fillRect(QRectF(cell.x(), body.y(), z, body.height()), band);
+        painter->fillRect(QRectF(body.x(), cell.y(), body.width(), z), band);
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(QColor(255, 255, 255, 230), 1));
+        painter->drawRect(cell.adjusted(1, 1, -1, -1));
+        painter->setPen(QPen(m_uiAccent, 1));
+        painter->drawRect(cell);
+        // Readout bar: image-pixel position + the pixel's colour (swatch + hex).
+        const QColor px = m_base.pixelColor(c);
+        const QRectF bar(panel.x(), panel.bottom() - 20.0, panel.width(), 20.0);
+        painter->fillRect(QRectF(bar.x() + 6, bar.y() + 5, 10, 10), px);
+        painter->setPen(QColor(255, 255, 255, 120));
+        painter->drawRect(QRectF(bar.x() + 6, bar.y() + 5, 10, 10));
+        QFont f = painter->font();
+        f.setPixelSize(11);
+        painter->setFont(f);
+        painter->setPen(Qt::white);
+        painter->drawText(bar.adjusted(22, 0, -6, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                          QStringLiteral("%1, %2  %3")
+                              .arg(c.x()).arg(c.y())
+                              .arg(px.name(QColor::HexRgb).toUpper()));
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(m_uiAccent, 1));
+        painter->drawRect(panel.adjusted(0, 0, -1, -1));
+        painter->setRenderHint(QPainter::Antialiasing, true);
+    }
 }
 
 QImage AnnotationCanvas::rendered() const
@@ -2051,7 +2141,7 @@ static QPointF shiftConstrainedPoint(AnnotationCanvas::Tool tool, const QPointF 
         return origin + QPointF(std::cos(angle) * length, std::sin(angle) * length);
     }
     if (tool == AnnotationCanvas::Rect || tool == AnnotationCanvas::Ellipse
-        || tool == AnnotationCanvas::Callout) {
+        || tool == AnnotationCanvas::Callout || tool == AnnotationCanvas::Magnify) {
         const qreal side = qMax(std::abs(dx), std::abs(dy));
         return origin + QPointF(dx < 0 ? -side : side, dy < 0 ? -side : side);
     }
@@ -2250,8 +2340,13 @@ QImage AnnotationCanvas::smartErasePatch(const QRect &r, bool fast) const
 
 void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
 {
+    // The loupe follows drags too (hover events stop during a grab) — the
+    // whole point is seeing the pixel a selection EDGE lands on.
+    const QRectF loupeBefore = pixelLoupeRect();
     m_hoverPoint = e->position();
+    m_hoverInside = true;
     emit hoverPointChanged();
+    updateLoupeRegion(loupeBefore);
     const QPointF img = toImage(e->position().x(), e->position().y());
 
     if (m_ocrMode && m_ocrDragging) {
@@ -2508,7 +2603,29 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             // one undo). Over a picture, or with no glyph boxes cached, it fails
             // and the freehand marker stroke is kept instead. Rect mode never
             // snaps; the freehand marker mode always appends its path.
-            if (m_current.type == Highlight && m_highlightMode == HlText
+            if (m_current.type == Magnify) {
+                // The drag picked the SOURCE; the placed annotation is the
+                // loupe — a 2x copy centred on the source, clamped into the
+                // image. Resizing the loupe afterwards changes the
+                // magnification (dest/source ratio); moving it leaves the
+                // source anchored.
+                const QRectF src = m_current.rect.normalized()
+                        .intersected(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+                if (src.width() >= 4 && src.height() >= 4) {
+                    m_current.srcRect = src;
+                    QRectF dest(0, 0,
+                                qMin(src.width() * 2.0, qreal(m_base.width())),
+                                qMin(src.height() * 2.0, qreal(m_base.height())));
+                    dest.moveCenter(src.center());
+                    dest.moveLeft(qBound(0.0, dest.left(),
+                                         qreal(m_base.width()) - dest.width()));
+                    dest.moveTop(qBound(0.0, dest.top(),
+                                        qreal(m_base.height()) - dest.height()));
+                    m_current.rect = dest;
+                    pushUndo();
+                    m_items.append(m_current);
+                }
+            } else if (m_current.type == Highlight && m_highlightMode == HlText
                 && applyTextAwareHighlight(m_current)) {
                 // snapped to text — nothing else to append
             } else {
@@ -2593,15 +2710,112 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
     e->accept();
 }
 
+// ---------------------------------------------------------------- pixel loupe
+
+void AnnotationCanvas::setPixelLoupe(bool on)
+{
+    if (m_pixelLoupe == on)
+        return;
+    m_pixelLoupe = on;
+    emit pixelLoupeChanged();
+    update();
+}
+
+void AnnotationCanvas::setPixelLoupeZoom(int z)
+{
+    z = qBound(4, z - (z & 1), 16);   // even factors only: crisp cell edges
+    if (m_pixelLoupeZoom == z)
+        return;
+    m_pixelLoupeZoom = z;
+    emit pixelLoupeZoomChanged();
+    update();
+}
+
+bool AnnotationCanvas::loupeActive() const
+{
+    // Region picking only: with a drawing tool armed (or in the editor, which
+    // never enables the loupe) the panel would be pure noise next to the
+    // brush. m_hoverInside keeps it off the monitors the pointer is not on.
+    return m_pixelLoupe && m_selectionMode && m_tool == None && !m_ocrMode
+           && m_hoverInside && !m_base.isNull();
+}
+
+// Source pixels per loupe axis — an odd count so ONE cell is the exact hovered
+// pixel; sized so the panel body stays ~130 item px across every zoom.
+int AnnotationCanvas::loupeGridCells() const
+{
+    int n = 132 / qMax(1, m_pixelLoupeZoom);
+    if ((n & 1) == 0)
+        ++n;
+    return qMax(5, n);
+}
+
+QRectF AnnotationCanvas::pixelLoupeRect() const
+{
+    if (!loupeActive())
+        return {};
+    const qreal body = qreal(loupeGridCells() * m_pixelLoupeZoom);
+    const qreal barH = 20.0;
+    const qreal w = body + 2.0;          // 1 px border each side
+    const qreal h = body + barH + 2.0;
+    // Offset to the bottom-right of the cursor; flip per-axis near the item
+    // edges so the panel never covers the pixels being aimed at.
+    const qreal off = 24.0;
+    qreal x = m_hoverPoint.x() + off;
+    qreal y = m_hoverPoint.y() + off;
+    if (x + w > width())
+        x = m_hoverPoint.x() - off - w;
+    if (y + h > height())
+        y = m_hoverPoint.y() - off - h;
+    x = qBound(0.0, x, qMax(0.0, width() - w));
+    y = qBound(0.0, y, qMax(0.0, height() - h));
+    return QRectF(x, y, w, h);
+}
+
+// Repaint the union of the loupe's previous and current panel — called from
+// the pointer handlers, which are the only thing that moves it.
+void AnnotationCanvas::updateLoupeRegion(const QRectF &before)
+{
+    const QRectF now = pixelLoupeRect();
+    if (before.isEmpty() && now.isEmpty())
+        return;
+    update((before | now).toAlignedRect().adjusted(-2, -2, 2, 2));
+}
+
 void AnnotationCanvas::wheelEvent(QWheelEvent *e)
 {
+    // Ctrl+scroll on the region overlay changes the loupe magnification.
+    if (loupeActive() && (e->modifiers() & Qt::ControlModifier)
+        && e->angleDelta().y() != 0) {
+        const QRectF before = pixelLoupeRect();
+        setPixelLoupeZoom(m_pixelLoupeZoom + (e->angleDelta().y() > 0 ? 2 : -2));
+        updateLoupeRegion(before);
+        e->accept();
+        return;
+    }
     e->ignore();
+}
+
+void AnnotationCanvas::hoverLeaveEvent(QHoverEvent *e)
+{
+    // Pointer moved to another monitor's overlay (or off the item): drop the
+    // loupe here — the sibling canvas under the pointer shows its own.
+    if (m_hoverInside) {
+        const QRectF before = pixelLoupeRect();
+        m_hoverInside = false;
+        if (!before.isEmpty())
+            update(before.toAlignedRect().adjusted(-2, -2, 2, 2));
+    }
+    QQuickPaintedItem::hoverLeaveEvent(e);
 }
 
 void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
 {
+    const QRectF loupeBefore = pixelLoupeRect();
     m_hoverPoint = e->position();
+    m_hoverInside = true;
     emit hoverPointChanged();
+    updateLoupeRegion(loupeBefore);
     const QPointF img = toImage(e->position().x(), e->position().y());
     if (m_colorPicking) {
         setCursor(Qt::CrossCursor);

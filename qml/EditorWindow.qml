@@ -524,19 +524,23 @@ Window {
                     contentX = Math.max(0, Math.min(contentWidth - width, contentX))
                     contentY = Math.max(0, Math.min(contentHeight - height, contentY))
                 }
-                function zoomBy(f) {
-                    // Keep the viewport center stable across the zoom step.
-                    var cx = canvas.width > 0 ? (contentX + width / 2 - canvas.x) / canvas.width : 0.5
-                    var cy = canvas.height > 0 ? (contentY + height / 2 - canvas.y) / canvas.height : 0.5
+                // Zoom anchored to a viewport point: whatever image pixel sits
+                // under (ax, ay) stays there across the step. Ctrl+wheel passes
+                // the cursor; the keyboard shortcuts default to the center.
+                function zoomBy(f, ax, ay) {
+                    if (ax === undefined) { ax = width / 2; ay = height / 2 }
+                    var cx = canvas.width > 0 ? (contentX + ax - canvas.x) / canvas.width : 0.5
+                    var cy = canvas.height > 0 ? (contentY + ay - canvas.y) / canvas.height : 0.5
                     zoom = Math.max(minZoom, Math.min(maxZoom, effectiveScale * f))
-                    contentX = canvas.x + cx * canvas.width - width / 2
-                    contentY = canvas.y + cy * canvas.height - height / 2
+                    contentX = canvas.x + cx * canvas.width - ax
+                    contentY = canvas.y + cy * canvas.height - ay
                     clampPan()
                 }
 
                 WheelHandler {
                     acceptedModifiers: Qt.ControlModifier
-                    onWheel: (ev) => canvasFlick.zoomBy(ev.angleDelta.y > 0 ? 1.2 : 1 / 1.2)
+                    onWheel: (ev) => canvasFlick.zoomBy(ev.angleDelta.y > 0 ? 1.2 : 1 / 1.2,
+                                                        ev.x, ev.y)
                 }
                 WheelHandler {
                     acceptedModifiers: Qt.NoModifier

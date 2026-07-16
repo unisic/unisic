@@ -15,6 +15,7 @@ public:
     using AnnotationCanvas::mousePressEvent;
     using AnnotationCanvas::mouseReleaseEvent;
     using AnnotationCanvas::hoverMoveEvent;
+    using AnnotationCanvas::wheelEvent;
 };
 
 class AnnotationCanvasTest : public QObject
@@ -39,6 +40,8 @@ private slots:
     void smartEraseRebuildsFlatBackground();
     void smartEraseFollowsGradientBackground();
     void smartEraseOverlappingStrokesStayOnBackground();
+    void magnifyPlacesCentredTwoXLoupe();
+    void pixelLoupeFollowsHoverAndZooms();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -560,6 +563,107 @@ void AnnotationCanvasTest::shiftSnapsLineAngleAndRectangleRatio()
     rect.mouseReleaseEvent(&release);
     QVERIFY2(rect.rendered().pixelColor(48, 48).lightness() < 80,
              "Shift must constrain a rectangle to a square ratio");
+}
+
+// The magnifier drag picks a SOURCE region; the placed annotation is a loupe —
+// a 2x copy centred on the source. The off-centre probe sits inside the
+// MAGNIFIED marker but outside the source marker, so it fails on a 1:1 copy.
+// Moving the loupe must keep showing the same source pixels.
+void AnnotationCanvasTest::magnifyPlacesCentredTwoXLoupe()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter p(&image);
+        p.fillRect(QRect(66, 66, 8, 8), QColor(220, 30, 40)); // marker at the source centre
+    }
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Magnify);
+
+    drag(canvas, QPointF(50, 50), QPointF(90, 90)); // source = 40x40 centred on (70,70)
+    QCOMPARE(canvas.annotCount(), 1);
+    QImage out = canvas.rendered();
+    const auto isMarker = [](const QColor &c) { return c.red() > 150 && c.green() < 120; };
+    QVERIFY2(isMarker(out.pixelColor(70, 70)),
+             "the loupe must be centred on the source (marker at the shared centre)");
+    QVERIFY2(isMarker(out.pixelColor(76, 70)),
+             "the loupe must magnify 2x (point inside the magnified marker only)");
+
+    // Move the loupe away: the source stays anchored, so the magnified marker
+    // travels with the loupe and the original marker resurfaces beneath it.
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(70, 70);
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.nudgeSelectedAnnot(80, 80);
+    out = canvas.rendered();
+    QVERIFY2(isMarker(out.pixelColor(150, 150)),
+             "a moved loupe must keep showing the same source pixels");
+    QVERIFY2(isMarker(out.pixelColor(70, 70)),
+             "the original marker must resurface once the loupe moves away");
+}
+
+// The region-overlay pixel loupe: appears only once the pointer hovers in
+// selection mode, sits offset from the cursor and flips away from item edges
+// (never covering the aimed-at pixels), zooms with Ctrl+scroll inside its
+// 4–16 clamp, follows the pointer during a selection drag, and never leaks
+// into the exported render.
+void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(500);
+    canvas.setHeight(400);
+    QImage image(500, 400, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setSelectionMode(true);
+    canvas.setPixelLoupe(true);
+    canvas.setPixelLoupeZoom(8);
+
+    QVERIFY2(canvas.pixelLoupeRect().isEmpty(), "no loupe before the pointer hovers");
+    const auto hover = [&canvas](QPointF at) {
+        QHoverEvent e(QEvent::HoverMove, at, at, at);
+        canvas.hoverMoveEvent(&e);
+    };
+    hover({50, 50});
+    const QRectF nearOrigin = canvas.pixelLoupeRect();
+    QVERIFY2(!nearOrigin.isEmpty() && nearOrigin.left() > 50 && nearOrigin.top() > 50,
+             "the loupe sits below-right of the cursor");
+    hover({490, 390});
+    const QRectF nearCorner = canvas.pixelLoupeRect();
+    QVERIFY2(!nearCorner.isEmpty() && nearCorner.right() < 490 && nearCorner.bottom() < 390,
+             "the loupe flips away from the item edges");
+
+    const auto wheel = [&canvas](int delta) {
+        QWheelEvent e(canvas.hoverPoint(), canvas.hoverPoint(), QPoint(), QPoint(0, delta),
+                      Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+        canvas.wheelEvent(&e);
+    };
+    wheel(120);
+    QCOMPARE(canvas.pixelLoupeZoom(), 10);
+    for (int i = 0; i < 10; ++i)
+        wheel(-120);
+    QCOMPARE(canvas.pixelLoupeZoom(), 4);
+    for (int i = 0; i < 10; ++i)
+        wheel(120);
+    QCOMPARE(canvas.pixelLoupeZoom(), 16);
+
+    // Follows a selection drag (hover events stop while the button is down).
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(20, 20), QPointF(20, 20),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(120, 120), QPointF(120, 120),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&move);
+    QVERIFY2(canvas.pixelLoupeRect().left() > 120,
+             "the loupe follows the pointer mid-drag");
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(120, 120), QPointF(120, 120),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&release);
+
+    QVERIFY2(canvas.rendered() == image, "the loupe is UI chrome, never exported");
 }
 
 int main(int argc, char *argv[])

@@ -1544,6 +1544,25 @@ void AppContext::devTestInstantReplay()
         startInstantReplay();
 }
 
+// Encoder for the trim self-test fixtures: the checks exercise trimming, not a
+// specific codec, and a mandatory libx264 failed fixture creation outright on
+// GPL-less ffmpeg builds. Same fallback order as the recorder — x264, OpenH264,
+// then the always-built-in mpeg4 (stream copy and packet keyframe flags are
+// codec-agnostic, so every trim path still gets exercised).
+static QStringList trimFixtureEncoderArgs()
+{
+    if (GifRecorder::encoderUsable(QStringLiteral("libx264")))
+        return {QStringLiteral("-c:v"), QStringLiteral("libx264"),
+                QStringLiteral("-preset"), QStringLiteral("ultrafast"),
+                QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+    if (GifRecorder::encoderUsable(QStringLiteral("libopenh264")))
+        return {QStringLiteral("-c:v"), QStringLiteral("libopenh264"),
+                QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+    return {QStringLiteral("-c:v"), QStringLiteral("mpeg4"),
+            QStringLiteral("-q:v"), QStringLiteral("5"),
+            QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+}
+
 void AppContext::devTestTrimRecording()
 {
     if (!devBuild()) return;
@@ -1564,15 +1583,13 @@ void AppContext::devTestTrimRecording()
     });
     // Long enough, moving, and with a keyframe every second: the window has a
     // filmstrip whose tiles differ and real keyframe ticks to snap onto.
-    process->start(ffmpeg,
-                   {QStringLiteral("-y"), QStringLiteral("-nostats"),
-                    QStringLiteral("-loglevel"), QStringLiteral("error"),
-                    QStringLiteral("-f"), QStringLiteral("lavfi"),
-                    QStringLiteral("-i"), QStringLiteral("testsrc=size=320x180:rate=30:duration=8"),
-                    QStringLiteral("-c:v"), QStringLiteral("libx264"),
-                    QStringLiteral("-preset"), QStringLiteral("ultrafast"),
-                    QStringLiteral("-g"), QStringLiteral("30"),
-                    QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"), path});
+    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                     QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-f"), QStringLiteral("lavfi"),
+                     QStringLiteral("-i"), QStringLiteral("testsrc=size=320x180:rate=30:duration=8"),
+                     QStringLiteral("-g"), QStringLiteral("30")};
+    args << trimFixtureEncoderArgs() << path;
+    process->start(ffmpeg, args);
 }
 
 void AppContext::devTestTrimCut()
@@ -1595,15 +1612,14 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     // snap to, and the moving pattern makes the filmstrip tiles differ.
     const QString source = QDir::temp().filePath(QStringLiteral("unisic-trimcheck.mp4"));
     QFile::remove(source);
-    QProcess::execute(ffmpeg, {QStringLiteral("-y"), QStringLiteral("-nostats"),
-                               QStringLiteral("-loglevel"), QStringLiteral("error"),
-                               QStringLiteral("-f"), QStringLiteral("lavfi"),
-                               QStringLiteral("-i"),
-                               QStringLiteral("testsrc=size=160x90:rate=30:duration=3"),
-                               QStringLiteral("-c:v"), QStringLiteral("libx264"),
-                               QStringLiteral("-preset"), QStringLiteral("ultrafast"),
-                               QStringLiteral("-g"), QStringLiteral("15"),
-                               QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"), source});
+    QStringList fixtureArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                            QStringLiteral("-loglevel"), QStringLiteral("error"),
+                            QStringLiteral("-f"), QStringLiteral("lavfi"),
+                            QStringLiteral("-i"),
+                            QStringLiteral("testsrc=size=160x90:rate=30:duration=3"),
+                            QStringLiteral("-g"), QStringLiteral("15")};
+    fixtureArgs << trimFixtureEncoderArgs() << source;
+    QProcess::execute(ffmpeg, fixtureArgs);
     if (!QFileInfo::exists(source)) {
         done(QStringLiteral("FAIL (test clip)"));
         return;
@@ -1616,7 +1632,7 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     QFile::copy(source, copySource);
 
     // Same window the trim editor builds, on the same file.
-    auto *probe = new TrimController(source, 3.0, this);
+    auto *probe = new TrimController(source, 3.0, 1.0 / 30, this);
     probe->buildFilmstrip(8, 48);
     probe->loadKeyframes();
 
@@ -1742,6 +1758,111 @@ void AppContext::devTestCaptureOnRelease()
     if (!devBuild())
         return;
     showToast(tr("Dev: capture on release: %1").arg(captureOnReleaseCheck()));
+}
+
+// Magnifier round-trip: a synthetic drag over a marked source region must place
+// a loupe that shows those pixels enlarged (2x, centred on the source). The
+// probe point 6 px off-centre is inside the MAGNIFIED marker but outside the
+// source marker, so it distinguishes a real 2x loupe from a 1:1 copy.
+static QString magnifyCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(66, 66, 8, 8), QColor(220, 30, 40)); // marker at the source centre
+    }
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Magnify);
+    const auto drag = [&c](QPointF from, QPointF to) {
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        c.mousePressEvent(&p);
+        QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        c.mouseMoveEvent(&m);
+        QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        c.mouseReleaseEvent(&r);
+    };
+    drag({50, 50}, {90, 90});   // source = 40x40 centred on (70,70)
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (loupe not placed)");
+    const QImage out = c.rendered();
+    const QColor centre = out.pixelColor(70, 70);
+    if (centre.red() < 150 || centre.green() > 120)
+        return QStringLiteral("FAIL (loupe centre is not the magnified marker)");
+    const QColor offCentre = out.pixelColor(76, 70);
+    if (offCentre.red() < 150 || offCentre.green() > 120)
+        return QStringLiteral("FAIL (loupe does not magnify — 2x expected)");
+    return QStringLiteral("PASS (loupe placed, centred, 2x)");
+}
+
+void AppContext::devTestMagnify()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: magnifier: %1").arg(magnifyCheck()));
+}
+
+// Pixel loupe (region overlay): the panel must appear once the pointer hovers
+// in selection mode, flip away from the item edges so it never covers the
+// pixels being aimed at, react to Ctrl+scroll within its 4–16 clamp, and stay
+// out of the exported render (dev button + smoke step).
+static QString pixelLoupeCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::hoverMoveEvent;
+        using AnnotationCanvas::wheelEvent;
+    } c;
+    c.setWidth(500);
+    c.setHeight(400);
+    QImage base(500, 400, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setSelectionMode(true);
+    c.setPixelLoupe(true);
+    c.setPixelLoupeZoom(8);
+    if (!c.pixelLoupeRect().isEmpty())
+        return QStringLiteral("FAIL (loupe visible before any hover)");
+    const auto hover = [&c](QPointF at) {
+        QHoverEvent e(QEvent::HoverMove, at, at, at);
+        c.hoverMoveEvent(&e);
+    };
+    hover({50, 50});
+    const QRectF nearOrigin = c.pixelLoupeRect();
+    if (nearOrigin.isEmpty() || nearOrigin.left() <= 50 || nearOrigin.top() <= 50)
+        return QStringLiteral("FAIL (loupe not offset below-right of the cursor)");
+    hover({490, 390});
+    const QRectF nearCorner = c.pixelLoupeRect();
+    if (nearCorner.isEmpty() || nearCorner.right() >= 490 || nearCorner.bottom() >= 390)
+        return QStringLiteral("FAIL (loupe does not flip away from the item edge)");
+    const auto wheel = [&c](int delta) {
+        QWheelEvent e(c.hoverPoint(), c.hoverPoint(), QPoint(), QPoint(0, delta),
+                      Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+        c.wheelEvent(&e);
+    };
+    wheel(120);
+    if (c.pixelLoupeZoom() != 10)
+        return QStringLiteral("FAIL (Ctrl+scroll did not raise the zoom)");
+    for (int i = 0; i < 10; ++i)
+        wheel(-120);
+    if (c.pixelLoupeZoom() != 4)
+        return QStringLiteral("FAIL (zoom did not clamp at 4)");
+    if (c.rendered() != base)
+        return QStringLiteral("FAIL (loupe leaked into the exported render)");
+    return QStringLiteral("PASS (follows hover, edge flip, Ctrl+scroll 4–16, not exported)");
+}
+
+void AppContext::devTestPixelLoupe()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: pixel loupe: %1").arg(pixelLoupeCheck()));
 }
 
 // Renders two words and asserts recognizeBoxes returns ≥2 boxes with sane
@@ -3026,6 +3147,18 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e3d) magnifier: a synthetic drag places a 2x loupe centred on the source.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
+        smokeNext();
+    });
+
+    // 3e3e) pixel loupe: hover placement, edge flip, Ctrl+scroll zoom clamp.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("pixel loupe: ") + pixelLoupeCheck());
+        smokeNext();
+    });
+
     // 3e4) capture sound: a player must exist and the WAV must extract.
     m_smokeSteps.append([this] {
         const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
@@ -4030,15 +4163,40 @@ void AppContext::openTrimRecording(const QString &path)
         if (*completed)
             return;
         *completed = true;
-        const QByteArray output = probe->readAllStandardOutput().trimmed();
+        const QByteArray output = probe->readAllStandardOutput();
         probe->deleteLater();
-        bool ok = false;
-        const qreal duration = QString::fromLatin1(output).toDouble(&ok);
-        if (code != 0 || status != QProcess::NormalExit || !ok || duration <= 0) {
+        // Keyed "name=value" lines (default writer, nk left on): the probe asks
+        // for the duration AND the frame rate, and line order across sections
+        // is not a contract worth leaning on.
+        qreal duration = -1;
+        qreal frameDur = 0;
+        const QList<QByteArray> lines = output.split('\n');
+        for (const QByteArray &line : lines) {
+            const int eq = line.indexOf('=');
+            if (eq <= 0)
+                continue;
+            const QByteArray key = line.left(eq).trimmed();
+            const QByteArray value = line.mid(eq + 1).trimmed();
+            if (key == "duration") {
+                bool ok = false;
+                const qreal d = value.toDouble(&ok);
+                if (ok)
+                    duration = d;
+            } else if (key == "avg_frame_rate") {
+                // "30/1", "30000/1001"; "0/0" for unknown → stays 0.
+                const int slash = value.indexOf('/');
+                bool okNum = false, okDen = false;
+                const qreal num = value.left(slash).toDouble(&okNum);
+                const qreal den = value.mid(slash + 1).toDouble(&okDen);
+                if (slash > 0 && okNum && okDen && num > 0 && den > 0)
+                    frameDur = den / num;
+            }
+        }
+        if (code != 0 || status != QProcess::NormalExit || duration <= 0) {
             showToast(tr("Could not read the recording duration"), true);
             return;
         }
-        showTrimWindow(path, duration);
+        showTrimWindow(path, duration, frameDur);
     });
     connect(probe, &QProcess::errorOccurred, this,
             [this, probe, completed](QProcess::ProcessError error) {
@@ -4049,11 +4207,13 @@ void AppContext::openTrimRecording(const QString &path)
         showToast(tr("Trimming requires ffprobe from the ffmpeg package"), true);
     });
     probe->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
-                           QStringLiteral("-show_entries"), QStringLiteral("format=duration"),
-                           QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), path});
+                           QStringLiteral("-select_streams"), QStringLiteral("v:0"),
+                           QStringLiteral("-show_entries"),
+                           QStringLiteral("stream=avg_frame_rate:format=duration"),
+                           QStringLiteral("-of"), QStringLiteral("default=nw=1"), path});
 }
 
-void AppContext::showTrimWindow(const QString &path, qreal duration)
+void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration)
 {
     if (!m_engine)
         return;
@@ -4063,7 +4223,7 @@ void AppContext::showTrimWindow(const QString &path, qreal duration)
         return;
     }
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
-    auto *trim = new TrimController(path, duration);
+    auto *trim = new TrimController(path, duration, frameDuration);
     ctx->setContextProperty(QStringLiteral("trimSourcePath"), path);
     ctx->setContextProperty(QStringLiteral("trimDuration"), duration);
     ctx->setContextProperty(QStringLiteral("trimController"), trim);
@@ -4127,7 +4287,24 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     const QString range = QStringLiteral("trim=start=%1:end=%2,setpts=PTS-STARTPTS")
                               .arg(QString::number(start, 'f', 3),
                                    QString::number(end, 'f', 3));
-    const QString palette = output + QStringLiteral(".palette.png");
+    // The palette is scratch: it lives in the cache dir (NOT next to the
+    // recording, where an exit mid-trim would leave a stray
+    // "*-trimmed.gif.palette.png" forever), and stale ones from an earlier
+    // crashed/quit run are swept here. The age gate keeps the sweep away from
+    // a palette a concurrent trim is still using.
+    const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(cacheDir);
+    QDir cache(cacheDir);
+    const QFileInfoList stale = cache.entryInfoList({QStringLiteral("trim-palette-*")},
+                                                    QDir::Files);
+    const QDateTime cutoff = QDateTime::currentDateTime().addSecs(-3600);
+    for (const QFileInfo &fi : stale)
+        if (fi.lastModified() < cutoff)
+            QFile::remove(fi.absoluteFilePath());
+    static quint32 paletteSerial = 0;
+    const QString palette = cache.filePath(QStringLiteral("trim-palette-%1-%2.png")
+                                               .arg(QCoreApplication::applicationPid())
+                                               .arg(++paletteSerial));
     runTrimStep({QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
@@ -4202,8 +4379,13 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
         // keyframe and decodes forward, so the output starts on the exact frame.
         const int crf = qBound(0, m_settings->videoQuality(), 51);
+        // yuv420p needs even dimensions (same rule the recorder enforces on its
+        // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
+        // abort with "width not divisible by 2". Trim at most one edge pixel.
+        const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
         if (suffix == QLatin1String("webm")) {
-            args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
                  << QStringLiteral("-crf") << QString::number(crf)
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-deadline") << QStringLiteral("good")
@@ -4213,26 +4395,29 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
                    && GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
             args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-                 << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
+                 << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
                  << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
                  << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
                    && GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
-            args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
                  << QStringLiteral("-preset") << QStringLiteral("p4")
                  << QStringLiteral("-cq") << QString::number(crf)
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (GifRecorder::encoderUsable(QStringLiteral("libx264"))) {
-            args << QStringLiteral("-c:v") << QStringLiteral("libx264")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("veryfast")
                  << QStringLiteral("-crf") << QString::number(crf)
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else {
-            args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
                  << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");

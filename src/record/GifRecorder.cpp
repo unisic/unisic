@@ -54,6 +54,27 @@ static const QSet<QString> &ffmpegEncoders()
     return cached;
 }
 
+bool GifRecorder::encoderUsable(const QString &name)
+{
+    return ffmpegEncoders().contains(name) || ffmpegEncoders().isEmpty();
+}
+
+QString GifRecorder::gifPaletteGenFilter(int quality)
+{
+    const int q = qBound(0, quality, 2);
+    return QStringLiteral("palettegen=stats_mode=%1")
+        .arg(q == 2 ? QStringLiteral("diff") : QStringLiteral("full"));
+}
+
+QString GifRecorder::gifPaletteUseFilter(int quality)
+{
+    const int q = qBound(0, quality, 2);
+    const QString dither = q == 0 ? QStringLiteral("bayer:bayer_scale=3")
+                                  : (q == 1 ? QStringLiteral("bayer:bayer_scale=5")
+                                            : QStringLiteral("sierra2_4a"));
+    return QStringLiteral("paletteuse=dither=%1:diff_mode=rectangle").arg(dither);
+}
+
 bool GifRecorder::hardwareEncoderAvailable(const QString &id)
 {
     if (id == QLatin1String("vaapi"))
@@ -805,7 +826,7 @@ void GifRecorder::saveInstantReplay()
                                                           : diagnostic);
             return;
         }
-        emit finished(out);
+        emit finished(out, /*fromInstantReplay=*/true);
     });
     connect(process, &QProcess::errorOccurred, this,
             [this, process, snapshot, out, completed](QProcess::ProcessError error) {
@@ -842,12 +863,11 @@ void GifRecorder::convertToGif()
     // with -framerate m_fps, so reading a mid-recording gifFps() change here
     // would quadruple/drop every frame relative to the container rate.
     const int fps = m_fps;
-    // quality: 0 = fast/small, 1 = balanced, 2 = best
+    // quality: 0 = fast/small, 1 = balanced, 2 = best. The filters themselves
+    // live in gifPaletteGenFilter/gifPaletteUseFilter — the trim editor renders
+    // a GIF cut through the same two passes.
     const int q = qBound(0, m_settings->gifQuality(), 2);
-    const QString dither = q == 0 ? QStringLiteral("bayer:bayer_scale=3")
-                                  : (q == 1 ? QStringLiteral("bayer:bayer_scale=5")
-                                            : QStringLiteral("sierra2_4a"));
-    const QString statsMode = q == 2 ? QStringLiteral("diff") : QStringLiteral("full");
+    const QString dither = gifPaletteUseFilter(q);
 
     // True two-pass. A single split-graph command (`split[a][b];[a]palettegen…`)
     // buffers every decoded [b] frame in RAM until palettegen hits EOF — ~3 GB
@@ -855,7 +875,7 @@ void GifRecorder::convertToGif()
     // temp file is on disk anyway; decoding the lossless intermediate twice
     // is cheap by comparison.
     m_palettePath = m_tempPath + QStringLiteral(".palette.png");
-    const QString vf = QStringLiteral("fps=%1,palettegen=stats_mode=%2").arg(fps).arg(statsMode);
+    const QString vf = QStringLiteral("fps=%1,%2").arg(fps).arg(gifPaletteGenFilter(q));
 
     auto *conv = new QProcess(this);
     m_converter = conv;
@@ -896,10 +916,9 @@ void GifRecorder::convertToGif()
     }
 }
 
-void GifRecorder::convertToGifRender(int fps, const QString &dither)
+void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
 {
-    const QString lavfi = QStringLiteral("fps=%1[x];[x][1:v]paletteuse=dither=%2:diff_mode=rectangle")
-        .arg(fps).arg(dither);
+    const QString lavfi = QStringLiteral("fps=%1[x];[x][1:v]%2").arg(fps).arg(paletteUse);
 
     auto *conv = new QProcess(this);
     m_converter = conv;

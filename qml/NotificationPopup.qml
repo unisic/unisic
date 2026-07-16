@@ -40,25 +40,167 @@ Window {
     // it starts — without this the 8s auto-hide would fire mid-drag and destroy
     // the drag's origin surface. Pauses auto-hide + the countdown drain.
     property bool dragging: false
+    // A tiny exit grace avoids pause/resume flicker when the pointer only grazes
+    // the card edge. It is state, rather than a continuously-running timer, so
+    // an indefinitely hovered card still costs nothing while paused.
+    property bool hoverGraceActive: false
+    readonly property real autoHideDurationMs: Math.max(0, autoHideSec) * 1000
+    property real autoHideRemainingMs: autoHideDurationMs
+    property real autoHideStartedAtMs: 0
+    readonly property var allActionIds: ["edit", "copy", "link", "qr", "folder",
+                                         "upload", "ocr", "trim", "delete"]
+    property var orderedActions: allActionIds
+    readonly property bool autoHidePaused: autoHideSec > 0
+                                           && (hover.hovered || hoverGraceActive || dragging)
+
+    // Filter unknown/duplicate ids from imported or hand-edited settings, then
+    // append actions introduced by a newer build. An old config can therefore
+    // customize order without making future buttons disappear forever.
+    function normalizedActionOrder(csv) {
+        const requested = csv ? csv.split(",") : []
+        const known = {}
+        const out = []
+        for (let i = 0; i < allActionIds.length; ++i)
+            known[allActionIds[i]] = true
+        for (let j = 0; j < requested.length; ++j) {
+            const id = requested[j]
+            if (known[id] && out.indexOf(id) < 0)
+                out.push(id)
+        }
+        for (let k = 0; k < allActionIds.length; ++k)
+            if (out.indexOf(allActionIds[k]) < 0)
+                out.push(allActionIds[k])
+        return out
+    }
+
+    function currentAutoHideRemaining() {
+        if (!dismissTimer.running)
+            return autoHideRemainingMs
+        return Math.max(0, autoHideRemainingMs - (Date.now() - autoHideStartedAtMs))
+    }
+
+    function syncAutoHide() {
+        const shouldRun = autoHideSec > 0 && !hover.hovered
+                          && !hoverGraceActive && !dragging
+        if (shouldRun === dismissTimer.running)
+            return
+
+        if (shouldRun) {
+            if (autoHideRemainingMs <= 0) {
+                notif.dismiss()
+                return
+            }
+            autoHideStartedAtMs = Date.now()
+            dismissTimer.interval = Math.max(1, autoHideRemainingMs)
+            dismissTimer.start()
+        } else {
+            autoHideRemainingMs = currentAutoHideRemaining()
+            dismissTimer.stop()
+            card.drain = autoHideDurationMs > 0
+                         ? autoHideRemainingMs / autoHideDurationMs : 0
+        }
+    }
+
+    onDraggingChanged: syncAutoHide()
     Component.onCompleted: {
         if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(popupStyle) >= 0)
             style = popupStyle
         const csv = popupHiddenActions
         hiddenActions = csv ? csv.split(",").filter(function (x) { return x.length > 0 }) : []
+        orderedActions = normalizedActionOrder(popupActionOrder)
+        autoHideRemainingMs = autoHideDurationMs
+        syncAutoHide()
     }
 
-    // Auto-dismiss, paused while the pointer is over the card.
+    // A one-shot timer whose remaining interval is saved on hover/drag and used
+    // on resume. Binding `running` directly to hover restarts a QML Timer from
+    // its full interval, which made every hover grant the card a fresh lifetime.
     Timer {
         id: dismissTimer
-        interval: Math.max(1, popup.autoHideSec) * 1000
-        running: popup.autoHideSec > 0 && !hover.hovered && !popup.dragging
-        onTriggered: notif.dismiss()
+        interval: 1
+        onTriggered: {
+            popup.autoHideRemainingMs = 0
+            card.drain = 0
+            notif.dismiss()
+        }
+    }
+
+    Timer {
+        id: hoverExitTimer
+        interval: 140
+        onTriggered: {
+            popup.hoverGraceActive = false
+            popup.syncAutoHide()
+        }
+    }
+
+    // Short, local confirmation for clipboard actions. It intentionally needs
+    // no parent/helper acknowledgement: both copy methods are synchronous and
+    // only expose a button when their payload exists.
+    property string confirmedAction: ""
+    function confirmAction(action) {
+        confirmedAction = action
+        actionConfirmTimer.restart()
+    }
+    Timer {
+        id: actionConfirmTimer
+        interval: 900
+        onTriggered: popup.confirmedAction = ""
     }
 
     // Action ids the user switched off in Settings > Notifications. Latched at
     // creation like `style`, and from the same host snapshot.
     property var hiddenActions: []
     function actionShown(id) { return popup.hiddenActions.indexOf(id) < 0 }
+
+    function actionIcon(id) {
+        if (id === "edit") return "edit"
+        if (id === "copy") return confirmedAction === "copy-image" ? "checkmark" : "edit-copy"
+        if (id === "link") return confirmedAction === "copy-link" ? "checkmark" : "globe"
+        if (id === "qr") return "view-preview"
+        if (id === "folder") return "folder-open"
+        if (id === "upload") return "upload-cloud"
+        if (id === "ocr") return "ocr"
+        if (id === "trim") return "cut"
+        if (id === "delete") return "edit-delete"
+        return ""
+    }
+    function actionTooltip(id) {
+        if (id === "edit") return qsTr("Edit")
+        if (id === "copy") return qsTr("Copy image")
+        if (id === "link") return qsTr("Copy link")
+        if (id === "qr") return qsTr("Show QR code")
+        if (id === "folder") return qsTr("Show in folder")
+        if (id === "upload") return qsTr("Upload")
+        if (id === "ocr") return qsTr("Copy text (OCR)")
+        if (id === "trim") return qsTr("Trim recording")
+        if (id === "delete") return qsTr("Delete")
+        return ""
+    }
+    function actionAvailable(id) {
+        if (!actionShown(id)) return false
+        if (id === "edit" || id === "copy") return notif.kind === "image"
+        if (id === "link") return notif.url !== ""
+        if (id === "qr") return App.qrAvailable && notif.url !== ""
+        if (id === "folder") return true
+        if (id === "upload") return notif.url === "" && !notif.uploading
+        if (id === "ocr") return App.ocrAvailable && notif.kind === "image"
+        if (id === "trim") return notif.filePath !== ""
+                                  && (notif.kind === "video" || notif.kind === "gif")
+        if (id === "delete") return notif.filePath !== ""
+        return false
+    }
+    function triggerAction(id) {
+        if (id === "edit") notif.edit()
+        else if (id === "copy") { notif.copyImage(); confirmAction("copy-image") }
+        else if (id === "link") { notif.copyUrl(); confirmAction("copy-link") }
+        else if (id === "qr") notif.showQr()
+        else if (id === "folder") notif.showInFolder()
+        else if (id === "upload") notif.upload()
+        else if (id === "ocr") notif.ocr()
+        else if (id === "trim") notif.trim()
+        else if (id === "delete") notif.deleteCapture()
+    }
 
     // The full action set, reused by every style that shows buttons. Every
     // button ANDs actionShown() over its own condition — the user's opt-out only
@@ -67,55 +209,18 @@ Window {
         property int btn: 32
         property int icon: 16
         spacing: 1
-        UIconButton {
-            iconName: "edit"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Edit"); visible: popup.actionShown("edit") && notif.kind === "image"
-            onClicked: notif.edit()
-        }
-        UIconButton {
-            iconName: "edit-copy"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Copy image"); visible: popup.actionShown("copy") && notif.kind === "image"
-            onClicked: notif.copyImage()
-        }
-        UIconButton {
-            iconName: "globe"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Copy link"); visible: popup.actionShown("link") && notif.url !== ""
-            onClicked: notif.copyUrl()
-        }
-        UIconButton {
-            iconName: "view-preview"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Show QR code"); visible: popup.actionShown("qr") && App.qrAvailable && notif.url !== ""
-            onClicked: notif.showQr()
-        }
-        UIconButton {
-            iconName: "folder-open"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Show in folder"); visible: popup.actionShown("folder")
-            onClicked: notif.showInFolder()
-        }
-        UIconButton {
-            iconName: "upload-cloud"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Upload"); visible: popup.actionShown("upload") && notif.url === "" && !notif.uploading
-            onClicked: notif.upload()
-        }
-        UIconButton {
-            iconName: "ocr"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Copy text (OCR)")
-            visible: popup.actionShown("ocr") && App.ocrAvailable && notif.kind === "image"
-            onClicked: notif.ocr()
-        }
-        UIconButton {
-            // Recordings only: the editor is for images, the trim window is the
-            // recording's equivalent — and it needs the file on disk.
-            iconName: "cut"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Trim recording")
-            visible: popup.actionShown("trim") && notif.filePath !== ""
-                     && (notif.kind === "video" || notif.kind === "gif")
-            onClicked: notif.trim()
-        }
-        UIconButton {
-            iconName: "edit-delete"; iconSize: parent.icon; width: parent.btn; height: parent.btn
-            tooltip: qsTr("Delete"); visible: popup.actionShown("delete") && notif.filePath !== ""
-            onClicked: notif.deleteCapture()
+        Repeater {
+            model: popup.orderedActions
+            delegate: UIconButton {
+                required property string modelData
+                iconName: popup.actionIcon(modelData)
+                iconSize: parent.icon
+                width: parent.btn
+                height: parent.btn
+                tooltip: popup.actionTooltip(modelData)
+                visible: popup.actionAvailable(modelData)
+                onClicked: popup.triggerAction(modelData)
+            }
         }
     }
 
@@ -180,40 +285,60 @@ Window {
         maximumLineCount: 1
     }
 
-    Rectangle {
+    Item {
         id: card
         x: popupX
         y: popupY
         width: popupW
         height: popupH
-        radius: Theme.radiusL
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.22) }
-            GradientStop { position: 1.0; color: Theme.primary }
-        }
-        border.width: 1
-        border.color: Theme.divider
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true; shadowColor: Theme.shadow
-            shadowBlur: 1.0; shadowVerticalOffset: 4; shadowOpacity: 0.6
+
+        // Keep the static background/shadow in its own layer. Layering `card`
+        // itself also cached every child, so a button hover invalidated and
+        // re-composited the full card + blur on every animation frame. That is
+        // especially visible through the GNOME XWayland helper.
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusL
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.22) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            border.width: 1
+            border.color: Theme.divider
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                shadowEnabled: true; shadowColor: Theme.shadow
+                shadowBlur: 1.0; shadowVerticalOffset: 4; shadowOpacity: 0.6
+            }
         }
 
-        // Countdown drain; restarts from full whenever hovering ends.
+        // Countdown drain; pauses and resumes with the one-shot dismiss timer.
         // Stepped Timer, NOT a NumberAnimation: a per-frame animation kept the
         // card's render loop awake at ~60 fps for the whole auto-hide window
-        // (seconds of full-rate repaints for a slowly shrinking bar). 30 steps
-        // over the same duration looks identical at this size.
+        // (seconds of full-rate repaints for a slowly shrinking bar). Up to 30
+        // wall-clock-derived steps look identical at this size and cannot drift.
         property real drain: 1.0
         Timer {
-            interval: Math.max(50, dismissTimer.interval / 30)
+            interval: Math.max(50, popup.autoHideDurationMs / 30)
             repeat: true
-            running: popup.autoHideSec > 0 && !hover.hovered && !popup.dragging
-            onRunningChanged: if (running) card.drain = 1.0
-            onTriggered: card.drain = Math.max(0, card.drain - 1 / 30)
+            running: dismissTimer.running
+            onTriggered: card.drain = popup.autoHideDurationMs > 0
+                         ? popup.currentAutoHideRemaining() / popup.autoHideDurationMs : 0
         }
 
-        HoverHandler { id: hover }
+        HoverHandler {
+            id: hover
+            onHoveredChanged: {
+                if (hovered) {
+                    hoverExitTimer.stop()
+                    popup.hoverGraceActive = false
+                    popup.syncAutoHide()
+                } else if (popup.autoHideSec > 0) {
+                    popup.hoverGraceActive = true
+                    hoverExitTimer.restart()
+                }
+            }
+        }
 
         // ================= casual: the full card =================
         Row {
@@ -453,7 +578,9 @@ Window {
             height: 2
             radius: 1
             color: Theme.accent
-            opacity: 0.5
+            // The brighter frozen bar is the pause cue; no animation is needed,
+            // and its width remains the exact saved countdown position.
+            opacity: popup.autoHidePaused ? 0.9 : 0.5
             width: (card.width - 16) * card.drain
         }
     }

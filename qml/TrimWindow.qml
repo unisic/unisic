@@ -5,8 +5,8 @@ import "components"
 
 Window {
     id: trimWindow
-    width: 860; height: 620
-    minimumWidth: 640; minimumHeight: 460
+    width: 940; height: 700
+    minimumWidth: 680; minimumHeight: 520
     visible: true
     title: qsTr("Trim recording")
     color: Theme.background
@@ -30,6 +30,17 @@ Window {
                                      ? previewLoader.item.position / 1000 : 0
     property real trimStart: 0
     property real trimEnd: trimDuration
+    // Playback previews the CUT, not the file: it stays inside the selection and
+    // (by default) loops it, so hitting play answers "what will I get?".
+    property bool loopSelection: true
+    // Stream-copy cut: instant and lossless, but it can only start on a
+    // keyframe, so the in-point snaps onto one and the timeline shows where.
+    property bool lossless: false
+    readonly property bool snapping: lossless && !trimController.gif
+                                     && trimController.keyframeState === TrimController.Ready
+    // Which handle the pointer is dragging (0 none, 1 in, 2 out) — the preview
+    // follows it, so you always see the frame you are placing.
+    property int activeHandle: 0
 
     function fmt(s) {
         if (isNaN(s) || s < 0) s = 0
@@ -37,11 +48,85 @@ Window {
         const sec = s - m * 60
         return m + ":" + (sec < 10 ? "0" : "") + sec.toFixed(1)
     }
-    function setStart(t) { trimStart = Math.max(0, Math.min(t, trimEnd - 0.1)) }
+    function setStart(t) {
+        let v = Math.max(0, Math.min(t, trimEnd - 0.1))
+        if (snapping)
+            v = trimController.snapStart(v)
+        trimStart = v
+    }
     function setEnd(t) { trimEnd = Math.max(trimStart + 0.1, Math.min(t, duration)) }
     function seekTo(t) {
         if (hasPreview && previewLoader.item)
             previewLoader.item.seek(Math.max(0, Math.min(t, duration)) * 1000)
+    }
+    // Seeking on every pointer move would out-run the decoder; coalesce to one
+    // seek per frame-ish while a handle is being dragged.
+    property real pendingSeek: -1
+    function scrubTo(t) {
+        pendingSeek = t
+        if (!scrubTimer.running)
+            scrubTimer.restart()
+    }
+    Timer {
+        id: scrubTimer
+        interval: 45
+        onTriggered: {
+            if (trimWindow.pendingSeek >= 0)
+                trimWindow.seekTo(trimWindow.pendingSeek)
+            trimWindow.pendingSeek = -1
+        }
+    }
+    function playPause() {
+        const item = previewLoader.item
+        if (!item)
+            return
+        if (item.playing) {
+            item.pause()
+            return
+        }
+        // Play always previews the selection: land inside it first.
+        if (playhead < trimStart - 0.05 || playhead > trimEnd - 0.05)
+            seekTo(trimStart)
+        item.play()
+    }
+
+    Component.onCompleted: {
+        // 48 tiles is a deliberate over-sample: the timeline shows however many
+        // fit and never re-renders the strip on resize.
+        trimController.buildFilmstrip(48, 72)
+    }
+    onLosslessChanged: {
+        if (lossless) {
+            trimController.loadKeyframes()
+            setStart(trimStart)     // no-op until the table arrives, then snaps
+        }
+    }
+    Connections {
+        target: trimController
+        function onKeyframesChanged() {
+            if (trimWindow.snapping)
+                trimWindow.setStart(trimWindow.trimStart)
+        }
+    }
+    // Keep the preview on the cut: stop (or loop) at the out-point. The seek is
+    // deferred: position is a binding onto the player's own, and seeking from
+    // inside its change notification re-enters that binding (loop warning).
+    Connections {
+        target: previewLoader.item
+        enabled: trimWindow.hasPreview && previewLoader.item !== null
+        function onPositionChanged() {
+            const item = previewLoader.item
+            if (!item || !item.playing || trimWindow.activeHandle !== 0)
+                return
+            if (item.position / 1000 < trimWindow.trimEnd - 0.02)
+                return
+            if (trimWindow.loopSelection) {
+                Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimStart) })
+            } else {
+                item.pause()
+                Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimEnd) })
+            }
+        }
     }
 
     // Idle background = no live decode pipeline. When the window loses focus we
@@ -86,13 +171,14 @@ Window {
             }
             if (!hasPreview) return
             switch (e.key) {
-            case Qt.Key_Space: previewLoader.item.togglePlay(); e.accepted = true; break
+            case Qt.Key_Space: trimWindow.playPause(); e.accepted = true; break
             case Qt.Key_I: setStart(playhead); e.accepted = true; break
             case Qt.Key_O: setEnd(playhead); e.accepted = true; break
             case Qt.Key_Left: seekTo(playhead - (e.modifiers & Qt.ShiftModifier ? 5 : 1)); e.accepted = true; break
             case Qt.Key_Right: seekTo(playhead + (e.modifiers & Qt.ShiftModifier ? 5 : 1)); e.accepted = true; break
-            case Qt.Key_Home: seekTo(0); e.accepted = true; break
-            case Qt.Key_End: seekTo(duration); e.accepted = true; break
+            case Qt.Key_Home: seekTo(trimWindow.trimStart); e.accepted = true; break
+            case Qt.Key_End: seekTo(trimWindow.trimEnd); e.accepted = true; break
+            case Qt.Key_L: trimWindow.loopSelection = !trimWindow.loopSelection; e.accepted = true; break
             }
         }
         Component.onCompleted: keys.forceActiveFocus()
@@ -193,62 +279,177 @@ Window {
 
             // Timeline (only meaningful with a live playhead).
             Item {
+                id: timeline
                 width: parent.width
-                height: 46
+                height: 82
                 visible: hasPreview
+
+                function timeAt(x) {
+                    return track.width > 0
+                           ? Math.max(0, Math.min(x / track.width * trimWindow.duration, trimWindow.duration))
+                           : 0
+                }
+                function xOf(t) {
+                    return trimWindow.duration > 0 ? track.width * (t / trimWindow.duration) : 0
+                }
+
                 Rectangle {
                     id: track
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width
-                    height: 8; radius: 4
+                    anchors.fill: parent
+                    radius: Theme.radiusS
                     color: Theme.surfaceHi
-                    // Selected keep-range.
-                    Rectangle {
-                        x: trimWindow.duration > 0 ? track.width * (trimWindow.trimStart / trimWindow.duration) : 0
-                        width: trimWindow.duration > 0
-                               ? track.width * ((trimWindow.trimEnd - trimWindow.trimStart) / trimWindow.duration) : 0
-                        height: parent.height; radius: parent.radius
-                        color: Theme.accent
+                    clip: true
+
+                    // The strip is a single tiled PNG; this hidden probe reports
+                    // its natural size so a cell can slice one tile out of it.
+                    Image {
+                        id: stripProbe
+                        source: trimController.filmstrip
+                        visible: false
+                        asynchronous: true
                     }
+                    readonly property real tileW: (stripProbe.implicitWidth > 0
+                                                   && trimController.filmstripTiles > 0)
+                                                  ? stripProbe.implicitWidth / trimController.filmstripTiles : 0
+                    readonly property real tileH: stripProbe.implicitHeight
+                    // Cells keep the tile's aspect, so each one is an undistorted
+                    // frame; the count follows the window width, the strip does not.
+                    readonly property int cellW: (tileW > 0 && tileH > 0)
+                                                 ? Math.max(16, Math.round(tileW * (track.height / tileH))) : 0
+                    readonly property bool stripReady: cellW > 0 && stripProbe.status === Image.Ready
+
+                    Repeater {
+                        model: track.stripReady ? Math.ceil(track.width / track.cellW) : 0
+                        Image {
+                            required property int index
+                            x: index * track.cellW
+                            width: track.cellW
+                            height: track.height
+                            source: trimController.filmstrip
+                            asynchronous: true
+                            smooth: true
+                            // Nearest tile in TIME to this cell's centre.
+                            sourceClipRect: {
+                                const cells = Math.max(1, Math.ceil(track.width / track.cellW))
+                                const tiles = trimController.filmstripTiles
+                                const i = Math.max(0, Math.min(Math.floor((index + 0.5) / cells * tiles), tiles - 1))
+                                return Qt.rect(Math.round(i * track.tileW), 0,
+                                               Math.round(track.tileW), Math.round(track.tileH))
+                            }
+                        }
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        visible: !track.stripReady
+                        text: trimController.filmstripState === TrimController.Failed
+                              ? qsTr("No thumbnails for this file")
+                              : qsTr("Loading thumbnails…")
+                        color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                    }
+
+                    // Everything outside the selection is dimmed: what stays lit
+                    // is exactly what the saved file will contain.
+                    Rectangle {
+                        x: 0; width: Math.max(0, timeline.xOf(trimWindow.trimStart))
+                        height: parent.height
+                        color: Qt.rgba(0, 0, 0, 0.66)
+                    }
+                    Rectangle {
+                        x: timeline.xOf(trimWindow.trimEnd)
+                        width: Math.max(0, track.width - x)
+                        height: parent.height
+                        color: Qt.rgba(0, 0, 0, 0.66)
+                    }
+                    Rectangle {
+                        x: timeline.xOf(trimWindow.trimStart)
+                        width: Math.max(0, timeline.xOf(trimWindow.trimEnd) - x)
+                        height: parent.height
+                        color: "transparent"
+                        border.width: 2
+                        border.color: Theme.accent
+                    }
+
+                    // Where a lossless cut can actually start.
+                    Repeater {
+                        model: trimWindow.snapping ? trimController.keyframes : 0
+                        Rectangle {
+                            required property var modelData
+                            x: timeline.xOf(modelData)
+                            y: track.height - 7
+                            width: 1; height: 7
+                            color: Theme.textSecondary
+                            opacity: 0.8
+                        }
+                    }
+
+                    // Click / drag anywhere on the strip to move the playhead.
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: (m) => trimWindow.seekTo(m.x / track.width * trimWindow.duration)
+                        onPressed: (m) => trimWindow.seekTo(timeline.timeAt(m.x))
+                        onPositionChanged: (m) => trimWindow.scrubTo(timeline.timeAt(m.x))
                     }
                 }
+
                 // Playhead.
                 Rectangle {
-                    width: 2; height: 34; radius: 1; color: Theme.textPrimary
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: track.x + (trimWindow.duration > 0
-                                  ? track.width * (trimWindow.playhead / trimWindow.duration) : 0) - width / 2
+                    width: 2; height: track.height + 8
+                    y: -4
+                    color: Theme.textPrimary
+                    x: timeline.xOf(trimWindow.playhead) - width / 2
                 }
+
                 // IN / OUT handles: x is a one-way function of the time value;
                 // dragging maps the pointer into track space and pushes the time
                 // back through setStart/setEnd — no binding loop, resize-safe.
-                Rectangle {
-                    id: inHandle
-                    width: 12; height: 40; radius: 6
-                    color: Theme.accent; border.width: 2; border.color: Theme.background
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: track.x + (trimWindow.duration > 0
-                                  ? track.width * (trimWindow.trimStart / trimWindow.duration) : 0) - width / 2
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.SizeHorCursor
-                        onPositionChanged: (m) => trimWindow.setStart(
-                            mapToItem(track, m.x, 0).x / track.width * trimWindow.duration)
-                    }
-                }
-                Rectangle {
-                    id: outHandle
-                    width: 12; height: 40; radius: 6
-                    color: Theme.accent; border.width: 2; border.color: Theme.background
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: track.x + (trimWindow.duration > 0
-                                  ? track.width * (trimWindow.trimEnd / trimWindow.duration) : 0) - width / 2
-                    MouseArea {
-                        anchors.fill: parent; cursorShape: Qt.SizeHorCursor
-                        onPositionChanged: (m) => trimWindow.setEnd(
-                            mapToItem(track, m.x, 0).x / track.width * trimWindow.duration)
+                // While one is dragged the preview seeks to it, so the frame on
+                // screen is the frame the cut will land on.
+                Repeater {
+                    model: 2
+                    Rectangle {
+                        id: handle
+                        required property int index
+                        readonly property bool isStart: index === 0
+                        x: timeline.xOf(isStart ? trimWindow.trimStart : trimWindow.trimEnd) - width / 2
+                        y: -5
+                        width: 10
+                        height: track.height + 10
+                        radius: 3
+                        color: trimWindow.activeHandle === (isStart ? 1 : 2)
+                               ? Qt.lighter(Theme.accent, 1.2) : Theme.accent
+                        border.width: 1
+                        border.color: Theme.background
+                        Rectangle {   // grip
+                            anchors.centerIn: parent
+                            width: 2; height: 14; radius: 1
+                            color: Theme.background
+                            opacity: 0.7
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -6      // fat target, thin handle
+                            cursorShape: Qt.SizeHorCursor
+                            preventStealing: true
+                            onPressed: {
+                                trimWindow.activeHandle = handle.isStart ? 1 : 2
+                                if (previewLoader.item)
+                                    previewLoader.item.pause()
+                            }
+                            onReleased: {
+                                trimWindow.activeHandle = 0
+                                trimWindow.seekTo(handle.isStart ? trimWindow.trimStart
+                                                                 : trimWindow.trimEnd)
+                            }
+                            onPositionChanged: (m) => {
+                                const t = timeline.timeAt(mapToItem(track, m.x, 0).x)
+                                if (handle.isStart) {
+                                    trimWindow.setStart(t)
+                                    trimWindow.scrubTo(trimWindow.trimStart)
+                                } else {
+                                    trimWindow.setEnd(t)
+                                    trimWindow.scrubTo(trimWindow.trimEnd)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -284,7 +485,15 @@ Window {
                 UIconButton {
                     iconName: (previewLoader.item && previewLoader.item.playing) ? "pause" : "play"
                     iconSize: 18
-                    onClicked: if (previewLoader.item) previewLoader.item.togglePlay()
+                    tooltip: qsTr("Play the selection (Space)")
+                    onClicked: trimWindow.playPause()
+                }
+                UIconButton {
+                    iconName: "media-repeat"
+                    iconSize: 18
+                    active: trimWindow.loopSelection
+                    tooltip: qsTr("Loop the selection (L)")
+                    onClicked: trimWindow.loopSelection = !trimWindow.loopSelection
                 }
                 UButton { compact: true; variant: "tonal"; text: qsTr("Set start (I)"); onClicked: trimWindow.setStart(trimWindow.playhead) }
                 UButton { compact: true; variant: "tonal"; text: qsTr("Set end (O)"); onClicked: trimWindow.setEnd(trimWindow.playhead) }
@@ -315,16 +524,67 @@ Window {
             }
 
             // Actions.
-            Row {
-                anchors.right: parent.right
-                spacing: Theme.spacingS
-                UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: trimWindow.close() }
-                UButton {
-                    text: qsTr("Save trimmed copy")
-                    enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
-                    onClicked: {
-                        App.trimRecording(trimSourcePath, trimWindow.trimStart, trimWindow.trimEnd)
-                        trimWindow.close()
+            Item {
+                width: parent.width
+                height: Math.max(saveRow.implicitHeight, cutMode.implicitHeight)
+
+                // How the file gets cut. Default (off) re-encodes the selection,
+                // which is the only way the saved frames match the preview
+                // exactly; a stream copy is instant but starts on a keyframe.
+                Row {
+                    id: cutMode
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    visible: !trimController.gif
+                    USwitch {
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: trimWindow.lossless
+                        onToggled: trimWindow.lossless = checked
+                    }
+                    Column {
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 1
+                        Text {
+                            text: qsTr("Fast lossless cut")
+                            color: Theme.textPrimary; font.pixelSize: Theme.fontS
+                        }
+                        Text {
+                            text: !trimWindow.lossless
+                                  ? qsTr("Off: the selection is re-encoded and starts on the exact frame.")
+                                  : (trimController.keyframeState === TrimController.Busy
+                                     ? qsTr("Reading keyframes…")
+                                     : (trimController.keyframeState === TrimController.Ready
+                                        ? qsTr("On: copies the streams, so the start snaps to a keyframe (ticks).")
+                                        : qsTr("No keyframes found — saving will re-encode instead.")))
+                            color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+                Text {
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width - saveRow.width - Theme.spacingL
+                    visible: trimController.gif
+                    wrapMode: Text.WordWrap
+                    text: qsTr("A GIF is always re-rendered, so the cut lands on the exact frame.")
+                    color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                }
+
+                Row {
+                    id: saveRow
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: trimWindow.close() }
+                    UButton {
+                        text: qsTr("Save trimmed copy")
+                        enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
+                        onClicked: {
+                            App.trimRecording(trimSourcePath, trimWindow.trimStart, trimWindow.trimEnd,
+                                              trimWindow.snapping)
+                            trimWindow.close()
+                        }
                     }
                 }
             }
@@ -351,6 +611,27 @@ Window {
             Component {
                 id: previewComp
                 VideoPreview { fileUrl: App.fileDragUri(trimSourcePath) }
+            }
+
+            // While a handle is being dragged the frame on screen IS the cut
+            // point — say which one, so the two are never confused.
+            Rectangle {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: Theme.spacingM
+                visible: trimWindow.activeHandle !== 0
+                width: edgeLabel.implicitWidth + 2 * Theme.spacingM
+                height: edgeLabel.implicitHeight + Theme.spacingS
+                radius: height / 2
+                color: Qt.rgba(0, 0, 0, 0.72)
+                Text {
+                    id: edgeLabel
+                    anchors.centerIn: parent
+                    text: trimWindow.activeHandle === 1
+                          ? qsTr("First frame · %1").arg(trimWindow.fmt(trimWindow.trimStart))
+                          : qsTr("Last frame · %1").arg(trimWindow.fmt(trimWindow.trimEnd))
+                    color: Theme.accent; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold
+                }
             }
 
             Text {

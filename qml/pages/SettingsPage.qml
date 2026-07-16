@@ -128,8 +128,13 @@ Item {
         target: App
         function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
     }
-    // Load once on open so a previously-saved node shows correctly instead of "Off".
-    Component.onCompleted: if (App.perAppAudioAvailable) page.refreshAppAudioNodes()
+    // Load once on open so persisted, non-reactive helper models are ready
+    // before their panes are visited.
+    Component.onCompleted: {
+        if (App.perAppAudioAvailable)
+            page.refreshAppAudioNodes()
+        page.rebuildNotifActionOrderModel()
+    }
     readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
     readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
     readonly property var taskDestinationIds: [""].concat(App.uploads.destinations.map(function(d) { return d.name }))
@@ -176,9 +181,9 @@ Item {
                                               qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right"),
                                               qsTr("Center")]
 
-    // The capture card's action buttons, in the order NotificationPopup.qml's
-    // ActionRow draws them. Ids and icons MUST match that file — it is the one
-    // that decides what a card shows; this list only names them for the UI.
+    // The capture card's action buttons. Ids and icons MUST match
+    // NotificationPopup.qml; notificationActionOrder only rearranges these
+    // descriptors and never becomes a second copy of their metadata.
     readonly property var notifActions: [
         { id: "edit",   iconName: "edit",         label: qsTr("Edit") },
         { id: "copy",   iconName: "edit-copy",    label: qsTr("Copy image") },
@@ -190,6 +195,57 @@ Item {
         { id: "trim",   iconName: "cut",          label: qsTr("Trim recording") },
         { id: "delete", iconName: "edit-delete",  label: qsTr("Delete") },
     ]
+    ListModel { id: notifActionOrderModel }
+    property bool notifActionDragActive: false
+
+    function notifActionIdsInOrder() {
+        const requested = App.settings.notificationActionOrder
+                          ? App.settings.notificationActionOrder.split(",") : []
+        const byId = {}
+        const out = []
+        for (let i = 0; i < notifActions.length; ++i)
+            byId[notifActions[i].id] = true
+        for (let j = 0; j < requested.length; ++j) {
+            const id = requested[j]
+            if (byId[id] && out.indexOf(id) < 0)
+                out.push(id)
+        }
+        for (let k = 0; k < notifActions.length; ++k)
+            if (out.indexOf(notifActions[k].id) < 0)
+                out.push(notifActions[k].id)
+        return out
+    }
+    function notifActionById(id) {
+        for (let i = 0; i < notifActions.length; ++i)
+            if (notifActions[i].id === id)
+                return notifActions[i]
+        return null
+    }
+    function rebuildNotifActionOrderModel() {
+        const ids = notifActionIdsInOrder()
+        notifActionOrderModel.clear()
+        for (let i = 0; i < ids.length; ++i)
+            notifActionOrderModel.append({ actionId: ids[i] })
+    }
+    function persistNotifActionOrderModel() {
+        const ids = []
+        for (let i = 0; i < notifActionOrderModel.count; ++i)
+            ids.push(notifActionOrderModel.get(i).actionId)
+        const csv = ids.join(",")
+        if (App.settings.notificationActionOrder !== csv)
+            App.settings.notificationActionOrder = csv
+        cardPreview.touch()
+    }
+    Connections {
+        target: App.settings
+        function onNotificationActionOrderChanged() {
+            // A drag owns the model until release. Its own setting write emits
+            // this signal synchronously, so rebuilding here would destroy the
+            // delegate while its pointer handler still holds the grab.
+            if (!page.notifActionDragActive)
+                page.rebuildNotifActionOrderModel()
+        }
+    }
     function notifActionHidden(id) {
         var csv = App.settings.hiddenNotifActions
         return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
@@ -1805,26 +1861,111 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
-                    Repeater {
-                        model: page.notifActions
+                    ListView {
+                        id: notifActionOrderList
+                        width: parent.width
+                        height: contentHeight
+                        interactive: false
+                        clip: false
+                        spacing: Theme.spacingS
+                        model: notifActionOrderModel
                         delegate: Item {
-                            width: parent.width
+                            id: actionRow
+                            required property string actionId
+                            required property int index
+                            readonly property var action: page.notifActionById(actionId)
+                            width: ListView.view.width
                             height: 40
+                            z: reorderDrag.active ? 10 : 0
+
+                            // ListModel.move() shifts the delegate's layout y.
+                            // Subtract that shift from the live pointer delta so
+                            // the dragged row stays under the hand while the
+                            // surrounding rows move out of its way.
+                            transform: Translate {
+                                y: reorderDrag.active
+                                   ? reorderDrag.activeTranslation.y
+                                     - (actionRow.index - reorderDrag.startIndex)
+                                       * (actionRow.height + notifActionOrderList.spacing)
+                                   : 0
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.radiusM
+                                color: reorderDrag.active
+                                       ? Theme.alpha(Theme.accent, 0.16)
+                                       : "transparent"
+                                border.width: reorderDrag.active ? 1 : 0
+                                border.color: Theme.accent
+                            }
                             Row {
                                 anchors.left: parent.left
                                 anchors.verticalCenter: parent.verticalCenter
                                 spacing: 10
-                                UIcon { name: modelData.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: modelData.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
+                                Item {
+                                    id: reorderHandle
+                                    width: 24
+                                    height: actionRow.height
+                                    UIcon {
+                                        anchors.centerIn: parent
+                                        name: "drag-handle"
+                                        size: 16
+                                        color: handleHover.hovered || reorderDrag.active
+                                               ? Theme.accent : Theme.textTertiary
+                                    }
+                                    HoverHandler {
+                                        id: handleHover
+                                        cursorShape: reorderDrag.active
+                                                     ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                    }
+                                    DragHandler {
+                                        id: reorderDrag
+                                        target: null
+                                        acceptedButtons: Qt.LeftButton
+                                        xAxis.enabled: false
+                                        property int startIndex: -1
+                                        onActiveChanged: {
+                                            if (active) {
+                                                startIndex = actionRow.index
+                                                page.notifActionDragActive = true
+                                            } else if (startIndex >= 0) {
+                                                page.persistNotifActionOrderModel()
+                                                page.notifActionDragActive = false
+                                                startIndex = -1
+                                            }
+                                        }
+                                        onActiveTranslationChanged: {
+                                            if (!active || startIndex < 0)
+                                                return
+                                            const step = actionRow.height + notifActionOrderList.spacing
+                                            const targetIndex = Math.max(0, Math.min(
+                                                notifActionOrderModel.count - 1,
+                                                startIndex + Math.round(activeTranslation.y / step)))
+                                            if (targetIndex !== actionRow.index)
+                                                notifActionOrderModel.move(actionRow.index, targetIndex, 1)
+                                        }
+                                    }
+                                    UHoverTip {
+                                        anchor: reorderHandle
+                                        text: qsTr("Drag to reorder")
+                                        show: handleHover.hovered && !reorderDrag.active
+                                    }
+                                }
+                                UIcon { name: actionRow.action.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
+                                Text { text: actionRow.action.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
                             }
                             USwitch {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
-                                checked: !page.notifActionHidden(modelData.id)
+                                checked: !page.notifActionHidden(actionRow.actionId)
                                 // Re-render the preview card: the point of switching
                                 // a button off is seeing what the card becomes.
-                                onToggled: (c) => { page.setNotifActionHidden(modelData.id, !c); cardPreview.touch() }
+                                onToggled: (c) => { page.setNotifActionHidden(actionRow.actionId, !c); cardPreview.touch() }
                             }
+                        }
+                        moveDisplaced: Transition {
+                            NumberAnimation { properties: "y"; duration: Theme.animFast; easing.type: Easing.OutCubic }
                         }
                     }
                 }
@@ -2273,13 +2414,6 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
                     HotkeyRow {
-                        label: qsTr("Quick task chooser")
-                        help: qsTr("One hotkey opens a compact capture-mode and action chooser.")
-                        helpDetail: qsTr("Choose full screen, region, window, GIF or video, and optionally override the screenshot's normal after-capture actions for this one run.")
-                        shortcuts: App.settings.hotkeyQuickTask
-                        onChanged: (t) => { App.settings.hotkeyQuickTask = t; App.applyHotkey("quick-task") }
-                    }
-                    HotkeyRow {
                         label: qsTr("Instant replay")
                         help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
                         helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
@@ -2529,7 +2663,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open a file…"); onClicked: App.openFileForEditing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
@@ -2542,6 +2679,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History drag payload"); onClicked: App.devTestHistoryDrag() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification drag payload"); onClicked: App.devTestNotificationDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
@@ -2565,6 +2704,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Per-app audio"); onClicked: App.devTestPerAppAudio() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Instant replay"); enabled: App.recordingAvailable; onClicked: App.devTestInstantReplay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim recording"); onClicked: App.devTestTrimRecording() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trim cut (exact + lossless)"); onClicked: App.devTestTrimCut() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }

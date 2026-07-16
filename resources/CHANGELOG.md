@@ -6,6 +6,46 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.7.1
+
+### English
+**Improved**
+- The **trim window now shows what you are cutting**: the timeline is a filmstrip of the recording, everything outside your selection is dimmed, and dragging a handle scrubs the preview to that exact frame.
+- **Play previews the cut, not the file** — playback stays inside the selection and loops it (**L** toggles the loop).
+- **History finds things now**: search by file name or link, and filter by images, GIFs, recordings, **instant-replay clips** (their own category — they are ordinary .mp4 files, so nothing but Unisic can tell them apart), starred or uploaded.
+- **Work on many captures at once** — click to select (**Ctrl** adds, **Shift** picks a range, **Ctrl + A** takes all), then star, copy the paths, upload or delete the whole selection in one go. Starred captures are still protected from deletion.
+- **The History grid takes the keyboard**: arrows move, **Enter** opens the floating preview, **Ctrl + C** copies, **Delete** deletes. Clicking a tile now opens the preview instead of doing nothing.
+- **Redesigned the tile actions**: they sit in a strip along the bottom edge on hover, so the thumbnail you are aiming at stays visible. Tiles fill the window width evenly, a floating date tells you where you are while scrolling, and each tile shows its size and dimensions — the date on a tile now shrinks to just a time for today's captures, so the details fit instead of being cut off.
+
+**Removed**
+- **The quick task chooser** (its own hotkey, by default Meta + Shift + Space) is gone: the tray icon's menu already offers every capture mode it did. An upgraded install drops the leftover key grab and its shortcut entry by itself.
+
+**Fixed**
+- **The smart eraser behaved like a smudge tool**: it filled the whole stroke with a single averaged colour, sampled from the stroke's own border — so it went grey wherever the border clipped the thing you were erasing, and left a visibly flat patch on any background that was not one solid colour. It now rebuilds the background from the pixels around the stroke — following a gradient through it, and ignoring whatever the stroke's edge happens to cut across, so scrubbing several overlapping strokes over a line of text leaves the background instead of smears and bright bands.
+- **The Callout tool wore the wrong icon** — a generic info symbol borrowed from the system icon theme instead of a speech bubble. It has its own icon now.
+- **Uploading to Imgur never worked**: the built-in destination shipped a placeholder Client-ID, so Imgur rejected every upload. Unisic now asks for your own Client-ID (Servers › Imgur › Edit — register a free one at api.imgur.com/oauth2/addclient), repairs the broken stored destination, and tells you what is missing instead of failing silently. Uploads stay anonymous — they never appear in the ID owner's gallery.
+- **Trimming a GIF produced the whole GIF**, ignoring the range you picked. GIFs are now re-rendered through the same palette pipeline a recording uses, so the cut lands on the frame you chose.
+- **A trimmed WebM started up to several seconds early**: cutting by stream copy can only start on a keyframe. Trimming now re-encodes the selection by default, so the saved file starts on the exact frame the window showed. The old instant copy is still there as **Fast lossless cut** — with it on, the start visibly snaps onto a keyframe (marked with ticks) so the preview keeps matching the file.
+
+### Polski
+**Ulepszone**
+- **Okno przycinania pokazuje, co tniesz**: oś czasu to pasek miniatur nagrania, wszystko poza zaznaczeniem jest przygaszone, a przeciąganie uchwytu przewija podgląd dokładnie do tej klatki.
+- **Odtwarzanie pokazuje wycinek, nie cały plik** — playback trzyma się zaznaczenia i zapętla je (**L** przełącza pętlę).
+- **W Historii da się wreszcie czegoś szukać**: po nazwie pliku albo linku, plus filtry — obrazy, GIF-y, nagrania, **klipy z instant replay** (osobna kategoria — to zwykłe pliki .mp4, więc nic poza Unisic ich nie odróżni), oznaczone, wysłane.
+- **Praca na wielu zrzutach naraz** — klikaj, żeby zaznaczać (**Ctrl** dokłada, **Shift** bierze zakres, **Ctrl + A** wszystko), a potem jednym ruchem oznacz, skopiuj ścieżki, wyślij albo usuń całe zaznaczenie. Zrzuty oznaczone nadal są chronione przed usunięciem.
+- **Siatka Historii słucha klawiatury**: strzałki przechodzą po kafelkach, **Enter** otwiera pływający podgląd, **Ctrl + C** kopiuje, **Delete** usuwa. Kliknięcie kafelka otwiera podgląd, zamiast nie robić nic.
+- **Przeprojektowane akcje na kafelku**: siedzą w pasku przy dolnej krawędzi po najechaniu, więc miniatura, w którą celujesz, zostaje widoczna. Kafelki równo wypełniają szerokość okna, pływająca data mówi, gdzie jesteś przy przewijaniu, a każdy kafelek pokazuje swój rozmiar i wymiary — data na kafelku kurczy się do samej godziny dla dzisiejszych zrzutów, więc szczegóły mieszczą się zamiast być ucinane.
+
+**Usunięte**
+- **Wybór szybkiego zadania** (osobny skrót, domyślnie Meta + Shift + Spacja) znika: menu ikony w zasobniku i tak daje wszystkie tryby przechwytywania, które oferował. Zaktualizowana instalacja sama zwalnia zostawiony skrót i usuwa jego wpis.
+
+**Naprawione**
+- **Inteligentna gumka działała jak rozmazywanie**: wypełniała całe pociągnięcie jednym uśrednionym kolorem, próbkowanym z własnej krawędzi — więc szarzała wszędzie tam, gdzie krawędź przecinała wymazywany obiekt, i zostawiała płaską łatę na każdym tle, które nie było jednolite. Teraz odbudowuje tło z pikseli wokół pociągnięcia — przeciąga przez nie gradient i ignoruje to, co krawędź pociągnięcia akurat przecina, więc kilka nachodzących pociągnięć po linijce tekstu zostawia tło, a nie smugi i jasne pasma.
+- **Narzędzie Dymek miało nie swoją ikonę** — ogólny symbol informacji pożyczony z systemowego motywu ikon zamiast dymka. Ma już własną.
+- **Wysyłka na Imgur nigdy nie działała**: wbudowana destynacja miała zaślepkę zamiast Client-ID, więc Imgur odrzucał każdy upload. Unisic prosi teraz o twój własny Client-ID (Serwery › Imgur › Edytuj — darmowy do zarejestrowania na api.imgur.com/oauth2/addclient), naprawia zepsutą zapisaną destynację i mówi, czego brakuje, zamiast po cichu zawodzić. Wysyłki pozostają anonimowe — nie trafiają do galerii właściciela ID.
+- **Przycinanie GIF-a zapisywało cały GIF**, ignorując wybrany zakres. GIF-y są teraz renderowane od nowa tym samym torem palety co nagrania, więc cięcie trafia w wybraną klatkę.
+- **Przycięty WebM zaczynał się nawet o kilka sekund za wcześnie**: cięcie przez kopiowanie strumienia może zacząć się tylko na klatce kluczowej. Przycinanie domyślnie przekodowuje zaznaczenie, więc zapisany plik zaczyna się na dokładnie tej klatce, którą pokazało okno. Dawne błyskawiczne kopiowanie zostaje jako **Szybkie cięcie bezstratne** — przy nim początek widocznie przeskakuje na klatkę kluczową (oznaczone kreskami), więc podgląd nadal zgadza się z plikiem.
+
 ## 0.7
 
 ### English

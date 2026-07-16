@@ -22,11 +22,36 @@
 #include <memory>
 
 // Imgur's anonymous image endpoint needs an "Authorization: Client-ID <id>"
-// header. Register a free application at https://api.imgur.com/oauth2/addclient
-// ("Anonymous usage without user authorisation") and drop the ID here — or edit
-// the "Imgur (anonymous)" destination in Settings to use your own. A shared ID
-// hits Imgur's per-app daily cap (~1250 uploads) across all users.
-static const char kImgurClientId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
+// header, and the ID is deliberately NOT compiled in: it identifies the
+// *application*, so one shipped ID would put every user's uploads on one
+// per-app daily cap (~1250) and leave whoever registered it answerable to
+// Imgur for what strangers upload. Each user registers their own at
+// https://api.imgur.com/oauth2/addclient ("Anonymous usage without user
+// authorisation") and pastes it into the destination (Destinations → Imgur).
+// Anonymous uploads are not tied to the ID owner's gallery.
+// Up to 0.7 the builtin shipped with a placeholder ID baked into the
+// Authorization header, which made every upload fail — the stored copy is
+// repaired in ensureBuiltins().
+static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
+static const char kImgurHost[] = "api.imgur.com";
+
+bool UploadManager::isImgur(const QJsonObject &dest)
+{
+    return QUrl(dest.value(QStringLiteral("requestUrl")).toString()).host()
+           == QLatin1String(kImgurHost);
+}
+
+// The Client-ID out of a destination's Authorization header ("Client-ID <id>"),
+// empty when unset or still the shipped placeholder.
+QString UploadManager::imgurClientId(const QJsonObject &dest)
+{
+    const QString auth = dest.value(QStringLiteral("headers")).toObject()
+                             .value(QStringLiteral("Authorization")).toString().trimmed();
+    if (!auth.startsWith(QLatin1String("Client-ID "), Qt::CaseInsensitive))
+        return {};
+    const QString id = auth.mid(10).trimmed();
+    return id == QLatin1String(kImgurPlaceholderId) ? QString() : id;
+}
 
 UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
@@ -133,12 +158,10 @@ void UploadManager::ensureBuiltins()
     // name. Point the setting at the default instead.
     if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st"))
         m_settings->setActiveDestination(QStringLiteral("catbox.moe"));
-    // Only ship the Imgur builtin once a real Client-ID is compiled in. With the
-    // placeholder it 403s on every upload, and since builtins are matched by name
-    // a later build with a real ID would never repair the stored destination — so
-    // don't create it at all until kImgurClientId is set.
-    if (qstrcmp(kImgurClientId, "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID") != 0
-        && !has(QStringLiteral("Imgur (anonymous)"))) {
+    // The Imgur builtin ships WITHOUT an Authorization header: the user pastes
+    // their own Client-ID (Destinations → Imgur). Until then startUpload() fails
+    // it fast with an actionable message instead of letting Imgur reject it.
+    if (!has(QStringLiteral("Imgur (anonymous)"))) {
         m_destinations.append(QJsonObject{
             {QStringLiteral("name"), QStringLiteral("Imgur (anonymous)")},
             {QStringLiteral("type"), QStringLiteral("http")},
@@ -148,10 +171,28 @@ void UploadManager::ensureBuiltins()
             {QStringLiteral("responseType"), QStringLiteral("json")},
             {QStringLiteral("urlPath"), QStringLiteral("$json:data.link$")},
             {QStringLiteral("deletionUrlPath"), QStringLiteral("https://imgur.com/delete/$json:data.deletehash$")},
-            {QStringLiteral("headers"), QJsonObject{{QStringLiteral("Authorization"),
-                QStringLiteral("Client-ID ") + QLatin1String(kImgurClientId)}}},
             {QStringLiteral("builtin"), true},
         });
+        changed = true;
+    }
+    // Repair configs written by 0.7 and earlier: the stored builtin carries the
+    // placeholder Client-ID, so every Imgur upload failed. Strip the dead header
+    // (leaving the destination visibly unconfigured) rather than dropping the
+    // destination — a user who pastes a real ID keeps their selection.
+    for (int i = 0; i < m_destinations.size(); ++i) {
+        QJsonObject d = m_destinations.at(i).toObject();
+        if (!d.value(QStringLiteral("builtin")).toBool() || !isImgur(d))
+            continue;
+        QJsonObject h = d.value(QStringLiteral("headers")).toObject();
+        if (!h.value(QStringLiteral("Authorization")).toString()
+                 .contains(QLatin1String(kImgurPlaceholderId)))
+            continue;
+        h.remove(QStringLiteral("Authorization"));
+        if (h.isEmpty())
+            d.remove(QStringLiteral("headers"));
+        else
+            d.insert(QStringLiteral("headers"), h);
+        m_destinations.replace(i, d);
         changed = true;
     }
     if (!has(QStringLiteral("uguu.se (48h)"))) {
@@ -455,6 +496,16 @@ void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
                                                     : destinationNamed(destination);
     if (dest.isEmpty()) {
         cb({}, {}, tr("No upload server configured"));
+        return;
+    }
+    // Imgur without a Client-ID is a guaranteed rejection (and the server answers
+    // 429/403 with no hint of what is actually missing), so say what to do here
+    // instead of spending the upload.
+    if (isImgur(dest) && imgurClientId(dest).isEmpty()) {
+        cb({}, {}, tr("Imgur needs your own Client-ID. Register a free application at "
+                      "https://api.imgur.com/oauth2/addclient (\"Anonymous usage without "
+                      "user authorisation\"), then paste the Client-ID into "
+                      "Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));

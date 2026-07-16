@@ -190,6 +190,9 @@ public:
     // exercises ONE path in isolation. Capture/record reuse the public entry
     // points; these three cover the non-capture paths with a throwaway image.
     Q_INVOKABLE void devTestNotification();
+    // Shows the card with a deliberately non-default order without changing
+    // the saved setting, so the ordered action row can be checked by eye.
+    Q_INVOKABLE void devTestNotificationOrder();
     // Drives the settings hover preview without a pointer: show, then withdraw
     // after 3 s exactly as leaving the row does.
     Q_INVOKABLE void devTestCardPreview();
@@ -199,6 +202,8 @@ public:
     Q_INVOKABLE void devTestEditFromHistory();
     Q_INVOKABLE void devTestHistoryDrag();
     Q_INVOKABLE void devTestNotificationDrag();
+    Q_INVOKABLE void devTestHistoryFilter();
+    Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestCopyLast();
     Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
@@ -232,6 +237,7 @@ public:
     Q_INVOKABLE void devTestPerAppAudio();
     Q_INVOKABLE void devTestInstantReplay();
     Q_INVOKABLE void devTestTrimRecording();
+    Q_INVOKABLE void devTestTrimCut();
     Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
     Q_INVOKABLE void devTestUpdateCheck();
@@ -302,8 +308,16 @@ public:
     // out of openFileForEditing so the routing is checkable without a dialog.
     static QString editableKindFor(const QString &path);
     Q_INVOKABLE void openTrimRecording(const QString &path);
-    Q_INVOKABLE void trimRecording(const QString &path, qreal startSeconds, qreal endSeconds);
-    Q_INVOKABLE void captureWithTask(const QString &mode, const QString &task);
+    // Write the selection to a new file next to the source.
+    // lossless=false (the default): the selection is re-encoded, so the cut
+    // lands on the exact frame the trim window previewed. lossless=true: a
+    // stream copy, which is instant but can only START on a keyframe — the trim
+    // window snaps its in-point onto one first (TrimController::snapStart), so
+    // what it showed is still what gets written. GIF ignores the flag: its
+    // demuxer cannot seek and stream-copying one produces a file that starts at
+    // 0 and ignores the range, so a GIF is always re-rendered.
+    Q_INVOKABLE void trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
+                                   bool lossless = false);
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
     Q_INVOKABLE void startVideoScreen();
@@ -430,7 +444,6 @@ signals:
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
-    void showQuickTaskChooserRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
@@ -476,6 +489,17 @@ private:
     // Export -> verify all properties serialized -> import back. Returns a
     // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
     QString settingsRoundTripCheck();
+    // Loads the QML singleton and verifies the complete editor/overlay letter
+    // mapping from the same ToolCatalog table the keyboard handlers consume.
+    QString toolShortcutsCheck() const;
+    // History search/filter model: seeds three entries covering every filter
+    // dimension, asserts each filter, then removes them again.
+    QString historyFilterCheck();
+    // Imgur is unusable without a per-user Client-ID: assert no stored
+    // destination kept the old shipped placeholder, and that an Imgur
+    // destination without an ID fails fast with a message that says what to do
+    // (instead of spending an upload on a 429 from Imgur).
+    QString imgurSetupCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
     // Idle gate for the automatic post-update restart: empty = safe to
@@ -523,8 +547,12 @@ private:
     bool nowInhibited() const;
     void setupTray();
     void defineHotkeys();
-    void onRecordingFinished(const QString &path);
-    void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind);
+    // fromInstantReplay travels from GifRecorder::finished down to the history
+    // entry's origin: the file is an .mp4 either way, so nothing downstream can
+    // work out which clips came out of the replay ring.
+    void onRecordingFinished(const QString &path, bool fromInstantReplay = false);
+    void finishRecordingEntry(const QString &path, const QImage &thumb, const QString &kind,
+                              bool fromInstantReplay = false);
     // Region recording marker: a transparent, click-through fullscreen surface
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame
@@ -556,6 +584,16 @@ private:
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
     void showTrimWindow(const QString &path, qreal duration);
+    // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
+    // the GIF cut chains two of these (palettegen, then paletteuse).
+    void runTrimStep(const QStringList &args,
+                     std::function<void(bool, const QString &)> done);
+    void trimGif(const QString &path, const QString &output, qreal start, qreal end);
+    // Dev harness: cut a generated clip both ways through the real trim path and
+    // report whether the files came out where the selection said they would,
+    // plus whether the timeline's filmstrip and keyframe table built. Async —
+    // `done` gets one summary line. Shared by the smoke test and its button.
+    void trimCutCheck(std::function<void(const QString &)> done);
     struct CaptureTask {
         bool active = false;
         bool save = false;
@@ -602,8 +640,11 @@ private:
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;
+    // At most one stylized capture card is visible. The next capture dismisses
+    // this object through its current host (layer-shell window or GNOME helper).
+    QPointer<CaptureNotification> m_activePopupNotif;
     QProcess *m_recordBorderHelper = nullptr;    // XWayland helper frame (GNOME path)
-    QList<QProcess *> m_notifHelpers;            // live GNOME capture-card helpers
+    QList<QProcess *> m_notifHelpers; // current + asynchronously retiring GNOME cards
     QRect m_pendingRecordRegion;   // physical px; set on a region record, else empty
     QPointer<QScreen> m_pendingRecordScreen;
     QMenu *m_trayMenu = nullptr; // setContextMenu does not take ownership

@@ -6,6 +6,8 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QImage>
+#include <QImageReader>
+#include <QLocale>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -193,6 +195,7 @@ void HistoryStore::load()
             o.value(QStringLiteral("kind")).toString(QStringLiteral("image")),
             QDateTime::fromString(o.value(QStringLiteral("ts")).toString(), Qt::ISODate),
             o.value(QStringLiteral("fav")).toBool(),
+            o.value(QStringLiteral("origin")).toString(),
         });
     }
 }
@@ -207,7 +210,7 @@ void HistoryStore::persistNow()
     m_persistTimer.stop();
     QJsonArray arr;
     for (const Entry &e : m_entries) {
-        arr.append(QJsonObject{
+        QJsonObject o{
             {QStringLiteral("file"), e.filePath},
             {QStringLiteral("thumb"), e.thumbPath},
             {QStringLiteral("url"), e.url},
@@ -215,7 +218,11 @@ void HistoryStore::persistNow()
             {QStringLiteral("kind"), e.kind},
             {QStringLiteral("ts"), e.timestamp.toString(Qt::ISODate)},
             {QStringLiteral("fav"), e.favorite},
-        });
+        };
+        // Absent for ordinary captures — the common entry stays as it was.
+        if (!e.origin.isEmpty())
+            o.insert(QStringLiteral("origin"), e.origin);
+        arr.append(o);
     }
     // QSaveFile: atomic rename-replace — a crash mid-write can no longer
     // truncate history.json to garbage.
@@ -231,6 +238,19 @@ int HistoryStore::rowCount(const QModelIndex &parent) const
     return parent.isValid() ? 0 : m_entries.size();
 }
 
+QString HistoryStore::categoryOf(const Entry &e)
+{
+    if (e.origin == QLatin1String("replay"))
+        return QStringLiteral("replay");
+    // Pre-0.7.1 entries have no origin: fall back to the name every replay
+    // export is given (GifRecorder writes "Unisic_Replay_<stamp>.mp4"), so the
+    // clips already in someone's history land in the right chip too.
+    if (e.kind == QLatin1String("video")
+        && QFileInfo(e.filePath).fileName().startsWith(QLatin1String("Unisic_Replay_")))
+        return QStringLiteral("replay");
+    return e.kind;
+}
+
 QVariant HistoryStore::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() >= m_entries.size())
@@ -244,6 +264,35 @@ QVariant HistoryStore::data(const QModelIndex &index, int role) const
     case KindRole: return e.kind;
     case TimestampRole: return e.timestamp;
     case FavoriteRole: return e.favorite;
+    case CategoryRole: return categoryOf(e);
+    case EntryIdRole: return e.id;
+    case SizeTextRole: {
+        // Formatted here, not in QML: QLocale knows the locale's decimal comma,
+        // and QML has no equivalent of formattedDataSize().
+        if (e.filePath.isEmpty())
+            return QString();
+        const qint64 bytes = QFileInfo(e.filePath).size();
+        if (bytes <= 0)
+            return QString();
+        // Precision by magnitude, so the tile's one meta line stays short enough
+        // to fit: "6,4 MiB" carries as much as anyone reads, "832,03 KiB" just
+        // pushes the file size out of the tile. formattedDataSize picks the unit
+        // itself — scale here only to decide how many decimals it deserves.
+        double scaled = double(bytes);
+        while (scaled >= 1024.0)
+            scaled /= 1024.0;
+        return QLocale().formattedDataSize(bytes, scaled < 10.0 ? 1 : 0);
+    }
+    case DimensionsRole: {
+        // Recordings would need a demux to answer; only images are cheap here.
+        if (e.kind != QLatin1String("image") || e.filePath.isEmpty())
+            return QString();
+        auto it = m_dimCache.constFind(e.filePath);
+        if (it == m_dimCache.constEnd())
+            it = m_dimCache.insert(e.filePath, QImageReader(e.filePath).size());
+        return it->isValid() ? QStringLiteral("%1×%2").arg(it->width()).arg(it->height())
+                             : QString();
+    }
     }
     return {};
 }
@@ -258,11 +307,16 @@ QHash<int, QByteArray> HistoryStore::roleNames() const
         {KindRole, "kind"},
         {TimestampRole, "timestamp"},
         {FavoriteRole, "favorite"},
+        {CategoryRole, "category"},
+        {EntryIdRole, "entryId"},
+        {SizeTextRole, "fileSizeText"},
+        {DimensionsRole, "dimensions"},
     };
 }
 
 quint64 HistoryStore::addEntry(const QString &filePath, const QImage &thumbSource,
-                               const QString &kind, const QString &url, const QString &deleteUrl)
+                               const QString &kind, const QString &url, const QString &deleteUrl,
+                               const QString &origin)
 {
     QString thumbPath;
     if (!thumbSource.isNull()) {
@@ -272,7 +326,8 @@ quint64 HistoryStore::addEntry(const QString &filePath, const QImage &thumbSourc
     }
     const quint64 id = m_nextId++;
     beginInsertRows({}, 0, 0);
-    m_entries.prepend({id, filePath, thumbPath, url, deleteUrl, kind, QDateTime::currentDateTime()});
+    m_entries.prepend({id, filePath, thumbPath, url, deleteUrl, kind,
+                       QDateTime::currentDateTime(), /*favorite=*/false, origin});
     endInsertRows();
     while (m_entries.size() > 500) {
         // Cap eviction spares favorites: evict the oldest non-favorite.
@@ -413,6 +468,75 @@ void HistoryStore::setFavorite(int row, bool favorite)
     m_entries[row].favorite = favorite;
     emit dataChanged(index(row), index(row), {FavoriteRole});
     persist();
+}
+
+QVariantMap HistoryStore::entryById(quint64 id) const
+{
+    for (const Entry &e : m_entries) {
+        if (e.id != id)
+            continue;
+        return QVariantMap{
+            {QStringLiteral("filePath"), e.filePath},
+            {QStringLiteral("thumbnail"), e.thumbPath},
+            {QStringLiteral("url"), e.url},
+            {QStringLiteral("deleteUrl"), e.deleteUrl},
+            {QStringLiteral("kind"), e.kind},
+            {QStringLiteral("timestamp"), e.timestamp},
+            {QStringLiteral("favorite"), e.favorite},
+        };
+    }
+    return {};
+}
+
+void HistoryStore::removeByIds(const QVariantList &ids)
+{
+    QSet<quint64> wanted;
+    for (const QVariant &v : ids)
+        wanted.insert(v.toULongLong());
+    if (wanted.isEmpty())
+        return;
+    // Back-to-front: removals must not shift the rows still to visit.
+    bool removed = false;
+    for (int i = m_entries.size() - 1; i >= 0; --i) {
+        // Copy: the entry dies inside the loop body.
+        const Entry e = m_entries.at(i);
+        if (!wanted.contains(e.id) || e.favorite) // starred: same gate as remove()
+            continue;
+        if (!e.filePath.isEmpty() && QFile::exists(e.filePath)) {
+            if (!QFile::moveToTrash(e.filePath))
+                emit fileTrashFailed(e.filePath);
+        }
+        beginRemoveRows({}, i, i);
+        QFile::remove(e.thumbPath);
+        m_entries.removeAt(i);
+        endRemoveRows();
+        removed = true;
+    }
+    if (!removed)
+        return;
+    // Once for the batch, not per entry: removeRow() would persist + rebuild the
+    // watches (and fire the trash cue) on every single deletion.
+    persistNow();
+    rebuildWatches();
+    emit countChanged();
+    emit entryTrashed();
+}
+
+void HistoryStore::setFavoriteByIds(const QVariantList &ids, bool favorite)
+{
+    QSet<quint64> wanted;
+    for (const QVariant &v : ids)
+        wanted.insert(v.toULongLong());
+    bool changed = false;
+    for (int i = 0; i < m_entries.size(); ++i) {
+        if (!wanted.contains(m_entries[i].id) || m_entries[i].favorite == favorite)
+            continue;
+        m_entries[i].favorite = favorite;
+        emit dataChanged(index(i), index(i), {FavoriteRole});
+        changed = true;
+    }
+    if (changed)
+        persist();
 }
 
 void HistoryStore::removeByFile(const QString &filePath)

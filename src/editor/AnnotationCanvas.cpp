@@ -1413,11 +1413,23 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         if (a.filled) p.setBrush(a.fillColor);
         p.drawPath(calloutPath(a.rect));
         break;
-    case SmartErase:
-        p.setPen(Qt::NoPen);
-        p.setBrush(a.color);
-        p.drawRect(a.rect.normalized());
+    case SmartErase: {
+        const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
+        if (r.width() >= 2 && r.height() >= 2) {
+            // Same patch cache as Blur (identical inputs → identical patch), and
+            // the same fast-while-dragging rule.
+            const bool wantFast = m_fxFast;
+            if (a.fxBaseKey != m_base.cacheKey() || a.fxRect != a.rect
+                || (a.fxFast && !wantFast)) {
+                a.fxPatch = smartErasePatch(r, wantFast);
+                a.fxBaseKey = m_base.cacheKey();
+                a.fxRect = a.rect;
+                a.fxFast = wantFast;
+            }
+            p.drawImage(r, a.fxPatch);
+        }
         break;
+    }
     case Text: {
         const QFont f = annotFontFor(a);
         p.setFont(f);
@@ -2048,30 +2060,192 @@ static QPointF shiftConstrainedPoint(AnnotationCanvas::Tool tool, const QPointF 
 
 // Samples the perimeter of `r` in the current base image and returns the
 // average color — the "background" a smart eraser fills the region with.
-QColor AnnotationCanvas::sampleEdgeColor(const QRectF &rf) const
+QImage AnnotationCanvas::smartErasePatch(const QRect &r, bool fast) const
 {
-    const QRect r = rf.normalized().toAlignedRect().intersected(m_base.rect());
-    if (r.width() < 2 || r.height() < 2 || m_base.isNull())
-        return QColor(Qt::white);
-    quint64 sr = 0, sg = 0, sb = 0, n = 0;
-    auto acc = [&](int x, int y) {
-        if (x < 0 || y < 0 || x >= m_base.width() || y >= m_base.height()) return;
-        const QColor c = m_base.pixelColor(x, y);
-        sr += c.red(); sg += c.green(); sb += c.blue(); ++n;
+    if (m_base.isNull() || r.width() < 1 || r.height() < 1)
+        return {};
+
+    // Built at a reduced resolution and upscaled: the patch is smooth by
+    // construction (it is an interpolation), so the rescale loses nothing while
+    // a rect the size of a 4K screen stays cheap to rebuild on every drag move.
+    const int W = qBound(2, r.width(), 192);
+    const int H = qBound(2, r.height(), 192);
+
+    // pixelColor(), not a converted copy: the base is normally
+    // ARGB32_Premultiplied, and converting the whole image up front would
+    // allocate and rewrite ~33 MB of a 4K capture on every drag move. Only ~11k
+    // pixels are ever sampled, and pixelColor un-premultiplies each one.
+    //
+    // One boundary sample = the per-channel MEDIAN of a small window just
+    // outside the rect (3 rows out × 5 along the edge). Median, not mean:
+    // whatever is being erased usually touches (or pokes through) the rect's
+    // edge, and a mean lets those pixels tint the whole fill — which is exactly
+    // what made this tool read as a smudge over the object instead of a clean
+    // background. `fast` samples one row instead of three during a drag.
+    auto boundary = [&](int x, int y, int nx, int ny) {
+        int rs[15], gs[15], bs[15];
+        int n = 0;
+        const int depth = fast ? 1 : 3;
+        for (int d = 1; d <= depth; ++d) {
+            for (int t = -2; t <= 2; ++t) {
+                // t runs ALONG the edge, d outward from it.
+                const int sx = qBound(0, x + nx * d + (nx ? 0 : t), m_base.width() - 1);
+                const int sy = qBound(0, y + ny * d + (ny ? 0 : t), m_base.height() - 1);
+                const QColor c = m_base.pixelColor(sx, sy);
+                rs[n] = c.red(); gs[n] = c.green(); bs[n] = c.blue();
+                ++n;
+            }
+        }
+        const int mid = n / 2;
+        std::nth_element(rs, rs + mid, rs + n);
+        std::nth_element(gs, gs + mid, gs + n);
+        std::nth_element(bs, bs + mid, bs + n);
+        return qRgb(rs[mid], gs[mid], bs[mid]);
     };
-    const int step = qMax(1, r.width() / 64);
-    for (int x = r.left(); x <= r.right(); x += step) {
-        acc(x, r.top()); acc(x, r.bottom());
-        acc(x, r.top() - 1); acc(x, r.bottom() + 1); // just outside, if available
+
+    // The four strips. Sampling is clamped into the image, so a rect flush with
+    // a screen edge falls back to its own edge pixels rather than off-image junk.
+    QVector<QRgb> top(W), bottom(W), left(H), right(H);
+    for (int i = 0; i < W; ++i) {
+        const int x = r.left() + int((i + 0.5) * r.width() / W);
+        top[i] = boundary(x, r.top(), 0, -1);
+        bottom[i] = boundary(x, r.bottom(), 0, 1);
     }
-    const int stepY = qMax(1, r.height() / 64);
-    for (int y = r.top(); y <= r.bottom(); y += stepY) {
-        acc(r.left(), y); acc(r.right(), y);
-        acc(r.left() - 1, y); acc(r.right() + 1, y);
+    for (int j = 0; j < H; ++j) {
+        const int y = r.top() + int((j + 0.5) * r.height() / H);
+        left[j] = boundary(r.left(), y, -1, 0);
+        right[j] = boundary(r.right(), y, 1, 0);
     }
-    if (!n)
-        return QColor(Qt::white);
-    return QColor(int(sr / n), int(sg / n), int(sb / n));
+
+    // Reject whatever is NOT background before interpolating anything. A stroke
+    // edge that cuts through the object being erased (scrubbing over a line of
+    // text is the normal case) leaves that object's colour in the strip on that
+    // side, and the interpolation below would then drag it right across the
+    // patch — smears and bright bands, worse than the flat fill this replaced.
+    // So: model the background as the median of the whole ring, call samples
+    // further than a MAD-derived band from it outliers, and rebuild those by
+    // interpolating along the strip between the inliers that bracket them. The
+    // ring is mostly background, so the object loses the vote.
+    QVector<QRgb *> strips{top.data(), bottom.data(), left.data(), right.data()};
+    QVector<int> sizes{W, W, H, H};
+    auto chan = [](QRgb c, int k) { return k == 0 ? qRed(c) : k == 1 ? qGreen(c) : qBlue(c); };
+
+    int med[3];
+    {
+        QVector<int> v;
+        v.reserve(2 * W + 2 * H);
+        for (int k = 0; k < 3; ++k) {
+            v.clear();
+            for (int s = 0; s < strips.size(); ++s)
+                for (int i = 0; i < sizes[s]; ++i)
+                    v.append(chan(strips[s][i], k));
+            std::nth_element(v.begin(), v.begin() + v.size() / 2, v.end());
+            med[k] = v[v.size() / 2];
+        }
+    }
+    auto deviation = [&](QRgb c) {
+        return qMax(qMax(qAbs(qRed(c) - med[0]), qAbs(qGreen(c) - med[1])),
+                    qAbs(qBlue(c) - med[2]));
+    };
+    double thr;
+    {
+        QVector<int> devs;
+        devs.reserve(2 * W + 2 * H);
+        for (int s = 0; s < strips.size(); ++s)
+            for (int i = 0; i < sizes[s]; ++i)
+                devs.append(deviation(strips[s][i]));
+        std::nth_element(devs.begin(), devs.begin() + devs.size() / 2, devs.end());
+        // 1.4826·MAD ≈ σ for normal noise; ×3 keeps ordinary texture and the
+        // spread of a gradient, and the floor keeps a perfectly flat ring from
+        // making every faint variation an outlier.
+        thr = qMax(24.0, 3.0 * 1.4826 * devs[devs.size() / 2]);
+    }
+    for (int s = 0; s < strips.size(); ++s) {
+        QRgb *a = strips[s];
+        const int n = sizes[s];
+        QVector<bool> ok(n);
+        int inliers = 0;
+        for (int i = 0; i < n; ++i) {
+            ok[i] = deviation(a[i]) <= thr;
+            inliers += ok[i] ? 1 : 0;
+        }
+        if (inliers == 0) {
+            // The whole side sits on the object (a stroke ending inside a big
+            // dark block): nothing to interpolate from, so take the ring's
+            // background estimate.
+            for (int i = 0; i < n; ++i)
+                a[i] = qRgb(med[0], med[1], med[2]);
+            continue;
+        }
+        int i = 0;
+        while (i < n) {
+            if (ok[i]) { ++i; continue; }
+            int end = i;
+            while (end < n && !ok[end])
+                ++end;
+            const int lo = i - 1;          // last inlier before the gap, or -1
+            const int hi = end < n ? end : -1;   // first inlier after it, or -1
+            for (int g = i; g < end; ++g) {
+                if (lo < 0) a[g] = a[hi];
+                else if (hi < 0) a[g] = a[lo];
+                else {
+                    const double t = double(g - lo) / (hi - lo);
+                    a[g] = qRgb(int(qRound((1 - t) * qRed(a[lo]) + t * qRed(a[hi]))),
+                                int(qRound((1 - t) * qGreen(a[lo]) + t * qGreen(a[hi]))),
+                                int(qRound((1 - t) * qBlue(a[lo]) + t * qBlue(a[hi]))));
+                }
+            }
+            i = end;
+        }
+    }
+
+    // Coons patch: interpolate the two opposite strips, then subtract the
+    // bilinear surface through the corners so the two agree at the border. On a
+    // flat background every sample is the same colour and the result is exactly
+    // that colour; on a gradient it follows the gradient, which one averaged
+    // fill colour could never do.
+    auto corner = [](QRgb a, QRgb b) {
+        return qRgb((qRed(a) + qRed(b)) / 2, (qGreen(a) + qGreen(b)) / 2,
+                    (qBlue(a) + qBlue(b)) / 2);
+    };
+    const QRgb c00 = corner(top[0], left[0]);
+    const QRgb c10 = corner(top[W - 1], right[0]);
+    const QRgb c01 = corner(bottom[0], left[H - 1]);
+    const QRgb c11 = corner(bottom[W - 1], right[H - 1]);
+
+    QImage patch(W, H, QImage::Format_RGB32);
+    for (int j = 0; j < H; ++j) {
+        const double v = (j + 0.5) / H;
+        QRgb *line = reinterpret_cast<QRgb *>(patch.scanLine(j));
+        for (int i = 0; i < W; ++i) {
+            const double u = (i + 0.5) / W;
+            int ch[3];
+            for (int k = 0; k < 3; ++k) {
+                const auto get = [k](QRgb c) {
+                    return k == 0 ? qRed(c) : k == 1 ? qGreen(c) : qBlue(c);
+                };
+                const double lr = (1 - u) * get(left[j]) + u * get(right[j]);
+                const double tb = (1 - v) * get(top[i]) + v * get(bottom[i]);
+                const double bilinear = (1 - u) * (1 - v) * get(c00) + u * (1 - v) * get(c10)
+                                        + (1 - u) * v * get(c01) + u * v * get(c11);
+                // Coons overshoots when the two rulings disagree — lr + tb can
+                // land past white (a bright band) or below black. Clamping to
+                // the four samples this pixel actually interpolates keeps the
+                // patch inside the colours that surround it; the boundary is
+                // unaffected, since there the formula already equals its strip.
+                const int lo = qMin(qMin(get(left[j]), get(right[j])),
+                                    qMin(get(top[i]), get(bottom[i])));
+                const int hi = qMax(qMax(get(left[j]), get(right[j])),
+                                    qMax(get(top[i]), get(bottom[i])));
+                ch[k] = qBound(lo, int(qRound(lr + tb - bilinear)), hi);
+            }
+            line[i] = qRgb(ch[0], ch[1], ch[2]);
+        }
+    }
+    if (patch.size() == r.size())
+        return patch;
+    return patch.scaled(r.size(), Qt::IgnoreAspectRatio,
+                        fast ? Qt::FastTransformation : Qt::SmoothTransformation);
 }
 
 void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
@@ -2156,12 +2330,10 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
             const QPointF endpoint = (e->modifiers() & Qt::ShiftModifier)
                                      ? shiftConstrainedPoint(m_current.type, m_dragStart, img) : img;
             m_current.rect.setBottomRight(endpoint);
-            // Smart eraser: show the sampled surrounding colour live instead of
-            // the opaque stroke colour (release re-samples for the final fill).
-            if (m_current.type == SmartErase)
-                m_current.color = sampleEdgeColor(m_current.rect);
-            if (m_current.type == Blur)
-                m_fxFast = true; // fast patch while sizing (see drawAnnot Blur)
+            // Fast patch while sizing (see drawAnnot Blur / SmartErase); the
+            // smooth one is rebuilt once the drag ends.
+            if (m_current.type == Blur || m_current.type == SmartErase)
+                m_fxFast = true;
             nowB = annotBoundsImg(m_current);
         }
         // Repaint only the union of the changed bounds and last frame's — a
@@ -2331,9 +2503,6 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
         const bool tiny = !isFreehandStroke(m_current) &&
                           QLineF(m_current.rect.topLeft(), m_current.rect.bottomRight()).length() < 3;
         if (!tiny) {
-            // Smart eraser: fill the region with the sampled surrounding color.
-            if (m_current.type == SmartErase)
-                m_current.color = sampleEdgeColor(m_current.rect);
             // Text-mode Highlight is a pen: snap the stroke to the per-line text
             // boxes it crossed (applyTextAwareHighlight appends its own annots +
             // one undo). Over a picture, or with no glyph boxes cached, it fails

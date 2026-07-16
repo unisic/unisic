@@ -382,7 +382,11 @@ private:
     // Undo coalescing for a repeated edit of the same (shape, property) within
     // a short window — a slider drag becomes one undo entry, not dozens.
     void pushUndoCoalesced(int propId);
-    QColor sampleEdgeColor(const QRectF &r) const;
+    // Smart eraser: rebuilds what the background under `r` most likely looked
+    // like, from the pixels AROUND r (never from r itself — the thing being
+    // erased is in there). Returns a patch the size of r; null for a degenerate
+    // rect or a null base.
+    QImage smartErasePatch(const QRect &r, bool fast) const;
 
     QImage m_base;
     QVector<Annot> m_items;

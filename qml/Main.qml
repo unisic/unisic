@@ -1,7 +1,6 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
-import QtQuick.Controls as C
 import Unisic
 import "components"
 import "pages"
@@ -123,95 +122,6 @@ Window {
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
                     && !App.recording && !App.converting)
                 Qt.quit()
-        }
-        function onShowQuickTaskChooserRequested() {
-            window.show()
-            window.raise()
-            window.requestActivate()
-            quickTask.open()
-        }
-    }
-
-    C.Popup {
-        id: quickTask
-        parent: C.Overlay.overlay
-        anchors.centerIn: parent
-        width: 520
-        padding: Theme.spacingL
-        modal: true
-        focus: true
-        closePolicy: C.Popup.CloseOnEscape | C.Popup.CloseOnPressOutside
-        property string mode: "region"
-        property var taskIds: ["default", "copy", "edit", "save", "upload"]
-        background: Rectangle {
-            radius: Theme.radiusXL
-            color: Theme.surfaceHi
-            border.width: 1
-            border.color: Theme.divider
-        }
-        contentItem: Column {
-            spacing: Theme.spacingM
-            Text {
-                text: qsTr("Quick task")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontXL
-                font.weight: Font.Bold
-            }
-            Text {
-                text: qsTr("Choose what to capture and what to do with this one result.")
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontM
-            }
-            Flow {
-                width: parent.width
-                spacing: Theme.spacingS
-                Repeater {
-                    model: [
-                        { id: "fullscreen", label: qsTr("Full screen") },
-                        { id: "region", label: qsTr("Region") },
-                        { id: "window", label: qsTr("Window") },
-                        { id: "gif", label: qsTr("GIF") },
-                        { id: "video", label: qsTr("Video") }
-                    ]
-                    delegate: UButton {
-                        compact: true
-                        variant: quickTask.mode === modelData.id ? "primary" : "tonal"
-                        text: modelData.label
-                        onClicked: quickTask.mode = modelData.id
-                    }
-                }
-            }
-            Row {
-                spacing: Theme.spacingM
-                Text {
-                    text: qsTr("Screenshot actions")
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontM
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                UComboBox {
-                    id: quickTaskActions
-                    width: 210
-                    enabled: quickTask.mode !== "gif" && quickTask.mode !== "video"
-                    model: [qsTr("Use global actions"), qsTr("Copy only"), qsTr("Edit only"), qsTr("Save only"), qsTr("Upload only")]
-                    currentIndex: 0
-                }
-            }
-            Row {
-                anchors.right: parent.right
-                spacing: Theme.spacingS
-                UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: quickTask.close() }
-                UButton {
-                    text: qsTr("Start")
-                    onClicked: {
-                        let mode = quickTask.mode
-                        let task = quickTask.taskIds[quickTaskActions.currentIndex]
-                        quickTask.close()
-                        window.hideToTray()
-                        App.captureWithTask(mode, task)
-                    }
-                }
-            }
         }
     }
 

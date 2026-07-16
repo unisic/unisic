@@ -196,6 +196,7 @@ QtObject {
     readonly property int radiusL: 18
     readonly property int radiusXL: 26
 
+    readonly property int spacingXS: 3
     readonly property int spacingS: 6
     readonly property int spacingM: 12
     readonly property int spacingL: 20

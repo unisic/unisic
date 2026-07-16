@@ -64,6 +64,15 @@ public:
     Q_INVOKABLE void removeDestination(const QString &name);
     Q_INVOKABLE QVariantMap destination(const QString &name) const;
 
+    // Imgur talks to a per-user Client-ID that the app deliberately does not
+    // ship (see the note in the .cpp). The destination list marks an Imgur
+    // destination without one as needing setup, and its editor swaps the raw
+    // headers JSON for a plain Client-ID field.
+    Q_INVOKABLE bool isImgurDestination(const QVariantMap &dest) const
+    { return isImgur(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE QString imgurClientIdOf(const QVariantMap &dest) const
+    { return imgurClientId(QJsonObject::fromVariantMap(dest)); }
+
     // Import a ShareX Custom Uploader (.sxcu) file. Accepts a plain path or a
     // file:// URL. Returns the imported destination's name on success, or an
     // empty string on failure (with errorOut set). Maps the common case:
@@ -99,6 +108,8 @@ private:
                      const QString &mime, const QString &destination, Callback cb);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
+    static bool isImgur(const QJsonObject &dest);
+    static QString imgurClientId(const QJsonObject &dest);
     void setBusy(bool b);
 
     Settings *m_settings;

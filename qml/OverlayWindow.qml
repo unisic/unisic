@@ -90,6 +90,15 @@ Window {
             if (!pick && shapesTools.length > 0) pick = shapesTools[0]
             if (pick) canvas.tool = pick.tool
         }
+        function activateToolShortcut(key) {
+            const picked = ToolCatalog.toolForShortcut(key, "overlay")
+            if (!picked)
+                return false
+            canvas.tool = picked.tool
+            if (picked.group)
+                currentShapeId = picked.id
+            return true
+        }
         function mainRowModel() {
             var out = []
             var seen = {}
@@ -195,22 +204,12 @@ Window {
                 else canvas.undo()
             } else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) {
                 canvas.redo()
-            } else if (annotationToolsEnabled && canvas.hasSelection && e.modifiers === Qt.NoModifier
-                       && (e.key === Qt.Key_T || e.key === Qt.Key_P || e.key === Qt.Key_L
-                           || e.key === Qt.Key_A || e.key === Qt.Key_R || e.key === Qt.Key_E
-                           || e.key === Qt.Key_B || e.key === Qt.Key_H || e.key === Qt.Key_M)) {
+            } else if (annotationToolsEnabled && canvas.hasSelection
+                       && e.modifiers === Qt.NoModifier
+                       && root.activateToolShortcut(e.key)) {
                 // Only switch to a drawing tool once a region exists — the region
                 // path needs tool==None to arm, so a tool press before selecting
                 // would trap the user unable to make a selection (toolbar hidden).
-                if (e.key === Qt.Key_T) canvas.tool = AnnotationCanvas.Text
-                else if (e.key === Qt.Key_P) canvas.tool = AnnotationCanvas.Pen
-                else if (e.key === Qt.Key_L) canvas.tool = AnnotationCanvas.Line
-                else if (e.key === Qt.Key_A) canvas.tool = AnnotationCanvas.Arrow
-                else if (e.key === Qt.Key_R) canvas.tool = AnnotationCanvas.Rect
-                else if (e.key === Qt.Key_E) canvas.tool = AnnotationCanvas.Ellipse
-                else if (e.key === Qt.Key_B) canvas.tool = AnnotationCanvas.Blur
-                else if (e.key === Qt.Key_H) canvas.tool = AnnotationCanvas.Highlight
-                else canvas.tool = AnnotationCanvas.Measure
             } else if (e.key === Qt.Key_Left)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? -10 : -1, 0) }
             else if (e.key === Qt.Key_Right)  { canvas.nudgeSelection(e.modifiers & Qt.ShiftModifier ? 10 : 1, 0) }
             else if (e.key === Qt.Key_Up)     { canvas.nudgeSelection(0, e.modifiers & Qt.ShiftModifier ? -10 : -1) }
@@ -461,7 +460,9 @@ Window {
                                           ? modelData.group.iconName
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
-                                label: modelData.kind === "group" ? modelData.group.label : modelData.tool.label
+                                label: modelData.kind === "group"
+                                       ? modelData.group.label
+                                       : ToolCatalog.labelWithShortcut(modelData.tool)
                                 active: modelData.kind === "group"
                                         ? root.shapesActive
                                         : canvas.tool === modelData.tool.tool
@@ -505,7 +506,7 @@ Window {
                         delegate: ToolChip {
                             iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                             iconStyle: App.settings.editorIconStyle
-                            label: modelData.label
+                            label: ToolCatalog.labelWithShortcut(modelData)
                             active: canvas.tool === modelData.tool
                             anchors.verticalCenter: parent.verticalCenter
                             onClicked: {

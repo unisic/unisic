@@ -28,8 +28,9 @@
 namespace NotifCard {
 
 // Transparent gutter around the card inside the surface, so the drop shadow is
-// not clipped. Both hosts size the window to card + 2*kPad and mask input to
-// the card, so the gutter never eats clicks meant for what is behind it.
+// not clipped. Both hosts size the window to card + 2*kPad. Layer-shell masks
+// input to the card; the GNOME helper deliberately keeps the gutter interactive
+// as an XWayland hover-exit moat (see NotificationHelper.cpp).
 inline constexpr int kPad = 16;
 
 inline QString normalizeStyle(const QString &style)
@@ -65,6 +66,7 @@ inline const QStringList &settingKeys()
         QStringLiteral("capturePopupDurationSec"),
         QStringLiteral("capturePopupMargin"),
         QStringLiteral("hiddenNotifActions"),
+        QStringLiteral("notificationActionOrder"),
     };
     return keys;
 }

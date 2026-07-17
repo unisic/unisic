@@ -786,8 +786,8 @@ Item {
                         hint: App.ocrAvailable ? ""
                               : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         label: qsTr("Detect languages automatically")
-                        help: qsTr("Recognize using every installed Tesseract language pack.")
-                        helpDetail: qsTr("No need to know Tesseract language codes — Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.")
+                        help: qsTr("Detects the script and recognizes with the matching language pack.")
+                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on — and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {

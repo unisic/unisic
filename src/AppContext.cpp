@@ -616,7 +616,7 @@ void AppContext::ocrImage(const QImage &img)
         return;
     }
     showToast(tr("Recognizing text…"));
-    m_ocr->recognize(img, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
+    m_ocr->recognize(img, effectiveOcrLanguages(), m_settings->ocrAutoLanguage(), [this](const QString &text, const QString &err) {
         if (!err.isEmpty())
             showToast(err);
         else if (text.isEmpty())
@@ -645,7 +645,7 @@ void AppContext::ocrBoxes(const QImage &img,
         cb({}, tr("Nothing to recognize"));
         return;
     }
-    m_ocr->recognizeBoxes(img, effectiveOcrLanguages(), std::move(cb));
+    m_ocr->recognizeBoxes(img, effectiveOcrLanguages(), m_settings->ocrAutoLanguage(), std::move(cb));
 #else
     Q_UNUSED(img);
     cb({}, tr("OCR is not available in this build"));
@@ -2486,13 +2486,35 @@ void AppContext::devTestOcrAutoLang()
         return;
 #ifdef HAVE_TESSERACT
     const QString detected = OcrEngine::detectedLanguages();
-    const QString effective = effectiveOcrLanguages();
-    showToast(tr("Dev: OCR auto language: %1 (installed: %2; using: %3)")
-                  .arg(detected.isEmpty() ? QStringLiteral("no langpacks found")
-                                          : QStringLiteral("PASS"),
-                       detected.isEmpty() ? QStringLiteral("none") : detected,
-                       effective),
-              detected.isEmpty());
+    // Pin the script→langpack mapping deterministically (no OSD traineddata
+    // needed): a distinct script narrows to its pack + eng, Latin/Cyrillic keep
+    // the full set. Uses a synthetic install list so the result is stable.
+    const QString avail = QStringLiteral("eng+pol+ara+jpn+heb+rus");
+    struct { const char *script; const char *want; } cases[] = {
+        {"Arabic", "eng+ara"}, {"Japanese", "eng+jpn"}, {"Hebrew", "eng+heb"},
+        {"Han", "eng+jpn"} /* no chi installed → nothing; falls to "" */,
+        {"Latin", ""}, {"Cyrillic", ""},
+    };
+    QString mapErr;
+    for (const auto &c : cases) {
+        const QString got = OcrEngine::languagesForScript(QLatin1String(c.script), avail);
+        // Han with no chi_* installed → "" (nothing to narrow to); accept that.
+        const QString want = (QLatin1String(c.script) == QLatin1String("Han"))
+                                 ? QString() : QString::fromLatin1(c.want);
+        if (got != want) {
+            mapErr = QStringLiteral("%1→'%2' (want '%3')")
+                         .arg(QLatin1String(c.script), got, want);
+            break;
+        }
+    }
+    const QString osd = OcrEngine::scriptDetectionAvailable()
+                            ? QStringLiteral("OSD ready") : QStringLiteral("no osd.traineddata");
+    const bool ok = !detected.isEmpty() && mapErr.isEmpty();
+    showToast(tr("Dev: OCR auto language: %1 (installed: %2; %3; map: %4)")
+                  .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
+                       detected.isEmpty() ? QStringLiteral("none") : detected, osd,
+                       mapErr.isEmpty() ? QStringLiteral("ok") : mapErr),
+              !ok);
 #else
     showToast(tr("Dev: OCR auto language: SKIP (built without tesseract)"));
 #endif
@@ -3781,11 +3803,23 @@ void AppContext::runSmokeTest()
 #ifdef HAVE_TESSERACT
         const QString detected = OcrEngine::detectedLanguages();
         const QString effective = effectiveOcrLanguages();
-        if (effective.isEmpty())
-            smokeLog(QStringLiteral("ocr auto language: FAIL (empty spec)"));
+        // Also pin the script→langpack narrowing (deterministic, no OSD data):
+        // a distinct script → its pack + eng; Latin/Cyrillic → keep the full set.
+        const QString av = QStringLiteral("eng+pol+ara+jpn");
+        const bool mapOk =
+            OcrEngine::languagesForScript(QStringLiteral("Arabic"), av) == QLatin1String("eng+ara")
+            && OcrEngine::languagesForScript(QStringLiteral("Japanese"), av) == QLatin1String("eng+jpn")
+            && OcrEngine::languagesForScript(QStringLiteral("Latin"), av).isEmpty()
+            && OcrEngine::languagesForScript(QStringLiteral("Cyrillic"), av).isEmpty();
+        if (effective.isEmpty() || !mapOk)
+            smokeLog(QStringLiteral("ocr auto language: FAIL (%1)")
+                         .arg(effective.isEmpty() ? QStringLiteral("empty spec")
+                                                  : QStringLiteral("script map")));
         else
-            smokeLog(QStringLiteral("ocr auto language: PASS (installed: %1; using: %2)")
-                         .arg(detected.isEmpty() ? QStringLiteral("none") : detected, effective));
+            smokeLog(QStringLiteral("ocr auto language: PASS (installed: %1; using: %2; script detect: %3)")
+                         .arg(detected.isEmpty() ? QStringLiteral("none") : detected, effective,
+                              OcrEngine::scriptDetectionAvailable() ? QStringLiteral("OSD")
+                                                                    : QStringLiteral("load-all (no osd pack)")));
 #else
         smokeLog(QStringLiteral("ocr auto language: SKIP (built without tesseract)"));
 #endif
@@ -3807,7 +3841,7 @@ void AppContext::runSmokeTest()
             p.setFont(f);
             p.drawText(t.rect(), Qt::AlignCenter, QStringLiteral("1234"));
         }
-        m_ocr->recognize(t, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
+        m_ocr->recognize(t, effectiveOcrLanguages(), m_settings->ocrAutoLanguage(), [this](const QString &text, const QString &err) {
             if (!err.isEmpty())
                 smokeLog(QStringLiteral("ocr recognize: FAIL (%1)").arg(err));
             else if (text.contains(QLatin1String("1234")))

@@ -161,7 +161,7 @@ jobs:
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kf6kguiaddons
+            kguiaddons
 
       - uses: actions/checkout@v4
 

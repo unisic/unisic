@@ -20,8 +20,8 @@
     <p>Features:</p>
     <ul>
       <li>Capture full screen (multi-monitor), an interactive region, or a specific window</li>
-      <li>Annotate on the overlay before the capture is finalized — ShareX-style</li>
-      <li>Post-capture editor: arrows, shapes, freehand, text, blur/pixelate, crop, numbered steps, highlight, object cutout with background removal, undo/redo</li>
+      <li>Annotate on the overlay before the capture is finalized</li>
+      <li>Post-capture editor: arrows, shapes, freehand, text, blur/pixelate, crop, numbered steps, highlight, smart eraser, magnifier loupe, undo/redo</li>
       <li>Record a region or the full screen to GIF, MP4 or WebM, with optional system and microphone audio</li>
       <li>Modular upload destinations (custom HTTP/FTP/SFTP/API), auto-copy the link, upload history</li>
       <li>Tray icon, configurable global hotkeys, and optional OCR to copy text out of a capture</li>
@@ -70,6 +70,16 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.7.1" date="2026-07-16">
+      <description>
+        <p>Adds a pixel loupe while selecting a region and a magnifier tool in the editor, and Ctrl+scroll now zooms at the cursor. The trim window shows a filmstrip of what you are cutting and plays only the selection. History gains search, filters, multi-select and full keyboard control. Fixes the smart eraser so it rebuilds the background instead of smudging, fixes GIF and WebM trimming, and makes Imgur upload work with your own Client-ID.</p>
+      </description>
+    </release>
+    <release version="0.7" date="2026-07-15">
+      <description>
+        <p>Trim recordings inside Unisic, keep a rolling instant-replay buffer, record per-application audio, and encode MP4 with a hardware VAAPI/NVENC encoder. Adds watermarks, a run-a-program-after-capture action, per-hotkey task presets, Measure and Callout annotation tools, and paste-image-onto-canvas. The editor now opens your own images and videos, not just Unisic captures. Removes the experimental Smart pick and U-2-Net background removal.</p>
+      </description>
+    </release>
     <release version="0.6.4" date="2026-07-12">
       <description>
         <p>Fixes capture on GNOME: region and fullscreen screenshots work silently again even after a previously denied permission dialog. The release page now carries ready-to-install rpm packages for Fedora, openSUSE Tumbleweed and Leap 15.6, each registering its update repository on first install. Also fixes building on openSUSE Leap 15.6.</p>

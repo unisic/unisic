@@ -58,7 +58,7 @@ The application is written using C++17/20, Qt6 (Core, Quick, QML, DBus, Concurre
 * wlr-screencopy via `grim` subprocess on niri/wlroots compositors
 * PipeWire for screen recording streams
 * ffmpeg subprocess for GIF/video encoding (two-pass GIF palette, MP4/WebM)
-* Uploaders: custom HTTP, ShareX-import, FTP/SFTP, built-in hosts
+* Uploaders: custom HTTP, .sxcu import, FTP/SFTP, built-in hosts
 
 TARGETS
 

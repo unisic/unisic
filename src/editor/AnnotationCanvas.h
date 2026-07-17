@@ -84,6 +84,14 @@ class AnnotationCanvas : public QQuickPaintedItem
     Q_PROPERTY(bool ocrMode READ ocrMode WRITE setOcrMode NOTIFY ocrChanged)
     Q_PROPERTY(bool ocrBusy READ ocrBusy NOTIFY ocrChanged)
     Q_PROPERTY(bool hasOcrSelection READ hasOcrSelection NOTIFY ocrChanged)
+    // Pixel loupe (region overlay): a panel following the cursor
+    // with a magnified pixel grid, the hovered pixel highlighted and a
+    // position/colour readout — so the user sees the exact pixel a selection
+    // edge lands on. Drawn only while picking a region (selectionMode, no
+    // tool). Ctrl+scroll adjusts the zoom (wheelEvent). UI chrome only: it is
+    // never part of rendered()/renderedSelection().
+    Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
+    Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
 
 public:
     enum Tool {
@@ -94,7 +102,9 @@ public:
         EditShapes,  // 14 — select a placed annotation to move/resize/restyle/delete it
         PastedImage, // 15 — editor-only image inserted from the system clipboard
         Callout,     // 16 — speech-bubble shape; text is added with the text tool
-        Measure      // 17 — distance/angle ruler retained in the export
+        Measure,     // 17 — distance/angle ruler retained in the export
+        Magnify,     // 18 — loupe: enlarged copy of a dragged source region
+        Eyedropper   // 19 — click a pixel to adopt its colour as the stroke colour
     };
     Q_ENUM(Tool)
 
@@ -226,6 +236,14 @@ public:
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
+    bool pixelLoupe() const { return m_pixelLoupe; }
+    void setPixelLoupe(bool on);
+    int pixelLoupeZoom() const { return m_pixelLoupeZoom; }
+    void setPixelLoupeZoom(int z);
+    // The loupe panel's item-space rect for the current hover point (empty when
+    // the loupe is inactive) — public so placement/flip logic is testable.
+    QRectF pixelLoupeRect() const;
+
     // Final composite at full image resolution (annotations burnt in).
     QImage rendered() const;
     // rendered() cropped to the selection (overlay flow).
@@ -274,6 +292,8 @@ signals:
     // yet — the editor answers by OCR-ing the base and calling setGlyphBoxes().
     void glyphBoxesRequested();
     void highlightModeChanged();
+    void pixelLoupeChanged();
+    void pixelLoupeZoomChanged();
 
 protected:
     void mousePressEvent(QMouseEvent *e) override;
@@ -281,6 +301,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent *e) override;
     void mouseDoubleClickEvent(QMouseEvent *e) override;
     void hoverMoveEvent(QHoverEvent *e) override;
+    void hoverLeaveEvent(QHoverEvent *e) override;
     void wheelEvent(QWheelEvent *e) override;
     void geometryChange(const QRectF &n, const QRectF &o) override;
 
@@ -296,6 +317,9 @@ private:
         int arrowHeadStyle = 0;      // 0 filled, 1 open, 2 both ends
         QString text;               // Text tool: may contain '\n' (multi-line)
         QImage image;                // PastedImage: implicitly shared, image-pixel space
+        // Magnify: the source region whose pixels the loupe shows; `rect` is
+        // the destination. Empty while the source is still being dragged out.
+        QRectF srcRect;
         int fontSize = 18;
         QString fontFamily;         // empty = default UI font
         bool bold = true;
@@ -429,6 +453,15 @@ private:
     bool m_confirmOnRelease = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
+    // Pixel loupe (see the Q_PROPERTYs). m_hoverInside gates it to the screen
+    // the pointer is actually on — each monitor's overlay has its own canvas,
+    // and a stale loupe must not linger where the pointer left.
+    bool m_pixelLoupe = false;
+    int m_pixelLoupeZoom = 8;
+    bool m_hoverInside = false;
+    bool loupeActive() const;
+    int loupeGridCells() const;
+    void updateLoupeRegion(const QRectF &before);
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
     // Pen straight-line: while Shift is held mid-stroke, the freehand tail is
     // replaced by a single straight segment from this committed anchor index to

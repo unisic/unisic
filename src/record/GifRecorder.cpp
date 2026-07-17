@@ -119,7 +119,49 @@ static QString restoreTokenKey(GifRecorder::SourceType source, QScreen *screen)
 
 int GifRecorder::elapsedSeconds() const
 {
-    return m_elapsed.isValid() ? int(m_elapsed.elapsed() / 1000) : 0;
+    if (!m_elapsed.isValid())
+        return 0;
+    // The readout shows RECORDED time, not wall-clock: it freezes at the moment
+    // of a pause and excludes every completed pause, matching the final file
+    // (which has the paused spans excised).
+    const qint64 base = m_paused ? m_pauseStartMs : m_elapsed.elapsed();
+    return int(qMax<qint64>(0, base - m_pausedTotalMs) / 1000);
+}
+
+void GifRecorder::togglePause()
+{
+    if (m_paused) {
+        if (m_state != Recording)
+            return;
+        const qint64 now = m_elapsed.elapsed();
+        m_pauseIntervals.append({m_pauseStartMs, now});
+        m_pausedTotalMs += now - m_pauseStartMs;
+        m_paused = false;
+        m_elapsedTick.start();
+        if (m_maxRemainingMs > 0) {
+            m_maxTimer.start(int(m_maxRemainingMs));
+            m_maxRemainingMs = 0;
+        }
+        emit pausedChanged();
+        emit elapsedChanged();
+    } else {
+        if (!canPause())
+            return;
+        m_paused = true;
+        m_pauseStartMs = m_elapsed.elapsed();
+        // Freeze the recorded-time readout and hold the max-duration budget so a
+        // long pause can't trip the auto-stop.
+        m_elapsedTick.stop();
+        if (m_maxTimer.isActive()) {
+            // remainingTime() truncates to int ms and reads 0 for an overdue-but-
+            // undispatched timer; clamp so resume still re-arms (and immediately
+            // trips the already-exhausted budget) instead of losing the auto-stop.
+            m_maxRemainingMs = qMax(1, m_maxTimer.remainingTime());
+            m_maxTimer.stop();
+        }
+        emit pausedChanged();
+        emit elapsedChanged();
+    }
 }
 
 void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysical, QScreen *screen,
@@ -329,6 +371,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const int fps = qBound(1, m_output == Gif ? m_settings->gifFps() : m_settings->videoFps(), 60);
     m_fps = fps;
     m_framesWritten = 0;
+    m_paused = false;
+    m_pauseStartMs = 0;
+    m_pausedTotalMs = 0;
+    m_maxRemainingMs = 0;
+    m_pauseIntervals.clear();
     const QString ext = m_output == Gif ? QStringLiteral("gif")
                       : m_output == WebM ? QStringLiteral("webm")
                                          : QStringLiteral("mp4");
@@ -545,10 +592,14 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         if (m_output == Replay) {
             cleanup();
             emit finished({});
-        } else if (m_output == Gif)
-            convertToGif();
-        else
-            convertVideo();
+        } else {
+            maybeExcisePauses([this] {
+                if (m_output == Gif)
+                    convertToGif();
+                else
+                    convertVideo();
+            });
+        }
     });
     auto *encoder = m_ffmpeg;
     encoder->start(QStringLiteral("ffmpeg"), args);
@@ -630,7 +681,11 @@ void GifRecorder::sampleFrame()
     QByteArray frame;
     QByteArray encoded;
     quint64 seq = 0;
-    if (m_grabber->latestFrame(frame, &seq) && frame.size() == expected) {
+    // While paused, don't pull new frames: keep the pacing running (so video and
+    // audio stay wall-clock-aligned in the intermediate) but repeat the last
+    // frame — the whole paused span is excised later, so its content is moot and
+    // a freeze is the cheapest thing to encode.
+    if (!m_paused && m_grabber->latestFrame(frame, &seq) && frame.size() == expected) {
         if (seq == m_lastSampledSeq && !m_lastFrame.isEmpty()) {
             // Compositor streams are damage-driven: on a static screen no new
             // frame arrives, and re-cropping the identical buffer every tick
@@ -702,6 +757,13 @@ void GifRecorder::stop()
         if (m_state == Starting)
             fail(QStringLiteral("cancelled"));
         return;
+    }
+    // Stopped while paused: close the open span so its frozen tail (and the audio
+    // that kept flowing under it) is excised like any other pause.
+    if (m_paused) {
+        m_pauseIntervals.append({m_pauseStartMs, m_elapsed.elapsed()});
+        m_paused = false;
+        emit pausedChanged();
     }
     m_state = Converting;
     m_sampler.stop();
@@ -855,6 +917,102 @@ void GifRecorder::saveInstantReplay()
                     QStringLiteral("-c:a"), QStringLiteral("aac"),
                     QStringLiteral("-b:a"), QStringLiteral("192k"),
                     QStringLiteral("-movflags"), QStringLiteral("+faststart"), out});
+}
+
+QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &output,
+                                         const QList<QPair<qint64, qint64>> &intervalsMs,
+                                         bool hasAudio)
+{
+    // keep = a frame/sample whose timestamp is NOT inside any paused [t0,t1]
+    // wall-clock span. Cutting the SAME ranges from video and audio preserves
+    // their sync (both shift back by the cut length); setpts/asetpts restamp the
+    // survivors onto a gapless timeline, so the container duration is the
+    // recorded (un-paused) length. Commas inside the expression are protected by
+    // the surrounding single quotes (there is no shell — ffmpeg sees them raw).
+    QStringList inside;
+    for (const auto &iv : intervalsMs) {
+        inside << QStringLiteral("between(t,%1,%2)")
+                      .arg(iv.first / 1000.0, 0, 'f', 3)
+                      .arg(iv.second / 1000.0, 0, 'f', 3);
+    }
+    const QString keep = QStringLiteral("not(%1)").arg(inside.join(QLatin1Char('+')));
+    const QString vf = QStringLiteral("select='%1',setpts=N/FRAME_RATE/TB").arg(keep);
+    const QString af = QStringLiteral("aselect='%1',asetpts=N/SR/TB").arg(keep);
+
+    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                     QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-i"), input,
+                     QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                     QStringLiteral("-vf"), vf};
+    // Re-encode losslessly with the same RGB codec the intermediate used, so the
+    // final conversion is bit-for-bit unaffected by the excise pass.
+    const QSet<QString> &encoders = ffmpegEncoders();
+    if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty())
+        args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
+             << QStringLiteral("-preset") << QStringLiteral("ultrafast")
+             << QStringLiteral("-qp") << QStringLiteral("0");
+    else if (encoders.contains(QStringLiteral("utvideo")))
+        args << QStringLiteral("-c:v") << QStringLiteral("utvideo");
+    else
+        args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
+    if (hasAudio)
+        args << QStringLiteral("-map") << QStringLiteral("0:a:0?")
+             << QStringLiteral("-af") << af
+             << QStringLiteral("-c:a") << QStringLiteral("flac");
+    args << output;
+    return args;
+}
+
+void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
+{
+    if (m_pauseIntervals.isEmpty()) {
+        thenConvert();
+        return;
+    }
+
+    const QString excised = m_tempPath + QStringLiteral(".cut.mkv");
+    QFile::remove(excised);
+    const QStringList args = pauseExciseArgs(m_tempPath, excised, m_pauseIntervals, m_hasAudio);
+
+    auto *conv = new QProcess(this);
+    m_converter = conv;
+    conv->setProcessChannelMode(QProcess::MergedChannels);
+    connect(conv, &QProcess::finished, this,
+            [this, conv, excised, thenConvert](int code, QProcess::ExitStatus status) {
+        if (m_converter != conv)
+            return;
+        const QByteArray out = conv->readAll();
+        m_converter = nullptr;
+        conv->deleteLater();
+        if (code != 0 || status == QProcess::CrashExit || !QFile::exists(excised)) {
+            qWarning() << out;
+            QFile::remove(excised);
+            QFile::remove(m_tempPath);
+            fail(tr("Removing the paused sections failed"));
+            return;
+        }
+        QFile::remove(m_tempPath);
+        m_tempPath = excised; // conversion now reads the paused-sections-removed file
+        thenConvert();
+    });
+    connect(conv, &QProcess::errorOccurred, this,
+            [this, conv, excised](QProcess::ProcessError error) {
+        if (m_converter != conv || error != QProcess::FailedToStart)
+            return;
+        m_converter = nullptr;
+        conv->deleteLater();
+        QFile::remove(excised);
+        QFile::remove(m_tempPath);
+        fail(tr("ffmpeg could not be started. Is it installed?"));
+    });
+    conv->start(QStringLiteral("ffmpeg"), args);
+    if (!conv->waitForStarted(3000) && m_converter == conv) {
+        m_converter = nullptr;
+        conv->deleteLater();
+        QFile::remove(excised);
+        QFile::remove(m_tempPath);
+        fail(tr("ffmpeg could not be started. Is it installed?"));
+    }
 }
 
 void GifRecorder::convertToGif()
@@ -1128,6 +1286,17 @@ void GifRecorder::abort()
 void GifRecorder::cleanup()
 {
     m_state = Idle;
+    // Return the exposed pause state to un-paused on EVERY termination (a fail()
+    // while paused reaches here via abort() without going through togglePause),
+    // so recordingPaused() can't report a stale "paused" after we go Idle.
+    if (m_paused) {
+        m_paused = false;
+        emit pausedChanged();
+    }
+    m_pauseStartMs = 0;
+    m_pausedTotalMs = 0;
+    m_maxRemainingMs = 0;
+    m_pauseIntervals.clear();
     m_tempPath.clear();
     m_palettePath.clear();
     m_outPath.clear();

@@ -10,7 +10,7 @@ class QQuickWindow;
 class QScreen;
 class AppContext;
 
-// ShareX-style region selection: freezes every screen (one capture per
+// Region selection: freezes every screen (one capture per
 // monitor), shows a fullscreen frameless window per screen rendering the
 // frozen image with an AnnotationCanvas in selection mode, and returns the
 // annotated crop. Also used (selection only) to pick a GIF recording region.

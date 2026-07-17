@@ -89,6 +89,8 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
+    Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
+    Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
@@ -111,6 +113,7 @@ class Settings : public QObject
     Q_PROPERTY(QString hiddenNotifActions READ hiddenNotifActions WRITE setHiddenNotifActions NOTIFY hiddenNotifActionsChanged)
     Q_PROPERTY(QString notificationActionOrder READ notificationActionOrder WRITE setNotificationActionOrder NOTIFY notificationActionOrderChanged)
     Q_PROPERTY(bool muteOnFullscreen READ muteOnFullscreen WRITE setMuteOnFullscreen NOTIFY muteOnFullscreenChanged)
+    Q_PROPERTY(bool ocrAutoLanguage READ ocrAutoLanguage WRITE setOcrAutoLanguage NOTIFY ocrAutoLanguageChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
@@ -234,6 +237,15 @@ public:
         }
         if (migratedGeneral)
             m_s.sync();
+        // OCR auto-language defaults ON for fresh installs, but must not override
+        // a spec an upgraded user deliberately pinned before this setting existed:
+        // if ocr/languages was written (only happens when the user edited it) and
+        // ocr/autoLanguage is absent, keep the manual spec by seeding it OFF.
+        if (m_s.contains(QStringLiteral("ocr/languages"))
+            && !m_s.contains(QStringLiteral("ocr/autoLanguage"))) {
+            m_s.setValue(QStringLiteral("ocr/autoLanguage"), false);
+            m_s.sync();
+        }
         // Writability probe: round-trip a marker through a fresh reader.
         m_s.setValue(QStringLiteral("_probe"), 1);
         m_s.sync();
@@ -365,6 +377,11 @@ public:
     // Crosshair guide lines from the cursor to the screen edges while selecting a
     // region (screenshot AND recording overlay). Off by default.
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
+    // Pixel loupe on the region overlay: a magnifier by the cursor
+    // showing the exact pixel the selection edge will land on. Zoom is the
+    // magnification factor (even, 4–16), adjusted with Ctrl+scroll live.
+    U_SETTING(bool, pixelLoupe, setPixelLoupe, "capture/pixelLoupe", true)
+    U_SETTING(int, pixelLoupeZoom, setPixelLoupeZoom, "capture/pixelLoupeZoom", 8)
     // Region overlay: a plain CLICK selects the detected object (window,
     // panel, image) under the cursor; dragging still draws a manual rect.
     // EXPERIMENTAL (default off): pure-pixel detection cannot recognize every
@@ -417,6 +434,11 @@ public:
     // Do-Not-Disturb, or screen sharing). OFF by default — the card is feedback
     // for your own deliberate capture, so it should normally show regardless.
     U_SETTING(bool, muteOnFullscreen, setMuteOnFullscreen, "muteOnFullscreen", false)
+    // Auto-detect OCR languages: recognize using every installed Tesseract
+    // langpack (osd/equ dropped) instead of the fixed `ocrLanguages` spec. ON by
+    // default so OCR works without the user knowing Tesseract language codes;
+    // turn it off to pin a specific, faster spec.
+    U_SETTING(bool, ocrAutoLanguage, setOcrAutoLanguage, "ocr/autoLanguage", true)
     U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
@@ -485,6 +507,7 @@ public:
         emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
         emit editorResetColorsChanged(); emit editorResetToolsChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
+        emit pixelLoupeChanged(); emit pixelLoupeZoomChanged();
         emit captureOnReleaseChanged();
         emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
@@ -571,6 +594,8 @@ signals:
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();
+    void pixelLoupeChanged();
+    void pixelLoupeZoomChanged();
     void captureOnReleaseChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();
@@ -593,6 +618,7 @@ signals:
     void hiddenNotifActionsChanged();
     void notificationActionOrderChanged();
     void muteOnFullscreenChanged();
+    void ocrAutoLanguageChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();
     void editorToolIconsChanged();

@@ -41,6 +41,15 @@ Window {
     // Which handle the pointer is dragging (0 none, 1 in, 2 out) — the preview
     // follows it, so you always see the frame you are placing.
     property int activeHandle: 0
+    // One source frame, in seconds (ffprobe avg_frame_rate; 30 fps fallback).
+    // ffmpeg's -t and the GIF trim filter treat the out-point as the first
+    // EXCLUDED frame, so "the last frame" previews half a frame before it —
+    // the frame the saved file really ends on, not the one after it.
+    readonly property real frameDur: trimController.frameDuration > 0.0001
+                                     ? trimController.frameDuration : 1 / 30
+    function endPreviewTime() {
+        return Math.max(trimStart, trimEnd - frameDur / 2)
+    }
 
     function fmt(s) {
         if (isNaN(s) || s < 0) s = 0
@@ -124,7 +133,7 @@ Window {
                 Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimStart) })
             } else {
                 item.pause()
-                Qt.callLater(function() { trimWindow.seekTo(trimWindow.trimEnd) })
+                Qt.callLater(function() { trimWindow.seekTo(trimWindow.endPreviewTime()) })
             }
         }
     }
@@ -177,7 +186,7 @@ Window {
             case Qt.Key_Left: seekTo(playhead - (e.modifiers & Qt.ShiftModifier ? 5 : 1)); e.accepted = true; break
             case Qt.Key_Right: seekTo(playhead + (e.modifiers & Qt.ShiftModifier ? 5 : 1)); e.accepted = true; break
             case Qt.Key_Home: seekTo(trimWindow.trimStart); e.accepted = true; break
-            case Qt.Key_End: seekTo(trimWindow.trimEnd); e.accepted = true; break
+            case Qt.Key_End: seekTo(trimWindow.endPreviewTime()); e.accepted = true; break
             case Qt.Key_L: trimWindow.loopSelection = !trimWindow.loopSelection; e.accepted = true; break
             }
         }
@@ -369,9 +378,29 @@ Window {
                         border.color: Theme.accent
                     }
 
-                    // Where a lossless cut can actually start.
+                    // Where a lossless cut can actually start. The FULL table
+                    // stays in trimController for snapping; the visible ticks
+                    // are decimated to the timeline's pixel resolution — an
+                    // all-intra or short-GOP clip has a keyframe per frame, and
+                    // a Rectangle per entry froze the UI on long recordings.
+                    readonly property var visibleKeyframes: {
+                        if (!trimWindow.snapping || track.width <= 0)
+                            return []
+                        const kfs = trimController.keyframes
+                        const minPx = 3
+                        const out = []
+                        let lastX = -minPx
+                        for (let i = 0; i < kfs.length; ++i) {
+                            const x = timeline.xOf(kfs[i])
+                            if (x - lastX >= minPx) {
+                                out.push(kfs[i])
+                                lastX = x
+                            }
+                        }
+                        return out
+                    }
                     Repeater {
-                        model: trimWindow.snapping ? trimController.keyframes : 0
+                        model: track.visibleKeyframes
                         Rectangle {
                             required property var modelData
                             x: timeline.xOf(modelData)
@@ -437,7 +466,7 @@ Window {
                             onReleased: {
                                 trimWindow.activeHandle = 0
                                 trimWindow.seekTo(handle.isStart ? trimWindow.trimStart
-                                                                 : trimWindow.trimEnd)
+                                                                 : trimWindow.endPreviewTime())
                             }
                             onPositionChanged: (m) => {
                                 const t = timeline.timeAt(mapToItem(track, m.x, 0).x)
@@ -446,7 +475,7 @@ Window {
                                     trimWindow.scrubTo(trimWindow.trimStart)
                                 } else {
                                     trimWindow.setEnd(t)
-                                    trimWindow.scrubTo(trimWindow.trimEnd)
+                                    trimWindow.scrubTo(trimWindow.endPreviewTime())
                                 }
                             }
                         }
@@ -513,13 +542,17 @@ Window {
                 USlider {
                     width: parent.width; from: 0; to: Math.max(0.1, trimWindow.duration - 0.1)
                     value: trimWindow.trimStart
-                    onMoved: (v) => trimWindow.trimStart = Math.min(v, trimWindow.trimEnd - 0.1)
+                    // Through setStart(), NOT a raw assignment: with Fast
+                    // lossless on, the in-point must snap onto a keyframe here
+                    // too, or ffmpeg stream-copies from the previous keyframe
+                    // while the UI shows the unsnapped value.
+                    onMoved: (v) => trimWindow.setStart(v)
                 }
                 Text { text: qsTr("End: %1 s").arg(trimWindow.trimEnd.toFixed(1)); color: Theme.textPrimary; font.pixelSize: Theme.fontM }
                 USlider {
                     width: parent.width; from: 0.1; to: trimWindow.duration
                     value: trimWindow.trimEnd
-                    onMoved: (v) => trimWindow.trimEnd = Math.max(v, trimWindow.trimStart + 0.1)
+                    onMoved: (v) => trimWindow.setEnd(v)
                 }
             }
 
@@ -538,6 +571,7 @@ Window {
                     spacing: Theme.spacingS
                     visible: !trimController.gif
                     USwitch {
+                        id: losslessSwitch
                         anchors.verticalCenter: parent.verticalCenter
                         checked: trimWindow.lossless
                         onToggled: trimWindow.lossless = checked
@@ -545,11 +579,21 @@ Window {
                     Column {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 1
+                        // Constrained + wrapping: at the 680 px minimum width
+                        // (and with longer translations) unbounded text ran
+                        // underneath the Cancel/Save row on the right.
+                        width: Math.max(120, cutMode.parent.width - saveRow.width
+                                             - losslessSwitch.width - cutMode.spacing
+                                             - Theme.spacingL)
                         Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
                             text: qsTr("Fast lossless cut")
                             color: Theme.textPrimary; font.pixelSize: Theme.fontS
                         }
                         Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
                             text: !trimWindow.lossless
                                   ? qsTr("Off: the selection is re-encoded and starts on the exact frame.")
                                   : (trimController.keyframeState === TrimController.Busy

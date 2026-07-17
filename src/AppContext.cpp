@@ -14,6 +14,7 @@
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
+#include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
@@ -36,6 +37,10 @@
 #ifdef HAVE_ZXING
 #include <ZXing/BitMatrix.h>
 #include <ZXing/MultiFormatWriter.h>
+#endif
+#ifdef HAVE_KGUIADDONS
+#include <KSystemClipboard>
+#include <QMimeData>
 #endif
 #include <QGuiApplication>
 #include <QtMath>
@@ -145,6 +150,7 @@ AppContext::AppContext(QObject *parent)
             &AppContext::syncHotkeyFromDaemon);
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
+    connect(m_recorder, &GifRecorder::pausedChanged, this, &AppContext::recordingChanged);
     // Portal approved + stream live, but encoding is HELD: run the countdown /
     // start cue, then commit. The start sound is played here (before commit), not
     // on started(), so it is never captured in the recording.
@@ -584,6 +590,21 @@ bool AppContext::hotkeysAvailable() const
     return !m_hotkeyBackend.isEmpty();
 }
 
+QString AppContext::effectiveOcrLanguages() const
+{
+#ifdef HAVE_TESSERACT
+    // Auto-detect: recognize with every installed langpack. Fall back to the
+    // manual spec when the scan finds nothing (libtesseract may still resolve a
+    // baked-in TESSDATA_PREFIX we didn't enumerate), so Init never gets "".
+    if (m_settings->ocrAutoLanguage()) {
+        const QString detected = OcrEngine::detectedLanguages();
+        if (!detected.isEmpty())
+            return detected;
+    }
+#endif
+    return m_settings->ocrLanguages();
+}
+
 void AppContext::ocrImage(const QImage &img)
 {
 #ifdef HAVE_TESSERACT
@@ -592,7 +613,7 @@ void AppContext::ocrImage(const QImage &img)
         return;
     }
     showToast(tr("Recognizing text…"));
-    m_ocr->recognize(img, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+    m_ocr->recognize(img, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
         if (!err.isEmpty())
             showToast(err);
         else if (text.isEmpty())
@@ -621,7 +642,7 @@ void AppContext::ocrBoxes(const QImage &img,
         cb({}, tr("Nothing to recognize"));
         return;
     }
-    m_ocr->recognizeBoxes(img, m_settings->ocrLanguages(), std::move(cb));
+    m_ocr->recognizeBoxes(img, effectiveOcrLanguages(), std::move(cb));
 #else
     Q_UNUSED(img);
     cb({}, tr("OCR is not available in this build"));
@@ -1034,6 +1055,17 @@ void AppContext::stopRecording()
     m_recorder->stop();
 }
 
+void AppContext::togglePauseRecording()
+{
+    m_recorder->togglePause();
+    // The GNOME/mutter record-border runs in a separate XWayland helper process
+    // that renders its own badge — the reactive QML binding only reaches the KDE
+    // in-process border. Push the pause state over the same stdin channel the
+    // countdown uses so the helper's badge reads PAUSED and freezes its clock.
+    if (m_recordBorderHelper && m_recordBorderHelper->state() != QProcess::NotRunning)
+        m_recordBorderHelper->write(m_recorder->paused() ? "p1\n" : "p0\n");
+}
+
 void AppContext::startInstantReplay()
 {
     if (recording()) return;
@@ -1225,6 +1257,42 @@ static QString textRenderCheck()
                 ++diff;
     return diff > 20 ? QStringLiteral("PASS (%1 sampled pixels changed)").arg(diff)
                      : QStringLiteral("FAIL (render left the base blank)");
+}
+
+#ifdef HAVE_KGUIADDONS
+// KDE Plasma / KWin: Klipper only copies an image into its HISTORY (the tray
+// applet, i.e. paste-it-later) when the clipboard offer carries the
+// x-kde-force-image-copy marker MIME. Plain image/png — what QClipboard and
+// wl-copy advertise — is pasteable right now but is never recorded, so the
+// shot drops out of history the moment anything else is copied (issue #51,
+// reported by Augusto-Lescano). The marker is an empty payload wl-copy cannot
+// attach, so the offer must be built as a QMimeData. Spectacle/Flameshot do
+// exactly this. Ownership passes to KSystemClipboard::setMimeData.
+static QMimeData *makeForceImageMime(const QImage &img)
+{
+    auto *mime = new QMimeData;
+    mime->setImageData(img);
+    mime->setData(QStringLiteral("x-kde-force-image-copy"), QByteArray());
+    return mime;
+}
+#endif
+
+// The KDE clipboard-history offer MUST carry the x-kde-force-image-copy hint or
+// Klipper never records the image (issue #51). Reuses the live builder, so
+// dropping the hint fails this. Shared by the developer button and F8 smoke test.
+static QString clipboardHistoryHintCheck()
+{
+#ifdef HAVE_KGUIADDONS
+    QImage img(8, 8, QImage::Format_RGB32);
+    img.fill(Qt::blue);
+    QScopedPointer<QMimeData> mime(makeForceImageMime(img));
+    const bool ok = mime->hasImage()
+                    && mime->hasFormat(QStringLiteral("x-kde-force-image-copy"));
+    return ok ? QStringLiteral("PASS (Klipper history hint attached)")
+              : QStringLiteral("FAIL (hint missing)");
+#else
+    return QStringLiteral("SKIP (no KF6GuiAddons; images still copy but skip Klipper history)");
+#endif
 }
 
 // Clipboard paste must create a real text annotation and retain a pasted image
@@ -1544,6 +1612,25 @@ void AppContext::devTestInstantReplay()
         startInstantReplay();
 }
 
+// Encoder for the trim self-test fixtures: the checks exercise trimming, not a
+// specific codec, and a mandatory libx264 failed fixture creation outright on
+// GPL-less ffmpeg builds. Same fallback order as the recorder — x264, OpenH264,
+// then the always-built-in mpeg4 (stream copy and packet keyframe flags are
+// codec-agnostic, so every trim path still gets exercised).
+static QStringList trimFixtureEncoderArgs()
+{
+    if (GifRecorder::encoderUsable(QStringLiteral("libx264")))
+        return {QStringLiteral("-c:v"), QStringLiteral("libx264"),
+                QStringLiteral("-preset"), QStringLiteral("ultrafast"),
+                QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+    if (GifRecorder::encoderUsable(QStringLiteral("libopenh264")))
+        return {QStringLiteral("-c:v"), QStringLiteral("libopenh264"),
+                QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+    return {QStringLiteral("-c:v"), QStringLiteral("mpeg4"),
+            QStringLiteral("-q:v"), QStringLiteral("5"),
+            QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
+}
+
 void AppContext::devTestTrimRecording()
 {
     if (!devBuild()) return;
@@ -1564,15 +1651,13 @@ void AppContext::devTestTrimRecording()
     });
     // Long enough, moving, and with a keyframe every second: the window has a
     // filmstrip whose tiles differ and real keyframe ticks to snap onto.
-    process->start(ffmpeg,
-                   {QStringLiteral("-y"), QStringLiteral("-nostats"),
-                    QStringLiteral("-loglevel"), QStringLiteral("error"),
-                    QStringLiteral("-f"), QStringLiteral("lavfi"),
-                    QStringLiteral("-i"), QStringLiteral("testsrc=size=320x180:rate=30:duration=8"),
-                    QStringLiteral("-c:v"), QStringLiteral("libx264"),
-                    QStringLiteral("-preset"), QStringLiteral("ultrafast"),
-                    QStringLiteral("-g"), QStringLiteral("30"),
-                    QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"), path});
+    QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                     QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-f"), QStringLiteral("lavfi"),
+                     QStringLiteral("-i"), QStringLiteral("testsrc=size=320x180:rate=30:duration=8"),
+                     QStringLiteral("-g"), QStringLiteral("30")};
+    args << trimFixtureEncoderArgs() << path;
+    process->start(ffmpeg, args);
 }
 
 void AppContext::devTestTrimCut()
@@ -1595,15 +1680,14 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     // snap to, and the moving pattern makes the filmstrip tiles differ.
     const QString source = QDir::temp().filePath(QStringLiteral("unisic-trimcheck.mp4"));
     QFile::remove(source);
-    QProcess::execute(ffmpeg, {QStringLiteral("-y"), QStringLiteral("-nostats"),
-                               QStringLiteral("-loglevel"), QStringLiteral("error"),
-                               QStringLiteral("-f"), QStringLiteral("lavfi"),
-                               QStringLiteral("-i"),
-                               QStringLiteral("testsrc=size=160x90:rate=30:duration=3"),
-                               QStringLiteral("-c:v"), QStringLiteral("libx264"),
-                               QStringLiteral("-preset"), QStringLiteral("ultrafast"),
-                               QStringLiteral("-g"), QStringLiteral("15"),
-                               QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p"), source});
+    QStringList fixtureArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                            QStringLiteral("-loglevel"), QStringLiteral("error"),
+                            QStringLiteral("-f"), QStringLiteral("lavfi"),
+                            QStringLiteral("-i"),
+                            QStringLiteral("testsrc=size=160x90:rate=30:duration=3"),
+                            QStringLiteral("-g"), QStringLiteral("15")};
+    fixtureArgs << trimFixtureEncoderArgs() << source;
+    QProcess::execute(ffmpeg, fixtureArgs);
     if (!QFileInfo::exists(source)) {
         done(QStringLiteral("FAIL (test clip)"));
         return;
@@ -1616,7 +1700,7 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
     QFile::copy(source, copySource);
 
     // Same window the trim editor builds, on the same file.
-    auto *probe = new TrimController(source, 3.0, this);
+    auto *probe = new TrimController(source, 3.0, 1.0 / 30, this);
     probe->buildFilmstrip(8, 48);
     probe->loadKeyframes();
 
@@ -1656,6 +1740,63 @@ void AppContext::trimCutCheck(std::function<void(const QString &)> done)
                  .arg(stripOk ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
                       keyframesOk && snapOk ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
     });
+}
+
+void AppContext::devTestPauseExcise()
+{
+    if (!devBuild()) return;
+    pauseExciseCheck([this](const QString &result) {
+        showToast(tr("Dev: pause excise: %1").arg(result),
+                  result.contains(QLatin1String("FAIL")));
+    });
+}
+
+void AppContext::pauseExciseCheck(std::function<void(const QString &)> done)
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffmpeg.isEmpty() || ffprobe.isEmpty()) {
+        done(QStringLiteral("SKIP (ffmpeg/ffprobe missing)"));
+        return;
+    }
+    // A 3 s clip with audio; excising the middle second must yield ~2 s. This is
+    // the same filtergraph the recorder runs when the user paused mid-capture.
+    const QString source = QDir::temp().filePath(QStringLiteral("unisic-pausecheck-src.mkv"));
+    const QString out = QDir::temp().filePath(QStringLiteral("unisic-pausecheck-out.mkv"));
+    QFile::remove(source);
+    QFile::remove(out);
+    QStringList fixture{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                        QStringLiteral("-loglevel"), QStringLiteral("error"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("testsrc=size=160x120:rate=15:duration=3"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=440:sample_rate=48000:duration=3")};
+    fixture << trimFixtureEncoderArgs() << QStringLiteral("-c:a") << QStringLiteral("flac")
+            << QStringLiteral("-shortest") << source;
+    QProcess::execute(ffmpeg, fixture);
+    if (!QFileInfo::exists(source)) {
+        done(QStringLiteral("FAIL (test clip)"));
+        return;
+    }
+    const QList<QPair<qint64, qint64>> intervals{{1000, 2000}};
+    QProcess::execute(ffmpeg, GifRecorder::pauseExciseArgs(source, out, intervals, true));
+    if (!QFileInfo::exists(out)) {
+        QFile::remove(source);
+        done(QStringLiteral("FAIL (excise produced nothing)"));
+        return;
+    }
+    QProcess p;
+    p.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                      QStringLiteral("-show_entries"), QStringLiteral("format=duration"),
+                      QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), out});
+    p.waitForFinished(2000);
+    const qreal dur = QString::fromLatin1(p.readAllStandardOutput().trimmed()).toDouble();
+    QFile::remove(source);
+    QFile::remove(out);
+    const bool ok = qAbs(dur - 2.0) < 0.3;
+    done(QStringLiteral("%1 (%2s, expected ~2.0)")
+             .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+             .arg(dur, 0, 'f', 2));
 }
 
 void AppContext::devTestCursorCapability()
@@ -1742,6 +1883,146 @@ void AppContext::devTestCaptureOnRelease()
     if (!devBuild())
         return;
     showToast(tr("Dev: capture on release: %1").arg(captureOnReleaseCheck()));
+}
+
+// Magnifier round-trip: a synthetic drag over a marked source region must place
+// a loupe that shows those pixels enlarged (2x, centred on the source). The
+// probe point 6 px off-centre is inside the MAGNIFIED marker but outside the
+// source marker, so it distinguishes a real 2x loupe from a 1:1 copy.
+static QString magnifyCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(66, 66, 8, 8), QColor(220, 30, 40)); // marker at the source centre
+    }
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Magnify);
+    const auto drag = [&c](QPointF from, QPointF to) {
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        c.mousePressEvent(&p);
+        QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        c.mouseMoveEvent(&m);
+        QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        c.mouseReleaseEvent(&r);
+    };
+    drag({50, 50}, {90, 90});   // source = 40x40 centred on (70,70)
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (loupe not placed)");
+    const QImage out = c.rendered();
+    const QColor centre = out.pixelColor(70, 70);
+    if (centre.red() < 150 || centre.green() > 120)
+        return QStringLiteral("FAIL (loupe centre is not the magnified marker)");
+    const QColor offCentre = out.pixelColor(76, 70);
+    if (offCentre.red() < 150 || offCentre.green() > 120)
+        return QStringLiteral("FAIL (loupe does not magnify — 2x expected)");
+    return QStringLiteral("PASS (loupe placed, centred, 2x)");
+}
+
+void AppContext::devTestMagnify()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: magnifier: %1").arg(magnifyCheck()));
+}
+
+// Eyedropper tool: a click adopts the pixel under the cursor as the stroke
+// colour (dev button + smoke step).
+static QString eyedropperCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    const QColor target(17, 153, 59);
+    {
+        QPainter p(&base);
+        p.fillRect(QRect(80, 80, 20, 20), target); // a known opaque patch
+    }
+    c.setImage(base);
+    c.setStrokeColor(Qt::white);
+    c.setTool(AnnotationCanvas::Eyedropper);
+    const QPointF at(90, 90); // renderScale is 1.0 in tests, so item == image
+    QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&press);
+    const QColor got = c.strokeColor();
+    if (got.red() != target.red() || got.green() != target.green() || got.blue() != target.blue())
+        return QStringLiteral("FAIL (picked %1, expected %2)").arg(got.name(), target.name());
+    return QStringLiteral("PASS (stroke colour adopted from pixel)");
+}
+
+void AppContext::devTestEyedropper()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: eyedropper: %1").arg(eyedropperCheck()));
+}
+
+// Pixel loupe (region overlay): the panel must appear once the pointer hovers
+// in selection mode, flip away from the item edges so it never covers the
+// pixels being aimed at, react to Ctrl+scroll within its 4–16 clamp, and stay
+// out of the exported render (dev button + smoke step).
+static QString pixelLoupeCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::hoverMoveEvent;
+        using AnnotationCanvas::wheelEvent;
+    } c;
+    c.setWidth(500);
+    c.setHeight(400);
+    QImage base(500, 400, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setSelectionMode(true);
+    c.setPixelLoupe(true);
+    c.setPixelLoupeZoom(8);
+    if (!c.pixelLoupeRect().isEmpty())
+        return QStringLiteral("FAIL (loupe visible before any hover)");
+    const auto hover = [&c](QPointF at) {
+        QHoverEvent e(QEvent::HoverMove, at, at, at);
+        c.hoverMoveEvent(&e);
+    };
+    hover({50, 50});
+    const QRectF nearOrigin = c.pixelLoupeRect();
+    if (nearOrigin.isEmpty() || nearOrigin.left() <= 50 || nearOrigin.top() <= 50)
+        return QStringLiteral("FAIL (loupe not offset below-right of the cursor)");
+    hover({490, 390});
+    const QRectF nearCorner = c.pixelLoupeRect();
+    if (nearCorner.isEmpty() || nearCorner.right() >= 490 || nearCorner.bottom() >= 390)
+        return QStringLiteral("FAIL (loupe does not flip away from the item edge)");
+    const auto wheel = [&c](int delta) {
+        QWheelEvent e(c.hoverPoint(), c.hoverPoint(), QPoint(), QPoint(0, delta),
+                      Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+        c.wheelEvent(&e);
+    };
+    wheel(120);
+    if (c.pixelLoupeZoom() != 10)
+        return QStringLiteral("FAIL (Ctrl+scroll did not raise the zoom)");
+    for (int i = 0; i < 10; ++i)
+        wheel(-120);
+    if (c.pixelLoupeZoom() != 4)
+        return QStringLiteral("FAIL (zoom did not clamp at 4)");
+    if (c.rendered() != base)
+        return QStringLiteral("FAIL (loupe leaked into the exported render)");
+    return QStringLiteral("PASS (follows hover, edge flip, Ctrl+scroll 4–16, not exported)");
+}
+
+void AppContext::devTestPixelLoupe()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: pixel loupe: %1").arg(pixelLoupeCheck()));
 }
 
 // Renders two words and asserts recognizeBoxes returns ≥2 boxes with sane
@@ -1937,6 +2218,52 @@ void AppContext::devTestOcrHighlight()
 #else
     showToast(tr("Dev: OCR highlight + redact: SKIP (built without tesseract)"));
 #endif
+}
+
+void AppContext::devTestOcrAutoLang()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_TESSERACT
+    const QString detected = OcrEngine::detectedLanguages();
+    const QString effective = effectiveOcrLanguages();
+    showToast(tr("Dev: OCR auto language: %1 (installed: %2; using: %3)")
+                  .arg(detected.isEmpty() ? QStringLiteral("no langpacks found")
+                                          : QStringLiteral("PASS"),
+                       detected.isEmpty() ? QStringLiteral("none") : detected,
+                       effective),
+              detected.isEmpty());
+#else
+    showToast(tr("Dev: OCR auto language: SKIP (built without tesseract)"));
+#endif
+}
+
+void AppContext::devTestZipExport()
+{
+    if (!devBuild())
+        return;
+    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        showToast(tr("Dev: ZIP export: SKIP (zip not installed)"));
+        return;
+    }
+    const QString dir = QDir::tempPath();
+    QStringList files;
+    for (int i = 1; i <= 2; ++i) {
+        QImage im(64, 64, QImage::Format_ARGB32);
+        im.fill(i == 1 ? Qt::red : Qt::blue);
+        const QString p = dir + QStringLiteral("/unisic-zip-test-%1.png").arg(i);
+        im.save(p, "PNG");
+        files << p;
+    }
+    const QString dest = dir + QStringLiteral("/unisic-zip-test.zip");
+    exportFilesToZip(files, dest, [this, files, dest](bool ok, const QString &msg) {
+        showToast(tr("Dev: ZIP export: %1")
+                      .arg(ok ? tr("PASS (%1)").arg(msg) : tr("FAIL (%1)").arg(msg)),
+                  !ok);
+        for (const QString &f : files)
+            QFile::remove(f);
+        QFile::remove(dest);
+    });
 }
 
 void AppContext::devTestCaptureSound()
@@ -2214,6 +2541,18 @@ void AppContext::devTestCopyLast()
     const bool ok = !QGuiApplication::clipboard()->image().isNull();
     showToast(tr("Dev: copy last capture: %1")
                   .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
+}
+
+void AppContext::devTestClipboardHistory()
+{
+    if (!devBuild())
+        return;
+    // Live side effect first: on Plasma the image should now appear in the
+    // clipboard applet's history (issue #51). Hand-checkable in Klipper.
+    copyImageToClipboard(devTestImage());
+    const QString status = clipboardHistoryHintCheck();
+    showToast(tr("Dev: Klipper clipboard history: %1").arg(status),
+              status.startsWith(QLatin1String("FAIL")));
 }
 
 void AppContext::devTestPreview()
@@ -2803,6 +3142,15 @@ void AppContext::runSmokeTest()
         });
     });
 
+    // 1a3) recording pause: excising a known pause span from a clip must drop its
+    // duration by that span (the real filtergraph a paused recording runs).
+    m_smokeSteps.append([this] {
+        pauseExciseCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("recording pause excise: ") + result);
+            smokeNext();
+        });
+    });
+
     // 1b) record border: flash the region frame on whichever host this
     // compositor uses (layer-shell / KWin fullscreen fallback / X11 /
     // XWayland helper) and take it down again.
@@ -2912,6 +3260,14 @@ void AppContext::runSmokeTest()
                  + (QGuiApplication::clipboard()->image().isNull()
                         ? QStringLiteral("FAIL (clipboard empty)")
                         : QStringLiteral("PASS")));
+        smokeNext();
+    });
+
+    // 3c2) KDE clipboard-history hint — the offer must carry
+    // x-kde-force-image-copy or Klipper never records the image (issue #51).
+    m_smokeSteps.append([this] {
+        copyImageToClipboard(devTestImage());
+        smokeLog(QStringLiteral("clipboard history hint: ") + clipboardHistoryHintCheck());
         smokeNext();
     });
 
@@ -3026,6 +3382,52 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e3d) magnifier: a synthetic drag places a 2x loupe centred on the source.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
+        smokeNext();
+    });
+
+    // 3e3d2) eyedropper: a click adopts the pixel colour under the cursor.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("eyedropper: ") + eyedropperCheck());
+        smokeNext();
+    });
+
+    // 3e3d3) ZIP export: archive two fixture PNGs and confirm the zip lands.
+    m_smokeSteps.append([this] {
+        if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+            smokeLog(QStringLiteral("zip export: SKIP (zip not installed)"));
+            smokeNext();
+            return;
+        }
+        const QString dir = QDir::tempPath();
+        QStringList files;
+        for (int i = 1; i <= 2; ++i) {
+            QImage im(48, 48, QImage::Format_ARGB32);
+            im.fill(i == 1 ? Qt::green : Qt::magenta);
+            const QString p = dir + QStringLiteral("/unisic-smoke-zip-%1.png").arg(i);
+            im.save(p, "PNG");
+            files << p;
+        }
+        const QString dest = dir + QStringLiteral("/unisic-smoke-zip.zip");
+        exportFilesToZip(files, dest, [this, files, dest](bool ok, const QString &msg) {
+            smokeLog(QStringLiteral("zip export: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(msg)
+                           : QStringLiteral("FAIL (%1)").arg(msg)));
+            for (const QString &f : files)
+                QFile::remove(f);
+            QFile::remove(dest);
+            smokeNext();
+        });
+    });
+
+    // 3e3e) pixel loupe: hover placement, edge flip, Ctrl+scroll zoom clamp.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("pixel loupe: ") + pixelLoupeCheck());
+        smokeNext();
+    });
+
     // 3e4) capture sound: a player must exist and the WAV must extract.
     m_smokeSteps.append([this] {
         const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
@@ -3082,6 +3484,23 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3f0) OCR auto language: the tessdata scan enumerates installed langpacks
+    // and the effective spec is non-empty (auto-detected list or manual spec).
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        const QString detected = OcrEngine::detectedLanguages();
+        const QString effective = effectiveOcrLanguages();
+        if (effective.isEmpty())
+            smokeLog(QStringLiteral("ocr auto language: FAIL (empty spec)"));
+        else
+            smokeLog(QStringLiteral("ocr auto language: PASS (installed: %1; using: %2)")
+                         .arg(detected.isEmpty() ? QStringLiteral("none") : detected, effective));
+#else
+        smokeLog(QStringLiteral("ocr auto language: SKIP (built without tesseract)"));
+#endif
+        smokeNext();
+    });
+
     // 3f) OCR recognition — a real tesseract run on a rendered known token
     // (digits: language-neutral, works with any installed traineddata).
     m_smokeSteps.append([this] {
@@ -3097,7 +3516,7 @@ void AppContext::runSmokeTest()
             p.setFont(f);
             p.drawText(t.rect(), Qt::AlignCenter, QStringLiteral("1234"));
         }
-        m_ocr->recognize(t, m_settings->ocrLanguages(), [this](const QString &text, const QString &err) {
+        m_ocr->recognize(t, effectiveOcrLanguages(), [this](const QString &text, const QString &err) {
             if (!err.isEmpty())
                 smokeLog(QStringLiteral("ocr recognize: FAIL (%1)").arg(err));
             else if (text.contains(QLatin1String("1234")))
@@ -3500,6 +3919,21 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
                             frac(physRegion.height() / phys.height()),
                             accent.name(QColor::HexRgb),
                             QString::number(countdown)});
+        // The helper's badge carries clickable stop/pause controls; a click there
+        // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
+        // like the in-process border's buttons (the resulting paused state is
+        // pushed back over stdin in togglePauseRecording()).
+        connect(proc, &QProcess::readyReadStandardOutput, this, [this, proc] {
+            const QByteArray out = proc->readAllStandardOutput();
+            const QList<QByteArray> lines = out.split('\n');
+            for (const QByteArray &line : lines) {
+                const QByteArray cmd = line.trimmed();
+                if (cmd == "pause")
+                    togglePauseRecording();
+                else if (cmd == "stop")
+                    stopRecording();
+            }
+        });
         // stdin stays an open pipe on purpose: if THIS process dies without
         // reaching hideRecordBorder(), the helper sees EOF and quits — no
         // orphaned frame can outlive the recording.
@@ -3538,15 +3972,23 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     ctx->setContextProperty(QStringLiteral("regionY"), ry);
     ctx->setContextProperty(QStringLiteral("regionW"), rw);
     ctx->setContextProperty(QStringLiteral("regionH"), rh);
+    // Masks input to the badge so its stop/pause controls are clickable while the
+    // rest of the frame stays click-through. Must exist before create() so QML
+    // resolves the context property; its window is bound right after.
+    auto *borderCtl = new RecordBorderController(this);
+    ctx->setContextProperty(QStringLiteral("recordBorderCtl"), borderCtl);
 
     QObject *obj = component.create(ctx);
     auto *win = qobject_cast<QQuickWindow *>(obj);
     if (!win) {
         delete obj;
         delete ctx;
+        delete borderCtl;
         return;
     }
     ctx->setParent(win);
+    borderCtl->setParent(win);
+    borderCtl->setWindow(win);
     win->setScreen(screen);
     // Pre-recording countdown number (0 = none) — RecordBorder.qml shows it
     // centered in the region and hides the REC badge while it ticks.
@@ -4030,15 +4472,40 @@ void AppContext::openTrimRecording(const QString &path)
         if (*completed)
             return;
         *completed = true;
-        const QByteArray output = probe->readAllStandardOutput().trimmed();
+        const QByteArray output = probe->readAllStandardOutput();
         probe->deleteLater();
-        bool ok = false;
-        const qreal duration = QString::fromLatin1(output).toDouble(&ok);
-        if (code != 0 || status != QProcess::NormalExit || !ok || duration <= 0) {
+        // Keyed "name=value" lines (default writer, nk left on): the probe asks
+        // for the duration AND the frame rate, and line order across sections
+        // is not a contract worth leaning on.
+        qreal duration = -1;
+        qreal frameDur = 0;
+        const QList<QByteArray> lines = output.split('\n');
+        for (const QByteArray &line : lines) {
+            const int eq = line.indexOf('=');
+            if (eq <= 0)
+                continue;
+            const QByteArray key = line.left(eq).trimmed();
+            const QByteArray value = line.mid(eq + 1).trimmed();
+            if (key == "duration") {
+                bool ok = false;
+                const qreal d = value.toDouble(&ok);
+                if (ok)
+                    duration = d;
+            } else if (key == "avg_frame_rate") {
+                // "30/1", "30000/1001"; "0/0" for unknown → stays 0.
+                const int slash = value.indexOf('/');
+                bool okNum = false, okDen = false;
+                const qreal num = value.left(slash).toDouble(&okNum);
+                const qreal den = value.mid(slash + 1).toDouble(&okDen);
+                if (slash > 0 && okNum && okDen && num > 0 && den > 0)
+                    frameDur = den / num;
+            }
+        }
+        if (code != 0 || status != QProcess::NormalExit || duration <= 0) {
             showToast(tr("Could not read the recording duration"), true);
             return;
         }
-        showTrimWindow(path, duration);
+        showTrimWindow(path, duration, frameDur);
     });
     connect(probe, &QProcess::errorOccurred, this,
             [this, probe, completed](QProcess::ProcessError error) {
@@ -4049,11 +4516,13 @@ void AppContext::openTrimRecording(const QString &path)
         showToast(tr("Trimming requires ffprobe from the ffmpeg package"), true);
     });
     probe->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
-                           QStringLiteral("-show_entries"), QStringLiteral("format=duration"),
-                           QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), path});
+                           QStringLiteral("-select_streams"), QStringLiteral("v:0"),
+                           QStringLiteral("-show_entries"),
+                           QStringLiteral("stream=avg_frame_rate:format=duration"),
+                           QStringLiteral("-of"), QStringLiteral("default=nw=1"), path});
 }
 
-void AppContext::showTrimWindow(const QString &path, qreal duration)
+void AppContext::showTrimWindow(const QString &path, qreal duration, qreal frameDuration)
 {
     if (!m_engine)
         return;
@@ -4063,7 +4532,7 @@ void AppContext::showTrimWindow(const QString &path, qreal duration)
         return;
     }
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
-    auto *trim = new TrimController(path, duration);
+    auto *trim = new TrimController(path, duration, frameDuration);
     ctx->setContextProperty(QStringLiteral("trimSourcePath"), path);
     ctx->setContextProperty(QStringLiteral("trimDuration"), duration);
     ctx->setContextProperty(QStringLiteral("trimController"), trim);
@@ -4127,7 +4596,24 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
     const QString range = QStringLiteral("trim=start=%1:end=%2,setpts=PTS-STARTPTS")
                               .arg(QString::number(start, 'f', 3),
                                    QString::number(end, 'f', 3));
-    const QString palette = output + QStringLiteral(".palette.png");
+    // The palette is scratch: it lives in the cache dir (NOT next to the
+    // recording, where an exit mid-trim would leave a stray
+    // "*-trimmed.gif.palette.png" forever), and stale ones from an earlier
+    // crashed/quit run are swept here. The age gate keeps the sweep away from
+    // a palette a concurrent trim is still using.
+    const QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    QDir().mkpath(cacheDir);
+    QDir cache(cacheDir);
+    const QFileInfoList stale = cache.entryInfoList({QStringLiteral("trim-palette-*")},
+                                                    QDir::Files);
+    const QDateTime cutoff = QDateTime::currentDateTime().addSecs(-3600);
+    for (const QFileInfo &fi : stale)
+        if (fi.lastModified() < cutoff)
+            QFile::remove(fi.absoluteFilePath());
+    static quint32 paletteSerial = 0;
+    const QString palette = cache.filePath(QStringLiteral("trim-palette-%1-%2.png")
+                                               .arg(QCoreApplication::applicationPid())
+                                               .arg(++paletteSerial));
     runTrimStep({QStringLiteral("-y"), QStringLiteral("-nostats"),
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
@@ -4202,8 +4688,13 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
         // keyframe and decodes forward, so the output starts on the exact frame.
         const int crf = qBound(0, m_settings->videoQuality(), 51);
+        // yuv420p needs even dimensions (same rule the recorder enforces on its
+        // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
+        // abort with "width not divisible by 2". Trim at most one edge pixel.
+        const QString evenCrop = QStringLiteral("crop=trunc(iw/2)*2:trunc(ih/2)*2");
         if (suffix == QLatin1String("webm")) {
-            args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
                  << QStringLiteral("-crf") << QString::number(crf)
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-deadline") << QStringLiteral("good")
@@ -4213,26 +4704,29 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
                    && GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
             args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-                 << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
+                 << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
                  << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
                  << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
                    && GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
-            args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
                  << QStringLiteral("-preset") << QStringLiteral("p4")
                  << QStringLiteral("-cq") << QString::number(crf)
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (GifRecorder::encoderUsable(QStringLiteral("libx264"))) {
-            args << QStringLiteral("-c:v") << QStringLiteral("libx264")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("veryfast")
                  << QStringLiteral("-crf") << QString::number(crf)
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else {
-            args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
+            args << QStringLiteral("-vf") << evenCrop
+                 << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
                  << QStringLiteral("-b:v") << QStringLiteral("%1M").arg(qBound(2, (51 - crf) / 3, 16))
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
@@ -4992,6 +5486,18 @@ static void spawnWlCopy(AppContext *app, const QString &wlCopy, const QStringLis
 void AppContext::copyImageToClipboard(const QImage &img)
 {
     QGuiApplication::clipboard()->setImage(img);
+#ifdef HAVE_KGUIADDONS
+    // On Plasma re-assert the image through KSystemClipboard WITH the history
+    // hint (above). data-control also sets the selection without a focused
+    // window, so this alone is reliable — no wl-copy mirror needed here.
+    if (auto *bus = QDBusConnection::sessionBus().interface();
+        bus && bus->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
+        KSystemClipboard::instance()->setMimeData(makeForceImageMime(img),
+                                                  QClipboard::Clipboard);
+        ++m_clipboardSeq; // a stale deferred wl-copy mirror must not clobber this
+        return;
+    }
+#endif
     // Wayland: clipboard offers can be lost when no window has focus.
     // wl-copy (if present) makes it stick regardless. NOT under XWayland:
     // there Qt owns the X11 CLIPBOARD while wl-copy would set a second,
@@ -5168,6 +5674,122 @@ void AppContext::importSettingsDialog()
         return; // cancelled
     const QString err = importSettings(QUrl::fromLocalFile(path));
     showToast(err.isEmpty() ? tr("Settings imported") : err, !err.isEmpty());
+}
+
+void AppContext::exportEntriesToZipDialog(const QVariantList &ids)
+{
+    // Resolve the selection to on-disk files first, so a save dialog only opens
+    // when there is actually something to archive (mirrors the Copy-paths guard).
+    QStringList files;
+    for (const QVariant &v : ids) {
+        const QVariantMap e = m_history->entryById(v.toULongLong());
+        const QString fp = e.value(QStringLiteral("filePath")).toString();
+        if (!fp.isEmpty() && QFileInfo::exists(fp))
+            files << fp;
+    }
+    if (files.isEmpty()) {
+        showToast(tr("None of the selected captures are saved on disk."), true);
+        return;
+    }
+    const QString path = QFileDialog::getSaveFileName(
+        nullptr, tr("Export captures to ZIP"),
+        QDir::homePath() + QStringLiteral("/unisic-captures.zip"),
+        tr("ZIP archive (*.zip)"));
+    if (path.isEmpty())
+        return; // cancelled
+    showToast(tr("Exporting %1 captures…").arg(files.size()));
+    exportFilesToZip(files, path); // default reporting toasts the outcome
+}
+
+void AppContext::exportFilesToZip(const QStringList &files, const QString &destPath,
+                                  std::function<void(bool, const QString &)> done)
+{
+    auto report = [this, done](bool ok, const QString &msg) {
+        if (done)
+            done(ok, msg);
+        else
+            showToast(msg, !ok);
+    };
+
+    // No zip library is linked (see the header note): shell out to Info-ZIP.
+    const QString zipBin = QStandardPaths::findExecutable(QStringLiteral("zip"));
+    if (zipBin.isEmpty()) {
+        report(false, tr("The “zip” program is not installed — install it and try again."));
+        return;
+    }
+
+    QStringList real;
+    for (const QString &f : files)
+        if (!f.isEmpty() && QFileInfo::exists(f))
+            real << f;
+    if (real.isEmpty()) {
+        report(false, tr("None of the selected captures are saved on disk."));
+        return;
+    }
+
+    QString dest = destPath;
+    if (!dest.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive))
+        dest += QLatin1String(".zip");
+    QFile::remove(dest); // zip *appends* to an existing archive; we want a fresh one
+
+    // Stage uniquely-named symlinks in a temp dir. Duplicate basenames (e.g. two
+    // imported files called screenshot.png) would otherwise overwrite each other
+    // inside the archive; default zip (no -y) follows each link and stores the
+    // real content under the staged name.
+    auto *staging = new QTemporaryDir;
+    if (!staging->isValid()) {
+        const QString e = staging->errorString();
+        delete staging;
+        report(false, tr("Could not create a temporary folder: %1").arg(e));
+        return;
+    }
+    QStringList members;
+    QSet<QString> used;
+    for (const QString &f : real) {
+        const QFileInfo fi(f);
+        const QString base = fi.completeBaseName();
+        const QString suf = fi.suffix();
+        QString name = fi.fileName();
+        for (int n = 2; used.contains(name); ++n)
+            name = suf.isEmpty() ? QStringLiteral("%1-%2").arg(base).arg(n)
+                                 : QStringLiteral("%1-%2.%3").arg(base).arg(n).arg(suf);
+        used.insert(name);
+        QFile::link(f, staging->filePath(name));
+        members << name;
+    }
+
+    auto *proc = new QProcess(this);
+    proc->setWorkingDirectory(staging->path());
+    const int count = members.size();
+    connect(proc, &QProcess::finished, this,
+            [this, proc, staging, dest, count, report](int code, QProcess::ExitStatus st) {
+                const QString errOut = QString::fromLocal8Bit(proc->readAllStandardError()).trimmed();
+                proc->deleteLater();
+                delete staging; // removes the staged symlinks
+                if (st == QProcess::NormalExit && code == 0 && QFileInfo::exists(dest))
+                    report(true, tr("Exported %1 captures to %2")
+                                     .arg(count)
+                                     .arg(QDir::toNativeSeparators(dest)));
+                else
+                    report(false, tr("Export failed: %1")
+                                      .arg(errOut.isEmpty() ? tr("zip exited with code %1").arg(code)
+                                                            : errOut));
+            });
+    connect(proc, &QProcess::errorOccurred, this,
+            [this, proc, staging, report](QProcess::ProcessError e) {
+                if (e != QProcess::FailedToStart)
+                    return; // a crash after start still emits finished(), which cleans up
+                proc->deleteLater();
+                delete staging;
+                report(false, tr("Could not run the “zip” program."));
+            });
+    // "./" prefix so a staged name starting with '-' is a path, not a zip flag
+    // (Info-ZIP parses leading-dash argv anywhere as options); -j still stores
+    // just the basename, so the archive entries are unchanged.
+    QStringList zipArgs{QStringLiteral("-j"), QStringLiteral("-q"), dest};
+    for (const QString &m : std::as_const(members))
+        zipArgs << (QStringLiteral("./") + m);
+    proc->start(zipBin, zipArgs);
 }
 
 QString AppContext::exportSettings(const QUrl &file)

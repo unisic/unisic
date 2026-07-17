@@ -21,6 +21,12 @@ public:
     explicit OcrEngine(QObject *parent = nullptr);
     ~OcrEngine() override;
 
+    // The "+"-joined spec of every installed Tesseract langpack (osd/equ
+    // dropped, English weighted first), or "" if none are found. Used when the
+    // OCR language is set to auto-detect. Scans the same tessdata dirs as the
+    // Init fallback; cheap (a directory listing), safe to call on the GUI thread.
+    static QString detectedLanguages();
+
     // langs is a Tesseract language spec, e.g. "pol+eng".
     void recognize(const QImage &img, const QString &langs, Result cb);
     // Same recognition, but returns per-word bounding boxes (image pixels)

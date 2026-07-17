@@ -9,8 +9,9 @@
 #include <QtGlobal>
 #include <algorithm>
 
-TrimController::TrimController(const QString &path, qreal duration, QObject *parent)
-    : QObject(parent), m_path(path), m_duration(duration)
+TrimController::TrimController(const QString &path, qreal duration, qreal frameDuration,
+                               QObject *parent)
+    : QObject(parent), m_path(path), m_duration(duration), m_frameDuration(frameDuration)
 {
     m_gif = QFileInfo(path).suffix().compare(QLatin1String("gif"), Qt::CaseInsensitive) == 0;
 }
@@ -128,17 +129,35 @@ void TrimController::loadKeyframes()
             return;
         }
         m_keyframes.clear();
-        // Lines are "<pts_time>,<flags>", e.g. "8.333333,K__" — K marks a
-        // keyframe packet. Reading flags off packets never decodes anything.
+        // Sectioned CSV (csv=p=1): "packet,<pts_time>,<flags>" per packet — K
+        // marks a keyframe — plus one "format,<start_time>" line. Reading flags
+        // off packets never decodes anything. pts_time is ABSOLUTE: media with
+        // a non-zero container start time (e.g. some phone/OBS files) number
+        // their packets from start_time, while the window's timeline and
+        // ffmpeg's input -ss are relative to the start of the file — so every
+        // keyframe is rebased by subtracting start_time before use.
+        qreal startTime = 0;
+        QVector<qreal> raw;
         const QList<QByteArray> lines = out.split('\n');
         for (const QByteArray &line : lines) {
-            const int comma = line.indexOf(',');
-            if (comma <= 0 || !line.mid(comma + 1).trimmed().startsWith('K'))
-                continue;
-            bool ok = false;
-            const qreal t = line.left(comma).toDouble(&ok);
-            if (ok && t >= 0)
-                m_keyframes.append(t);
+            const QList<QByteArray> cols = line.trimmed().split(',');
+            if (cols.size() >= 2 && cols[0] == "format") {
+                bool ok = false;
+                const qreal s = cols[1].toDouble(&ok);   // "N/A" fails → keep 0
+                if (ok)
+                    startTime = s;
+            } else if (cols.size() >= 3 && cols[0] == "packet"
+                       && cols[2].trimmed().startsWith('K')) {
+                bool ok = false;
+                const qreal t = cols[1].toDouble(&ok);
+                if (ok)
+                    raw.append(t);
+            }
+        }
+        for (const qreal t : raw) {
+            const qreal rel = t - startTime;
+            if (rel >= -0.001)
+                m_keyframes.append(qMax<qreal>(0, rel));
         }
         std::sort(m_keyframes.begin(), m_keyframes.end(),
                   [](const QVariant &a, const QVariant &b) { return a.toDouble() < b.toDouble(); });
@@ -155,8 +174,9 @@ void TrimController::loadKeyframes()
     setKeyframeState(Busy);
     proc->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
                           QStringLiteral("-select_streams"), QStringLiteral("v:0"),
-                          QStringLiteral("-show_entries"), QStringLiteral("packet=pts_time,flags"),
-                          QStringLiteral("-of"), QStringLiteral("csv=p=0"),
+                          QStringLiteral("-show_entries"),
+                          QStringLiteral("packet=pts_time,flags:format=start_time"),
+                          QStringLiteral("-of"), QStringLiteral("csv=p=1"),
                           m_path});
 }
 

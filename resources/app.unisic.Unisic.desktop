@@ -7,6 +7,6 @@ Exec=unisic
 Icon=app.unisic.Unisic
 Terminal=false
 Categories=Utility;Graphics;
-Keywords=screenshot;screen recording;screencast;annotate;editor;blur;GIF;MP4;upload;capture;region;Wayland;ShareX;
+Keywords=screenshot;screen recording;screencast;annotate;editor;blur;GIF;MP4;upload;capture;region;Wayland;
 StartupNotify=false
 X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

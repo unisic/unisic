@@ -3,8 +3,10 @@
 #include <QElapsedTimer>
 #include <QFontMetrics>
 #include <QGuiApplication>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
+#include <QPolygonF>
 #include <QRasterWindow>
 #include <QRegion>
 #include <QScreen>
@@ -103,11 +105,18 @@ class BadgeWindow : public QRasterWindow
 public:
     explicit BadgeWindow(const QRect &absGeom)
     {
-        setFlags(kFrameFlags);
+        // Unlike the frame bars, the badge must receive clicks (its stop/pause
+        // controls) — so it is NOT input-transparent. Its input shape is masked
+        // down to the visible pill; the transparent padding stays click-through.
+        setFlags(kFrameFlags & ~Qt::WindowTransparentForInput);
         setFormat(argbFormat(format()));
         setGeometry(absGeom);
+        updateInputShape();  // seed the shape before any expose (pre-create)
+        m_maskW = -1;        // force the first post-create paint to re-apply it
         auto *tick = new QTimer(this);
         connect(tick, &QTimer::timeout, this, [this] {
+            if (m_paused) // hold the dot solid + the clock frozen while paused
+                return;
             m_pulse = !m_pulse;
             update();
         });
@@ -121,32 +130,136 @@ public:
         update();
     }
 
+    // Mirror the recorder: freeze the clock at the pause point and exclude every
+    // paused span, and read "PAUSED" instead of "REC" with a solid (non-pulsing)
+    // dot. Driven by the "p1"/"p0" stdin messages.
+    void setPaused(bool p)
+    {
+        if (p == m_paused)
+            return;
+        const qint64 now = m_clock.isValid() ? m_clock.elapsed() : 0;
+        if (p)
+            m_pausedAtMs = now;
+        else
+            m_pausedTotalMs += now - m_pausedAtMs;
+        m_paused = p;
+        m_pulse = true; // solid dot while paused; toggling resumes with the tick
+        update();
+    }
+
+    // Lay out dot | label | divider | pause | stop into window-local rects and
+    // record the visible pill width. Shared by paint and the input mask so they
+    // can never diverge. elapsedText() reads "00:00" before the clock starts.
+    int layout()
+    {
+        QFont f;
+        f.setPixelSize(12);
+        f.setBold(true);
+        m_label = (m_paused ? QStringLiteral("PAUSED  ") : QStringLiteral("REC  ")) + elapsedText();
+        const int textW = QFontMetrics(f).horizontalAdvance(m_label);
+        const int bh = height();
+        int x = 8;
+        m_dotRect = QRect(x, (bh - 8) / 2, 8, 8);
+        x += 8 + 6;
+        m_textRect = QRect(x, 0, textW, bh);
+        x += textW + 8;
+        m_divX = x;
+        x += 1 + 8;
+        const int btn = 20;
+        m_pauseRect = QRect(x, (bh - btn) / 2, btn, btn);
+        x += btn + 4;
+        m_stopRect = QRect(x, (bh - btn) / 2, btn, btn);
+        x += btn;
+        m_pillW = x + 8;
+        return m_pillW;
+    }
+
+    // Clip the input shape to the visible pill. On xcb setMask sets the BOUNDING
+    // shape (visual+input): an empty QRegion would RESET to the full rectangle
+    // (catching clicks in the padding), so an explicit pill rect is required —
+    // recomputed only when the pill width actually changes.
+    void updateInputShape()
+    {
+        const int bwid = layout();
+        if (bwid != m_maskW) {
+            m_maskW = bwid;
+            setMask(QRegion(0, 0, bwid, height()));
+        }
+    }
+
 protected:
     void paintEvent(QPaintEvent *) override
     {
+        updateInputShape(); // relayout + re-mask for the current label
         QPainter p(this);
         p.setCompositionMode(QPainter::CompositionMode_Source);
         p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
         p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        p.setRenderHint(QPainter::Antialiasing);
 
-        QFont f = p.font();
+        QFont f;
         f.setPixelSize(12);
         f.setBold(true);
-        const QString text = QStringLiteral("REC  ") + elapsedText();
-        const int textW = QFontMetrics(f).horizontalAdvance(text);
-        const int bh = 24;
-        const int bwid = 8 + 6 + textW + 16; // dot + spacing + text + padding
-        p.setRenderHint(QPainter::Antialiasing);
+        const int bh = height();
+
+        // Pill background.
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 184));
-        p.drawRoundedRect(QRect(0, 0, bwid, bh), 12, 12);
+        p.setBrush(QColor(0, 0, 0, 200));
+        p.drawRoundedRect(QRect(0, 0, m_pillW, bh), bh / 2, bh / 2);
+
+        // REC dot.
         QColor dot(0xff, 0x4d, 0x4d);
         dot.setAlphaF(m_pulse ? 1.0 : 0.25);
         p.setBrush(dot);
-        p.drawEllipse(QRect(8, (bh - 8) / 2, 8, 8));
+        p.drawEllipse(m_dotRect);
+
+        // Label.
         p.setFont(f);
         p.setPen(Qt::white);
-        p.drawText(QRect(8 + 8 + 6, 0, textW, bh), Qt::AlignVCenter, text);
+        p.drawText(m_textRect, Qt::AlignVCenter | Qt::AlignLeft, m_label);
+
+        // Divider before the controls.
+        p.setPen(QPen(QColor(255, 255, 255, 56), 1));
+        p.drawLine(m_divX, (bh - 16) / 2, m_divX, (bh + 16) / 2);
+
+        // Pause bars, or a play triangle while paused.
+        p.setPen(Qt::NoPen);
+        p.setBrush(Qt::white);
+        if (m_paused) {
+            const QRectF r(m_pauseRect);
+            QPolygonF tri;
+            tri << QPointF(r.left() + 6, r.top() + 5)
+                << QPointF(r.left() + 6, r.bottom() - 5)
+                << QPointF(r.right() - 5, r.center().y());
+            p.drawPolygon(tri);
+        } else {
+            const QRect r = m_pauseRect;
+            const int barW = 3, gap = 4, barH = 10;
+            const int cy = r.center().y() - barH / 2;
+            const int cx = r.center().x();
+            p.drawRoundedRect(QRect(cx - gap / 2 - barW, cy, barW, barH), 1, 1);
+            p.drawRoundedRect(QRect(cx + gap / 2, cy, barW, barH), 1, 1);
+        }
+        // Stop square.
+        {
+            const QRect r = m_stopRect;
+            const int sq = 10;
+            p.drawRoundedRect(QRect(r.center().x() - sq / 2, r.center().y() - sq / 2, sq, sq), 2, 2);
+        }
+    }
+
+    void mousePressEvent(QMouseEvent *e) override
+    {
+        // Request a toggle/stop from the parent; the resulting paused state comes
+        // back over stdin ("p1"/"p0"), same as the KDE in-process border.
+        const QPoint pos = e->position().toPoint();
+        if (m_pauseRect.contains(pos)) {
+            const char m[] = "pause\n";
+            (void)::write(1, m, sizeof m - 1);
+        } else if (m_stopRect.contains(pos)) {
+            const char m[] = "stop\n";
+            (void)::write(1, m, sizeof m - 1);
+        }
     }
 
 private:
@@ -154,7 +267,9 @@ private:
     {
         if (!m_clock.isValid())
             return QStringLiteral("00:00"); // countdown still running
-        const qint64 s = m_clock.elapsed() / 1000;
+        // Recorded (un-paused) time: freeze at the pause point, drop every span.
+        const qint64 base = m_paused ? m_pausedAtMs : m_clock.elapsed();
+        const qint64 s = qMax<qint64>(0, base - m_pausedTotalMs) / 1000;
         const qint64 h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
         const auto pad = [](qint64 v) {
             return QString::number(v).rightJustified(2, QLatin1Char('0'));
@@ -165,6 +280,17 @@ private:
 
     QElapsedTimer m_clock;
     bool m_pulse = true;
+    bool m_paused = false;
+    qint64 m_pausedAtMs = 0;    // clock reading when the current pause began
+    qint64 m_pausedTotalMs = 0; // accumulated paused wall-clock, excluded above
+    QString m_label;            // "REC/PAUSED  h:mm:ss", cached from layout()
+    QRect m_dotRect;
+    QRect m_textRect;
+    int m_divX = 0;
+    int m_pillW = 0;            // visible pill width (== input mask width)
+    QRect m_pauseRect;          // hit rects (window-local), set by layout()
+    QRect m_stopRect;
+    int m_maskW = -1;           // last input-mask width (avoid redundant setMask)
 };
 
 // The pre-recording countdown: a big accent number in a circle, centered in the
@@ -321,7 +447,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     // ticking clock never needs the window resized.
     std::unique_ptr<BadgeWindow> badgeWin;
     {
-        const int bh = 24, maxW = 200;
+        const int bh = 28, maxW = 280; // wider: the badge now carries pause+stop
         const bool roomAbove = (region.top() - bh - 6) >= sg.top();
         const bool roomBelow = (region.bottom() + 6 + bh) <= sg.bottom();
         if (roomAbove || roomBelow) {
@@ -349,6 +475,13 @@ int runRecordBorderHelper(int argc, char *argv[])
                              return;
                          }
                          buf[n] = '\0';
+                         // Pause toggles arrive as "p1"/"p0"; apply the last one.
+                         const char *lastP = nullptr;
+                         for (const char *c = buf; *c; ++c)
+                             if (*c == 'p')
+                                 lastP = c;
+                         if (lastP && badgeWin)
+                             badgeWin->setPaused(lastP[1] == '1');
                          // Apply the last "c<N>" in the chunk (ticks can batch).
                          const char *last = nullptr;
                          for (const char *c = buf; *c; ++c)

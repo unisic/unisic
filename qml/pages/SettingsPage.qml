@@ -777,6 +777,13 @@ Item {
                         available: App.ocrAvailable
                         hint: App.ocrAvailable ? ""
                               : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
+                        label: qsTr("Detect languages automatically")
+                        help: qsTr("Recognize using every installed Tesseract language pack.")
+                        helpDetail: qsTr("No need to know Tesseract language codes — Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.")
+                        USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
+                    }
+                    SettingRow {
+                        available: App.ocrAvailable && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: (App.qrAvailable
@@ -1018,6 +1025,12 @@ Item {
                         helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
                     }
+                    SettingRow {
+                        label: qsTr("Show a pixel loupe while selecting")
+                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour — so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
+                    }
                 }
             }
 
@@ -1070,7 +1083,7 @@ Item {
                     SettingRow {
                         label: qsTr("Copy link to clipboard")
                         help: qsTr("Copies the upload URL once the upload finishes.")
-                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a ShareX-style capture-to-link flow.")
+                        helpDetail: qsTr("Ready to paste anywhere. Combine with auto-upload for a seamless capture-to-link flow.")
                         USwitch { checked: App.settings.afterUploadCopyLink; onToggled: (c) => App.settings.afterUploadCopyLink = c }
                     }
                     SettingRow {
@@ -2674,12 +2687,14 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History drag payload"); onClicked: App.devTestHistoryDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification drag payload"); onClicked: App.devTestNotificationDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
@@ -2705,11 +2720,16 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Instant replay"); enabled: App.recordingAvailable; onClicked: App.devTestInstantReplay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim recording"); onClicked: App.devTestTrimRecording() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim cut (exact + lossless)"); onClicked: App.devTestTrimCut() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Recording pause excise"); onClicked: App.devTestPauseExcise() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Eyedropper"); onClicked: App.devTestEyedropper() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); enabled: App.ocrAvailable; onClicked: App.devTestOcrAutoLang() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

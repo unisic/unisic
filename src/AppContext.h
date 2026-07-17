@@ -59,6 +59,10 @@ class AppContext : public QObject
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
+    // Paused mid-recording; recordingCanPause gates the pause button (off for
+    // instant replay and while not actively recording).
+    Q_PROPERTY(bool recordingPaused READ recordingPaused NOTIFY recordingChanged)
+    Q_PROPERTY(bool recordingCanPause READ recordingCanPause NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable NOTIFY recordingAvailableChanged)
     // Why recording is off, so the UI can name the actual missing piece. The two
@@ -155,6 +159,8 @@ public:
     bool recording() const;
     bool converting() const;
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
+    bool recordingPaused() const { return m_recorder->paused(); }
+    bool recordingCanPause() const { return m_recorder->canPause(); }
     int recordSeconds() const;
     bool recordingAvailable() const;
     bool capPipeWireBuild() const;
@@ -205,6 +211,7 @@ public:
     Q_INVOKABLE void devTestHistoryFilter();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestCopyLast();
+    Q_INVOKABLE void devTestClipboardHistory();
     Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
@@ -218,9 +225,13 @@ public:
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
     Q_INVOKABLE void devTestShapeEdit();
+    Q_INVOKABLE void devTestMagnify();
+    Q_INVOKABLE void devTestEyedropper();
+    Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
+    Q_INVOKABLE void devTestOcrAutoLang();
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
@@ -238,9 +249,11 @@ public:
     Q_INVOKABLE void devTestInstantReplay();
     Q_INVOKABLE void devTestTrimRecording();
     Q_INVOKABLE void devTestTrimCut();
+    Q_INVOKABLE void devTestPauseExcise();
     Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
     Q_INVOKABLE void devTestUpdateCheck();
+    Q_INVOKABLE void devTestZipExport();
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
     Q_INVOKABLE void devTestCountdown();
@@ -324,6 +337,7 @@ public:
     Q_INVOKABLE void startVideoRegion();
     Q_INVOKABLE void startVideoWindow();
     Q_INVOKABLE void stopRecording();
+    Q_INVOKABLE void togglePauseRecording();
     Q_INVOKABLE void startInstantReplay();
     Q_INVOKABLE void saveInstantReplay();
 
@@ -355,6 +369,15 @@ public:
     // fell back to an ugly non-native dialog under the forced Basic style.
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
+    // Export the selected history entries (by id) to a ZIP: resolve to on-disk
+    // files, open a native save dialog, then archive. No zip library is linked,
+    // so this shells out to Info-ZIP (`zip`); missing → an actionable toast.
+    Q_INVOKABLE void exportEntriesToZipDialog(const QVariantList &ids);
+    // Archive `files` into destPath.zip asynchronously. `done` (if set) receives
+    // (ok, message); otherwise the outcome is toasted. Used by the history export
+    // and the dev/smoke harness.
+    void exportFilesToZip(const QStringList &files, const QString &destPath,
+                          std::function<void(bool, const QString &)> done = {});
     Q_INVOKABLE QString filenamePreview() const;
     // Custom tray icon. addTrayIcon = pick a file, COPY it into trayIconsDir;
     // selectTrayIcon = pick a known path (gallery tile; "" reverts to default);
@@ -432,6 +455,9 @@ public:
     // OCR the image and deliver per-word boxes on the GUI thread (editor's
     // selectable-text overlay). Empty words + a message on failure/no-OCR.
     void ocrBoxes(const QImage &img, std::function<void(const QVector<OcrWord> &, const QString &)> cb);
+    // The Tesseract language spec every OCR path actually uses: auto-detected
+    // installed langpacks when ocrAutoLanguage is on, else the manual spec.
+    QString effectiveOcrLanguages() const;
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
     void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path);
@@ -583,7 +609,7 @@ private:
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
-    void showTrimWindow(const QString &path, qreal duration);
+    void showTrimWindow(const QString &path, qreal duration, qreal frameDuration = 0);
     // One ffmpeg step of a trim. `done(ok, diagnostic)` runs on the GUI thread;
     // the GIF cut chains two of these (palettegen, then paletteuse).
     void runTrimStep(const QStringList &args,
@@ -594,6 +620,9 @@ private:
     // plus whether the timeline's filmstrip and keyframe table built. Async —
     // `done` gets one summary line. Shared by the smoke test and its button.
     void trimCutCheck(std::function<void(const QString &)> done);
+    // Excise a known pause span from a generated clip and confirm the output
+    // duration drops by that span (the recorder's real filtergraph).
+    void pauseExciseCheck(std::function<void(const QString &)> done);
     struct CaptureTask {
         bool active = false;
         bool save = false;

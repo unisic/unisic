@@ -54,6 +54,9 @@ BuildRequires:  cmake(ZXing)
 %if !0%{?suse_version} || 0%{?suse_version} >= 1600
 BuildRequires:  cmake(LayerShellQt)
 %endif
+# KSystemClipboard: puts screenshots into KDE Plasma's Klipper clipboard
+# history (needs the x-kde-force-image-copy hint QClipboard/wl-copy can't set).
+BuildRequires:  cmake(KF6GuiAddons)
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-protocols)
 BuildRequires:  desktop-file-utils

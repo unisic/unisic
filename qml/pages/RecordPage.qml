@@ -79,6 +79,13 @@ Item {
                     onClicked: App.startVideoWindow()
                 }
                 UButton {
+                    iconName: App.recordingPaused ? "play" : "pause"
+                    text: App.recordingPaused ? qsTr("Resume") : qsTr("Pause")
+                    variant: "tonal"
+                    visible: App.recordingCanPause && !App.converting
+                    onClicked: App.togglePauseRecording()
+                }
+                UButton {
                     iconName: "stop"; text: qsTr("Stop"); variant: "danger"
                     enabled: App.recording && !App.converting
                     onClicked: App.stopRecording()

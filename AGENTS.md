@@ -8,7 +8,7 @@ Contributor guide for **any** AI coding agent working on Unisic — Cursor, Aide
 
 ## 1. What Unisic is (and is not)
 
-Unisic is a **ShareX-like screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
+Unisic is a **screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
 
 Core workflow it owns end-to-end: press hotkey → annotate *on the selection overlay before the shot is taken* → post-capture editor (arrows, shapes, text, blur/pixelate, crop, numbered steps, smart eraser) → route the result to clipboard / disk / a custom upload destination with the link auto-copied → or record the same region as GIF/MP4/WebM.
 
@@ -238,6 +238,7 @@ Never report "done" for an untested runtime change. If you couldn't run it, stat
 
 - **Conventional Commits:** `feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, etc. Subject in imperative mood, ≤ ~72 chars. See `git log` for the house style (e.g. `fix: migrate legacy settings from "general" group to top-level keys...`).
 - **Explain the "why," especially for a landmine fix.** A one-line "fix settings reset" is useless to the next person; name the mechanism (the `[%General]` case-collision) so the fix isn't undone.
+- **Credit the bug reporter.** When a fix closes a GitHub issue, reference the issue in the commit (`Fixes #51` / `Closes #51`) so it links, AND thank the reporter by name in the `resources/CHANGELOG.md` entry ("Thanks to <handle> for reporting this (#51)") — bilingual EN/PL like everything else there. Users who report bugs are the reason we know about them; the changelog is where they get named.
 - **Branch off `main`; don't commit or push unless the human asks.** Never force-push shared branches.
 - **One logical change per PR.** Keep it reviewable.
 - **PR description checklist** (see §12) — state what you tested and on which compositor.

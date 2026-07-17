@@ -105,6 +105,25 @@ jobs:
           cmake --build build-zxing --parallel
           cmake --install build-zxing
 
+      - name: Build KF6GuiAddons (against the aqt Qt)
+        # KSystemClipboard (HAVE_KGUIADDONS) puts screenshots into KDE Plasma's
+        # Klipper clipboard history — plain image/png (QClipboard/wl-copy) is
+        # pasteable but never recorded (issue #51). Ubuntu 22.04 has no KF6
+        # package, so source-build the small framework into the same prefix.
+        # Reuses the ECM installed by the LayerShellQt step. Best-effort: on
+        # failure the app still builds, images just skip Klipper history.
+        continue-on-error: true
+        run: |
+          git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/kguiaddons.git
+          cmake -S kguiaddons -B build-kga -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_TESTING=OFF
+          cmake --build build-kga --parallel
+          cmake --install build-kga
+
       - name: Build AppDir
         run: |
           # The two optional builds above are continue-on-error — surface a
@@ -113,6 +132,8 @@ jobs:
             || echo "::warning::layer-shell-qt build failed — AppImage ships without HAVE_LAYERSHELL (on-top card, preview pin)"
           find lsq-prefix -name 'ZXingConfig.cmake' 2>/dev/null | grep -q . \
             || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
+          find lsq-prefix -name 'KF6GuiAddonsConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::kguiaddons build failed — AppImage ships without HAVE_KGUIADDONS (screenshots skip KDE Klipper history)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \

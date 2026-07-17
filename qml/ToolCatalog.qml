@@ -30,6 +30,8 @@ QtObject {
         { id: "blur",       tool: 7,  iconName: "blur",               label: qsTr("Blur"),         shortcut: "B", shortcutKey: Qt.Key_B, overlay: true,  editor: true, hideable: true, props: [] },
         { id: "pixelate",   tool: 8,  iconName: "pixelate",           label: qsTr("Pixelate"),     shortcut: "X", shortcutKey: Qt.Key_X, overlay: true,  editor: true, hideable: true, props: ["width"] },
         { id: "smarterase", tool: 12, iconName: "draw-eraser",        label: qsTr("Smart eraser"), shortcut: "E", shortcutKey: Qt.Key_E, overlay: true,  editor: true, hideable: true, props: [] },
+        { id: "magnify",    tool: 18, iconName: "magnify",            label: qsTr("Magnifier"),    shortcut: "Z", shortcutKey: Qt.Key_Z, overlay: true,  editor: true, hideable: true, props: ["stroke", "width"] },
+        { id: "eyedropper", tool: 19, iconName: "color-picker",       label: qsTr("Eyedropper"),   shortcut: "I", shortcutKey: Qt.Key_I, overlay: true,  editor: true, hideable: true, props: ["stroke"] },
         { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  shortcut: "N", shortcutKey: Qt.Key_N, overlay: true,  editor: true, hideable: true, props: ["stroke", "stepSize"] },
         { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         shortcut: "C", shortcutKey: Qt.Key_C, overlay: false, editor: true, hideable: true, props: [] }
     ]

@@ -21,7 +21,7 @@ Needs **Qt 6.5+**, CMake and Ninja.
 ```sh
 sudo dnf install -y cmake ninja-build gcc-c++ \
     qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-    pipewire-devel ffmpeg wl-clipboard xdg-desktop-portal
+    pipewire-devel kf6-kguiaddons-devel ffmpeg wl-clipboard xdg-desktop-portal
 ```
 
 **Debian / Ubuntu** (trixie / 24.10+ for Qt 6.5+)
@@ -29,14 +29,14 @@ sudo dnf install -y cmake ninja-build gcc-c++ \
 ```sh
 sudo apt install cmake ninja-build g++ pkg-config \
     qt6-base-dev qt6-declarative-dev libqt6svg6-dev qt6-wayland \
-    libpipewire-0.3-dev ffmpeg wl-clipboard xdg-desktop-portal
+    libpipewire-0.3-dev libkf6guiaddons-dev ffmpeg wl-clipboard xdg-desktop-portal
 ```
 
 **Arch**
 
 ```sh
 sudo pacman -S --needed base-devel qt6-base qt6-declarative qt6-svg qt6-wayland \
-    pipewire ffmpeg wl-clipboard xdg-desktop-portal cmake ninja pkgconf
+    pipewire kguiaddons ffmpeg wl-clipboard xdg-desktop-portal cmake ninja pkgconf
 ```
 
 **Build & run**
@@ -47,7 +47,7 @@ cmake --build build
 ./build/unisic
 ```
 
-PipeWire, Tesseract and onnxruntime dev packages are optional — without them the app builds with recording / OCR / U-2-Net background removal disabled (the dependency-free heuristic cutout still works). For AI background removal install `onnxruntime-devel` (Fedora) or `onnxruntime` (Arch) and rebuild; the ~4.5 MB U-2-Net model is fetched on first use.
+PipeWire, Tesseract, zxing-cpp, LayerShellQt and KF6GuiAddons dev packages are all optional — each feature it powers compiles out gracefully when its dependency is absent. `kf6-kguiaddons-devel` / `libkf6guiaddons-dev` / `kguiaddons` (KSystemClipboard) is what lets copied screenshots enter KDE Plasma's Klipper clipboard **history**; without it images still copy and paste, they just aren't recorded in the applet.
 
 ## Development approach
 

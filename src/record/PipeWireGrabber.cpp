@@ -2,7 +2,17 @@
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/type-info.h>
-#include <spa/param/buffers.h>   // SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_META_*
+#include <spa/param/param.h>     // enum spa_param (SPA_PARAM_Meta)
+// enum spa_param_meta (SPA_PARAM_META_type / _size) lives in buffers.h. Some
+// distro SPA packages (older/reduced libpipewire-0.3-dev on the CI runners)
+// ship spa/param/video/* but not spa/param/buffers.h, so guard the include and
+// fall back to the ABI-stable ordinals — the enum has only ever lived in
+// buffers.h, so param.h can never define them and this can't clash.
+#if __has_include(<spa/param/buffers.h>)
+#  include <spa/param/buffers.h>
+#else
+enum { SPA_PARAM_META_type = 1, SPA_PARAM_META_size = 2 };
+#endif
 #include <spa/buffer/meta.h>     // spa_meta_{header,cursor,bitmap}
 #include <spa/pod/builder.h>
 #include <QDebug>

@@ -2,17 +2,12 @@
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/type-info.h>
-#include <spa/param/param.h>     // enum spa_param (SPA_PARAM_Meta)
-// enum spa_param_meta (SPA_PARAM_META_type / _size) lives in buffers.h. Some
-// distro SPA packages (older/reduced libpipewire-0.3-dev on the CI runners)
-// ship spa/param/video/* but not spa/param/buffers.h, so guard the include and
-// fall back to the ABI-stable ordinals — the enum has only ever lived in
-// buffers.h, so param.h can never define them and this can't clash.
-#if __has_include(<spa/param/buffers.h>)
-#  include <spa/param/buffers.h>
-#else
-enum { SPA_PARAM_META_type = 1, SPA_PARAM_META_size = 2 };
-#endif
+// SPA_PARAM_Meta and the spa_param_meta enum (SPA_PARAM_META_type / _size) are
+// pulled in transitively by pipewire.h → spa/param/param.h. Do NOT #include
+// <spa/param/buffers.h> for them: some distro libpipewire-0.3-dev packages
+// (the AppImage CI runner) don't ship that path even though the enum is
+// available, and a manual fallback definition then clashes with the transitive
+// one. spa/buffer/meta.h (the cursor bitmap structs) is a separate, stable path.
 #include <spa/buffer/meta.h>     // spa_meta_{header,cursor,bitmap}
 #include <spa/pod/builder.h>
 #include <QDebug>
@@ -306,11 +301,10 @@ void PipeWireGrabber::onProcess()
                 spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(struct spa_meta_header))))
             if (hdr->pts != 0)
                 ptsNs = hdr->pts;
-        if (ptsNs == 0) {
-            struct pw_time t = {};
-            if (pw_stream_get_time_n(m_stream, &t, sizeof(t)) == 0 && t.now > 0)
-                ptsNs = t.now;
-        }
+        // The header pts is the compositor's presentation time; when it is
+        // absent, CLOCK_MONOTONIC now is close enough for cursor sampling (and
+        // avoids pw_stream_get_time_n, which older libpipewire on some CI
+        // runners does not provide).
         if (ptsNs == 0) {
             struct timespec ts = {};
             clock_gettime(CLOCK_MONOTONIC, &ts);

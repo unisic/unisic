@@ -1504,8 +1504,11 @@ static QString measureToolsCheck()
     // Size mode: a 200×60 box; a second retained measurement; formats respected.
     canvas.setMeasureMode(1);
     draw(AnnotationCanvas::Measure, {20, 40}, {220, 100}, Qt::NoModifier);
+    // QStringLiteral, NOT QLatin1String: the × is UTF-8 in this source file,
+    // and QLatin1String reads those bytes as Latin-1 ("Ã—"), so the comparison
+    // could never match — that was a smoke-test FAIL with a correct measuresText.
     if (canvas.measuresText(QStringLiteral("readable")).section('\n', 1, 1)
-            != QLatin1String("200 × 60"))
+            != QStringLiteral("200 × 60"))
         return QStringLiteral("FAIL (size text: %1)")
             .arg(canvas.measuresText(QStringLiteral("readable")));
     if (canvas.measuresText(QStringLiteral("plain")).section('\n', 1, 1)

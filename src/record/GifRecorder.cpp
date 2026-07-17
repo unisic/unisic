@@ -124,11 +124,18 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
     }
     args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
     QProcess probe;
+    probe.setProcessChannelMode(QProcess::MergedChannels);
     probe.start(QStringLiteral("ffmpeg"), args);
     const bool ok = probe.waitForFinished(8000) && probe.exitStatus() == QProcess::NormalExit
                     && probe.exitCode() == 0;
-    if (!ok)
-        qInfo() << "GifRecorder: hardware encoder" << id << "is listed but does not encode here";
+    if (!ok) {
+        // Log WHY: "works=n" alone is undiagnosable in the field (session limits,
+        // driver mismatch, a missing device node all look identical without it).
+        const QString why = QString::fromUtf8(probe.readAll()).right(400).trimmed();
+        qInfo().noquote() << "GifRecorder: hardware encoder" << id
+                          << "is listed but does not encode here"
+                          << (why.isEmpty() ? QString() : QStringLiteral("— %1").arg(why));
+    }
     cache.insert(id, ok);
     return ok;
 }

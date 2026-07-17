@@ -5,6 +5,9 @@ Rectangle {
     id: root
     property color dotColor: "#FF4757"
     property bool active: false
+    // The hover state is owned by the internal MouseArea, whose id is not
+    // reachable from a caller — expose it so a host can drive a hover tip.
+    readonly property alias hovered: mouse.containsMouse
     signal clicked()
 
     width: 26; height: 26

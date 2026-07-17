@@ -300,8 +300,8 @@ private:
 class CountdownWindow : public QRasterWindow
 {
 public:
-    CountdownWindow(const QRect &absGeom, const QColor &accent, int n)
-        : m_accent(accent), m_n(n)
+    CountdownWindow(const QRect &absGeom, const QColor &accent, int n, bool capDisc = false)
+        : m_accent(accent), m_n(n), m_cap(capDisc)
     {
         setFlags(kFrameFlags);
         setFormat(argbFormat(format()));
@@ -325,13 +325,17 @@ protected:
             return;
         const QRect local(0, 0, width(), height());
         p.setRenderHint(QPainter::Antialiasing);
-        const int d = int(qMin(width(), height()) * 0.42);
+        // Cap the disc for a full-screen countdown (0.42 × a 1440px screen is a
+        // 600px disc); mirrors RecordBorder.qml.
+        int d = int(qMin(width(), height()) * 0.42);
+        if (m_cap)
+            d = qMin(d, 220);
         const QRect circle(local.center().x() - d / 2, local.center().y() - d / 2, d, d);
         p.setPen(QPen(m_accent, 2));
         p.setBrush(QColor(0, 0, 0, 140));
         p.drawEllipse(circle);
         QFont nf = p.font();
-        nf.setPixelSize(qMax(24, int(qMin(width(), height()) * 0.26)));
+        nf.setPixelSize(qMax(24, int(d * 0.62)));
         nf.setBold(true);
         p.setFont(nf);
         p.setPen(m_accent);
@@ -341,6 +345,7 @@ protected:
 private:
     QColor m_accent;
     int m_n;
+    bool m_cap;
 };
 
 } // namespace
@@ -358,7 +363,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     // --record-border-helper <name> <lx> <ly> <lw> <lh> <pw> <ph>
-    //                        <fx> <fy> <fw> <fh> <#accent> [countdown]
+    //                        <fx> <fy> <fw> <fh> <#accent> [countdown] [countdownOnly]
     // name/l*/p*: the Wayland screen's name, logical geometry and physical size,
     // used only to pick the matching X screen. f*: region as fractions of the
     // monitor — XWayland's coordinate space (logical vs physical layout mode)
@@ -379,6 +384,11 @@ int runRecordBorderHelper(int argc, char *argv[])
     // Optional 14th arg: initial pre-recording countdown (0 = none). Further
     // updates arrive over stdin as "c<N>\n".
     int countdown = (i + 13 < args.size()) ? args[i + 13].toInt() : 0;
+    // Optional 15th arg: countdownOnly (1 = full-screen/window countdown). Draw
+    // ONLY the centered number — no frame bars, no REC badge — and quit the
+    // instant it reaches 0, so the surface is gone before the first recorded
+    // frame (it sits over the recorded area, unlike a region frame).
+    const bool countdownOnly = (i + 14 < args.size()) && args[i + 14].toInt() != 0;
 
     // Match the Wayland screen to an X screen. XWayland's RandR outputs often
     // carry synthetic names (XWAYLAND0…) under mutter, so fall through name →
@@ -425,28 +435,32 @@ int runRecordBorderHelper(int argc, char *argv[])
     // fill between them). Each paints the whole ring translated and is clipped
     // by its geometry.
     std::vector<std::unique_ptr<BarWindow>> bars;
-    const auto addBar = [&](const QRect &g) {
-        auto w = std::make_unique<BarWindow>(region, g, accent);
-        w->show();
-        bars.push_back(std::move(w));
-    };
-    addBar(QRect(frame.left(), frame.top(), frame.width(), kFramePad));
-    addBar(QRect(frame.left(), region.bottom() + 1, frame.width(), kFramePad));
-    addBar(QRect(frame.left(), region.top(), kFramePad, region.height()));
-    addBar(QRect(region.right() + 1, region.top(), kFramePad, region.height()));
+    if (!countdownOnly) {
+        const auto addBar = [&](const QRect &g) {
+            auto w = std::make_unique<BarWindow>(region, g, accent);
+            w->show();
+            bars.push_back(std::move(w));
+        };
+        addBar(QRect(frame.left(), frame.top(), frame.width(), kFramePad));
+        addBar(QRect(frame.left(), region.bottom() + 1, frame.width(), kFramePad));
+        addBar(QRect(frame.left(), region.top(), kFramePad, region.height()));
+        addBar(QRect(region.right() + 1, region.top(), kFramePad, region.height()));
+    }
 
-    // Countdown number over the region interior (only while it ticks).
+    // Countdown number. Framed: centered in the region interior. countdownOnly:
+    // centered on the whole surface (the region IS the whole screen here).
     std::unique_ptr<CountdownWindow> countdownWin;
     if (countdown > 0) {
-        countdownWin = std::make_unique<CountdownWindow>(region, accent, countdown);
+        countdownWin = std::make_unique<CountdownWindow>(region, accent, countdown, countdownOnly);
         countdownWin->show();
     }
 
     // REC badge just above the region (or below if there is no room above),
     // shown only once recording has begun. A fixed generous width means the
-    // ticking clock never needs the window resized.
+    // ticking clock never needs the window resized. Never in countdownOnly mode
+    // (the overlay is gone the moment recording begins).
     std::unique_ptr<BadgeWindow> badgeWin;
-    {
+    if (!countdownOnly) {
         const int bh = 28, maxW = 280; // wider: the badge now carries pause+stop
         const bool roomAbove = (region.top() - bh - 6) >= sg.top();
         const bool roomBelow = (region.bottom() + 6 + bh) <= sg.bottom();
@@ -467,7 +481,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     // signals, no D-Bus, no polling.
     QSocketNotifier stdinWatch(0, QSocketNotifier::Read);
     QObject::connect(&stdinWatch, &QSocketNotifier::activated, &app,
-                     [&app, &countdownWin, &badgeWin] {
+                     [&app, &countdownWin, &badgeWin, countdownOnly] {
                          char buf[64];
                          const ssize_t n = ::read(0, buf, sizeof buf - 1);
                          if (n <= 0) {
@@ -493,6 +507,14 @@ int runRecordBorderHelper(int argc, char *argv[])
                          if (val > 0) {
                              if (countdownWin)
                                  countdownWin->setNumber(val);
+                             return;
+                         }
+                         // countdownOnly: nothing persists past the countdown, so
+                         // quit at 0 to drop the surface before the first frame.
+                         // (The parent also closes stdin, but quitting here is
+                         // immediate.)
+                         if (countdownOnly) {
+                             app.quit();
                              return;
                          }
                          // val == 0: recording has begun. Drop the countdown

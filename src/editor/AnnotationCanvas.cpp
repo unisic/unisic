@@ -11,6 +11,8 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMimeData>
+#include <QRegularExpression>
+#include <QSet>
 #include <QtMath>
 #include <QtConcurrent>
 #include <QFutureWatcher>
@@ -210,6 +212,46 @@ void AnnotationCanvas::setHighlightMode(int mode)
         emit glyphBoxesRequested();
     }
     update();
+}
+
+void AnnotationCanvas::setMeasureMode(int mode)
+{
+    mode = qBound(0, mode, 1);
+    if (m_measureMode == mode) return;
+    m_measureMode = mode;
+    emit measureModeChanged();
+    update();
+}
+
+QString AnnotationCanvas::measuresText(const QString &format) const
+{
+    QStringList lines;
+    for (const Annot &a : m_items) {
+        if (a.type != Measure)
+            continue;
+        // `filled` marks a size-box measure; distance otherwise (see commit in
+        // mouseReleaseEvent). rect stores the two endpoints as topLeft/bottomRight.
+        if (a.filled) {
+            const QRectF r = a.rect.normalized();
+            const int w = qRound(r.width());
+            const int h = qRound(r.height());
+            if (format == QLatin1String("plain"))
+                lines << QStringLiteral("%1x%2").arg(w).arg(h);
+            else if (format == QLatin1String("css"))
+                lines << QStringLiteral("width: %1px; height: %2px").arg(w).arg(h);
+            else
+                lines << QStringLiteral("%1 × %2").arg(w).arg(h);
+        } else {
+            const int len = qRound(QLineF(a.rect.topLeft(), a.rect.bottomRight()).length());
+            if (format == QLatin1String("plain"))
+                lines << QString::number(len);
+            else if (format == QLatin1String("css"))
+                lines << QStringLiteral("%1px").arg(len);
+            else
+                lines << QStringLiteral("%1 px").arg(len);
+        }
+    }
+    return lines.join(QLatin1Char('\n'));
 }
 
 void AnnotationCanvas::setFontSize(int s)
@@ -818,15 +860,28 @@ bool AnnotationCanvas::addOcrSelectionAnnotations(Tool type, const QColor &color
 
     // OCR glyphs are in reading order. Therefore the contiguous [lo..hi]
     // range naturally clips the first line at the anchor and the last one at
-    // the caret; middle lines contain their complete spans. Keep every line
-    // separate so a multi-line selection produces real highlighter/redaction
-    // bars instead of one giant rectangle over the intervening blank space.
+    // the caret; middle lines contain their complete spans.
     const int n = m_ocrWords.size();
     const int lo = qBound(0, qMin(m_ocrCaretA, m_ocrCaretB), n - 1);
     const int hiEx = qBound(0, qMax(m_ocrCaretA, m_ocrCaretB), n);
+    QVector<int> glyphs;
+    glyphs.reserve(hiEx - lo);
+    for (int i = lo; i < hiEx; ++i)
+        glyphs.append(i);
+    return addOcrGlyphAnnotations(glyphs, type, color, filled, fillColor);
+}
+
+bool AnnotationCanvas::addOcrGlyphAnnotations(const QVector<int> &glyphs, Tool type,
+                                              const QColor &color, bool filled,
+                                              const QColor &fillColor)
+{
+    if (glyphs.isEmpty() || m_ocrWords.isEmpty())
+        return false;
+
     QVector<Annot> batch;
     QRectF dirty;
-    int k = -1;
+    int k = -1;          // current run's line
+    int prevIdx = -2;    // last glyph index consumed (-2 never adjacent to 0)
     qreal xL = 0, xR = 0;
     QRectF band;
     auto flush = [&] {
@@ -835,7 +890,7 @@ bool AnnotationCanvas::addOcrSelectionAnnotations(Tool type, const QColor &color
         Annot a;
         a.type = type;
         // Full line-band height (a redaction bar must fully hide the text's
-        // ascenders/descenders), hugging the selected glyphs horizontally.
+        // ascenders/descenders), hugging the covered glyphs horizontally.
         a.rect = QRectF(xL, band.top(), xR - xL, band.height());
         a.color = color;
         a.filled = filled;
@@ -844,10 +899,12 @@ bool AnnotationCanvas::addOcrSelectionAnnotations(Tool type, const QColor &color
         batch.append(a);
         dirty |= annotBoundsImg(a);
     };
-    for (int i = lo; i < hiEx; ++i) {
+    for (const int i : glyphs) {
+        if (i < 0 || i >= m_ocrWords.size())
+            continue;
         const int lk = ocrLineOfGlyph(i);
         const QRectF gr(m_ocrWords[i].rect);
-        if (lk != k) {
+        if (lk != k || i != prevIdx + 1) {
             flush();
             k = lk;
             band = (k >= 0 && k < m_ocrLines.size()) ? m_ocrLines[k].band : gr;
@@ -857,12 +914,13 @@ bool AnnotationCanvas::addOcrSelectionAnnotations(Tool type, const QColor &color
             xL = qMin(xL, gr.left());
             xR = qMax(xR, gr.right());
         }
+        prevIdx = i;
     }
     flush();
     if (batch.isEmpty())
         return false;
 
-    // The selection is one user action even when it spans several text lines.
+    // The batch is one user action even when it spans several text lines.
     pushUndo();
     m_items += batch;
     updateImgRect(dirty);
@@ -896,6 +954,81 @@ bool AnnotationCanvas::redactOcrSelection(bool pixelate)
     // filled bar over each text line instead.
     const QColor bar(0, 0, 0);
     return addOcrSelectionAnnotations(Rect, bar, /*filled=*/true, /*fillColor=*/bar);
+}
+
+QString AnnotationCanvas::ocrAllText(QVector<int> *charToGlyph) const
+{
+    QString out;
+    if (charToGlyph)
+        charToGlyph->clear();
+    auto push = [&](const QString &s, int glyph) {
+        out += s;
+        if (charToGlyph)
+            charToGlyph->insert(charToGlyph->size(), s.size(), glyph);
+    };
+    int lastLine = -1;
+    for (int i = 0; i < m_ocrWords.size(); ++i) {
+        const OcrWord &g = m_ocrWords[i];
+        // Separators belong to no glyph (-1): a match may legitimately span
+        // them (an e-mail never does, a multi-word phrase does), and mapping
+        // them to a neighbour would extend a bar past the matched text.
+        if (lastLine < 0) {
+            // first glyph
+        } else if (g.line != lastLine) {
+            push(QStringLiteral("\n"), -1);
+        } else if (g.spaceBefore) {
+            push(QStringLiteral(" "), -1);
+        }
+        push(g.text, i);
+        lastLine = g.line;
+    }
+    return out;
+}
+
+int AnnotationCanvas::redactTextMatching(const QString &pattern)
+{
+    if (m_ocrWords.isEmpty() || pattern.isEmpty())
+        return 0;
+    QRegularExpression re(pattern, QRegularExpression::CaseInsensitiveOption);
+    if (!re.isValid())
+        return -1;
+
+    QVector<int> map;
+    const QString text = ocrAllText(&map);
+    if (text.isEmpty())
+        return 0;
+
+    QSet<int> hitSet;
+    int matches = 0;
+    auto it = re.globalMatch(text);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        // A zero-width match (e.g. a pattern that is all-optional) covers no
+        // glyph — counting it would report redactions that left no bar.
+        if (m.capturedLength() <= 0)
+            continue;
+        bool covered = false;
+        for (int c = m.capturedStart(); c < m.capturedEnd(); ++c) {
+            const int g = map.value(c, -1);
+            if (g >= 0) {
+                hitSet.insert(g);
+                covered = true;
+            }
+        }
+        if (covered)
+            ++matches;
+    }
+    if (hitSet.isEmpty())
+        return 0;
+
+    QVector<int> glyphs(hitSet.cbegin(), hitSet.cend());
+    // addOcrGlyphAnnotations breaks runs on an index gap, so the indices must
+    // arrive ascending or every glyph would become its own bar.
+    std::sort(glyphs.begin(), glyphs.end());
+    const QColor bar(0, 0, 0);
+    if (!addOcrGlyphAnnotations(glyphs, Rect, bar, /*filled=*/true, /*fillColor=*/bar))
+        return 0;
+    return matches;
 }
 
 void AnnotationCanvas::setGlyphBoxes(const QVector<OcrWord> &words)
@@ -1375,6 +1508,34 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         break;
     }
     case Measure: {
+        QFont f = p.font();
+        f.setPixelSize(qMax(12, int(a.width * 4)));
+        f.setBold(true);
+        const auto drawLabel = [&](const QString &label, const QPointF &center) {
+            p.setFont(f);
+            const QFontMetricsF fm(f);
+            QRectF box = fm.boundingRect(label).adjusted(-5, -3, 5, 3);
+            box.moveCenter(center);
+            const QColor stroke = p.pen().color();
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(23, 21, 59, 220));
+            p.drawRoundedRect(box, 4, 4);
+            p.setPen(Qt::white);
+            p.drawText(box, Qt::AlignCenter, label);
+            p.setPen(stroke); // restore for any following strokes
+        };
+        if (a.filled) {
+            // Size box: a rectangle labelled with its W × H.
+            const QRectF r = a.rect.normalized();
+            if (r.width() < 1.0 && r.height() < 1.0)
+                break;
+            p.setBrush(Qt::NoBrush);
+            p.drawRect(r);
+            drawLabel(QStringLiteral("%1 × %2").arg(qRound(r.width())).arg(qRound(r.height())),
+                      r.center());
+            break;
+        }
+        // Distance line.
         const QPointF from = a.rect.topLeft();
         const QPointF to = a.rect.bottomRight();
         const QLineF line(from, to);
@@ -1386,21 +1547,10 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         const QPointF half = (tick.p2() - tick.p1()) / 2.0;
         p.drawLine(from - half, from + half);
         p.drawLine(to - half, to + half);
-        QFont f = p.font();
-        f.setPixelSize(qMax(12, int(a.width * 4)));
-        f.setBold(true);
-        p.setFont(f);
-        const QString label = QStringLiteral("%1 px · %2°")
-                                  .arg(qRound(line.length()))
-                                  .arg(qRound(-line.angle()));
-        const QFontMetricsF fm(f);
-        QRectF box = fm.boundingRect(label).adjusted(-5, -3, 5, 3);
-        box.moveCenter((from + to) / 2.0 - half * 1.8);
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor(23, 21, 59, 220));
-        p.drawRoundedRect(box, 4, 4);
-        p.setPen(Qt::white);
-        p.drawText(box, Qt::AlignCenter, label);
+        drawLabel(QStringLiteral("%1 px · %2°")
+                      .arg(qRound(line.length()))
+                      .arg(qRound(-line.angle())),
+                  (from + to) / 2.0 - half * 1.8);
         break;
     }
     case Rect:
@@ -2116,6 +2266,10 @@ void AnnotationCanvas::beginDraw(const QPointF &at)
     m_current.color = m_color;
     m_current.fillColor = m_fillColor;
     m_current.filled = m_fillEnabled && (m_tool == Rect || m_tool == Ellipse || m_tool == Callout);
+    // Measure reuses `filled` as its sub-mode marker: size-box (1) vs distance
+    // line (0). Nothing paints a fill for Measure, so the field is free.
+    if (m_tool == Measure)
+        m_current.filled = (m_measureMode == 1);
     m_current.width = m_strokeWidth;
     m_current.arrowHeadStyle = m_arrowHeadStyle;
     m_current.fontSize = m_fontSize;

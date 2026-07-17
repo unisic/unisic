@@ -23,11 +23,128 @@ Row {
 
     function has(p) { return props.indexOf(p) >= 0 }
 
+    // ---- style presets ----
+    // Presets only make sense for a tool that HAS a style; Blur/Crop and the
+    // like declare no props, and a preset row floating next to nothing would
+    // just be noise.
+    readonly property bool presetsVisible: props.length > 0
+    readonly property int maxPresets: 6
+    property var presets: []
+
+    // Every canvas style property a preset captures, keyed by its JSON name.
+    // The style is global, so a preset restores all of it regardless of which
+    // tool is active — switching tool never rewrites these.
+    readonly property var _presetKeys: ({
+        "stroke": "strokeColor", "width": "strokeWidth",
+        "fill": "shapeFillColor", "fillOn": "shapeFillEnabled",
+        "arrowHead": "arrowHeadStyle", "hlMode": "highlightMode",
+        "stepSize": "stepSize", "fontSize": "fontSize",
+        "fontFamily": "fontFamily", "fontBold": "fontBold",
+        "fontItalic": "fontItalic", "fontUnderline": "fontUnderline",
+        "textOutline": "textOutline", "textOutlineColor": "textOutlineColor",
+        "textBg": "textBackground", "textBgColor": "textBackgroundColor"
+    })
+
+    Component.onCompleted: _loadPresets()
+
+    Connections {
+        target: App.settings
+        // Both bars (and a second editor window) write the same setting: reload
+        // so a preset saved in one shows up in the other without a restart.
+        function onEditorStylePresetsChanged() { root._loadPresets() }
+    }
+
+    function _loadPresets() {
+        var raw = App.settings.editorStylePresets
+        if (!raw) { presets = []; return }
+        try {
+            var parsed = JSON.parse(raw)
+            // Hand-edited or older configs must not take the bar down with them.
+            presets = Array.isArray(parsed) ? parsed.slice(0, maxPresets) : []
+        } catch (e) {
+            console.warn("ToolPropsBar: ignoring unreadable style presets:", e)
+            presets = []
+        }
+    }
+
+    function _storePresets(list) {
+        App.settings.editorStylePresets = JSON.stringify(list)
+        // The Connections handler reloads; assign too so the row updates even
+        // if the value happens to compare equal (no NOTIFY then).
+        presets = list
+    }
+
+    function savePreset() {
+        var p = {}
+        for (var jsonKey in _presetKeys) {
+            var v = canvas[_presetKeys[jsonKey]]
+            // Colours must be serialized as strings — a QColor stringifies to
+            // "#aarrggbb" via JSON only by accident of its toString.
+            p[jsonKey] = (v !== undefined && v !== null && v.toString && typeof v === "object")
+                         ? v.toString() : v
+        }
+        var list = presets.slice()
+        list.push(p)
+        _storePresets(list.slice(0, maxPresets))
+    }
+
+    function applyPreset(p) {
+        for (var jsonKey in _presetKeys) {
+            if (p[jsonKey] === undefined)
+                continue // preset saved before this property existed
+            canvas[_presetKeys[jsonKey]] = p[jsonKey]
+        }
+    }
+
+    function removePreset(i) {
+        if (i < 0 || i >= presets.length)
+            return
+        var list = presets.slice()
+        list.splice(i, 1)
+        _storePresets(list)
+    }
+
+    function presetMatchesCanvas(p) {
+        for (var jsonKey in _presetKeys) {
+            if (p[jsonKey] === undefined)
+                continue
+            var v = canvas[_presetKeys[jsonKey]]
+            var isColor = (v !== undefined && v !== null && typeof v === "object" && v.toString)
+            if (isColor ? !Qt.colorEqual(v, p[jsonKey]) : v !== p[jsonKey])
+                return false
+        }
+        return true
+    }
+
     // Stroke width is only meaningful for the freehand highlighter mode; the
     // rectangle/text bands ignore it, so hide the control there.
     readonly property bool showWidth:
         has("width") && (!has("highlightMode")
                          || canvas.highlightMode === AnnotationCanvas.HlFreehand)
+
+    // ---- measure mode (distance line / size box) ----
+    Row {
+        visible: root.has("measureMode")
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 4
+        ToolChip {
+            iconName: "measure"; iconStyle: "custom"; label: qsTr("Distance")
+            active: root.canvas.measureMode === 0
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.canvas.measureMode = 0
+        }
+        ToolChip {
+            iconName: "draw-rectangle"; iconStyle: "custom"; label: qsTr("Size")
+            active: root.canvas.measureMode === 1
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.canvas.measureMode = 1
+        }
+    }
+    Rectangle {
+        visible: root.has("measureMode")
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+    }
 
     // ---- highlighter mode (freehand marker / rectangle band / text snap) ----
     Row {
@@ -261,5 +378,55 @@ Row {
         active: root.canvas.textBackground
         anchors.verticalCenter: parent.verticalCenter
         onClicked: root.textBackgroundPickerRequested()
+    }
+
+    // ---- style presets ----
+    // The style is GLOBAL (one set of properties on the canvas, not one per
+    // tool), so a preset is just a snapshot of it. Stored as JSON in one
+    // settings string; the schema lives here.
+    Rectangle {
+        visible: root.presetsVisible
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+    }
+    Repeater {
+        model: root.presetsVisible ? root.presets : []
+        delegate: ColorDot {
+            id: presetDot
+            required property var modelData
+            required property int index
+            dotColor: modelData.stroke !== undefined ? modelData.stroke : "#FF4757"
+            // A preset is "active" only when the WHOLE style matches, not just
+            // the colour — two presets can share a colour and differ in width.
+            active: root.presetMatchesCanvas(modelData)
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.applyPreset(modelData)
+            UHoverTip {
+                anchor: presetDot
+                show: presetDot.hovered
+                // No names to type: the width is what visibly separates two
+                // presets of the same colour. Middle-click deletes, so the tip
+                // has to say so — nothing else in the bar hints at it.
+                text: qsTr("%1 px — middle-click to delete")
+                          .arg(presetDot.modelData.width !== undefined ? presetDot.modelData.width : 0)
+            }
+            // Deliberately not a hover ✕: the dots are 26 px and sit in a row
+            // the user clicks constantly to APPLY a preset — an adjacent delete
+            // target that size is a misclick waiting to happen. Left clicks are
+            // not accepted here, so they fall through to the dot's own handler.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.MiddleButton
+                onClicked: root.removePreset(presetDot.index)
+            }
+        }
+    }
+    ToolChip {
+        visible: root.presetsVisible && root.presets.length < root.maxPresets
+        iconName: "plus"
+        iconStyle: "custom"
+        label: qsTr("Save current style as a preset")
+        anchors.verticalCenter: parent.verticalCenter
+        onClicked: root.savePreset()
     }
 }

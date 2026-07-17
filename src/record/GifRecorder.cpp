@@ -1,4 +1,8 @@
 #include "GifRecorder.h"
+#include "ClickCapture.h"
+#include "InputPermission.h"
+#include <QPainter>
+#include <ctime>
 #include "Settings.h"
 #include "capture/ScreenCastSession.h"
 #ifdef HAVE_PIPEWIRE
@@ -83,6 +87,64 @@ bool GifRecorder::hardwareEncoderAvailable(const QString &id)
     if (id == QLatin1String("nvenc"))
         return ffmpegEncoders().contains(QStringLiteral("h264_nvenc"));
     return false;
+}
+
+// Does the encoder actually ENCODE, not just appear in -encoders? Measured
+// necessity, not caution: on this developer's box ffmpeg lists vp9_vaapi and
+// the render node exists, yet the encode fails outright — the listing describes
+// the ffmpeg build, the hardware behind it may not implement the codec. The
+// "auto" default rides on this, so a listing-only check would hand a broken
+// encoder to every user who never picked one.
+//
+// Encodes two frames of a tiny synthetic clip to /dev/null. ~0.5 s, run at most
+// once per encoder per process.
+bool GifRecorder::hardwareEncoderWorks(const QString &id)
+{
+    static QHash<QString, bool> cache;
+    const auto it = cache.constFind(id);
+    if (it != cache.constEnd())
+        return *it;
+    if (!hardwareEncoderAvailable(id)) {
+        cache.insert(id, false);
+        return false;
+    }
+    QStringList args{QStringLiteral("-hide_banner"), QStringLiteral("-loglevel"),
+                     QStringLiteral("error"), QStringLiteral("-y")};
+    if (id == QLatin1String("vaapi")) {
+        args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
+             << QStringLiteral("-f") << QStringLiteral("lavfi")
+             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
+             << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
+             << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi");
+    } else {
+        args << QStringLiteral("-f") << QStringLiteral("lavfi")
+             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
+             << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+    }
+    args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
+    QProcess probe;
+    probe.start(QStringLiteral("ffmpeg"), args);
+    const bool ok = probe.waitForFinished(8000) && probe.exitStatus() == QProcess::NormalExit
+                    && probe.exitCode() == 0;
+    if (!ok)
+        qInfo() << "GifRecorder: hardware encoder" << id << "is listed but does not encode here";
+    cache.insert(id, ok);
+    return ok;
+}
+
+// "auto" (the default) picks a hardware encoder that really works, else falls
+// back to software. An explicit choice is honoured as-is — including software.
+QString GifRecorder::resolvedVideoEncoder() const
+{
+    const QString choice = m_settings->videoEncoder();
+    if (choice != QLatin1String("auto"))
+        return choice;
+    if (hardwareEncoderWorks(QStringLiteral("nvenc")))
+        return QStringLiteral("nvenc");
+    if (hardwareEncoderWorks(QStringLiteral("vaapi")))
+        return QStringLiteral("vaapi");
+    return QStringLiteral("software");
 }
 
 GifRecorder::GifRecorder(Settings *settings, QObject *parent)
@@ -216,6 +278,86 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 #endif
 }
 
+// CLOCK_MONOTONIC now, in ns — the one clock shared by PipeWire frame pts,
+// CursorSample::tMonoNs and libinput's click timestamps.
+static qint64 monoNowNs()
+{
+    struct timespec ts = {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return qint64(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+}
+
+QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs)
+{
+#ifdef HAVE_PIPEWIRE
+    if (!m_cursorOverlayActive || encoded.isEmpty() || !m_cursorOverlay.hasContent(nowNs))
+        return encoded;
+
+    // The frames are kept in the stream's native byte order (see
+    // PipeWireGrabber::pixelFormat) — wrap them in the QImage format whose
+    // in-memory bytes match, so nothing has to be swizzled per frame.
+    const QString pf = m_grabber ? m_grabber->pixelFormat() : QString();
+    QImage::Format fmt;
+    if (pf == QLatin1String("bgra"))      fmt = QImage::Format_ARGB32;
+    else if (pf == QLatin1String("bgr0")) fmt = QImage::Format_RGB32;
+    else if (pf == QLatin1String("rgba")) fmt = QImage::Format_RGBA8888;
+    else if (pf == QLatin1String("rgb0")) fmt = QImage::Format_RGBX8888;
+    else return encoded;   // unknown order: ship the frame rather than corrupt it
+
+    const qsizetype need = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
+    if (encoded.size() != need)
+        return encoded;
+
+    // Composite into a REUSED scratch buffer: resize only when the geometry
+    // changes, so a 4K recording does not realloc ~33 MB every sample.
+    if (m_overlayFrame.size() != need)
+        m_overlayFrame.resize(need);
+    memcpy(m_overlayFrame.data(), encoded.constData(), size_t(need));
+
+    QImage img(reinterpret_cast<uchar *>(m_overlayFrame.data()),
+               m_encodeSize.width(), m_encodeSize.height(),
+               m_encodeSize.width() * 4, fmt);
+    QPainter p(&img);
+    m_cursorOverlay.paint(p, nowNs);
+    p.end();
+    return m_overlayFrame;
+#else
+    Q_UNUSED(nowNs)
+    return encoded;
+#endif
+}
+
+void GifRecorder::startClickCapture()
+{
+    if (!m_settings->cursorClickRipple() || m_clicks)
+        return;
+    // Reading global pointer buttons needs access to /dev/input, i.e. the
+    // `input` group. Most desktop users are NOT in it, so this has to be a
+    // graceful degrade to halo-only, never an error: the ripple is a garnish,
+    // the recording is the point.
+    if (InputPermission::probe() != InputPermission::Available)
+        return;
+    m_clicks = new ClickCapture(this);
+    connect(m_clicks, &ClickCapture::buttonEvent, this,
+            [this](qint64 tUsec, int button, bool pressed) {
+                Q_UNUSED(button)
+                if (!pressed || m_paused)
+                    return;
+                // libinput reports microseconds; everything else here is ns.
+                m_cursorOverlay.addClick(tUsec * 1000LL);
+            });
+    m_clicks->start();
+}
+
+void GifRecorder::stopClickCapture()
+{
+    if (!m_clicks)
+        return;
+    m_clicks->stop();
+    m_clicks->deleteLater();
+    m_clicks = nullptr;
+}
+
 void GifRecorder::openPortalSession()
 {
 #ifdef HAVE_PIPEWIRE
@@ -236,10 +378,43 @@ void GifRecorder::openPortalSession()
         else
             m_settings->raw()->setValue(key, token);
     });
+    // Cursor mode. Highlighting the pointer means asking for CursorMetadata,
+    // which STOPS the compositor drawing the pointer into the stream — from
+    // then on m_cursorOverlay is the only thing that draws it. Metadata is
+    // optional in the portal spec and an unsupported mode fails SelectSources
+    // outright, so a portal without it silently degrades to the plain embedded
+    // cursor rather than killing the recording.
+    m_cursorOverlayActive = false;
+    ScreenCastSession::CursorMode cursorMode = m_settings->includeCursor()
+                                                   ? ScreenCastSession::CursorEmbedded
+                                                   : ScreenCastSession::CursorHidden;
+    if (m_settings->includeCursor() && m_settings->cursorHighlight()) {
+        if (ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata) {
+            cursorMode = ScreenCastSession::CursorMetadata;
+            m_cursorOverlayActive = true;
+        } else {
+            qWarning() << "GifRecorder: portal has no metadata cursor mode,"
+                          " recording with the plain embedded cursor";
+        }
+    }
+
+    // The overlay draws the system cursor 1:1 with a halo and click ripples.
+    // Pointer size / custom images / glide are deliberately NOT here — that
+    // styling is Unisic Studio's job; a recorder keeps the pointer true to the
+    // desktop. The pointer is smoothed only to kill the raw metadata jitter,
+    // using CursorSmoother's default (Studio-tuned) parameters.
+    CursorOverlayPainter::Style style;
+    style.highlight = m_settings->cursorHighlightHalo();
+    style.highlightColor = QColor(m_settings->cursorHighlightColor());
+    style.ripple = m_settings->cursorClickRipple();
+    m_cursorOverlay.setStyle(style);
+    m_cursorOverlay.reset();
+    m_cursorSmoother = CursorSmoother();
+
     // Window source → portal WINDOW picker; otherwise a monitor.
     const QString restoreToken =
         m_settings->raw()->value(restoreTokenKey(m_source, m_targetScreen)).toString();
-    m_session->start(m_settings->includeCursor(), m_source == Window ? 2u : 1u, restoreToken);
+    m_session->start(cursorMode, m_source == Window ? 2u : 1u, restoreToken);
 #endif
 }
 
@@ -293,7 +468,15 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint
     // frame copy at monitor refresh (most of those copies would be discarded).
     const int targetFps = qBound(1, m_output == Gif ? m_settings->gifFps()
                                                     : m_settings->videoFps(), 60);
-    if (!m_grabber->start(fd, nodeId, targetFps))
+    if (m_cursorOverlayActive) {
+        // Queued by default (emitted from the PipeWire thread).
+        connect(m_grabber, &PipeWireGrabber::cursorShapeChanged, this,
+                [this](int id, const QImage &img, const QPoint &hotspot) {
+                    m_cursorOverlay.setShape(id, img, hotspot);
+                });
+        startClickCapture();
+    }
+    if (!m_grabber->start(fd, nodeId, targetFps, m_cursorOverlayActive))
         fail(tr("Failed to connect to the PipeWire stream"));
 #else
     Q_UNUSED(fd) Q_UNUSED(nodeId)
@@ -717,6 +900,22 @@ void GifRecorder::sampleFrame()
     if (encoded.isEmpty())
         return;
 
+    // Cursor overlay. Drain every sample (not just the newest): the one-euro
+    // filter is a time series, so skipping samples would change the smoothing.
+    // While paused the pointer must freeze with the picture — the paused span
+    // is excised later, so a pointer that kept moving would teleport across
+    // the cut.
+    if (m_cursorOverlayActive && m_grabber && !m_paused) {
+        const QVector<CursorSample> samples = m_grabber->takeCursorSamples();
+        for (const CursorSample &s : samples) {
+            const QPointF sm = m_cursorSmoother.filter(s.x, s.y, s.tMonoNs);
+            // Stream pixels -> encoded-frame pixels (region recording crops).
+            m_cursorOverlay.setCursor(sm - QPointF(m_encodeCrop.topLeft()), s.visible, s.shapeId);
+        }
+    }
+    if (m_cursorOverlayActive)
+        encoded = compositeCursorOverlay(encoded, monoNowNs());
+
     // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
     // 30.3 fps) and backpressure drops ticks, while the container claims an
     // exact -framerate — pace by elapsed time, duplicating frames as needed,
@@ -801,8 +1000,10 @@ void GifRecorder::stop()
         return;
     }
     stopProcess(m_appAudio);
+    stopClickCapture(); // release the libinput devices as soon as we stop drawing
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
+    m_overlayFrame.clear(); // ditto for the overlay scratch copy
 }
 
 void GifRecorder::saveInstantReplay()
@@ -1135,11 +1336,17 @@ void GifRecorder::convertVideo()
         args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
              << QStringLiteral("-crf") << QString::number(crf)
              << QStringLiteral("-b:v") << QStringLiteral("0")
-             << QStringLiteral("-deadline") << QStringLiteral("good")
-             << QStringLiteral("-cpu-used") << QStringLiteral("4")
+             // deadline=realtime + cpu-used 5, measured on an 11 s 1440p clip:
+             // 14.5 s -> 4.8 s, SSIM 0.99866 -> 0.99844 (invisible), file +15%.
+             // Do NOT "improve" this to cpu-used 6 with deadline=good: that is
+             // reproducibly 2.4x SLOWER than cpu-used 4, not faster.
+             // There is no usable hardware path to fall back on either — a listed
+             // vp9_vaapi failed to encode at all on the box this was tuned on.
+             << QStringLiteral("-deadline") << QStringLiteral("realtime")
+             << QStringLiteral("-cpu-used") << QStringLiteral("5")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
-    } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
+    } else if (resolvedVideoEncoder() == QLatin1String("vaapi")
                && hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
         const int qp = qBound(1, crf, 40);
         args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
@@ -1147,7 +1354,7 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
              << QStringLiteral("-qp") << QString::number(qp)
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-    } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
+    } else if (resolvedVideoEncoder() == QLatin1String("nvenc")
                && hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
         args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
              << QStringLiteral("-preset") << QStringLiteral("p4")
@@ -1253,6 +1460,7 @@ void GifRecorder::abort()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
+    stopClickCapture();
 #ifdef HAVE_PIPEWIRE
     if (m_grabber) {
         m_grabber->stop();

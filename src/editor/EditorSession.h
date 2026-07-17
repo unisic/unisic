@@ -37,7 +37,9 @@ public:
     Q_INVOKABLE void startOcrPick();
     Q_INVOKABLE void copyOcrSelection();      // copy the canvas's selected words
     Q_INVOKABLE void highlightOcrSelection(); // make the selected text permanent
-    Q_INVOKABLE void redactOcrSelection();    // blur the selected text permanently
+    Q_INVOKABLE void redactOcrSelection();    // black out the selected text permanently
+    // Black out every recognized run matching `pattern` — no selection needed.
+    Q_INVOKABLE void redactTextMatching(const QString &pattern);
     // Remove the background from the whole image (U-2-Net) → transparent PNG.
 
 signals:

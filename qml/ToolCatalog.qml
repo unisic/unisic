@@ -17,7 +17,7 @@ QtObject {
         { id: "pen",        tool: 1,  iconName: "draw-freehand",      label: qsTr("Pen"),          shortcut: "P", shortcutKey: Qt.Key_P, overlay: true,  editor: true, hideable: true, props: ["stroke", "width"] },
         { id: "line",       tool: 2,  iconName: "draw-line",          label: qsTr("Line"),         shortcut: "L", shortcutKey: Qt.Key_L, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["stroke", "width"] },
         { id: "arrow",      tool: 3,  iconName: "draw-arrow",         label: qsTr("Arrow"),        shortcut: "A", shortcutKey: Qt.Key_A, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["stroke", "width", "arrowhead"] },
-        { id: "measure",    tool: 17, iconName: "measure",            label: qsTr("Measure"),      shortcut: "M", shortcutKey: Qt.Key_M, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["stroke", "width"] },
+        { id: "measure",    tool: 17, iconName: "measure",            label: qsTr("Measure"),      shortcut: "M", shortcutKey: Qt.Key_M, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["measureMode", "stroke", "width"] },
         { id: "rect",       tool: 4,  iconName: "draw-rectangle",     label: qsTr("Rectangle"),    shortcut: "R", shortcutKey: Qt.Key_R, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["stroke", "width", "fill"] },
         { id: "ellipse",    tool: 5,  iconName: "draw-ellipse",       label: qsTr("Ellipse"),      shortcut: "O", shortcutKey: Qt.Key_O, overlay: true,  editor: true, hideable: true, group: "shapes", props: ["stroke", "width", "fill"] },
         // "callout", not the freedesktop name "dialog-information": that name

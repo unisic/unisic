@@ -32,6 +32,11 @@ class Settings : public QObject
     Q_PROPERTY(bool openEditor READ openEditor WRITE setOpenEditor NOTIFY openEditorChanged)
     Q_PROPERTY(bool uploadAfterCapture READ uploadAfterCapture WRITE setUploadAfterCapture NOTIFY uploadAfterCaptureChanged)
     Q_PROPERTY(bool includeCursor READ includeCursor WRITE setIncludeCursor NOTIFY includeCursorChanged)
+    Q_PROPERTY(bool cursorHighlight READ cursorHighlight WRITE setCursorHighlight NOTIFY cursorHighlightChanged)
+    Q_PROPERTY(bool cursorHighlightHalo READ cursorHighlightHalo WRITE setCursorHighlightHalo NOTIFY cursorHighlightHaloChanged)
+    Q_PROPERTY(QString cursorHighlightColor READ cursorHighlightColor WRITE setCursorHighlightColor NOTIFY cursorHighlightColorChanged)
+    Q_PROPERTY(bool cursorClickRipple READ cursorClickRipple WRITE setCursorClickRipple NOTIFY cursorClickRippleChanged)
+    Q_PROPERTY(QString measureCopyFormat READ measureCopyFormat WRITE setMeasureCopyFormat NOTIFY measureCopyFormatChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
     Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
     Q_PROPERTY(QString recordingSound READ recordingSound WRITE setRecordingSound NOTIFY recordingSoundChanged)
@@ -86,6 +91,7 @@ class Settings : public QObject
     Q_PROPERTY(bool editorResetColors READ editorResetColors WRITE setEditorResetColors NOTIFY editorResetColorsChanged)
     Q_PROPERTY(bool editorResetTools READ editorResetTools WRITE setEditorResetTools NOTIFY editorResetToolsChanged)
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
+    Q_PROPERTY(QString editorStylePresets READ editorStylePresets WRITE setEditorStylePresets NOTIFY editorStylePresetsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
     Q_PROPERTY(bool selectionGuides READ selectionGuides WRITE setSelectionGuides NOTIFY selectionGuidesChanged)
@@ -293,6 +299,22 @@ public:
     U_SETTING(bool, openEditor, setOpenEditor, "openEditor", true)
     U_SETTING(bool, uploadAfterCapture, setUploadAfterCapture, "uploadAfterCapture", false)
     U_SETTING(bool, includeCursor, setIncludeCursor, "includeCursor", false)
+    // Cursor overlay for recordings. Only has an effect together with
+    // includeCursor: it switches the ScreenCast session to the portal's
+    // metadata cursor mode, where the compositor stops drawing the pointer and
+    // Unisic draws it (plus the halo and click ripples) itself. Off by default
+    // — it changes what every recording looks like, and the metadata mode is
+    // optional in the portal spec.
+    U_SETTING(bool, cursorHighlight, setCursorHighlight, "record/cursorHighlight", false)
+    U_SETTING(bool, cursorHighlightHalo, setCursorHighlightHalo, "record/cursorHighlightHalo", true)
+    U_SETTING(QString, cursorHighlightColor, setCursorHighlightColor,
+              "record/cursorHighlightColor", QStringLiteral("#FFD600"))
+    // Click ripples additionally need read access to /dev/input (the `input`
+    // group); without it the overlay silently keeps the halo and drops these.
+    U_SETTING(bool, cursorClickRipple, setCursorClickRipple, "record/cursorClickRipple", true)
+    // What the ruler (Measure tool) copies on Ctrl+C: "readable" (842 × 317 /
+    // 412 px), "plain" (842x317 / 412) or "css" (width: 842px; height: 317px).
+    U_SETTING(QString, measureCopyFormat, setMeasureCopyFormat, "capture/measureCopyFormat", QStringLiteral("readable"))
     U_SETTING(int, captureDelayMs, setCaptureDelayMs, "captureDelayMs", 200)
     // Capture sound cue (General tab). Bare key (never a "general"-named
     // group, see the INI [%General] trap). "off" or a bundled id.
@@ -372,6 +394,11 @@ public:
     U_SETTING(bool, editorResetColors, setEditorResetColors, "editor/resetColors", false)
     U_SETTING(bool, editorResetTools, setEditorResetTools, "editor/resetTools", false)
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
+    // Saved annotation-style presets: a JSON array of objects, each holding the
+    // canvas style properties captured when the preset was saved. One opaque
+    // string rather than a key per field so the QML side owns the schema and a
+    // preset can gain a property without a settings migration.
+    U_SETTING(QString, editorStylePresets, setEditorStylePresets, "editor/stylePresets", QString())
     U_SETTING(QString, hiddenTools, setHiddenTools, "editor/hiddenTools", QString())
     U_SETTING(QString, overlayToolbarPosition, setOverlayToolbarPosition, "capture/overlayToolbarPosition", QStringLiteral("follow"))
     // Crosshair guide lines from the cursor to the screen edges while selecting a
@@ -401,7 +428,7 @@ public:
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, recordAppAudioNode, setRecordAppAudioNode,
               "audio/recordAppAudioNode", QString())
-    U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("software"))
+    U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("auto"))
     U_SETTING(int, instantReplaySeconds, setInstantReplaySeconds,
               "video/instantReplaySeconds", 30)
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
@@ -486,6 +513,9 @@ public:
     {
         emit saveDirectoryChanged(); emit videoSaveDirectoryChanged(); emit autoSaveChanged(); emit copyToClipboardChanged();
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
+        emit cursorHighlightChanged(); emit cursorHighlightHaloChanged();
+        emit cursorHighlightColorChanged(); emit cursorClickRippleChanged();
+        emit measureCopyFormatChanged();
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
@@ -502,6 +532,7 @@ public:
         emit editorHighlightModeChanged(); emit lastSeenVersionChanged();
         emit editorStepSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
+        emit editorStylePresetsChanged();
         emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
         emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
         emit editorTextBackgroundChanged(); emit editorTextBgColorChanged();
@@ -537,6 +568,11 @@ signals:
     void openEditorChanged();
     void uploadAfterCaptureChanged();
     void includeCursorChanged();
+    void cursorHighlightChanged();
+    void cursorHighlightHaloChanged();
+    void cursorHighlightColorChanged();
+    void cursorClickRippleChanged();
+    void measureCopyFormatChanged();
     void captureDelayMsChanged();
     void captureSoundChanged();
     void recordingSoundChanged();
@@ -591,6 +627,7 @@ signals:
     void editorResetColorsChanged();
     void editorResetToolsChanged();
     void recentColorsChanged();
+    void editorStylePresetsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
     void selectionGuidesChanged();

@@ -100,6 +100,9 @@ class AppContext : public QObject
     Q_PROPERTY(bool capRecordBorder READ capRecordBorder CONSTANT)
     Q_PROPERTY(bool capDoNotDisturb READ capDoNotDisturb CONSTANT)
     Q_PROPERTY(bool capScreenshotCursor READ capScreenshotCursor CONSTANT)
+    // The portal's metadata cursor mode, which the recording cursor overlay is
+    // built on. Optional in the ScreenCast spec, so it can be absent.
+    Q_PROPERTY(bool capCursorMetadata READ capCursorMetadata CONSTANT)
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
     Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
@@ -185,6 +188,10 @@ public:
     bool capNotificationHelper() const;
     bool capDoNotDisturb() const;
     bool capScreenshotCursor() const;
+    bool capCursorMetadata() const;
+    // Whether click ripples can be captured here: "" when they can, else a
+    // ready-to-show reason (no libinput at build time, or no /dev/input access).
+    Q_INVOKABLE QString clickCaptureBlockedReason() const;
     // True when the compositor exposes wlr-layer-shell — the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
@@ -231,6 +238,9 @@ public:
     Q_INVOKABLE void devTestCaptureOnRelease();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
+    Q_INVOKABLE void devTestOcrRedactPattern();
+    Q_INVOKABLE void devTestCursorOverlay();
+    Q_INVOKABLE void devTestStylePresets();
     Q_INVOKABLE void devTestOcrAutoLang();
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
@@ -257,6 +267,7 @@ public:
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
     Q_INVOKABLE void devTestCountdown();
+    Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
     Q_INVOKABLE void devTestFilename();
     QString smokeTestLog() const { return m_smokeLog; }
@@ -557,6 +568,7 @@ private:
     // short tail (repaint settled + cue played out, so neither is recorded).
     void commitRecordingAfterCue();
     bool m_recordHoldActive = false; // a hold-for-commit recording is pending
+    bool m_recordBorderCountdownOnly = false; // frame is a bare countdown (full-screen/window)
     int m_pendingCountdownSecs = 0;  // visible countdown length for the hold
     CaptureNotification *showCaptureNotification(const QImage &img, const QString &path,
                                                  const QString &kind, bool inhibited,
@@ -585,7 +597,13 @@ private:
     // landing inside the ffmpeg crop. Hosted on layer-shell (KWin/wlroots/
     // COSMIC), a KWin fullscreen-transparent fallback, or — GNOME — a separate
     // XWayland helper process (see RecordBorderHelper.h).
-    void showRecordBorder(QRect physRegion, QScreen *screen, int countdown = 0);
+    // countdownOnly: draw ONLY the centered countdown number, no frame and no
+    // REC badge, centered on the whole surface rather than a sub-region. Used
+    // for full-screen / window recordings, which have no region frame — the
+    // overlay exists only to answer "is it about to record" and is torn down
+    // the instant recording begins (a persistent surface would be captured).
+    void showRecordBorder(QRect physRegion, QScreen *screen, int countdown = 0,
+                          bool countdownOnly = false);
     // Update the live frame's countdown number (in-process window via property,
     // XWayland helper via its stdin). 0 clears it as recording begins.
     void setRecordBorderCountdown(int n);

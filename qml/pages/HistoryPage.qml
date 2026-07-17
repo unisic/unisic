@@ -261,19 +261,23 @@ Item {
                     font.weight: Font.DemiBold
                 }
                 Item { width: Theme.spacingS; height: 1 }
-                UButton {
+                // Icon-only, not labelled: with seven actions the labelled row
+                // overflowed the window in longer languages (Polish), pushing
+                // Export ZIP and Delete off the right edge. Tooltips keep them
+                // discoverable while the row fits in every language.
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "star-filled"; text: qsTr("Star")
+                    iconName: "star-filled"; tooltip: qsTr("Star"); iconSize: 16; width: 32; height: 32
                     onClicked: App.history.setFavoriteByIds(page.selectedIds(), true)
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "star"; text: qsTr("Unstar")
+                    iconName: "star"; tooltip: qsTr("Unstar"); iconSize: 16; width: 32; height: 32
                     onClicked: App.history.setFavoriteByIds(page.selectedIds(), false)
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "content-copy"; text: qsTr("Copy paths")
+                    iconName: "content-copy"; tooltip: qsTr("Copy paths"); iconSize: 16; width: 32; height: 32
                     onClicked: {
                         var ids = page.selectedIds(), paths = []
                         for (var i = 0; i < ids.length; ++i) {
@@ -288,9 +292,9 @@ Item {
                         App.showToast(qsTr("Copied %1 file paths").arg(paths.length))
                     }
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "upload-cloud"; text: qsTr("Upload")
+                    iconName: "upload-cloud"; tooltip: qsTr("Upload"); iconSize: 16; width: 32; height: 32
                     onClicked: {
                         var ids = page.selectedIds(), n = 0
                         for (var i = 0; i < ids.length; ++i) {
@@ -301,19 +305,19 @@ Item {
                             App.showToast(qsTr("Nothing to upload: the selected captures were never saved"))
                     }
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export ZIP")
+                    iconName: "document-save"; tooltip: qsTr("Export ZIP"); iconSize: 16; width: 32; height: 32
                     onClicked: App.exportEntriesToZipDialog(page.selectedIds())
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "tonal"; iconName: "edit-delete"; text: qsTr("Delete")
+                    iconName: "edit-delete"; tooltip: qsTr("Delete"); iconSize: 16; width: 32; height: 32
                     onClicked: deleteSelectedConfirm.open()
                 }
-                UButton {
+                UIconButton {
                     anchors.verticalCenter: parent.verticalCenter
-                    compact: true; variant: "ghost"; text: qsTr("Cancel")
+                    iconName: "close"; tooltip: qsTr("Cancel"); iconSize: 16; width: 32; height: 32
                     onClicked: page.clearSelection()
                 }
             }

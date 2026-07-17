@@ -6,15 +6,24 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
-## 0.7.2b
+## 0.7.2
 
 ### English
 **New**
 - **Pause and resume a recording**: pause/resume and stop buttons live both on the recording bar and on the floating region frame itself, so you can control a recording without hunting for the main window (the frame reads **PAUSED** while held). The paused span is cut out of the finished file, video and audio together, so the recording carries on exactly where you left off. Works for screen, region and window recordings and GIFs, with or without audio (not for instant replay).
 - **Eyedropper tool** (editor and capture overlay, shortcut **I**): click any pixel to adopt its colour as the current annotation colour.
 - **Export selected captures to a ZIP**: pick several in History, then **Export ZIP** bundles them into one archive to save anywhere.
+- **Auto-redact**: in the editor's text mode, **Auto-redact** blacks out every e-mail address, IP address or long number it recognizes — no selecting needed. It covers the matches and nothing else, and the whole sweep is a single undo. As with the existing Redact, the bars are opaque: a blur or mosaic of a password can be reversed.
+- **Highlight the cursor in recordings** (Settings › Recording): a halo follows the pointer so it stays findable in a downscaled clip, and each click leaves a ripple. The pointer is smoothed so it stops jittering and stays sharp. You can recolour the halo (any colour) or turn it off. The pointer is only drawn while the desktop is actually showing one, so a game that hides the cursor stays cursor-less. Needs a desktop whose screen-cast portal can send the cursor as data (KDE does). The click ripple additionally needs access to input devices and quietly leaves only the halo without it.
+- **Measure works like a ruler now**: pick Measure, then **drag** to place a measurement — **Tab** switches between a distance line and a size box (W × H), and **Ctrl+C** copies the sizes to the clipboard (format in Settings › Capture). The overlay stays up so you can keep measuring; Esc closes.
+- **Style presets**: once a colour, width and font are dialled in, **+** at the end of the tool options keeps that whole style as a dot. Click the dot to bring the style back, in the editor or on the capture overlay (up to six; middle-click removes one).
 
 **Improved**
+- **Video saves much faster**: recordings now default to a working hardware encoder (VAAPI/NVENC) when your machine actually has one, instead of always encoding on the CPU. A listed-but-broken hardware encoder is detected and skipped. WebM stays software-only and is now tuned for a several-times-faster save.
+- **The recorded cursor is sharp again**: the system pointer was being blended twice and came out soft; it is now drawn 1:1.
+- **History's selection toolbar no longer runs off the window** in longer languages (Polish): the Delete button was pushed past the right edge. The batch actions are compact icons now, so they fit in every language.
+- **A full-screen countdown is now on-screen**: the 3-2-1 before a full-screen or window recording used to be a small toast that was easy to miss — it is now a big number centred on the screen (layer-shell on KDE/wlroots, the XWayland helper on GNOME), and it disappears the instant recording begins.
+- **The tray menu now offers every mode, each with an icon**: measure, select text, full-screen video and GIF, instant replay and copy last capture were only in the window before.
 - **OCR detects the language for you**: on by default, it now recognizes text using every installed Tesseract language pack, so you no longer have to type language codes. Turn it off in Settings › OCR to pin a specific, faster set.
 
 **Fixed**
@@ -25,8 +34,17 @@ whole per release (not per individual change).
 - **Pauza i wznawianie nagrywania**: przyciski pauzy/wznowienia i zatrzymania są zarówno na pasku nagrywania, jak i na samej pływającej ramce regionu, więc sterujesz nagraniem bez szukania głównego okna (ramka pokazuje **PAUZA**, gdy wstrzymane). Wstrzymany fragment jest wycinany z gotowego pliku, obraz i dźwięk razem, więc nagranie kontynuuje dokładnie tam, gdzie je zatrzymano. Działa dla nagrań ekranu, regionu i okna oraz GIF-ów, z dźwiękiem lub bez (nie dla instant replay).
 - **Narzędzie Pipeta** (edytor i nakładka przechwytywania, skrót **I**): kliknij dowolny piksel, aby przejąć jego kolor jako bieżący kolor adnotacji.
 - **Eksport zaznaczonych zrzutów do ZIP**: zaznacz kilka w Historii, a **Eksport ZIP** spakuje je do jednego archiwum, które zapiszesz gdziekolwiek.
+- **Auto-redakcja**: w trybie tekstowym edytora **Auto-redakcja** zaczernia każdy rozpoznany adres e-mail, adres IP lub długi ciąg cyfr — bez zaznaczania czegokolwiek. Zakrywa dopasowania i nic poza nimi, a całość to jedno cofnięcie. Tak jak przy dotychczasowej Redakcji paski są nieprzezroczyste: rozmycie lub mozaikę hasła da się odwrócić.
+- **Podświetlanie kursora w nagraniach** (Ustawienia › Nagrywanie): poświata podąża za wskaźnikiem, więc nie gubi się w pomniejszonym klipie, a każde kliknięcie zostawia falę. Wskaźnik jest wygładzany, więc przestaje drgać i zostaje ostry. Poświatę można przekolorować (dowolny kolor) albo wyłączyć. Wskaźnik jest rysowany tylko wtedy, gdy pulpit faktycznie go pokazuje, więc gra chowająca kursor zostaje bez kursora. Wymaga pulpitu, którego portal przechwytywania ekranu potrafi wysłać kursor jako dane (KDE potrafi). Fala przy kliknięciu wymaga dodatkowo dostępu do urządzeń wejściowych i bez niego po cichu zostawia samą poświatę.
+- **Miarka działa teraz jak linijka**: wybierz Miarkę, potem **przeciągnij**, aby postawić pomiar — **Tab** przełącza między linią dystansu a prostokątem rozmiaru (szer. × wys.), a **Ctrl+C** kopiuje wymiary do schowka (format w Ustawienia › Przechwytywanie). Nakładka zostaje, więc mierzysz dalej; Esc zamyka.
+- **Presety stylu**: gdy kolor, grubość i font są już dobrane, **+** na końcu opcji narzędzia zapamiętuje cały ten styl jako kropkę. Kliknięcie kropki przywraca styl — w edytorze i na nakładce przechwytywania (do sześciu; środkowy przycisk usuwa).
 
 **Ulepszone**
+- **Wideo zapisuje się dużo szybciej**: nagrania używają teraz domyślnie działającego enkodera sprzętowego (VAAPI/NVENC), gdy maszyna faktycznie go ma, zamiast zawsze kodować na procesorze. Enkoder sprzętowy wymieniony, lecz zepsuty, jest wykrywany i pomijany. WebM zostaje wyłącznie programowy i jest teraz nastrojony na kilka razy szybszy zapis.
+- **Nagrany kursor znów jest ostry**: systemowy wskaźnik był mieszany dwukrotnie i wychodził rozmyty; teraz jest rysowany 1:1.
+- **Pasek zaznaczenia w Historii nie wychodzi już poza okno** w dłuższych językach (polski): guzik Usuń był wypychany za prawą krawędź. Akcje wsadowe to teraz zwarte ikony, więc mieszczą się w każdym języku.
+- **Odliczanie pełnoekranowe jest teraz na ekranie**: 3-2-1 przed nagraniem pełnego ekranu lub okna było małym dymkiem, łatwym do przeoczenia — teraz to duży numer wyśrodkowany na ekranie (layer-shell na KDE/wlroots, helper XWayland na GNOME), znikający w chwili rozpoczęcia nagrywania.
+- **Menu w zasobniku ma wreszcie wszystkie tryby, każdy z ikoną**: miarka, zaznaczanie tekstu, wideo i GIF pełnoekranowy, instant replay oraz kopiowanie ostatniego zrzutu były dotąd tylko w oknie.
 - **OCR sam wykrywa język**: domyślnie włączony, rozpoznaje teraz tekst przy użyciu wszystkich zainstalowanych pakietów językowych Tesseract, więc nie musisz już wpisywać kodów języków. Wyłącz to w Ustawienia › OCR, aby ustawić konkretny, szybszy zestaw.
 
 **Naprawione**

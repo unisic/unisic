@@ -47,6 +47,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // Highlighter sub-mode (HighlightMode): freehand marker / rectangle band /
     // OCR text-snap. The Highlight tool paints and gestures differently per mode.
     Q_PROPERTY(int highlightMode READ highlightMode WRITE setHighlightMode NOTIFY highlightModeChanged)
+    // Measure sub-mode: 0 = distance line, 1 = size box (W×H). The Measure tool
+    // draws and labels differently per mode; each placed measure remembers the
+    // mode it was drawn in.
+    Q_PROPERTY(int measureMode READ measureMode WRITE setMeasureMode NOTIFY measureModeChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -145,6 +149,12 @@ public:
     void setArrowHeadStyle(int style);
     int highlightMode() const { return m_highlightMode; }
     void setHighlightMode(int mode);
+    int measureMode() const { return m_measureMode; }
+    void setMeasureMode(int mode);
+    // The placed Measure annotations, formatted for the clipboard. `format` is
+    // "readable" (842 × 317 / 412 px), "plain" (842x317 / 412) or "css"
+    // (width: 842px; height: 317px / 412px). One measure per line; "" when none.
+    Q_INVOKABLE QString measuresText(const QString &format) const;
     int fontSize() const { return m_fontSize; }
     void setFontSize(int s);
     int stepSize() const { return m_stepSize; }
@@ -225,6 +235,11 @@ public:
     // A multi-line range becomes one annotation per line and one undo step.
     Q_INVOKABLE bool highlightOcrSelection();
     Q_INVOKABLE bool redactOcrSelection(bool pixelate);
+    // Pattern redaction: black out every recognized run matching `pattern`
+    // (a QRegularExpression over the recognized text in reading order),
+    // without the user selecting anything. Returns the number of MATCHES
+    // redacted, 0 when nothing matched, -1 when the pattern is invalid.
+    Q_INVOKABLE int redactTextMatching(const QString &pattern);
     // Text-aware Highlight: the editor recognizes glyph boxes and feeds them
     // here so a plain Highlight drag over text snaps to the text line(s).
     // Requested lazily via glyphBoxesRequested() when the Highlight tool is
@@ -292,6 +307,7 @@ signals:
     // yet — the editor answers by OCR-ing the base and calling setGlyphBoxes().
     void glyphBoxesRequested();
     void highlightModeChanged();
+    void measureModeChanged();
     void pixelLoupeChanged();
     void pixelLoupeZoomChanged();
 
@@ -442,6 +458,7 @@ private:
     int m_stepSize = 22;
     int m_arrowHeadStyle = 0;
     int m_highlightMode = HlText; // see HighlightMode; text-snap by default
+    int m_measureMode = 0;        // 0 distance line, 1 size box
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting
@@ -540,6 +557,21 @@ private:
     // same endpoint clipping and a single undo snapshot.
     bool addOcrSelectionAnnotations(Tool type, const QColor &color,
                                     bool filled = false, const QColor &fillColor = QColor());
+    // The batch core shared by the selection actions and pattern redaction.
+    // `glyphs` are indices into m_ocrWords, ascending and deduplicated. One
+    // annotation per contiguous same-line RUN — a run breaks on a line change
+    // (a multi-line span must not become one rectangle over the blank space
+    // between the lines) and equally on an index gap, or two separate matches
+    // on one line would merge into a bar covering the untouched text between
+    // them. The whole batch is one undo step.
+    bool addOcrGlyphAnnotations(const QVector<int> &glyphs, Tool type, const QColor &color,
+                                bool filled = false, const QColor &fillColor = QColor());
+    // Every recognized glyph joined in reading order (same spacing rules as
+    // ocrSelectedText). When `charToGlyph` is given it is resized to the
+    // returned string's length, mapping each character back to its glyph index
+    // (-1 for the inserted spaces and newlines) so a regex match over the text
+    // can be resolved back to glyph boxes.
+    QString ocrAllText(QVector<int> *charToGlyph = nullptr) const;
     // Coalesce-window bookkeeping (see pushUndoCoalesced).
     int m_lastCoalesceProp = -1;
     int m_lastCoalesceIndex = -1;

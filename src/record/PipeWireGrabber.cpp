@@ -2,11 +2,65 @@
 #include <pipewire/pipewire.h>
 #include <spa/param/video/format-utils.h>
 #include <spa/param/video/type-info.h>
+#include <spa/param/buffers.h>   // SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_META_*
+#include <spa/buffer/meta.h>     // spa_meta_{header,cursor,bitmap}
 #include <spa/pod/builder.h>
 #include <QDebug>
 #include <cstring>
+#include <ctime>
 #include <fcntl.h>
 #include <unistd.h>
+
+// Cap on undrained cursor samples: ~200k is ~1h at 60fps of one sample/frame,
+// a safety valve if a consumer forgets to drain — we drop the oldest quarter
+// and warn once rather than growing without bound on the PipeWire thread.
+static constexpr int kMaxCursorSamples = 200000;
+
+// spa_meta sizes we ask the compositor to reserve for the cursor bitmap. The
+// default covers a 64x64 RGBA cursor; the RANGE lets big themes (up to 512x512)
+// still attach their bitmap instead of dropping it.
+static constexpr int kCursorMetaSizeMin =
+    int(sizeof(struct spa_meta_cursor));
+static constexpr int kCursorMetaSizeDefault =
+    int(sizeof(struct spa_meta_cursor) + sizeof(struct spa_meta_bitmap) + 64 * 64 * 4);
+static constexpr int kCursorMetaSizeMax =
+    int(sizeof(struct spa_meta_cursor) + sizeof(struct spa_meta_bitmap) + 512 * 512 * 4);
+
+// Decode a spa_meta_bitmap into a deep-copied QImage (owns its pixels). Returns
+// a null image for formats we do not handle or a malformed/empty bitmap. Cursor
+// bitmaps are tiny, so the mapping below is chosen for a little-endian host
+// (x86/arm64): BGRA/BGRx -> the word-ordered ARGB32*/RGB32 whose in-memory bytes
+// are B,G,R,(A/x); RGBA/RGBx -> the byte-ordered RGBA/RGBX8888.
+//
+// The alpha is PREMULTIPLIED: both Wayland's ARGB8888 buffers and the XCursor
+// files the themes ship store it that way, and the compositor hands the cursor
+// through unchanged. Mapping it to a straight-alpha format instead makes every
+// later convertToFormat() premultiply it a SECOND time, which eats the
+// antialiased outline and is exactly what made the recorded pointer look soft.
+static QImage cursorBitmapToImage(const struct spa_meta_bitmap *bm)
+{
+    if (!bm || bm->format == 0 || bm->offset < sizeof(struct spa_meta_bitmap))
+        return {};
+    const int w = int(bm->size.width);
+    const int h = int(bm->size.height);
+    if (w <= 0 || h <= 0 || w > 512 || h > 512)
+        return {};
+    const int stride = bm->stride;
+    if (stride < w * 4)
+        return {};
+    QImage::Format fmt;
+    switch (bm->format) {
+    case SPA_VIDEO_FORMAT_BGRA: fmt = QImage::Format_ARGB32_Premultiplied; break;  // mem: B,G,R,A
+    case SPA_VIDEO_FORMAT_BGRx: fmt = QImage::Format_RGB32; break;       // mem: B,G,R,x (opaque)
+    case SPA_VIDEO_FORMAT_RGBA: fmt = QImage::Format_RGBA8888_Premultiplied; break; // mem: R,G,B,A
+    case SPA_VIDEO_FORMAT_RGBx: fmt = QImage::Format_RGBX8888; break;    // mem: R,G,B,x (opaque)
+    default: return {};
+    }
+    const auto *pixels = SPA_PTROFF(bm, bm->offset, const uint8_t);
+    // The QImage ctor only wraps `pixels`; copy() detaches into owned storage so
+    // the image outlives this PipeWire buffer.
+    return QImage(pixels, w, h, stride, fmt).copy();
+}
 
 struct GrabberEvents {
     pw_stream_events events = {};
@@ -50,8 +104,9 @@ PipeWireGrabber::~PipeWireGrabber()
     pw_deinit();
 }
 
-bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps)
+bool PipeWireGrabber::start(int pipewireFd, uint nodeId, int maxFps, bool wantCursorMeta)
 {
+    m_wantCursorMeta = wantCursorMeta;
     m_loop = pw_thread_loop_new("unisic-pipewire", nullptr);
     if (!m_loop) {
         close(pipewireFd);
@@ -192,6 +247,29 @@ void PipeWireGrabber::onParamChanged(uint32_t id, const void *param)
     m_format = ev->format.info.raw.format;
     const QSize size(int(ev->format.info.raw.size.width), int(ev->format.info.raw.size.height));
     m_size = size;
+
+    // Format is where we also announce the per-buffer metadata we want attached.
+    // Only when cursor capture was requested: with it off this is a no-op and
+    // the stream negotiates exactly as before. SPA_PARAM_Meta is a different
+    // param id than Format/Buffers, so this adds meta without disturbing them.
+    if (m_wantCursorMeta && m_stream) {
+        uint8_t buf[512];
+        spa_pod_builder mb = SPA_POD_BUILDER_INIT(buf, sizeof(buf));
+        const spa_pod *metaParams[2];
+        metaParams[0] = static_cast<const spa_pod *>(spa_pod_builder_add_object(&mb,
+            SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
+            SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Header),
+            SPA_PARAM_META_size, SPA_POD_Int(int(sizeof(struct spa_meta_header)))));
+        metaParams[1] = static_cast<const spa_pod *>(spa_pod_builder_add_object(&mb,
+            SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta,
+            SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Cursor),
+            SPA_PARAM_META_size, SPA_POD_CHOICE_RANGE_Int(
+                kCursorMetaSizeDefault, kCursorMetaSizeMin, kCursorMetaSizeMax)));
+        // Called on the PipeWire thread from the param_changed callback — the
+        // supported place to update params, no extra loop lock needed.
+        pw_stream_update_params(m_stream, metaParams, 2);
+    }
+
     // Queued: we're on the PipeWire thread.
     QMetaObject::invokeMethod(this, [this, size] { emit formatReady(size); }, Qt::QueuedConnection);
 }
@@ -205,6 +283,85 @@ void PipeWireGrabber::onProcess()
         return;
 
     spa_buffer *buf = b->buffer;
+
+    // Cursor metadata (opt-in). Handled BEFORE and independently of frame
+    // validity: a corrupted/undersized video frame can still carry good cursor
+    // meta, and the early-out below requeues the buffer.
+    if (m_wantCursorMeta) {
+        // Presentation time for this buffer. Fallback chain: header pts (when
+        // the compositor set one) -> the stream clock -> the monotonic clock
+        // read directly. All three are in the CLOCK_MONOTONIC domain.
+        qint64 ptsNs = 0;
+        if (auto *hdr = static_cast<spa_meta_header *>(
+                spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(struct spa_meta_header))))
+            if (hdr->pts != 0)
+                ptsNs = hdr->pts;
+        if (ptsNs == 0) {
+            struct pw_time t = {};
+            if (pw_stream_get_time_n(m_stream, &t, sizeof(t)) == 0 && t.now > 0)
+                ptsNs = t.now;
+        }
+        if (ptsNs == 0) {
+            struct timespec ts = {};
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            ptsNs = qint64(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
+        }
+
+        if (auto *cur = static_cast<spa_meta_cursor *>(
+                spa_buffer_find_meta_data(buf, SPA_META_Cursor, sizeof(struct spa_meta_cursor)))) {
+            // id==0 means "no new cursor data" per spa: cursor state is
+            // unavailable this frame, so record a not-visible sample carrying
+            // the last known position (so the consumer's interpolation holds
+            // rather than jumping to the origin). Some compositors also signal
+            // "hidden" by parking the pointer at an absurd coordinate instead of
+            // dropping the meta, so a position outside [-16384, 16384] is
+            // likewise treated as not-visible.
+            const bool haveShape = cur->id != 0;
+            const bool inRange = cur->position.x >= -16384 && cur->position.x <= 16384 &&
+                                 cur->position.y >= -16384 && cur->position.y <= 16384;
+            const bool visible = haveShape && inRange;
+            CursorSample s;
+            s.tMonoNs = ptsNs;
+            s.shapeId = haveShape ? int(cur->id) : 0;
+            s.visible = visible;
+            if (visible) {
+                m_lastCursorX = cur->position.x;
+                m_lastCursorY = cur->position.y;
+            }
+            s.x = m_lastCursorX;
+            s.y = m_lastCursorY;
+
+            // A non-zero bitmap_offset means a NEW bitmap is attached this frame:
+            // the compositor sets it precisely when the pointer shape changes
+            // (arrow → hand → I-beam …). Decode on EVERY such frame — do not gate
+            // on "id not seen before". KWin reuses one cursor id and swaps the
+            // bitmap in place, so an id-seen check froze the pointer on the first
+            // shape (the arrow) for the whole recording. The consumer re-keys by
+            // id, so re-emitting a known id just refreshes its bitmap.
+            if (haveShape && cur->bitmap_offset != 0) {
+                const auto *bm = SPA_PTROFF(cur, cur->bitmap_offset, const struct spa_meta_bitmap);
+                QImage img = cursorBitmapToImage(bm);
+                if (!img.isNull())
+                    // Direct emit off the PipeWire thread; QImage/QPoint/int are
+                    // metatypes, so a queued/auto connection marshals safely.
+                    emit cursorShapeChanged(s.shapeId, img,
+                                            QPoint(cur->hotspot.x, cur->hotspot.y));
+            }
+
+            QMutexLocker lock(&m_mutex);
+            if (m_cursorSamples.size() >= kMaxCursorSamples) {
+                // Consumer never drained: drop the oldest quarter in one shot
+                // (amortized O(1) vs. per-append shifting) and warn once.
+                m_cursorSamples.remove(0, kMaxCursorSamples / 4);
+                if (!m_cursorOverflowWarned) {
+                    qWarning() << "PipeWireGrabber: cursor sample buffer overflow, dropping oldest";
+                    m_cursorOverflowWarned = true;
+                }
+            }
+            m_cursorSamples.append(s);
+        }
+    }
+
     if (buf->n_datas > 0 && buf->datas[0].data && buf->datas[0].chunk && m_size.isValid()) {
         const int w = m_size.width();
         const int h = m_size.height();
@@ -281,6 +438,14 @@ bool PipeWireGrabber::latestFrame(QByteArray &out, quint64 *seq)
     if (seq)
         *seq = m_seq;
     return true;
+}
+
+QVector<CursorSample> PipeWireGrabber::takeCursorSamples()
+{
+    QMutexLocker lock(&m_mutex);
+    QVector<CursorSample> out;
+    out.swap(m_cursorSamples);
+    return out;
 }
 
 QString PipeWireGrabber::pixelFormat() const

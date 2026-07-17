@@ -31,6 +31,8 @@ private slots:
     void captureOnReleaseConfirms();
     void ocrSelectionCreatesLineBatchedAnnotations();
     void ocrCaretSelectionIsCharacterPrecise();
+    void ocrPatternRedactionCoversOnlyMatches();
+    void measureRulerModesAndCopy();
     void textHighlightPenSnapsToLineTextHeight();
     void pasteClipboardCreatesTextAndImage();
     void shiftSnapsLineAngleAndRectangleRatio();
@@ -52,13 +54,14 @@ static void click(TestAnnotationCanvas &c, const QPointF &at)
     QMouseEvent r(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
     c.mouseReleaseEvent(&r);
 }
-static void drag(TestAnnotationCanvas &c, const QPointF &from, const QPointF &to)
+static void drag(TestAnnotationCanvas &c, const QPointF &from, const QPointF &to,
+                 Qt::KeyboardModifiers mods = Qt::NoModifier)
 {
-    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, mods);
     c.mousePressEvent(&p);
-    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, mods);
     c.mouseMoveEvent(&m);
-    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, mods);
     c.mouseReleaseEvent(&r);
 }
 
@@ -275,6 +278,100 @@ void AnnotationCanvasTest::captureOnReleaseConfirms()
 
 // OCR selection is letter-granular, but exported highlight/redaction must be
 // one continuous bar per text line and undo as a single user action.
+// The Measure ruler: a plain drag places a measurement, each remembers its own
+// mode (distance line / size box), several are retained at once, and Ctrl+C's
+// copy text lists every one in the requested format. Falsified by dropping the
+// per-annot mode flag (a size box would report as a distance).
+void AnnotationCanvasTest::measureRulerModesAndCopy()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(200);
+    QImage image(300, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Measure);
+
+    // Distance mode: a 200px horizontal line, placed by a plain drag.
+    canvas.setMeasureMode(0);
+    drag(canvas, {20, 40}, {220, 40});
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(canvas.measuresText(QStringLiteral("readable")), QStringLiteral("200 px"));
+    QCOMPARE(canvas.measuresText(QStringLiteral("plain")), QStringLiteral("200"));
+
+    // Size mode: a 200×60 box — a second retained measurement with its own mode.
+    canvas.setMeasureMode(1);
+    drag(canvas, {20, 40}, {220, 100});
+    QCOMPARE(canvas.annotCount(), 2);
+    const QString readable = canvas.measuresText(QStringLiteral("readable"));
+    QCOMPARE(readable.section('\n', 0, 0), QStringLiteral("200 px"));      // first stays a distance
+    QCOMPARE(readable.section('\n', 1, 1), QStringLiteral("200 × 60"));    // second is a size box
+    QCOMPARE(canvas.measuresText(QStringLiteral("css")).section('\n', 1, 1),
+             QStringLiteral("width: 200px; height: 60px"));
+}
+
+// Pattern redaction blacks out the matches and NOTHING else. Two matches on one
+// text line must stay two bars: the batch groups a run per text line, so without
+// the index-gap break they would merge into a single bar swallowing the
+// untouched word between them — which on a real screenshot silently destroys
+// content the user never asked to hide.
+void AnnotationCanvasTest::ocrPatternRedactionCoversOnlyMatches()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(60);
+    QImage image(200, 60, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    // "a@b.co z c@d.eu" on one line: two e-mails with a non-matching word
+    // between them. Glyph i sits at x = 10 + i*12, so the gap word is at 82..92.
+    const QStringList glyphs{QStringLiteral("a"), QStringLiteral("@"), QStringLiteral("b"),
+                             QStringLiteral("."), QStringLiteral("c"), QStringLiteral("o"),
+                             QStringLiteral("z"),
+                             QStringLiteral("c"), QStringLiteral("@"), QStringLiteral("d"),
+                             QStringLiteral("."), QStringLiteral("e"), QStringLiteral("u")};
+    QVector<OcrWord> words;
+    for (int i = 0; i < glyphs.size(); ++i) {
+        OcrWord w;
+        w.rect = QRect(10 + i * 12, 20, 10, 18);
+        w.text = glyphs.at(i);
+        w.line = 0;
+        w.confidence = 100.f;
+        w.spaceBefore = (i == 6 || i == 7); // " z" and " c@d.eu"
+        words.append(w);
+    }
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+
+    const QString email = QStringLiteral("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}");
+
+    // An unparseable pattern is reported, never silently treated as "no match".
+    QCOMPARE(canvas.redactTextMatching(QStringLiteral("([")), -1);
+    // A valid pattern that matches nothing leaves the canvas untouched.
+    QCOMPARE(canvas.redactTextMatching(QStringLiteral("\\bZZZ\\b")), 0);
+    QCOMPARE(canvas.annotCount(), 0);
+
+    // No selection is made: that is the whole point of auto-redaction.
+    QVERIFY(!canvas.hasOcrSelection());
+    QCOMPARE(canvas.redactTextMatching(email), 2);
+    QCOMPARE(canvas.annotCount(), 2); // one bar per match, NOT one per line
+
+    const QImage out = canvas.rendered();
+    QCOMPARE(out.size(), image.size());
+    // Both e-mails are blacked out...
+    QCOMPARE(out.pixelColor(15, 29), QColor(Qt::black));
+    QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
+    // ...and the word between them is untouched.
+    QCOMPARE(out.pixelColor(87, 29), QColor(Qt::white));
+
+    // The whole batch is one undo step.
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 0);
+    canvas.redo();
+    QCOMPARE(canvas.annotCount(), 2);
+}
+
 void AnnotationCanvasTest::ocrSelectionCreatesLineBatchedAnnotations()
 {
     TestAnnotationCanvas canvas;

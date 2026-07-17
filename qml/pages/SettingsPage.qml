@@ -11,6 +11,14 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Free colour choice for the recording halo. Declared at the page root, not
+    // inside the row: the row is inside a Flickable, and a popup parented there
+    // would be clipped by it.
+    UColorPopup {
+        id: haloColorPopup
+        onPicked: (c) => App.settings.cursorHighlightColor = c
+    }
+
     // Release notes for the running version, opened from the "Current version" row.
     UPatchNotes {
         id: settingsPatchNotes
@@ -1009,6 +1017,18 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Capture overlay") }
                     SettingRow {
+                        label: qsTr("Measurement copy format")
+                        help: qsTr("How the ruler's sizes are written when you press Ctrl+C.")
+                        helpDetail: qsTr("The Measure tool copies its measurements as text. Readable: “842 × 317” / “412 px”. Plain: “842x317” / “412”. CSS: “width: 842px; height: 317px”.")
+                        UComboBox {
+                            width: 200
+                            model: [qsTr("Readable (842 × 317)"), qsTr("Plain (842x317)"), qsTr("CSS")]
+                            readonly property var ids: ["readable", "plain", "css"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.measureCopyFormat))
+                            onActivated: (i) => App.settings.measureCopyFormat = ids[i]
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Toolbar position")
                         help: qsTr("Where the annotation toolbar sits on the selection overlay.")
                         helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
@@ -1215,6 +1235,80 @@ Item {
                 }
             }
 
+            // Cursor overlay for recordings — its own card, a sibling of
+            // Recording / Video acceleration / Audio, not buried among the
+            // frame-rate rows.
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Cursor in recordings") }
+                    SettingRow {
+                        label: qsTr("Highlight the cursor")
+                        help: App.capCursorMetadata
+                              ? qsTr("Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.")
+                              : qsTr("This desktop's screen-cast portal cannot deliver the cursor separately, which this needs.")
+                        helpDetail: qsTr("Needs “Include mouse cursor”. Unisic asks the portal for the cursor as data instead of burnt into the picture, then draws the pointer itself, sharp and with a halo. The pointer is hidden whenever the desktop hides it — a game that hides the cursor stays cursor-less.")
+                        USwitch {
+                            checked: App.settings.cursorHighlight
+                            enabled: (App.capCursorMetadata && App.settings.includeCursor) || App.devBuild
+                            onToggled: (c) => App.settings.cursorHighlight = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.cursorHighlight
+                        label: qsTr("Halo")
+                        help: qsTr("The glow drawn under the pointer. Turn it off to keep only the pointer and clicks.")
+                        USwitch {
+                            checked: App.settings.cursorHighlightHalo
+                            onToggled: (c) => App.settings.cursorHighlightHalo = c
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.cursorHighlight && App.settings.cursorHighlightHalo
+                        label: qsTr("Halo colour")
+                        help: qsTr("Colour of the glow drawn under the pointer.")
+                        Row {
+                            spacing: 6
+                            anchors.verticalCenter: parent.verticalCenter
+                            Repeater {
+                                model: ["#FFD600", "#00E5FF", "#FF4757", "#7CFF6B", "#FFFFFF"]
+                                delegate: ColorDot {
+                                    required property var modelData
+                                    dotColor: modelData
+                                    active: Qt.colorEqual(App.settings.cursorHighlightColor, modelData)
+                                    onClicked: App.settings.cursorHighlightColor = modelData
+                                }
+                            }
+                            // Any colour, not just the five: the halo has to be
+                            // able to contrast with whatever is being recorded.
+                            UIconButton {
+                                iconName: "color-picker"
+                                iconSize: 16
+                                width: 30; height: 30
+                                tooltip: qsTr("More colors")
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: haloColorPopup.open()
+                            }
+                        }
+                    }
+                    SettingRow {
+                        visible: App.settings.cursorHighlight
+                        label: qsTr("Show a ripple on click")
+                        // The reason is computed once per shown row rather than bound:
+                        // probing libinput opens a udev context, too heavy for a binding.
+                        readonly property string blocked: App.clickCaptureBlockedReason()
+                        help: blocked === "" ? qsTr("Draws an expanding ring wherever you click.") : blocked
+                        USwitch {
+                            checked: App.settings.cursorClickRipple
+                            enabled: parent.blocked === "" || App.devBuild
+                            onToggled: (c) => App.settings.cursorClickRipple = c
+                        }
+                    }
+                }
+            }
+
             UCard {
                 width: page.cardWidth
                 Column {
@@ -1269,21 +1363,27 @@ Item {
                     SectionTitle { text: qsTr("Video acceleration") }
                     SettingRow {
                         label: qsTr("MP4 encoder")
-                        help: qsTr("Use the CPU encoder or an available VAAPI/NVENC hardware encoder.")
-                        helpDetail: qsTr("Hardware encoding accelerates the final MP4 conversion. If the selected backend is unavailable, Unisic falls back to software. WebM remains software VP9.")
+                        help: qsTr("Automatic picks a working hardware encoder; it is much faster than software.")
+                        helpDetail: qsTr("Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise — a hardware encoder that is merely listed but broken is skipped. Hardware encoding only accelerates MP4; WebM is always software VP9.")
                         UComboBox {
                             width: 240
-                            property var ids: ["software", "vaapi", "nvenc"]
-                            model: [qsTr("Software (portable)"),
+                            property var ids: ["auto", "software", "vaapi", "nvenc"]
+                            model: [qsTr("Automatic (recommended)"),
+                                    qsTr("Software (portable)"),
                                     App.vaapiAvailable ? qsTr("VAAPI") : qsTr("VAAPI (unavailable)"),
                                     App.nvencAvailable ? qsTr("NVENC") : qsTr("NVENC (unavailable)")]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.videoEncoder))
                             onActivated: (i) => {
-                                if ((i === 1 && !App.vaapiAvailable) || (i === 2 && !App.nvencAvailable))
+                                if ((i === 2 && !App.vaapiAvailable) || (i === 3 && !App.nvencAvailable))
                                     return
                                 App.settings.videoEncoder = ids[i]
                             }
                         }
+                    }
+                    SettingRow {
+                        visible: App.settings.videoFormat === "webm"
+                        label: qsTr("WebM is slow to save")
+                        help: qsTr("VP9 (WebM) has no hardware encoder here and takes several times longer than MP4. Switch the format to MP4 above for fast, hardware-accelerated saves.")
                     }
                 }
             }
@@ -2729,6 +2829,9 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); enabled: App.ocrAvailable; onClicked: App.devTestOcrRedactPattern() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); enabled: App.ocrAvailable; onClicked: App.devTestOcrAutoLang() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
@@ -2737,6 +2840,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record countdown"); onClicked: App.devTestCountdown() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Full-screen countdown"); onClicked: App.devTestFullscreenCountdown() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Toggle autostart"); onClicked: App.autostartEnabled = !App.autostartEnabled }
                     }
                 }

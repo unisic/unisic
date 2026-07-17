@@ -866,6 +866,30 @@ Window {
                     enabled: canvas.hasOcrSelection
                     onClicked: editorSession.redactOcrSelection()
                 }
+                // Pattern redaction: the point is to black out the few secrets
+                // in a shot, not all of its text (Select all + Redact selection
+                // already does that, and leaves an unreadable image). The
+                // patterns are regexes and are NOT translated — only the labels.
+                UMenuButton {
+                    visible: canvas.ocrMode
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Auto-redact")
+                    enabled: !canvas.ocrBusy
+                    actions: [
+                        { label: qsTr("E-mail addresses"), iconName: "edit-delete",
+                          trigger: function () {
+                              editorSession.redactTextMatching("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")
+                          } },
+                        { label: qsTr("IP addresses"), iconName: "edit-delete",
+                          trigger: function () {
+                              editorSession.redactTextMatching("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")
+                          } },
+                        { label: qsTr("Long numbers"), iconName: "edit-delete",
+                          trigger: function () {
+                              editorSession.redactTextMatching("\\d[\\d -]{5,}\\d")
+                          } }
+                    ]
+                }
                 UButton {
                     visible: canvas.ocrMode
                     text: qsTr("Select all"); variant: "tonal"

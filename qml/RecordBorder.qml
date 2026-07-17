@@ -31,6 +31,12 @@ Window {
     function updateMask() {
         if (typeof recordBorderCtl === "undefined" || !recordBorderCtl)
             return
+        // countdownOnly: the window is WindowTransparentForInput (set in C++), so
+        // it must stay fully click-through — never set a non-empty input region.
+        if (borderWindow.countdownOnly) {
+            recordBorderCtl.setInputRect(0, 0, 0, 0)
+            return
+        }
         if (badge.visible)
             recordBorderCtl.setInputRect(badge.x, badge.y, badge.width, badge.height)
         else
@@ -73,6 +79,12 @@ Window {
     // the region and the REC badge is hidden.
     property int countdown: 0
 
+    // Full-screen / window recordings have no region to frame: show ONLY the
+    // countdown number, centered on the whole surface, with no border and no
+    // REC badge. C++ tears this window down the moment recording begins, so a
+    // persistent frame is neither drawn nor needed.
+    property bool countdownOnly: false
+
     // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes (matches Main.qml).
     function fmt(s) {
         var h = Math.floor(s / 3600);
@@ -84,6 +96,7 @@ Window {
 
     // Outer contrast line.
     Rectangle {
+        visible: !borderWindow.countdownOnly
         x: regionX - borderWindow.bw - 1
         y: regionY - borderWindow.bw - 1
         width: regionW + 2 * (borderWindow.bw + 1)
@@ -95,6 +108,7 @@ Window {
     // Accent frame — its inner edge lands exactly on the region boundary, so the
     // stroke occupies only pixels outside the crop.
     Rectangle {
+        visible: !borderWindow.countdownOnly
         x: regionX - borderWindow.bw
         y: regionY - borderWindow.bw
         width: regionW + 2 * borderWindow.bw
@@ -105,6 +119,7 @@ Window {
     }
     // Inner contrast line, hugging the region edge (still one pixel outside it).
     Rectangle {
+        visible: !borderWindow.countdownOnly
         x: regionX - 1
         y: regionY - 1
         width: regionW + 2
@@ -120,12 +135,21 @@ Window {
     // Pre-recording countdown, centered inside the region. The frame shows
     // immediately and the number ticks down (set from C++) before recording.
     Item {
-        x: regionX; y: regionY
-        width: regionW; height: regionH
+        // Region frame: centered in the region. countdownOnly: centered on the
+        // whole surface, since there is no region to sit inside.
+        x: borderWindow.countdownOnly ? 0 : regionX
+        y: borderWindow.countdownOnly ? 0 : regionY
+        width: borderWindow.countdownOnly ? borderWindow.width : regionW
+        height: borderWindow.countdownOnly ? borderWindow.height : regionH
         visible: borderWindow.countdown > 0
+        // Diameter tracks the region for a framed recording, but is capped for a
+        // full-screen countdown (0.42 × a 1440px screen would be a 600px disc).
+        readonly property int disc: borderWindow.countdownOnly
+            ? Math.min(220, Math.min(parent.width, parent.height) * 0.42)
+            : Math.min(parent.width, parent.height) * 0.42
         Rectangle {
             anchors.centerIn: parent
-            width: Math.min(parent.width, parent.height) * 0.42
+            width: parent.disc
             height: width
             radius: width / 2
             color: Qt.rgba(0, 0, 0, 0.55)
@@ -137,7 +161,7 @@ Window {
             anchors.centerIn: parent
             text: borderWindow.countdown
             color: Theme.accent
-            font.pixelSize: Math.max(24, Math.min(parent.width, parent.height) * 0.26)
+            font.pixelSize: Math.max(24, parent.disc * 0.62)
             font.bold: true
             onTextChanged: { scale = 1.4; cdPulse.restart() }
             NumberAnimation {
@@ -151,7 +175,10 @@ Window {
         id: badge
         readonly property bool roomAbove: regionY - height - 6 >= 0
         readonly property bool roomBelow: regionY + regionH + 6 + height <= borderWindow.height
+        // Never in countdownOnly mode: that overlay is torn down at commit, so a
+        // REC badge would only ever flash for one frame at the 3→0 transition.
         visible: (roomAbove || roomBelow) && borderWindow.countdown <= 0
+                 && !borderWindow.countdownOnly
         width: badgeRow.width + 14
         height: 28
         radius: 14

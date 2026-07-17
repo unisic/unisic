@@ -160,3 +160,22 @@ void EditorSession::redactOcrSelection()
     setStatus(tr("Redacted selected text"));
 }
 
+void EditorSession::redactTextMatching(const QString &pattern)
+{
+    if (!m_canvas)
+        return;
+    const int n = m_canvas->redactTextMatching(pattern);
+    if (n < 0) {
+        setStatus(tr("Not a valid search pattern"));
+        return;
+    }
+    if (n == 0) {
+        // Distinct from "nothing selected": the pattern ran and found nothing,
+        // which on a noisy recognition is the expected answer often enough that
+        // silence would read as a broken button.
+        setStatus(tr("Nothing matched"));
+        return;
+    }
+    setStatus(tr("Redacted %n match(es)", "", n));
+}
+

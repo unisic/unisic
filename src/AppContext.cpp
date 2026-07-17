@@ -14,6 +14,9 @@
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
+#include "record/InputPermission.h"
+#include "record/CursorOverlayPainter.h"
+#include "capture/ScreenCastSession.h"
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
@@ -831,6 +834,29 @@ bool AppContext::capDoNotDisturb() const
     return NotificationInhibitor::supportedDesktop();
 }
 
+bool AppContext::capCursorMetadata() const
+{
+#ifdef HAVE_PIPEWIRE
+    return (ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata) != 0;
+#else
+    return false;
+#endif
+}
+
+QString AppContext::clickCaptureBlockedReason() const
+{
+    switch (InputPermission::probe()) {
+    case InputPermission::Available:
+        return {};
+    case InputPermission::NotBuilt:
+        return tr("This build has no libinput support, so clicks cannot be detected.");
+    case InputPermission::NoPermission:
+        break;
+    }
+    return tr("Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.")
+        .arg(InputPermission::fixHint());
+}
+
 bool AppContext::capScreenshotCursor() const
 {
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
@@ -1119,6 +1145,23 @@ void AppContext::runRecordCountdownVisuals(int secs)
         // Both the in-process frame (KDE/wlroots) and the XWayland helper frame
         // (GNOME) render the number — the helper is fed over stdin.
         inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
+    } else {
+        // Full-screen and window recordings have no region frame, so a small
+        // toast was the only cue that anything was happening — easy to miss on a
+        // full-screen recording. Show the big countdown centered on the screen
+        // instead, on the same layer-shell / XWayland-helper path as the region
+        // frame. It is torn down the instant recording begins.
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        if (screen) {
+            const qreal dpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
+            const QRect full(QPoint(0, 0),
+                             QSize(qRound(screen->geometry().width() * dpr),
+                                   qRound(screen->geometry().height() * dpr)));
+            showRecordBorder(full, screen, secs, /*countdownOnly=*/true);
+            inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
+        }
     }
     if (!inFrame)
         showToast(tr("Recording in %1…").arg(secs));
@@ -1147,8 +1190,14 @@ void AppContext::commitRecordingAfterCue()
     // Clear the countdown number FIRST so the compositor repaints without it —
     // otherwise the "1" leaks into the recording's first frames.
     const bool inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
-    if (inFrame)
+    if (m_recordBorderCountdownOnly) {
+        // Full-screen / window overlay: the surface sits OVER the recorded area,
+        // so it must be gone entirely before the first frame, not just blanked.
+        // The tail below lets the compositor repaint the bare screen first.
+        hideRecordBorder();
+    } else if (inFrame) {
         setRecordBorderCountdown(0);
+    }
     // Play the start cue NOW, before encoding — it plays out through the speakers
     // and so is never captured in a system-audio recording.
     const bool hasStartCue = m_settings->recordStartSound() != QLatin1String("off")
@@ -1431,22 +1480,38 @@ static QString measureToolsCheck()
     base.fill(Qt::white);
     canvas.setImage(base);
     canvas.setStrokeColor(Qt::black);
-    const auto draw = [&canvas](AnnotationCanvas::Tool tool, QPointF a, QPointF b) {
+    const auto draw = [&canvas](AnnotationCanvas::Tool tool, QPointF a, QPointF b,
+                                Qt::KeyboardModifiers mods) {
         canvas.setTool(tool);
         QMouseEvent press(QEvent::MouseButtonPress, a, a, Qt::LeftButton,
-                          Qt::LeftButton, Qt::NoModifier);
+                          Qt::LeftButton, mods);
         QMouseEvent move(QEvent::MouseMove, b, b, Qt::NoButton,
-                         Qt::LeftButton, Qt::NoModifier);
+                         Qt::LeftButton, mods);
         QMouseEvent release(QEvent::MouseButtonRelease, b, b, Qt::LeftButton,
-                            Qt::NoButton, Qt::NoModifier);
+                            Qt::NoButton, mods);
         canvas.mousePressEvent(&press);
         canvas.mouseMoveEvent(&move);
         canvas.mouseReleaseEvent(&release);
     };
-    draw(AnnotationCanvas::Measure, {20, 40}, {220, 40});
-    return canvas.annotCount() == 1 && canvas.rendered() != base
-               ? QStringLiteral("PASS (ruler)")
-               : QStringLiteral("FAIL (annotation missing)");
+    // Distance mode: a 200px horizontal line (plain drag).
+    canvas.setMeasureMode(0);
+    draw(AnnotationCanvas::Measure, {20, 40}, {220, 40}, Qt::NoModifier);
+    if (canvas.annotCount() != 1 || canvas.rendered() == base)
+        return QStringLiteral("FAIL (distance not placed)");
+    if (canvas.measuresText(QStringLiteral("readable")) != QLatin1String("200 px"))
+        return QStringLiteral("FAIL (distance text: %1)")
+            .arg(canvas.measuresText(QStringLiteral("readable")));
+    // Size mode: a 200×60 box; a second retained measurement; formats respected.
+    canvas.setMeasureMode(1);
+    draw(AnnotationCanvas::Measure, {20, 40}, {220, 100}, Qt::NoModifier);
+    if (canvas.measuresText(QStringLiteral("readable")).section('\n', 1, 1)
+            != QLatin1String("200 × 60"))
+        return QStringLiteral("FAIL (size text: %1)")
+            .arg(canvas.measuresText(QStringLiteral("readable")));
+    if (canvas.measuresText(QStringLiteral("plain")).section('\n', 1, 1)
+            != QLatin1String("200x60"))
+        return QStringLiteral("FAIL (plain format)");
+    return QStringLiteral("PASS (ruler: distance + size, retained, formats)");
 }
 
 void AppContext::devTestTextRender()
@@ -1585,9 +1650,18 @@ void AppContext::devTestMeasureTools()
 void AppContext::devTestHardwareEncoder()
 {
     if (!devBuild()) return;
-    showToast(tr("Dev: hardware encoder: %1")
-                  .arg(m_vaapiAvailable || m_nvencAvailable
-                           ? QStringLiteral("PASS") : QStringLiteral("SKIP")));
+    // Verify the WORKING probe, not just the listing: "auto" resolves through
+    // it, and a listed-but-broken encoder (seen in the wild with vp9_vaapi)
+    // must resolve to software, never be handed out.
+    const bool nv = GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc"));
+    const bool va = GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi"));
+    const QString resolved = m_recorder ? m_recorder->resolvedVideoEncoder()
+                                        : QStringLiteral("?");
+    showToast(tr("Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4)")
+                  .arg(nv || va ? QStringLiteral("PASS") : QStringLiteral("SKIP (software only)"),
+                       resolved,
+                       nv ? QStringLiteral("works") : QStringLiteral("no"),
+                       va ? QStringLiteral("works") : QStringLiteral("no")));
 }
 
 void AppContext::devTestPerAppAudio()
@@ -2078,6 +2152,160 @@ static QString ocrHighlightCheck(const QVector<OcrWord> &words)
     return QStringLiteral("PASS (%1 highlight bars + redaction, one undo)").arg(highlighted);
 }
 
+// Pattern redaction over real Tesseract geometry. The fixture's glyphs are
+// digits, so the "long numbers" preset must black them out with no selection
+// made at all, while the e-mail preset must leave them alone — a pattern that
+// matched everything would be indistinguishable from a broken one here.
+static QString ocrRedactPatternCheck(const QVector<OcrWord> &words)
+{
+    if (words.isEmpty())
+        return QStringLiteral("FAIL (no glyphs)");
+    AnnotationCanvas canvas;
+    const QImage base = ocrBoxTestImage();
+    canvas.setImage(base);
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+    // Deliberately no ocrSelectAll(): redacting WITHOUT a selection is the path.
+    if (canvas.redactTextMatching(QStringLiteral("([")) != -1)
+        return QStringLiteral("FAIL (invalid pattern not rejected)");
+    if (canvas.redactTextMatching(QStringLiteral("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")) != 0)
+        return QStringLiteral("FAIL (e-mail pattern matched digits)");
+    if (canvas.annotCount() != 0)
+        return QStringLiteral("FAIL (non-matching pattern still drew a bar)");
+    const int n = canvas.redactTextMatching(QStringLiteral("\\d[\\d -]{5,}\\d"));
+    if (n <= 0 || canvas.annotCount() == 0)
+        return QStringLiteral("FAIL (long-number pattern found nothing)");
+    canvas.undo();
+    if (canvas.annotCount() != 0)
+        return QStringLiteral("FAIL (pattern batch needs more than one undo)");
+    canvas.redo();
+    if (canvas.rendered() == base)
+        return QStringLiteral("FAIL (redaction missing from export)");
+    return QStringLiteral("PASS (%1 match(es) redacted, no selection, one undo)").arg(n);
+}
+
+// Style presets are stored as one JSON string in a settings key. The QML side
+// owns the schema, but the STORAGE is the part that can fail silently: INI
+// treats an unquoted comma-bearing value as a QStringList, and a preset object
+// is nothing but commas. Round-trip a realistic payload through the real
+// Settings object and compare byte for byte.
+static QString stylePresetsCheck(Settings *s)
+{
+    if (!s)
+        return QStringLiteral("FAIL (no settings)");
+    const QString saved = s->editorStylePresets();
+    const QString payload = QStringLiteral(
+        "[{\"stroke\":\"#ff4757\",\"width\":4,\"fontFamily\":\"Noto Sans, Bold\","
+        "\"fillOn\":false,\"hlMode\":2}]");
+    s->setEditorStylePresets(payload);
+    const QString back = s->editorStylePresets();
+    s->setEditorStylePresets(saved); // never clobber the user's real presets
+    if (back != payload)
+        return QStringLiteral("FAIL (round-trip mangled: %1)").arg(back);
+    QJsonParseError err{};
+    const QJsonDocument doc = QJsonDocument::fromJson(back.toUtf8(), &err);
+    if (err.error != QJsonParseError::NoError || !doc.isArray() || doc.array().size() != 1)
+        return QStringLiteral("FAIL (not parseable back into one preset)");
+    return QStringLiteral("PASS (JSON survives the INI round-trip)");
+}
+
+// The cursor overlay, end to end minus the compositor: paint a pointer, a halo
+// and a click ripple into a frame-shaped buffer and prove the pixels changed.
+// This is the part that silently produces a cursor-less recording if it breaks
+// — in metadata cursor mode nothing else draws the pointer.
+static QString cursorOverlayCheck()
+{
+    const int w = 200, h = 120;
+    QImage frame(w, h, QImage::Format_RGB32);   // same wrap the recorder uses for "bgr0"
+    frame.fill(Qt::black);
+    const QImage clean = frame;
+
+    CursorOverlayPainter painter;
+    CursorOverlayPainter::Style style;
+    style.highlight = true;
+    style.ripple = true;
+    painter.setStyle(style);
+
+    const qint64 now = 1000000000LL;
+    // No position yet: painting must be a no-op rather than stamp the origin.
+    {
+        QPainter p(&frame);
+        painter.paint(p, now);
+    }
+    if (frame != clean)
+        return QStringLiteral("FAIL (drew a cursor before one was known)");
+
+    painter.setCursor(QPointF(w / 2, h / 2), /*visible=*/true, /*shapeId=*/0);
+    {
+        QPainter p(&frame);
+        painter.paint(p, now);
+    }
+    if (frame == clean)
+        return QStringLiteral("FAIL (pointer + halo drew nothing)");
+    // The fallback pointer must appear even with no bitmap from the compositor.
+    if (frame.pixelColor(w / 2 + 1, h / 2 + 4) == QColor(Qt::black))
+        return QStringLiteral("FAIL (no pointer where the cursor is)");
+
+    // A click ripple must expire on its own, or a long recording accumulates them.
+    painter.addClick(now);
+    if (!painter.hasContent(now))
+        return QStringLiteral("FAIL (ripple not live at t=0)");
+    const qint64 afterMs = now + qint64(style.rippleMs + 50) * 1000000LL;
+    QImage expired(w, h, QImage::Format_RGB32);
+    expired.fill(Qt::black);
+    {
+        // Cursor hidden + halo/pointer off: the only thing left that could draw
+        // is the ripple, so an unchanged frame proves it really expired.
+        CursorOverlayPainter rippleOnly;
+        CursorOverlayPainter::Style s;
+        s.highlight = false;
+        s.drawCursor = false;
+        rippleOnly.setStyle(s);
+        rippleOnly.setCursor(QPointF(w / 2, h / 2), true, 0);
+        rippleOnly.addClick(now);
+        if (rippleOnly.hasContent(afterMs))
+            return QStringLiteral("FAIL (ripple outlived its lifetime)");
+        QPainter p(&expired);
+        rippleOnly.paint(p, afterMs);
+    }
+    if (expired != clean)
+        return QStringLiteral("FAIL (expired ripple still painted)");
+
+    // Premultiplied-alpha fidelity: cursor bitmaps arrive premultiplied (Wayland
+    // ARGB8888 and the XCursor themes both store them that way). A half-opaque
+    // WHITE edge pixel is therefore (128,128,128,128). If any stage treats it as
+    // straight alpha it gets premultiplied a second time — the classic soft/dark
+    // cursor edge. Composite it over black and check the visible result did not
+    // darken past what a single, correct premultiply gives (~128, i.e. white*0.5).
+    {
+        QImage frame2(w, h, QImage::Format_RGB32);
+        frame2.fill(Qt::black);
+        QImage cur(4, 4, QImage::Format_ARGB32_Premultiplied);
+        cur.fill(qRgba(128, 128, 128, 128)); // premultiplied half-opaque white
+        CursorOverlayPainter cp;
+        CursorOverlayPainter::Style cs;
+        cs.highlight = false;
+        cs.ripple = false;
+        cp.setStyle(cs);
+        cp.setShape(1, cur, QPoint(0, 0));
+        cp.setCursor(QPointF(w / 2, h / 2), true, 1);
+        {
+            QPainter p(&frame2);
+            cp.paint(p, now);
+        }
+        const int v = frame2.pixelColor(w / 2, h / 2).red();
+        // Correct: ~128. Double-premultiplied would land near 64.
+        if (v < 110)
+            return QStringLiteral("FAIL (cursor alpha double-premultiplied: %1, want ~128)").arg(v);
+    }
+
+    const bool meta = ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata;
+    return QStringLiteral("PASS (portal metadata cursor: %1, clicks: %2)")
+        .arg(meta ? QStringLiteral("yes") : QStringLiteral("NO — would fall back to embedded"),
+             InputPermission::probe() == InputPermission::Available
+                 ? QStringLiteral("yes") : QStringLiteral("no (needs the input group)"));
+}
+
 // Loads every bundled non-English .qm and checks a known string translates.
 static QString languageCheck()
 {
@@ -2220,6 +2448,35 @@ void AppContext::devTestOcrHighlight()
 #endif
 }
 
+void AppContext::devTestCursorOverlay()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: cursor overlay: %1").arg(cursorOverlayCheck()));
+}
+
+void AppContext::devTestStylePresets()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: style presets: %1").arg(stylePresetsCheck(m_settings)));
+}
+
+void AppContext::devTestOcrRedactPattern()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_TESSERACT
+    ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+        showToast(!err.isEmpty() ? tr("Dev: auto-redact pattern: FAIL (%1)").arg(err)
+                                 : tr("Dev: auto-redact pattern: %1").arg(ocrRedactPatternCheck(words)),
+                  !err.isEmpty());
+    });
+#else
+    showToast(tr("Dev: auto-redact pattern: SKIP (built without tesseract)"));
+#endif
+}
+
 void AppContext::devTestOcrAutoLang()
 {
     if (!devBuild())
@@ -2327,6 +2584,33 @@ void AppContext::devTestCountdown()
         if (!recording())
             hideRecordBorder();
         showToast(tr("Dev: countdown finished — recording would start now"));
+    });
+}
+
+void AppContext::devTestFullscreenCountdown()
+{
+    if (!devBuild())
+        return;
+    if (m_settings->recordCountdownSec() <= 0) {
+        showToast(tr("Dev: countdown is 0s (off) — set it in Recording settings"));
+        return;
+    }
+    // The full-screen / window path: NO pending region, so runRecordCountdownVisuals
+    // takes the countdownOnly branch (big number centered on the screen, torn down
+    // when it hits 0). Mirrors what startVideoScreen/startGifFullScreen produce.
+    m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr;
+    const int secs = qBound(1, m_settings->recordCountdownSec(), 10);
+    m_recordHoldActive = true;
+    runRecordCountdownVisuals(secs);
+    const bool overlay = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
+    QTimer::singleShot(secs * 1000 + 1200, this, [this, overlay]() {
+        if (!recording())
+            hideRecordBorder();
+        showToast(overlay
+                      ? tr("Dev: full-screen countdown finished — recording would start now")
+                      : tr("Dev: full-screen countdown fell back to a toast (no record-border support)"),
+                  !overlay);
     });
 }
 
@@ -3113,6 +3397,10 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("hardware encoder: %1 (VAAPI=%2 NVENC=%3)")
                      .arg((m_vaapiAvailable || m_nvencAvailable) ? "PASS" : "SKIP")
                      .arg(m_vaapiAvailable ? "y" : "n", m_nvencAvailable ? "y" : "n"));
+        smokeLog(QStringLiteral("encoder auto→%1 (nvenc works=%2, vaapi works=%3)")
+                     .arg(m_recorder ? m_recorder->resolvedVideoEncoder() : QStringLiteral("?"),
+                          GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
+                          GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
         if (!perAppAudioAvailable())
             smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
         else
@@ -3569,6 +3857,32 @@ void AppContext::runSmokeTest()
 #endif
     });
 
+    // 3f4) Auto-redact: pattern → redaction bars with no selection made.
+    m_smokeSteps.append([this] {
+#ifdef HAVE_TESSERACT
+        ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+            smokeLog(!err.isEmpty() ? QStringLiteral("auto-redact pattern: FAIL (%1)").arg(err)
+                                     : QStringLiteral("auto-redact pattern: ") + ocrRedactPatternCheck(words));
+            smokeNext();
+        });
+#else
+        smokeLog(QStringLiteral("auto-redact pattern: SKIP (built without tesseract)"));
+        smokeNext();
+#endif
+    });
+
+    // 3f6) Recording cursor overlay — pointer/halo/ripple compositing.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("cursor overlay: ") + cursorOverlayCheck());
+        smokeNext();
+    });
+
+    // 3f5) Annotation style presets — the JSON-in-a-settings-key storage.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("style presets: ") + stylePresetsCheck(m_settings));
+        smokeNext();
+    });
+
     // 4) short GIF recording (fullscreen, ~3s, auto-stop)
     m_smokeSteps.append([this] {
         if (!recordingAvailable()) {
@@ -3874,11 +4188,13 @@ bool AppContext::capVideoPlayback() const
     return ok;
 }
 
-void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown)
+void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
+                                  bool countdownOnly)
 {
-    hideRecordBorder(); // retire any stale frame first
+    hideRecordBorder(); // retire any stale frame first (also clears the flag)
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
         return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
+    m_recordBorderCountdownOnly = countdownOnly;
 
     // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
     // sink below the next window the user raises — mutter has no keep-above
@@ -3918,7 +4234,8 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
                             frac(physRegion.width() / phys.width()),
                             frac(physRegion.height() / phys.height()),
                             accent.name(QColor::HexRgb),
-                            QString::number(countdown)});
+                            QString::number(countdown),
+                            countdownOnly ? QStringLiteral("1") : QStringLiteral("0")});
         // The helper's badge carries clickable stop/pause controls; a click there
         // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
         // like the in-process border's buttons (the resulting paused state is
@@ -3993,6 +4310,15 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     // Pre-recording countdown number (0 = none) — RecordBorder.qml shows it
     // centered in the region and hides the REC badge while it ticks.
     win->setProperty("countdown", countdown);
+    // countdownOnly: no frame, no badge, number centered on the whole surface.
+    win->setProperty("countdownOnly", countdownOnly);
+    // A countdown-only overlay has NO clickable controls, so make the whole
+    // surface input-transparent — otherwise the full-screen layer surface eats
+    // every click for the 3 s it is up (the region frame instead masks input to
+    // just its badge, which is why it can't use this). Set before show() so the
+    // empty input region is committed with the first frame, not a beat later.
+    if (countdownOnly)
+        win->setFlag(Qt::WindowTransparentForInput, true);
 
 #ifdef HAVE_LAYERSHELL
     if (m_layerShellAvailable) {
@@ -4027,6 +4353,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
 void AppContext::hideRecordBorder()
 {
     m_pendingRecordRegion = QRect();
+    m_recordBorderCountdownOnly = false;
     if (m_recordBorderHelper) {
         QProcess *p = m_recordBorderHelper;
         m_recordBorderHelper = nullptr;
@@ -6121,6 +6448,25 @@ void AppContext::applyHotkeys()
     }
 }
 
+// Defined later in this TU; forward-declared so the tray menu can tint the
+// bundled monochrome icons to the menu's own text colour.
+static QPixmap recolorPixmap(const QString &path, const QColor &color, const QSize &size);
+
+// A QIcon from a bundled sym/<name>.svg, tinted to the menu text colour so it
+// sits right in a native QMenu in both light and dark themes.
+static QIcon trayMenuIcon(const QString &name)
+{
+    const QColor c = qApp->palette().color(QPalette::WindowText);
+    QIcon icon;
+    for (int s : {16, 22, 24}) {
+        const QPixmap pm = recolorPixmap(
+            QStringLiteral(":/resources/icons/sym/%1.svg").arg(name), c, QSize(s, s));
+        if (!pm.isNull())
+            icon.addPixmap(pm);
+    }
+    return icon;
+}
+
 void AppContext::setupTray()
 {
     if (!QSystemTrayIcon::isSystemTrayAvailable()) {
@@ -6171,14 +6517,36 @@ void AppContext::setupTray()
     m_tray = new QSystemTrayIcon(trayIcon(), this);
     auto *menu = new QMenu;
     m_trayMenu = menu;
-    menu->addAction(tr("Capture region"), this, &AppContext::captureRegion);
-    menu->addAction(tr("Capture full screen"), this, &AppContext::captureFullScreen);
-    menu->addAction(tr("Capture window"), this, &AppContext::captureWindow);
+    // The tray menu is the app's quick menu: every capture and recording mode
+    // the app has must be reachable here, or the tray is a worse copy of the
+    // window. Grouped so the list stays readable at a dozen entries.
+    menu->addAction(trayMenuIcon(QStringLiteral("region")), tr("Capture region"), this, &AppContext::captureRegion);
+    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Capture full screen"), this, &AppContext::captureFullScreen);
+    menu->addAction(trayMenuIcon(QStringLiteral("window")), tr("Capture window"), this, &AppContext::captureWindow);
+    menu->addAction(trayMenuIcon(QStringLiteral("measure")), tr("Measure"), this, &AppContext::captureMeasure);
+    if (ocrAvailable())
+        menu->addAction(trayMenuIcon(QStringLiteral("ocr")), tr("Select text…"), this, &AppContext::captureRegionOcr);
     menu->addSeparator();
-    menu->addAction(tr("Record video (region)"), this, &AppContext::startVideoRegion);
-    menu->addAction(tr("Record video (window)"), this, &AppContext::startVideoWindow);
-    menu->addAction(tr("Record GIF (region)"), this, &AppContext::startGifRegion);
-    menu->addAction(tr("Stop recording"), this, &AppContext::stopRecording);
+    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (region)"), this, &AppContext::startVideoRegion);
+    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (full screen)"), this, &AppContext::startVideoScreen);
+    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (window)"), this, &AppContext::startVideoWindow);
+    menu->addAction(trayMenuIcon(QStringLiteral("gif")), tr("Record GIF (region)"), this, &AppContext::startGifRegion);
+    menu->addAction(trayMenuIcon(QStringLiteral("gif")), tr("Record GIF (full screen)"), this, &AppContext::startGifFullScreen);
+    QAction *replayStart = menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Start instant replay"), this,
+                                           &AppContext::startInstantReplay);
+    QAction *replaySave = menu->addAction(trayMenuIcon(QStringLiteral("document-save")), tr("Save instant replay"), this,
+                                          &AppContext::saveInstantReplay);
+    QAction *stopRec = menu->addAction(trayMenuIcon(QStringLiteral("stop")), tr("Stop recording"), this, &AppContext::stopRecording);
+    // The menu is built once, so anything state-dependent has to be refreshed
+    // when it opens — otherwise it shows whatever was true at startup.
+    connect(menu, &QMenu::aboutToShow, this, [this, replayStart, replaySave, stopRec] {
+        replayStart->setVisible(!instantReplayActive());
+        replaySave->setVisible(instantReplayActive());
+        replayStart->setEnabled(!recording());
+        stopRec->setEnabled(recording());
+    });
+    menu->addSeparator();
+    menu->addAction(trayMenuIcon(QStringLiteral("content-copy")), tr("Copy last capture"), this, &AppContext::copyLastCapture);
     menu->addSeparator();
     if (m_updater && m_updater->restartPending()) {
         // The new version is already swapped in — one click finishes the job.
@@ -6192,8 +6560,8 @@ void AppContext::setupTray()
                         this, [this] { emit showMainWindowRequested(); });
         menu->addSeparator();
     }
-    menu->addAction(tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
-    menu->addAction(tr("Quit"), qApp, &QCoreApplication::quit);
+    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
+    menu->addAction(trayMenuIcon(QStringLiteral("close")), tr("Quit"), qApp, &QCoreApplication::quit);
     m_tray->setContextMenu(menu);
     m_tray->setToolTip(QGuiApplication::applicationDisplayName());
     connect(m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason r) {

@@ -9,8 +9,12 @@
 #include <QList>
 #include <functional>
 
+#include "CursorOverlayPainter.h"
+#include "CursorSmoother.h"
+
 class ScreenCastSession;
 class PipeWireGrabber;
+class ClickCapture;
 class Settings;
 class QScreen;
 
@@ -41,6 +45,12 @@ public:
     void togglePause();
     int elapsedSeconds() const;
     static bool hardwareEncoderAvailable(const QString &id);
+    // Listed AND actually able to encode (cached). See the .cpp: "listed" alone
+    // is not enough — a listed encoder can fail outright.
+    static bool hardwareEncoderWorks(const QString &id);
+    // videoEncoder(), with "auto" resolved to a working hardware encoder or
+    // software.
+    QString resolvedVideoEncoder() const;
     // True when this ffmpeg can encode with `name` — or when the encoder probe
     // itself failed (empty set), where callers keep their preferred encoder and
     // let the "ffmpeg could not be started" path report the real problem.
@@ -100,6 +110,11 @@ private:
     void openPortalSession();
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
+    void startClickCapture();
+    void stopClickCapture();
+    // Draws the pointer/halo/ripples into a copy of `encoded` and returns it,
+    // or returns `encoded` untouched when there is nothing to draw.
+    QByteArray compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs);
     // If the user paused during the recording, excise those wall-clock spans
     // from the intermediate (video + audio together) before conversion, then run
     // `thenConvert`. With no pauses it calls `thenConvert` straight away.
@@ -148,6 +163,18 @@ private:
     bool m_monitorRetryDone = false; // one wrong-monitor self-heal per start()
     QByteArray m_lastFrame;
     quint64 m_lastSampledSeq = 0; // grabber seq of m_lastFrame (skip re-crop when unchanged)
+
+    // Cursor overlay. Only live when the portal granted CursorMetadata: in that
+    // mode the compositor stops painting the pointer into the stream, so
+    // m_cursorOverlay is what puts it back — alongside the halo and ripples.
+    // m_lastFrame stays CLEAN (the overlay is composited into a separate
+    // buffer): it is the sample-and-hold source, and baking a halo into it
+    // would freeze that halo in place on every held frame.
+    bool m_cursorOverlayActive = false;
+    CursorOverlayPainter m_cursorOverlay;
+    CursorSmoother m_cursorSmoother;
+    ClickCapture *m_clicks = nullptr;
+    QByteArray m_overlayFrame;   // scratch buffer for the composited frame
     QString m_tempPath;
     QString m_palettePath;
     QString m_outPath;

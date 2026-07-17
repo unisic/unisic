@@ -35,11 +35,27 @@ Item {
             Item { width: 1; height: Theme.spacingS }
 
             // Flow, not Row: at the minimum window width the viewport is
-            // narrower than the three fixed-width cards, so wrap instead of
-            // clipping the third card (the Flickable has no horizontal scroll).
+            // narrower than the fixed-width cards, so wrap instead of clipping
+            // the last one (the Flickable has no horizontal scroll).
             Flow {
+                id: modeFlow
                 width: parent.width
                 spacing: Theme.spacingL
+
+                // The cards stretch to fill their row, and only counts that
+                // DIVIDE the card count are allowed — a row that fits all but
+                // one strands that one alone underneath, which reads as a
+                // mistake rather than a wrap.
+                readonly property int count: 3
+                readonly property int minCard: 180
+                readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
+                readonly property int perRow: {
+                    for (var n = Math.min(fits, count); n > 1; --n)
+                        if (count % n === 0)
+                            return n
+                    return 1
+                }
+                readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
 
                 Repeater {
                     model: [
@@ -49,7 +65,7 @@ Item {
                     ]
 
                     delegate: Rectangle {
-                        width: 218
+                        width: modeFlow.cardW
                         height: 172
                         radius: Theme.radiusXL
                         gradient: Gradient {

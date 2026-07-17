@@ -192,11 +192,21 @@ Window {
                 // above returns first, so typing a space still types a space).
                 overlayController.confirmFromWindow(overlayWindow)
             } else if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) {
-                // Spectacle parity: Ctrl+C accepts the selection and copies the
-                // result to the clipboard even when auto-copy is off. Screenshot
-                // flow only — the GIF region picker keeps its Start button.
-                if (annotationToolsEnabled)
+                if (canvas.tool === AnnotationCanvas.Measure) {
+                    // Ruler: Ctrl+C copies the measured DIMENSIONS (not the image)
+                    // and leaves the overlay up so you can keep measuring.
+                    var mt = canvas.measuresText(App.settings.measureCopyFormat)
+                    if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
+                    else App.showToast(qsTr("Nothing measured yet — Ctrl+drag to measure"))
+                } else if (annotationToolsEnabled) {
+                    // Spectacle parity: Ctrl+C accepts the selection and copies the
+                    // result to the clipboard even when auto-copy is off. Screenshot
+                    // flow only — the GIF region picker keeps its Start button.
                     overlayController.confirmAndCopy(overlayWindow)
+                }
+            } else if (e.key === Qt.Key_Tab && canvas.tool === AnnotationCanvas.Measure) {
+                // Toggle the ruler between distance line and size box.
+                canvas.measureMode = canvas.measureMode === 1 ? 0 : 1
             } else if (e.key === Qt.Key_A && (e.modifiers & Qt.ControlModifier)) {
                 canvas.selectAll()
             } else if (e.key === Qt.Key_Z && (e.modifiers & Qt.ControlModifier)) {
@@ -255,8 +265,12 @@ Window {
             selectionMode: true
             tool: AnnotationCanvas.None
             onCopyRequested: {
-                if (annotationToolsEnabled)
+                if (canvas.tool === AnnotationCanvas.Measure) {
+                    var mt = canvas.measuresText(App.settings.measureCopyFormat)
+                    if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
+                } else if (annotationToolsEnabled) {
                     overlayController.confirmAndCopy(overlayWindow)
+                }
             }
             // Capture on release: screenshot flow only — the GIF region picker
             // (annotationToolsEnabled false) keeps its explicit Start button.
@@ -408,6 +422,8 @@ Window {
                 id: hintText
                 anchors.centerIn: parent
                 text: {
+                    if (canvas.tool === AnnotationCanvas.Measure)
+                        return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
                     return annotationToolsEnabled
                            ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")

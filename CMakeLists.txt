@@ -4,7 +4,7 @@ project(unisic VERSION 0.7.2 LANGUAGES CXX)
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.7.2b")
+set(UNISIC_VERSION_STRING "0.7.2")
 
 include(GNUInstallDirs)
 
@@ -15,6 +15,12 @@ find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControl
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
 pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract lept)
+# Optional: global pointer-button capture for recordings (click overlays), via
+# libinput's udev backend. Needs both libinput and libudev; without them the
+# build still succeeds and InputPermission reports NotBuilt / ClickCapture stays
+# inert. Guarded exactly like HAVE_PIPEWIRE.
+pkg_check_modules(LIBINPUT IMPORTED_TARGET libinput)
+pkg_check_modules(LIBUDEV IMPORTED_TARGET libudev)
 # Optional: on-top custom capture card via wlr-layer-shell (KWin/wlroots). Needs
 # both LayerShellQt (to make the window a layer surface) and wayland-client (to
 # probe at runtime whether the compositor actually exposes zwlr_layer_shell_v1;
@@ -47,6 +53,10 @@ qt_add_executable(unisic
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
+    src/record/CursorSmoother.h src/record/CursorSmoother.cpp
+    src/record/ClickCapture.h src/record/ClickCapture.cpp
+    src/record/InputPermission.h src/record/InputPermission.cpp
     src/record/TrimController.h src/record/TrimController.cpp
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/record/RecordBorderController.h src/record/RecordBorderController.cpp
@@ -124,6 +134,17 @@ if(PIPEWIRE_FOUND)
     target_compile_definitions(unisic PRIVATE HAVE_PIPEWIRE)
 else()
     message(WARNING "libpipewire-0.3 not found — GIF/screen recording will be disabled at runtime")
+endif()
+
+# Optional click capture: link libinput/libudev and flip HAVE_LIBINPUT only when
+# both were found. The capture sources always compile; this just enables the real
+# code path (else InputPermission::probe() returns NotBuilt and ClickCapture is inert).
+if(LIBINPUT_FOUND AND LIBUDEV_FOUND)
+    target_link_libraries(unisic PRIVATE PkgConfig::LIBINPUT PkgConfig::LIBUDEV)
+    target_compile_definitions(unisic PRIVATE HAVE_LIBINPUT)
+    message(STATUS "Click capture: enabled (HAVE_LIBINPUT=ON)")
+else()
+    message(WARNING "libinput/libudev not found — click capture (ClickCapture) will be unavailable")
 endif()
 
 if(TESSERACT_FOUND)
@@ -408,4 +429,5 @@ if(BUILD_TESTING)
     # HistoryStore writes thumbnails; QStandardPaths test mode keeps them out of
     # the real data dir, but it still needs a QGuiApplication.
     set_tests_properties(unisic_history_filter_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
 endif()

@@ -9,12 +9,22 @@ whole per release (not per individual change).
 ## 0.7.3b
 
 ### English
+**New**
+- **First-run system check**: on first launch Unisic now points out any optional tool that isn't installed — FFmpeg for recording and GIF export, wl-clipboard for the most reliable clipboard copy, a Tesseract language pack for text recognition (OCR) — and tells you how to install each. Unisic still runs on the built-in Wayland APIs alone; these just unlock more. Re-run the check any time from Settings › General › Diagnostics.
+- **Copy diagnostics**: a one-click text summary of your setup — Unisic and Qt versions, desktop and session, compiled-in features and detected tools — for a bug report, in Settings › General › Diagnostics. Nothing is sent anywhere; you paste it into an issue yourself.
+
 **Improved**
 - **OCR auto-language now works across scripts**: with the Tesseract “osd” data pack installed, auto-detect recognizes the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari and more — and recognizes with just that script's installed language packs, which is faster and more accurate than loading every pack at once. Without the OSD pack it falls back to loading them all (unchanged). Install the language packs for the scripts you use.
+- **Clearer empty states**: the OCR settings now say so when OCR is built in but no language pack is installed (so it can't recognize anything yet), and the Servers page explains itself when you have no upload destinations.
 
 ### Polski
+**Nowości**
+- **Sprawdzenie systemu przy pierwszym uruchomieniu**: przy pierwszym starcie Unisic wskazuje teraz każde opcjonalne narzędzie, które nie jest zainstalowane — FFmpeg do nagrywania i eksportu GIF, wl-clipboard do najbardziej niezawodnego kopiowania, pakiet językowy Tesseract do rozpoznawania tekstu (OCR) — i podpowiada, jak je zainstalować. Unisic nadal działa na samych wbudowanych API Wayland; to tylko odblokowuje więcej. Sprawdzenie uruchomisz ponownie w każdej chwili z Ustawienia › Ogólne › Diagnostyka.
+- **Kopiuj diagnostykę**: jednym kliknięciem tekstowe podsumowanie konfiguracji — wersje Unisic i Qt, pulpit i sesja, wkompilowane funkcje oraz wykryte narzędzia — do zgłoszenia błędu, w Ustawienia › Ogólne › Diagnostyka. Nic nie jest nigdzie wysyłane; sam wklejasz to do zgłoszenia.
+
 **Ulepszone**
 - **Automatyczny język OCR działa teraz na różnych pismach**: z zainstalowanym pakietem danych „osd” Tesseract auto-wykrywanie rozpoznaje pismo każdego zrzutu — łacińskie, arabskie, hebrajskie, chińskie/japońskie/koreańskie, dewanagari i inne — i rozpoznaje tylko zainstalowanymi paczkami tego pisma, co jest szybsze i dokładniejsze niż ładowanie wszystkich naraz. Bez pakietu OSD wraca do ładowania wszystkich (bez zmian). Zainstaluj paczki językowe dla pism, których używasz.
+- **Czytelniejsze puste stany**: ustawienia OCR mówią teraz wprost, gdy OCR jest wbudowany, ale nie zainstalowano pakietu językowego (więc nie może jeszcze niczego rozpoznać), a strona Serwery wyjaśnia się sama, gdy nie masz żadnych miejsc docelowych wysyłania.
 
 ## 0.7.2
 

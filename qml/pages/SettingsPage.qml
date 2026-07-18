@@ -25,6 +25,13 @@ Item {
         version: App.appVersion
     }
 
+    // On-demand system/dependency check (the General → Diagnostics button).
+    // markSeenOnClose:false — a manual peek must not consume the first-run latch.
+    USystemCheck {
+        id: settingsSystemCheck
+        markSeenOnClose: false
+    }
+
     // ---- settings search ----
     property string searchQuery: ""
     readonly property bool searchActive: searchQuery.length > 0
@@ -804,6 +811,16 @@ Item {
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
                     }
+                    // Built in, but nothing to recognize with yet — the real
+                    // "OCR does nothing" trap, distinct from "not built in".
+                    Text {
+                        visible: App.ocrAvailable && !App.ocrHasLanguages
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
                 }
             }
 
@@ -942,6 +959,38 @@ Item {
                                     : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Diagnostics") }
+                    SettingRow {
+                        label: qsTr("System check")
+                        help: qsTr("See which optional tools (FFmpeg, wl-clipboard, OCR packs) are installed.")
+                        helpDetail: qsTr("Unisic runs on the built-in Wayland APIs alone; these external tools are optional and unlock recording, the most reliable clipboard copy, and text recognition. The check lists what is present and how to install the rest.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: qsTr("Run system check")
+                            onClicked: settingsSystemCheck.open()
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Diagnostics")
+                        help: qsTr("Copy a text summary of your setup for a bug report.")
+                        helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere — you paste it into an issue yourself.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "edit-copy"
+                            text: qsTr("Copy diagnostics")
+                            onClicked: { App.copyText(App.systemDiagnostics()); App.showToast(qsTr("Diagnostics copied")) }
                         }
                     }
                 }
@@ -2810,6 +2859,9 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action"); onClicked: App.devTestExternalAction() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }

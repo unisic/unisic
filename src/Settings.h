@@ -65,6 +65,10 @@ class Settings : public QObject
     Q_PROPERTY(QString watermarkType READ watermarkType WRITE setWatermarkType NOTIFY watermarkTypeChanged)
     Q_PROPERTY(QString watermarkImagePath READ watermarkImagePath WRITE setWatermarkImagePath NOTIFY watermarkImagePathChanged)
     Q_PROPERTY(bool showNotifications READ showNotifications WRITE setShowNotifications NOTIFY showNotificationsChanged)
+    // One-shot latch: the first-run system/dependency check pops at most once,
+    // then this stays true. The "Run system check" button in Settings reopens it
+    // on demand regardless.
+    Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
@@ -355,6 +359,7 @@ public:
     U_SETTING(QString, watermarkType, setWatermarkType, "image/watermarkType", QStringLiteral("text"))
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
+    U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
@@ -524,7 +529,7 @@ public:
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
-        emit showNotificationsChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
+        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
@@ -601,6 +606,7 @@ signals:
     void watermarkTypeChanged();
     void watermarkImagePathChanged();
     void showNotificationsChanged();
+    void systemCheckSeenChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();

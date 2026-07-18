@@ -432,6 +432,15 @@ bool AppContext::ocrAvailable() const
 #endif
 }
 
+bool AppContext::ocrHasLanguages() const
+{
+#ifdef HAVE_TESSERACT
+    return !OcrEngine::detectedLanguages().isEmpty();
+#else
+    return false;
+#endif
+}
+
 bool AppContext::qrAvailable() const
 {
 #ifdef HAVE_ZXING
@@ -1235,6 +1244,157 @@ bool AppContext::capNativeNotification() const
     return DesktopNotifier::available();
 }
 
+// One-liner FFmpeg version banner ("ffmpeg version 6.1 …"), or "" if ffmpeg is
+// absent/hangs. Synchronous, but only ever runs behind a user click (the
+// diagnostics button / smoke test), and is bounded to 1.5 s.
+static QString ffmpegVersionLine()
+{
+    const QString exe = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    if (exe.isEmpty())
+        return QString();
+    QProcess p;
+    p.start(exe, {QStringLiteral("-version")});
+    if (!p.waitForFinished(1500)) {
+        p.kill();
+        p.waitForFinished(200);
+        return QString();
+    }
+    return QString::fromLocal8Bit(p.readAllStandardOutput()).section(QLatin1Char('\n'), 0, 0).trimmed();
+}
+
+QString AppContext::systemDiagnostics() const
+{
+    // Deliberately NOT translated: this is a copy-paste technical artifact for
+    // an issue report (English keys), same convention as the smoke-test log.
+    const auto yn = [](bool b) { return b ? QStringLiteral("yes") : QStringLiteral("no"); };
+    const auto tool = [](const QString &n) {
+        const QString p = QStandardPaths::findExecutable(n);
+        return p.isEmpty() ? QStringLiteral("%1: MISSING").arg(n)
+                           : QStringLiteral("%1: %2").arg(n, p);
+    };
+    QStringList L;
+    L << QStringLiteral("Unisic %1 (build %2)").arg(appVersion(), buildNumber());
+    if (!buildDate().isEmpty())
+        L << QStringLiteral("Build date: %1").arg(buildDate());
+    L << QStringLiteral("Qt: %1 (runtime %2)").arg(QStringLiteral(QT_VERSION_STR),
+                                                    QString::fromLatin1(qVersion()));
+    L << QStringLiteral("App id: %1  ·  config: %2")
+             .arg(QCoreApplication::applicationName(), m_settings->configPath());
+
+    L << QString() << QStringLiteral("[Desktop]");
+    L << QStringLiteral("XDG_CURRENT_DESKTOP: %1")
+             .arg(qEnvironmentVariable("XDG_CURRENT_DESKTOP", QStringLiteral("(unset)")));
+    L << QStringLiteral("XDG_SESSION_TYPE: %1")
+             .arg(qEnvironmentVariable("XDG_SESSION_TYPE", QStringLiteral("(unset)")));
+    L << QStringLiteral("Wayland display: %1")
+             .arg(qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") ? QStringLiteral("(none)")
+                                                                 : QStringLiteral("yes"));
+    auto *bi = QDBusConnection::sessionBus().interface();
+    L << QStringLiteral("KWin on bus: %1")
+             .arg(yn(bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"))));
+
+    L << QString() << QStringLiteral("[Build features]");
+#ifdef HAVE_PIPEWIRE
+    L << QStringLiteral("PipeWire: yes");
+#else
+    L << QStringLiteral("PipeWire: no");
+#endif
+#ifdef HAVE_TESSERACT
+    L << QStringLiteral("Tesseract OCR: yes");
+#else
+    L << QStringLiteral("Tesseract OCR: no");
+#endif
+#ifdef HAVE_ZXING
+    L << QStringLiteral("ZXing (QR/barcode): yes");
+#else
+    L << QStringLiteral("ZXing (QR/barcode): no");
+#endif
+#ifdef HAVE_KGUIADDONS
+    L << QStringLiteral("KGuiAddons (Klipper history): yes");
+#else
+    L << QStringLiteral("KGuiAddons (Klipper history): no");
+#endif
+#ifdef HAVE_TRANSLATIONS
+    L << QStringLiteral("Translations baked in: yes");
+#else
+    L << QStringLiteral("Translations baked in: no");
+#endif
+
+    L << QString() << QStringLiteral("[Capabilities]");
+    L << QStringLiteral("Recording (ScreenCast): %1").arg(yn(recordingAvailable()));
+    L << QStringLiteral("Native notifications: %1").arg(yn(capNativeNotification()));
+    L << QStringLiteral("Custom notification card: %1").arg(yn(capCustomNotification()));
+    L << QStringLiteral("Record region frame: %1").arg(yn(capRecordBorder()));
+    L << QStringLiteral("Screenshot cursor: %1").arg(yn(capScreenshotCursor()));
+    L << QStringLiteral("Cursor metadata: %1").arg(yn(capCursorMetadata()));
+    L << QStringLiteral("Video playback: %1").arg(yn(capVideoPlayback()));
+    L << QStringLiteral("Do not disturb: %1").arg(yn(capDoNotDisturb()));
+
+    L << QString() << QStringLiteral("[External tools]");
+    L << tool(QStringLiteral("ffmpeg"));
+    const QString ffv = ffmpegVersionLine();
+    if (!ffv.isEmpty())
+        L << QStringLiteral("  %1").arg(ffv);
+    L << tool(QStringLiteral("ffprobe"));
+    L << tool(QStringLiteral("wl-copy"));
+    L << tool(QStringLiteral("grim"));
+    L << tool(QStringLiteral("pw-play"));
+#ifdef HAVE_TESSERACT
+    const QString langs = OcrEngine::detectedLanguages();
+    L << QStringLiteral("Tesseract langpacks: %1")
+             .arg(langs.isEmpty() ? QStringLiteral("(none installed)") : langs);
+    L << QStringLiteral("OCR script-detect (osd): %1")
+             .arg(yn(OcrEngine::scriptDetectionAvailable()));
+#endif
+    return L.join(QLatin1Char('\n'));
+}
+
+QVariantList AppContext::dependencyReport() const
+{
+    QVariantList out;
+    const auto add = [&out](const QString &label, bool ok, bool warn, const QString &detail) {
+        out.append(QVariantMap{{QStringLiteral("label"), label},
+                               {QStringLiteral("ok"), ok},
+                               {QStringLiteral("warn"), warn},
+                               {QStringLiteral("detail"), detail}});
+    };
+
+    const bool ffmpeg = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
+    add(tr("FFmpeg"), ffmpeg, true,
+        ffmpeg ? tr("Found — screen recording and GIF export are available.")
+               : tr("Missing. Screen recording and GIF export need FFmpeg. Install the \"ffmpeg\" package."));
+
+    const bool wlclip = !QStandardPaths::findExecutable(QStringLiteral("wl-copy")).isEmpty();
+    add(tr("wl-clipboard"), wlclip, false,
+        wlclip ? tr("Found — copy to clipboard is at its most reliable.")
+               : tr("Optional. Install \"wl-clipboard\" for the most reliable copy-to-clipboard on Wayland."));
+
+#ifdef HAVE_TESSERACT
+    const bool haveLangs = ocrHasLanguages();
+    add(tr("OCR language pack"), haveLangs, true,
+        haveLangs ? tr("Found — text recognition (OCR) is ready.")
+                  : tr("Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. \"tesseract-langpack-eng\"."));
+    if (haveLangs) {
+        const bool osd = OcrEngine::scriptDetectionAvailable();
+        add(tr("OCR auto-language (osd)"), osd, false,
+            osd ? tr("Found — OCR detects the script of each capture automatically.")
+                : tr("Optional. Install the Tesseract \"osd\" pack so OCR auto-language works across scripts."));
+    }
+#endif
+    return out;
+}
+
+bool AppContext::hasDependencyWarnings() const
+{
+    const QVariantList rep = dependencyReport();
+    for (const QVariant &v : rep) {
+        const QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("warn")).toBool() && !m.value(QStringLiteral("ok")).toBool())
+            return true;
+    }
+    return false;
+}
+
 void AppContext::smokeLog(const QString &line)
 {
     qInfo().noquote() << "[smoke]" << line;
@@ -1589,6 +1749,33 @@ void AppContext::devTestQrPreview()
     if (!devBuild())
         return;
     showQr(QStringLiteral("https://example.invalid/unisic-qr-test"));
+}
+
+void AppContext::devTestDiagnostics()
+{
+    if (!devBuild())
+        return;
+    const QString d = systemDiagnostics();
+    copyText(d);
+    showToast(tr("Dev: diagnostics copied (%1 chars)").arg(d.size()));
+}
+
+void AppContext::devTestSystemCheck()
+{
+    if (!devBuild())
+        return;
+    const QVariantList rep = dependencyReport();
+    int missing = 0, warn = 0;
+    for (const QVariant &v : rep) {
+        const QVariantMap m = v.toMap();
+        if (!m.value(QStringLiteral("ok")).toBool()) {
+            ++missing;
+            if (m.value(QStringLiteral("warn")).toBool())
+                ++warn;
+        }
+    }
+    showToast(tr("Dev: system check: %1 checks, %2 missing (%3 core)")
+                  .arg(rep.size()).arg(missing).arg(warn));
 }
 
 void AppContext::devTestDoNotDisturb()
@@ -3415,6 +3602,36 @@ void AppContext::runSmokeTest()
                             ? QStringLiteral("PASS (temp payload for unsaved capture)")
                             : QStringLiteral("FAIL")));
         }
+        smokeNext();
+    });
+
+    // Diagnostics dump + optional-dependency report (the "Copy diagnostics" and
+    // first-run "system check" paths). A missing optional dep on the dev box is
+    // reported, never failed — the check itself running is the pass.
+    m_smokeSteps.append([this] {
+        const QString diag = systemDiagnostics();
+        smokeLog(QStringLiteral("diagnostics: %1")
+                     .arg(diag.size() > 40 ? QStringLiteral("PASS (%1 chars)").arg(diag.size())
+                                           : QStringLiteral("FAIL (empty)")));
+        const QVariantList rep = dependencyReport();
+        int warn = 0;
+        QStringList missing;
+        for (const QVariant &v : rep) {
+            const QVariantMap m = v.toMap();
+            if (!m.value(QStringLiteral("ok")).toBool() && m.value(QStringLiteral("warn")).toBool()) {
+                ++warn;
+                missing << m.value(QStringLiteral("label")).toString();
+            }
+        }
+        smokeLog(QStringLiteral("dependency report: %1")
+                     .arg(rep.isEmpty()
+                              ? QStringLiteral("FAIL (no entries)")
+                              : warn == 0
+                                    ? QStringLiteral("PASS (%1 checks, all core deps present)").arg(rep.size())
+                                    : QStringLiteral("PASS (%1 checks; %2 core dep(s) missing: %3)")
+                                          .arg(rep.size())
+                                          .arg(warn)
+                                          .arg(missing.join(QStringLiteral(", ")))));
         smokeNext();
     });
 

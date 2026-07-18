@@ -122,6 +122,10 @@ class AppContext : public QObject
     // Open post-capture editors — quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
     Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
+    // OCR is compiled in AND at least one Tesseract langpack is installed. When
+    // ocrAvailable is true but this is false, OCR can't recognize anything yet —
+    // the OCR settings surface an install hint on this.
+    Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
     Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
     Q_PROPERTY(bool vaapiAvailable READ vaapiAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
@@ -192,6 +196,20 @@ public:
     // Whether click ripples can be captured here: "" when they can, else a
     // ready-to-show reason (no libinput at build time, or no /dev/input access).
     Q_INVOKABLE QString clickCaptureBlockedReason() const;
+    // A copy-pasteable plain-text dump of everything a bug report needs: app
+    // version/build, Qt, desktop/session, compiled-in features, runtime caps,
+    // and which optional external tools (ffmpeg, wl-clipboard, Tesseract packs)
+    // are present. Zero telemetry — nothing leaves the machine on its own; the
+    // user pastes this into an issue. Wired to the "Copy diagnostics" button.
+    Q_INVOKABLE QString systemDiagnostics() const;
+    // The optional runtime dependencies and whether each is satisfied, as a list
+    // of {label, ok, warn, detail} maps for the first-run system check to render.
+    // `warn` marks the ones whose absence actually degrades a core path (drives
+    // hasDependencyWarnings); the rest are informational.
+    Q_INVOKABLE QVariantList dependencyReport() const;
+    // True when any `warn` dependency is missing — gates the one-shot first-run
+    // system-check popup so a fully-provisioned machine never sees it.
+    Q_INVOKABLE bool hasDependencyWarnings() const;
     // True when the compositor exposes wlr-layer-shell — the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
@@ -249,6 +267,8 @@ public:
     Q_INVOKABLE void devTestCallout();
     Q_INVOKABLE void devTestShiftSnap();
     Q_INVOKABLE void devTestQrPreview();
+    Q_INVOKABLE void devTestDiagnostics();
+    Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestDoNotDisturb();
     Q_INVOKABLE void devTestExternalAction();
     Q_INVOKABLE void devTestTaskPreset();
@@ -274,6 +294,7 @@ public:
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
     bool ocrAvailable() const;
+    bool ocrHasLanguages() const;
     bool qrAvailable() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
     bool nvencAvailable() const { return m_nvencAvailable; }

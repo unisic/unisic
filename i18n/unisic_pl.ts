@@ -3296,83 +3296,139 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>Uruchom sprawdzenie systemu</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="999"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2898"/>
+        <source>Welcome screen</source>
+        <translation>Ekran powitalny</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1000"/>
+        <source>Reopen the short setup card shown on the first launch.</source>
+        <translation>Otwórz ponownie krótką konfigurację pokazywaną przy pierwszym uruchomieniu.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1001"/>
+        <source>Lists the shortcuts that are bound, where captures are saved and what happens after each one, and lets you change the theme, language and after-capture actions. Opening it from here never changes anything on its own - leave it with Skip and nothing is touched.</source>
+        <translation>Pokazuje przypisane skróty, miejsce zapisu zrzutów i to, co dzieje się po każdym z nich, oraz pozwala zmienić motyw, język i akcje po przechwyceniu. Otwarcie stąd samo z siebie niczego nie zmienia - wyjdź przyciskiem Pomiń i nic nie zostanie ruszone.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1005"/>
+        <source>Show welcome screen</source>
+        <translation>Pokaż ekran powitalny</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1011"/>
         <source>Copy a text summary of your setup for a bug report.</source>
         <translation>Skopiuj tekstowe podsumowanie konfiguracji do zgłoszenia błędu.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1001"/>
-        <source>Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere — you paste it into an issue yourself.</source>
-        <translation>Kopiuje do schowka wersje Unisic i Qt, pulpit i sesję, wkompilowane funkcje oraz wykryte narzędzia. Nic nie jest nigdzie wysyłane — sam wklejasz to do zgłoszenia.</translation>
+        <location filename="../qml/pages/SettingsPage.qml" line="1012"/>
+        <source>Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere - you paste it into an issue yourself.</source>
+        <translation>Kopiuje do schowka wersje Unisic i Qt, pulpit i sesję, wkompilowane funkcje oraz wykryte narzędzia. Nic nie jest nigdzie wysyłane - sam wklejasz to do zgłoszenia.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1006"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2925"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1017"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2949"/>
         <source>Copy diagnostics</source>
         <translation>Kopiuj diagnostykę</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1007"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1018"/>
         <source>Diagnostics copied</source>
         <translation>Skopiowano diagnostykę</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1051"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1062"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Zwykły portal zrzutów ekranu nie może dołączyć kursora na tym pulpicie.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1052"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1063"/>
         <source>KWin ScreenShot2, grim and recording ScreenCast streams support cursor embedding. The plain portal Screenshot API does not expose a cursor mode.</source>
         <translation>KWin ScreenShot2, grim i strumienie nagrywania ScreenCast obsługują osadzanie kursora. Zwykłe API portalu Screenshot nie udostępnia trybu kursora.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1056"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1067"/>
         <source>Do not disturb while capturing</source>
         <translation>Nie przeszkadzaj podczas przechwytywania</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1058"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1069"/>
         <source>Temporarily pauses desktop notifications during captures and recordings.</source>
         <translation>Tymczasowo wstrzymuje powiadomienia pulpitu podczas przechwytywania i nagrywania.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1059"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1070"/>
         <source>Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.</source>
         <translation>Dostępne w KDE Plasma; ten pulpit nie udostępnia zgodnego mechanizmu wstrzymywania powiadomień.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1060"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1071"/>
         <source>The previous notification state is restored as soon as capture stops, fails, or is cancelled. Encoding and uploads do not keep notifications paused.</source>
         <translation>Poprzedni stan powiadomień jest przywracany natychmiast po zakończeniu, błędzie lub anulowaniu przechwytywania. Kodowanie i wysyłanie nie wstrzymują powiadomień.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1083"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1085"/>
+        <source>Keep region between captures</source>
+        <translation>Zachowaj obszar między zrzutami</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1086"/>
+        <source>The selection overlay opens with your last region already selected.</source>
+        <translation>Nakładka wyboru otwiera się z ostatnim obszarem już zaznaczonym.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1087"/>
+        <source>Region screenshots only: the rectangle of your most recent region capture is pre-selected on its screen, so repeating a shot is just Enter (or a drag to adjust). The rectangle survives an app restart. The tray menu and `unisic --recapture` still repeat it without opening the overlay at all.</source>
+        <translation>Tylko zrzuty obszaru: prostokąt ostatniego zrzutu obszaru jest wstępnie zaznaczony na swoim ekranie, więc powtórzenie ujęcia to tylko Enter (albo przeciągnięcie, aby dopasować). Prostokąt przetrwa restart aplikacji. Menu zasobnika i `unisic --recapture` nadal powtarzają go bez otwierania nakładki.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1091"/>
+        <source>Full screen captures</source>
+        <translation>Przechwytywanie pełnego ekranu</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1092"/>
+        <source>What the full-screen capture takes: every monitor, or the one under the cursor.</source>
+        <translation>Co obejmuje zrzut pełnego ekranu: wszystkie monitory, czy ten pod kursorem.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1093"/>
+        <source>“All monitors” grabs the whole workspace stitched together. “Screen under cursor” grabs only the monitor the pointer is on - handy on multi-monitor setups. Applies to the hotkey, the tray entry and `unisic --fullscreen` alike; the tray&apos;s dedicated screen-under-cursor entry and `unisic --monitor` always take a single screen.</source>
+        <translation>„Wszystkie monitory” przechwytuje cały pulpit zszyty w jedno. „Ekran pod kursorem” przechwytuje tylko monitor, na którym jest wskaźnik - przydatne przy wielu monitorach. Dotyczy skrótu, pozycji w zasobniku i `unisic --fullscreen`; dedykowana pozycja zasobnika oraz `unisic --monitor` zawsze biorą pojedynczy ekran.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1096"/>
+        <source>All monitors</source>
+        <translation>Wszystkie monitory</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1112"/>
         <source>Measurement copy format</source>
         <translation>Format kopiowania wymiarów</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1084"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1113"/>
         <source>How the ruler&apos;s sizes are written when you press Ctrl+C.</source>
         <translation>Jak zapisywane są wymiary linijki po naciśnięciu Ctrl+C.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1085"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1114"/>
         <source>The Measure tool copies its measurements as text. Readable: “842 × 317” / “412 px”. Plain: “842x317” / “412”. CSS: “width: 842px; height: 317px”.</source>
         <translation>Narzędzie Miarka kopiuje wymiary jako tekst. Czytelny: „842 × 317” / „412 px”. Prosty: „842x317” / „412”. CSS: „width: 842px; height: 317px”.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>Readable (842 × 317)</source>
         <translation>Czytelny (842 × 317)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>Plain (842x317)</source>
         <translation>Prosty (842x317)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>CSS</source>
         <translation>CSS</translation>
     </message>

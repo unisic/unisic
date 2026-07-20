@@ -50,9 +50,9 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
-    Q_PROPERTY(QString hotkeyScreen READ hotkeyScreen WRITE setHotkeyScreen NOTIFY hotkeyScreenChanged)
-    Q_PROPERTY(QString hotkeyRecapture READ hotkeyRecapture WRITE setHotkeyRecapture NOTIFY hotkeyRecaptureChanged)
     Q_PROPERTY(QString lastCaptureRegion READ lastCaptureRegion WRITE setLastCaptureRegion NOTIFY lastCaptureRegionChanged)
+    Q_PROPERTY(bool rememberRegion READ rememberRegion WRITE setRememberRegion NOTIFY rememberRegionChanged)
+    Q_PROPERTY(QString fullscreenScope READ fullscreenScope WRITE setFullscreenScope NOTIFY fullscreenScopeChanged)
     Q_PROPERTY(QString fullScreenTask READ fullScreenTask WRITE setFullScreenTask NOTIFY fullScreenTaskChanged)
     Q_PROPERTY(QString regionTask READ regionTask WRITE setRegionTask NOTIFY regionTaskChanged)
     Q_PROPERTY(QString windowTask READ windowTask WRITE setWindowTask NOTIFY windowTaskChanged)
@@ -344,14 +344,17 @@ public:
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
-    // Screen-under-cursor and re-capture-last-region ship UNBOUND: the tray
-    // menu and CLI expose both, and a default key would risk colliding with
-    // compositor grabs on desktops we can't test.
-    U_SETTING(QString, hotkeyScreen, setHotkeyScreen, "hotkeys/screen", QString())
-    U_SETTING(QString, hotkeyRecapture, setHotkeyRecapture, "hotkeys/recapture", QString())
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
     // persisted so re-capture survives restarts like ShareX's repeat capture.
     U_SETTING(QString, lastCaptureRegion, setLastCaptureRegion, "capture/lastRegion", QString())
+    // Region overlay opens with the last confirmed region already selected
+    // (adjust or confirm straight away). Replaces the old re-capture hotkey.
+    U_SETTING(bool, rememberRegion, setRememberRegion, "capture/rememberRegion", false)
+    // What "full screen" captures: "workspace" = all monitors stitched
+    // (default, the old behaviour), "screen" = only the monitor under the
+    // cursor. Replaces the old screen-under-cursor hotkey; the tray menu and
+    // `--monitor` still hit the single-screen path directly.
+    U_SETTING(QString, fullscreenScope, setFullscreenScope, "capture/fullscreenScope", QStringLiteral("workspace"))
     U_SETTING(QString, fullScreenTask, setFullScreenTask, "tasks/fullScreen", QStringLiteral("default"))
     U_SETTING(QString, regionTask, setRegionTask, "tasks/region", QStringLiteral("default"))
     U_SETTING(QString, windowTask, setWindowTask, "tasks/window", QStringLiteral("default"))
@@ -540,13 +543,14 @@ public:
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
-        emit hotkeyScreenChanged(); emit hotkeyRecaptureChanged(); emit lastCaptureRegionChanged();
+        emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
-        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
+        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
+        emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
@@ -608,9 +612,9 @@ signals:
     void hotkeyRegionChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
-    void hotkeyScreenChanged();
-    void hotkeyRecaptureChanged();
     void lastCaptureRegionChanged();
+    void rememberRegionChanged();
+    void fullscreenScopeChanged();
     void fullScreenTaskChanged();
     void regionTaskChanged();
     void windowTaskChanged();

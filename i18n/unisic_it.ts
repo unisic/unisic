@@ -4137,197 +4137,232 @@ Si applica alla prossima cattura.</translation>
         <translation type="vanished">Riconosci usando tutti i pacchetti lingua di Tesseract installati.</translation>
     </message>
     <message>
-        <source>No need to know Tesseract language codes — Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.</source>
-        <translation type="vanished">Non serve conoscere i codici lingua di Tesseract — Unisic carica ogni pacchetto lingua installato. Disattivalo per fissare qui sotto un set specifico e più veloce; riconoscere molte lingue insieme è più lento.</translation>
+        <source>No need to know Tesseract language codes - Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.</source>
+        <translation type="vanished">Non serve conoscere i codici lingua di Tesseract - Unisic carica ogni pacchetto lingua installato. Disattivalo per fissare qui sotto un set specifico e più veloce; riconoscere molte lingue insieme è più lento.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1051"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1062"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Il portale Screenshot di base non può includere il cursore su questo desktop.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1052"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1063"/>
         <source>KWin ScreenShot2, grim and recording ScreenCast streams support cursor embedding. The plain portal Screenshot API does not expose a cursor mode.</source>
         <translation>KWin ScreenShot2, grim e i flussi di registrazione ScreenCast supportano il cursore incorporato. L&apos;API Screenshot del portale di base non espone una modalità cursore.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1056"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1067"/>
         <source>Do not disturb while capturing</source>
         <translation>Non disturbare durante l&apos;acquisizione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1058"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1069"/>
         <source>Temporarily pauses desktop notifications during captures and recordings.</source>
         <translation>Sospende temporaneamente le notifiche del desktop durante acquisizioni e registrazioni.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1059"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1070"/>
         <source>Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.</source>
         <translation>Disponibile su KDE Plasma; questo desktop non espone un inibitore di notifiche compatibile.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1060"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1071"/>
         <source>The previous notification state is restored as soon as capture stops, fails, or is cancelled. Encoding and uploads do not keep notifications paused.</source>
         <translation>Lo stato precedente delle notifiche viene ripristinato appena l&apos;acquisizione termina, fallisce o viene annullata. Codifica e caricamenti non mantengono sospese le notifiche.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1083"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1085"/>
+        <source>Keep region between captures</source>
+        <translation>Mantieni la regione tra le catture</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1086"/>
+        <source>The selection overlay opens with your last region already selected.</source>
+        <translation>L&apos;overlay di selezione si apre con l&apos;ultima regione già selezionata.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1087"/>
+        <source>Region screenshots only: the rectangle of your most recent region capture is pre-selected on its screen, so repeating a shot is just Enter (or a drag to adjust). The rectangle survives an app restart. The tray menu and `unisic --recapture` still repeat it without opening the overlay at all.</source>
+        <translation>Solo screenshot di regione: il rettangolo della tua cattura di regione più recente è preselezionato sul suo schermo, quindi ripetere uno scatto è solo Enter (o un trascinamento per regolare). Il rettangolo sopravvive a un riavvio dell&apos;app. Il menu nella barra di sistema e `unisic --recapture` continuano a ripeterlo senza aprire l&apos;overlay.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1091"/>
+        <source>Full screen captures</source>
+        <translation>Cattura a schermo intero</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1092"/>
+        <source>What the full-screen capture takes: every monitor, or the one under the cursor.</source>
+        <translation>Cosa acquisisce la cattura a schermo intero: tutti i monitor, o quello sotto il cursore.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1093"/>
+        <source>“All monitors” grabs the whole workspace stitched together. “Screen under cursor” grabs only the monitor the pointer is on - handy on multi-monitor setups. Applies to the hotkey, the tray entry and `unisic --fullscreen` alike; the tray&apos;s dedicated screen-under-cursor entry and `unisic --monitor` always take a single screen.</source>
+        <translation>«Tutti i monitor» acquisisce l&apos;intero spazio di lavoro unito. «Schermo sotto il cursore» acquisisce solo il monitor su cui si trova il puntatore - utile con più monitor. Vale per la scorciatoia, la voce nella barra di sistema e `unisic --fullscreen`; la voce dedicata della barra di sistema e `unisic --monitor` prendono sempre un solo schermo.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1096"/>
+        <source>All monitors</source>
+        <translation>Tutti i monitor</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1112"/>
         <source>Measurement copy format</source>
         <translation>Formato di copia delle misure</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1084"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1113"/>
         <source>How the ruler&apos;s sizes are written when you press Ctrl+C.</source>
         <translation>Come vengono scritte le misure del righello quando premi Ctrl+C.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1085"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1114"/>
         <source>The Measure tool copies its measurements as text. Readable: “842 × 317” / “412 px”. Plain: “842x317” / “412”. CSS: “width: 842px; height: 317px”.</source>
         <translation>Lo strumento Misura copia le misure come testo. Leggibile: «842 × 317» / «412 px». Semplice: «842x317» / «412». CSS: «width: 842px; height: 317px».</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>Readable (842 × 317)</source>
         <translation>Leggibile (842 × 317)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>Plain (842x317)</source>
         <translation>Semplice (842x317)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1117"/>
         <source>CSS</source>
         <translation>CSS</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1112"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1141"/>
         <source>Show a pixel loupe while selecting</source>
         <translation>Mostra una lente pixel durante la selezione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1113"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1142"/>
         <source>A magnifier by the cursor shows the exact pixel you are on.</source>
         <translation>Una lente accanto al cursore mostra il pixel esatto su cui ti trovi.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1114"/>
-        <source>A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour — so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.</source>
-        <translation>Una griglia di pixel ingrandita segue il cursore con il pixel puntato evidenziato, più la sua posizione e il colore — così il bordo della selezione cade esattamente sul pixel che intendi. Tieni premuto Ctrl e scorri sull&apos;overlay per cambiare l&apos;ingrandimento. Puramente visiva, non finisce mai nell&apos;immagine.</translation>
+        <location filename="../qml/pages/SettingsPage.qml" line="1143"/>
+        <source>A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.</source>
+        <translation>Una griglia di pixel ingrandita segue il cursore con il pixel puntato evidenziato, più la sua posizione e il colore - così il bordo della selezione cade esattamente sul pixel che intendi. Tieni premuto Ctrl e scorri sull&apos;overlay per cambiare l&apos;ingrandimento. Puramente visiva, non finisce mai nell&apos;immagine.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1186"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="2929"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1215"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2953"/>
         <source>External action</source>
         <translation>Azione esterna</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1190"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1219"/>
         <source>Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.</source>
         <translation>Esegue un programma dopo ogni acquisizione. Usa $input per il file acquisito e $output per un risultato facoltativo. I comandi vengono avviati direttamente, senza shell.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1195"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1224"/>
         <source>Command</source>
         <translation>Comando</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1196"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1225"/>
         <source>Example: oxipng -o 4 $input --out $output</source>
         <translation>Esempio: oxipng -o 4 $input --out $output</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1197"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1226"/>
         <source>If the program is missing or exits with an error, the other save/copy/upload/editor actions still continue.</source>
         <translation>Se il programma manca o termina con un errore, le altre azioni di salvataggio, copia, caricamento ed editor continuano.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1204"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1233"/>
         <source>program $input $output</source>
         <translation>programma $input $output</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1209"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1238"/>
         <source>Run after capture</source>
         <translation>Esegui dopo l&apos;acquisizione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1243"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1272"/>
         <source>Frames per second sampled into the GIF.</source>
         <translation>Fotogrammi al secondo campionati nella GIF.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1244"/>
-        <source>Higher is smoother but grows the file quickly. 10–15 fps is usually plenty for UI demos.</source>
-        <translation>Valori più alti danno più fluidità ma fanno crescere rapidamente il file. 10–15 fps di solito bastano per le demo di interfacce.</translation>
+        <location filename="../qml/pages/SettingsPage.qml" line="1273"/>
+        <source>Higher is smoother but grows the file quickly. 10-15 fps is usually plenty for UI demos.</source>
+        <translation>Valori più alti danno più fluidità ma fanno crescere rapidamente il file. 10-15 fps di solito bastano per le demo di interfacce.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1248"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1277"/>
         <source>GIF max duration</source>
         <translation>Durata massima GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1249"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1278"/>
         <source>Auto-stops GIF recording after this many seconds. 0 = unlimited.</source>
         <translation>Interrompe automaticamente la registrazione GIF dopo questo numero di secondi. 0 = illimitata.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1250"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1279"/>
         <source>A safety cap, since GIFs get huge fast. 0 disables the cap and recording runs until you stop it.</source>
         <translation>Un limite di sicurezza, dato che le GIF diventano enormi in fretta. 0 disabilita il limite e la registrazione continua finché non la fermi.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1256"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1285"/>
         <source>0 = unlimited</source>
         <translation>0 = illimitata</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1262"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
         <source>GIF quality</source>
         <translation>Qualità GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1263"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1292"/>
         <source>Color fidelity of the generated GIF.</source>
         <translation>Fedeltà dei colori della GIF generata.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1264"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1293"/>
         <source>Higher quality uses a richer palette (two-pass palettegen) at the cost of file size and conversion time.</source>
         <translation>Una qualità più alta usa una tavolozza più ricca (palettegen a due passaggi) a scapito della dimensione del file e del tempo di conversione.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1267"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1296"/>
         <source>Fast / small</source>
         <translation>Veloce / piccola</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1267"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1296"/>
         <source>Balanced</source>
         <translation>Bilanciata</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1267"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1296"/>
         <source>Best</source>
         <translation>Massima</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1273"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1302"/>
         <source>MP4 frame rate</source>
         <translation>Frequenza fotogrammi MP4</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1274"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1303"/>
         <source>Frames per second for video recordings.</source>
         <translation>Fotogrammi al secondo per le registrazioni video.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1275"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1304"/>
         <source>30 fps suits most screen content; 60 fps doubles smoothness and file size.</source>
         <translation>30 fps vanno bene per la maggior parte dei contenuti su schermo; 60 fps raddoppiano fluidità e dimensione del file.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1311"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="1340"/>
         <source>Highlight the cursor</source>
         <translation>Evidenzia il cursore</translation>
     </message>
@@ -5668,52 +5703,57 @@ binds {
 ```</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2922"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2609"/>
+        <source>Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.</source>
+        <translation>Acquisisce silenziosamente l&apos;intero spazio di lavoro (percorso KWin) o tramite il portale altrove, poi esegue la normale pipeline post-cattura. La preferenza «Cattura a schermo intero» in Cattura può restringerla allo schermo sotto il cursore.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="2946"/>
         <source>Callout</source>
         <translation>Fumetto</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2923"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2947"/>
         <source>Shift snap</source>
         <translation>Aggancio Maiusc</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2924"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2948"/>
         <source>QR preview</source>
         <translation>Anteprima QR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2946"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2971"/>
         <source>OCR highlight + redact</source>
         <translation>Evidenziazione e oscuramento OCR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2955"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2980"/>
         <source>Filename + save routing</source>
         <translation>Nome file + instradamento salvataggio</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2956"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2981"/>
         <source>Save-as dialog</source>
         <translation>Finestra Salva con nome</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2957"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2982"/>
         <source>Record countdown</source>
         <translation>Conto alla rovescia registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2958"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2983"/>
         <source>Full-screen countdown</source>
         <translation>Conto alla rovescia a schermo intero</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2959"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2984"/>
         <source>Toggle autostart</source>
         <translation>Attiva/disattiva avvio automatico</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="2819"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="2842"/>
         <source>Running…</source>
         <translation>In esecuzione…</translation>
     </message>

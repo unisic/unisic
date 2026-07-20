@@ -1067,8 +1067,26 @@ Item {
                     SettingRow {
                         label: qsTr("Capture on release")
                         help: qsTr("Takes the screenshot the moment you release the selection.")
-                        helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately — no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
+                        helpDetail: qsTr("Region screenshots only: releasing the mouse button after drawing the selection captures immediately - no Enter, double-click or toolbar button. This skips the on-overlay annotation stage (you can still annotate afterwards in the editor). Picking a GIF recording region is unaffected and keeps its Start button.")
                         USwitch { checked: App.settings.captureOnRelease; onToggled: (c) => App.settings.captureOnRelease = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Keep region between captures")
+                        help: qsTr("The selection overlay opens with your last region already selected.")
+                        helpDetail: qsTr("Region screenshots only: the rectangle of your most recent region capture is pre-selected on its screen, so repeating a shot is just Enter (or a drag to adjust). The rectangle survives an app restart. The tray menu and `unisic --recapture` still repeat it without opening the overlay at all.")
+                        USwitch { checked: App.settings.rememberRegion; onToggled: (c) => App.settings.rememberRegion = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Full screen captures")
+                        help: qsTr("What the full-screen capture takes: every monitor, or the one under the cursor.")
+                        helpDetail: qsTr("“All monitors” grabs the whole workspace stitched together. “Screen under cursor” grabs only the monitor the pointer is on - handy on multi-monitor setups. Applies to the hotkey, the tray entry and `unisic --fullscreen` alike; the tray's dedicated screen-under-cursor entry and `unisic --monitor` always take a single screen.")
+                        UComboBox {
+                            width: 200
+                            model: [qsTr("All monitors"), qsTr("Screen under cursor")]
+                            readonly property var ids: ["workspace", "screen"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.fullscreenScope))
+                            onActivated: (i) => App.settings.fullscreenScope = ids[i]
+                        }
                     }
                 }
             }
@@ -2569,7 +2587,7 @@ Item {
                     HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
-                        helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline.")
+                        helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.")
                         shortcuts: App.settings.hotkeyFullScreen
                         onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") }
                     }
@@ -2586,20 +2604,6 @@ Item {
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
                         shortcuts: App.settings.hotkeyWindow
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
-                    }
-                    HotkeyRow {
-                        label: qsTr("Screen under cursor")
-                        help: qsTr("Hotkey: capture only the monitor the pointer is on.")
-                        helpDetail: qsTr("Grabs the single screen under the cursor instead of the whole workspace — the multi-monitor middle ground between Region and Full screen. Runs the full-screen task preset.")
-                        shortcuts: App.settings.hotkeyScreen
-                        onChanged: (t) => { App.settings.hotkeyScreen = t; App.applyHotkey("capture-screen") }
-                    }
-                    HotkeyRow {
-                        label: qsTr("Re-capture last region")
-                        help: qsTr("Hotkey: repeat the previous region capture, same rectangle.")
-                        helpDetail: qsTr("Takes the exact rectangle of your most recent region screenshot again, without opening the selection overlay — for documenting something that changes over time. Runs the region task preset.")
-                        shortcuts: App.settings.hotkeyRecapture
-                        onChanged: (t) => { App.settings.hotkeyRecapture = t; App.applyHotkey("recapture-region") }
                     }
                     HotkeyRow {
                         label: qsTr("Video start/stop")

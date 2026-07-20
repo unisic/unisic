@@ -247,6 +247,9 @@ public:
     void setGlyphBoxes(const QVector<OcrWord> &words);
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
+    // Preset the selection (image px, clamped to the image) — the overlay's
+    // remember-region preload.
+    void setSelectionRect(const QRectF &r);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;

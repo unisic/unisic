@@ -364,17 +364,6 @@ void AppContext::dispatchHotkey(const QString &action)
         m_nextCaptureTask = taskFromId(m_settings->windowTask());
         m_nextCaptureDestination = m_settings->windowTaskDestination();
         captureWindow();
-    } else if (action == QLatin1String("capture-screen")) {
-        if (m_captureInFlight || m_overlay->active()) return;
-        // A single screen is a fullscreen variant: inherit its task preset.
-        m_nextCaptureTask = taskFromId(m_settings->fullScreenTask());
-        m_nextCaptureDestination = m_settings->fullScreenTaskDestination();
-        captureScreenUnderCursor();
-    } else if (action == QLatin1String("recapture-region")) {
-        if (m_captureInFlight || m_overlay->active()) return;
-        m_nextCaptureTask = taskFromId(m_settings->regionTask());
-        m_nextCaptureDestination = m_settings->regionTaskDestination();
-        recaptureLastRegion();
     }
     else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
@@ -931,6 +920,13 @@ void AppContext::endDoNotDisturb()
 
 void AppContext::captureFullScreen()
 {
+    // Preference: "full screen" can mean the whole workspace (default) or just
+    // the monitor under the cursor. The single-screen path keeps its own guards
+    // and inherits the full-screen task preset set by the caller.
+    if (m_settings->fullscreenScope() == QLatin1String("screen")) {
+        captureScreenUnderCursor();
+        return;
+    }
     // In-flight guard: hammering the hotkey must not stack portal requests.
     // Overlay guard: with the region-selection overlay open, a stray
     // fullscreen/window hotkey would capture the overlay's own dimming and
@@ -6845,8 +6841,6 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-fullscreen"), tr("Capture full screen"), m_settings->hotkeyFullScreen()},
         {QStringLiteral("capture-region"), tr("Capture region"), m_settings->hotkeyRegion()},
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
-        {QStringLiteral("capture-screen"), tr("Capture screen under cursor"), m_settings->hotkeyScreen()},
-        {QStringLiteral("recapture-region"), tr("Re-capture last region"), m_settings->hotkeyRecapture()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
@@ -6873,8 +6867,6 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     if (actionId == QLatin1String("capture-fullscreen")) m_settings->setHotkeyFullScreen(portable);
     else if (actionId == QLatin1String("capture-region")) m_settings->setHotkeyRegion(portable);
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
-    else if (actionId == QLatin1String("capture-screen")) m_settings->setHotkeyScreen(portable);
-    else if (actionId == QLatin1String("recapture-region")) m_settings->setHotkeyRecapture(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
     else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
@@ -6905,6 +6897,10 @@ void AppContext::syncAllHotkeysFromDaemon()
 // honored, then pick the portal backend when KGlobalAccel isn't the answer.
 void AppContext::defineHotkeys()
 {
+    // Stored bindings of the hotkeys removed in 0.7.4 — dead keys, drop them.
+    m_settings->raw()->remove(QStringLiteral("hotkeys/screen"));
+    m_settings->raw()->remove(QStringLiteral("hotkeys/recapture"));
+
     const QVector<HotkeyAction> acts = hotkeyActions();
 
     if (m_hotkeys->available()) {
@@ -6945,6 +6941,15 @@ void AppContext::defineHotkeys()
         // phantom KCM row for an action that no longer exists.
         m_hotkeys->releaseShortcut(QStringLiteral("quick-task"), tr("Open quick task chooser"));
         m_hotkeys->unregisterAction(QStringLiteral("quick-task"));
+        // 0.7.4: screen-under-cursor and re-capture-last-region are no longer
+        // hotkeys (the tray menu and CLI still expose both; the full-screen
+        // scope preference and the persistent-region preference replace the
+        // keys). Release + unregister so an upgraded install keeps no dead
+        // grab and no phantom KCM row.
+        m_hotkeys->releaseShortcut(QStringLiteral("capture-screen"), tr("Capture screen under cursor"));
+        m_hotkeys->unregisterAction(QStringLiteral("capture-screen"));
+        m_hotkeys->releaseShortcut(QStringLiteral("recapture-region"), tr("Re-capture last region"));
+        m_hotkeys->unregisterAction(QStringLiteral("recapture-region"));
         // Purge any zombie component an OLDER binary registered under the
         // DESKTOP-file name (app.unisic.UnisicDev / app.unisic.Unisic) instead
         // of the fixed unique name. Such a duplicate still claims a key grab

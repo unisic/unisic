@@ -1354,6 +1354,13 @@ void AnnotationCanvas::selectAll()
     update();
 }
 
+void AnnotationCanvas::setSelectionRect(const QRectF &r)
+{
+    m_selection = r.normalized().intersected(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+    emit selectionRectChanged();
+    update();
+}
+
 // Escape-cancel for an in-progress selection: drops the rect without touching
 // annotations or the base image.
 void AnnotationCanvas::clearSelection()

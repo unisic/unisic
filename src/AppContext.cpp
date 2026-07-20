@@ -263,9 +263,31 @@ void AppContext::initialize(QQmlEngine *engine)
 
 #ifdef HAVE_LAYERSHELL
     // Detect layer-shell ONCE — it drives the on-top custom capture card, the
-    // record-region border (so it works beyond KWin: wlroots, COSMIC…), and the
-    // preview window. Elsewhere (GNOME, X11) these fall back or are unsupported.
-    m_layerShellAvailable = QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
+    // record-region border (so it works beyond KWin: wlroots…), and the preview
+    // window. Elsewhere (GNOME, X11) these fall back or are unsupported.
+    //
+    // EXCEPT cosmic-comp. qtwayland's QWaylandWindow::setVisible(false) FIRST
+    // destroys the surface's role (resetSurfaceRole → delete mShellSurface, i.e.
+    // zwlr_layer_surface_v1.destroy) and only THEN unmaps it with
+    // wl_surface.attach(nullptr)+commit — a commit on a now roleless surface.
+    // wlroots and mutter tolerate that; cosmic-comp treats it as a protocol
+    // violation and SILENTLY drops the socket (no wl_display.error event at all),
+    // so Qt aborts with "The Wayland connection broke" the instant ANY layer
+    // surface is torn down — which is after every capture card, region overlay and
+    // record border (pop-os/cosmic-comp#1590, #2159; same class as the Ghostty
+    // hide crash). Every teardown path hits it (close, setVisible(false),
+    // deleteLater all route through setVisible(false)), and the order is inside
+    // qtwayland — there is no in-app reorder. Until qtwayland unmaps-before-role or
+    // cosmic-comp stops disconnecting, treat COSMIC as having no usable layer-shell:
+    // the overlay falls back to a fullscreen toplevel (xdg teardown is fine here —
+    // every Qt window on COSMIC proves it) and the card/border to the XWayland
+    // override-redirect helper (the GNOME path — COSMIC ships XWayland too).
+    // UNISIC_FORCE_LAYERSHELL=1 re-enables it once the upstream bug is gone.
+    const bool cosmicLayerShellBroken =
+        qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("COSMIC"), Qt::CaseInsensitive)
+        && qEnvironmentVariable("UNISIC_FORCE_LAYERSHELL") != QLatin1String("1");
+    m_layerShellAvailable = !cosmicLayerShellBroken
+                            && QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
                             && LayerShellNotifier::compositorSupportsLayerShell();
     if (m_layerShellAvailable)
         m_layerNotifier = new LayerShellNotifier(this, this);

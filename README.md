@@ -16,6 +16,9 @@ Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Z
   <a href="https://github.com/unisic/unisic/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/unisic/unisic/total?style=for-the-badge&color=433D8B"></a>
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
 </p>
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/deandark)
+
 <br />
 
 <img src="docs/screenshots/editor.png" width="99%" alt="Unisic post-capture editor" />

@@ -996,9 +996,20 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Welcome screen")
+                        help: qsTr("Reopen the short setup card shown on the first launch.")
+                        helpDetail: qsTr("Lists the shortcuts that are bound, where captures are saved and what happens after each one, and lets you change the theme, language and after-capture actions. Opening it from here never changes anything on its own - leave it with Skip and nothing is touched.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: qsTr("Show welcome screen")
+                            onClicked: App.showWelcome()
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Diagnostics")
                         help: qsTr("Copy a text summary of your setup for a bug report.")
-                        helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere — you paste it into an issue yourself.")
+                        helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere - you paste it into an issue yourself.")
                         UButton {
                             compact: true
                             variant: "tonal"
@@ -2876,6 +2887,7 @@ Item {
                     Flow {
                         width: parent.width
                         spacing: Theme.spacingS
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Welcome screen"); onClicked: App.devTestWelcome() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture fullscreen"); onClicked: App.captureFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }

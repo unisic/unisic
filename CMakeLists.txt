@@ -236,6 +236,8 @@ qt_add_qml_module(unisic
         qml/components/UMenuButton.qml
         qml/components/UConfirmDialog.qml
         qml/components/USystemCheck.qml
+        qml/components/UWelcome.qml
+        qml/components/UNotifPreview.qml
         qml/components/UPatchNotes.qml
         qml/components/UColorPopup.qml
         qml/components/UHoverTip.qml

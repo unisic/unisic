@@ -6327,6 +6327,64 @@ binds {
     </message>
 </context>
 <context>
+    <name>UNotifPreview</name>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="36"/>
+        <source>Edit</source>
+        <translation>Edit</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="37"/>
+        <source>Copy image</source>
+        <translation>Copy image</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="38"/>
+        <source>Copy link</source>
+        <translation>Copy link</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="39"/>
+        <source>Show QR code</source>
+        <translation>Show QR code</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="40"/>
+        <source>Show in folder</source>
+        <translation>Show in folder</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="41"/>
+        <source>Upload</source>
+        <translation>Upload</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="42"/>
+        <source>Copy text (OCR)</source>
+        <translation>Copy text (OCR)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="43"/>
+        <source>Trim recording</source>
+        <translation>Trim recording</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="44"/>
+        <source>Delete</source>
+        <translation>Delete</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="367"/>
+        <source>Capture ready</source>
+        <translation>Capture ready</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UNotifPreview.qml" line="140"/>
+        <source>Preview</source>
+        <translation>Preview</translation>
+    </message>
+</context>
+<context>
     <name>UPatchNotes</name>
     <message>
         <location filename="../qml/components/UPatchNotes.qml" line="54"/>
@@ -6437,6 +6495,360 @@ binds {
         <location filename="../qml/components/UValueCombo.qml" line="176"/>
         <source>Custom…</source>
         <translation>Custom…</translation>
+    </message>
+</context>
+<context>
+    <name>UWelcome</name>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="167"/>
+        <source>Skip setup</source>
+        <translation>Skip setup</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="222"/>
+        <source>Welcome to Unisic</source>
+        <translation>Welcome to Unisic</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="230"/>
+        <source>Screenshots and screen recording, built for Wayland.</source>
+        <translation>Screenshots and screen recording, built for Wayland.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="239"/>
+        <source>Unisic already works with the settings it ships with. The next few steps just let you make it yours - skip them and the defaults stay, or change everything later in Settings.</source>
+        <translation>Unisic already works with the settings it ships with. The next few steps just let you make it yours - skip them and the defaults stay, or change everything later in Settings.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="257"/>
+        <source>Make it yours</source>
+        <translation>Make it yours</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="264"/>
+        <source>Both apply as you pick them, so you can see the result right away.</source>
+        <translation>Both apply as you pick them, so you can see the result right away.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="275"/>
+        <source>Theme</source>
+        <translation>Theme</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="52"/>
+        <source>System Theme</source>
+        <translation>System Theme</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="52"/>
+        <source>Dark</source>
+        <translation>Dark</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="52"/>
+        <source>Light</source>
+        <translation>Light</translation>
+    </message>
+    <message>
+        <source>More themes - including ones you write yourself - live in Settings › Interface.</source>
+        <translation type="vanished">More themes - including ones you write yourself - live in Settings › Interface.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="287"/>
+        <source>Write your own as a small .json file - Settings › Interface opens the folder.</source>
+        <translation>Write your own as a small .json file - Settings › Interface opens the folder.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="298"/>
+        <source>Language</source>
+        <translation>Language</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="307"/>
+        <source>System</source>
+        <translation>System</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="314"/>
+        <source>Use the system window decoration</source>
+        <translation>Use the system window decoration</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="315"/>
+        <source>On: your desktop draws the title bar and buttons. Off: Unisic draws its own, matching the theme.</source>
+        <translation>On: your desktop draws the title bar and buttons. Off: Unisic draws its own, matching the theme.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="332"/>
+        <source>What happens after a capture</source>
+        <translation>What happens after a capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="339"/>
+        <source>Each of these runs on its own, so you can have several at once.</source>
+        <translation>Each of these runs on its own, so you can have several at once.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="347"/>
+        <source>Save it to a file</source>
+        <translation>Save it to a file</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="353"/>
+        <source>Copy it to the clipboard</source>
+        <translation>Copy it to the clipboard</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="354"/>
+        <source>Ready to paste straight into a chat or document.</source>
+        <translation>Ready to paste straight into a chat or document.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="359"/>
+        <source>Open the editor</source>
+        <translation>Open the editor</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="360"/>
+        <source>Annotate with arrows, text, blur and more before you share it.</source>
+        <translation>Annotate with arrows, text, blur and more before you share it.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="377"/>
+        <source>How Unisic behaves</source>
+        <translation>How Unisic behaves</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="384"/>
+        <source>The few habits worth deciding on now.</source>
+        <translation>The few habits worth deciding on now.</translation>
+    </message>
+    <message>
+        <source>Show a card after each capture</source>
+        <translation type="vanished">Show a card after each capture</translation>
+    </message>
+    <message>
+        <source>A thumbnail in the corner you can drag straight into another app, with actions like save, upload and edit.</source>
+        <translation type="vanished">A thumbnail in the corner you can drag straight into another app, with actions like save, upload and edit.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="392"/>
+        <source>Ask where to save every capture</source>
+        <translation>Ask where to save every capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="393"/>
+        <source>Off: files go straight to your captures folder with a generated name.</source>
+        <translation>Off: files go straight to your captures folder with a generated name.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="398"/>
+        <source>Closing the window keeps Unisic in the tray</source>
+        <translation>Closing the window keeps Unisic in the tray</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="399"/>
+        <source>Off: closing the window quits, and the hotkeys stop working.</source>
+        <translation>Off: closing the window quits, and the hotkeys stop working.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="404"/>
+        <source>Start Unisic at login</source>
+        <translation>Start Unisic at login</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="405"/>
+        <source>Starts hidden in the tray, so the capture hotkeys work right after you log in.</source>
+        <translation>Starts hidden in the tray, so the capture hotkeys work right after you log in.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="422"/>
+        <source>The capture card</source>
+        <translation>The capture card</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="429"/>
+        <source>What pops up after each capture. The preview below is empty - nothing is being captured.</source>
+        <translation>What pops up after each capture. The preview below is empty - nothing is being captured.</translation>
+    </message>
+    <message>
+        <source>Click an action on the card to remove it; click the faded one to put it back. A button still only shows up when the capture can back it.</source>
+        <translation type="vanished">Click an action on the card to remove it; click the faded one to put it back. A button still only shows up when the capture can back it.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="446"/>
+        <source>Hover an action to see what it does. Click one to remove it, click the faded one to put it back, or hold and drag to reorder. A button still only shows up when the capture can back it.</source>
+        <translation>Hover an action to see what it does. Click one to remove it, click the faded one to put it back, or hold and drag to reorder. A button still only shows up when the capture can back it.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="447"/>
+        <source>This style is just the filename, so it carries no action buttons.</source>
+        <translation>This style is just the filename, so it carries no action buttons.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="454"/>
+        <source>Show the card after each capture</source>
+        <translation>Show the card after each capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="455"/>
+        <source>Its thumbnail drags straight into another app, and it carries actions like save, upload and edit.</source>
+        <translation>Its thumbnail drags straight into another app, and it carries actions like save, upload and edit.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="470"/>
+        <source>Style</source>
+        <translation>Style</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="477"/>
+        <source>Casual</source>
+        <translation>Casual</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="477"/>
+        <source>Compact</source>
+        <translation>Compact</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="477"/>
+        <source>Small</source>
+        <translation>Small</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="477"/>
+        <source>Minimal</source>
+        <translation>Minimal</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="477"/>
+        <source>Thumbnail</source>
+        <translation>Thumbnail</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="486"/>
+        <source>Corner</source>
+        <translation>Corner</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="498"/>
+        <source>Top left</source>
+        <translation>Top left</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="498"/>
+        <source>Top center</source>
+        <translation>Top center</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="498"/>
+        <source>Top right</source>
+        <translation>Top right</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="499"/>
+        <source>Bottom left</source>
+        <translation>Bottom left</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="499"/>
+        <source>Bottom center</source>
+        <translation>Bottom center</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="499"/>
+        <source>Bottom right</source>
+        <translation>Bottom right</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="508"/>
+        <source>This desktop places notifications itself, so the corner is up to it.</source>
+        <translation>This desktop places notifications itself, so the corner is up to it.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="526"/>
+        <source>Your shortcuts</source>
+        <translation>Your shortcuts</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="534"/>
+        <source>These work anywhere, without the Unisic window open.</source>
+        <translation>These work anywhere, without the Unisic window open.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="535"/>
+        <source>This desktop does not let Unisic register global shortcuts.</source>
+        <translation>This desktop does not let Unisic register global shortcuts.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="547"/>
+        <source>Capture the full screen</source>
+        <translation>Capture the full screen</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="548"/>
+        <source>Capture a region</source>
+        <translation>Capture a region</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="549"/>
+        <source>Capture a window</source>
+        <translation>Capture a window</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="550"/>
+        <source>Record video (start and stop)</source>
+        <translation>Record video (start and stop)</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="573"/>
+        <source>Add alternatives with “+ Add shortcut”, or remove one with its ×. Everything else lives in Settings › Hotkeys.</source>
+        <translation>Add alternatives with “+ Add shortcut”, or remove one with its ×. Everything else lives in Settings › Hotkeys.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="574"/>
+        <source>Bind the capture keys in your desktop&apos;s own keyboard settings instead. The tray icon and the Capture page work regardless.</source>
+        <translation>Bind the capture keys in your desktop&apos;s own keyboard settings instead. The tray icon and the Capture page work regardless.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="592"/>
+        <source>Screen recording is unavailable on this desktop - it needs the ScreenCast portal. Screenshots are unaffected.</source>
+        <translation>Screen recording is unavailable on this desktop - it needs the ScreenCast portal. Screenshots are unaffected.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="612"/>
+        <source>You&apos;re all set</source>
+        <translation>You&apos;re all set</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="621"/>
+        <source>Press %1 to grab your first region - or use the tray icon and the Capture page.</source>
+        <translation>Press %1 to grab your first region - or use the tray icon and the Capture page.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="623"/>
+        <source>Take your first capture from the tray icon or the Capture page.</source>
+        <translation>Take your first capture from the tray icon or the Capture page.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="632"/>
+        <source>Enjoy Unisic.</source>
+        <translation>Enjoy Unisic.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="669"/>
+        <source>Back</source>
+        <translation>Back</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="675"/>
+        <source>Start using Unisic</source>
+        <translation>Start using Unisic</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="675"/>
+        <source>Next</source>
+        <translation>Next</translation>
     </message>
 </context>
 <context>

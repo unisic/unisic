@@ -424,18 +424,58 @@ Window {
         version: App.appVersion
     }
 
-    // First-run dependency check: fires at most once (systemCheckSeen latch),
-    // and only when a core optional tool is actually missing, so a fully set-up
-    // machine never sees it. Skipped on a tray-only boot (no visible window to
-    // host a modal); the next normal launch picks it up. The small delay lets
-    // the window paint before the modal dims it.
+    // First-run welcome, then the dependency check — never both at once. The
+    // welcome always shows on a fresh config (showWelcome latch); the check
+    // only when a core optional tool is actually missing, so a fully set-up
+    // machine never sees it. Both are skipped on a tray-only boot (no visible
+    // window to host a modal); the next normal launch picks them up. The small
+    // delay lets the window paint before the modal dims it.
+    // Fills the WINDOW (not the screen), below the custom title bar so the
+    // window can still be moved and closed while setup runs.
+    UWelcome {
+        id: welcome
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.top: parent.top
+        anchors.topMargin: window.chromeTop
+    }
     USystemCheck { id: firstRunSystemCheck }
+    // Connections, NOT an inline onClosed: a signal handler assigned at the use
+    // site REPLACES the one declared inside the component, which would drop
+    // UWelcome's own skip-restore + latch handling.
+    Connections {
+        target: welcome
+        // The dependency check queues behind the setup flow instead of stacking
+        // on top of it — and only after the real first run (markSeenOnClose),
+        // never after a manual peek from Settings.
+        function onClosed() {
+            if (welcome.markSeenOnClose && !App.settings.systemCheckSeen
+                    && App.hasDependencyWarnings())
+                firstRunSystemCheck.open()
+        }
+    }
     Timer {
         interval: 500
         running: !startHidden
         repeat: false
-        onTriggered: if (!App.settings.systemCheckSeen && App.hasDependencyWarnings())
-                         firstRunSystemCheck.open()
+        onTriggered: {
+            if (App.settings.showWelcome) {
+                welcome.markSeenOnClose = true
+                welcome.open()
+            } else if (!App.settings.systemCheckSeen && App.hasDependencyWarnings()) {
+                firstRunSystemCheck.open()
+            }
+        }
+    }
+    // Re-opened on demand (Settings button, Developer pane): a manual peek must
+    // never consume the first-run latch.
+    Connections {
+        target: App
+        function onShowWelcomeRequested() {
+            welcome.markSeenOnClose = false
+            welcome.open()
+        }
     }
 
     Item { // content

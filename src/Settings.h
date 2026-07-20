@@ -73,6 +73,9 @@ class Settings : public QObject
     // then this stays true. The "Run system check" button in Settings reopens it
     // on demand regardless.
     Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
+    // Same one-shot latch for the first-run welcome screen (shown before the
+    // dependency check, so two modals never stack).
+    Q_PROPERTY(bool showWelcome READ showWelcome WRITE setShowWelcome NOTIFY showWelcomeChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
@@ -251,6 +254,33 @@ public:
         }
         if (migratedGeneral)
             m_s.sync();
+        // The first-run setup flow is for people who have never used Unisic.
+        // Its key is phrased the way a human editing this file by hand would
+        // read it: showWelcome=true means "show it". On an UPGRADE the key is
+        // absent (the config predates it), and absent means the default, which
+        // would open the flow in the face of someone who has been using the app
+        // for months. So decide once: any pre-existing key (including ones just
+        // brought in by the dev seed or the legacy migration above) means this
+        // is not a fresh install.
+        //
+        // Both outcomes are WRITTEN, so the question is asked exactly once. A
+        // fresh install starts writing other keys within the same launch
+        // (themesSeeded, a daemon-synced hotkey), so leaving the key absent
+        // would make the next launch see a populated config and call the same
+        // brand-new user an upgrade - losing the flow to anyone who quits
+        // before finishing it.
+        if (!m_s.contains(QStringLiteral("showWelcome"))) {
+            // 0.7.4 dev builds wrote the inverted "welcomeSeen"; carry it over
+            // rather than re-showing setup to someone who already dismissed it.
+            if (m_s.contains(QStringLiteral("welcomeSeen"))) {
+                m_s.setValue(QStringLiteral("showWelcome"),
+                             !m_s.value(QStringLiteral("welcomeSeen")).toBool());
+                m_s.remove(QStringLiteral("welcomeSeen"));
+            } else {
+                m_s.setValue(QStringLiteral("showWelcome"), m_s.allKeys().isEmpty());
+            }
+            m_s.sync();
+        }
         // OCR auto-language defaults ON for fresh installs, but must not override
         // a spec an upgraded user deliberately pinned before this setting existed:
         // if ocr/languages was written (only happens when the user edited it) and
@@ -378,6 +408,7 @@ public:
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
+    U_SETTING(bool, showWelcome, setShowWelcome, "showWelcome", true)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
@@ -632,6 +663,7 @@ signals:
     void watermarkImagePathChanged();
     void showNotificationsChanged();
     void systemCheckSeenChanged();
+    void showWelcomeChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();

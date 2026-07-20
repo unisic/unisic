@@ -2042,6 +2042,13 @@ void AppContext::devTestSystemCheck()
                   .arg(rep.size()).arg(missing).arg(warn));
 }
 
+void AppContext::devTestWelcome()
+{
+    if (!devBuild())
+        return;
+    showWelcome();
+}
+
 void AppContext::devTestDoNotDisturb()
 {
     if (!devBuild())
@@ -3919,6 +3926,25 @@ void AppContext::runSmokeTest()
                                           .arg(rep.size())
                                           .arg(warn)
                                           .arg(missing.join(QStringLiteral(", ")))));
+
+        // First-run welcome. The card itself is QML (the dev button shows it by
+        // eye); what can silently break here is the one-shot LATCH — a settings
+        // key that fails to persist would either re-show the card every launch
+        // or hide it on a fresh install. Round-trip it through the real setter
+        // and restore the user's value.
+        {
+            const bool original = m_settings->showWelcome();
+            m_settings->setShowWelcome(false);
+            const bool readFalse = !m_settings->showWelcome();
+            m_settings->setShowWelcome(true);
+            const bool readTrue = m_settings->showWelcome();
+            m_settings->setShowWelcome(original);
+            smokeLog(QStringLiteral("welcome screen: %1")
+                         .arg(readFalse && readTrue
+                                  ? QStringLiteral("PASS (one-shot latch round-trips; currently %1)")
+                                        .arg(original ? QStringLiteral("pending") : QStringLiteral("seen"))
+                                  : QStringLiteral("FAIL (showWelcome does not persist)")));
+        }
         smokeNext();
     });
 
@@ -6597,6 +6623,16 @@ void AppContext::openDirectory(const QString &path)
     // not exist (defaultSaveDir deliberately has no mkpath side effect).
     QDir().mkpath(dir);
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+}
+
+void AppContext::showWelcome()
+{
+    emit showWelcomeRequested();
+}
+
+QSize AppContext::notifCardSize(const QString &style) const
+{
+    return NotifCard::sizeForStyle(style);
 }
 
 // --------------------------------------------------------- export / import

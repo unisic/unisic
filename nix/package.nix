@@ -68,6 +68,11 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = true;
   checkPhase = ''
     runHook preCheck
+    # The build sandbox has HOME=/homeless-shelter (read-only); the settings
+    # and history tests persist into ~/.config / the data dir, so give them a
+    # writable HOME. offscreen: the tests use QGuiApplication with no display.
+    export HOME=$(mktemp -d)
+    export XDG_RUNTIME_DIR=$(mktemp -d)
     QT_QPA_PLATFORM=offscreen ctest --output-on-failure
     runHook postCheck
   '';

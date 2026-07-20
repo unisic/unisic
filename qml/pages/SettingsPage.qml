@@ -2490,13 +2490,18 @@ Item {
                                     asynchronous: true
                                 }
                                 MouseArea {
+                                    id: tileMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: App.selectTrayIcon(tile.modelData.path)
-                                    ToolTip.text: tile.modelData.label
-                                    ToolTip.visible: containsMouse && tile.modelData.path !== ""
-                                    ToolTip.delay: 500
+                                }
+                                // UHoverTip, not Controls' ToolTip: the Basic
+                                // style's grey box matches nothing else here.
+                                UHoverTip {
+                                    anchor: parent
+                                    text: tile.modelData.label
+                                    show: tileMouse.containsMouse && tile.modelData.path !== ""
                                 }
                             }
                         }
@@ -2516,13 +2521,16 @@ Item {
                                 font.pixelSize: 30
                             }
                             MouseArea {
+                                id: addIconMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: App.addTrayIcon()
-                                ToolTip.text: qsTr("Add an icon (copies it here)")
-                                ToolTip.visible: containsMouse
-                                ToolTip.delay: 500
+                            }
+                            UHoverTip {
+                                anchor: parent
+                                text: qsTr("Add an icon (copies it here)")
+                                show: addIconMouse.containsMouse
                             }
                         }
                     }

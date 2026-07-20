@@ -88,6 +88,9 @@ bool GifRecorder::hardwareEncoderAvailable(const QString &id)
                && QFileInfo::exists(QStringLiteral("/dev/dri/renderD128"));
     if (id == QLatin1String("nvenc"))
         return ffmpegEncoders().contains(QStringLiteral("h264_nvenc"));
+    // AV1 NVENC (RTX 40+) — the only hardware encoder a WebM can carry here.
+    if (id == QLatin1String("av1-nvenc"))
+        return ffmpegEncoders().contains(QStringLiteral("av1_nvenc"));
     return false;
 }
 
@@ -131,7 +134,9 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
     } else {
         args << QStringLiteral("-f") << QStringLiteral("lavfi")
              << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
-             << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+             << QStringLiteral("-c:v")
+             << (id == QLatin1String("av1-nvenc") ? QStringLiteral("av1_nvenc")
+                                                  : QStringLiteral("h264_nvenc"))
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     }
     args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
@@ -1401,7 +1406,22 @@ void GifRecorder::convertVideo()
             return; // aborted while the probe ran
         convertVideoWith(encoder);
     });
-    watcher->setFuture(QtConcurrent::run([choice]() -> QString {
+    const Output output = m_output;
+    watcher->setFuture(QtConcurrent::run([choice, output]() -> QString {
+        if (output == WebM) {
+            // WebM carries only VP8/VP9/AV1 — the H.264 hardware paths never
+            // applied, so conversion sat on libvpx-vp9 regardless of the
+            // encoder setting. AV1 NVENC (RTX 40+) muxes into WebM fine and is
+            // the escape hatch: measured on a 30 s 1440p clip, 5.0x realtime
+            // vs libvpx's 1.4x, SSIM 0.9996 vs 0.9984. Probed HERE (pool
+            // thread) so convertVideoWith never runs a cold 8 s probe on the
+            // GUI thread. An explicit "software" (or "vaapi" — no AV1 VAAPI
+            // path, see convertVideoWith) keeps VP9.
+            if (choice != QLatin1String("software") && choice != QLatin1String("vaapi")
+                && hardwareEncoderWorks(QStringLiteral("av1-nvenc")))
+                return QStringLiteral("av1-nvenc");
+            return QStringLiteral("software");
+        }
         if (choice != QLatin1String("auto"))
             return choice;
         if (hardwareEncoderWorks(QStringLiteral("nvenc")))
@@ -1419,9 +1439,23 @@ void GifRecorder::convertVideoWith(const QString &encoder)
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), m_tempPath};
-    if (m_output == WebM) {
+    if (m_output == WebM && encoder == QLatin1String("av1-nvenc")
+        && hardwareEncoderAvailable(QStringLiteral("av1-nvenc"))) {
+        // -cq shares the 0-51 CRF scale; at 20 measured SSIM 0.9996 (above
+        // VP9's 0.9984 at the same setting), file +18%. AV1 VAAPI is
+        // deliberately NOT wired as a sibling: no hardware here to verify its
+        // quality mapping on, and VAAPI listings lie (vp9_vaapi precedent).
+        args << QStringLiteral("-c:v") << QStringLiteral("av1_nvenc")
+             << QStringLiteral("-preset") << QStringLiteral("p4")
+             << QStringLiteral("-cq") << QString::number(crf)
+             << QStringLiteral("-b:v") << QStringLiteral("0")
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+    } else if (m_output == WebM) {
         // Without -deadline/-cpu-used libvpx-vp9 defaults to good/cpu-used 0,
         // i.e. 0.1–0.3× realtime — minutes of conversion for a 1-minute clip.
+        // Re-tuning on a 16-thread box (30 s 1440p clip): cpu-used 5..8 and
+        // tile-columns 0..3 all land within noise (19-22 s) — libvpx plateaus
+        // near 4 cores here, so there is nothing further to win in these knobs.
         args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
              << QStringLiteral("-crf") << QString::number(crf)
              << QStringLiteral("-b:v") << QStringLiteral("0")
@@ -1429,8 +1463,9 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              // 14.5 s -> 4.8 s, SSIM 0.99866 -> 0.99844 (invisible), file +15%.
              // Do NOT "improve" this to cpu-used 6 with deadline=good: that is
              // reproducibly 2.4x SLOWER than cpu-used 4, not faster.
-             // There is no usable hardware path to fall back on either — a listed
-             // vp9_vaapi failed to encode at all on the box this was tuned on.
+             // There is no usable VP9 hardware path to fall back on either — a
+             // listed vp9_vaapi failed to encode at all on the box this was
+             // tuned on (AV1 NVENC above is the only hardware WebM escape).
              << QStringLiteral("-deadline") << QStringLiteral("realtime")
              << QStringLiteral("-cpu-used") << QStringLiteral("5")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")

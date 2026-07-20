@@ -2113,13 +2113,28 @@ void AppContext::devTestHardwareEncoder()
     // must resolve to software, never be handed out.
     const bool nv = GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc"));
     const bool va = GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi"));
+    const bool av1 = GifRecorder::hardwareEncoderWorks(QStringLiteral("av1-nvenc"));
     const QString resolved = m_recorder ? m_recorder->resolvedVideoEncoder()
                                         : QStringLiteral("?");
-    showToast(tr("Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4)")
-                  .arg(nv || va ? QStringLiteral("PASS") : QStringLiteral("SKIP (software only)"),
+    showToast(tr("Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)")
+                  .arg(nv || va || av1 ? QStringLiteral("PASS")
+                                       : QStringLiteral("SKIP (software only)"),
                        resolved,
                        nv ? QStringLiteral("works") : QStringLiteral("no"),
-                       va ? QStringLiteral("works") : QStringLiteral("no")));
+                       va ? QStringLiteral("works") : QStringLiteral("no"),
+                       av1 ? QStringLiteral("works") : QStringLiteral("no")));
+}
+
+void AppContext::devTestFreezeRecorder()
+{
+    if (!devBuild()) return;
+    // SIGSTOP the live recording encoder, then press Stop: the stop-flush
+    // watchdog must kill it (~25 s, UNISIC_STOP_STALL_MS to shorten) and the
+    // salvage path must still convert the temp into a finished file.
+    const bool frozen = m_recorder && m_recorder->devFreezeEncoderForTest();
+    showToast(frozen
+                  ? tr("Dev: recording encoder frozen (SIGSTOP) - press Stop to exercise the watchdog")
+                  : tr("Dev: no live recording encoder to freeze - start a recording first"));
 }
 
 void AppContext::devTestPerAppAudio()

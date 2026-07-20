@@ -240,15 +240,15 @@ Window {
             anchors.rightMargin: Theme.spacingM
             spacing: 4
 
-            Row {
-                spacing: 10
+            Column {
+                spacing: 6
                 anchors.horizontalCenter: parent.horizontalCenter
                 Image {
                     source: "qrc:/resources/icons/unisic.svg"
-                    sourceSize: Qt.size(34, 34)
-                    width: 34; height: 34
+                    sourceSize: Qt.size(88, 88)
+                    width: 88; height: 88
                     smooth: true
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
                     // Dev builds are gray everywhere (tray, menu, here too).
                     layer.enabled: App.devBuild
                     layer.effect: MultiEffect { saturation: -1.0 }
@@ -258,7 +258,7 @@ Window {
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontXL
                     font.weight: Font.Bold
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
 

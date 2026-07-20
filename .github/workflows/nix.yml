@@ -1,9 +1,8 @@
 name: Nix flake
 
 # Verifies the Nix packaging without anyone needing Nix locally: builds the
-# package (which compiles Unisic and runs the headless QtTest suite in its
-# checkPhase) and evaluates the Plasma 6 test-VM config. Runs on the throwaway
-# `nix-flake` branch and on demand.
+# package, which compiles Unisic and runs the headless QtTest suite in its
+# checkPhase. Runs on the throwaway `nix-flake` branch and on demand.
 on:
   push:
     branches: [nix-flake]
@@ -28,6 +27,3 @@ jobs:
 
       - name: Build the package (compiles Unisic + runs the QtTest suite)
         run: nix build .#unisic -L
-
-      - name: Evaluate the test-VM config (catches NixOS option typos, no heavy build)
-        run: nix eval .#nixosConfigurations.unisic-vm.config.system.build.vm.drvPath

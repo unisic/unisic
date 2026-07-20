@@ -17,5 +17,4 @@ dist/
 # Nix
 /result
 /result-*
-*.qcow2
 .direnv/

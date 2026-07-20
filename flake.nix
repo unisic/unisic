@@ -23,21 +23,5 @@
           packages = with pkgs; [ ffmpeg wl-clipboard qt6.qttools ];
         };
       });
-
-      # A full Plasma 6 Wayland VM with Unisic preinstalled, for manual testing.
-      nixosConfigurations.unisic-vm = nixpkgs.lib.nixosSystem {
-        system = "x86_64-linux";
-        specialArgs = { unisic = self.packages.x86_64-linux.unisic; };
-        modules = [ ./nix/vm.nix ];
-      };
-
-      # nix run .#vm   ->   builds and boots that VM
-      apps = forAllSystems (pkgs:
-        nixpkgs.lib.optionalAttrs (pkgs.system == "x86_64-linux") {
-          vm = {
-            type = "app";
-            program = "${self.nixosConfigurations.unisic-vm.config.system.build.vm}/bin/run-unisic-vm-vm";
-          };
-        });
     };
 }

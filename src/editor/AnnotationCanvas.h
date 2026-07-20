@@ -99,8 +99,9 @@ class AnnotationCanvas : public QQuickPaintedItem
     // with a magnified pixel grid, the hovered pixel highlighted and a
     // position/colour readout — so the user sees the exact pixel a selection
     // edge lands on. Drawn only while picking a region (selectionMode, no
-    // tool). Ctrl+scroll adjusts the zoom (wheelEvent). UI chrome only: it is
-    // never part of rendered()/renderedSelection().
+    // tool). Scroll adjusts the zoom (wheelEvent); scrolling out past the
+    // minimum hides the loupe. UI chrome only: it is never part of
+    // rendered()/renderedSelection().
     Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
     Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
 
@@ -501,6 +502,10 @@ private:
     // and a stale loupe must not linger where the pointer left.
     bool m_pixelLoupe = false;
     int m_pixelLoupeZoom = 8;
+    // Transient hide state: scrolling out below the minimum zoom collapses the
+    // loupe. Not persisted and reset every capture (the canvas is rebuilt), so
+    // the loupe always returns next time — only the settings toggle turns it off.
+    bool m_loupeCollapsed = false;
     bool m_hoverInside = false;
     bool loupeActive() const;
     int loupeGridCells() const;

@@ -2529,8 +2529,9 @@ void AppContext::devTestEyedropper()
 
 // Pixel loupe (region overlay): the panel must appear once the pointer hovers
 // in selection mode, flip away from the item edges so it never covers the
-// pixels being aimed at, react to Ctrl+scroll within its 4–16 clamp, and stay
-// out of the exported render (dev button + smoke step).
+// pixels being aimed at, zoom one step per scroll notch within its 5–16 range,
+// collapse when scrolled out below the minimum (and revive on scroll up), and
+// stay out of the exported render (dev button + smoke step).
 static QString pixelLoupeCheck()
 {
     struct Probe final : AnnotationCanvas {
@@ -2561,19 +2562,24 @@ static QString pixelLoupeCheck()
         return QStringLiteral("FAIL (loupe does not flip away from the item edge)");
     const auto wheel = [&c](int delta) {
         QWheelEvent e(c.hoverPoint(), c.hoverPoint(), QPoint(), QPoint(0, delta),
-                      Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+                      Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
         c.wheelEvent(&e);
     };
     wheel(120);
-    if (c.pixelLoupeZoom() != 10)
-        return QStringLiteral("FAIL (Ctrl+scroll did not raise the zoom)");
-    for (int i = 0; i < 10; ++i)
+    if (c.pixelLoupeZoom() != 9)
+        return QStringLiteral("FAIL (scroll did not raise the zoom by one)");
+    for (int i = 0; i < 20; ++i)
         wheel(-120);
-    if (c.pixelLoupeZoom() != 4)
-        return QStringLiteral("FAIL (zoom did not clamp at 4)");
+    if (c.pixelLoupeZoom() != 5)
+        return QStringLiteral("FAIL (zoom did not clamp at 5)");
+    if (!c.pixelLoupeRect().isEmpty())
+        return QStringLiteral("FAIL (loupe did not collapse when scrolled out)");
+    wheel(120);
+    if (c.pixelLoupeRect().isEmpty())
+        return QStringLiteral("FAIL (scroll up did not revive the collapsed loupe)");
     if (c.rendered() != base)
         return QStringLiteral("FAIL (loupe leaked into the exported render)");
-    return QStringLiteral("PASS (follows hover, edge flip, Ctrl+scroll 4-16, not exported)");
+    return QStringLiteral("PASS (follows hover, edge flip, scroll 5-16, collapse/revive, not exported)");
 }
 
 void AppContext::devTestPixelLoupe()
@@ -4349,7 +4355,7 @@ void AppContext::runSmokeTest()
         });
     });
 
-    // 3e3e) pixel loupe: hover placement, edge flip, Ctrl+scroll zoom clamp.
+    // 3e3e) pixel loupe: hover placement, edge flip, scroll zoom + collapse.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("pixel loupe: ") + pixelLoupeCheck());
         smokeNext();

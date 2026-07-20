@@ -460,7 +460,8 @@ public:
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
     // Pixel loupe on the region overlay: a magnifier by the cursor
     // showing the exact pixel the selection edge will land on. Zoom is the
-    // magnification factor (even, 4–16), adjusted with Ctrl+scroll live.
+    // magnification factor (5–16), adjusted live by scrolling; scroll out
+    // below 5 to hide the loupe.
     U_SETTING(bool, pixelLoupe, setPixelLoupe, "capture/pixelLoupe", true)
     U_SETTING(int, pixelLoupeZoom, setPixelLoupeZoom, "capture/pixelLoupeZoom", 8)
     // Region overlay: a plain CLICK selects the detected object (window,

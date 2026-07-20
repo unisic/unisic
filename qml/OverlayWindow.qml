@@ -282,7 +282,7 @@ Window {
             uiAccent: Theme.accent
             uiScrim: Theme.primary
             // Pixel loupe while picking the region. The zoom is
-            // seeded once and written back (Ctrl+scroll edits it live) — a
+            // seeded once and written back (scroll edits it live) — a
             // two-way binding would fight the C++ setter.
             pixelLoupe: App.settings.pixelLoupe
             onPixelLoupeZoomChanged: App.settings.pixelLoupeZoom = pixelLoupeZoom

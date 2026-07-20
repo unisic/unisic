@@ -13,3 +13,8 @@ dist/
 *.kate-swp
 *.swp
 *~
+
+# Nix
+/result
+/result-*
+.direnv/

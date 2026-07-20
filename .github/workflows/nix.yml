@@ -1,0 +1,29 @@
+name: Nix flake
+
+# Verifies the Nix packaging without anyone needing Nix locally: builds the
+# package, which compiles Unisic and runs the headless QtTest suite in its
+# checkPhase. Runs on the throwaway `nix-flake` branch and on demand.
+on:
+  push:
+    branches: [nix-flake]
+    paths:
+      - flake.nix
+      - flake.lock
+      - nix/**
+      - .github/workflows/nix.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix (flakes enabled)
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build the package (compiles Unisic + runs the QtTest suite)
+        run: nix build .#unisic -L

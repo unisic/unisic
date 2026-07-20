@@ -87,6 +87,30 @@ sudo pacman -Syu unisic
 ```
 </details>
 
+<details>
+<summary><b>Nix / NixOS</b> (flake)</summary>
+
+```sh
+# run it once, without installing
+nix run github:unisic/unisic -- --region
+
+# or install into your profile
+nix profile install github:unisic/unisic
+```
+
+Declaratively, add the flake to your system/home-manager config:
+
+```nix
+{
+  inputs.unisic.url = "github:unisic/unisic";
+  # then in your modules:
+  # environment.systemPackages = [ inputs.unisic.packages.${pkgs.system}.default ];
+}
+```
+
+Capture and recording need `xdg-desktop-portal` (with a backend for your desktop) and PipeWire - on NixOS enable `xdg.portal.enable` and `services.pipewire.enable`. Only Unisic itself compiles; its Qt/KDE dependencies come from the nixpkgs binary cache.
+</details>
+
 Prefer compiling? See [Build from source](#build-from-source).
 
 ## First steps

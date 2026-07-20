@@ -1841,8 +1841,28 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
     return r.adjusted(-pad, -pad, pad, pad);
 }
 
+// The pending-full-repaint latch (see the header): full stays full until this
+// paint delivers it, no matter how many partial requests land in between.
+// Empirically hit AGAIN by the loupe: a hover's partial loupe update right
+// after a click's selectAll() full update (same sync cycle, different events)
+// left everything outside the loupe trail stale — the loupe "cleaned" the
+// overlay as it moved.
+void AnnotationCanvas::update(const QRect &rect)
+{
+    if (rect.isNull())
+        m_fullDirty = true;
+    if (m_fullDirty)
+        QQuickPaintedItem::update();
+    else
+        QQuickPaintedItem::update(rect);
+}
+
 void AnnotationCanvas::paint(QPainter *painter)
 {
+    // The scenegraph is now consuming the accumulated dirty region (GUI thread
+    // blocked during sync) — a full repaint, if one was pending, is delivered
+    // by this call, so partial updates may shrink the region again.
+    m_fullDirty = false;
     if (m_base.isNull()) return;
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setRenderHint(QPainter::SmoothPixmapTransform);

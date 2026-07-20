@@ -487,6 +487,9 @@ private:
     bool m_selectionMode = false;
     bool m_confirmOnRelease = false;
     bool m_clickSelectsAll = false;
+    // A no-arg update() ran since the last paint — the whole texture is dirty
+    // and partial updates must not shrink it (see the update() shadow).
+    bool m_fullDirty = false;
     // Was anything selected when the current NewSelection press landed? A bare
     // click that DISMISSED an existing rect must not fire the click-captures-
     // full-screen path.
@@ -502,6 +505,12 @@ private:
     bool loupeActive() const;
     int loupeGridCells() const;
     void updateLoupeRegion(const QRectF &before);
+    // Shadows QQuickPaintedItem::update: a full update() followed by a partial
+    // update(rect) in the SAME sync cycle silently downgrades the full repaint
+    // to just rect (the private dirtyRect is null == "whole item"; null |= rect
+    // becomes rect). Once a full repaint is pending, partial requests re-assert
+    // it until paint() delivers. See unisic-qt-qml-gotchas.
+    void update(const QRect &rect = QRect());
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
     // Pen straight-line: while Shift is held mid-stroke, the freehand tail is
     // replaced by a single straight segment from this committed anchor index to

@@ -23,6 +23,34 @@ Window {
     flags: App.settings.useSystemDecoration
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
+
+    // KWin keeps PAINTING the server-side titlebar after the frameless flag is
+    // set: the decoration object lives on the xdg_toplevel, and switching modes
+    // only takes effect once the surface is re-mapped — until then the KDE
+    // titlebar sits on top of our own, and it takes a click outside the window
+    // (a deactivate/activate round-trip) to clear it. Re-map it ourselves.
+    // Deferred, so the flags binding above has already been applied when the
+    // surface goes down; re-shown from the same call so the window keeps its
+    // stacking and comes back focused.
+    Connections {
+        target: App.settings
+        function onUseSystemDecorationChanged() {
+            if (!window.visible)
+                return
+            Qt.callLater(function () {
+                // Re-mapping resets the size to the implicit one; the compositor
+                // owns the position on Wayland either way, so carry the size
+                // across by hand.
+                const w = window.width
+                const h = window.height
+                window.visible = false
+                window.visible = true
+                window.width = w
+                window.height = h
+                window.requestActivate()
+            })
+        }
+    }
     // Height reserved at the top for the custom title bar (0 with system decos).
     readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 

@@ -124,7 +124,7 @@ void EditorSession::startOcrPick()
             else if (words.isEmpty())
                 self->setStatus(tr("No text found"));
             else
-                self->setStatus(tr("Text recognized — click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy"));
+                self->setStatus(tr("Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy"));
         }
     });
 }

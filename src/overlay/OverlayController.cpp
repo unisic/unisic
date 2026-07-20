@@ -124,6 +124,26 @@ void OverlayController::createWindows()
                 // immediately and Enter can export without a crop gesture.
                 canvas->selectAll();
                 canvas->setTool(m_initialTool);
+            } else if (m_annotationTools && m_app->settings()->rememberRegion()) {
+                // Remember-region preference: open with the last confirmed
+                // region already selected on its screen — adjust or just
+                // confirm. Stored as "<screen>|<x>,<y>,<w>,<h>" in LOGICAL px
+                // of that screen (same format recaptureLastRegion parses);
+                // the frozen image can be scaled, so rescale into image px.
+                const QString stored = m_app->settings()->lastCaptureRegion();
+                const int bar = stored.indexOf(QLatin1Char('|'));
+                if (bar > 0 && stored.left(bar) == screen->name()) {
+                    const QStringList parts = stored.mid(bar + 1).split(QLatin1Char(','));
+                    bool ok = parts.size() == 4;
+                    int v[4] = {};
+                    for (int k = 0; k < 4 && ok; ++k)
+                        v[k] = parts[k].toInt(&ok);
+                    if (ok && v[2] > 2 && v[3] > 2 && screen->geometry().width() > 0) {
+                        const double s = double(img.width()) / screen->geometry().width();
+                        canvas->setSelectionRect(QRectF(v[0] * s, v[1] * s,
+                                                        v[2] * s, v[3] * s));
+                    }
+                }
             }
         }
 

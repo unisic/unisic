@@ -79,7 +79,7 @@ void PortalScreenshot::capture(bool interactive, Callback cb, bool allowInteract
         // Silent request denied (no stored permission / unresolvable app id,
         // e.g. running from a build tree). Fall back to the desktop's own
         // interactive screenshot dialog so capture still works.
-        qInfo() << "Non-interactive screenshot denied — retrying with the interactive portal dialog";
+        qInfo() << "Non-interactive screenshot denied - retrying with the interactive portal dialog";
         requestOnce(true, cb);
     });
 }

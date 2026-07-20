@@ -65,6 +65,13 @@ class AnnotationCanvas : public QQuickPaintedItem
     // plain selection tool confirms immediately — no Enter/double-click.
     // Annotation drags never confirm.
     Q_PROPERTY(bool confirmOnRelease READ confirmOnRelease WRITE setConfirmOnRelease NOTIFY confirmOnReleaseChanged)
+    // Overlay screenshot flow: a bare click (press+release without a drag) on
+    // an EMPTY overlay selects the whole image — "click = the full screen".
+    // Confirms immediately only when confirmOnRelease is also on (that user
+    // wants release to capture); otherwise the selection stays up for the
+    // normal annotate/confirm flow. Off in the GIF region picker (a stray
+    // click must not start a recording) and in the editor.
+    Q_PROPERTY(bool clickSelectsAll READ clickSelectsAll WRITE setClickSelectsAll NOTIFY clickSelectsAllChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -92,8 +99,9 @@ class AnnotationCanvas : public QQuickPaintedItem
     // with a magnified pixel grid, the hovered pixel highlighted and a
     // position/colour readout — so the user sees the exact pixel a selection
     // edge lands on. Drawn only while picking a region (selectionMode, no
-    // tool). Ctrl+scroll adjusts the zoom (wheelEvent). UI chrome only: it is
-    // never part of rendered()/renderedSelection().
+    // tool). Scroll adjusts the zoom (wheelEvent); scrolling out past the
+    // minimum hides the loupe. UI chrome only: it is never part of
+    // rendered()/renderedSelection().
     Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
     Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
 
@@ -183,6 +191,13 @@ public:
         m_confirmOnRelease = on;
         emit confirmOnReleaseChanged();
     }
+    bool clickSelectsAll() const { return m_clickSelectsAll; }
+    void setClickSelectsAll(bool on)
+    {
+        if (m_clickSelectsAll == on) return;
+        m_clickSelectsAll = on;
+        emit clickSelectsAllChanged();
+    }
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -247,6 +262,9 @@ public:
     void setGlyphBoxes(const QVector<OcrWord> &words);
     Q_INVOKABLE void nudgeSelection(qreal dx, qreal dy);
     Q_INVOKABLE void selectAll();
+    // Preset the selection (image px, clamped to the image) — the overlay's
+    // remember-region preload.
+    void setSelectionRect(const QRectF &r);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
@@ -287,6 +305,7 @@ signals:
     void textBackgroundColorChanged();
     void selectionModeChanged();
     void confirmOnReleaseChanged();
+    void clickSelectsAllChanged();
     void selectionRectChanged();
     void hoverPointChanged();
     void historyChanged();
@@ -468,6 +487,14 @@ private:
 
     bool m_selectionMode = false;
     bool m_confirmOnRelease = false;
+    bool m_clickSelectsAll = false;
+    // A no-arg update() ran since the last paint — the whole texture is dirty
+    // and partial updates must not shrink it (see the update() shadow).
+    bool m_fullDirty = false;
+    // Was anything selected when the current NewSelection press landed? A bare
+    // click that DISMISSED an existing rect must not fire the click-captures-
+    // full-screen path.
+    bool m_pressHadSelection = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
     // Pixel loupe (see the Q_PROPERTYs). m_hoverInside gates it to the screen
@@ -475,10 +502,20 @@ private:
     // and a stale loupe must not linger where the pointer left.
     bool m_pixelLoupe = false;
     int m_pixelLoupeZoom = 8;
+    // Transient hide state: scrolling out below the minimum zoom collapses the
+    // loupe. Not persisted and reset every capture (the canvas is rebuilt), so
+    // the loupe always returns next time — only the settings toggle turns it off.
+    bool m_loupeCollapsed = false;
     bool m_hoverInside = false;
     bool loupeActive() const;
     int loupeGridCells() const;
     void updateLoupeRegion(const QRectF &before);
+    // Shadows QQuickPaintedItem::update: a full update() followed by a partial
+    // update(rect) in the SAME sync cycle silently downgrades the full repaint
+    // to just rect (the private dirtyRect is null == "whole item"; null |= rect
+    // becomes rect). Once a full repaint is pending, partial requests re-assert
+    // it until paint() delivers. See unisic-qt-qml-gotchas.
+    void update(const QRect &rect = QRect());
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
     // Pen straight-line: while Shift is held mid-stroke, the freehand tail is
     // replaced by a single straight segment from this committed anchor index to

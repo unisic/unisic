@@ -23,6 +23,34 @@ Window {
     flags: App.settings.useSystemDecoration
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
+
+    // KWin keeps PAINTING the server-side titlebar after the frameless flag is
+    // set: the decoration object lives on the xdg_toplevel, and switching modes
+    // only takes effect once the surface is re-mapped — until then the KDE
+    // titlebar sits on top of our own, and it takes a click outside the window
+    // (a deactivate/activate round-trip) to clear it. Re-map it ourselves.
+    // Deferred, so the flags binding above has already been applied when the
+    // surface goes down; re-shown from the same call so the window keeps its
+    // stacking and comes back focused.
+    Connections {
+        target: App.settings
+        function onUseSystemDecorationChanged() {
+            if (!window.visible)
+                return
+            Qt.callLater(function () {
+                // Re-mapping resets the size to the implicit one; the compositor
+                // owns the position on Wayland either way, so carry the size
+                // across by hand.
+                const w = window.width
+                const h = window.height
+                window.visible = false
+                window.visible = true
+                window.width = w
+                window.height = h
+                window.requestActivate()
+            })
+        }
+    }
     // Height reserved at the top for the custom title bar (0 with system decos).
     readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 
@@ -240,15 +268,15 @@ Window {
             anchors.rightMargin: Theme.spacingM
             spacing: 4
 
-            Row {
-                spacing: 10
+            Column {
+                spacing: 6
                 anchors.horizontalCenter: parent.horizontalCenter
                 Image {
                     source: "qrc:/resources/icons/unisic.svg"
-                    sourceSize: Qt.size(34, 34)
-                    width: 34; height: 34
+                    sourceSize: Qt.size(88, 88)
+                    width: 88; height: 88
                     smooth: true
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
                     // Dev builds are gray everywhere (tray, menu, here too).
                     layer.enabled: App.devBuild
                     layer.effect: MultiEffect { saturation: -1.0 }
@@ -258,7 +286,7 @@ Window {
                     color: Theme.textPrimary
                     font.pixelSize: Theme.fontXL
                     font.weight: Font.Bold
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.horizontalCenter: parent.horizontalCenter
                 }
             }
 
@@ -424,18 +452,58 @@ Window {
         version: App.appVersion
     }
 
-    // First-run dependency check: fires at most once (systemCheckSeen latch),
-    // and only when a core optional tool is actually missing, so a fully set-up
-    // machine never sees it. Skipped on a tray-only boot (no visible window to
-    // host a modal); the next normal launch picks it up. The small delay lets
-    // the window paint before the modal dims it.
+    // First-run welcome, then the dependency check — never both at once. The
+    // welcome always shows on a fresh config (showWelcome latch); the check
+    // only when a core optional tool is actually missing, so a fully set-up
+    // machine never sees it. Both are skipped on a tray-only boot (no visible
+    // window to host a modal); the next normal launch picks them up. The small
+    // delay lets the window paint before the modal dims it.
+    // Fills the WINDOW (not the screen), below the custom title bar so the
+    // window can still be moved and closed while setup runs.
+    UWelcome {
+        id: welcome
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.top: parent.top
+        anchors.topMargin: window.chromeTop
+    }
     USystemCheck { id: firstRunSystemCheck }
+    // Connections, NOT an inline onClosed: a signal handler assigned at the use
+    // site REPLACES the one declared inside the component, which would drop
+    // UWelcome's own skip-restore + latch handling.
+    Connections {
+        target: welcome
+        // The dependency check queues behind the setup flow instead of stacking
+        // on top of it — and only after the real first run (markSeenOnClose),
+        // never after a manual peek from Settings.
+        function onClosed() {
+            if (welcome.markSeenOnClose && !App.settings.systemCheckSeen
+                    && App.hasDependencyWarnings())
+                firstRunSystemCheck.open()
+        }
+    }
     Timer {
         interval: 500
         running: !startHidden
         repeat: false
-        onTriggered: if (!App.settings.systemCheckSeen && App.hasDependencyWarnings())
-                         firstRunSystemCheck.open()
+        onTriggered: {
+            if (App.settings.showWelcome) {
+                welcome.markSeenOnClose = true
+                welcome.open()
+            } else if (!App.settings.systemCheckSeen && App.hasDependencyWarnings()) {
+                firstRunSystemCheck.open()
+            }
+        }
+    }
+    // Re-opened on demand (Settings button, Developer pane): a manual peek must
+    // never consume the first-run latch.
+    Connections {
+        target: App
+        function onShowWelcomeRequested() {
+            welcome.markSeenOnClose = false
+            welcome.open()
+        }
     }
 
     Item { // content

@@ -50,9 +50,9 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
-    Q_PROPERTY(QString hotkeyScreen READ hotkeyScreen WRITE setHotkeyScreen NOTIFY hotkeyScreenChanged)
-    Q_PROPERTY(QString hotkeyRecapture READ hotkeyRecapture WRITE setHotkeyRecapture NOTIFY hotkeyRecaptureChanged)
     Q_PROPERTY(QString lastCaptureRegion READ lastCaptureRegion WRITE setLastCaptureRegion NOTIFY lastCaptureRegionChanged)
+    Q_PROPERTY(bool rememberRegion READ rememberRegion WRITE setRememberRegion NOTIFY rememberRegionChanged)
+    Q_PROPERTY(QString fullscreenScope READ fullscreenScope WRITE setFullscreenScope NOTIFY fullscreenScopeChanged)
     Q_PROPERTY(QString fullScreenTask READ fullScreenTask WRITE setFullScreenTask NOTIFY fullScreenTaskChanged)
     Q_PROPERTY(QString regionTask READ regionTask WRITE setRegionTask NOTIFY regionTaskChanged)
     Q_PROPERTY(QString windowTask READ windowTask WRITE setWindowTask NOTIFY windowTaskChanged)
@@ -73,6 +73,9 @@ class Settings : public QObject
     // then this stays true. The "Run system check" button in Settings reopens it
     // on demand regardless.
     Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
+    // Same one-shot latch for the first-run welcome screen (shown before the
+    // dependency check, so two modals never stack).
+    Q_PROPERTY(bool showWelcome READ showWelcome WRITE setShowWelcome NOTIFY showWelcomeChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
@@ -216,7 +219,7 @@ public:
             const QString f = m_s.fileName();
             QFile::remove(f + QStringLiteral(".corrupt"));
             if (QFile::rename(f, f + QStringLiteral(".corrupt")))
-                qWarning() << "Settings file was corrupt — backed up to" << (f + ".corrupt")
+                qWarning() << "Settings file was corrupt - backed up to" << (f + ".corrupt")
                            << "and started fresh";
             m_s.sync(); // re-open the now-absent file cleanly
         }
@@ -251,6 +254,33 @@ public:
         }
         if (migratedGeneral)
             m_s.sync();
+        // The first-run setup flow is for people who have never used Unisic.
+        // Its key is phrased the way a human editing this file by hand would
+        // read it: showWelcome=true means "show it". On an UPGRADE the key is
+        // absent (the config predates it), and absent means the default, which
+        // would open the flow in the face of someone who has been using the app
+        // for months. So decide once: any pre-existing key (including ones just
+        // brought in by the dev seed or the legacy migration above) means this
+        // is not a fresh install.
+        //
+        // Both outcomes are WRITTEN, so the question is asked exactly once. A
+        // fresh install starts writing other keys within the same launch
+        // (themesSeeded, a daemon-synced hotkey), so leaving the key absent
+        // would make the next launch see a populated config and call the same
+        // brand-new user an upgrade - losing the flow to anyone who quits
+        // before finishing it.
+        if (!m_s.contains(QStringLiteral("showWelcome"))) {
+            // 0.7.4 dev builds wrote the inverted "welcomeSeen"; carry it over
+            // rather than re-showing setup to someone who already dismissed it.
+            if (m_s.contains(QStringLiteral("welcomeSeen"))) {
+                m_s.setValue(QStringLiteral("showWelcome"),
+                             !m_s.value(QStringLiteral("welcomeSeen")).toBool());
+                m_s.remove(QStringLiteral("welcomeSeen"));
+            } else {
+                m_s.setValue(QStringLiteral("showWelcome"), m_s.allKeys().isEmpty());
+            }
+            m_s.sync();
+        }
         // OCR auto-language defaults ON for fresh installs, but must not override
         // a spec an upgraded user deliberately pinned before this setting existed:
         // if ocr/languages was written (only happens when the user edited it) and
@@ -271,7 +301,7 @@ public:
         m_s.remove(QStringLiteral("_probe"));
         m_s.sync();
         if (!m_writable)
-            qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
+            qWarning() << "Settings are NOT persisting - cannot write" << m_s.fileName()
                        << "(check permissions/ownership of ~/.config/unisic).";
     }
 
@@ -344,14 +374,17 @@ public:
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
-    // Screen-under-cursor and re-capture-last-region ship UNBOUND: the tray
-    // menu and CLI expose both, and a default key would risk colliding with
-    // compositor grabs on desktops we can't test.
-    U_SETTING(QString, hotkeyScreen, setHotkeyScreen, "hotkeys/screen", QString())
-    U_SETTING(QString, hotkeyRecapture, setHotkeyRecapture, "hotkeys/recapture", QString())
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
     // persisted so re-capture survives restarts like ShareX's repeat capture.
     U_SETTING(QString, lastCaptureRegion, setLastCaptureRegion, "capture/lastRegion", QString())
+    // Region overlay opens with the last confirmed region already selected
+    // (adjust or confirm straight away). Replaces the old re-capture hotkey.
+    U_SETTING(bool, rememberRegion, setRememberRegion, "capture/rememberRegion", false)
+    // What "full screen" captures: "workspace" = all monitors stitched
+    // (default, the old behaviour), "screen" = only the monitor under the
+    // cursor. Replaces the old screen-under-cursor hotkey; the tray menu and
+    // `--monitor` still hit the single-screen path directly.
+    U_SETTING(QString, fullscreenScope, setFullscreenScope, "capture/fullscreenScope", QStringLiteral("workspace"))
     U_SETTING(QString, fullScreenTask, setFullScreenTask, "tasks/fullScreen", QStringLiteral("default"))
     U_SETTING(QString, regionTask, setRegionTask, "tasks/region", QStringLiteral("default"))
     U_SETTING(QString, windowTask, setWindowTask, "tasks/window", QStringLiteral("default"))
@@ -375,6 +408,7 @@ public:
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
+    U_SETTING(bool, showWelcome, setShowWelcome, "showWelcome", true)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
@@ -426,7 +460,8 @@ public:
     U_SETTING(bool, selectionGuides, setSelectionGuides, "capture/selectionGuides", false)
     // Pixel loupe on the region overlay: a magnifier by the cursor
     // showing the exact pixel the selection edge will land on. Zoom is the
-    // magnification factor (even, 4–16), adjusted with Ctrl+scroll live.
+    // magnification factor (5–16), adjusted live by scrolling; scroll out
+    // below 5 to hide the loupe.
     U_SETTING(bool, pixelLoupe, setPixelLoupe, "capture/pixelLoupe", true)
     U_SETTING(int, pixelLoupeZoom, setPixelLoupeZoom, "capture/pixelLoupeZoom", 8)
     // Region overlay: a plain CLICK selects the detected object (window,
@@ -540,13 +575,14 @@ public:
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
-        emit hotkeyScreenChanged(); emit hotkeyRecaptureChanged(); emit lastCaptureRegionChanged();
+        emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
-        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
+        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
+        emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
@@ -608,9 +644,9 @@ signals:
     void hotkeyRegionChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
-    void hotkeyScreenChanged();
-    void hotkeyRecaptureChanged();
     void lastCaptureRegionChanged();
+    void rememberRegionChanged();
+    void fullscreenScopeChanged();
     void fullScreenTaskChanged();
     void regionTaskChanged();
     void windowTaskChanged();
@@ -628,6 +664,7 @@ signals:
     void watermarkImagePathChanged();
     void showNotificationsChanged();
     void systemCheckSeenChanged();
+    void showWelcomeChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();

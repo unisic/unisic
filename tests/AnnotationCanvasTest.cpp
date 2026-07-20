@@ -704,9 +704,10 @@ void AnnotationCanvasTest::magnifyPlacesCentredTwoXLoupe()
 
 // The region-overlay pixel loupe: appears only once the pointer hovers in
 // selection mode, sits offset from the cursor and flips away from item edges
-// (never covering the aimed-at pixels), zooms with Ctrl+scroll inside its
-// 4–16 clamp, follows the pointer during a selection drag, and never leaks
-// into the exported render.
+// (never covering the aimed-at pixels), zooms one integer step per scroll notch
+// inside its 5–16 range, collapses when scrolled out below the minimum (and
+// revives on scroll up), follows the pointer during a selection drag, and never
+// leaks into the exported render.
 void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
 {
     TestAnnotationCanvas canvas;
@@ -735,17 +736,24 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
 
     const auto wheel = [&canvas](int delta) {
         QWheelEvent e(canvas.hoverPoint(), canvas.hoverPoint(), QPoint(), QPoint(0, delta),
-                      Qt::NoButton, Qt::ControlModifier, Qt::NoScrollPhase, false);
+                      Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
         canvas.wheelEvent(&e);
     };
     wheel(120);
-    QCOMPARE(canvas.pixelLoupeZoom(), 10);
-    for (int i = 0; i < 10; ++i)
-        wheel(-120);
-    QCOMPARE(canvas.pixelLoupeZoom(), 4);
-    for (int i = 0; i < 10; ++i)
+    QCOMPARE(canvas.pixelLoupeZoom(), 9);      // one integer step per notch, no modifier
+    for (int i = 0; i < 20; ++i)
         wheel(120);
-    QCOMPARE(canvas.pixelLoupeZoom(), 16);
+    QCOMPARE(canvas.pixelLoupeZoom(), 16);     // clamps at the top
+    for (int i = 0; i < 11; ++i)
+        wheel(-120);
+    QCOMPARE(canvas.pixelLoupeZoom(), 5);      // floors at the minimum, still visible
+    QVERIFY2(!canvas.pixelLoupeRect().isEmpty(), "loupe still shown at the minimum zoom");
+    wheel(-120);
+    QVERIFY2(canvas.pixelLoupeRect().isEmpty(),
+             "scrolling out below the minimum collapses the loupe");
+    wheel(120);
+    QVERIFY2(!canvas.pixelLoupeRect().isEmpty(),
+             "scrolling back in revives the collapsed loupe");
 
     // Follows a selection drag (hover events stop while the button is down).
     QMouseEvent press(QEvent::MouseButtonPress, QPointF(20, 20), QPointF(20, 20),

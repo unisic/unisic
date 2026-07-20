@@ -58,7 +58,7 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
     qDBusRegisterMetaType<PortalShortcutWire>();
     qDBusRegisterMetaType<QList<PortalShortcutWire>>();
     if (!m_bus.isConnected()) {
-        qWarning() << "Private bus connection failed — global shortcuts on the shared one"
+        qWarning() << "Private bus connection failed - global shortcuts on the shared one"
                       " (GNOME may see an empty app id)";
         m_bus = QDBusConnection::sessionBus();
     }
@@ -98,7 +98,7 @@ PortalGlobalShortcuts::PortalGlobalShortcuts(QObject *parent)
             return; // never had a session — nothing to restore
         m_needRebind = false;
         m_sessionHandle.clear();
-        qWarning() << "xdg-desktop-portal restarted — re-binding global shortcuts";
+        qWarning() << "xdg-desktop-portal restarted - re-binding global shortcuts";
         if (!m_lastBound.isEmpty())
             bind(m_lastBound);
     });
@@ -124,7 +124,7 @@ void PortalGlobalShortcuts::registerAppId()
         w->deleteLater();
         if (w->isError())
             qInfo() << "GlobalShortcuts app-id registration:" << w->error().message()
-                    << "— GNOME may refuse to bind for terminal launches";
+                    << "- GNOME may refuse to bind for terminal launches";
     });
 }
 
@@ -252,7 +252,7 @@ void PortalGlobalShortcuts::createSession(const QVector<Shortcut> &shortcuts)
         const QString handle = results.value(QStringLiteral("session_handle")).toString();
         if (code != 0 || handle.isEmpty()) {
             qWarning() << "GlobalShortcuts portal CreateSession failed (code" << code << ")"
-                       << "— no working backend on this desktop";
+                       << "- no working backend on this desktop";
             emit bindFinished(false, {});
             return;
         }
@@ -278,7 +278,7 @@ void PortalGlobalShortcuts::createSession(const QVector<Shortcut> &shortcuts)
 
 void PortalGlobalShortcuts::onSessionClosed()
 {
-    qWarning() << "GlobalShortcuts portal session closed (portal restart?) — re-binding";
+    qWarning() << "GlobalShortcuts portal session closed (portal restart?) - re-binding";
     m_bus.disconnect(
         PORTAL_SERVICE, m_sessionHandle,
         QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),

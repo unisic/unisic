@@ -210,6 +210,10 @@ public:
     // `warn` marks the ones whose absence actually degrades a core path (drives
     // hasDependencyWarnings); the rest are informational.
     Q_INVOKABLE QVariantList dependencyReport() const;
+    // Card dimensions for the in-window notification preview, read from the one
+    // style->size table both notification hosts size their real surfaces with —
+    // a preview with its own copy would drift the moment a style is retuned.
+    Q_INVOKABLE QSize notifCardSize(const QString &style) const;
     // True when any `warn` dependency is missing — gates the one-shot first-run
     // system-check popup so a fully-provisioned machine never sees it.
     Q_INVOKABLE bool hasDependencyWarnings() const;
@@ -274,12 +278,14 @@ public:
     Q_INVOKABLE void devTestQrPreview();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
+    Q_INVOKABLE void devTestWelcome();
     Q_INVOKABLE void devTestDoNotDisturb();
     Q_INVOKABLE void devTestExternalAction();
     Q_INVOKABLE void devTestTaskPreset();
     Q_INVOKABLE void devTestCliOutput();
     Q_INVOKABLE void devTestMeasureTools();
     Q_INVOKABLE void devTestHardwareEncoder();
+    Q_INVOKABLE void devTestFreezeRecorder();
     Q_INVOKABLE void devTestPerAppAudio();
     Q_INVOKABLE void devTestInstantReplay();
     Q_INVOKABLE void devTestTrimRecording();
@@ -392,6 +398,10 @@ public:
                      const QString &format, std::function<void(bool)> done = {});
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
+    // Reopens the first-run welcome card (Settings → General → Diagnostics).
+    // Main.qml answers with an instance that does NOT consume the one-shot
+    // latch, so a manual peek can't hide the card from a genuine first run.
+    Q_INVOKABLE void showWelcome();
     // "text/uri-list" payload for dragging a history capture out to another
     // app (file manager, or a video editor like LosslessCut). Fully-encoded so
     // spaces/# in the path survive the drop (external consumers percent-decode).
@@ -513,6 +523,8 @@ signals:
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
+    // Re-opens the first-run welcome card on demand (Settings / Developer pane).
+    void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();

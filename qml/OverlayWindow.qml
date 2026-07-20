@@ -197,7 +197,7 @@ Window {
                     // and leaves the overlay up so you can keep measuring.
                     var mt = canvas.measuresText(App.settings.measureCopyFormat)
                     if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
-                    else App.showToast(qsTr("Nothing measured yet — Ctrl+drag to measure"))
+                    else App.showToast(qsTr("Nothing measured yet - Ctrl+drag to measure"))
                 } else if (annotationToolsEnabled) {
                     // Spectacle parity: Ctrl+C accepts the selection and copies the
                     // result to the clipboard even when auto-copy is off. Screenshot
@@ -275,11 +275,14 @@ Window {
             // Capture on release: screenshot flow only — the GIF region picker
             // (annotationToolsEnabled false) keeps its explicit Start button.
             confirmOnRelease: App.settings.captureOnRelease && annotationToolsEnabled
+            // Bare click = full-screen capture: screenshot flow only too — a
+            // stray click must not start a recording.
+            clickSelectsAll: annotationToolsEnabled
             // Selection chrome follows the selected app theme (was fixed purple).
             uiAccent: Theme.accent
             uiScrim: Theme.primary
             // Pixel loupe while picking the region. The zoom is
-            // seeded once and written back (Ctrl+scroll edits it live) — a
+            // seeded once and written back (scroll edits it live) — a
             // two-way binding would fight the C++ setter.
             pixelLoupe: App.settings.pixelLoupe
             onPixelLoupeZoomChanged: App.settings.pixelLoupeZoom = pixelLoupeZoom
@@ -426,7 +429,7 @@ Window {
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
                     return annotationToolsEnabled
-                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
+                           ? drag + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
                            : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
                 }
                 color: Theme.textPrimary

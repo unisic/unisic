@@ -1354,6 +1354,13 @@ void AnnotationCanvas::selectAll()
     update();
 }
 
+void AnnotationCanvas::setSelectionRect(const QRectF &r)
+{
+    m_selection = r.normalized().intersected(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+    emit selectionRectChanged();
+    update();
+}
+
 // Escape-cancel for an in-progress selection: drops the rect without touching
 // annotations or the base image.
 void AnnotationCanvas::clearSelection()
@@ -1834,8 +1841,28 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
     return r.adjusted(-pad, -pad, pad, pad);
 }
 
+// The pending-full-repaint latch (see the header): full stays full until this
+// paint delivers it, no matter how many partial requests land in between.
+// Empirically hit AGAIN by the loupe: a hover's partial loupe update right
+// after a click's selectAll() full update (same sync cycle, different events)
+// left everything outside the loupe trail stale — the loupe "cleaned" the
+// overlay as it moved.
+void AnnotationCanvas::update(const QRect &rect)
+{
+    if (rect.isNull())
+        m_fullDirty = true;
+    if (m_fullDirty)
+        QQuickPaintedItem::update();
+    else
+        QQuickPaintedItem::update(rect);
+}
+
 void AnnotationCanvas::paint(QPainter *painter)
 {
+    // The scenegraph is now consuming the accumulated dirty region (GUI thread
+    // blocked during sync) — a full repaint, if one was pending, is delivered
+    // by this call, so partial updates may shrink the region again.
+    m_fullDirty = false;
     if (m_base.isNull()) return;
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setRenderHint(QPainter::SmoothPixmapTransform);
@@ -2205,6 +2232,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
             m_selStart = m_selection;
         } else {
             m_drag = NewSelection;
+            m_pressHadSelection = hasSelection();
             m_selection = QRectF(img, img);
             emit selectionRectChanged();
         }
@@ -2814,6 +2842,23 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // the cache (keyed partly on m_fxFast) rebuilds the smoothed patch. update()
     // is deferred, so the coalesced paint runs with m_fxFast already false.
     if (m_fxFast) { m_fxFast = false; update(); }
+    // A bare click (press+release without a real drag) on an EMPTY overlay
+    // SELECTS the whole screen: promote the point "selection" to the full
+    // image. Only when nothing was selected before the press — a click that
+    // dismissed an existing rect must not resurrect it as a full-screen one.
+    // With capture-on-release ON the user wants release to capture, click
+    // included — confirm immediately; otherwise the full-screen selection
+    // stays up for the normal annotate/confirm flow.
+    if (m_clickSelectsAll && m_selectionMode && m_tool == None
+        && m_drag == NewSelection && !hasSelection() && !m_pressHadSelection) {
+        m_drag = NoDrag;
+        m_resizeHandle = -1;
+        selectAll();
+        e->accept();
+        if (m_confirmOnRelease)
+            emit selectionConfirmed();
+        return;
+    }
     // Capture-on-release: only a gesture that PRODUCED the selection confirms
     // (manual drag = NewSelection). Move/resize of an existing selection and
     // empty clicks (hasSelection false) fall through to the normal confirm paths.
@@ -2888,7 +2933,11 @@ void AnnotationCanvas::setPixelLoupe(bool on)
 
 void AnnotationCanvas::setPixelLoupeZoom(int z)
 {
-    z = qBound(4, z - (z & 1), 16);   // even factors only: crisp cell edges
+    // Any integer factor: nearest-neighbour upscale keeps every cell crisp, so
+    // one-step scrolling is genuinely pixel-perfect. 5 is the floor (below it a
+    // 500+ px window magnifies too little to read); scrolling out below it
+    // collapses the loupe (see wheelEvent), it does not clamp here.
+    z = qBound(5, z, 16);
     if (m_pixelLoupeZoom == z)
         return;
     m_pixelLoupeZoom = z;
@@ -2917,7 +2966,7 @@ int AnnotationCanvas::loupeGridCells() const
 
 QRectF AnnotationCanvas::pixelLoupeRect() const
 {
-    if (!loupeActive())
+    if (!loupeActive() || m_loupeCollapsed)
         return {};
     const qreal body = qreal(loupeGridCells() * m_pixelLoupeZoom);
     const qreal barH = 20.0;
@@ -2949,11 +2998,24 @@ void AnnotationCanvas::updateLoupeRegion(const QRectF &before)
 
 void AnnotationCanvas::wheelEvent(QWheelEvent *e)
 {
-    // Ctrl+scroll on the region overlay changes the loupe magnification.
-    if (loupeActive() && (e->modifiers() & Qt::ControlModifier)
-        && e->angleDelta().y() != 0) {
+    // Scroll on the region overlay resizes the pixel loupe, one integer
+    // magnification step per notch (nearest-neighbour: crisp at every factor).
+    // Scrolling out past the minimum zoom collapses the loupe out of the way;
+    // scrolling back up brings it in again at that minimum. loupeActive() (not
+    // the collapsed state) gates this, so a collapsed loupe still catches the
+    // scroll that revives it. In the editor loupeActive() is false, so the
+    // canvas-zoom wheel handling there is untouched.
+    if (loupeActive() && e->angleDelta().y() != 0) {
         const QRectF before = pixelLoupeRect();
-        setPixelLoupeZoom(m_pixelLoupeZoom + (e->angleDelta().y() > 0 ? 2 : -2));
+        const bool up = e->angleDelta().y() > 0;
+        if (m_loupeCollapsed) {
+            if (up)
+                m_loupeCollapsed = false;   // revive at the current (min) zoom
+        } else if (!up && m_pixelLoupeZoom <= 5) {
+            m_loupeCollapsed = true;        // zoomed out far enough: hide it
+        } else {
+            setPixelLoupeZoom(m_pixelLoupeZoom + (up ? 1 : -1));
+        }
         updateLoupeRegion(before);
         e->accept();
         return;

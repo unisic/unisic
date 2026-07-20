@@ -30,7 +30,7 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
     // Dev aid: UNISIC_HOTKEY_BACKEND=portal forces the non-KDE path so the
     // GlobalShortcuts portal flow can be exercised on a KDE box.
     if (qEnvironmentVariable("UNISIC_HOTKEY_BACKEND") == QLatin1String("portal")) {
-        qInfo() << "UNISIC_HOTKEY_BACKEND=portal — KGlobalAccel skipped";
+        qInfo() << "UNISIC_HOTKEY_BACKEND=portal - KGlobalAccel skipped";
         return;
     }
     auto *iface = QDBusConnection::sessionBus().interface();
@@ -40,13 +40,13 @@ GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
     const bool kdeEnv = desktops.contains(QLatin1String("KDE"), Qt::CaseInsensitive)
                         || desktops.contains(QLatin1String("plasma"), Qt::CaseInsensitive);
     if (!kwinOnBus && !kdeEnv) {
-        qInfo() << "Not a KDE session — KGlobalAccel skipped (portal/compositor binds instead)";
+        qInfo() << "Not a KDE session - KGlobalAccel skipped (portal/compositor binds instead)";
         return;
     }
     m_available = iface && (iface->isServiceRegistered(KGA_SERVICE)
                             || iface->startService(KGA_SERVICE).isValid());
     if (!m_available)
-        qWarning() << "KGlobalAccel not available — global hotkeys disabled";
+        qWarning() << "KGlobalAccel not available - global hotkeys disabled";
 }
 
 QList<int> GlobalHotkeys::expandShiftDigitVariants(const QList<int> &keys)

@@ -14,7 +14,7 @@
       covers the whole workflow that starts the moment you press the hotkey:
       annotate directly on the selection overlay before the shot is even taken,
       keep editing afterwards, record the same region as a GIF or video, and push
-      the result wherever it belongs — clipboard, disk, or a custom upload
+      the result wherever it belongs - clipboard, disk, or a custom upload
       destination with the link ready to paste.
     </p>
     <p>Features:</p>
@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.7.4" date="2026-07-20">
+      <description>
+        <p>Opens with an optional first-run setup that walks through theme, language and window decoration, what happens after each capture, and the capture shortcuts, with a live preview of the capture card you can restyle in place. A plain click on the region overlay now selects the whole screen, the last region can be kept between captures, and full-screen capture can be limited to the screen under the cursor. The pixel loupe zooms with a plain scroll in pixel-perfect steps and hides itself when scrolled all the way out. WebM converts several times faster on recent NVIDIA GPUs, and a recording can no longer hang forever if its audio source dies mid-capture.</p>
+      </description>
+    </release>
     <release version="0.7.3" date="2026-07-20">
       <description>
         <p>A first-run system check points out missing optional tools, and a one-click diagnostics summary helps with bug reports. Adds capture of the screen under the cursor, re-capture of the last region, a screenkey-style pressed-keys badge in recordings, and community themes: drop a small JSON file into the themes folder, colors hot-reload while you edit, and the recording overlays follow the theme. OCR auto-detect now recognizes the script of each capture and loads only the matching language packs.</p>
@@ -102,7 +107,7 @@
     </release>
     <release version="0.6.2" date="2026-07-12">
       <description>
-        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped — install through the native repositories or the AppImage.</p>
+        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped - install through the native repositories or the AppImage.</p>
       </description>
     </release>
     <release version="0.6.1" date="2026-07-12">

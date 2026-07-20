@@ -22,6 +22,7 @@
 #include <QMutex>
 #include <QtConcurrent>
 #include <climits>
+#include <csignal>
 #include <cstring>
 #include <memory>
 #include <unistd.h>
@@ -88,6 +89,9 @@ bool GifRecorder::hardwareEncoderAvailable(const QString &id)
                && QFileInfo::exists(QStringLiteral("/dev/dri/renderD128"));
     if (id == QLatin1String("nvenc"))
         return ffmpegEncoders().contains(QStringLiteral("h264_nvenc"));
+    // AV1 NVENC (RTX 40+) — the only hardware encoder a WebM can carry here.
+    if (id == QLatin1String("av1-nvenc"))
+        return ffmpegEncoders().contains(QStringLiteral("av1_nvenc"));
     return false;
 }
 
@@ -131,7 +135,9 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
     } else {
         args << QStringLiteral("-f") << QStringLiteral("lavfi")
              << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
-             << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
+             << QStringLiteral("-c:v")
+             << (id == QLatin1String("av1-nvenc") ? QStringLiteral("av1_nvenc")
+                                                  : QStringLiteral("h264_nvenc"))
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     }
     args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
@@ -146,7 +152,7 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
         const QString why = QString::fromUtf8(probe.readAll()).right(400).trimmed();
         qInfo().noquote() << "GifRecorder: hardware encoder" << id
                           << "is listed but does not encode here"
-                          << (why.isEmpty() ? QString() : QStringLiteral("— %1").arg(why));
+                          << (why.isEmpty() ? QString() : QStringLiteral("- %1").arg(why));
     }
     QMutexLocker lock(&cacheMutex);
     cache.insert(id, ok);
@@ -180,6 +186,9 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     m_elapsedTick.setInterval(1000);
     m_elapsedTick.setTimerType(Qt::CoarseTimer);
     connect(&m_elapsedTick, &QTimer::timeout, this, &GifRecorder::elapsedChanged);
+    m_stopWatchdog.setInterval(5000);
+    m_stopWatchdog.setTimerType(Qt::CoarseTimer);
+    connect(&m_stopWatchdog, &QTimer::timeout, this, &GifRecorder::stopWatchdogTick);
 }
 
 GifRecorder::~GifRecorder()
@@ -528,7 +537,7 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint
             openPortalSession();
             return;
         }
-        fail(tr("The shared screen doesn't match the one the region was selected on — pick \"%1\" in the sharing dialog")
+        fail(tr("The shared screen doesn't match the one the region was selected on - pick \"%1\" in the sharing dialog")
                  .arg(m_targetScreen->name()));
         return;
     }
@@ -608,7 +617,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 // instead of recording a misplaced region.
                 const qreal sx = qreal(m_streamSize.width()) / expected.width();
                 const qreal sy = qreal(m_streamSize.height()) / expected.height();
-                qWarning() << "Recording stream size differs from the selected screen —"
+                qWarning() << "Recording stream size differs from the selected screen -"
                            << "rescaling crop" << crop << "by" << sx << sy;
                 crop = QRect(qRound(crop.x() * sx), qRound(crop.y() * sy),
                              qRound(crop.width() * sx), qRound(crop.height() * sy));
@@ -834,6 +843,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         const QByteArray out = rec->readAll();
         m_ffmpeg = nullptr;
         rec->deleteLater();
+        m_stopWatchdog.stop();
 
         if (m_state == Recording || m_state == Starting) {
             if (!out.isEmpty())
@@ -848,8 +858,20 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         if (code != 0 || status == QProcess::CrashExit) {
             if (!out.isEmpty())
                 qWarning() << out;
-            fail(tr("Recording encoder failed (code %1)").arg(code));
-            return;
+            // Salvage before fail(): fail() -> abort() deletes m_tempPath, but
+            // an encoder that was watchdog-killed (or died on ENOSPC etc.)
+            // leaves a readable trailer-less mkv behind — ffmpeg reads it back
+            // to the last complete cluster ("File ended prematurely" warning,
+            // verified on a real wedge: 143 s of a 166 s recording recovered).
+            // Converting that beats discarding the user's whole recording.
+            const bool salvageable = m_output != Replay
+                                     && QFileInfo(m_tempPath).size() > 0;
+            if (!salvageable) {
+                fail(tr("Recording encoder failed (code %1)").arg(code));
+                return;
+            }
+            qWarning() << "GifRecorder: encoder exited uncleanly (code" << code
+                       << ") - converting the salvageable temp anyway";
         }
         if (m_output == Replay) {
             cleanup();
@@ -1083,6 +1105,62 @@ void GifRecorder::stop()
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
     m_overlayFrame.clear(); // ditto for the overlay scratch copy
+    // Watchdog: ffmpeg can wedge internally and never process the EOF — seen
+    // in the field when the pulse @DEFAULT_MONITOR@ input stalled (PipeWire
+    // link died): the -shortest sync queue waits for video timestamps that
+    // will never come, stdin stops being read, closeWriteChannel() can never
+    // drain, and the app sits in "Encoding…" forever while libpulse buffers
+    // audio without bound (observed 5.3 GB RSS after 34 min). Progress-based,
+    // not a fixed stop deadline: a legitimate slow flush (up to 192 MB of
+    // backlog through a software encoder on a weak box) keeps bytesToWrite()
+    // falling or the temp growing for minutes and must never be killed.
+    m_stallBytes = -1;
+    m_stallSize = -1;
+    m_stallMs = 0;
+    m_stopWatchdog.start();
+}
+
+void GifRecorder::stopWatchdogTick()
+{
+    if (m_state != Converting || !m_ffmpeg
+        || m_ffmpeg->state() == QProcess::NotRunning) {
+        m_stopWatchdog.stop();
+        return;
+    }
+    const qint64 bytes = m_ffmpeg->bytesToWrite();
+    // The replay ring's %03d pattern names no real file — size() is then a
+    // constant and the stall test rides on bytesToWrite alone.
+    const qint64 size = QFileInfo(m_tempPath).size();
+    if (bytes != m_stallBytes || size != m_stallSize) {
+        m_stallBytes = bytes;
+        m_stallSize = size;
+        m_stallMs = 0;
+        return;
+    }
+    static const int limitMs = [] {
+        const int env = qEnvironmentVariableIntValue("UNISIC_STOP_STALL_MS");
+        return env > 0 ? env : 25000;
+    }();
+    m_stallMs += m_stopWatchdog.interval();
+    if (m_stallMs < limitMs)
+        return;
+    // SIGKILL, not terminate(): the graceful path needs ffmpeg's scheduler to
+    // notice a flag, and a wedged scheduler is exactly what we're escaping.
+    // The killed encoder lands in the finished handler as CrashExit, where the
+    // trailer-less temp is salvaged into a normal conversion.
+    qWarning() << "GifRecorder: encoder made no progress for" << m_stallMs
+               << "ms after stop (bytesToWrite" << bytes << ", temp" << size
+               << ") - killing it and salvaging the temp";
+    m_stopWatchdog.stop();
+    m_ffmpeg->kill();
+}
+
+bool GifRecorder::devFreezeEncoderForTest()
+{
+    if (!m_ffmpeg || m_ffmpeg->state() != QProcess::Running)
+        return false;
+    ::kill(pid_t(m_ffmpeg->processId()), SIGSTOP);
+    return true;
 }
 
 void GifRecorder::saveInstantReplay()
@@ -1401,7 +1479,22 @@ void GifRecorder::convertVideo()
             return; // aborted while the probe ran
         convertVideoWith(encoder);
     });
-    watcher->setFuture(QtConcurrent::run([choice]() -> QString {
+    const Output output = m_output;
+    watcher->setFuture(QtConcurrent::run([choice, output]() -> QString {
+        if (output == WebM) {
+            // WebM carries only VP8/VP9/AV1 — the H.264 hardware paths never
+            // applied, so conversion sat on libvpx-vp9 regardless of the
+            // encoder setting. AV1 NVENC (RTX 40+) muxes into WebM fine and is
+            // the escape hatch: measured on a 30 s 1440p clip, 5.0x realtime
+            // vs libvpx's 1.4x, SSIM 0.9996 vs 0.9984. Probed HERE (pool
+            // thread) so convertVideoWith never runs a cold 8 s probe on the
+            // GUI thread. An explicit "software" (or "vaapi" — no AV1 VAAPI
+            // path, see convertVideoWith) keeps VP9.
+            if (choice != QLatin1String("software") && choice != QLatin1String("vaapi")
+                && hardwareEncoderWorks(QStringLiteral("av1-nvenc")))
+                return QStringLiteral("av1-nvenc");
+            return QStringLiteral("software");
+        }
         if (choice != QLatin1String("auto"))
             return choice;
         if (hardwareEncoderWorks(QStringLiteral("nvenc")))
@@ -1419,9 +1512,23 @@ void GifRecorder::convertVideoWith(const QString &encoder)
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), m_tempPath};
-    if (m_output == WebM) {
+    if (m_output == WebM && encoder == QLatin1String("av1-nvenc")
+        && hardwareEncoderAvailable(QStringLiteral("av1-nvenc"))) {
+        // -cq shares the 0-51 CRF scale; at 20 measured SSIM 0.9996 (above
+        // VP9's 0.9984 at the same setting), file +18%. AV1 VAAPI is
+        // deliberately NOT wired as a sibling: no hardware here to verify its
+        // quality mapping on, and VAAPI listings lie (vp9_vaapi precedent).
+        args << QStringLiteral("-c:v") << QStringLiteral("av1_nvenc")
+             << QStringLiteral("-preset") << QStringLiteral("p4")
+             << QStringLiteral("-cq") << QString::number(crf)
+             << QStringLiteral("-b:v") << QStringLiteral("0")
+             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
+    } else if (m_output == WebM) {
         // Without -deadline/-cpu-used libvpx-vp9 defaults to good/cpu-used 0,
         // i.e. 0.1–0.3× realtime — minutes of conversion for a 1-minute clip.
+        // Re-tuning on a 16-thread box (30 s 1440p clip): cpu-used 5..8 and
+        // tile-columns 0..3 all land within noise (19-22 s) — libvpx plateaus
+        // near 4 cores here, so there is nothing further to win in these knobs.
         args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
              << QStringLiteral("-crf") << QString::number(crf)
              << QStringLiteral("-b:v") << QStringLiteral("0")
@@ -1429,8 +1536,9 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              // 14.5 s -> 4.8 s, SSIM 0.99866 -> 0.99844 (invisible), file +15%.
              // Do NOT "improve" this to cpu-used 6 with deadline=good: that is
              // reproducibly 2.4x SLOWER than cpu-used 4, not faster.
-             // There is no usable hardware path to fall back on either — a listed
-             // vp9_vaapi failed to encode at all on the box this was tuned on.
+             // There is no usable VP9 hardware path to fall back on either — a
+             // listed vp9_vaapi failed to encode at all on the box this was
+             // tuned on (AV1 NVENC above is the only hardware WebM escape).
              << QStringLiteral("-deadline") << QStringLiteral("realtime")
              << QStringLiteral("-cpu-used") << QStringLiteral("5")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
@@ -1544,6 +1652,7 @@ void GifRecorder::abort()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
+    m_stopWatchdog.stop();
     stopClickCapture();
     stopKeyCapture();
 #ifdef HAVE_PIPEWIRE

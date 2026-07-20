@@ -7,3 +7,9 @@ To-Do
 .claude/settings.json
 .claude/settings.local.json
 dist/
+
+# Editor swap/backup files
+.*.kate-swp
+*.kate-swp
+*.swp
+*~

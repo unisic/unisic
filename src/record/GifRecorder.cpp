@@ -19,6 +19,7 @@
 #include <QScreen>
 #include <QSet>
 #include <QDebug>
+#include <QMutex>
 #include <QtConcurrent>
 #include <climits>
 #include <cstring>
@@ -101,11 +102,21 @@ bool GifRecorder::hardwareEncoderAvailable(const QString &id)
 // once per encoder per process.
 bool GifRecorder::hardwareEncoderWorks(const QString &id)
 {
+    // The cache is read from the GUI thread (diagnostics, dev buttons) and
+    // from convertVideo()'s pool-thread resolve — guard the hash, but run the
+    // probe itself outside the lock (a concurrent duplicate probe is harmless,
+    // both sides insert the same answer; holding the lock through it would
+    // block a GUI caller for the probe's full 8 s instead).
+    static QMutex cacheMutex;
     static QHash<QString, bool> cache;
-    const auto it = cache.constFind(id);
-    if (it != cache.constEnd())
-        return *it;
+    {
+        QMutexLocker lock(&cacheMutex);
+        const auto it = cache.constFind(id);
+        if (it != cache.constEnd())
+            return *it;
+    }
     if (!hardwareEncoderAvailable(id)) {
+        QMutexLocker lock(&cacheMutex);
         cache.insert(id, false);
         return false;
     }
@@ -137,6 +148,7 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
                           << "is listed but does not encode here"
                           << (why.isEmpty() ? QString() : QStringLiteral("— %1").arg(why));
     }
+    QMutexLocker lock(&cacheMutex);
     cache.insert(id, ok);
     return ok;
 }
@@ -852,6 +864,24 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         }
     });
     auto *encoder = m_ffmpeg;
+    // Async spawn: FailedToStart lands in the errorOccurred handler above; the
+    // old waitForStarted() here blocked the GUI for up to 3 s per spawn and
+    // mis-reported a merely slow spawn as a failure. Recording state begins
+    // once the process is really up; stop/abort during the spawn window is
+    // covered by the identity + state guard (stopProcess also disconnects).
+    connect(encoder, &QProcess::started, this, [this, encoder, fps] {
+        if (m_ffmpeg != encoder || m_state != Starting)
+            return;
+        m_state = Recording;
+        m_elapsed.start();
+        m_elapsedTick.start();
+        m_sampler.start(1000 / fps);
+        const int maxSec = m_output == Gif ? m_settings->gifMaxDurationSec()
+                                           : m_settings->videoMaxDurationSec();
+        if (maxSec > 0)
+            m_maxTimer.start(maxSec * 1000);
+        emit started();
+    });
     encoder->start(QStringLiteral("ffmpeg"), args);
     if (!m_audioFifoPath.isEmpty()) {
         m_appAudio = new QProcess(this);
@@ -876,25 +906,6 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                            QStringLiteral("--format"), QStringLiteral("s16"),
                            QStringLiteral("--raw"), m_audioFifoPath});
     }
-    if (!encoder->waitForStarted(3000)) {
-        // errorOccurred may already have fired fail() synchronously (state now
-        // Idle); guard so we don't emit failed() twice.
-        if (m_ffmpeg == encoder && m_state == Starting)
-            fail(tr("ffmpeg could not be started. Is it installed?"));
-        return;
-    }
-    if (m_ffmpeg != encoder)
-        return;
-
-    m_state = Recording;
-    m_elapsed.start();
-    m_elapsedTick.start();
-    m_sampler.start(1000 / fps);
-    const int maxSec = m_output == Gif ? m_settings->gifMaxDurationSec()
-                                       : m_settings->videoMaxDurationSec();
-    if (maxSec > 0)
-        m_maxTimer.start(maxSec * 1000);
-    emit started();
 }
 
 void GifRecorder::sampleFrame()
@@ -1274,14 +1285,8 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
         QFile::remove(m_tempPath);
         fail(tr("ffmpeg could not be started. Is it installed?"));
     });
+    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
     conv->start(QStringLiteral("ffmpeg"), args);
-    if (!conv->waitForStarted(3000) && m_converter == conv) {
-        m_converter = nullptr;
-        conv->deleteLater();
-        QFile::remove(excised);
-        QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started. Is it installed?"));
-    }
 }
 
 void GifRecorder::convertToGif()
@@ -1335,12 +1340,7 @@ void GifRecorder::convertToGif()
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-vf"), vf, m_palettePath});
-    if (!conv->waitForStarted(3000) && m_converter == conv) {
-        m_converter = nullptr;
-        conv->deleteLater();
-        QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started. Is it installed?"));
-    }
+    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
 }
 
 void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
@@ -1382,16 +1382,37 @@ void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-i"), m_palettePath,
                  QStringLiteral("-lavfi"), lavfi, m_outPath});
-    if (!conv->waitForStarted(3000) && m_converter == conv) {
-        m_converter = nullptr;
-        conv->deleteLater();
-        QFile::remove(m_tempPath);
-        QFile::remove(m_palettePath);
-        fail(tr("ffmpeg could not be started. Is it installed?"));
-    }
+    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
 }
 
 void GifRecorder::convertVideo()
+{
+    // Resolving the "auto" encoder can probe hardware with a blocking QProcess
+    // (up to 8 s per cold probe). The cache is warmed at startup, but a first
+    // conversion racing that warm-up would stall the GUI — resolve on a pool
+    // thread and hop back. Settings are read HERE, on the GUI thread; the
+    // worker only touches the static, mutex-guarded probe cache.
+    const QString choice = m_settings->videoEncoder();
+    auto *watcher = new QFutureWatcher<QString>(this);
+    connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher] {
+        const QString encoder = watcher->result();
+        watcher->deleteLater();
+        if (m_state != Converting)
+            return; // aborted while the probe ran
+        convertVideoWith(encoder);
+    });
+    watcher->setFuture(QtConcurrent::run([choice]() -> QString {
+        if (choice != QLatin1String("auto"))
+            return choice;
+        if (hardwareEncoderWorks(QStringLiteral("nvenc")))
+            return QStringLiteral("nvenc");
+        if (hardwareEncoderWorks(QStringLiteral("vaapi")))
+            return QStringLiteral("vaapi");
+        return QStringLiteral("software");
+    }));
+}
+
+void GifRecorder::convertVideoWith(const QString &encoder)
 {
     // Re-encode the lossless temp into a shareable MP4 (H.264) or WebM (VP9).
     const int crf = qBound(0, m_settings->videoQuality(), 51);
@@ -1414,7 +1435,7 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-cpu-used") << QStringLiteral("5")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
-    } else if (resolvedVideoEncoder() == QLatin1String("vaapi")
+    } else if (encoder == QLatin1String("vaapi")
                && hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
         const int qp = qBound(1, crf, 40);
         args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
@@ -1422,7 +1443,7 @@ void GifRecorder::convertVideo()
              << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
              << QStringLiteral("-qp") << QString::number(qp)
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-    } else if (resolvedVideoEncoder() == QLatin1String("nvenc")
+    } else if (encoder == QLatin1String("nvenc")
                && hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
         args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
              << QStringLiteral("-preset") << QStringLiteral("p4")
@@ -1487,13 +1508,8 @@ void GifRecorder::convertVideo()
         QFile::remove(m_tempPath);
         fail(tr("ffmpeg could not be started. Is it installed?"));
     });
+    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
     conv->start(QStringLiteral("ffmpeg"), args);
-    if (!conv->waitForStarted(3000) && m_converter == conv) {
-        m_converter = nullptr;
-        conv->deleteLater();
-        QFile::remove(m_tempPath);
-        fail(tr("ffmpeg could not be started. Is it installed?"));
-    }
 }
 
 void GifRecorder::stopProcess(QProcess *&process)

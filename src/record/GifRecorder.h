@@ -133,7 +133,8 @@ private:
     void maybeExcisePauses(std::function<void()> thenConvert);
     void convertToGif();                                     // pass 1: palettegen
     void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
-    void convertVideo();
+    void convertVideo();          // resolves the encoder off-thread, then…
+    void convertVideoWith(const QString &encoder); // …builds and runs ffmpeg
     void stopProcess(QProcess *&process);
     void cleanup();
     void fail(const QString &msg);

@@ -21,6 +21,7 @@ whole per release (not per individual change).
 - **OCR auto-language now works across scripts**: with the Tesseract “osd” data pack installed, auto-detect recognizes the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari and more — and recognizes with just that script's installed language packs, which is faster and more accurate than loading every pack at once. Without the OSD pack it falls back to loading them all (unchanged). Install the language packs for the scripts you use.
 - **Clearer empty states**: the OCR settings now say so when OCR is built in but no language pack is installed (so it can't recognize anything yet), and the Servers page explains itself when you have no upload destinations.
 - **The recording frame's pause/stop buttons now visibly press** — the same springy press feedback as every other button.
+- **Starting a recording or a conversion no longer briefly freezes the app**: every ffmpeg launch used to hold the interface for up to 3 seconds (and a cold hardware-encoder check for up to 8), which could read as a hang on slower machines. All of it now happens in the background.
 
 **Fixed**
 - **The recording frame no longer blocks clicks during the countdown**: while the 3-2-1 ticked before a region recording (and whenever the badge had no room to show), the invisible full-screen frame swallowed every click, so you couldn't get the recorded app ready. Everything outside the small REC badge is now always click-through.
@@ -39,6 +40,7 @@ whole per release (not per individual change).
 - **Automatyczny język OCR działa teraz na różnych pismach**: z zainstalowanym pakietem danych „osd” Tesseract auto-wykrywanie rozpoznaje pismo każdego zrzutu — łacińskie, arabskie, hebrajskie, chińskie/japońskie/koreańskie, dewanagari i inne — i rozpoznaje tylko zainstalowanymi paczkami tego pisma, co jest szybsze i dokładniejsze niż ładowanie wszystkich naraz. Bez pakietu OSD wraca do ładowania wszystkich (bez zmian). Zainstaluj paczki językowe dla pism, których używasz.
 - **Czytelniejsze puste stany**: ustawienia OCR mówią teraz wprost, gdy OCR jest wbudowany, ale nie zainstalowano pakietu językowego (więc nie może jeszcze niczego rozpoznać), a strona Serwery wyjaśnia się sama, gdy nie masz żadnych miejsc docelowych wysyłania.
 - **Przyciski pauzy/stopu na ramce nagrywania widocznie się wciskają** — ta sama sprężysta reakcja na naciśnięcie co w każdym innym przycisku.
+- **Start nagrywania ani konwersja nie zamrażają już na chwilę aplikacji**: każde uruchomienie ffmpeg potrafiło wstrzymać interfejs do 3 sekund (a zimne sprawdzenie enkodera sprzętowego do 8), co na wolniejszych maszynach wyglądało jak zawieszenie. Wszystko dzieje się teraz w tle.
 
 **Naprawione**
 - **Ramka nagrywania nie blokuje już kliknięć podczas odliczania**: gdy przed nagraniem obszaru tykało 3-2-1 (oraz gdy plakietka nie miała się gdzie pokazać), niewidzialna pełnoekranowa ramka połykała każde kliknięcie, więc nie dało się przygotować nagrywanej aplikacji. Wszystko poza małą plakietką REC jest teraz zawsze przepuszczalne dla kliknięć.

@@ -91,6 +91,9 @@ public:
     // Release a holdForCommit start: begin encoding now. No-op unless armed.
     void commit();
     void stop();     // finalize -> converting -> finished()
+    // Dev harness only: SIGSTOPs the live recording encoder so a following
+    // stop() exercises the stop-flush watchdog + temp-salvage path for real.
+    bool devFreezeEncoderForTest();
     void abort();    // discard everything
     void saveInstantReplay();
 
@@ -138,6 +141,7 @@ private:
     void stopProcess(QProcess *&process);
     void cleanup();
     void fail(const QString &msg);
+    void stopWatchdogTick();
 
     Settings *m_settings;
     bool m_holdForCommit = false; // wait for commit() before encoding
@@ -156,6 +160,12 @@ private:
     QTimer m_maxTimer;
     QElapsedTimer m_elapsed;
     QTimer m_elapsedTick;
+    // Stop-flush watchdog (see stop()): kills a recording encoder whose drain
+    // makes no progress, so a wedged ffmpeg can't hold "Encoding…" forever.
+    QTimer m_stopWatchdog;
+    qint64 m_stallBytes = -1; // last observed bytesToWrite()
+    qint64 m_stallSize = -1;  // last observed temp file size
+    int m_stallMs = 0;        // how long both have been frozen
 
     State m_state = Idle;
     Output m_output = Gif;

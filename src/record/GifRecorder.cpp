@@ -22,6 +22,7 @@
 #include <QMutex>
 #include <QtConcurrent>
 #include <climits>
+#include <csignal>
 #include <cstring>
 #include <memory>
 #include <unistd.h>
@@ -185,6 +186,9 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     m_elapsedTick.setInterval(1000);
     m_elapsedTick.setTimerType(Qt::CoarseTimer);
     connect(&m_elapsedTick, &QTimer::timeout, this, &GifRecorder::elapsedChanged);
+    m_stopWatchdog.setInterval(5000);
+    m_stopWatchdog.setTimerType(Qt::CoarseTimer);
+    connect(&m_stopWatchdog, &QTimer::timeout, this, &GifRecorder::stopWatchdogTick);
 }
 
 GifRecorder::~GifRecorder()
@@ -839,6 +843,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         const QByteArray out = rec->readAll();
         m_ffmpeg = nullptr;
         rec->deleteLater();
+        m_stopWatchdog.stop();
 
         if (m_state == Recording || m_state == Starting) {
             if (!out.isEmpty())
@@ -853,8 +858,20 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         if (code != 0 || status == QProcess::CrashExit) {
             if (!out.isEmpty())
                 qWarning() << out;
-            fail(tr("Recording encoder failed (code %1)").arg(code));
-            return;
+            // Salvage before fail(): fail() -> abort() deletes m_tempPath, but
+            // an encoder that was watchdog-killed (or died on ENOSPC etc.)
+            // leaves a readable trailer-less mkv behind — ffmpeg reads it back
+            // to the last complete cluster ("File ended prematurely" warning,
+            // verified on a real wedge: 143 s of a 166 s recording recovered).
+            // Converting that beats discarding the user's whole recording.
+            const bool salvageable = m_output != Replay
+                                     && QFileInfo(m_tempPath).size() > 0;
+            if (!salvageable) {
+                fail(tr("Recording encoder failed (code %1)").arg(code));
+                return;
+            }
+            qWarning() << "GifRecorder: encoder exited uncleanly (code" << code
+                       << ") - converting the salvageable temp anyway";
         }
         if (m_output == Replay) {
             cleanup();
@@ -1088,6 +1105,62 @@ void GifRecorder::stop()
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
     m_overlayFrame.clear(); // ditto for the overlay scratch copy
+    // Watchdog: ffmpeg can wedge internally and never process the EOF — seen
+    // in the field when the pulse @DEFAULT_MONITOR@ input stalled (PipeWire
+    // link died): the -shortest sync queue waits for video timestamps that
+    // will never come, stdin stops being read, closeWriteChannel() can never
+    // drain, and the app sits in "Encoding…" forever while libpulse buffers
+    // audio without bound (observed 5.3 GB RSS after 34 min). Progress-based,
+    // not a fixed stop deadline: a legitimate slow flush (up to 192 MB of
+    // backlog through a software encoder on a weak box) keeps bytesToWrite()
+    // falling or the temp growing for minutes and must never be killed.
+    m_stallBytes = -1;
+    m_stallSize = -1;
+    m_stallMs = 0;
+    m_stopWatchdog.start();
+}
+
+void GifRecorder::stopWatchdogTick()
+{
+    if (m_state != Converting || !m_ffmpeg
+        || m_ffmpeg->state() == QProcess::NotRunning) {
+        m_stopWatchdog.stop();
+        return;
+    }
+    const qint64 bytes = m_ffmpeg->bytesToWrite();
+    // The replay ring's %03d pattern names no real file — size() is then a
+    // constant and the stall test rides on bytesToWrite alone.
+    const qint64 size = QFileInfo(m_tempPath).size();
+    if (bytes != m_stallBytes || size != m_stallSize) {
+        m_stallBytes = bytes;
+        m_stallSize = size;
+        m_stallMs = 0;
+        return;
+    }
+    static const int limitMs = [] {
+        const int env = qEnvironmentVariableIntValue("UNISIC_STOP_STALL_MS");
+        return env > 0 ? env : 25000;
+    }();
+    m_stallMs += m_stopWatchdog.interval();
+    if (m_stallMs < limitMs)
+        return;
+    // SIGKILL, not terminate(): the graceful path needs ffmpeg's scheduler to
+    // notice a flag, and a wedged scheduler is exactly what we're escaping.
+    // The killed encoder lands in the finished handler as CrashExit, where the
+    // trailer-less temp is salvaged into a normal conversion.
+    qWarning() << "GifRecorder: encoder made no progress for" << m_stallMs
+               << "ms after stop (bytesToWrite" << bytes << ", temp" << size
+               << ") - killing it and salvaging the temp";
+    m_stopWatchdog.stop();
+    m_ffmpeg->kill();
+}
+
+bool GifRecorder::devFreezeEncoderForTest()
+{
+    if (!m_ffmpeg || m_ffmpeg->state() != QProcess::Running)
+        return false;
+    ::kill(pid_t(m_ffmpeg->processId()), SIGSTOP);
+    return true;
 }
 
 void GifRecorder::saveInstantReplay()
@@ -1579,6 +1652,7 @@ void GifRecorder::abort()
     m_sampler.stop();
     m_maxTimer.stop();
     m_elapsedTick.stop();
+    m_stopWatchdog.stop();
     stopClickCapture();
     stopKeyCapture();
 #ifdef HAVE_PIPEWIRE

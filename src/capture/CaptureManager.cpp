@@ -278,6 +278,65 @@ void CaptureManager::captureWorkspace(Callback cb)
     portalFallback(std::move(cb));
 }
 
+void CaptureManager::captureScreen(QScreen *screen, Callback cb)
+{
+    const ScreenGeom g = snapshotScreen(screen);
+    if (g.name.isEmpty()) {
+        cb({}, QStringLiteral("no screen"));
+        return;
+    }
+    if (!m_kwinDenied && KWinScreenShot2::isAvailable()) {
+        m_kwin->captureScreen(g.name, m_settings->includeCursor(),
+            [this, cb, g](const QImage &img, const QString &err) {
+                if (!err.isEmpty()) {
+                    qWarning() << "KWin screen capture failed, falling back to portal:" << err;
+                    if (isKWinAuthError(err))
+                        m_kwinDenied = true;
+                    const QString kerr = QStringLiteral("KWin: %1").arg(err);
+                    portalFallback([cb, kerr, g](const QImage &img, const QString &portalErr) {
+                        // Bare "cancelled" must survive uncombined for the toast suppression.
+                        if (portalErr == QLatin1String("cancelled")) { cb({}, portalErr); return; }
+                        if (!portalErr.isEmpty()) { cb({}, combinedError(kerr, portalErr)); return; }
+                        cb(cropForScreen(img, g), {});
+                    });
+                    return;
+                }
+                cb(img, {});
+            });
+        return;
+    }
+    portalFallback([cb, g](const QImage &img, const QString &err) {
+        if (!err.isEmpty()) { cb({}, err); return; }
+        cb(cropForScreen(img, g), {});
+    });
+}
+
+void CaptureManager::captureActiveScreen(QScreen *cursorScreenHint, Callback cb)
+{
+    if (!m_kwinDenied && KWinScreenShot2::isAvailable()) {
+        const ScreenGeom g = snapshotScreen(cursorScreenHint);
+        m_kwin->captureActiveScreen(m_settings->includeCursor(),
+            [this, cb, g](const QImage &img, const QString &err) {
+                if (!err.isEmpty()) {
+                    qWarning() << "KWin active-screen capture failed, falling back to portal:" << err;
+                    if (isKWinAuthError(err))
+                        m_kwinDenied = true;
+                    const QString kerr = QStringLiteral("KWin: %1").arg(err);
+                    portalFallback([cb, kerr, g](const QImage &img, const QString &portalErr) {
+                        // Bare "cancelled" must survive uncombined for the toast suppression.
+                        if (portalErr == QLatin1String("cancelled")) { cb({}, portalErr); return; }
+                        if (!portalErr.isEmpty()) { cb({}, combinedError(kerr, portalErr)); return; }
+                        cb(g.name.isEmpty() ? img : cropForScreen(img, g), {});
+                    });
+                    return;
+                }
+                cb(img, {});
+            });
+        return;
+    }
+    captureScreen(cursorScreenHint, std::move(cb));
+}
+
 CaptureManager::ScreenGeom CaptureManager::snapshotScreen(QScreen *screen)
 {
     ScreenGeom g;

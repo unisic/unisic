@@ -25,6 +25,13 @@ Item {
         version: App.appVersion
     }
 
+    // On-demand system/dependency check (the General → Diagnostics button).
+    // markSeenOnClose:false — a manual peek must not consume the first-run latch.
+    USystemCheck {
+        id: settingsSystemCheck
+        markSeenOnClose: false
+    }
+
     // ---- settings search ----
     property string searchQuery: ""
     readonly property bool searchActive: searchQuery.length > 0
@@ -167,10 +174,24 @@ Item {
         return t
     }
 
-    readonly property var themeIds: ["system", "unisic", "dark", "light",
-                                     "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
-    readonly property var themeNames: [qsTr("System Theme"), "Unisic", qsTr("Dark"), qsTr("Light"),
-                                       "Catppuccin Mocha", "Catppuccin Latte", "Dracula", "Nord", "Gruvbox"]
+    // Core built-ins (hardcoded in Theme.qml) + themes from <config>/themes —
+    // the user's own PLUS the decorative built-ins seeded there as real files
+    // (hot-reloaded: the customThemes dependency refreshes the combo as files
+    // come and go).
+    readonly property var builtinThemeIds: ["system", "unisic", "dark", "light"]
+    readonly property var builtinThemeNames: [qsTr("System Theme"), "Unisic", qsTr("Dark"), qsTr("Light")]
+    readonly property var themeIds: {
+        var a = builtinThemeIds.slice()
+        var c = ThemeController.customThemes
+        for (var i = 0; i < c.length; ++i) a.push(c[i].id)
+        return a
+    }
+    readonly property var themeNames: {
+        var a = builtinThemeNames.slice()
+        var c = ThemeController.customThemes
+        for (var i = 0; i < c.length; ++i) a.push(c[i].name)
+        return a
+    }
     readonly property var toolbarPosIds: ["follow", "top-left", "top-center", "top-right",
                                           "middle-left", "middle-center", "middle-right",
                                           "bottom-left", "bottom-center", "bottom-right"]
@@ -786,8 +807,8 @@ Item {
                         hint: App.ocrAvailable ? ""
                               : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         label: qsTr("Detect languages automatically")
-                        help: qsTr("Recognize using every installed Tesseract language pack.")
-                        helpDetail: qsTr("No need to know Tesseract language codes — Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.")
+                        help: qsTr("Detects the script and recognizes with the matching language pack.")
+                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on — and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
@@ -803,6 +824,16 @@ Item {
                             placeholder: "pol+eng"
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
+                    }
+                    // Built in, but nothing to recognize with yet — the real
+                    // "OCR does nothing" trap, distinct from "not built in".
+                    Text {
+                        visible: App.ocrAvailable && !App.ocrHasLanguages
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
                     }
                 }
             }
@@ -942,6 +973,38 @@ Item {
                                     : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+            }
+
+            UCard {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Diagnostics") }
+                    SettingRow {
+                        label: qsTr("System check")
+                        help: qsTr("See which optional tools (FFmpeg, wl-clipboard, OCR packs) are installed.")
+                        helpDetail: qsTr("Unisic runs on the built-in Wayland APIs alone; these external tools are optional and unlock recording, the most reliable clipboard copy, and text recognition. The check lists what is present and how to install the rest.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: qsTr("Run system check")
+                            onClicked: settingsSystemCheck.open()
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Diagnostics")
+                        help: qsTr("Copy a text summary of your setup for a bug report.")
+                        helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere — you paste it into an issue yourself.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "edit-copy"
+                            text: qsTr("Copy diagnostics")
+                            onClicked: { App.copyText(App.systemDiagnostics()); App.showToast(qsTr("Diagnostics copied")) }
                         }
                     }
                 }
@@ -1243,7 +1306,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Cursor in recordings") }
+                    SectionTitle { text: qsTr("Overlays in recordings") }
                     SettingRow {
                         label: qsTr("Highlight the cursor")
                         help: App.capCursorMetadata
@@ -1304,6 +1367,18 @@ Item {
                             checked: App.settings.cursorClickRipple
                             enabled: parent.blocked === "" || App.devBuild
                             onToggled: (c) => App.settings.cursorClickRipple = c
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show pressed keys")
+                        // Same one-shot probe rule as the ripple row above.
+                        readonly property string blocked: App.keystrokeCaptureBlockedReason()
+                        help: blocked === "" ? qsTr("Draws a badge with each key press (“Ctrl+Shift+T”) into recordings.") : blocked
+                        helpDetail: qsTr("A screenkey-style pill at the bottom of the recording shows shortcuts and typed keys, with held modifiers and a ×N repeat counter. Works in GIF and video recordings. Key labels use the physical (US) key legend.")
+                        USwitch {
+                            checked: App.settings.recordKeystrokes
+                            enabled: parent.blocked === "" || App.devBuild
+                            onToggled: (c) => App.settings.recordKeystrokes = c
                         }
                     }
                 }
@@ -2274,6 +2349,25 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
+                    SettingRow {
+                        label: qsTr("Custom themes")
+                        help: qsTr("Drop .json theme files into the themes folder — they appear in the list above and reload live while you edit them.")
+                        helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
+                        Row {
+                            spacing: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Open themes folder"); onClicked: ThemeController.openThemesFolder() }
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Reload"); onClicked: ThemeController.reloadCustomThemes() }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: ThemeController.customThemeErrors.length > 0
+                        wrapMode: Text.WordWrap
+                        text: ThemeController.customThemeErrors.join("\n")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
                 }
             }
 
@@ -2492,6 +2586,20 @@ Item {
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
                         shortcuts: App.settings.hotkeyWindow
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Screen under cursor")
+                        help: qsTr("Hotkey: capture only the monitor the pointer is on.")
+                        helpDetail: qsTr("Grabs the single screen under the cursor instead of the whole workspace — the multi-monitor middle ground between Region and Full screen. Runs the full-screen task preset.")
+                        shortcuts: App.settings.hotkeyScreen
+                        onChanged: (t) => { App.settings.hotkeyScreen = t; App.applyHotkey("capture-screen") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Re-capture last region")
+                        help: qsTr("Hotkey: repeat the previous region capture, same rectangle.")
+                        helpDetail: qsTr("Takes the exact rectangle of your most recent region screenshot again, without opening the selection overlay — for documenting something that changes over time. Runs the region task preset.")
+                        shortcuts: App.settings.hotkeyRecapture
+                        onChanged: (t) => { App.settings.hotkeyRecapture = t; App.applyHotkey("recapture-region") }
                     }
                     HotkeyRow {
                         label: qsTr("Video start/stop")
@@ -2767,6 +2875,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture fullscreen"); onClicked: App.captureFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture screen at cursor"); onClicked: App.captureScreenUnderCursor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Re-capture last region"); onClicked: App.recaptureLastRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (screen)"); onClicked: App.startVideoScreen() }
@@ -2803,6 +2913,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record start sound"); onClicked: App.devTestRecordStartSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trash sound"); onClicked: App.devTestTrashSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Keystroke badge"); onClicked: App.devTestKeystrokeBadge() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Custom theme"); onClicked: App.devTestCustomTheme() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Paste clipboard"); onClicked: App.devTestClipboardPaste() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture delay"); onClicked: App.devTestCaptureDelay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy as"); onClicked: App.devTestCopyAs() }
@@ -2810,6 +2922,9 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action"); onClicked: App.devTestExternalAction() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }

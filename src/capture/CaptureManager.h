@@ -35,6 +35,16 @@ public:
 
     // Full virtual desktop (all monitors, one image in workspace coordinates).
     void captureWorkspace(Callback cb);
+    // ONE screen (native KWin per-screen capture; portal workspace + crop
+    // fallback). Geometry is snapshotted before the async round-trip — see
+    // ScreenGeom above.
+    void captureScreen(QScreen *screen, Callback cb);
+    // The screen under the pointer. On KWin this uses CaptureActiveScreen (the
+    // compositor knows the pointer; a Wayland client does not). Elsewhere it
+    // falls back to captureScreen(cursorScreenHint) — the caller's best guess
+    // from QCursor::pos(), which is only exact while the pointer is over one
+    // of our windows (tray menu, main window).
+    void captureActiveScreen(QScreen *cursorScreenHint, Callback cb);
     // All screens at once (overlay freeze): KWin per-screen serially, or ONE
     // portal workspace capture cropped per screen — never N portal requests.
     void captureAllScreens(const QVector<QScreen *> &screens, MultiCallback cb);

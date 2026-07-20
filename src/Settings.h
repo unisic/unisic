@@ -36,6 +36,7 @@ class Settings : public QObject
     Q_PROPERTY(bool cursorHighlightHalo READ cursorHighlightHalo WRITE setCursorHighlightHalo NOTIFY cursorHighlightHaloChanged)
     Q_PROPERTY(QString cursorHighlightColor READ cursorHighlightColor WRITE setCursorHighlightColor NOTIFY cursorHighlightColorChanged)
     Q_PROPERTY(bool cursorClickRipple READ cursorClickRipple WRITE setCursorClickRipple NOTIFY cursorClickRippleChanged)
+    Q_PROPERTY(bool recordKeystrokes READ recordKeystrokes WRITE setRecordKeystrokes NOTIFY recordKeystrokesChanged)
     Q_PROPERTY(QString measureCopyFormat READ measureCopyFormat WRITE setMeasureCopyFormat NOTIFY measureCopyFormatChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
     Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
@@ -49,6 +50,9 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
+    Q_PROPERTY(QString hotkeyScreen READ hotkeyScreen WRITE setHotkeyScreen NOTIFY hotkeyScreenChanged)
+    Q_PROPERTY(QString hotkeyRecapture READ hotkeyRecapture WRITE setHotkeyRecapture NOTIFY hotkeyRecaptureChanged)
+    Q_PROPERTY(QString lastCaptureRegion READ lastCaptureRegion WRITE setLastCaptureRegion NOTIFY lastCaptureRegionChanged)
     Q_PROPERTY(QString fullScreenTask READ fullScreenTask WRITE setFullScreenTask NOTIFY fullScreenTaskChanged)
     Q_PROPERTY(QString regionTask READ regionTask WRITE setRegionTask NOTIFY regionTaskChanged)
     Q_PROPERTY(QString windowTask READ windowTask WRITE setWindowTask NOTIFY windowTaskChanged)
@@ -65,6 +69,10 @@ class Settings : public QObject
     Q_PROPERTY(QString watermarkType READ watermarkType WRITE setWatermarkType NOTIFY watermarkTypeChanged)
     Q_PROPERTY(QString watermarkImagePath READ watermarkImagePath WRITE setWatermarkImagePath NOTIFY watermarkImagePathChanged)
     Q_PROPERTY(bool showNotifications READ showNotifications WRITE setShowNotifications NOTIFY showNotificationsChanged)
+    // One-shot latch: the first-run system/dependency check pops at most once,
+    // then this stays true. The "Run system check" button in Settings reopens it
+    // on demand regardless.
+    Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
@@ -312,6 +320,9 @@ public:
     // Click ripples additionally need read access to /dev/input (the `input`
     // group); without it the overlay silently keeps the halo and drops these.
     U_SETTING(bool, cursorClickRipple, setCursorClickRipple, "record/cursorClickRipple", true)
+    // Keystroke badge in recordings (screenkey-style). Default OFF: it needs
+    // /dev/input access (`input` group) and shows what the user types.
+    U_SETTING(bool, recordKeystrokes, setRecordKeystrokes, "record/keystrokes", false)
     // What the ruler (Measure tool) copies on Ctrl+C: "readable" (842 × 317 /
     // 412 px), "plain" (842x317 / 412) or "css" (width: 842px; height: 317px).
     U_SETTING(QString, measureCopyFormat, setMeasureCopyFormat, "capture/measureCopyFormat", QStringLiteral("readable"))
@@ -333,6 +344,14 @@ public:
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
+    // Screen-under-cursor and re-capture-last-region ship UNBOUND: the tray
+    // menu and CLI expose both, and a default key would risk colliding with
+    // compositor grabs on desktops we can't test.
+    U_SETTING(QString, hotkeyScreen, setHotkeyScreen, "hotkeys/screen", QString())
+    U_SETTING(QString, hotkeyRecapture, setHotkeyRecapture, "hotkeys/recapture", QString())
+    // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
+    // persisted so re-capture survives restarts like ShareX's repeat capture.
+    U_SETTING(QString, lastCaptureRegion, setLastCaptureRegion, "capture/lastRegion", QString())
     U_SETTING(QString, fullScreenTask, setFullScreenTask, "tasks/fullScreen", QStringLiteral("default"))
     U_SETTING(QString, regionTask, setRegionTask, "tasks/region", QStringLiteral("default"))
     U_SETTING(QString, windowTask, setWindowTask, "tasks/window", QStringLiteral("default"))
@@ -355,6 +374,7 @@ public:
     U_SETTING(QString, watermarkType, setWatermarkType, "image/watermarkType", QStringLiteral("text"))
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
+    U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
@@ -515,16 +535,18 @@ public:
         emit openEditorChanged(); emit uploadAfterCaptureChanged(); emit includeCursorChanged();
         emit cursorHighlightChanged(); emit cursorHighlightHaloChanged();
         emit cursorHighlightColorChanged(); emit cursorClickRippleChanged();
+        emit recordKeystrokesChanged();
         emit measureCopyFormatChanged();
         emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
+        emit hotkeyScreenChanged(); emit hotkeyRecaptureChanged(); emit lastCaptureRegionChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
-        emit showNotificationsChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
+        emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
@@ -572,6 +594,7 @@ signals:
     void cursorHighlightHaloChanged();
     void cursorHighlightColorChanged();
     void cursorClickRippleChanged();
+    void recordKeystrokesChanged();
     void measureCopyFormatChanged();
     void captureDelayMsChanged();
     void captureSoundChanged();
@@ -585,6 +608,9 @@ signals:
     void hotkeyRegionChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
+    void hotkeyScreenChanged();
+    void hotkeyRecaptureChanged();
+    void lastCaptureRegionChanged();
     void fullScreenTaskChanged();
     void regionTaskChanged();
     void windowTaskChanged();
@@ -601,6 +627,7 @@ signals:
     void watermarkTypeChanged();
     void watermarkImagePathChanged();
     void showNotificationsChanged();
+    void systemCheckSeenChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();

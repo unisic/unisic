@@ -51,6 +51,13 @@ public:
         return r;
     }
 
+    // Last confirmed screenshot selection in LOGICAL pixels of the named
+    // screen (re-capture feature). Logical (not physical) so the rect survives
+    // the frozen-image-vs-native scaling of both the KWin and portal paths;
+    // the re-capture side rescales against the CURRENT screen geometry.
+    QRect lastRegionLogical() const { return m_lastRegionLogical; }
+    QString lastRegionScreen() const { return m_lastRegionScreen; }
+
 signals:
     void textEditingChanged();
 
@@ -76,4 +83,6 @@ private:
     bool m_copyRequested = false;
     int m_initialTool = 0; // optional full-screen tool mode (e.g. CLI --measure)
     int m_generation = 0; // invalidates in-flight freeze callbacks
+    QRect m_lastRegionLogical;
+    QString m_lastRegionScreen;
 };

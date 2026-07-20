@@ -112,6 +112,7 @@ void HistoryStore::pruneMissing(const QSet<QString> *dirFilter)
             && QFileInfo(e.filePath).dir().exists()) {
             beginRemoveRows({}, i, i);
             QFile::remove(e.thumbPath);
+            m_dimCache.remove(e.filePath);
             m_entries.removeAt(i);
             endRemoveRows();
             removed = true;
@@ -339,6 +340,7 @@ quint64 HistoryStore::addEntry(const QString &filePath, const QImage &thumbSourc
             break; // everything is starred — let the list exceed the cap
         beginRemoveRows({}, victim, victim);
         QFile::remove(m_entries[victim].thumbPath);
+        m_dimCache.remove(m_entries[victim].filePath);
         m_entries.removeAt(victim);
         endRemoveRows();
     }
@@ -443,6 +445,7 @@ void HistoryStore::removeRow(int row, bool trashFile)
     }
     beginRemoveRows({}, row, row);
     QFile::remove(e.thumbPath);
+    m_dimCache.remove(e.filePath);
     m_entries.removeAt(row);
     endRemoveRows();
     persistNow();   // explicit delete — never resurrectable by a crash
@@ -508,6 +511,7 @@ void HistoryStore::removeByIds(const QVariantList &ids)
         }
         beginRemoveRows({}, i, i);
         QFile::remove(e.thumbPath);
+        m_dimCache.remove(e.filePath);
         m_entries.removeAt(i);
         endRemoveRows();
         removed = true;
@@ -573,6 +577,7 @@ void HistoryStore::clearAll()
                 emit fileTrashFailed(e.filePath);
         }
         QFile::remove(e.thumbPath);
+        m_dimCache.remove(e.filePath);
     }
     const bool removedAny = kept.size() != m_entries.size();
     m_entries = kept;

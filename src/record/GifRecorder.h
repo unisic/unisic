@@ -11,10 +11,12 @@
 
 #include "CursorOverlayPainter.h"
 #include "CursorSmoother.h"
+#include "KeystrokeOverlayPainter.h"
 
 class ScreenCastSession;
 class PipeWireGrabber;
 class ClickCapture;
+class KeyCapture;
 class Settings;
 class QScreen;
 
@@ -79,6 +81,13 @@ public:
     // sound) lands in the recording.
     void start(Output output, SourceType source = Screen, const QRect &cropPhysical = {},
                QScreen *screen = nullptr, bool holdForCommit = false);
+    // Keystroke-badge colors (bg, text) resolved from the ACTIVE theme when key
+    // capture starts. The Theme singleton lives in QML and the recorder cannot
+    // reach it; a provider dodges the engine-vs-recorder construction order —
+    // recording always starts long after the engine is up. Invalid colors from
+    // the provider keep the built-in defaults.
+    void setKeystrokeThemeProvider(std::function<QPair<QColor, QColor>()> provider)
+    { m_keystrokeTheme = std::move(provider); }
     // Release a holdForCommit start: begin encoding now. No-op unless armed.
     void commit();
     void stop();     // finalize -> converting -> finished()
@@ -112,8 +121,11 @@ private:
     void sampleFrame();
     void startClickCapture();
     void stopClickCapture();
-    // Draws the pointer/halo/ripples into a copy of `encoded` and returns it,
-    // or returns `encoded` untouched when there is nothing to draw.
+    void startKeyCapture();
+    void stopKeyCapture();
+    // Draws the pointer/halo/ripples and the keystroke badge into a copy of
+    // `encoded` and returns it, or returns `encoded` untouched when there is
+    // nothing to draw.
     QByteArray compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs);
     // If the user paused during the recording, excise those wall-clock spans
     // from the intermediate (video + audio together) before conversion, then run
@@ -121,7 +133,8 @@ private:
     void maybeExcisePauses(std::function<void()> thenConvert);
     void convertToGif();                                     // pass 1: palettegen
     void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
-    void convertVideo();
+    void convertVideo();          // resolves the encoder off-thread, then…
+    void convertVideoWith(const QString &encoder); // …builds and runs ffmpeg
     void stopProcess(QProcess *&process);
     void cleanup();
     void fail(const QString &msg);
@@ -174,6 +187,14 @@ private:
     CursorOverlayPainter m_cursorOverlay;
     CursorSmoother m_cursorSmoother;
     ClickCapture *m_clicks = nullptr;
+    // Keystroke badge (screenkey-style). Independent of the cursor overlay:
+    // it works in every cursor mode (the badge draws over the frame whether
+    // the compositor embedded the pointer or not). Active only when the
+    // setting is on AND libinput access was actually granted.
+    bool m_keystrokeOverlayActive = false;
+    KeystrokeOverlayPainter m_keystrokes;
+    KeyCapture *m_keys = nullptr;
+    std::function<QPair<QColor, QColor>()> m_keystrokeTheme;
     QByteArray m_overlayFrame;   // scratch buffer for the composited frame
     QString m_tempPath;
     QString m_palettePath;

@@ -144,3 +144,8 @@ void KWinScreenShot2::captureActiveWindow(bool includeCursor, Callback cb)
 {
     call(QStringLiteral("CaptureActiveWindow"), {}, includeCursor, std::move(cb));
 }
+
+void KWinScreenShot2::captureActiveScreen(bool includeCursor, Callback cb)
+{
+    call(QStringLiteral("CaptureActiveScreen"), {}, includeCursor, std::move(cb));
+}

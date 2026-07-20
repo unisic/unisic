@@ -189,6 +189,15 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
 
     if (m_imageCb) {
         const QImage result = canvas->renderedSelection();
+        // Remember for re-capture: frozen-image px -> LOGICAL screen px (the
+        // portal freeze can be uniformly scaled; per-screen factor).
+        const QRectF sel = canvas->selectionRect();
+        const QSize imgSize = canvas->image().size();
+        const double ls = (screen && !imgSize.isEmpty())
+            ? double(screen->geometry().width()) / imgSize.width() : 1.0;
+        m_lastRegionLogical = QRectF(sel.x() * ls, sel.y() * ls,
+                                     sel.width() * ls, sel.height() * ls).toAlignedRect();
+        m_lastRegionScreen = screen ? screen->name() : QString();
         auto cb = std::move(m_imageCb);
         closeAll();
         cb(result);

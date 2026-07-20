@@ -149,7 +149,9 @@ private:
     QVector<Entry> m_entries;
     // DimensionsRole reads the image header (QImageReader::size(), no decode) and
     // data() runs per delegate binding — scrolling would re-read the same files
-    // continuously, so the answer is cached per path. Bounded by the 500-entry cap.
+    // continuously, so the answer is cached per path. Every entry-removal path
+    // drops the entry's path from this cache, keeping it bounded by the live
+    // entry set (the 500-entry cap) rather than lifetime capture count.
     mutable QHash<QString, QSize> m_dimCache;
     QFileSystemWatcher *m_watcher = nullptr;
     QTimer m_validateTimer;

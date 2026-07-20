@@ -52,12 +52,16 @@ Window {
         property string iconName
         signal clicked()
         width: 22; height: 22; radius: 11
-        color: bbMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
+        color: bbMouse.pressed ? Theme.alpha(Theme.recBadgeText, 0.32)
+             : bbMouse.containsMouse ? Theme.alpha(Theme.recBadgeText, 0.18) : "transparent"
         Behavior on color { ColorAnimation { duration: 90 } }
+        // Same springy press feedback as UIconButton.
+        scale: bbMouse.pressed ? 0.92 : 1.0
+        Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
         UIcon {
             anchors.centerIn: parent
             name: bb.iconName
-            color: "white"
+            color: Theme.recBadgeText
             size: 14
         }
         MouseArea {
@@ -152,7 +156,7 @@ Window {
             width: parent.disc
             height: width
             radius: width / 2
-            color: Qt.rgba(0, 0, 0, 0.55)
+            color: Theme.countdownBg
             border.width: 2
             border.color: Theme.accent
         }
@@ -160,7 +164,7 @@ Window {
             id: cdText
             anchors.centerIn: parent
             text: borderWindow.countdown
-            color: Theme.accent
+            color: Theme.countdownNumber
             font.pixelSize: Math.max(24, parent.disc * 0.62)
             font.bold: true
             onTextChanged: { scale = 1.4; cdPulse.restart() }
@@ -182,7 +186,7 @@ Window {
         width: badgeRow.width + 14
         height: 28
         radius: 14
-        color: Qt.rgba(0, 0, 0, 0.78)
+        color: Theme.recBadgeBg
         x: Math.max(0, Math.min(borderWindow.width - width, regionX))
         y: roomAbove ? regionY - height - 6 : regionY + regionH + 6
 
@@ -201,7 +205,7 @@ Window {
                 id: badgeDot
                 anchors.verticalCenter: parent.verticalCenter
                 width: 8; height: 8; radius: 4
-                color: "#ff4d4d"
+                color: Theme.recDot
                 opacity: 1
                 SequentialAnimation on opacity {
                     loops: Animation.Infinite; running: badge.visible && !App.recordingPaused
@@ -213,7 +217,7 @@ Window {
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 text: (App.recordingPaused ? qsTr("PAUSED") : qsTr("REC")) + "  " + borderWindow.fmt(App.recordSeconds)
-                color: "white"
+                color: Theme.recBadgeText
                 font.pixelSize: 12
                 font.bold: true
             }
@@ -221,7 +225,7 @@ Window {
             Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 1; height: 16
-                color: Qt.rgba(1, 1, 1, 0.22)
+                color: Theme.alpha(Theme.recBadgeText, 0.22)
             }
             BadgeButton {
                 anchors.verticalCenter: parent.verticalCenter

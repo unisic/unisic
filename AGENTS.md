@@ -74,6 +74,8 @@ src/
                         history), tray icon, hotkey dispatch, filename templating. Largest file.
   Settings.{h,cpp}      All persisted settings as Q_PROPERTYs. Metaobject-driven export/import.
   ConfigPath.h          UnisicConfig::filePath() — the ONE config file path.
+  FilenameTemplate.h    Save-name template expansion (%date%/%time%/%i%/…) + image
+                        extension mapping, header-only so tests skip AppContext.
 
   capture/              KWinScreenShot2 (silent KDE), PortalScreenshot, GnomeScreenshot (niri/
                         GNOME), GrimScreenshot (wlroots), PortalRequest (portal handle pattern),
@@ -85,13 +87,17 @@ src/
   overlay/             OverlayController (freezes each screen, one fullscreen OverlayWindow per
                         monitor).
   record/              PipeWireGrabber (libpipewire thread, keeps latest SHM frame), GifRecorder
-                        (samples to ffmpeg; also drives MP4/WebM).
+                        (samples to ffmpeg; also drives MP4/WebM), ClickCapture/KeyCapture
+                        (libinput observers, HAVE_LIBINPUT), CursorOverlayPainter (halo/ripples),
+                        KeystrokeOverlayPainter (screenkey-style badge; pure logic, unit-tested).
   upload/              UploadManager (.sxcu-like destinations.json; $text$/$json:$/$regex:$;
                         type:"curl" shells to curl for FTP/SFTP).
   history/             HistoryStore (capture history + thumbnails).
   hotkeys/             GlobalHotkeys (KGlobalAccel/DBus), PortalGlobalShortcuts (non-KDE).
-  theme/               ThemeController (module QML singleton; system-palette bridge),
-                        IconImageProvider (image://icon/... recolored SVGs / QIcon::fromTheme).
+  theme/               ThemeController (module QML singleton; system-palette bridge; community
+                        themes: <config>/themes/*.json, hot-reloaded), ThemeJson.h (theme-file
+                        schema, header-only + unit-tested), IconImageProvider (image://icon/...
+                        recolored SVGs / QIcon::fromTheme).
   notify/              CaptureNotification.
   ocr/                 OcrEngine (HAVE_TESSERACT only).
 
@@ -216,7 +222,7 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 
 ## 10. Verifying a change (do NOT skip this)
 
-This app is GUI + Wayland + D-Bus + external processes. Unit tests barely touch the load-bearing parts (there is no test suite yet). **The real verification is exercising the affected flow on a live Wayland session and observing behavior** — not "it compiles."
+This app is GUI + Wayland + D-Bus + external processes. Unit tests (`tests/`, run via `ctest` in the build dir) cover the pure-logic parts — Settings persistence (fresh-process round-trip), filename templating, shortcut formatting, version compare, annotation canvas, history filter — but barely touch the Wayland/D-Bus capture paths. **The real verification is exercising the affected flow on a live Wayland session and observing behavior** — not "it compiles."
 
 Before you claim a change works:
 

@@ -424,6 +424,20 @@ Window {
         version: App.appVersion
     }
 
+    // First-run dependency check: fires at most once (systemCheckSeen latch),
+    // and only when a core optional tool is actually missing, so a fully set-up
+    // machine never sees it. Skipped on a tray-only boot (no visible window to
+    // host a modal); the next normal launch picks it up. The small delay lets
+    // the window paint before the modal dims it.
+    USystemCheck { id: firstRunSystemCheck }
+    Timer {
+        interval: 500
+        running: !startHidden
+        repeat: false
+        onTriggered: if (!App.settings.systemCheckSeen && App.hasDependencyWarnings())
+                         firstRunSystemCheck.open()
+    }
+
     Item { // content
         anchors.left: sidebar.right
         anchors.right: parent.right

@@ -90,7 +90,10 @@ private:
     quint64 m_seq = 0;     // frame sequence, guarded by m_mutex
     std::atomic<bool> m_haveFrame{false};
     QSize m_size;
-    uint32_t m_format = 0;
+    // Written on the PipeWire thread (onParamChanged), read on the GUI thread
+    // (pixelFormat() during beginEncoding and per-frame compositing) — atomic
+    // so a mid-stream renegotiation is not a data race.
+    std::atomic<uint32_t> m_format{0};
 
     // Cursor-metadata path. m_cursorSamples is drained by takeCursorSamples();
     // the rest below is PipeWire-thread-only state.

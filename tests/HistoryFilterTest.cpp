@@ -294,6 +294,32 @@ private slots:
         QVERIFY(!filter.timestampAt(-1).isValid());
         QVERIFY(!filter.timestampAt(5).isValid());
     }
+
+    void dimCachePrunedOnRemoval()
+    {
+        // DimensionsRole caches per path; removing an entry must drop its cache
+        // slot — both so the hash stays bounded by the live entry set and so a
+        // later capture saved to the SAME path is not answered with the stale
+        // size of the deleted file.
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        HistoryStore store;
+        const QString path = dir.filePath(QStringLiteral("recaptured.png"));
+
+        QVERIFY(sampleImage(8, 6).save(path));
+        const quint64 id = store.addEntry(path, sampleImage(), QStringLiteral("image"));
+        QCOMPARE(store.data(store.index(0), HistoryStore::DimensionsRole).toString(),
+                 QStringLiteral("8×6"));
+
+        // Remove the file first so removeByIds has nothing to move to trash.
+        QVERIFY(QFile::remove(path));
+        store.removeByIds({QVariant(id)});
+        QCOMPARE(store.rowCount(), 0);
+        QVERIFY(sampleImage(16, 4).save(path));
+        store.addEntry(path, sampleImage(), QStringLiteral("image"));
+        QCOMPARE(store.data(store.index(0), HistoryStore::DimensionsRole).toString(),
+                 QStringLiteral("16×4"));
+    }
 };
 
 QTEST_MAIN(HistoryFilterTest)

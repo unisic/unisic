@@ -87,6 +87,17 @@ Item {
                 }
             }
 
+            // Defensive empty state: ensureBuiltins() normally keeps at least the
+            // built-in services here, so this shows only if every one is removed.
+            Text {
+                visible: App.uploads.destinations.length === 0
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("No upload destinations yet. Add one to send captures straight to your own server or a public host.")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontM
+            }
+
             Repeater {
                 model: App.uploads.destinations
                 delegate: Rectangle {

@@ -249,7 +249,7 @@ void PipeWireGrabber::onParamChanged(uint32_t id, const void *param)
         return;
 
     ev->haveFormat = true;
-    m_format = ev->format.info.raw.format;
+    m_format.store(ev->format.info.raw.format, std::memory_order_relaxed);
     const QSize size(int(ev->format.info.raw.size.width), int(ev->format.info.raw.size.height));
     m_size = size;
 
@@ -456,7 +456,7 @@ QString PipeWireGrabber::pixelFormat() const
 {
     // Native SPA byte order -> ffmpeg rawvideo pix_fmt (onProcess no longer
     // swizzles): the "x" formats map to the *0 variants that ignore the padding.
-    switch (m_format) {
+    switch (m_format.load(std::memory_order_relaxed)) {
     case SPA_VIDEO_FORMAT_BGRA: return QStringLiteral("bgra");
     case SPA_VIDEO_FORMAT_RGBx: return QStringLiteral("rgb0");
     case SPA_VIDEO_FORMAT_RGBA: return QStringLiteral("rgba");

@@ -197,7 +197,7 @@ Window {
                     // and leaves the overlay up so you can keep measuring.
                     var mt = canvas.measuresText(App.settings.measureCopyFormat)
                     if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
-                    else App.showToast(qsTr("Nothing measured yet — Ctrl+drag to measure"))
+                    else App.showToast(qsTr("Nothing measured yet - Ctrl+drag to measure"))
                 } else if (annotationToolsEnabled) {
                     // Spectacle parity: Ctrl+C accepts the selection and copies the
                     // result to the clipboard even when auto-copy is off. Screenshot

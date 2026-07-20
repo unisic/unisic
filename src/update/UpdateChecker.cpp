@@ -218,7 +218,7 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     if (http == 404) {
         res.ok = true;
         setAvailable(false);
-        m_status = tr("Checked at %1 — up to date").arg(at);
+        m_status = tr("Checked at %1 - up to date").arg(at);
         emit stateChanged();
         if (done)
             done(res);
@@ -226,7 +226,7 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     }
     if (reply->error() != QNetworkReply::NoError) {
         res.error = (http == 403 || http == 429)
-                        ? tr("GitHub rate limit reached — try again later")
+                        ? tr("GitHub rate limit reached - try again later")
                         : reply->errorString();
         // Automatic checks fail silently (log + status only); a manual check
         // has the user looking at the status line already.
@@ -245,7 +245,7 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     if (doc.isArray() && doc.array().isEmpty()) {
         res.ok = true;
         setAvailable(false);
-        m_status = tr("Checked at %1 — up to date").arg(at);
+        m_status = tr("Checked at %1 - up to date").arg(at);
         emit stateChanged();
         if (done)
             done(res);
@@ -291,8 +291,8 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     res.updateAvailable = newer;
     res.latestVersion = version;
     setAvailable(newer);
-    m_status = newer ? tr("Checked at %1 — version %2 is available").arg(at, version)
-                     : tr("Checked at %1 — up to date").arg(at);
+    m_status = newer ? tr("Checked at %1 - version %2 is available").arg(at, version)
+                     : tr("Checked at %1 - up to date").arg(at);
     emit stateChanged();
 
     if (newer && !manual) {
@@ -321,7 +321,7 @@ void UpdateChecker::downloadAndInstall()
         return;
     if (!canSelfUpdate() || m_assetUrl.isEmpty()) {
         m_status = m_assetUrl.isEmpty()
-                       ? tr("This release has no AppImage — it can't be installed in place")
+                       ? tr("This release has no AppImage - it can't be installed in place")
                        : tr("This install can't update itself");
         emit stateChanged();
         return;
@@ -410,7 +410,7 @@ void UpdateChecker::downloadAndInstall()
             m_downloading = false;
             m_progress = 1.0;
             m_restartPending = true;
-            m_status = tr("Update installed — restart to run version %1").arg(m_latest);
+            m_status = tr("Update installed - restart to run version %1").arg(m_latest);
             emit stateChanged();
             emit installed(m_latest);
             return;
@@ -491,7 +491,7 @@ void UpdateChecker::extractStagedAppImage(const QString &pkg)
         m_downloading = false;
         m_progress = 1.0;
         m_restartPending = true;
-        m_status = tr("Update installed — restart to run version %1").arg(m_latest);
+        m_status = tr("Update installed - restart to run version %1").arg(m_latest);
         emit stateChanged();
         emit installed(m_latest);
     };

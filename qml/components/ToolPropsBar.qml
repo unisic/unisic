@@ -407,7 +407,7 @@ Row {
                 // No names to type: the width is what visibly separates two
                 // presets of the same colour. Middle-click deletes, so the tip
                 // has to say so — nothing else in the bar hints at it.
-                text: qsTr("%1 px — middle-click to delete")
+                text: qsTr("%1 px - middle-click to delete")
                           .arg(presetDot.modelData.width !== undefined ? presetDot.modelData.width : 0)
             }
             // Deliberately not a hover ✕: the dots are 26 px and sit in a row

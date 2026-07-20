@@ -600,7 +600,7 @@ Window {
                                      ? qsTr("Reading keyframes…")
                                      : (trimController.keyframeState === TrimController.Ready
                                         ? qsTr("On: copies the streams, so the start snaps to a keyframe (ticks).")
-                                        : qsTr("No keyframes found — saving will re-encode instead.")))
+                                        : qsTr("No keyframes found - saving will re-encode instead.")))
                             color: Theme.textTertiary; font.pixelSize: Theme.fontS
                         }
                     }

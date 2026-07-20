@@ -219,7 +219,7 @@ public:
             const QString f = m_s.fileName();
             QFile::remove(f + QStringLiteral(".corrupt"));
             if (QFile::rename(f, f + QStringLiteral(".corrupt")))
-                qWarning() << "Settings file was corrupt — backed up to" << (f + ".corrupt")
+                qWarning() << "Settings file was corrupt - backed up to" << (f + ".corrupt")
                            << "and started fresh";
             m_s.sync(); // re-open the now-absent file cleanly
         }
@@ -301,7 +301,7 @@ public:
         m_s.remove(QStringLiteral("_probe"));
         m_s.sync();
         if (!m_writable)
-            qWarning() << "Settings are NOT persisting — cannot write" << m_s.fileName()
+            qWarning() << "Settings are NOT persisting - cannot write" << m_s.fileName()
                        << "(check permissions/ownership of ~/.config/unisic).";
     }
 

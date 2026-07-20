@@ -46,7 +46,7 @@ Popup {
         }
         Text {
             width: parent.width
-            text: qsTr("Unisic works out of the box. These optional tools unlock more — install any that are missing.")
+            text: qsTr("Unisic works out of the box. These optional tools unlock more - install any that are missing.")
             color: Theme.textSecondary
             font.pixelSize: Theme.fontM
             wrapMode: Text.WordWrap
@@ -78,7 +78,7 @@ Popup {
 
                     Text {
                         width: 18
-                        text: modelData.ok ? "✓" : (modelData.warn ? "!" : "—")
+                        text: modelData.ok ? "✓" : (modelData.warn ? "!" : "-")
                         color: modelData.ok ? Theme.success
                              : (modelData.warn ? Theme.danger : Theme.textTertiary)
                         font.pixelSize: Theme.fontM

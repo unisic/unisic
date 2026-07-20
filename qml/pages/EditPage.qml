@@ -31,7 +31,7 @@ Item {
                 font.weight: Font.Bold
             }
             Text {
-                text: qsTr("Open a picture or a video you already have — the same editor and trim window your captures use.")
+                text: qsTr("Open a picture or a video you already have - the same editor and trim window your captures use.")
                 width: parent.width
                 wrapMode: Text.WordWrap
                 color: Theme.textSecondary

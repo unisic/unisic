@@ -152,7 +152,7 @@ bool GifRecorder::hardwareEncoderWorks(const QString &id)
         const QString why = QString::fromUtf8(probe.readAll()).right(400).trimmed();
         qInfo().noquote() << "GifRecorder: hardware encoder" << id
                           << "is listed but does not encode here"
-                          << (why.isEmpty() ? QString() : QStringLiteral("— %1").arg(why));
+                          << (why.isEmpty() ? QString() : QStringLiteral("- %1").arg(why));
     }
     QMutexLocker lock(&cacheMutex);
     cache.insert(id, ok);
@@ -537,7 +537,7 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint
             openPortalSession();
             return;
         }
-        fail(tr("The shared screen doesn't match the one the region was selected on — pick \"%1\" in the sharing dialog")
+        fail(tr("The shared screen doesn't match the one the region was selected on - pick \"%1\" in the sharing dialog")
                  .arg(m_targetScreen->name()));
         return;
     }
@@ -617,7 +617,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 // instead of recording a misplaced region.
                 const qreal sx = qreal(m_streamSize.width()) / expected.width();
                 const qreal sy = qreal(m_streamSize.height()) / expected.height();
-                qWarning() << "Recording stream size differs from the selected screen —"
+                qWarning() << "Recording stream size differs from the selected screen -"
                            << "rescaling crop" << crop << "by" << sx << sy;
                 crop = QRect(qRound(crop.x() * sx), qRound(crop.y() * sy),
                              qRound(crop.width() * sx), qRound(crop.height() * sy));

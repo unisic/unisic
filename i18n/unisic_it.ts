@@ -1445,8 +1445,8 @@
         </translation>
     </message>
     <message>
-        <source>Scroll the selected area — scroll slowly enough that each view overlaps the last.</source>
-        <translation type="vanished">Scorri l&apos;area selezionata — piano, così che ogni vista si sovrapponga alla precedente.</translation>
+        <source>Scroll the selected area - scroll slowly enough that each view overlaps the last.</source>
+        <translation type="vanished">Scorri l&apos;area selezionata - piano, così che ogni vista si sovrapponga alla precedente.</translation>
     </message>
     <message>
         <source>Done</source>
@@ -1686,8 +1686,8 @@
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="329"/>
-        <source>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient — pick “Anonymous usage without user authorisation” — and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</source>
-        <translation>Unisic non include alcun Client-ID: identifica l&apos;applicazione, quindi uno condiviso metterebbe tutti gli utenti sullo stesso limite giornaliero. Registra un&apos;applicazione gratuita su https://api.imgur.com/oauth2/addclient — scegli “Anonymous usage without user authorisation” — e incolla qui il suo Client-ID. I caricamenti restano anonimi; non compaiono mai nella tua galleria di Imgur.</translation>
+        <source>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient - pick “Anonymous usage without user authorisation” - and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</source>
+        <translation>Unisic non include alcun Client-ID: identifica l&apos;applicazione, quindi uno condiviso metterebbe tutti gli utenti sullo stesso limite giornaliero. Registra un&apos;applicazione gratuita su https://api.imgur.com/oauth2/addclient - scegli “Anonymous usage without user authorisation” - e incolla qui il suo Client-ID. I caricamenti restano anonimi; non compaiono mai nella tua galleria di Imgur.</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="336"/>
@@ -1739,7 +1739,7 @@
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="34"/>
-        <source>Open a picture or a video you already have — the same editor and trim window your captures use.</source>
+        <source>Open a picture or a video you already have - the same editor and trim window your captures use.</source>
         <translation>Apri un&apos;immagine o un video che hai già: lo stesso editor e la stessa finestra di taglio delle tue catture.</translation>
     </message>
     <message>
@@ -1828,8 +1828,8 @@
     </message>
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="127"/>
-        <source>Text recognized — click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
-        <translation>Testo riconosciuto — clic su una riga, doppio clic su una parola o trascina per le lettere · Ctrl+A tutto · Ctrl+C copia</translation>
+        <source>Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
+        <translation>Testo riconosciuto - clic su una riga, doppio clic su una parola o trascina per le lettere · Ctrl+A tutto · Ctrl+C copia</translation>
     </message>
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="138"/>
@@ -2075,8 +2075,8 @@
     </message>
     <message>
         <location filename="../qml/pages/GifPage.qml" line="44"/>
-        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough — the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
-        <translation>La registrazione non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi nulla può consegnare lo schermo a Unisic. Un processo PipeWire in esecuzione non basta — è il portale a chiederti il permesso e ad aprire il flusso. Cinnamon, MATE e XFCE non hanno ancora un backend simile.</translation>
+        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
+        <translation>La registrazione non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi nulla può consegnare lo schermo a Unisic. Un processo PipeWire in esecuzione non basta - è il portale a chiederti il permesso e ad aprire il flusso. Cinnamon, MATE e XFCE non hanno ancora un backend simile.</translation>
     </message>
     <message>
         <location filename="../qml/pages/GifPage.qml" line="45"/>
@@ -2321,10 +2321,10 @@ Le catture con stella (preferite) vengono conservate, sia la voce che il file.</
         <location filename="../qml/pages/HistoryPage.qml" line="126"/>
         <source>This moves the selected capture files to the trash.
 
-Starred (favorite) captures in the selection are kept — un-star them first.</source>
+Starred (favorite) captures in the selection are kept - un-star them first.</source>
         <translation>Questo sposta i file delle catture selezionate nel cestino.
 
-Le catture con stella (preferite) nella selezione vengono mantenute — rimuovi prima la stella.</translation>
+Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi prima la stella.</translation>
     </message>
     <message>
         <location filename="../qml/pages/HistoryPage.qml" line="127"/>
@@ -2924,8 +2924,8 @@ Le catture con stella (preferite) nella selezione vengono mantenute — rimuovi 
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="58"/>
-        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough — the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
-        <translation>La registrazione non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi nulla può consegnare lo schermo a Unisic. Un processo PipeWire in esecuzione non basta — è il portale a chiederti il permesso e ad aprire il flusso. Cinnamon, MATE e XFCE non hanno ancora un backend simile.</translation>
+        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
+        <translation>La registrazione non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi nulla può consegnare lo schermo a Unisic. Un processo PipeWire in esecuzione non basta - è il portale a chiederti il permesso e ad aprire il flusso. Cinnamon, MATE e XFCE non hanno ancora un backend simile.</translation>
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="59"/>
@@ -3074,8 +3074,8 @@ Le catture con stella (preferite) nella selezione vengono mantenute — rimuovi 
         <translation type="vanished">Non è stato catturato nulla</translation>
     </message>
     <message>
-        <source>Nothing scrolled — capture the area as a normal screenshot instead.</source>
-        <translation type="vanished">Non è stato scorso nulla — cattura l&apos;area come una normale schermata.</translation>
+        <source>Nothing scrolled - capture the area as a normal screenshot instead.</source>
+        <translation type="vanished">Non è stato scorso nulla - cattura l&apos;area come una normale schermata.</translation>
     </message>
 </context>
 <context>
@@ -3368,8 +3368,8 @@ Le catture con stella (preferite) nella selezione vengono mantenute — rimuovi 
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="894"/>
-        <source>Only the latest release version is fetched from the GitHub API — nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray&apos;s Restart entry). Package installs are updated by the system package manager instead.</source>
-        <translation>Dall&apos;API di GitHub viene recuperata solo l&apos;ultima versione pubblicata — non viene inviato nulla su di te o sul tuo sistema. Le installazioni AppImage vengono scaricate e sostituite sul posto automaticamente; la nuova versione parte al prossimo avvio (o tramite la voce Riavvia nell&apos;area di notifica). Le installazioni da pacchetto vengono invece aggiornate dal gestore di pacchetti del sistema.</translation>
+        <source>Only the latest release version is fetched from the GitHub API - nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray&apos;s Restart entry). Package installs are updated by the system package manager instead.</source>
+        <translation>Dall&apos;API di GitHub viene recuperata solo l&apos;ultima versione pubblicata - non viene inviato nulla su di te o sul tuo sistema. Le installazioni AppImage vengono scaricate e sostituite sul posto automaticamente; la nuova versione parte al prossimo avvio (o tramite la voce Riavvia nell&apos;area di notifica). Le installazioni da pacchetto vengono invece aggiornate dal gestore di pacchetti del sistema.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="914"/>
@@ -4978,8 +4978,8 @@ Si applica alla prossima cattura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="811"/>
-        <source>No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on — and recognizes with just that script&apos;s installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.</source>
-        <translation>Senza conoscere i codici lingua di Tesseract. Con i dati OSD installati (il pacchetto «osd» di Tesseract), Unisic rileva la scrittura di ogni cattura — latina, araba, ebraica, cinese/giapponese/coreano, devanagari, ecc. — e riconosce solo con i pacchetti installati di quella scrittura, più veloce e preciso che caricarli tutti. Senza il pacchetto OSD ripiega sul caricamento di tutti i pacchetti installati. Installa i pacchetti per le scritture che usi.</translation>
+        <source>No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script&apos;s installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.</source>
+        <translation>Senza conoscere i codici lingua di Tesseract. Con i dati OSD installati (il pacchetto «osd» di Tesseract), Unisic rileva la scrittura di ogni cattura - latina, araba, ebraica, cinese/giapponese/coreano, devanagari, ecc. - e riconosce solo con i pacchetti installati di quella scrittura, più veloce e preciso che caricarli tutti. Senza il pacchetto OSD ripiega sul caricamento di tutti i pacchetti installati. Installa i pacchetti per le scritture che usi.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="834"/>
@@ -5598,7 +5598,7 @@ Si applica alla prossima cattura.</translation>
         <translation type="vanished">Se il monitor di inattività di mutter è disponibile per la scheda di cattura.</translation>
     </message>
     <message>
-        <source>org.gnome.Mutter.IdleMonitor. On GNOME the card cannot see the pointer leave it — XWayland freezes its view the moment the pointer moves onto a Wayland window. This clock keeps running, so “something was touched just now, and none of it reached the card” means you moved away, and the card lets go at once instead of waiting out the silence. Absent everywhere else, where it is not needed.</source>
+        <source>org.gnome.Mutter.IdleMonitor. On GNOME the card cannot see the pointer leave it - XWayland freezes its view the moment the pointer moves onto a Wayland window. This clock keeps running, so “something was touched just now, and none of it reached the card” means you moved away, and the card lets go at once instead of waiting out the silence. Absent everywhere else, where it is not needed.</source>
         <translation type="vanished">org.gnome.Mutter.IdleMonitor. Su GNOME la scheda non può vedere il puntatore che la lascia: XWayland congela la propria visione appena il puntatore passa su una finestra Wayland. Questo orologio continua a scorrere, quindi «qualcosa è stato toccato ora e niente di ciò è arrivato alla scheda» significa che te ne sei andato, e la scheda molla subito invece di aspettare il silenzio. Assente altrove, dove non serve.</translation>
     </message>
     <message>
@@ -6149,8 +6149,8 @@ binds {
     </message>
     <message>
         <location filename="../qml/components/ToolPropsBar.qml" line="410"/>
-        <source>%1 px — middle-click to delete</source>
-        <translation>%1 px — clic centrale per eliminare</translation>
+        <source>%1 px - middle-click to delete</source>
+        <translation>%1 px - clic centrale per eliminare</translation>
     </message>
     <message>
         <location filename="../qml/components/ToolPropsBar.qml" line="428"/>
@@ -6258,7 +6258,7 @@ binds {
     </message>
     <message>
         <location filename="../qml/TrimWindow.qml" line="603"/>
-        <source>No keyframes found — saving will re-encode instead.</source>
+        <source>No keyframes found - saving will re-encode instead.</source>
         <translation>Nessun fotogramma chiave trovato: il salvataggio ricodificherà.</translation>
     </message>
     <message>
@@ -6465,7 +6465,7 @@ binds {
     </message>
     <message>
         <location filename="../qml/components/USystemCheck.qml" line="49"/>
-        <source>Unisic works out of the box. These optional tools unlock more — install any that are missing.</source>
+        <source>Unisic works out of the box. These optional tools unlock more - install any that are missing.</source>
         <translation>Unisic funziona da subito. Questi strumenti facoltativi offrono di più: installa quelli mancanti.</translation>
     </message>
     <message>
@@ -6867,13 +6867,13 @@ binds {
         <location filename="../src/update/UpdateChecker.cpp" line="221"/>
         <location filename="../src/update/UpdateChecker.cpp" line="248"/>
         <location filename="../src/update/UpdateChecker.cpp" line="295"/>
-        <source>Checked at %1 — up to date</source>
-        <translation>Controllato alle %1 — tutto aggiornato</translation>
+        <source>Checked at %1 - up to date</source>
+        <translation>Controllato alle %1 - tutto aggiornato</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="229"/>
-        <source>GitHub rate limit reached — try again later</source>
-        <translation>Raggiunto il limite di richieste di GitHub — riprova più tardi</translation>
+        <source>GitHub rate limit reached - try again later</source>
+        <translation>Raggiunto il limite di richieste di GitHub - riprova più tardi</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="234"/>
@@ -6888,13 +6888,13 @@ binds {
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="294"/>
-        <source>Checked at %1 — version %2 is available</source>
-        <translation>Controllato alle %1 — è disponibile la versione %2</translation>
+        <source>Checked at %1 - version %2 is available</source>
+        <translation>Controllato alle %1 - è disponibile la versione %2</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="324"/>
-        <source>This release has no AppImage — it can&apos;t be installed in place</source>
-        <translation>Questa release non ha un AppImage — non può essere installata sul posto</translation>
+        <source>This release has no AppImage - it can&apos;t be installed in place</source>
+        <translation>Questa release non ha un AppImage - non può essere installata sul posto</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="325"/>
@@ -6940,8 +6940,8 @@ binds {
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="413"/>
         <location filename="../src/update/UpdateChecker.cpp" line="494"/>
-        <source>Update installed — restart to run version %1</source>
-        <translation>Aggiornamento installato — riavvia per usare la versione %1</translation>
+        <source>Update installed - restart to run version %1</source>
+        <translation>Aggiornamento installato - riavvia per usare la versione %1</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="423"/>

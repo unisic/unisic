@@ -14,7 +14,7 @@
       covers the whole workflow that starts the moment you press the hotkey:
       annotate directly on the selection overlay before the shot is even taken,
       keep editing afterwards, record the same region as a GIF or video, and push
-      the result wherever it belongs — clipboard, disk, or a custom upload
+      the result wherever it belongs - clipboard, disk, or a custom upload
       destination with the link ready to paste.
     </p>
     <p>Features:</p>
@@ -102,7 +102,7 @@
     </release>
     <release version="0.6.2" date="2026-07-12">
       <description>
-        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped — install through the native repositories or the AppImage.</p>
+        <p>The System theme now mirrors your full KDE colour scheme: cards, tooltips, hover states and the semantic positive/negative colours are read straight from the active Plasma palette, so Unisic looks native on KDE. Filled-body system icons (camera, monitor) no longer flatten to solid squares. Flatpak packaging was dropped - install through the native repositories or the AppImage.</p>
       </description>
     </release>
     <release version="0.6.1" date="2026-07-12">

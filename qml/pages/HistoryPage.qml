@@ -123,7 +123,7 @@ Item {
     UConfirmDialog {
         id: deleteSelectedConfirm
         title: qsTr("Delete the selected captures?")
-        text: qsTr("This moves the selected capture files to the trash.\n\nStarred (favorite) captures in the selection are kept — un-star them first.")
+        text: qsTr("This moves the selected capture files to the trash.\n\nStarred (favorite) captures in the selection are kept - un-star them first.")
         confirmText: qsTr("Delete")
         destructive: true
         onAccepted: {

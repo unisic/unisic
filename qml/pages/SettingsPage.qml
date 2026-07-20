@@ -808,7 +808,7 @@ Item {
                               : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
-                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on — and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
+                        helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
@@ -891,7 +891,7 @@ Item {
                         hint: qsTr("Automatic checks are disabled in dev builds.")
                         label: qsTr("Automatic updates")
                         help: qsTr("Checks for a new release shortly after startup and once a day, then installs it in the background.")
-                        helpDetail: qsTr("Only the latest release version is fetched from the GitHub API — nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray's Restart entry). Package installs are updated by the system package manager instead.")
+                        helpDetail: qsTr("Only the latest release version is fetched from the GitHub API - nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray's Restart entry). Package installs are updated by the system package manager instead.")
                         USwitch {
                             checked: App.settings.autoCheckUpdates
                             onToggled: (c) => App.settings.autoCheckUpdates = c
@@ -969,7 +969,7 @@ Item {
                             text: App.buildNumber === "dev"
                                   ? qsTr("Self-update is disabled in dev builds.")
                                   : App.updater.installKind === "appimage"
-                                    ? qsTr("The AppImage location is read-only — it can't update itself from here.")
+                                    ? qsTr("The AppImage location is read-only - it can't update itself from here.")
                                     : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
@@ -1140,7 +1140,7 @@ Item {
                     SettingRow {
                         label: qsTr("Show a pixel loupe while selecting")
                         help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
-                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour — so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Hold Ctrl and scroll on the overlay to change the magnification. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }
@@ -1270,7 +1270,7 @@ Item {
                     SettingRow {
                         label: qsTr("GIF frame rate")
                         help: qsTr("Frames per second sampled into the GIF.")
-                        helpDetail: qsTr("Higher is smoother but grows the file quickly. 10–15 fps is usually plenty for UI demos.")
+                        helpDetail: qsTr("Higher is smoother but grows the file quickly. 10-15 fps is usually plenty for UI demos.")
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.gifFps); onActivated: (i) => App.settings.gifFps = opts[i] }
                     }
                     SettingRow {
@@ -1341,7 +1341,7 @@ Item {
                         help: App.capCursorMetadata
                               ? qsTr("Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.")
                               : qsTr("This desktop's screen-cast portal cannot deliver the cursor separately, which this needs.")
-                        helpDetail: qsTr("Needs “Include mouse cursor”. Unisic asks the portal for the cursor as data instead of burnt into the picture, then draws the pointer itself, sharp and with a halo. The pointer is hidden whenever the desktop hides it — a game that hides the cursor stays cursor-less.")
+                        helpDetail: qsTr("Needs “Include mouse cursor”. Unisic asks the portal for the cursor as data instead of burnt into the picture, then draws the pointer itself, sharp and with a halo. The pointer is hidden whenever the desktop hides it - a game that hides the cursor stays cursor-less.")
                         USwitch {
                             checked: App.settings.cursorHighlight
                             enabled: (App.capCursorMetadata && App.settings.includeCursor) || App.devBuild
@@ -1556,7 +1556,7 @@ Item {
                     SettingRow {
                         label: qsTr("Always start with the default colors")
                         help: qsTr("Color picks made while annotating last for that session only.")
-                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults — the next session starts again from the colors configured in Settings → Editor.")
+                        helpDetail: qsTr("With this on, changing the stroke, fill, text outline or text background color in the editor or on the capture overlay does not overwrite your saved defaults - the next session starts again from the colors configured in Settings → Editor.")
                         USwitch { checked: App.settings.editorResetColors; onToggled: (c) => App.settings.editorResetColors = c }
                     }
                     SettingRow {
@@ -1780,7 +1780,7 @@ Item {
                     SettingRow {
                         label: qsTr("Ask where to save")
                         help: qsTr("Prompts for a location for each capture instead of saving straight to the folder.")
-                        helpDetail: qsTr("Requires saving to be enabled. Cancelling the dialog skips the save — the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
+                        helpDetail: qsTr("Requires saving to be enabled. Cancelling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
                         USwitch { checked: App.settings.askWhereToSave; onToggled: (c) => App.settings.askWhereToSave = c }
                     }
                     SettingRow {
@@ -1967,7 +1967,7 @@ Item {
                         hint: App.capCustomNotification ? ""
                               : qsTr("This compositor has no layer-shell support, so Unisic cannot draw its own stylized card. Native desktop notifications are used instead.")
                         help: qsTr("Draws capture notifications as Unisic's own themed card.")
-                        helpDetail: qsTr("On: the capture notification is Unisic's stylized always-on-top card (layer-shell), with the position, style and auto-hide options below.\nOff or unsupported: a native desktop notification is shown instead — the capture feedback itself never disappears; use the master switch above to silence everything.")
+                        helpDetail: qsTr("On: the capture notification is Unisic's stylized always-on-top card (layer-shell), with the position, style and auto-hide options below.\nOff or unsupported: a native desktop notification is shown instead - the capture feedback itself never disappears; use the master switch above to silence everything.")
                         USwitch {
                             checked: App.settings.showCapturePopup
                             enabled: App.settings.showNotifications
@@ -2024,7 +2024,7 @@ Item {
                         height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Distance from the screen edge")
                         help: qsTr("Gap between the capture card and the edge of the screen.")
-                        helpDetail: qsTr("Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way — Wayland gives an app no way to see where those are, so this is the manual knob.")
+                        helpDetail: qsTr("Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way - Wayland gives an app no way to see where those are, so this is the manual knob.")
                         UValueCombo {
                             id: popupMarginCombo
                             width: 120
@@ -2074,7 +2074,7 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: qsTr("Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it — an upload link, OCR support, a saved file.")
+                        text: qsTr("Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it - an upload link, OCR support, a saved file.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
@@ -2197,7 +2197,7 @@ Item {
                     SettingRow {
                         label: qsTr("Capture sound")
                         help: qsTr("Plays a short sound when a screenshot is taken.")
-                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
+                        helpDetail: qsTr("A fullscreen capture has no on-screen feedback, so it can be hard to tell it happened. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (add them there or with the + button). The sound plays through the system audio (pw-play/paplay/aplay).")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -2249,7 +2249,7 @@ Item {
                     SettingRow {
                         label: qsTr("Recording sound")
                         help: qsTr("Plays a short sound when a recording or GIF is finished.")
-                        helpDetail: qsTr("Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).")
+                        helpDetail: qsTr("Encoding can take a while after you stop a recording, so this cue tells you the file is actually ready. It is separate from the screenshot sound: pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off. Custom sounds are .wav/.ogg files in ~/.config/unisic/sounds (shared with the capture sound).")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -2288,7 +2288,7 @@ Item {
                     SettingRow {
                         label: qsTr("Recording start sound")
                         help: qsTr("Plays a short sound the moment recording begins (after the countdown).")
-                        helpDetail: qsTr("Separate from the finished-recording cue: this fires when capture actually starts. Pick a bundled cue — Shutter, Click, Beep, Ding or Pop — a custom sound, or Off.")
+                        helpDetail: qsTr("Separate from the finished-recording cue: this fires when capture actually starts. Pick a bundled cue - Shutter, Click, Beep, Ding or Pop - a custom sound, or Off.")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -2380,7 +2380,7 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Custom themes")
-                        help: qsTr("Drop .json theme files into the themes folder — they appear in the list above and reload live while you edit them.")
+                        help: qsTr("Drop .json theme files into the themes folder - they appear in the list above and reload live while you edit them.")
                         helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
                         Row {
                             spacing: Theme.spacingS
@@ -2653,7 +2653,7 @@ Item {
                     HotkeyRow {
                         label: qsTr("Copy last capture")
                         help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
-                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C — this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
                         shortcuts: App.settings.hotkeyCopyLast
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
@@ -2796,42 +2796,42 @@ Item {
                         label: qsTr("Native notifications")
                         help: qsTr("Whether a desktop notification server is available.")
                         helpDetail: qsTr("Detected from org.freedesktop.Notifications on the session bus. Without it (e.g. bare Sway) capture cards need the layer-shell path instead.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "—"
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "-"
                                color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Custom card (layer-shell)")
                         help: qsTr("Whether the compositor supports wlr-layer-shell surfaces.")
                         helpDetail: qsTr("Layer-shell powers the always-on-top capture card, the selection overlay above fullscreen apps and the pinned preview. KWin, wlroots and COSMIC have it; GNOME does not.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "—"
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "-"
                                color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Recording border")
                         help: qsTr("Whether a border can be drawn around the recorded region.")
                         helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "—"
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "-"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("PipeWire (build)")
                         help: qsTr("Whether this build was compiled against PipeWire.")
                         helpDetail: qsTr("Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capPipeWireBuild ? "✓" : "—"
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capPipeWireBuild ? "✓" : "-"
                                color: App.capPipeWireBuild ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("ScreenCast portal")
                         help: qsTr("Whether this desktop has a ScreenCast portal backend.")
-                        helpDetail: qsTr("Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it — the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capScreenCastPortal ? "✓" : "—"
+                        helpDetail: qsTr("Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it - the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capScreenCastPortal ? "✓" : "-"
                                color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Video preview")
                         help: qsTr("Whether the trim editor can show a live video preview.")
                         helpDetail: qsTr("Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capVideoPlayback ? "✓" : "—"
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capVideoPlayback ? "✓" : "-"
                                color: App.capVideoPlayback ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     Row {

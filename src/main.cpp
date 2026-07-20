@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
             }
             err = batchContext.importSettings(QUrl::fromLocalFile(args[j + 1]));
             if (err.isEmpty())
-                qInfo() << "Settings imported — restart a running Unisic instance to apply them.";
+                qInfo() << "Settings imported - restart a running Unisic instance to apply them.";
         }
         if (!err.isEmpty()) {
             qWarning() << err;

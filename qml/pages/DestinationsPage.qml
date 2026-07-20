@@ -326,7 +326,7 @@ Item {
                     width: parent.width
                     visible: fClientId.visible
                     wrapMode: Text.WordWrap
-                    text: qsTr("Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient — pick “Anonymous usage without user authorisation” — and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.")
+                    text: qsTr("Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient - pick “Anonymous usage without user authorisation” - and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.")
                     color: Theme.textTertiary
                     font.pixelSize: Theme.fontS
                 }

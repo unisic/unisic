@@ -140,7 +140,7 @@ AppContext::AppContext(QObject *parent)
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
         showToast(m_updater->canSelfUpdate()
-                      ? tr("Unisic %1 is available — updating automatically").arg(v)
+                      ? tr("Unisic %1 is available - updating automatically").arg(v)
                       : tr("Unisic %1 is available").arg(v));
     });
     connect(m_updater, &UpdateChecker::installed, this, [this](const QString &v) {
@@ -150,7 +150,7 @@ AppContext::AppContext(QObject *parent)
         // Busy right now — tell the user it's ready and keep retrying quietly
         // until the app goes idle (recording over, editors closed, window
         // hidden back into the tray).
-        showToast(tr("Unisic %1 installed — it will start on the next launch").arg(v));
+        showToast(tr("Unisic %1 installed - it will start on the next launch").arg(v));
         if (!m_updateRestartTimer) {
             m_updateRestartTimer = new QTimer(this);
             m_updateRestartTimer->setInterval(60 * 1000);
@@ -326,7 +326,7 @@ void AppContext::initialize(QQmlEngine *engine)
             m_screenCastPortalPresent = present;
             emit recordingAvailableChanged();
             if (!present)
-                qWarning() << "No ScreenCast portal backend on this desktop — recording disabled"
+                qWarning() << "No ScreenCast portal backend on this desktop - recording disabled"
                               " (install a backend such as xdg-desktop-portal-wlr/-kde/-gnome)";
         }
     });
@@ -837,7 +837,7 @@ QString AppContext::captureErrorGuidance(const QString &err)
         // "code 2" with no dialog = the permission store holds a sticky "no"
         // (a once-denied GNOME access dialog). GNOME Settings does not list
         // host apps, so name the actual repair command.
-        text += tr(". GNOME is blocking silent screenshots for Unisic — run "
+        text += tr(". GNOME is blocking silent screenshots for Unisic - run "
                    "\"flatpak permission-reset screenshot\" and retry, and check that "
                    "xdg-desktop-portal-gnome is running.");
     else if (!err.contains(QLatin1String("grim")))
@@ -1081,7 +1081,7 @@ void AppContext::recaptureLastRegion()
     if (rect.isEmpty()) {
         m_nextCaptureTask = {};
         clearCliCapture(tr("No region to re-capture"));
-        showToast(tr("No region to re-capture yet — take a region screenshot first"), true);
+        showToast(tr("No region to re-capture yet - take a region screenshot first"), true);
         return;
     }
     QScreen *target = nullptr;
@@ -1524,23 +1524,23 @@ QVariantList AppContext::dependencyReport() const
 
     const bool ffmpeg = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
     add(tr("FFmpeg"), ffmpeg, true,
-        ffmpeg ? tr("Found — screen recording and GIF export are available.")
+        ffmpeg ? tr("Found - screen recording and GIF export are available.")
                : tr("Missing. Screen recording and GIF export need FFmpeg. Install the \"ffmpeg\" package."));
 
     const bool wlclip = !QStandardPaths::findExecutable(QStringLiteral("wl-copy")).isEmpty();
     add(tr("wl-clipboard"), wlclip, false,
-        wlclip ? tr("Found — copy to clipboard is at its most reliable.")
+        wlclip ? tr("Found - copy to clipboard is at its most reliable.")
                : tr("Optional. Install \"wl-clipboard\" for the most reliable copy-to-clipboard on Wayland."));
 
 #ifdef HAVE_TESSERACT
     const bool haveLangs = ocrHasLanguages();
     add(tr("OCR language pack"), haveLangs, true,
-        haveLangs ? tr("Found — text recognition (OCR) is ready.")
+        haveLangs ? tr("Found - text recognition (OCR) is ready.")
                   : tr("Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. \"tesseract-langpack-eng\"."));
     if (haveLangs) {
         const bool osd = OcrEngine::scriptDetectionAvailable();
         add(tr("OCR auto-language (osd)"), osd, false,
-            osd ? tr("Found — OCR detects the script of each capture automatically.")
+            osd ? tr("Found - OCR detects the script of each capture automatically.")
                 : tr("Optional. Install the Tesseract \"osd\" pack so OCR auto-language works across scripts."));
     }
 #endif
@@ -2481,7 +2481,7 @@ static QString magnifyCheck()
         return QStringLiteral("FAIL (loupe centre is not the magnified marker)");
     const QColor offCentre = out.pixelColor(76, 70);
     if (offCentre.red() < 150 || offCentre.green() > 120)
-        return QStringLiteral("FAIL (loupe does not magnify — 2x expected)");
+        return QStringLiteral("FAIL (loupe does not magnify - 2x expected)");
     return QStringLiteral("PASS (loupe placed, centred, 2x)");
 }
 
@@ -2573,7 +2573,7 @@ static QString pixelLoupeCheck()
         return QStringLiteral("FAIL (zoom did not clamp at 4)");
     if (c.rendered() != base)
         return QStringLiteral("FAIL (loupe leaked into the exported render)");
-    return QStringLiteral("PASS (follows hover, edge flip, Ctrl+scroll 4–16, not exported)");
+    return QStringLiteral("PASS (follows hover, edge flip, Ctrl+scroll 4-16, not exported)");
 }
 
 void AppContext::devTestPixelLoupe()
@@ -2785,7 +2785,7 @@ static QString cursorOverlayCheck()
 
     const bool meta = ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata;
     return QStringLiteral("PASS (portal metadata cursor: %1, clicks: %2)")
-        .arg(meta ? QStringLiteral("yes") : QStringLiteral("NO — would fall back to embedded"),
+        .arg(meta ? QStringLiteral("yes") : QStringLiteral("NO - would fall back to embedded"),
              InputPermission::probe() == InputPermission::Available
                  ? QStringLiteral("yes") : QStringLiteral("no (needs the input group)"));
 }
@@ -2825,7 +2825,7 @@ void AppContext::devTestUpdateCheck()
     // manual=true: visible errors, no toast/once-per-version bookkeeping.
     m_updater->check(true, [this](const UpdateChecker::Result &r) {
         showToast(tr("Dev: update check: %1")
-                      .arg(r.ok ? QStringLiteral("PASS (latest %1 — %2)")
+                      .arg(r.ok ? QStringLiteral("PASS (latest %1 - %2)")
                                       .arg(r.latestVersion.isEmpty() ? QStringLiteral("none")
                                                                      : r.latestVersion,
                                            r.updateAvailable ? QStringLiteral("update available")
@@ -2851,7 +2851,7 @@ void AppContext::devTestAutoRestart()
     if (!devBuild())
         return;
     const QString b = autoRestartBlockers();
-    showToast(b.isEmpty() ? tr("Dev: auto-restart gate: idle — an installed update would restart now")
+    showToast(b.isEmpty() ? tr("Dev: auto-restart gate: idle - an installed update would restart now")
                           : tr("Dev: auto-restart gate: deferred (%1)").arg(b));
 }
 
@@ -2893,7 +2893,7 @@ bool AppContext::tryUpdateRestart()
         qInfo() << "Update restart deferred:" << blockers;
         return false;
     }
-    qInfo() << "Idle — restarting into the updated version";
+    qInfo() << "Idle - restarting into the updated version";
     // Idle implies the window is hidden in the tray: come back the same way.
     m_updater->restartNow(true);
     return true;
@@ -3066,7 +3066,7 @@ void AppContext::devTestCountdown()
     if (!devBuild())
         return;
     if (m_settings->recordCountdownSec() <= 0) {
-        showToast(tr("Dev: countdown is 0s (off) — set it in Recording settings"));
+        showToast(tr("Dev: countdown is 0s (off) - set it in Recording settings"));
         return;
     }
     // Exercise the real in-frame countdown: set a centered test region (same as
@@ -3089,7 +3089,7 @@ void AppContext::devTestCountdown()
     QTimer::singleShot(secs * 1000 + 1200, this, [this]() {
         if (!recording())
             hideRecordBorder();
-        showToast(tr("Dev: countdown finished — recording would start now"));
+        showToast(tr("Dev: countdown finished - recording would start now"));
     });
 }
 
@@ -3098,7 +3098,7 @@ void AppContext::devTestFullscreenCountdown()
     if (!devBuild())
         return;
     if (m_settings->recordCountdownSec() <= 0) {
-        showToast(tr("Dev: countdown is 0s (off) — set it in Recording settings"));
+        showToast(tr("Dev: countdown is 0s (off) - set it in Recording settings"));
         return;
     }
     // The full-screen / window path: NO pending region, so runRecordCountdownVisuals
@@ -3114,7 +3114,7 @@ void AppContext::devTestFullscreenCountdown()
         if (!recording())
             hideRecordBorder();
         showToast(overlay
-                      ? tr("Dev: full-screen countdown finished — recording would start now")
+                      ? tr("Dev: full-screen countdown finished - recording would start now")
                       : tr("Dev: full-screen countdown fell back to a toast (no record-border support)"),
                   !overlay);
     });
@@ -3191,7 +3191,7 @@ void AppContext::devTestCardPreview()
         showToast(tr("Dev: card preview FAILED (no card was created)"), true);
         return;
     }
-    showToast(tr("Dev: card preview — withdrawing in 3 s"));
+    showToast(tr("Dev: card preview - withdrawing in 3 s"));
     QTimer::singleShot(3000, this, [this] { hideCapturePopupPreview(); });
 }
 
@@ -3208,7 +3208,7 @@ void AppContext::devTestNotification()
         return;
     }
     if (!m_settings->showCapturePopup())
-        showToast(tr("Dev: stylized cards are off — falling back to a native "
+        showToast(tr("Dev: stylized cards are off - falling back to a native "
                      "desktop notification"));
     const bool inhibited = nowInhibited();
     if (inhibited && m_settings->muteOnFullscreen())
@@ -3652,7 +3652,7 @@ QString AppContext::altHotkeysCheck()
     const QString wanted = QStringLiteral("F9, Meta+F9");
     QString result;
     if (!m_hotkeys->setShortcut(id, name, wanted)) {
-        result = QStringLiteral("FAIL (daemon refused the multi-binding — keys taken?)");
+        result = QStringLiteral("FAIL (daemon refused the multi-binding - keys taken?)");
     } else {
         bool ok = false;
         const QString actual = m_hotkeys->activeKeysPortable(id, &ok);
@@ -3674,7 +3674,7 @@ void AppContext::devTestAltHotkeys()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: alternate hotkeys — %1").arg(altHotkeysCheck()));
+    showToast(tr("Dev: alternate hotkeys - %1").arg(altHotkeysCheck()));
 }
 
 QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts)
@@ -3779,7 +3779,7 @@ void AppContext::smokeNext()
         const int skip = m_smokeLog.count(QStringLiteral("SKIP"));
         smokeLog(QStringLiteral("=== smoke test done: %1 PASS, %2 FAIL, %3 SKIP%4 ===")
                      .arg(pass).arg(fail).arg(skip)
-                     .arg(fail > 0 ? QStringLiteral(" — FAILURES PRESENT") : QString()));
+                     .arg(fail > 0 ? QStringLiteral(" - FAILURES PRESENT") : QString()));
         m_smokeSteps.clear();
         emit smokeTestChanged();
         return;
@@ -4100,7 +4100,7 @@ void AppContext::runSmokeTest()
         const int bar = stored.indexOf(QLatin1Char('|'));
         const QStringList parts = stored.mid(bar + 1).split(QLatin1Char(','));
         if (bar <= 0 || parts.size() != 4) {
-            smokeLog(QStringLiteral("re-capture region: SKIP (no region stored — take a region shot first)"));
+            smokeLog(QStringLiteral("re-capture region: SKIP (no region stored - take a region shot first)"));
             smokeNext();
             return;
         }
@@ -4639,7 +4639,7 @@ void AppContext::runSmokeTest()
         m_updater->check(true, [this](const UpdateChecker::Result &r) {
             // Offline is a SKIP, not a FAIL — dev machines must keep a green run.
             smokeLog(QStringLiteral("update check: ")
-                     + (r.ok ? QStringLiteral("PASS (latest %1 — %2)")
+                     + (r.ok ? QStringLiteral("PASS (latest %1 - %2)")
                                    .arg(r.latestVersion.isEmpty() ? QStringLiteral("none")
                                                                   : r.latestVersion,
                                         r.updateAvailable ? QStringLiteral("update available")
@@ -4659,7 +4659,7 @@ void AppContext::runSmokeTest()
     // Essentials: filename tokens, save routing, countdown, volume, channel.
     m_smokeSteps.append([this] {
         const QString name = makeFileName();
-        smokeLog(QStringLiteral("filename: %1 (counter=%2, dateSubfolders=%3, stripMeta=%4) — %5")
+        smokeLog(QStringLiteral("filename: %1 (counter=%2, dateSubfolders=%3, stripMeta=%4) - %5")
                      .arg(name)
                      .arg(m_settings->filenameCounter())
                      .arg(m_settings->dateSubfolders() ? QStringLiteral("on") : QStringLiteral("off"),
@@ -6701,7 +6701,7 @@ void AppContext::exportFilesToZip(const QStringList &files, const QString &destP
     // No zip library is linked (see the header note): shell out to Info-ZIP.
     const QString zipBin = QStandardPaths::findExecutable(QStringLiteral("zip"));
     if (zipBin.isEmpty()) {
-        report(false, tr("The “zip” program is not installed — install it and try again."));
+        report(false, tr("The “zip” program is not installed - install it and try again."));
         return;
     }
 
@@ -6956,7 +6956,7 @@ void AppContext::defineHotkeys()
                                     tr("Stop recording (emergency)"),
                                     QStringLiteral("Ctrl+Escape"))) {
             qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
-                          " component — on stock Plasma: Show System Activity)";
+                          " component - on stock Plasma: Show System Activity)";
             showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
                          "(System Settings → Shortcuts to free it)"));
         }
@@ -7048,7 +7048,7 @@ void AppContext::defineHotkeys()
                         << "trigger descriptions";
             else
                 qWarning() << "GlobalShortcuts portal exists but has no working backend here"
-                              " — falling back to compositor-binds guidance";
+                              " - falling back to compositor-binds guidance";
         });
         // Optimistic until the response lands — avoids flashing the
         // "unavailable" card during the round-trip.
@@ -7233,7 +7233,7 @@ void AppContext::setupTray()
     } else if (m_updater && m_updater->updateAvailable()) {
         // Persistent counterpart of the one-shot update toast — a tray-dwelling
         // app may never have a window up when the toast fires.
-        menu->addAction(tr("Update available — Unisic %1").arg(m_updater->latestVersion()),
+        menu->addAction(tr("Update available - Unisic %1").arg(m_updater->latestVersion()),
                         this, [this] { emit showMainWindowRequested(); });
         menu->addSeparator();
     }

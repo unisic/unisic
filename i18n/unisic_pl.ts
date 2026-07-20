@@ -1498,8 +1498,8 @@
         </translation>
     </message>
     <message>
-        <source>Scroll the selected area — scroll slowly enough that each view overlaps the last.</source>
-        <translation type="vanished">Przewijaj zaznaczony obszar — na tyle wolno, żeby każdy widok zachodził na poprzedni.</translation>
+        <source>Scroll the selected area - scroll slowly enough that each view overlaps the last.</source>
+        <translation type="vanished">Przewijaj zaznaczony obszar - na tyle wolno, żeby każdy widok zachodził na poprzedni.</translation>
     </message>
     <message>
         <source>Done</source>
@@ -1636,8 +1636,8 @@
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="329"/>
-        <source>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient — pick “Anonymous usage without user authorisation” — and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</source>
-        <translation>Unisic nie dostarcza własnego Client-ID: identyfikuje on aplikację, więc wspólny wrzuciłby wszystkich użytkowników na jeden dzienny limit. Zarejestruj darmową aplikację na https://api.imgur.com/oauth2/addclient — wybierz „Anonymous usage without user authorisation” — i wklej tutaj jej Client-ID. Wysyłki pozostają anonimowe; nigdy nie trafiają do twojej galerii Imgura.</translation>
+        <source>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient - pick “Anonymous usage without user authorisation” - and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</source>
+        <translation>Unisic nie dostarcza własnego Client-ID: identyfikuje on aplikację, więc wspólny wrzuciłby wszystkich użytkowników na jeden dzienny limit. Zarejestruj darmową aplikację na https://api.imgur.com/oauth2/addclient - wybierz „Anonymous usage without user authorisation” - i wklej tutaj jej Client-ID. Wysyłki pozostają anonimowe; nigdy nie trafiają do twojej galerii Imgura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="386"/>
@@ -1739,8 +1739,8 @@
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="34"/>
-        <source>Open a picture or a video you already have — the same editor and trim window your captures use.</source>
-        <translation>Otwórz zdjęcie lub film, który już masz — w tym samym edytorze i oknie przycinania, co Twoje zrzuty.</translation>
+        <source>Open a picture or a video you already have - the same editor and trim window your captures use.</source>
+        <translation>Otwórz zdjęcie lub film, który już masz - w tym samym edytorze i oknie przycinania, co Twoje zrzuty.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="51"/>
@@ -1770,7 +1770,7 @@
     <message>
         <location filename="../qml/pages/EditPage.qml" line="142"/>
         <source>Editing an image never touches the original: the editor saves where your captures go, under a new name, unless you overwrite it yourself. Trimming always writes a new file next to the source.</source>
-        <translation>Edycja obrazu nie rusza oryginału: edytor zapisuje tam, gdzie lądują Twoje zrzuty, pod nową nazwą — chyba że sam nadpiszesz. Przycinanie zawsze tworzy nowy plik obok źródła.</translation>
+        <translation>Edycja obrazu nie rusza oryginału: edytor zapisuje tam, gdzie lądują Twoje zrzuty, pod nową nazwą - chyba że sam nadpiszesz. Przycinanie zawsze tworzy nowy plik obok źródła.</translation>
     </message>
     <message>
         <location filename="../qml/pages/EditPage.qml" line="150"/>
@@ -1809,8 +1809,8 @@
     </message>
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="127"/>
-        <source>Text recognized — click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
-        <translation>Rozpoznano tekst — kliknij linię, dwuklik zaznacza słowo, przeciągnij dla liter · Ctrl+A wszystko · Ctrl+C kopiuj</translation>
+        <source>Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
+        <translation>Rozpoznano tekst - kliknij linię, dwuklik zaznacza słowo, przeciągnij dla liter · Ctrl+A wszystko · Ctrl+C kopiuj</translation>
     </message>
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="151"/>
@@ -2121,8 +2121,8 @@
     </message>
     <message>
         <location filename="../qml/pages/GifPage.qml" line="44"/>
-        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough — the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
-        <translation>Nagrywanie jest niedostępne: ten pulpit nie ma backendu portalu ScreenCast, więc nic nie może przekazać Unisic obrazu ekranu. Działający proces PipeWire nie wystarczy — to portal pyta Cię o zgodę i otwiera strumień. Cinnamon, MATE i XFCE nie mają jeszcze takiego backendu.</translation>
+        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
+        <translation>Nagrywanie jest niedostępne: ten pulpit nie ma backendu portalu ScreenCast, więc nic nie może przekazać Unisic obrazu ekranu. Działający proces PipeWire nie wystarczy - to portal pyta Cię o zgodę i otwiera strumień. Cinnamon, MATE i XFCE nie mają jeszcze takiego backendu.</translation>
     </message>
     <message>
         <location filename="../qml/pages/GifPage.qml" line="45"/>
@@ -2313,10 +2313,10 @@
         <location filename="../qml/pages/HistoryPage.qml" line="126"/>
         <source>This moves the selected capture files to the trash.
 
-Starred (favorite) captures in the selection are kept — un-star them first.</source>
+Starred (favorite) captures in the selection are kept - un-star them first.</source>
         <translation>Przenosi zaznaczone pliki zrzutów do kosza.
 
-Zrzuty oznaczone (ulubione) w zaznaczeniu zostają — najpierw usuń im oznaczenie.</translation>
+Zrzuty oznaczone (ulubione) w zaznaczeniu zostają - najpierw usuń im oznaczenie.</translation>
     </message>
     <message>
         <location filename="../qml/pages/HistoryPage.qml" line="127"/>
@@ -2945,8 +2945,8 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="58"/>
-        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough — the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
-        <translation>Nagrywanie jest niedostępne: ten pulpit nie ma backendu portalu ScreenCast, więc nic nie może przekazać Unisic obrazu ekranu. Działający proces PipeWire nie wystarczy — to portal pyta Cię o zgodę i otwiera strumień. Cinnamon, MATE i XFCE nie mają jeszcze takiego backendu.</translation>
+        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
+        <translation>Nagrywanie jest niedostępne: ten pulpit nie ma backendu portalu ScreenCast, więc nic nie może przekazać Unisic obrazu ekranu. Działający proces PipeWire nie wystarczy - to portal pyta Cię o zgodę i otwiera strumień. Cinnamon, MATE i XFCE nie mają jeszcze takiego backendu.</translation>
     </message>
     <message>
         <location filename="../qml/pages/RecordPage.qml" line="83"/>
@@ -3169,8 +3169,8 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="811"/>
-        <source>No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture — Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on — and recognizes with just that script&apos;s installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.</source>
-        <translation>Bez znajomości kodów języków Tesseract. Z zainstalowanymi danymi OSD (pakiet „osd” Tesseract) Unisic wykrywa pismo każdego zrzutu — łacińskie, arabskie, hebrajskie, chińskie/japońskie/koreańskie, dewanagari itd. — i rozpoznaje tylko zainstalowanymi paczkami tego pisma, co jest szybsze i dokładniejsze niż ładowanie wszystkich. Bez pakietu OSD wraca do ładowania wszystkich zainstalowanych paczek. Zainstaluj paczki dla pism, których używasz.</translation>
+        <source>No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script&apos;s installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.</source>
+        <translation>Bez znajomości kodów języków Tesseract. Z zainstalowanymi danymi OSD (pakiet „osd” Tesseract) Unisic wykrywa pismo każdego zrzutu - łacińskie, arabskie, hebrajskie, chińskie/japońskie/koreańskie, dewanagari itd. - i rozpoznaje tylko zainstalowanymi paczkami tego pisma, co jest szybsze i dokładniejsze niż ładowanie wszystkich. Bez pakietu OSD wraca do ładowania wszystkich zainstalowanych paczek. Zainstaluj paczki dla pism, których używasz.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="834"/>
@@ -3199,8 +3199,8 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="894"/>
-        <source>Only the latest release version is fetched from the GitHub API — nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray&apos;s Restart entry). Package installs are updated by the system package manager instead.</source>
-        <translation>Z API GitHub pobierane są tylko informacje o najnowszym wydaniu — nic o Tobie ani o Twoim systemie nie jest wysyłane. Instalacje AppImage są pobierane i podmieniane w miejscu automatycznie; nowa wersja uruchomi się przy następnym starcie (lub przez pozycję „Uruchom ponownie” w menu zasobnika). Instalacje z pakietów aktualizuje natomiast systemowy menedżer pakietów.</translation>
+        <source>Only the latest release version is fetched from the GitHub API - nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray&apos;s Restart entry). Package installs are updated by the system package manager instead.</source>
+        <translation>Z API GitHub pobierane są tylko informacje o najnowszym wydaniu - nic o Tobie ani o Twoim systemie nie jest wysyłane. Instalacje AppImage są pobierane i podmieniane w miejscu automatycznie; nowa wersja uruchomi się przy następnym starcie (lub przez pozycję „Uruchom ponownie” w menu zasobnika). Instalacje z pakietów aktualizuje natomiast systemowy menedżer pakietów.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="902"/>
@@ -4151,8 +4151,8 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Czy monitor bezczynności muttera jest dostępny dla karty przechwytywania.</translation>
     </message>
     <message>
-        <source>org.gnome.Mutter.IdleMonitor. On GNOME the card cannot see the pointer leave it — XWayland freezes its view the moment the pointer moves onto a Wayland window. This clock keeps running, so “something was touched just now, and none of it reached the card” means you moved away, and the card lets go at once instead of waiting out the silence. Absent everywhere else, where it is not needed.</source>
-        <translation type="vanished">org.gnome.Mutter.IdleMonitor. Na GNOME karta nie widzi, jak kursor z niej zjeżdża — XWayland zamraża swój obraz w chwili, gdy kursor wejdzie na okno Wayland. Ten zegar tyka dalej, więc „coś było przed chwilą dotknięte, a nic z tego nie dotarło do karty” znaczy, że odjechałeś, i karta puszcza od razu zamiast odczekiwać ciszę. Gdzie indziej go nie ma i nie jest potrzebny.</translation>
+        <source>org.gnome.Mutter.IdleMonitor. On GNOME the card cannot see the pointer leave it - XWayland freezes its view the moment the pointer moves onto a Wayland window. This clock keeps running, so “something was touched just now, and none of it reached the card” means you moved away, and the card lets go at once instead of waiting out the silence. Absent everywhere else, where it is not needed.</source>
+        <translation type="vanished">org.gnome.Mutter.IdleMonitor. Na GNOME karta nie widzi, jak kursor z niej zjeżdża - XWayland zamraża swój obraz w chwili, gdy kursor wejdzie na okno Wayland. Ten zegar tyka dalej, więc „coś było przed chwilą dotknięte, a nic z tego nie dotarło do karty” znaczy, że odjechałeś, i karta puszcza od razu zamiast odczekiwać ciszę. Gdzie indziej go nie ma i nie jest potrzebny.</translation>
     </message>
     <message>
         <source>XWayland pointer check</source>
@@ -6130,8 +6130,8 @@ Dotyczy następnego przechwycenia.</translation>
     </message>
     <message>
         <location filename="../qml/components/ToolPropsBar.qml" line="410"/>
-        <source>%1 px — middle-click to delete</source>
-        <translation>%1 px — środkowy przycisk usuwa</translation>
+        <source>%1 px - middle-click to delete</source>
+        <translation>%1 px - środkowy przycisk usuwa</translation>
     </message>
     <message>
         <location filename="../qml/components/ToolPropsBar.qml" line="428"/>
@@ -6259,8 +6259,8 @@ Dotyczy następnego przechwycenia.</translation>
     </message>
     <message>
         <location filename="../qml/TrimWindow.qml" line="603"/>
-        <source>No keyframes found — saving will re-encode instead.</source>
-        <translation>Nie znaleziono klatek kluczowych — zapis przekoduje nagranie.</translation>
+        <source>No keyframes found - saving will re-encode instead.</source>
+        <translation>Nie znaleziono klatek kluczowych - zapis przekoduje nagranie.</translation>
     </message>
     <message>
         <location filename="../qml/TrimWindow.qml" line="614"/>
@@ -6466,8 +6466,8 @@ Dotyczy następnego przechwycenia.</translation>
     </message>
     <message>
         <location filename="../qml/components/USystemCheck.qml" line="49"/>
-        <source>Unisic works out of the box. These optional tools unlock more — install any that are missing.</source>
-        <translation>Unisic działa od razu. Te opcjonalne narzędzia dają więcej — zainstaluj brakujące.</translation>
+        <source>Unisic works out of the box. These optional tools unlock more - install any that are missing.</source>
+        <translation>Unisic działa od razu. Te opcjonalne narzędzia dają więcej - zainstaluj brakujące.</translation>
     </message>
     <message>
         <location filename="../qml/components/USystemCheck.qml" line="55"/>
@@ -6868,13 +6868,13 @@ Dotyczy następnego przechwycenia.</translation>
         <location filename="../src/update/UpdateChecker.cpp" line="221"/>
         <location filename="../src/update/UpdateChecker.cpp" line="248"/>
         <location filename="../src/update/UpdateChecker.cpp" line="295"/>
-        <source>Checked at %1 — up to date</source>
-        <translation>Sprawdzono o %1 — wersja jest aktualna</translation>
+        <source>Checked at %1 - up to date</source>
+        <translation>Sprawdzono o %1 - wersja jest aktualna</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="229"/>
-        <source>GitHub rate limit reached — try again later</source>
-        <translation>Osiągnięto limit zapytań GitHub — spróbuj ponownie później</translation>
+        <source>GitHub rate limit reached - try again later</source>
+        <translation>Osiągnięto limit zapytań GitHub - spróbuj ponownie później</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="234"/>
@@ -6889,13 +6889,13 @@ Dotyczy następnego przechwycenia.</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="294"/>
-        <source>Checked at %1 — version %2 is available</source>
-        <translation>Sprawdzono o %1 — dostępna jest wersja %2</translation>
+        <source>Checked at %1 - version %2 is available</source>
+        <translation>Sprawdzono o %1 - dostępna jest wersja %2</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="324"/>
-        <source>This release has no AppImage — it can&apos;t be installed in place</source>
-        <translation>To wydanie nie ma AppImage — nie można go zainstalować w miejscu</translation>
+        <source>This release has no AppImage - it can&apos;t be installed in place</source>
+        <translation>To wydanie nie ma AppImage - nie można go zainstalować w miejscu</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="325"/>
@@ -6941,8 +6941,8 @@ Dotyczy następnego przechwycenia.</translation>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="413"/>
         <location filename="../src/update/UpdateChecker.cpp" line="494"/>
-        <source>Update installed — restart to run version %1</source>
-        <translation>Aktualizacja zainstalowana — uruchom ponownie, aby korzystać z wersji %1</translation>
+        <source>Update installed - restart to run version %1</source>
+        <translation>Aktualizacja zainstalowana - uruchom ponownie, aby korzystać z wersji %1</translation>
     </message>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="423"/>

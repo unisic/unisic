@@ -6,7 +6,7 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
-## 0.7.3b
+## 0.7.4
 
 ### English
 **New**
@@ -20,6 +20,7 @@ whole per release (not per individual change).
 
 **Changed**
 - **Fewer hotkeys**: “Capture screen under cursor” and “Re-capture last region” are no longer assignable hotkeys - the two new capture preferences cover both jobs with the keys you already have. The features themselves remain in the tray menu and on the command line (`unisic --monitor`, `unisic --recapture`); any key you had bound to them is released cleanly on upgrade.
+- **Scroll to zoom the pixel loupe, no modifier**: on the region overlay the magnifier now zooms with a plain scroll (Ctrl is no longer needed) in single, pixel-perfect steps. Scroll all the way out and the loupe hides itself so it stops covering what you are aiming at; scroll back in to bring it straight back.
 
 **Improved**
 - **WebM recordings convert several times faster on recent NVIDIA GPUs**: WebM can't carry H.264, so hardware encoding never applied to it and every WebM conversion ran on the CPU - a long recording could take longer to convert than to record. On GPUs with an AV1 encoder (GeForce RTX 40 series and newer) Unisic now converts WebM with AV1 on the GPU - measured about 3.5× faster, with slightly better quality. Everywhere else (and with the encoder set to Software) WebM stays software VP9, and MP4 is unchanged.
@@ -40,6 +41,7 @@ whole per release (not per individual change).
 
 **Zmienione**
 - **Mniej skrótów**: „Przechwyć ekran pod kursorem" i „Ponów ostatni obszar" nie są już przypisywalnymi skrótami - dwie nowe preferencje przechwytywania załatwiają oba zadania klawiszami, które już masz. Same funkcje pozostają w menu zasobnika i w wierszu poleceń (`unisic --monitor`, `unisic --recapture`); klawisz przypisany do nich wcześniej jest czysto zwalniany przy aktualizacji.
+- **Przewijanie przybliża lupę pikseli, bez modyfikatora**: na nakładce wyboru obszaru lupa przybliża się teraz zwykłym przewijaniem (Ctrl nie jest już potrzebny), pojedynczymi, dokładnymi krokami. Oddal ją całkowicie, a schowa się sama, żeby nie zasłaniać tego, co bierzesz na cel; przewiń z powrotem, aby ją od razu przywrócić.
 
 **Ulepszone**
 - **Nagrania WebM konwertują się kilkukrotnie szybciej na nowszych kartach NVIDIA**: WebM nie może zawierać H.264, więc enkodowanie sprzętowe nigdy go nie obejmowało i każda konwersja WebM szła na CPU - długie nagranie potrafiło konwertować się dłużej, niż trwało. Na kartach z enkoderem AV1 (GeForce RTX serii 40 i nowsze) Unisic konwertuje teraz WebM przez AV1 na GPU - zmierzone około 3,5× szybciej, przy nieco lepszej jakości. Wszędzie indziej (oraz przy enkoderze ustawionym na Programowy) WebM pozostaje programowym VP9, a MP4 bez zmian.

@@ -13,3 +13,9 @@ dist/
 *.kate-swp
 *.swp
 *~
+
+# Nix
+/result
+/result-*
+*.qcow2
+.direnv/

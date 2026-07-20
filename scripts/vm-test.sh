@@ -15,6 +15,10 @@
 #   ./scripts/vm-test.sh test  user@gnome-vm    # push + build + flash border
 #   ./scripts/vm-test.sh remote user@gnome-vm run
 #
+# Nix flow (self-contained NixOS VM — no ssh, no pre-existing VM):
+#   ./scripts/vm-test.sh nix                    # build ./flake.nix's Plasma 6
+#                                               # Wayland VM and boot it in QEMU
+#
 # Packages are RELEASE builds (same flavor as CI: UNISIC_BUILD_NUMBER set, so
 # no Developer pane) — the record border, --gif, --region etc. all work there.
 # The `appimage` command produces the same portable AppImage CI does, locally,
@@ -44,6 +48,10 @@ Package commands:
   deploy HOST        Detect the VM's package manager over ssh, build the
                      matching package, scp + install it, then flash the record
                      border on the VM screen and print the checklist
+  nix                Build a self-contained NixOS VM (Plasma 6 Wayland) from
+                     ./flake.nix with Unisic installed, and boot it in QEMU.
+                     Needs Nix with flakes. VM disk: $UNISIC_NIX_VM_DISK
+                     (default ~/.cache/unisic-nix-vm.qcow2; delete to reset)
 
 Source commands (run on the machine that should build/test — host or VM):
   deps            Install Fedora build+packaging dependencies (sudo dnf)
@@ -201,6 +209,30 @@ appimage)
     echo "Built: $out"
     echo "Copy to any VM and run (no toolchain needed):"
     echo "  chmod +x $(basename "$out") && ./$(basename "$out")"
+    ;;
+nix)
+    # Self-contained NixOS test VM (Plasma 6 Wayland) built from ./flake.nix —
+    # no ssh, no pre-existing VM. `nix build` outputs into /nix (a real fs); the
+    # `result` symlink and the VM's qcow2 are kept OFF this exFAT repo (which
+    # stores neither symlinks nor VM state) via --no-link and NIX_DISK_IMAGE.
+    command -v nix >/dev/null || {
+        echo "Nix not installed — https://nixos.org/download (then enable flakes)." >&2
+        exit 1
+    }
+    nixargs=(--extra-experimental-features 'nix-command flakes')
+    echo "Building the NixOS VM from the flake (first run compiles Qt + Plasma — slow)…"
+    vm_out="$(cd "$REPO_ROOT" && nix build "${nixargs[@]}" \
+        '.#nixosConfigurations.unisic-vm.config.system.build.vm' \
+        --no-link --print-out-paths)"
+    [[ -n "$vm_out" ]] || { echo "VM build produced no output — see errors above." >&2; exit 1; }
+    export NIX_DISK_IMAGE="${UNISIC_NIX_VM_DISK:-${XDG_CACHE_HOME:-$HOME/.cache}/unisic-nix-vm.qcow2}"
+    mkdir -p "$(dirname "$NIX_DISK_IMAGE")"
+    echo
+    echo "Booting VM. Autologin: tester / test."
+    echo "  App menu -> Unisic, or open Konsole and run:  unisic --region"
+    echo "  Disk: $NIX_DISK_IMAGE  (delete to reset the VM)"
+    echo "  Quit: close the QEMU window."
+    exec "$vm_out"/bin/run-unisic-vm-vm
     ;;
 deploy)
     host="${1:?usage: vm-test.sh deploy HOST}"

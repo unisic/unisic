@@ -2797,60 +2797,64 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
     </message>
     <message>
         <location filename="../qml/OverlayWindow.qml" line="200"/>
-        <source>Nothing measured yet — Ctrl+drag to measure</source>
-        <translation>Aún no se ha medido nada — Ctrl+arrastra para medir</translation>
+        <source>Nothing measured yet - Ctrl+drag to measure</source>
+        <translation>Aún no se ha medido nada - Ctrl+arrastra para medir</translation>
     </message>
     <message>
         <source>Ctrl+drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close</source>
         <translation type="vanished">Ctrl+arrastra para medir · Tab: distancia/tamaño · Ctrl+C copia las medidas · Esc cierra</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="426"/>
+        <location filename="../qml/OverlayWindow.qml" line="429"/>
         <source>Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close</source>
         <translation>Arrastra para medir · Tab: distancia/tamaño · Ctrl+C copia las medidas · Esc cierra</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="427"/>
+        <location filename="../qml/OverlayWindow.qml" line="430"/>
         <source>Drag to select</source>
         <translation>Arrastra para seleccionar</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="429"/>
         <source> · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel</source>
-        <translation> · Ctrl+arrastrar para mover · anota con la barra de herramientas · Espacio/Enter o doble clic para capturar · Esc para cancelar</translation>
+        <translation type="vanished"> · Ctrl+arrastrar para mover · anota con la barra de herramientas · Espacio/Enter o doble clic para capturar · Esc para cancelar</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="430"/>
+        <location filename="../qml/OverlayWindow.qml" line="432"/>
+        <source> · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel</source>
+        <translation> · clic para toda la pantalla · Ctrl+arrastrar para mover · anota con la barra de herramientas · Espacio/Enter o doble clic para capturar · Esc para cancelar</translation>
+    </message>
+    <message>
+        <location filename="../qml/OverlayWindow.qml" line="433"/>
         <source> · Ctrl+drag to move · Space/Enter to start · Esc to cancel</source>
         <translation> · Ctrl+arrastrar para mover · Espacio/Enter para empezar · Esc para cancelar</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="497"/>
+        <location filename="../qml/OverlayWindow.qml" line="500"/>
         <source>Undo</source>
         <translation>Deshacer</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="498"/>
+        <location filename="../qml/OverlayWindow.qml" line="501"/>
         <source>Redo</source>
         <translation>Rehacer</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="506"/>
+        <location filename="../qml/OverlayWindow.qml" line="509"/>
         <source>Capture</source>
         <translation>Capturar</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="506"/>
+        <location filename="../qml/OverlayWindow.qml" line="509"/>
         <source>Start</source>
         <translation>Iniciar</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="543"/>
+        <location filename="../qml/OverlayWindow.qml" line="546"/>
         <source>Delete shape</source>
         <translation>Eliminar forma</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="627"/>
+        <location filename="../qml/OverlayWindow.qml" line="630"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Texto… (Ctrl+Enter finaliza)</translation>
     </message>

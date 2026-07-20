@@ -65,6 +65,13 @@ class AnnotationCanvas : public QQuickPaintedItem
     // plain selection tool confirms immediately — no Enter/double-click.
     // Annotation drags never confirm.
     Q_PROPERTY(bool confirmOnRelease READ confirmOnRelease WRITE setConfirmOnRelease NOTIFY confirmOnReleaseChanged)
+    // Overlay screenshot flow: a bare click (press+release without a drag) on
+    // an EMPTY overlay selects the whole image — "click = the full screen".
+    // Confirms immediately only when confirmOnRelease is also on (that user
+    // wants release to capture); otherwise the selection stays up for the
+    // normal annotate/confirm flow. Off in the GIF region picker (a stray
+    // click must not start a recording) and in the editor.
+    Q_PROPERTY(bool clickSelectsAll READ clickSelectsAll WRITE setClickSelectsAll NOTIFY clickSelectsAllChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -183,6 +190,13 @@ public:
         m_confirmOnRelease = on;
         emit confirmOnReleaseChanged();
     }
+    bool clickSelectsAll() const { return m_clickSelectsAll; }
+    void setClickSelectsAll(bool on)
+    {
+        if (m_clickSelectsAll == on) return;
+        m_clickSelectsAll = on;
+        emit clickSelectsAllChanged();
+    }
     void setSelectionMode(bool on);
     QRectF selectionRect() const { return m_selection; }
     bool hasSelection() const { return m_selection.width() > 2 && m_selection.height() > 2; }
@@ -290,6 +304,7 @@ signals:
     void textBackgroundColorChanged();
     void selectionModeChanged();
     void confirmOnReleaseChanged();
+    void clickSelectsAllChanged();
     void selectionRectChanged();
     void hoverPointChanged();
     void historyChanged();
@@ -471,6 +486,11 @@ private:
 
     bool m_selectionMode = false;
     bool m_confirmOnRelease = false;
+    bool m_clickSelectsAll = false;
+    // Was anything selected when the current NewSelection press landed? A bare
+    // click that DISMISSED an existing rect must not fire the click-captures-
+    // full-screen path.
+    bool m_pressHadSelection = false;
     QRectF m_selection;
     QPointF m_hoverPoint;
     // Pixel loupe (see the Q_PROPERTYs). m_hoverInside gates it to the screen

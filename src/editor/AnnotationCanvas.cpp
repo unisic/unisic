@@ -2212,6 +2212,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
             m_selStart = m_selection;
         } else {
             m_drag = NewSelection;
+            m_pressHadSelection = hasSelection();
             m_selection = QRectF(img, img);
             emit selectionRectChanged();
         }
@@ -2821,6 +2822,23 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // the cache (keyed partly on m_fxFast) rebuilds the smoothed patch. update()
     // is deferred, so the coalesced paint runs with m_fxFast already false.
     if (m_fxFast) { m_fxFast = false; update(); }
+    // A bare click (press+release without a real drag) on an EMPTY overlay
+    // SELECTS the whole screen: promote the point "selection" to the full
+    // image. Only when nothing was selected before the press — a click that
+    // dismissed an existing rect must not resurrect it as a full-screen one.
+    // With capture-on-release ON the user wants release to capture, click
+    // included — confirm immediately; otherwise the full-screen selection
+    // stays up for the normal annotate/confirm flow.
+    if (m_clickSelectsAll && m_selectionMode && m_tool == None
+        && m_drag == NewSelection && !hasSelection() && !m_pressHadSelection) {
+        m_drag = NoDrag;
+        m_resizeHandle = -1;
+        selectAll();
+        e->accept();
+        if (m_confirmOnRelease)
+            emit selectionConfirmed();
+        return;
+    }
     // Capture-on-release: only a gesture that PRODUCED the selection confirms
     // (manual drag = NewSelection). Move/resize of an existing selection and
     // empty clicks (hasSelection false) fall through to the normal confirm paths.

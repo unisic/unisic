@@ -275,6 +275,9 @@ Window {
             // Capture on release: screenshot flow only — the GIF region picker
             // (annotationToolsEnabled false) keeps its explicit Start button.
             confirmOnRelease: App.settings.captureOnRelease && annotationToolsEnabled
+            // Bare click = full-screen capture: screenshot flow only too — a
+            // stray click must not start a recording.
+            clickSelectsAll: annotationToolsEnabled
             // Selection chrome follows the selected app theme (was fixed purple).
             uiAccent: Theme.accent
             uiScrim: Theme.primary
@@ -426,7 +429,7 @@ Window {
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
                     return annotationToolsEnabled
-                           ? drag + qsTr(" · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
+                           ? drag + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
                            : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
                 }
                 color: Theme.textPrimary

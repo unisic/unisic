@@ -174,10 +174,24 @@ Item {
         return t
     }
 
-    readonly property var themeIds: ["system", "unisic", "dark", "light",
-                                     "catppuccin-mocha", "catppuccin-latte", "dracula", "nord", "gruvbox"]
-    readonly property var themeNames: [qsTr("System Theme"), "Unisic", qsTr("Dark"), qsTr("Light"),
-                                       "Catppuccin Mocha", "Catppuccin Latte", "Dracula", "Nord", "Gruvbox"]
+    // Core built-ins (hardcoded in Theme.qml) + themes from <config>/themes —
+    // the user's own PLUS the decorative built-ins seeded there as real files
+    // (hot-reloaded: the customThemes dependency refreshes the combo as files
+    // come and go).
+    readonly property var builtinThemeIds: ["system", "unisic", "dark", "light"]
+    readonly property var builtinThemeNames: [qsTr("System Theme"), "Unisic", qsTr("Dark"), qsTr("Light")]
+    readonly property var themeIds: {
+        var a = builtinThemeIds.slice()
+        var c = ThemeController.customThemes
+        for (var i = 0; i < c.length; ++i) a.push(c[i].id)
+        return a
+    }
+    readonly property var themeNames: {
+        var a = builtinThemeNames.slice()
+        var c = ThemeController.customThemes
+        for (var i = 0; i < c.length; ++i) a.push(c[i].name)
+        return a
+    }
     readonly property var toolbarPosIds: ["follow", "top-left", "top-center", "top-right",
                                           "middle-left", "middle-center", "middle-right",
                                           "bottom-left", "bottom-center", "bottom-right"]
@@ -1292,7 +1306,7 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Cursor in recordings") }
+                    SectionTitle { text: qsTr("Overlays in recordings") }
                     SettingRow {
                         label: qsTr("Highlight the cursor")
                         help: App.capCursorMetadata
@@ -1353,6 +1367,18 @@ Item {
                             checked: App.settings.cursorClickRipple
                             enabled: parent.blocked === "" || App.devBuild
                             onToggled: (c) => App.settings.cursorClickRipple = c
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show pressed keys")
+                        // Same one-shot probe rule as the ripple row above.
+                        readonly property string blocked: App.keystrokeCaptureBlockedReason()
+                        help: blocked === "" ? qsTr("Draws a badge with each key press (“Ctrl+Shift+T”) into recordings.") : blocked
+                        helpDetail: qsTr("A screenkey-style pill at the bottom of the recording shows shortcuts and typed keys, with held modifiers and a ×N repeat counter. Works in GIF and video recordings. Key labels use the physical (US) key legend.")
+                        USwitch {
+                            checked: App.settings.recordKeystrokes
+                            enabled: parent.blocked === "" || App.devBuild
+                            onToggled: (c) => App.settings.recordKeystrokes = c
                         }
                     }
                 }
@@ -2323,6 +2349,25 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
+                    SettingRow {
+                        label: qsTr("Custom themes")
+                        help: qsTr("Drop .json theme files into the themes folder — they appear in the list above and reload live while you edit them.")
+                        helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
+                        Row {
+                            spacing: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Open themes folder"); onClicked: ThemeController.openThemesFolder() }
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Reload"); onClicked: ThemeController.reloadCustomThemes() }
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: ThemeController.customThemeErrors.length > 0
+                        wrapMode: Text.WordWrap
+                        text: ThemeController.customThemeErrors.join("\n")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
                 }
             }
 
@@ -2541,6 +2586,20 @@ Item {
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
                         shortcuts: App.settings.hotkeyWindow
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Screen under cursor")
+                        help: qsTr("Hotkey: capture only the monitor the pointer is on.")
+                        helpDetail: qsTr("Grabs the single screen under the cursor instead of the whole workspace — the multi-monitor middle ground between Region and Full screen. Runs the full-screen task preset.")
+                        shortcuts: App.settings.hotkeyScreen
+                        onChanged: (t) => { App.settings.hotkeyScreen = t; App.applyHotkey("capture-screen") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Re-capture last region")
+                        help: qsTr("Hotkey: repeat the previous region capture, same rectangle.")
+                        helpDetail: qsTr("Takes the exact rectangle of your most recent region screenshot again, without opening the selection overlay — for documenting something that changes over time. Runs the region task preset.")
+                        shortcuts: App.settings.hotkeyRecapture
+                        onChanged: (t) => { App.settings.hotkeyRecapture = t; App.applyHotkey("recapture-region") }
                     }
                     HotkeyRow {
                         label: qsTr("Video start/stop")
@@ -2816,6 +2875,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture fullscreen"); onClicked: App.captureFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture screen at cursor"); onClicked: App.captureScreenUnderCursor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Re-capture last region"); onClicked: App.recaptureLastRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (screen)"); onClicked: App.startVideoScreen() }
@@ -2852,6 +2913,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record start sound"); onClicked: App.devTestRecordStartSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trash sound"); onClicked: App.devTestTrashSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Text render"); onClicked: App.devTestTextRender() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Keystroke badge"); onClicked: App.devTestKeystrokeBadge() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Custom theme"); onClicked: App.devTestCustomTheme() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Paste clipboard"); onClicked: App.devTestClipboardPaste() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture delay"); onClicked: App.devTestCaptureDelay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy as"); onClicked: App.devTestCopyAs() }

@@ -56,6 +56,8 @@ qt_add_executable(unisic
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
     src/record/ClickCapture.h src/record/ClickCapture.cpp
+    src/record/KeyCapture.h src/record/KeyCapture.cpp
+    src/record/KeystrokeOverlayPainter.h src/record/KeystrokeOverlayPainter.cpp
     src/record/InputPermission.h src/record/InputPermission.cpp
     src/record/TrimController.h src/record/TrimController.cpp
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
@@ -256,6 +258,12 @@ target_link_libraries(unisic PRIVATE
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
 qt_add_resources(unisic "changelog" PREFIX "/" FILES resources/CHANGELOG.md)
 
+# Bundled color themes: the non-core palettes ship as the SAME JSON format the
+# user themes folder takes (one parser, one schema); core system/unisic/dark/
+# light stay hardcoded in Theme.qml (startup fallback + the mandatory palette).
+file(GLOB UNISIC_THEMES CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/themes/*.json)
+qt_add_resources(unisic "themes" PREFIX "/" FILES ${UNISIC_THEMES})
+
 file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
 qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
 
@@ -430,5 +438,48 @@ if(BUILD_TESTING)
     # HistoryStore writes thumbnails; QStandardPaths test mode keeps them out of
     # the real data dir, but it still needs a QGuiApplication.
     set_tests_properties(unisic_history_filter_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_theme_json_test
+        tests/ThemeJsonTest.cpp
+        src/theme/ThemeJson.h
+    )
+    # QColor lives in Qt6::Gui; no QGuiApplication or platform needed.
+    target_link_libraries(unisic_theme_json_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_theme_json_test PRIVATE src)
+    # shippedThemesAllParse reads resources/themes/*.json from the source tree.
+    target_compile_definitions(unisic_theme_json_test
+        PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME unisic_theme_json_test COMMAND unisic_theme_json_test)
+
+    qt_add_executable(unisic_keystroke_overlay_test
+        tests/KeystrokeOverlayTest.cpp
+        src/record/KeystrokeOverlayPainter.h src/record/KeystrokeOverlayPainter.cpp
+    )
+    target_link_libraries(unisic_keystroke_overlay_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_keystroke_overlay_test PRIVATE src)
+    add_test(NAME unisic_keystroke_overlay_test COMMAND unisic_keystroke_overlay_test)
+    # QPainter text needs a font database, i.e. a QGuiApplication + platform.
+    set_tests_properties(unisic_keystroke_overlay_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_filename_template_test
+        tests/FilenameTemplateTest.cpp
+        src/FilenameTemplate.h
+    )
+    target_link_libraries(unisic_filename_template_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_filename_template_test PRIVATE src)
+    add_test(NAME unisic_filename_template_test COMMAND unisic_filename_template_test)
+
+    qt_add_executable(unisic_settings_persistence_test
+        tests/SettingsPersistenceTest.cpp
+        src/Settings.h
+        src/ConfigPath.h
+    )
+    # Settings.h pulls in qqmlregistration.h (QML_ELEMENT), hence Qt6::Qml.
+    target_link_libraries(unisic_settings_persistence_test PRIVATE
+        Qt6::Core Qt6::Qml Qt6::Test)
+    target_include_directories(unisic_settings_persistence_test PRIVATE src)
+    add_test(NAME unisic_settings_persistence_test COMMAND unisic_settings_persistence_test)
+    # The test re-execs itself (--verify-child) for a fresh-process read-back.
+    set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 endif()

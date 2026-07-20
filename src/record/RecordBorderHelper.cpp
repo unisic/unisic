@@ -103,7 +103,11 @@ private:
 class BadgeWindow : public QRasterWindow
 {
 public:
-    explicit BadgeWindow(const QRect &absGeom)
+    // Colors are the theme's recBadgeBg/recBadgeText/recDot tokens, passed on
+    // the command line (the helper has no engine to read the theme from).
+    explicit BadgeWindow(const QRect &absGeom, const QColor &bg, const QColor &text,
+                         const QColor &dot)
+        : m_bg(bg), m_text(text), m_dot(dot)
     {
         // Unlike the frame bars, the badge must receive clicks (its stop/pause
         // controls) — so it is NOT input-transparent. Its input shape is masked
@@ -204,27 +208,39 @@ protected:
 
         // Pill background.
         p.setPen(Qt::NoPen);
-        p.setBrush(QColor(0, 0, 0, 200));
+        p.setBrush(m_bg);
         p.drawRoundedRect(QRect(0, 0, m_pillW, bh), bh / 2, bh / 2);
 
         // REC dot.
-        QColor dot(0xff, 0x4d, 0x4d);
-        dot.setAlphaF(m_pulse ? 1.0 : 0.25);
+        QColor dot = m_dot;
+        dot.setAlphaF(m_pulse ? dot.alphaF() : dot.alphaF() * 0.25);
         p.setBrush(dot);
         p.drawEllipse(m_dotRect);
 
         // Label.
         p.setFont(f);
-        p.setPen(Qt::white);
+        p.setPen(m_text);
         p.drawText(m_textRect, Qt::AlignVCenter | Qt::AlignLeft, m_label);
 
         // Divider before the controls.
-        p.setPen(QPen(QColor(255, 255, 255, 56), 1));
+        QColor divider = m_text;
+        divider.setAlpha(56);
+        p.setPen(QPen(divider, 1));
         p.drawLine(m_divX, (bh - 16) / 2, m_divX, (bh + 16) / 2);
+
+        // Pressed feedback: a translucent disc under the control being held
+        // (parity with the KDE QML badge's pressed style).
+        if (m_pressed != 0) {
+            QColor pressDisc = m_text;
+            pressDisc.setAlpha(80);
+            p.setPen(Qt::NoPen);
+            p.setBrush(pressDisc);
+            p.drawEllipse(m_pressed == 1 ? m_pauseRect : m_stopRect);
+        }
 
         // Pause bars, or a play triangle while paused.
         p.setPen(Qt::NoPen);
-        p.setBrush(Qt::white);
+        p.setBrush(m_text);
         if (m_paused) {
             const QRectF r(m_pauseRect);
             QPolygonF tri;
@@ -254,12 +270,24 @@ protected:
         // back over stdin ("p1"/"p0"), same as the KDE in-process border.
         const QPoint pos = e->position().toPoint();
         if (m_pauseRect.contains(pos)) {
+            m_pressed = 1;
             const char m[] = "pause\n";
             (void)::write(1, m, sizeof m - 1);
         } else if (m_stopRect.contains(pos)) {
+            m_pressed = 2;
             const char m[] = "stop\n";
             (void)::write(1, m, sizeof m - 1);
         }
+        if (m_pressed != 0)
+            update();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *) override
+    {
+        if (m_pressed == 0)
+            return;
+        m_pressed = 0;
+        update();
     }
 
 private:
@@ -279,6 +307,9 @@ private:
     }
 
     QElapsedTimer m_clock;
+    QColor m_bg;
+    QColor m_text;
+    QColor m_dot;
     bool m_pulse = true;
     bool m_paused = false;
     qint64 m_pausedAtMs = 0;    // clock reading when the current pause began
@@ -290,6 +321,7 @@ private:
     int m_pillW = 0;            // visible pill width (== input mask width)
     QRect m_pauseRect;          // hit rects (window-local), set by layout()
     QRect m_stopRect;
+    int m_pressed = 0;          // 0 none, 1 pause, 2 stop — pressed-disc feedback
     int m_maskW = -1;           // last input-mask width (avoid redundant setMask)
 };
 
@@ -300,8 +332,9 @@ private:
 class CountdownWindow : public QRasterWindow
 {
 public:
-    CountdownWindow(const QRect &absGeom, const QColor &accent, int n, bool capDisc = false)
-        : m_accent(accent), m_n(n), m_cap(capDisc)
+    CountdownWindow(const QRect &absGeom, const QColor &accent, const QColor &discBg,
+                    const QColor &number, int n, bool capDisc = false)
+        : m_accent(accent), m_discBg(discBg), m_number(number), m_n(n), m_cap(capDisc)
     {
         setFlags(kFrameFlags);
         setFormat(argbFormat(format()));
@@ -332,18 +365,20 @@ protected:
             d = qMin(d, 220);
         const QRect circle(local.center().x() - d / 2, local.center().y() - d / 2, d, d);
         p.setPen(QPen(m_accent, 2));
-        p.setBrush(QColor(0, 0, 0, 140));
+        p.setBrush(m_discBg);
         p.drawEllipse(circle);
         QFont nf = p.font();
         nf.setPixelSize(qMax(24, int(d * 0.62)));
         nf.setBold(true);
         p.setFont(nf);
-        p.setPen(m_accent);
+        p.setPen(m_number);
         p.drawText(local, Qt::AlignCenter, QString::number(m_n));
     }
 
 private:
     QColor m_accent;
+    QColor m_discBg;
+    QColor m_number;
     int m_n;
     bool m_cap;
 };
@@ -364,6 +399,9 @@ int runRecordBorderHelper(int argc, char *argv[])
 
     // --record-border-helper <name> <lx> <ly> <lw> <lh> <pw> <ph>
     //                        <fx> <fy> <fw> <fh> <#accent> [countdown] [countdownOnly]
+    //                        [#badgeBg] [#badgeText] [#dot] [#cdBg] [#cdNumber]
+    // The trailing five are the theme's recording-overlay tokens (#aarrggbb —
+    // alpha matters for the pill/disc); absent or invalid → stock defaults.
     // name/l*/p*: the Wayland screen's name, logical geometry and physical size,
     // used only to pick the matching X screen. f*: region as fractions of the
     // monitor — XWayland's coordinate space (logical vs physical layout mode)
@@ -389,6 +427,15 @@ int runRecordBorderHelper(int argc, char *argv[])
     // instant it reaches 0, so the surface is gone before the first recorded
     // frame (it sits over the recorded area, unlike a region frame).
     const bool countdownOnly = (i + 14 < args.size()) && args[i + 14].toInt() != 0;
+    const auto colorArg = [&](int idx, const QColor &fallback) {
+        const QColor c = (i + idx < args.size()) ? QColor(args[i + idx]) : QColor();
+        return c.isValid() ? c : fallback;
+    };
+    const QColor badgeBg = colorArg(15, QColor(0, 0, 0, 200));
+    const QColor badgeText = colorArg(16, QColor(Qt::white));
+    const QColor badgeDot = colorArg(17, QColor(0xff, 0x4d, 0x4d));
+    const QColor cdBg = colorArg(18, QColor(0, 0, 0, 140));
+    const QColor cdNumber = colorArg(19, accent);
 
     // Match the Wayland screen to an X screen. XWayland's RandR outputs often
     // carry synthetic names (XWAYLAND0…) under mutter, so fall through name →
@@ -451,7 +498,8 @@ int runRecordBorderHelper(int argc, char *argv[])
     // centered on the whole surface (the region IS the whole screen here).
     std::unique_ptr<CountdownWindow> countdownWin;
     if (countdown > 0) {
-        countdownWin = std::make_unique<CountdownWindow>(region, accent, countdown, countdownOnly);
+        countdownWin = std::make_unique<CountdownWindow>(region, accent, cdBg, cdNumber,
+                                                         countdown, countdownOnly);
         countdownWin->show();
     }
 
@@ -468,7 +516,8 @@ int runRecordBorderHelper(int argc, char *argv[])
             const int by = roomAbove ? region.top() - bh - 6 : region.bottom() + 6;
             const int bx = std::max(sg.left(),
                                     std::min(sg.right() - maxW + 1, region.left()));
-            badgeWin = std::make_unique<BadgeWindow>(QRect(bx, by, maxW, bh));
+            badgeWin = std::make_unique<BadgeWindow>(QRect(bx, by, maxW, bh),
+                                                     badgeBg, badgeText, badgeDot);
             if (countdown == 0) {
                 badgeWin->show();
                 badgeWin->startClock();

@@ -1,0 +1,15 @@
+{
+  "name": "Catppuccin Latte",
+  "isDark": false,
+  "primary": "#EFF1F5",
+  "secondary": "#E6E9EF",
+  "tertiary": "#CCD0DA",
+  "accent": "#8839EF",
+  "bg": "#EFF1F5",
+  "surface": "#FFFFFF",
+  "surfaceHi": "#E6E9EF",
+  "text": "#4C4F69",
+  "textOnAccent": "#FFFFFF",
+  "danger": "#D20F39",
+  "success": "#40A02B"
+}

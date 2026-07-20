@@ -1,0 +1,16 @@
+{
+  "name": "Dracula",
+  "isDark": true,
+  "primary": "#282A36",
+  "secondary": "#343746",
+  "tertiary": "#44475A",
+  "accent": "#BD93F9",
+  "bg": "#282A36",
+  "backgroundDeep": "#1E202A",
+  "surface": "#343746",
+  "surfaceHi": "#44475A",
+  "text": "#F8F8F2",
+  "textOnAccent": "#282A36",
+  "danger": "#FF5555",
+  "success": "#50FA7B"
+}

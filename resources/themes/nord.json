@@ -1,0 +1,16 @@
+{
+  "name": "Nord",
+  "isDark": true,
+  "primary": "#2E3440",
+  "secondary": "#3B4252",
+  "tertiary": "#434C5E",
+  "accent": "#88C0D0",
+  "bg": "#2E3440",
+  "backgroundDeep": "#272C36",
+  "surface": "#3B4252",
+  "surfaceHi": "#434C5E",
+  "text": "#ECEFF4",
+  "textOnAccent": "#2E3440",
+  "danger": "#BF616A",
+  "success": "#A3BE8C"
+}

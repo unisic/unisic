@@ -12,8 +12,13 @@ QtObject {
     readonly property string themeName: ThemeController.themeName
     readonly property int rev: ThemeController.rev
 
-    // Base palette definitions (only a handful of seed colors each; the rest
-    // are derived in _expand). A def may override any derived token.
+    // Core palette definitions (only a handful of seed colors each; the rest
+    // are derived in _expand). A def may override any derived token. ONLY the
+    // core three live here — "unisic" is the mandatory palette AND the
+    // fallback for every unresolvable theme id, so it must exist in code even
+    // if every loaded JSON is broken. The decorative built-ins (Catppuccin ×2,
+    // Dracula, Nord, Gruvbox) are shipped as real JSON files seeded into the
+    // user themes folder, resolved through ThemeController.customDefs.
     readonly property var _defs: ({
         "unisic": {
             primary: "#17153B", secondary: "#2E236C", tertiary: "#433D8B", accent: "#C8ACD6",
@@ -30,35 +35,6 @@ QtObject {
             primary: "#FFFFFF", secondary: "#EEEEF2", tertiary: "#E1E1E8", accent: "#4C6EF5",
             bg: "#F4F5F7", surface: "#FFFFFF", surfaceHi: "#F1F2F5",
             text: "#1B1B1F", textOnAccent: "#FFFFFF", isDark: false
-        },
-        "catppuccin-mocha": {
-            primary: "#1E1E2E", secondary: "#181825", tertiary: "#45475A", accent: "#CBA6F7",
-            bg: "#1E1E2E", backgroundDeep: "#11111B",
-            surface: "#313244", surfaceHi: "#45475A",
-            text: "#CDD6F4", textOnAccent: "#1E1E2E", danger: "#F38BA8", success: "#A6E3A1", isDark: true
-        },
-        "catppuccin-latte": {
-            primary: "#EFF1F5", secondary: "#E6E9EF", tertiary: "#CCD0DA", accent: "#8839EF",
-            bg: "#EFF1F5", surface: "#FFFFFF", surfaceHi: "#E6E9EF",
-            text: "#4C4F69", textOnAccent: "#FFFFFF", danger: "#D20F39", success: "#40A02B", isDark: false
-        },
-        "dracula": {
-            primary: "#282A36", secondary: "#343746", tertiary: "#44475A", accent: "#BD93F9",
-            bg: "#282A36", backgroundDeep: "#1E202A",
-            surface: "#343746", surfaceHi: "#44475A",
-            text: "#F8F8F2", textOnAccent: "#282A36", danger: "#FF5555", success: "#50FA7B", isDark: true
-        },
-        "nord": {
-            primary: "#2E3440", secondary: "#3B4252", tertiary: "#434C5E", accent: "#88C0D0",
-            bg: "#2E3440", backgroundDeep: "#272C36",
-            surface: "#3B4252", surfaceHi: "#434C5E",
-            text: "#ECEFF4", textOnAccent: "#2E3440", danger: "#BF616A", success: "#A3BE8C", isDark: true
-        },
-        "gruvbox": {
-            primary: "#282828", secondary: "#3C3836", tertiary: "#504945", accent: "#FABD2F",
-            bg: "#282828", backgroundDeep: "#1D2021",
-            surface: "#3C3836", surfaceHi: "#504945",
-            text: "#EBDBB2", textOnAccent: "#282828", danger: "#FB4934", success: "#B8BB26", isDark: true
         }
     })
 
@@ -100,7 +76,19 @@ QtObject {
             thumbBottom: d.thumbBottom !== undefined ? d.thumbBottom : "#DDD6EC",
             isDark: d.isDark,
             swatches: d.swatches !== undefined ? d.swatches
-                      : ["#FF4757", "#FFD84D", "#2ED573", "#1E90FF", "#C8ACD6", "#FFFFFF", "#17153B"]
+                      : ["#FF4757", "#FFD84D", "#2ED573", "#1E90FF", "#C8ACD6", "#FFFFFF", "#17153B"],
+            // Recording-overlay surfaces (REC badge, countdown disc, keystroke
+            // badge). Deliberately NOT derived from the palette: they sit over
+            // arbitrary recorded content, so the readable default is a dark
+            // pill regardless of theme lightness — but every one is a plain
+            // token a custom theme can override.
+            recBadgeBg: d.recBadgeBg !== undefined ? d.recBadgeBg : Qt.rgba(0, 0, 0, 0.78),
+            recBadgeText: d.recBadgeText !== undefined ? d.recBadgeText : "#FFFFFF",
+            recDot: d.recDot !== undefined ? d.recDot : "#FF4D4D",
+            countdownBg: d.countdownBg !== undefined ? d.countdownBg : Qt.rgba(0, 0, 0, 0.55),
+            countdownNumber: d.countdownNumber !== undefined ? d.countdownNumber : d.accent,
+            keystrokeBg: d.keystrokeBg !== undefined ? d.keystrokeBg : Qt.rgba(0, 0, 0, 0.69),
+            keystrokeText: d.keystrokeText !== undefined ? d.keystrokeText : "#FFFFFF"
         }
     }
 
@@ -152,9 +140,18 @@ QtObject {
         })
     }
 
-    readonly property var pal: themeName === "system"
-                               ? _system()
-                               : _expand(_defs[themeName] !== undefined ? _defs[themeName] : _defs["unisic"])
+    readonly property var pal: {
+        if (themeName === "system")
+            return _system()
+        // Resolution order: core (hardcoded) -> user folder ("custom:" ids,
+        // which includes the seeded decorative themes). Anything unresolvable —
+        // unknown id, deleted file — falls back to the stock Unisic palette;
+        // the selection is kept, so putting the file back restores the theme.
+        var d = _defs[themeName]
+        if (d === undefined && themeName.indexOf("custom:") === 0)
+            d = ThemeController.customDefs[themeName]
+        return _expand(d !== undefined ? d : _defs["unisic"])
+    }
 
     // --- Public tokens (names unchanged from the original) ---
     readonly property color primary:   pal.primary
@@ -189,6 +186,15 @@ QtObject {
     readonly property color thumbTop:   pal.thumbTop
     readonly property color thumbBottom: pal.thumbBottom
     readonly property var   swatches:   pal.swatches
+
+    // Recording-overlay tokens (REC badge / countdown / keystroke badge).
+    readonly property color recBadgeBg:      pal.recBadgeBg
+    readonly property color recBadgeText:    pal.recBadgeText
+    readonly property color recDot:          pal.recDot
+    readonly property color countdownBg:     pal.countdownBg
+    readonly property color countdownNumber: pal.countdownNumber
+    readonly property color keystrokeBg:     pal.keystrokeBg
+    readonly property color keystrokeText:   pal.keystrokeText
 
     // Geometry — generous SwiftUI-like rounding
     readonly property int radiusS: 8

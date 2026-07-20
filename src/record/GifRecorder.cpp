@@ -1,5 +1,6 @@
 #include "GifRecorder.h"
 #include "ClickCapture.h"
+#include "KeyCapture.h"
 #include "InputPermission.h"
 #include <QPainter>
 #include <ctime>
@@ -254,6 +255,16 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
         const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
         for (const QString &f : stale)
             cache.remove(f);
+        // A FIFO is not QDir::Files — the audio pipe orphaned by a hard crash
+        // needs QDir::System to match; replay snapshot dirs are directories.
+        const QStringList staleFifos = cache.entryList({QStringLiteral("unisic-audio-*.fifo")},
+                                                       QDir::System);
+        for (const QString &f : staleFifos)
+            cache.remove(f);
+        const QStringList staleSaves = cache.entryList({QStringLiteral("unisic-replay-save-*")},
+                                                       QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &d : staleSaves)
+            QDir(cache.filePath(d)).removeRecursively();
     }
     // Warm the ffmpeg encoder probe off the GUI thread while the portal
     // dialog / stream negotiation runs — without this the first beginEncoding
@@ -297,7 +308,9 @@ static qint64 monoNowNs()
 QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs)
 {
 #ifdef HAVE_PIPEWIRE
-    if (!m_cursorOverlayActive || encoded.isEmpty() || !m_cursorOverlay.hasContent(nowNs))
+    const bool wantCursor = m_cursorOverlayActive && m_cursorOverlay.hasContent(nowNs);
+    const bool wantKeys = m_keystrokeOverlayActive && m_keystrokes.hasContent(nowNs);
+    if (encoded.isEmpty() || (!wantCursor && !wantKeys))
         return encoded;
 
     // The frames are kept in the stream's native byte order (see
@@ -325,7 +338,10 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
                m_encodeSize.width(), m_encodeSize.height(),
                m_encodeSize.width() * 4, fmt);
     QPainter p(&img);
-    m_cursorOverlay.paint(p, nowNs);
+    if (wantCursor)
+        m_cursorOverlay.paint(p, nowNs);
+    if (wantKeys)
+        m_keystrokes.paint(p, nowNs);
     p.end();
     return m_overlayFrame;
 #else
@@ -363,6 +379,49 @@ void GifRecorder::stopClickCapture()
     m_clicks->stop();
     m_clicks->deleteLater();
     m_clicks = nullptr;
+}
+
+void GifRecorder::startKeyCapture()
+{
+    if (!m_settings->recordKeystrokes() || m_keys)
+        return;
+    // Same access story as clicks: /dev/input needs the `input` group, and
+    // most desktop users are not in it — degrade to no badge, never an error.
+    if (InputPermission::probe() != InputPermission::Available)
+        return;
+    m_keystrokes.reset();
+    if (m_keystrokeTheme) {
+        KeystrokeOverlayPainter::Style st = m_keystrokes.style();
+        const QPair<QColor, QColor> colors = m_keystrokeTheme();
+        if (colors.first.isValid())
+            st.badgeBg = colors.first;
+        if (colors.second.isValid())
+            st.badgeText = colors.second;
+        m_keystrokes.setStyle(st);
+    }
+    m_keys = new KeyCapture(this);
+    connect(m_keys, &KeyCapture::keyEvent, this,
+            [this](qint64 tUsec, quint32 code, bool pressed) {
+                // Paused spans are excised later — a badge armed during one
+                // would pop in fully faded mid-recording. Releases still pass
+                // so a modifier held across the pause can't stick on the badge.
+                if (m_paused && pressed)
+                    return;
+                // libinput reports microseconds; everything else here is ns.
+                m_keystrokes.keyEvent(code, pressed, tUsec * 1000LL);
+            });
+    m_keys->start();
+    m_keystrokeOverlayActive = true;
+}
+
+void GifRecorder::stopKeyCapture()
+{
+    m_keystrokeOverlayActive = false;
+    if (!m_keys)
+        return;
+    m_keys->stop();
+    m_keys->deleteLater();
+    m_keys = nullptr;
 }
 
 void GifRecorder::openPortalSession()
@@ -483,6 +542,7 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint
                 });
         startClickCapture();
     }
+    startKeyCapture();   // independent of the cursor overlay mode
     if (!m_grabber->start(fd, nodeId, targetFps, m_cursorOverlayActive))
         fail(tr("Failed to connect to the PipeWire stream"));
 #else
@@ -920,7 +980,7 @@ void GifRecorder::sampleFrame()
             m_cursorOverlay.setCursor(sm - QPointF(m_encodeCrop.topLeft()), s.visible, s.shapeId);
         }
     }
-    if (m_cursorOverlayActive)
+    if (m_cursorOverlayActive || m_keystrokeOverlayActive)
         encoded = compositeCursorOverlay(encoded, monoNowNs());
 
     // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
@@ -1008,6 +1068,7 @@ void GifRecorder::stop()
     }
     stopProcess(m_appAudio);
     stopClickCapture(); // release the libinput devices as soon as we stop drawing
+    stopKeyCapture();
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
     m_overlayFrame.clear(); // ditto for the overlay scratch copy
@@ -1468,6 +1529,7 @@ void GifRecorder::abort()
     m_maxTimer.stop();
     m_elapsedTick.stop();
     stopClickCapture();
+    stopKeyCapture();
 #ifdef HAVE_PIPEWIRE
     if (m_grabber) {
         m_grabber->stop();

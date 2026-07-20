@@ -1,0 +1,16 @@
+{
+  "name": "Catppuccin Mocha",
+  "isDark": true,
+  "primary": "#1E1E2E",
+  "secondary": "#181825",
+  "tertiary": "#45475A",
+  "accent": "#CBA6F7",
+  "bg": "#1E1E2E",
+  "backgroundDeep": "#11111B",
+  "surface": "#313244",
+  "surfaceHi": "#45475A",
+  "text": "#CDD6F4",
+  "textOnAccent": "#1E1E2E",
+  "danger": "#F38BA8",
+  "success": "#A6E3A1"
+}

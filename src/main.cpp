@@ -136,6 +136,8 @@ static QByteArray cliCommand(const QStringList &args)
     else if (args.contains(QLatin1String("--region"))) command = "region";
     else if (args.contains(QLatin1String("--window"))) command = "window";
     else if (args.contains(QLatin1String("--measure"))) command = "measure";
+    else if (args.contains(QLatin1String("--monitor"))) command = "monitor";
+    else if (args.contains(QLatin1String("--recapture"))) command = "recapture";
     const int delay = cliDelayMs(args);
     if (!command.isEmpty()) {
         if (delay >= 0)
@@ -187,7 +189,8 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
         }
     }
     if (delayMs >= 0 && (command == "fullscreen" || command == "region"
-                         || command == "window" || command == "measure"))
+                         || command == "window" || command == "measure"
+                         || command == "monitor" || command == "recapture"))
         context.setNextCaptureDelayMs(delayMs);
     if (!outputPath.isEmpty()) {
         context.setNextCaptureOutput(toStdout ? QString() : outputPath, format, toStdout);
@@ -208,6 +211,8 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     else if (command == "region") context.captureRegion();
     else if (command == "window") context.captureWindow();
     else if (command == "measure") context.captureMeasure();
+    else if (command == "monitor") context.captureScreenUnderCursor();
+    else if (command == "recapture") context.recaptureLastRegion();
     else if (command == "gif") context.startGifRegion();
     else if (command == "tray") { /* already running — stay in tray */ }
     else QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
@@ -616,14 +621,16 @@ int main(int argc, char *argv[])
     const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
                                    || args.contains(QLatin1String("--region"))
                                    || args.contains(QLatin1String("--window"))
-                                   || args.contains(QLatin1String("--measure"));
+                                   || args.contains(QLatin1String("--measure"))
+                                   || args.contains(QLatin1String("--monitor"))
+                                   || args.contains(QLatin1String("--recapture"));
     if (delayMs >= 0 && !screenshotRequested) {
-        qWarning() << "--delay requires --fullscreen, --region, --window, or --measure";
+        qWarning() << "--delay requires --fullscreen, --region, --window, --measure, --monitor, or --recapture";
         return 2;
     }
     const QString outputArg = cliValue(args, QStringLiteral("--output"));
     if (!outputArg.isEmpty() && !screenshotRequested) {
-        qWarning() << "--output requires --fullscreen, --region, --window, or --measure";
+        qWarning() << "--output requires --fullscreen, --region, --window, --measure, --monitor, or --recapture";
         return 2;
     }
     const QString outputFormat = cliFormat(args);
@@ -796,6 +803,8 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--region"))) context.captureRegion();
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
         else if (args.contains(QLatin1String("--measure"))) context.captureMeasure();
+        else if (args.contains(QLatin1String("--monitor"))) context.captureScreenUnderCursor();
+        else if (args.contains(QLatin1String("--recapture"))) context.recaptureLastRegion();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
     });
 

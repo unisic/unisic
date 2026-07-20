@@ -196,6 +196,9 @@ public:
     // Whether click ripples can be captured here: "" when they can, else a
     // ready-to-show reason (no libinput at build time, or no /dev/input access).
     Q_INVOKABLE QString clickCaptureBlockedReason() const;
+    // Same probe for the keystroke badge (it reads the same /dev/input
+    // devices), with key-specific wording.
+    Q_INVOKABLE QString keystrokeCaptureBlockedReason() const;
     // A copy-pasteable plain-text dump of everything a bug report needs: app
     // version/build, Qt, desktop/session, compiled-in features, runtime caps,
     // and which optional external tools (ffmpeg, wl-clipboard, Tesseract packs)
@@ -249,6 +252,8 @@ public:
     Q_INVOKABLE void devTestTrashSound();
     Q_INVOKABLE void devTestAltHotkeys();
     Q_INVOKABLE void devTestTextRender();
+    Q_INVOKABLE void devTestKeystrokeBadge();
+    Q_INVOKABLE void devTestCustomTheme();
     Q_INVOKABLE void devTestShapeEdit();
     Q_INVOKABLE void devTestMagnify();
     Q_INVOKABLE void devTestEyedropper();
@@ -337,6 +342,12 @@ public:
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
     Q_INVOKABLE void captureMeasure();
+    // Single monitor: the screen under the cursor (fallback: primary).
+    Q_INVOKABLE void captureScreenUnderCursor();
+    // Repeat the last region capture's exact rect without opening the overlay
+    // (ShareX "repeat last capture"). Errors as a toast when no region is
+    // stored or its screen is gone.
+    Q_INVOKABLE void recaptureLastRegion();
     // Region selection -> OCR/QR -> clipboard. No save/history/notification.
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();

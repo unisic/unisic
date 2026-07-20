@@ -16,6 +16,8 @@
 #include "record/GifRecorder.h"
 #include "record/InputPermission.h"
 #include "record/CursorOverlayPainter.h"
+#include "record/KeystrokeOverlayPainter.h"
+#include <linux/input-event-codes.h>
 #include "capture/ScreenCastSession.h"
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
@@ -32,8 +34,10 @@
 #include <QMargins>
 #endif
 #include "theme/ThemeController.h"
+#include "theme/ThemeJson.h"
 #include "editor/AnnotationCanvas.h"
 #include "ConfigPath.h"
+#include "FilenameTemplate.h"
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
 #endif
@@ -115,6 +119,17 @@ AppContext::AppContext(QObject *parent)
     m_notifier = new DesktopNotifier(this, this);
     m_dnd = new NotificationInhibitor(this);
     m_actionRunner = new ExternalActionRunner(this);
+    // Keystroke-badge colors follow the active theme (incl. custom themes).
+    // Resolved lazily at key-capture start — m_engine is null here.
+    m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
+        if (m_engine) {
+            if (QObject *theme = m_engine->singletonInstance<QObject *>(
+                    QStringLiteral("Unisic"), QStringLiteral("Theme")))
+                return {theme->property("keystrokeBg").value<QColor>(),
+                        theme->property("keystrokeText").value<QColor>()};
+        }
+        return {QColor(), QColor()};
+    });
     refreshWatermarkImage();
     connect(m_settings, &Settings::watermarkImagePathChanged,
             this, &AppContext::refreshWatermarkImage);
@@ -349,6 +364,17 @@ void AppContext::dispatchHotkey(const QString &action)
         m_nextCaptureTask = taskFromId(m_settings->windowTask());
         m_nextCaptureDestination = m_settings->windowTaskDestination();
         captureWindow();
+    } else if (action == QLatin1String("capture-screen")) {
+        if (m_captureInFlight || m_overlay->active()) return;
+        // A single screen is a fullscreen variant: inherit its task preset.
+        m_nextCaptureTask = taskFromId(m_settings->fullScreenTask());
+        m_nextCaptureDestination = m_settings->fullScreenTaskDestination();
+        captureScreenUnderCursor();
+    } else if (action == QLatin1String("recapture-region")) {
+        if (m_captureInFlight || m_overlay->active()) return;
+        m_nextCaptureTask = taskFromId(m_settings->regionTask());
+        m_nextCaptureDestination = m_settings->regionTaskDestination();
+        recaptureLastRegion();
     }
     else if (action == QLatin1String("ocr-region")) captureRegionOcr();
     else if (action == QLatin1String("record-gif")) {
@@ -866,6 +892,20 @@ QString AppContext::clickCaptureBlockedReason() const
         .arg(InputPermission::fixHint());
 }
 
+QString AppContext::keystrokeCaptureBlockedReason() const
+{
+    switch (InputPermission::probe()) {
+    case InputPermission::Available:
+        return {};
+    case InputPermission::NotBuilt:
+        return tr("This build has no libinput support, so key presses cannot be detected.");
+    case InputPermission::NoPermission:
+        break;
+    }
+    return tr("Reading key presses needs access to input devices. Run “%1”, then log out and back in.")
+        .arg(InputPermission::fixHint());
+}
+
 bool AppContext::capScreenshotCursor() const
 {
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
@@ -959,14 +999,141 @@ void AppContext::captureRegionWithTool(int initialTool)
         m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             m_captureInFlight = false;
             endDoNotDisturb();
-            if (!img.isNull())
+            if (!img.isNull()) {
+                // Persist the rect for re-capture BEFORE finishCapture so a
+                // task preset that uploads/deletes still leaves the region.
+                const QRect r = m_overlay->lastRegionLogical();
+                if (!r.isEmpty())
+                    m_settings->setLastCaptureRegion(
+                        QStringLiteral("%1|%2,%3,%4,%5")
+                            .arg(m_overlay->lastRegionScreen())
+                            .arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height()));
                 finishCapture(img, inhibited, m_overlay->takeCopyRequested());
+            }
             else
             {
                 m_nextCaptureTask = {};
                 clearCliCapture(tr("Capture cancelled"));
             }
         }, initialTool);
+    });
+}
+
+void AppContext::captureScreenUnderCursor()
+{
+    if (m_captureInFlight || m_overlay->active()) { // see captureFullScreen
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Another capture is already active"));
+        return;
+    }
+    const bool inhibited = nowInhibited();
+    m_captureInFlight = true;
+    beginDoNotDisturb();
+    withDelay([this, inhibited] {
+        if (m_overlay->active()) { // re-check after the capture delay
+            m_captureInFlight = false;
+            endDoNotDisturb();
+            m_nextCaptureTask = {};
+            clearCliCapture(tr("Another capture is already active"));
+            return;
+        }
+        // Hint only: on KWin the compositor resolves the pointer's screen
+        // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
+        // while the pointer is over one of our windows (e.g. the tray menu).
+        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        m_capture->captureActiveScreen(screen, [this, inhibited](const QImage &img, const QString &err) {
+            m_captureInFlight = false;
+            endDoNotDisturb();
+            if (!err.isEmpty() || img.isNull()) {
+                m_nextCaptureTask = {};
+                clearCliCapture(err.isEmpty() ? tr("Empty capture") : err);
+                if (err != QLatin1String("cancelled"))
+                    showToast(captureErrorGuidance(err.isEmpty() ? tr("Empty capture") : err), true);
+                return;
+            }
+            finishCapture(img, inhibited);
+        });
+    });
+}
+
+void AppContext::recaptureLastRegion()
+{
+    if (m_captureInFlight || m_overlay->active()) { // see captureFullScreen
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Another capture is already active"));
+        return;
+    }
+    // "<screen>|<x>,<y>,<w>,<h>" in logical px of that screen (see
+    // OverlayController::confirmFromWindow).
+    const QString stored = m_settings->lastCaptureRegion();
+    const int bar = stored.indexOf(QLatin1Char('|'));
+    const QStringList parts = stored.mid(bar + 1).split(QLatin1Char(','));
+    QRect rect;
+    if (bar > 0 && parts.size() == 4) {
+        bool okAll = true;
+        int v[4];
+        for (int i = 0; i < 4; ++i) {
+            bool ok = false;
+            v[i] = parts[i].toInt(&ok);
+            okAll = okAll && ok;
+        }
+        if (okAll && v[2] > 1 && v[3] > 1)
+            rect = QRect(v[0], v[1], v[2], v[3]);
+    }
+    if (rect.isEmpty()) {
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("No region to re-capture"));
+        showToast(tr("No region to re-capture yet — take a region screenshot first"), true);
+        return;
+    }
+    QScreen *target = nullptr;
+    const QString name = stored.left(bar);
+    for (QScreen *s : QGuiApplication::screens())
+        if (s->name() == name) { target = s; break; }
+    if (!target) {
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Region's screen is no longer connected"));
+        showToast(tr("The screen that region was on is no longer connected"), true);
+        return;
+    }
+    const bool inhibited = nowInhibited();
+    m_captureInFlight = true;
+    beginDoNotDisturb();
+    withDelay([this, inhibited, target, rect] {
+        if (m_overlay->active()) { // re-check after the capture delay
+            m_captureInFlight = false;
+            endDoNotDisturb();
+            m_nextCaptureTask = {};
+            clearCliCapture(tr("Another capture is already active"));
+            return;
+        }
+        m_capture->captureScreen(target, [this, inhibited, target, rect](const QImage &img, const QString &err) {
+            m_captureInFlight = false;
+            endDoNotDisturb();
+            if (!err.isEmpty() || img.isNull()) {
+                m_nextCaptureTask = {};
+                clearCliCapture(err.isEmpty() ? tr("Empty capture") : err);
+                if (err != QLatin1String("cancelled"))
+                    showToast(captureErrorGuidance(err.isEmpty() ? tr("Empty capture") : err), true);
+                return;
+            }
+            // The stored rect is LOGICAL px; the captured image can be native
+            // (KWin) or uniformly scaled (portal crop) — rescale, then crop.
+            const double s = double(img.width()) / target->geometry().width();
+            const QRectF scaled(rect.x() * s, rect.y() * s, rect.width() * s, rect.height() * s);
+            const QRect crop = scaled.toAlignedRect().intersected(img.rect());
+            if (crop.width() < 2 || crop.height() < 2) {
+                m_nextCaptureTask = {};
+                clearCliCapture(tr("Empty capture"));
+                showToast(tr("The stored region no longer fits that screen"), true);
+                return;
+            }
+            QImage out = img.copy(crop);
+            out.setDevicePixelRatio(img.devicePixelRatio());
+            finishCapture(out, inhibited);
+        });
     });
 }
 
@@ -1468,6 +1635,93 @@ static QString textRenderCheck()
                      : QStringLiteral("FAIL (render left the base blank)");
 }
 
+// Keystroke-badge render check: synthetic evdev events must produce the
+// expected chord text AND paint() must land a visible badge in the frame
+// (dev button + smoke step). Pure logic — no libinput, no /dev/input.
+static QString keystrokeBadgeCheck()
+{
+    KeystrokeOverlayPainter p;
+    constexpr qint64 ms = 1000000LL;
+    p.keyEvent(KEY_LEFTCTRL, true, 0);
+    p.keyEvent(KEY_LEFTSHIFT, true, 1 * ms);
+    p.keyEvent(KEY_T, true, 2 * ms);
+    if (p.textAt(3 * ms) != QLatin1String("Ctrl+Shift+T"))
+        return QStringLiteral("FAIL (chord text: %1)").arg(p.textAt(3 * ms));
+    p.keyEvent(KEY_T, true, 100 * ms);
+    // QStringLiteral, NOT QLatin1String: "×" is multi-byte in this UTF-8
+    // source and QLatin1String would read those bytes as two Latin-1 chars
+    // (same trap as the measure check, commit a8ca485).
+    if (p.textAt(101 * ms) != QStringLiteral("Ctrl+Shift+T ×2"))
+        return QStringLiteral("FAIL (repeat counter: %1)").arg(p.textAt(101 * ms));
+    QImage frame(640, 360, QImage::Format_ARGB32);
+    frame.fill(QColor(0x17, 0x15, 0x3B));
+    const QImage before = frame;
+    {
+        QPainter painter(&frame);
+        p.paint(painter, 102 * ms);
+    }
+    if (frame == before)
+        return QStringLiteral("FAIL (paint drew nothing)");
+    const qint64 gone = 102 * ms + qint64(p.style().badgeMs + p.style().fadeMs + 10) * ms;
+    p.keyEvent(KEY_LEFTCTRL, false, 103 * ms);
+    p.keyEvent(KEY_LEFTSHIFT, false, 103 * ms);
+    if (p.hasContent(gone))
+        return QStringLiteral("FAIL (badge never expires)");
+    return QStringLiteral("PASS (chord, ×N, paint, expiry)");
+}
+
+// Community-theme check: schema validation (accept/reject) + a live
+// round-trip through ThemeController — write a theme file, watch it appear in
+// customDefs, delete it, watch it disappear (dev button + smoke step). Uses
+// the dev build's own config dir, so it never touches a stable install.
+static QString customThemeCheck()
+{
+    QString err;
+    const QByteArray good = QByteArrayLiteral(
+        "{\"name\": \"Smoke Theme\", \"isDark\": true,"
+        " \"primary\": \"#101020\", \"secondary\": \"#202040\", \"tertiary\": \"#303060\","
+        " \"accent\": \"#C8ACD6\", \"bg\": \"#0B0B18\", \"surface\": \"#181830\","
+        " \"text\": \"#EEEEF8\", \"textOnAccent\": \"#101020\","
+        " \"recBadgeBg\": \"#CC101020\", \"keystrokeText\": \"#FFEEEE\"}");
+    if (ThemeJson::parse(good, QStringLiteral("smoke"), &err).isEmpty())
+        return QStringLiteral("FAIL (valid theme rejected: %1)").arg(err);
+    if (!ThemeJson::parse(QByteArrayLiteral("{\"isDark\": true}"),
+                          QStringLiteral("smoke"), &err).isEmpty())
+        return QStringLiteral("FAIL (incomplete theme accepted)");
+
+    ThemeController *tc = ThemeController::instance();
+    if (!tc)
+        return QStringLiteral("FAIL (no ThemeController)");
+    // The 5 decorative palettes are seeded as REAL files in the themes folder
+    // (core system/unisic/dark/light stay hardcoded in Theme.qml). They load
+    // through the same custom-theme scan, so they must be present as ids.
+    for (const QString &stem : {QStringLiteral("dracula"), QStringLiteral("nord"),
+                                QStringLiteral("gruvbox"),
+                                QStringLiteral("catppuccin-mocha"),
+                                QStringLiteral("catppuccin-latte")}) {
+        if (!tc->customDefs().contains(QStringLiteral("custom:") + stem))
+            return QStringLiteral("FAIL (decorative theme %1 not seeded to folder)").arg(stem);
+    }
+    const QString dir = tc->themesFolder();
+    QDir().mkpath(dir);
+    const QString path = dir + QStringLiteral("/smoketest-theme.json");
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return QStringLiteral("FAIL (cannot write %1)").arg(path);
+    f.write(good);
+    f.close();
+    tc->reloadCustomThemes();
+    const bool appeared = tc->customDefs().contains(QStringLiteral("custom:smoketest-theme"));
+    QFile::remove(path);
+    tc->reloadCustomThemes();
+    const bool gone = !tc->customDefs().contains(QStringLiteral("custom:smoketest-theme"));
+    if (!appeared)
+        return QStringLiteral("FAIL (theme file not picked up)");
+    if (!gone)
+        return QStringLiteral("FAIL (deleted theme still listed)");
+    return QStringLiteral("PASS (schema, 5 seeded, live folder round-trip)");
+}
+
 #ifdef HAVE_KGUIADDONS
 // KDE Plasma / KWin: Klipper only copies an image into its HISTORY (the tray
 // applet, i.e. paste-it-later) when the clipboard offer carries the
@@ -1682,6 +1936,20 @@ void AppContext::devTestTextRender()
     if (!devBuild())
         return;
     showToast(tr("Dev: text render: %1").arg(textRenderCheck()));
+}
+
+void AppContext::devTestKeystrokeBadge()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: keystroke badge: %1").arg(keystrokeBadgeCheck()));
+}
+
+void AppContext::devTestCustomTheme()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: custom theme: %1").arg(customThemeCheck()));
 }
 
 void AppContext::devTestClipboardPaste()
@@ -1912,6 +2180,14 @@ void AppContext::devTestTrimRecording()
             openTrimRecording(path);
         else
             showToast(tr("Dev: trim recording: FAIL"), true);
+    });
+    // FailedToStart never emits finished — reap the QProcess on that path too.
+    connect(process, &QProcess::errorOccurred, this,
+            [this, process](QProcess::ProcessError e) {
+        if (e != QProcess::FailedToStart)
+            return;
+        process->deleteLater();
+        showToast(tr("Dev: trim recording: FAIL"), true);
     });
     // Long enough, moving, and with a keyframe every second: the window has a
     // filmstrip whose tiles differ and real keyframe ticks to snap onto.
@@ -3751,6 +4027,90 @@ void AppContext::runSmokeTest()
         });
     });
 
+    // 2b) single screen under the cursor (KWin CaptureActiveScreen / portal
+    // crop fallback). Asserts it returns ONE screen, not the workspace.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("capture (screen under cursor)…"));
+        QScreen *hint = QGuiApplication::screenAt(QCursor::pos());
+        if (!hint)
+            hint = QGuiApplication::primaryScreen();
+        m_capture->captureActiveScreen(hint, [this](const QImage &img, const QString &err) {
+            if (!err.isEmpty())
+                smokeLog(QStringLiteral("  screen capture: FAIL (%1)").arg(err));
+            else if (img.isNull())
+                smokeLog(QStringLiteral("  screen capture: FAIL (null image)"));
+            else {
+                // One screen must not be wider than every screen combined
+                // (only meaningful on a multi-monitor layout).
+                int wsWidth = 0;
+                for (QScreen *s : QGuiApplication::screens())
+                    wsWidth = qMax(wsWidth, s->geometry().x() + s->geometry().width());
+                const bool single = QGuiApplication::screens().size() < 2
+                    || img.width() / qMax(1.0, img.devicePixelRatio()) < wsWidth;
+                smokeLog(QStringLiteral("  screen capture: %1 (%2x%3)")
+                             .arg(single ? QStringLiteral("PASS") : QStringLiteral("FAIL (workspace-sized)"))
+                             .arg(img.width()).arg(img.height()));
+            }
+            smokeNext();
+        });
+    });
+
+    // 2c) re-capture last region: parse the stored rect, capture its screen and
+    // crop — the same math recaptureLastRegion() runs, without the after-capture
+    // pipeline (no save/notification side effects in a smoke run).
+    m_smokeSteps.append([this] {
+        const QString stored = m_settings->lastCaptureRegion();
+        const int bar = stored.indexOf(QLatin1Char('|'));
+        const QStringList parts = stored.mid(bar + 1).split(QLatin1Char(','));
+        if (bar <= 0 || parts.size() != 4) {
+            smokeLog(QStringLiteral("re-capture region: SKIP (no region stored — take a region shot first)"));
+            smokeNext();
+            return;
+        }
+        QScreen *target = nullptr;
+        for (QScreen *s : QGuiApplication::screens())
+            if (s->name() == stored.left(bar)) { target = s; break; }
+        if (!target) {
+            smokeLog(QStringLiteral("re-capture region: SKIP (screen \"%1\" not connected)").arg(stored.left(bar)));
+            smokeNext();
+            return;
+        }
+        const QRect rect(parts[0].toInt(), parts[1].toInt(), parts[2].toInt(), parts[3].toInt());
+        smokeLog(QStringLiteral("re-capture region…"));
+        m_capture->captureScreen(target, [this, target, rect](const QImage &img, const QString &err) {
+            if (!err.isEmpty() || img.isNull()) {
+                smokeLog(QStringLiteral("  re-capture: FAIL (%1)").arg(err.isEmpty() ? QStringLiteral("null image") : err));
+            } else {
+                const double s = double(img.width()) / target->geometry().width();
+                const QRect crop = QRectF(rect.x() * s, rect.y() * s, rect.width() * s, rect.height() * s)
+                                       .toAlignedRect().intersected(img.rect());
+                smokeLog(QStringLiteral("  re-capture: %1 (stored %2x%3 -> crop %4x%5)")
+                             .arg(crop.width() > 1 && crop.height() > 1 ? QStringLiteral("PASS")
+                                                                       : QStringLiteral("FAIL (rect off-screen)"))
+                             .arg(rect.width()).arg(rect.height())
+                             .arg(crop.width()).arg(crop.height()));
+            }
+            smokeNext();
+        });
+    });
+
+    // 2d) keystroke badge (pure render check; libinput access is reported
+    // separately as a capability, not failed here).
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("keystroke badge: ") + keystrokeBadgeCheck());
+        smokeLog(QStringLiteral("keystroke capture access: ")
+                 + (keystrokeCaptureBlockedReason().isEmpty()
+                        ? QStringLiteral("PASS (/dev/input readable)")
+                        : QStringLiteral("SKIP (%1)").arg(keystrokeCaptureBlockedReason())));
+        smokeNext();
+    });
+
+    // 2e) community themes: schema + live themes-folder round-trip.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("custom themes: ") + customThemeCheck());
+        smokeNext();
+    });
+
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
@@ -4469,11 +4829,22 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
         const QRect lg = screen->geometry();
         const QSizeF phys(lg.width() * hdpr, lg.height() * hdpr);
-        // Frame color follows the active theme; the fallback is the palette accent.
+        // Overlay colors follow the active theme (incl. custom themes); the
+        // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
         QColor accent(QStringLiteral("#C8ACD6"));
+        QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
+        QColor cdBg(0, 0, 0, 140), cdNumber;
         if (QObject *theme = m_engine->singletonInstance<QObject *>(
-                QStringLiteral("Unisic"), QStringLiteral("Theme")))
+                QStringLiteral("Unisic"), QStringLiteral("Theme"))) {
             accent = theme->property("accent").value<QColor>();
+            badgeBg = theme->property("recBadgeBg").value<QColor>();
+            badgeText = theme->property("recBadgeText").value<QColor>();
+            dot = theme->property("recDot").value<QColor>();
+            cdBg = theme->property("countdownBg").value<QColor>();
+            cdNumber = theme->property("countdownNumber").value<QColor>();
+        }
+        if (!cdNumber.isValid())
+            cdNumber = accent;
         const auto frac = [](double v) { return QString::number(v, 'f', 8); };
         auto *proc = new QProcess(this);
         proc->setProgram(QCoreApplication::applicationFilePath());
@@ -4489,7 +4860,12 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
                             frac(physRegion.height() / phys.height()),
                             accent.name(QColor::HexRgb),
                             QString::number(countdown),
-                            countdownOnly ? QStringLiteral("1") : QStringLiteral("0")});
+                            countdownOnly ? QStringLiteral("1") : QStringLiteral("0"),
+                            badgeBg.name(QColor::HexArgb),
+                            badgeText.name(QColor::HexArgb),
+                            dot.name(QColor::HexArgb),
+                            cdBg.name(QColor::HexArgb),
+                            cdNumber.name(QColor::HexArgb)});
         // The helper's badge carries clickable stop/pause controls; a click there
         // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
         // like the in-process border's buttons (the resulting paused state is
@@ -5898,27 +6274,10 @@ QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
 
 QString AppContext::makeFileName() const
 {
-    QString t = m_settings->filenameTemplate().trimmed();
-    if (t.isEmpty())
-        t = QStringLiteral("Unisic_%date%_%time%");
-    const QDateTime now = QDateTime::currentDateTime();
-    t.replace(QLatin1String("%date%"), now.toString(QStringLiteral("yyyy-MM-dd")));
-    t.replace(QLatin1String("%time%"), now.toString(QStringLiteral("HH-mm-ss")));
-    t.replace(QLatin1String("%datetime%"), now.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss")));
-    t.replace(QLatin1String("%unix%"), QString::number(now.toSecsSinceEpoch()));
-    t.replace(QLatin1String("%rand%"),
-              QUuid::createUuid().toString(QUuid::WithoutBraces).left(8));
-    // %i% = a monotonic counter (filenameCounter), read-only here — the actual
-    // increment happens once per saved capture in finishCapture, so the preview
-    // and the real save agree on the same number.
-    t.replace(QLatin1String("%i%"), QString::number(m_settings->filenameCounter()));
-    static const QRegularExpression illegal(QStringLiteral("[/\\\\:*?\"<>|]"));
-    t.replace(illegal, QStringLiteral("_"));
-
-    QString ext = m_settings->imageFormat().toLower();
-    if (ext == QLatin1String("jpeg")) ext = QStringLiteral("jpg");
-    if (ext != QLatin1String("jpg") && ext != QLatin1String("webp")) ext = QStringLiteral("png");
-    return t + QLatin1Char('.') + ext;
+    return FilenameTemplate::expand(m_settings->filenameTemplate(),
+                                    m_settings->filenameCounter(),
+                                    QDateTime::currentDateTime())
+           + QLatin1Char('.') + FilenameTemplate::extensionFor(m_settings->imageFormat());
 }
 
 QString AppContext::filenamePreview() const
@@ -6471,6 +6830,8 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("capture-fullscreen"), tr("Capture full screen"), m_settings->hotkeyFullScreen()},
         {QStringLiteral("capture-region"), tr("Capture region"), m_settings->hotkeyRegion()},
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
+        {QStringLiteral("capture-screen"), tr("Capture screen under cursor"), m_settings->hotkeyScreen()},
+        {QStringLiteral("recapture-region"), tr("Re-capture last region"), m_settings->hotkeyRecapture()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
@@ -6497,6 +6858,8 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     if (actionId == QLatin1String("capture-fullscreen")) m_settings->setHotkeyFullScreen(portable);
     else if (actionId == QLatin1String("capture-region")) m_settings->setHotkeyRegion(portable);
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
+    else if (actionId == QLatin1String("capture-screen")) m_settings->setHotkeyScreen(portable);
+    else if (actionId == QLatin1String("recapture-region")) m_settings->setHotkeyRecapture(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);
     else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
@@ -6776,7 +7139,10 @@ void AppContext::setupTray()
     // window. Grouped so the list stays readable at a dozen entries.
     menu->addAction(trayMenuIcon(QStringLiteral("region")), tr("Capture region"), this, &AppContext::captureRegion);
     menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Capture full screen"), this, &AppContext::captureFullScreen);
+    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Capture screen under cursor"), this, &AppContext::captureScreenUnderCursor);
     menu->addAction(trayMenuIcon(QStringLiteral("window")), tr("Capture window"), this, &AppContext::captureWindow);
+    QAction *recapture = menu->addAction(trayMenuIcon(QStringLiteral("region")), tr("Re-capture last region"),
+                                         this, &AppContext::recaptureLastRegion);
     menu->addAction(trayMenuIcon(QStringLiteral("measure")), tr("Measure"), this, &AppContext::captureMeasure);
     if (ocrAvailable())
         menu->addAction(trayMenuIcon(QStringLiteral("ocr")), tr("Select text…"), this, &AppContext::captureRegionOcr);
@@ -6793,11 +7159,12 @@ void AppContext::setupTray()
     QAction *stopRec = menu->addAction(trayMenuIcon(QStringLiteral("stop")), tr("Stop recording"), this, &AppContext::stopRecording);
     // The menu is built once, so anything state-dependent has to be refreshed
     // when it opens — otherwise it shows whatever was true at startup.
-    connect(menu, &QMenu::aboutToShow, this, [this, replayStart, replaySave, stopRec] {
+    connect(menu, &QMenu::aboutToShow, this, [this, replayStart, replaySave, stopRec, recapture] {
         replayStart->setVisible(!instantReplayActive());
         replaySave->setVisible(instantReplayActive());
         replayStart->setEnabled(!recording());
         stopRec->setEnabled(recording());
+        recapture->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
     });
     menu->addSeparator();
     menu->addAction(trayMenuIcon(QStringLiteral("content-copy")), tr("Copy last capture"), this, &AppContext::copyLastCapture);

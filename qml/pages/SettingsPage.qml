@@ -2313,32 +2313,11 @@ Item {
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
 
-            // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
-            // would be dead — explain the compositor-bind route instead.
             SettingsGroup {
-                visible: !App.hotkeysAvailable
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Global hotkeys unavailable on this desktop") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        textFormat: Text.MarkdownText
-                        text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Bind keys in your desktop instead; a running Unisic instance picks the command up:\n\n" +
-                                   "```\nunisic --region | --fullscreen | --window | --gif | --measure\nunisic --delay 5 --region\n```\n\n" +
-                                   "GNOME: Settings → Keyboard → Custom Shortcuts, one entry per command above. GNOME 48+ normally supports in-app hotkeys; if this card shows there, update xdg-desktop-portal-gnome or launch Unisic once from its menu entry.\n\n" +
-                                   "niri (`config.kdl`):\n\n" +
-                                   "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS + 1
-                    }
-                }
-            }
-
-            SettingsGroup {
-                visible: App.hotkeysAvailable
+                // Also shown on a desktop with no hotkey backend but a writable
+                // shortcut store (COSMIC/GNOME/Cinnamon/Xfce): record the keys
+                // here, then "Add shortcuts to <desktop>" binds them as commands.
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2347,7 +2326,9 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: App.hotkeyBackend === "portal"
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1's keyboard settings.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
                               : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
@@ -2416,14 +2397,20 @@ Item {
                     }
                     UButton {
                         anchors.right: parent.right
-                        text: qsTr("Apply hotkeys")
+                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
+                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
                         compact: true
-                        onClicked: { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                        onClicked: {
+                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                            else App.installDesktopShortcuts()
+                        }
                     }
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: App.hotkeyBackend === "portal"
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
                               ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
@@ -2502,6 +2489,87 @@ Item {
                                 enabled: taskPresetCard.usesUpload(App.settings.windowTask)
                                 currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.windowTaskDestination))
                                 onActivated: (i) => App.settings.windowTaskDestination = page.taskDestinationIds[i]
+                            }
+                        }
+                    }
+                }
+            }
+
+            // The "no hotkey backend" install / copy-paste card sits LAST on this
+            // pane on purpose: the key recorders come first, and this heavier card
+            // (with its one-click writer) is far less in-your-face down here than
+            // it was leading the pane.
+            SettingsGroup {
+                id: unavCard
+                visible: !App.hotkeysAvailable
+                width: page.cardWidth
+                property bool manualOpen: false
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Global hotkeys unavailable on this desktop") }
+                    UCard {
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: Theme.spacingM
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Instead each capture action can be bound to a command in your desktop's own shortcut settings; a running Unisic instance then picks it up.")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS + 1
+                            }
+                            // Auto path: COSMIC/GNOME/Cinnamon/Xfce — one click
+                            // writes the desktop's config with the keys above.
+                            Column {
+                                visible: App.desktopShortcutsAuto
+                                width: parent.width
+                                spacing: Theme.spacingS
+                                Text {
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: qsTr("Unisic can add these to %1 for you, using the keys above — they stay editable in %1's own keyboard settings.").arg(App.desktopShortcutName)
+                                    color: Theme.textTertiary
+                                    font.pixelSize: Theme.fontS
+                                }
+                                Row {
+                                    spacing: Theme.spacingS
+                                    UButton {
+                                        text: qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
+                                        onClicked: App.installDesktopShortcuts()
+                                    }
+                                    UButton {
+                                        text: qsTr("Remove")
+                                        variant: "ghost"
+                                        compact: true
+                                        onClicked: App.removeDesktopShortcuts()
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                visible: App.desktopShortcutsAuto
+                                width: parent.width; height: 1
+                                color: Theme.divider
+                            }
+                            // Copy-paste: tucked behind a toggle where auto exists,
+                            // shown directly on niri/sway/etc. (the only path there).
+                            UButton {
+                                visible: App.desktopShortcutsAuto
+                                variant: "ghost"
+                                compact: true
+                                text: unavCard.manualOpen ? qsTr("Hide commands") : qsTr("Show commands")
+                                onClicked: unavCard.manualOpen = !unavCard.manualOpen
+                            }
+                            Text {
+                                visible: !App.desktopShortcutsAuto || unavCard.manualOpen
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                textFormat: Text.MarkdownText
+                                text: (App.desktopShortcutsAuto ? "" : qsTr("Bind these commands in your desktop:") + "\n\n")
+                                      + App.desktopShortcutManualText()
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
                             }
                         }
                     }
@@ -2668,6 +2736,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open a file…"); onClicked: App.openFileForEditing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }

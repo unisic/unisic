@@ -72,6 +72,8 @@ qt_add_executable(unisic
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
+    src/hotkeys/ShortcutKeyMap.h
+    src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
     src/update/VersionCompare.h
     src/theme/ThemeController.h src/theme/ThemeController.cpp
@@ -408,6 +410,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_shortcut_format_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_shortcut_format_test PRIVATE src/hotkeys)
     add_test(NAME unisic_shortcut_format_test COMMAND unisic_shortcut_format_test)
+
+    qt_add_executable(unisic_shortcut_binder_test
+        tests/ShortcutBinderTest.cpp
+        src/hotkeys/ShortcutKeyMap.h
+        src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
+    )
+    target_link_libraries(unisic_shortcut_binder_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_shortcut_binder_test PRIVATE src/hotkeys)
+    add_test(NAME unisic_shortcut_binder_test COMMAND unisic_shortcut_binder_test)
 
     qt_add_executable(unisic_version_compare_test
         tests/VersionCompareTest.cpp

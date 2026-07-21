@@ -155,6 +155,14 @@ static QByteArray cliCommand(const QStringList &args)
         return command;
     }
     if (args.contains(QLatin1String("--gif"))) return "gif";
+    // `--hotkey <id>` runs a hotkey action's entry point. This is what the
+    // desktop custom-shortcut bindings spawn on desktops with no native hotkey
+    // backend (COSMIC/Xfce/…), so a running instance behaves like a key press.
+    if (args.contains(QLatin1String("--hotkey"))) {
+        const QString id = cliValue(args, QStringLiteral("--hotkey"));
+        if (!id.isEmpty())
+            return "hotkey " + id.toUtf8();
+    }
     // Autostart path: if an instance is somehow already running, do nothing
     // (never raise its window) — the flag only shapes a FRESH launch.
     if (args.contains(QLatin1String("--tray-only"))) return "tray";
@@ -214,6 +222,7 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     else if (command == "monitor") context.captureScreenUnderCursor();
     else if (command == "recapture") context.recaptureLastRegion();
     else if (command == "gif") context.startGifRegion();
+    else if (command == "hotkey") context.runHotkeyAction(QString::fromUtf8(parts.value(1)));
     else if (command == "tray") { /* already running — stay in tray */ }
     else QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
     return toStdout;
@@ -806,6 +815,8 @@ int main(int argc, char *argv[])
         else if (args.contains(QLatin1String("--monitor"))) context.captureScreenUnderCursor();
         else if (args.contains(QLatin1String("--recapture"))) context.recaptureLastRegion();
         else if (args.contains(QLatin1String("--gif"))) context.startGifRegion();
+        else if (args.contains(QLatin1String("--hotkey")))
+            context.runHotkeyAction(cliValue(args, QStringLiteral("--hotkey")));
     });
 
     // Safety net for --tray-only: if this desktop has no system-tray host AT ALL

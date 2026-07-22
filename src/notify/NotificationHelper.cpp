@@ -157,7 +157,9 @@ int runNotificationHelper(int argc, char *argv[])
     // it, silently, at runtime.
     const QStringList args = app.arguments();
     const int i = args.indexOf(QStringLiteral("--notification-helper"));
-    if (i < 0 || i + 12 >= args.size())
+    // thumbPath (i+11) is the last required arg; filePath (i+12) is optional
+    // (empty for an unsaved capture), matching the ternary at its read below.
+    if (i < 0 || i + 11 >= args.size())
         return 2;
     const QString name = args[i + 1];
     const QRect logical(args[i + 2].toInt(), args[i + 3].toInt(),

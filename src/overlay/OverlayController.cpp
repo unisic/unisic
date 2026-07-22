@@ -172,6 +172,7 @@ void OverlayController::createWindows()
         if (!shown)
             win->showFullScreen();
         m_windows.append(win);
+        m_windowScreens.append(screen);
     }
     if (!m_windows.isEmpty()) {
         m_starting = false;
@@ -205,7 +206,7 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
         return;
 
     const int idx = m_windows.indexOf(win);
-    QScreen *screen = (idx >= 0 && idx < m_screens.size()) ? m_screens[idx] : nullptr;
+    QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;
 
     if (m_imageCb) {
         const QImage result = canvas->renderedSelection();
@@ -280,6 +281,7 @@ void OverlayController::closeAll()
     m_starting = false;
     const auto windows = m_windows;
     m_windows.clear();
+    m_windowScreens.clear();
     for (QQuickWindow *w : windows) {
         w->close();
         w->deleteLater();

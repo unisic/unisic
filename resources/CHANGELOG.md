@@ -6,6 +6,22 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.7.5
+
+### English
+**Fixed**
+- **The pre-recording countdown scales to what is being recorded**: the disc was always sized to the whole screen, so on a small recorded region it stuck out far beyond the frame. It now sizes itself to the region it sits in, and a window recording sizes it to the recorded window (whose on-screen position cannot be known on Wayland, so there it stays centered on the screen).
+- **"Encoding…" can no longer hang when even force-ending the encoder fails**: on a dead network drive the system can refuse to clean up the killed encoder, which used to bring the hang right back. The recording is now salvaged anyway.
+- **Adding shortcuts on Singularity can no longer stall the window**: the compositor reload after writing the keybinds now runs detached from the interface, and the automatic re-assert stops with a log message instead of fighting forever should the desktop ever start rewriting the file in response.
+- **Less busywork in the interface**: the blinking "See patch notes" arrow no longer animates invisibly behind the first-run walkthrough, and the walkthrough is freed from memory once it closes instead of staying loaded for the whole session. Settings got the same pass: search scans the panes only after a short typing pause, typing in an editor-icon override no longer re-reads the whole override list on every keystroke, and picking a tray icon no longer rebuilds every tile.
+
+### Polski
+**Naprawione**
+- **Licznik przed nagraniem skaluje się do tego, co nagrywane**: dysk zawsze miał rozmiar liczony z całego ekranu, więc przy małym nagrywanym obszarze wystawał daleko poza ramkę. Teraz dopasowuje się do obszaru, w którym siedzi, a przy nagrywaniu okna - do rozmiaru nagrywanego okna (pozycji okna na ekranie nie da się poznać na Waylandzie, więc tam pozostaje wyśrodkowany na ekranie).
+- **„Kodowanie…" nie może już zawisnąć, gdy nawet wymuszone zakończenie enkodera zawodzi**: na martwym dysku sieciowym system potrafi odmówić sprzątnięcia ubitego enkodera, co przywracało zawieszenie. Nagranie i tak zostaje teraz uratowane.
+- **Dodawanie skrótów na Singularity nie może już zacinać okna**: przeładowanie kompozytora po zapisaniu skrótów działa teraz niezależnie od interfejsu, a automatyczne przywracanie wpisów kończy się komunikatem w logu, zamiast walczyć w nieskończoność, gdyby pulpit zaczął nadpisywać plik w odpowiedzi.
+- **Mniej pracy w tle interfejsu**: migająca strzałka „Zobacz nowości" nie animuje się już niewidocznie za przewodnikiem pierwszego uruchomienia, a przewodnik jest zwalniany z pamięci po zamknięciu, zamiast pozostawać załadowany przez całą sesję. Ustawienia dostały to samo: wyszukiwanie skanuje panele dopiero po krótkiej przerwie w pisaniu, wpisywanie nadpisania ikony edytora nie odczytuje już całej listy przy każdym znaku, a wybór ikony zasobnika nie przebudowuje już wszystkich kafelków.
+
 ## 0.7.4
 
 ### English

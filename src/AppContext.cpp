@@ -5283,9 +5283,14 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
         runExternalAction(output, path);
 
     const bool uploading = uploadEnabled;
-    quint64 historyId = 0;
-    if (!cliMode && (!uploading || !path.isEmpty()))
-        historyId = m_history->addEntry(path, output, QStringLiteral("image"));
+    // Register the history entry up front — even when uploading an unsaved
+    // capture. The notification card then holds a real entry id, so a manual
+    // Save / Show-in-folder from the card while the upload is still in flight
+    // links the file to THIS entry instead of stranding it (setFilePathById(0)
+    // silently missed). The thumbnail is generated now from `output`, so the
+    // full image no longer stays pinned across the whole network transfer.
+    quint64 historyId = cliMode ? 0
+                                : m_history->addEntry(path, output, QStringLiteral("image"));
 
     auto *notif = cliMode ? nullptr
                           : showCaptureNotification(output, path, QStringLiteral("image"), inhibited);
@@ -5296,24 +5301,24 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     if (uploading) {
         if (np) np->setUploading(true);
         // Encode off-thread (100+ ms at 4K), start the upload in the GUI-thread
-        // continuation. The callback retains the image ONLY when the history
-        // entry can actually need it (nothing saved to disk) — otherwise the
-        // 30-60 MB buffer would stay pinned for the whole network transfer.
-        encodeImageAsync(output, [this, path, np, fileName, uploadDestination,
-                                  img = path.isEmpty() ? output : QImage()](const QByteArray &data, const QString &mime) {
+        // continuation. The full image is released once encoding finishes — the
+        // history entry created above already carries its thumbnail, so nothing
+        // needs the pixels for the duration of the transfer.
+        encodeImageAsync(output, [this, path, np, historyId, fileName,
+                                  uploadDestination](const QByteArray &data, const QString &mime) {
             m_uploads->uploadDataTo(uploadDestination, data, fileName, mime,
-                [this, path, img, np](const QString &url, const QString &del, const QString &err) {
+                [this, path, historyId, np](const QString &url, const QString &del, const QString &err) {
                     if (!err.isEmpty()) {
-                        if (path.isEmpty())
-                            m_history->addEntry({}, img, QStringLiteral("image"));
+                        // The capture already lives in history (added before the
+                        // upload) — a failure just leaves it there without a URL.
                         showToast(tr("Upload failed: %1").arg(err), true);
                         if (np) np->setUploading(false);
                         return;
                     }
-                    if (!path.isEmpty())
-                        m_history->setUrl(path, url, del);
-                    else
-                        m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                    // Attach the URL to the pre-created entry by id; fall back to a
+                    // fresh entry only if it was evicted during a long transfer.
+                    if (!m_history->setUrlById(historyId, url, del))
+                        m_history->addEntry(path, {}, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
                 });

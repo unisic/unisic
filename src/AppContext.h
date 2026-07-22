@@ -28,6 +28,7 @@ class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class QQuickWindow;
+class QScreen;
 class QTimer;
 class QProcess;
 class CaptureManager;

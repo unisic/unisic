@@ -482,6 +482,14 @@ if(BUILD_TESTING)
     target_include_directories(unisic_filename_template_test PRIVATE src)
     add_test(NAME unisic_filename_template_test COMMAND unisic_filename_template_test)
 
+    qt_add_executable(unisic_stream_geometry_test
+        tests/StreamGeometryTest.cpp
+        src/record/StreamGeometry.h
+    )
+    target_link_libraries(unisic_stream_geometry_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_stream_geometry_test PRIVATE src)
+    add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
+
     qt_add_executable(unisic_settings_persistence_test
         tests/SettingsPersistenceTest.cpp
         src/Settings.h

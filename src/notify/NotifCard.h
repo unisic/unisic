@@ -102,7 +102,13 @@ inline QJsonObject encodeConfig(const Settings *s, bool qrAvailable, bool ocrAva
 // setting appears to do nothing on GNOME only.
 inline QQmlPropertyMap *makeSettingsMap(const QJsonObject &settings, QObject *parent)
 {
+    // The public constructor is deprecated since Qt 6.11 in favor of create()
+    // — which older Qt (project minimum 6.5) does not have yet.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
+    QQmlPropertyMap *map = QQmlPropertyMap::create(parent);
+#else
     auto *map = new QQmlPropertyMap(parent);
+#endif
     for (auto it = settings.begin(); it != settings.end(); ++it)
         map->insert(it.key(), it.value().toVariant());
     // Keys the sender's Settings did not carry (an older config, a key added

@@ -539,6 +539,13 @@ void AnnotationCanvas::selectAnnot(int index)
     // Reset the coalesce run so the next style edit starts fresh.
     m_lastCoalesceProp = -1;
     m_lastCoalesceIndex = -1;
+    // Announce the selection change BEFORE seeding the style props below. QML's
+    // persistColors/persistTools guards are bound to hasAnnotSelection (NOTIFY
+    // selectedAnnotChanged); emitting after the seeding setters would leave those
+    // bindings reading their stale pre-selection value, so the seeded style of the
+    // clicked shape would leak into the saved drawing defaults. Emitting first also
+    // lets restoreStyleBackup() re-persist the real defaults on deselect.
+    emit selectedAnnotChanged();
     if (index >= 0 && index < m_items.size()) {
         // Entering a selection from none: remember the user's own style so
         // deselecting restores it (the seeding below overwrites it with the
@@ -583,7 +590,6 @@ void AnnotationCanvas::selectAnnot(int index)
     } else if (index < 0) {
         restoreStyleBackup();
     }
-    emit selectedAnnotChanged();
     update();
 }
 

@@ -26,6 +26,7 @@ private slots:
     void penStrokeKeepsReleaseEndpoint();
     void penTapRendersDot();
     void deselectRestoresStrokeStyle();
+    void selectionAnnouncedBeforeStyleSeeding();
     void editShapesSelectMoveDelete();
     void drawToolClickSelectsAndMoves();
     void captureOnReleaseConfirms();
@@ -146,6 +147,50 @@ void AnnotationCanvasTest::deselectRestoresStrokeStyle()
     QCOMPARE(canvas.strokeColor(), QColor(Qt::red));
     canvas.removeSelectedAnnot();
     QCOMPARE(canvas.strokeColor(), QColor(Qt::blue));
+}
+
+// The QML persist-defaults guards (persistColors/persistTools) are bound to
+// hasAnnotSelection, whose only NOTIFY is selectedAnnotChanged. selectAnnot must
+// emit selectedAnnotChanged BEFORE its style-seeding setters fire their own
+// NOTIFYs — otherwise those guards read a stale pre-selection value and the
+// clicked shape's style leaks into the saved drawing defaults. Pin the ordering.
+void AnnotationCanvasTest::selectionAnnouncedBeforeStyleSeeding()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    // A filled red 4px rectangle, then move the live pen away from its style so
+    // selecting it must actually re-seed a different width and colour.
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    canvas.setStrokeColor(Qt::red);
+    canvas.setStrokeWidth(4);
+    drag(canvas, QPointF(50, 50), QPointF(150, 150));
+    canvas.setStrokeColor(Qt::blue);
+    canvas.setStrokeWidth(12);
+
+    canvas.setTool(AnnotationCanvas::EditShapes);
+
+    // Record the emission order across the selection signal and the style NOTIFYs.
+    QStringList order;
+    QObject::connect(&canvas, &AnnotationCanvas::selectedAnnotChanged,
+                     &canvas, [&] { order << QStringLiteral("selection"); });
+    QObject::connect(&canvas, &AnnotationCanvas::strokeWidthChanged,
+                     &canvas, [&] { order << QStringLiteral("width"); });
+    QObject::connect(&canvas, &AnnotationCanvas::strokeColorChanged,
+                     &canvas, [&] { order << QStringLiteral("color"); });
+
+    canvas.selectAnnotAt(100, 100);
+
+    QVERIFY(canvas.hasAnnotSelection());
+    QVERIFY2(order.contains(QStringLiteral("width")),
+             "the seeding setters must have fired (pen 12 -> shape 4)");
+    QVERIFY2(!order.isEmpty() && order.first() == QStringLiteral("selection"),
+             "selectAnnot must emit selectedAnnotChanged before the style NOTIFYs");
 }
 
 void AnnotationCanvasTest::editShapesSelectMoveDelete()

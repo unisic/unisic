@@ -490,6 +490,12 @@ public:
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
     U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
+    // Deliberately NOT a Q_PROPERTY: machine-local state ("the user installed
+    // desktop custom shortcuts here"), must not travel via settings export.
+    // Read on startup to re-assert stores the desktop itself rewrites
+    // (Singularity regenerates labwc rc.xml on login, wiping our keybinds).
+    U_SETTING(bool, desktopShortcutsInstalled, setDesktopShortcutsInstalled,
+              "hotkeys/desktopShortcutsInstalled", false)
     U_SETTING(bool, showCapturePopup, setShowCapturePopup, "showCapturePopup", true)
     U_SETTING(QString, capturePopupPosition, setCapturePopupPosition, "capturePopupPosition", QStringLiteral("bottom-right"))
     // "casual" (full card) | "compact" (single slim row)
@@ -711,6 +717,7 @@ signals:
     void hotkeyInstantReplayChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
+    void desktopShortcutsInstalledChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();
     void capturePopupStyleChanged();

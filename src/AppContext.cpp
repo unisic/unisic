@@ -309,6 +309,10 @@ void AppContext::initialize(QQmlEngine *engine)
     // loaded the window instead of before it, and late enough that startup
     // toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
     QTimer::singleShot(0, this, &AppContext::defineHotkeys);
+    // Singularity rewrites labwc's rc.xml (our custom-shortcut store there) on
+    // every login and shortcut edit, silently dropping Unisic's keybinds —
+    // watch the store and re-assert them whenever they vanish.
+    armDesktopShortcutReassert();
 
     // Daily release check + AppImage self-install (suppressed on dev builds
     // and when the setting is off — the checker logs why it stays quiet).
@@ -6988,6 +6992,7 @@ bool AppContext::installDesktopShortcuts()
         showToast(tr("Could not add shortcuts: %1").arg(r.error), true);
         return false;
     }
+    m_settings->setDesktopShortcutsInstalled(true);
     QString msg = tr("Added %n shortcut(s) to %1", nullptr, r.written)
                       .arg(ShortcutBinder::desktopName(b));
     if (!r.skipped.isEmpty())
@@ -7001,10 +7006,66 @@ void AppContext::removeDesktopShortcuts()
 {
     const ShortcutBinder::Backend b = ShortcutBinder::detect();
     const ShortcutBinder::Result r = ShortcutBinder::remove(b);
-    if (!r.ok)
+    if (!r.ok) {
         showToast(tr("Could not remove shortcuts: %1").arg(r.error), true);
-    else
+    } else {
+        m_settings->setDesktopShortcutsInstalled(false);
         showToast(tr("Removed Unisic shortcuts from %1").arg(ShortcutBinder::desktopName(b)));
+    }
+}
+
+// Singularity regenerates ~/.config/labwc/rc.xml from its own template on login
+// and on any shortcut edit — Unisic's injected keybinds do not survive
+// (verified against dev.sinty.desktop.Shortcuts.WriteLabwcRcXml). While the
+// app runs, a watcher puts them back; the immediate pass below covers the
+// common case where the DE rewrote the store before Unisic started. Both are
+// gated on the user having pressed "Add shortcuts" at least once (the
+// persisted desktopShortcutsInstalled flag), so an explicit Remove sticks.
+void AppContext::armDesktopShortcutReassert()
+{
+    const ShortcutBinder::Backend b = ShortcutBinder::detect();
+    const QString path = ShortcutBinder::watchPath(b);
+    if (path.isEmpty())
+        return;
+
+    const auto reassert = [this, b] {
+        if (!m_settings->desktopShortcutsInstalled() || hotkeysAvailable())
+            return;
+        if (ShortcutBinder::present(b))
+            return;
+        const ShortcutBinder::Result r = ShortcutBinder::install(b, desktopShortcutBindings());
+        if (r.ok)
+            qInfo() << "Re-asserted" << r.written << "desktop shortcuts in"
+                    << ShortcutBinder::desktopName(b) << "(the desktop rewrote its store)";
+        else
+            qWarning() << "Desktop shortcut re-assert failed:" << r.error;
+    };
+
+    // The DE replaces the file by rename, which silently drops it from the
+    // watcher — re-arm file AND dir on every pass (same rule as the theme
+    // watcher). The dir watch also covers the file being briefly absent.
+    m_shortcutStoreWatcher = new QFileSystemWatcher(this);
+    const auto rearm = [this, path] {
+        if (QFile::exists(path) && !m_shortcutStoreWatcher->files().contains(path))
+            m_shortcutStoreWatcher->addPath(path);
+        const QString dir = QFileInfo(path).path();
+        if (!m_shortcutStoreWatcher->directories().contains(dir))
+            m_shortcutStoreWatcher->addPath(dir);
+    };
+    // Debounced: a regeneration fires several file+dir change signals in a
+    // burst, and one pass right after it settles is enough.
+    m_shortcutReassertDebounce = new QTimer(this);
+    m_shortcutReassertDebounce->setSingleShot(true);
+    m_shortcutReassertDebounce->setInterval(1000);
+    connect(m_shortcutReassertDebounce, &QTimer::timeout, this, [rearm, reassert] {
+        rearm();
+        reassert();
+    });
+    const auto kick = [this](const QString &) { m_shortcutReassertDebounce->start(); };
+    connect(m_shortcutStoreWatcher, &QFileSystemWatcher::fileChanged, this, kick);
+    connect(m_shortcutStoreWatcher, &QFileSystemWatcher::directoryChanged, this, kick);
+    rearm();
+    reassert();
 }
 
 QString AppContext::desktopShortcutManualText() const

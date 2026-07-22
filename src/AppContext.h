@@ -579,6 +579,11 @@ private:
     // spawn command `unisic --hotkey <id>` (shell-quoted binary path).
     QList<ShortcutBinder::Binding> desktopShortcutBindings() const;
     QString hotkeyCommand(const QString &actionId) const;
+    // Watch a shortcut store the DESKTOP itself rewrites (Singularity's labwc
+    // rc.xml) and silently re-install our entries when they disappear.
+    void armDesktopShortcutReassert();
+    QFileSystemWatcher *m_shortcutStoreWatcher = nullptr;
+    QTimer *m_shortcutReassertDebounce = nullptr;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);

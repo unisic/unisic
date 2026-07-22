@@ -1228,6 +1228,7 @@ void AppContext::startGifFullScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr; // stale region target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(GifRecorder::Gif, GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -1243,6 +1244,7 @@ void AppContext::startVideoScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -1265,6 +1267,7 @@ void AppContext::startVideoWindow()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
     });
@@ -1290,6 +1293,7 @@ void AppContext::startInstantReplay()
 {
     if (recording()) return;
     m_pendingRecordRegion = {};
+    m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -6176,6 +6180,13 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
         ctx->setParent(win);
         ctl->setParent(win);
         ctl->setWindow(win);
+        // Bind the surface to the monitor the user is working on BEFORE the
+        // layer-shell configure — without this the fullscreen preview surface
+        // lands on whatever output the compositor defaults to (usually the
+        // primary), not the one the capture was taken/clicked on. Same rule as
+        // LayerShellNotifier: the cursor's screen is the working screen.
+        if (QScreen *s = QGuiApplication::screenAt(QCursor::pos()))
+            win->setScreen(s);
         ctl->attach();   // configure layer-shell / flags before the window shows
         connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
             if (!v) {

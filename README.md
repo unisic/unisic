@@ -95,3 +95,12 @@ Issues and pull requests welcome. Found a bug? [File an issue](https://github.co
 ## Credits
 
 Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.com/D3anDark). Inspired by [Flameshot](https://flameshot.org/) and [Spectacle](https://apps.kde.org/spectacle/).
+
+<div align="center">
+<br />
+
+<img src="docs/uni.png" width="230" alt="Uni, the Unisic mascot — a purple cat-girl sitting on a window" />
+
+*Uni approves this capture.*
+
+</div>

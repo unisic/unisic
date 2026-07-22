@@ -38,6 +38,9 @@ bool haveTool(const QString &name)
 
 // Blocking run — every caller is a user-initiated button, and these tools
 // return in well under a second. ok = zero exit code; stdout captured.
+// Keep it that way: anything reachable from the automatic Singularity
+// re-assert path (ctor / watcher debounce) must NOT use this — see
+// labwcReconfigure's startDetached.
 bool run(const QString &program, const QStringList &args, QString *out = nullptr)
 {
     QProcess p;
@@ -486,8 +489,13 @@ bool labwcReconfigure()
     // from there would be wrong even though it is harmless.
     if (QStandardPaths::isTestModeEnabled())
         return true;
-    // Failure is not fatal: labwc rereads rc.xml on the next login anyway.
-    return run(QStringLiteral("labwc"), {QStringLiteral("--reconfigure")});
+    // Detached, not run(): this is the one spawn on an AUTOMATIC path (the
+    // AppContext ctor and the rc.xml watcher's debounce timer re-assert on
+    // Singularity), so a blocking wait here would freeze the GUI thread for
+    // up to 8 s. The exit code is not needed — failure is not fatal, labwc
+    // rereads rc.xml on the next login anyway.
+    return QProcess::startDetached(QStringLiteral("labwc"),
+                                   {QStringLiteral("--reconfigure")});
 }
 
 Result singularityInstall(const QList<Binding> &bindings)

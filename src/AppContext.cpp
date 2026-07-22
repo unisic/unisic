@@ -1362,7 +1362,19 @@ void AppContext::runRecordCountdownVisuals(int secs)
             const QRect full(QPoint(0, 0),
                              QSize(qRound(screen->geometry().width() * dpr),
                                    qRound(screen->geometry().height() * dpr)));
-            showRecordBorder(full, screen, secs, /*countdownOnly=*/true);
+            // Window recordings: scale the disc to the recorded window — the
+            // stream is live by countdown time (armed), so its size is known
+            // and the disc behaves like a region frame of that size. Full
+            // screen keeps the capped whole-surface disc (no ref). The
+            // window's POSITION is not knowable on Wayland, so the disc stays
+            // centered on the screen; only its size tracks the target.
+            QSize cdRef;
+            if (m_recorder->sourceType() == GifRecorder::Window) {
+                const QSize ss = m_recorder->armedStreamSize();
+                if (!ss.isEmpty())
+                    cdRef = QSize(qRound(ss.width() / dpr), qRound(ss.height() / dpr));
+            }
+            showRecordBorder(full, screen, secs, /*countdownOnly=*/true, cdRef);
             inFrame = (m_recordBorderWindow != nullptr || m_recordBorderHelper != nullptr);
         }
     }
@@ -4907,7 +4919,7 @@ bool AppContext::capVideoPlayback() const
 }
 
 void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdown,
-                                  bool countdownOnly)
+                                  bool countdownOnly, const QSize &countdownRef)
 {
     hideRecordBorder(); // retire any stale frame first (also clears the flag)
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
@@ -5046,6 +5058,10 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     win->setProperty("countdown", countdown);
     // countdownOnly: no frame, no badge, number centered on the whole surface.
     win->setProperty("countdownOnly", countdownOnly);
+    // Recorded-target size (logical px) the countdown disc scales to; 0 = whole
+    // surface (position is unknowable on Wayland, so only the SIZE tracks it).
+    win->setProperty("countdownRefW", countdownRef.width());
+    win->setProperty("countdownRefH", countdownRef.height());
     // A countdown-only overlay has NO clickable controls, so make the whole
     // surface input-transparent — otherwise the full-screen layer surface eats
     // every click for the 3 s it is up (the region frame instead masks input to
@@ -7086,8 +7102,25 @@ void AppContext::armDesktopShortcutReassert()
     const auto reassert = [this, b] {
         if (!m_settings->desktopShortcutsInstalled() || hotkeysAvailable())
             return;
-        if (ShortcutBinder::present(b))
+        if (ShortcutBinder::present(b)) {
+            m_shortcutReassertMisses = 0; // converged — the store kept our entries
             return;
+        }
+        // Give-up valve: convergence normally relies on the DE only
+        // regenerating the store on login/edit. If a future Singularity starts
+        // rewriting rc.xml in REACTION to foreign writes, this loop becomes a
+        // 1 Hz file-rewrite war neither side can win — stop after a few
+        // consecutive rounds instead of ping-ponging forever.
+        constexpr int kReassertMissCap = 5;
+        if (++m_shortcutReassertMisses > kReassertMissCap) {
+            qWarning() << "Desktop shortcut re-assert: store wiped our entries"
+                       << kReassertMissCap << "times in a row - giving up until the next launch";
+            if (m_shortcutStoreWatcher) {
+                m_shortcutStoreWatcher->deleteLater();
+                m_shortcutStoreWatcher = nullptr;
+            }
+            return;
+        }
         const ShortcutBinder::Result r = ShortcutBinder::install(b, desktopShortcutBindings());
         if (r.ok)
             qInfo() << "Re-asserted" << r.written << "desktop shortcuts in"
@@ -7101,6 +7134,8 @@ void AppContext::armDesktopShortcutReassert()
     // watcher). The dir watch also covers the file being briefly absent.
     m_shortcutStoreWatcher = new QFileSystemWatcher(this);
     const auto rearm = [this, path] {
+        if (!m_shortcutStoreWatcher)
+            return; // the give-up valve dropped the watcher; a queued debounce may still fire once
         if (QFile::exists(path) && !m_shortcutStoreWatcher->files().contains(path))
             m_shortcutStoreWatcher->addPath(path);
         const QString dir = QFileInfo(path).path();

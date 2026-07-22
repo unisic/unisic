@@ -90,6 +90,9 @@ public:
     { m_keystrokeTheme = std::move(provider); }
     // Release a holdForCommit start: begin encoding now. No-op unless armed.
     void commit();
+    // Stream size stashed at armed() (physical px). Lets the pre-recording
+    // countdown scale its disc to a window recording's actual size.
+    QSize armedStreamSize() const { return m_heldStreamSize; }
     void stop();     // finalize -> converting -> finished()
     // Dev harness only: SIGSTOPs the live recording encoder so a following
     // stop() exercises the stop-flush watchdog + temp-salvage path for real.
@@ -166,6 +169,7 @@ private:
     qint64 m_stallBytes = -1; // last observed bytesToWrite()
     qint64 m_stallSize = -1;  // last observed temp file size
     int m_stallMs = 0;        // how long both have been frozen
+    bool m_stopKillSent = false; // stage 1 (SIGKILL) done; next stall = never-reaped child
 
     State m_state = Idle;
     Output m_output = Gif;

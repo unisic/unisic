@@ -588,6 +588,9 @@ private:
     void armDesktopShortcutReassert();
     QFileSystemWatcher *m_shortcutStoreWatcher = nullptr;
     QTimer *m_shortcutReassertDebounce = nullptr;
+    // Consecutive re-installs whose entries the desktop wiped again before the
+    // next pass — the give-up valve for a rewrite war (see reassert lambda).
+    int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
@@ -683,8 +686,12 @@ private:
     // for full-screen / window recordings, which have no region frame — the
     // overlay exists only to answer "is it about to record" and is torn down
     // the instant recording begins (a persistent surface would be captured).
+    // countdownRef: logical size the countdown disc scales to (the recorded
+    // window's stream size) — empty = scale to the whole surface. In-process
+    // frame only; the GNOME helper keeps its capped disc.
     void showRecordBorder(QRect physRegion, QScreen *screen, int countdown = 0,
-                          bool countdownOnly = false);
+                          bool countdownOnly = false,
+                          const QSize &countdownRef = QSize());
     // Update the live frame's countdown number (in-process window via property,
     // XWayland helper via its stdin). 0 clears it as recording begins.
     void setRecordBorderCountdown(int n);

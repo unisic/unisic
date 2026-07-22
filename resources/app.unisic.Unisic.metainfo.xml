@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.7.5" date="2026-07-23">
+      <description>
+        <p>The pre-recording countdown now scales to what is being recorded instead of the whole screen, a hung encoder that even a force-kill cannot reap no longer wedges "Encoding…", adding shortcuts on the Singularity desktop can no longer stall the window, and the interface sheds background busywork: the patch-notes nudge stops animating behind the first-run walkthrough, the walkthrough unloads from memory when done, and Settings search, icon overrides and tray-icon tiles all do less work per interaction.</p>
+      </description>
+    </release>
     <release version="0.7.4" date="2026-07-20">
       <description>
         <p>Opens with an optional first-run setup that walks through theme, language and window decoration, what happens after each capture, and the capture shortcuts, with a live preview of the capture card you can restyle in place. A plain click on the region overlay now selects the whole screen, the last region can be kept between captures, and full-screen capture can be limited to the screen under the cursor. The pixel loupe zooms with a plain scroll in pixel-perfect steps and hides itself when scrolled all the way out. WebM converts several times faster on recent NVIDIA GPUs, and a recording can no longer hang forever if its audio source dies mid-capture.</p>

@@ -89,6 +89,13 @@ Window {
     // persistent frame is neither drawn nor needed.
     property bool countdownOnly: false
 
+    // Recorded-target size in logical px (the live stream's size — a window
+    // recording's actual window). 0 = unknown, scale to the whole surface. The
+    // target's on-screen position is unknowable on Wayland, so the disc only
+    // SIZES itself to the target; it stays centered on the surface.
+    property int countdownRefW: 0
+    property int countdownRefH: 0
+
     // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes (matches Main.qml).
     function fmt(s) {
         var h = Math.floor(s / 3600);
@@ -146,11 +153,23 @@ Window {
         width: borderWindow.countdownOnly ? borderWindow.width : regionW
         height: borderWindow.countdownOnly ? borderWindow.height : regionH
         visible: borderWindow.countdown > 0
-        // Diameter tracks the region for a framed recording, but is capped for a
-        // full-screen countdown (0.42 × a 1440px screen would be a 600px disc).
+        // Diameter tracks the recorded TARGET, never the whole surface unless
+        // the target is the whole surface. This Item is already sized to the
+        // region (or the full surface in countdownOnly mode), so the base is
+        // its OWN width/height — `parent.width` here would be the fullscreen
+        // content item, which is exactly the old bug: a small region got a
+        // screen-sized disc sticking far outside it. Window recordings pass
+        // the stream size (countdownRef) instead — same 0.42 rule, uncapped,
+        // like a region frame of that size. Unknown target (full screen):
+        // capped (0.42 × a 1440px screen would be a 600px disc). Floored so a
+        // tiny region/window still gets a readable number.
+        readonly property bool hasRef: borderWindow.countdownRefW > 0 && borderWindow.countdownRefH > 0
         readonly property int disc: borderWindow.countdownOnly
-            ? Math.min(220, Math.min(parent.width, parent.height) * 0.42)
-            : Math.min(parent.width, parent.height) * 0.42
+            ? (hasRef
+                   ? Math.max(40, 0.42 * Math.min(borderWindow.countdownRefW,
+                                                  borderWindow.countdownRefH))
+                   : Math.min(220, 0.42 * Math.min(width, height)))
+            : Math.max(40, 0.42 * Math.min(width, height))
         Rectangle {
             anchors.centerIn: parent
             width: parent.disc

@@ -9,6 +9,9 @@ whole per release (not per individual change).
 ## 0.7.5
 
 ### English
+**Improved**
+- **"Show in folder" now selects the file**: the file manager opens with the capture highlighted instead of just showing its folder.
+
 **Fixed**
 - **The pre-recording countdown scales to what is being recorded**: the disc was always sized to the whole screen, so on a small recorded region it stuck out far beyond the frame. It now sizes itself to the region it sits in, and a window recording sizes it to the recorded window (whose on-screen position cannot be known on Wayland, so there it stays centered on the screen).
 - **"Encoding…" can no longer hang when even force-ending the encoder fails**: on a dead network drive the system can refuse to clean up the killed encoder, which used to bring the hang right back. The recording is now salvaged anyway.
@@ -16,6 +19,9 @@ whole per release (not per individual change).
 - **Less busywork in the interface**: the blinking "See patch notes" arrow no longer animates invisibly behind the first-run walkthrough, and the walkthrough is freed from memory once it closes instead of staying loaded for the whole session. Settings got the same pass: search scans the panes only after a short typing pause, typing in an editor-icon override no longer re-reads the whole override list on every keystroke, and picking a tray icon no longer rebuilds every tile.
 
 ### Polski
+**Ulepszone**
+- **„Pokaż w folderze" zaznacza teraz plik**: menedżer plików otwiera się z podświetlonym przechwyceniem, zamiast tylko pokazać jego folder.
+
 **Naprawione**
 - **Licznik przed nagraniem skaluje się do tego, co nagrywane**: dysk zawsze miał rozmiar liczony z całego ekranu, więc przy małym nagrywanym obszarze wystawał daleko poza ramkę. Teraz dopasowuje się do obszaru, w którym siedzi, a przy nagrywaniu okna - do rozmiaru nagrywanego okna (pozycji okna na ekranie nie da się poznać na Waylandzie, więc tam pozostaje wyśrodkowany na ekranie).
 - **„Kodowanie…" nie może już zawisnąć, gdy nawet wymuszone zakończenie enkodera zawodzi**: na martwym dysku sieciowym system potrafi odmówić sprzątnięcia ubitego enkodera, co przywracało zawieszenie. Nagranie i tak zostaje teraz uratowane.

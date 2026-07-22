@@ -5024,7 +5024,14 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         // Fullscreen click-through OVERLAY layer surface — works beyond KWin
         // (wlroots, COSMIC). The QML window is WindowTransparentForInput, so
         // clicks pass through; anchoring all four edges fills the output.
-        win->resize(screen->geometry().size());
+        // setGeometry, NOT resize: layer-shell binds the surface to the wl_output
+        // of QWindow::screen() at map time, and Qt re-resolves that screen from
+        // the window GEOMETRY (screenForGeometry). A resize-only window still
+        // sits at (0,0), which on a multi-monitor layout can overlap the OTHER
+        // monitor more — setScreen() gets overridden and the frame maps on the
+        // wrong output (region on DP-2 showed its REC frame on HDMI-A-1). The
+        // overlay windows never hit this because they setGeometry the same way.
+        win->setGeometry(screen->geometry());
         if (auto *ls = LayerShellQt::Window::get(win)) {
             using LW = LayerShellQt::Window;
             ls->setLayer(LW::LayerOverlay);

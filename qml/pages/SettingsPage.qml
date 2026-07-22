@@ -38,7 +38,23 @@ Item {
     property var searchResults: []
     // Set when jumping to a result; highlights matching row labels for a moment.
     property string highlightQuery: ""
-    onSearchQueryChanged: Qt.callLater(rebuildSearch)
+    // Debounced: rebuildSearch walks every pane's full item tree and resets the
+    // results Repeater — per keystroke that's a lot of churn for characters the
+    // user is still typing. Clearing skips the debounce so leaving search (and
+    // jumpTo's searchQuery = "") reacts instantly.
+    onSearchQueryChanged: {
+        if (searchActive) {
+            searchDebounce.restart()
+        } else {
+            searchDebounce.stop()
+            rebuildSearch()
+        }
+    }
+    Timer {
+        id: searchDebounce
+        interval: 160
+        onTriggered: page.rebuildSearch()
+    }
     Timer {
         id: highlightTimer
         interval: 4000
@@ -226,10 +242,16 @@ Item {
         App.settings.hiddenTools = list.join(",")
     }
     // Per-tool freedesktop icon-name overrides (JSON map in editorToolIcons).
+    // Parsed once per setting change — iconOverride() is called from two
+    // bindings on every tool row, and each keystroke in an override field used
+    // to re-parse the whole JSON map per call (~40 parses per character).
+    readonly property var iconOverrideMap: parseIconOverrides(App.settings.editorToolIcons)
+    function parseIconOverrides(j) {
+        if (!j) return {}
+        try { return JSON.parse(j) } catch (e) { return {} }
+    }
     function iconOverride(id) {
-        var j = App.settings.editorToolIcons
-        if (!j) return ""
-        try { var m = JSON.parse(j); return m[id] || "" } catch (e) { return "" }
+        return iconOverrideMap[id] || ""
     }
     function setIconOverride(id, name) {
         var j = App.settings.editorToolIcons
@@ -2190,37 +2212,10 @@ Item {
                         width: parent.width
                         spacing: Theme.spacingS
 
-                        Repeater {
-                            // Rebuilds whenever the drop-in folder or the current
-                            // selection changes (both referenced below).
-                            model: {
-                                // Referenced so the thumbnails re-render when the
-                                // OS light/dark scheme flips.
-                                var color = App.trayContrastColor
-                                var bundled = App.bundledTrayIcons
-                                var presets = App.trayIconPresets
-                                var cur = App.settings.trayIconPath
-                                var arr = [{ path: "", label: qsTr("Default"),
-                                             src: "qrc:/resources/icons/unisic.svg" }]
-                                // App-shipped presets are monochrome — recolor the
-                                // preview to contrast the scheme, like the tray.
-                                for (var b = 0; b < bundled.length; b++)
-                                    arr.push({ path: bundled[b],
-                                               label: page.iconLabel(bundled[b]),
-                                               src: App.trayIconThumb(bundled[b], color) })
-                                for (var i = 0; i < presets.length; i++)
-                                    arr.push({ path: presets[i],
-                                               label: page.iconLabel(presets[i]),
-                                               src: page.fileUrl(presets[i]) })
-                                // A file picked from elsewhere still gets a tile so
-                                // the current choice is always visible/selected.
-                                if (cur !== "" && presets.indexOf(cur) === -1
-                                        && bundled.indexOf(cur) === -1)
-                                    arr.push({ path: cur, label: page.iconLabel(cur),
-                                               src: page.fileUrl(cur) })
-                                return arr
-                            }
-                            delegate: Rectangle {
+                        // Shared by both tile Repeaters below.
+                        Component {
+                            id: trayTileDelegate
+                            Rectangle {
                                 id: tile
                                 required property var modelData
                                 readonly property bool sel: App.settings.trayIconPath === modelData.path
@@ -2254,6 +2249,52 @@ Item {
                                     show: tileMouse.containsMouse && tile.modelData.path !== ""
                                 }
                             }
+                        }
+
+                        Repeater {
+                            // Rebuilds when the drop-in folder or the OS
+                            // light/dark scheme changes. Deliberately does NOT
+                            // reference trayIconPath: selection is tracked per
+                            // delegate (sel), and reading it here would rebuild
+                            // every tile — re-running the trayIconThumb
+                            // recolors — on each selection click.
+                            model: {
+                                // Referenced so the thumbnails re-render when the
+                                // OS light/dark scheme flips.
+                                var color = App.trayContrastColor
+                                var bundled = App.bundledTrayIcons
+                                var presets = App.trayIconPresets
+                                var arr = [{ path: "", label: qsTr("Default"),
+                                             src: "qrc:/resources/icons/unisic.svg" }]
+                                // App-shipped presets are monochrome — recolor the
+                                // preview to contrast the scheme, like the tray.
+                                for (var b = 0; b < bundled.length; b++)
+                                    arr.push({ path: bundled[b],
+                                               label: page.iconLabel(bundled[b]),
+                                               src: App.trayIconThumb(bundled[b], color) })
+                                for (var i = 0; i < presets.length; i++)
+                                    arr.push({ path: presets[i],
+                                               label: page.iconLabel(presets[i]),
+                                               src: page.fileUrl(presets[i]) })
+                                return arr
+                            }
+                            delegate: trayTileDelegate
+                        }
+
+                        Repeater {
+                            // A file picked from elsewhere still gets a tile so
+                            // the current choice is always visible/selected.
+                            // Its own Repeater: this is the one tile that must
+                            // follow trayIconPath, and it is at most one item.
+                            model: {
+                                var cur = App.settings.trayIconPath
+                                if (cur !== "" && App.trayIconPresets.indexOf(cur) === -1
+                                        && App.bundledTrayIcons.indexOf(cur) === -1)
+                                    return [{ path: cur, label: page.iconLabel(cur),
+                                              src: page.fileUrl(cur) }]
+                                return []
+                            }
+                            delegate: trayTileDelegate
                         }
 
                         // "+" tile — pick an image; it is copied into the icons

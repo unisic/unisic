@@ -402,7 +402,9 @@ Window {
 
         // One-time "new version" nudge: a blinking arrow pointing at the version
         // label after an update, until the release notes are opened. Gated on
-        // window.visible so it never animates while the app sits in the tray.
+        // window.visible so it never animates while the app sits in the tray,
+        // and on the welcome flow so it can't burn frames invisibly behind the
+        // opaque first-run backdrop.
         Item {
             id: patchHint
             visible: App.patchNotesUnseen && !App.recording && !App.converting
@@ -432,7 +434,7 @@ Window {
             }
 
             SequentialAnimation on opacity {
-                running: patchHint.visible && window.visible
+                running: patchHint.visible && window.visible && !welcomeLoader.active
                 loops: Animation.Infinite
                 NumberAnimation { from: 1.0; to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
                 NumberAnimation { from: 0.25; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
@@ -460,28 +462,51 @@ Window {
     // delay lets the window paint before the modal dims it.
     // Fills the WINDOW (not the screen), below the custom title bar so the
     // window can still be moved and closed while setup runs.
-    UWelcome {
-        id: welcome
+    // Behind a Loader so the 7-step tree (built-in notification preview, theme
+    // grid, dozens of tooltip items) only exists while the flow is on screen —
+    // it used to stay resident for the whole app lifetime after the first run.
+    Loader {
+        id: welcomeLoader
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.top: parent.top
         anchors.topMargin: window.chromeTop
+        // UWelcome's own z: 1000 ("above every page") only ranks it among the
+        // LOADER's children now — the Loader itself must carry it against the
+        // window's content siblings.
+        z: 1000
+        active: false
+        sourceComponent: UWelcome {}
+        function openWelcome(markSeen) {
+            welcomeUnload.stop()  // a reopen must beat a pending teardown
+            active = true
+            item.markSeenOnClose = markSeen
+            item.open()
+        }
     }
     USystemCheck { id: firstRunSystemCheck }
     // Connections, NOT an inline onClosed: a signal handler assigned at the use
     // site REPLACES the one declared inside the component, which would drop
     // UWelcome's own skip-restore + latch handling.
     Connections {
-        target: welcome
+        target: welcomeLoader.item
         // The dependency check queues behind the setup flow instead of stacking
         // on top of it — and only after the real first run (markSeenOnClose),
         // never after a manual peek from Settings.
         function onClosed() {
-            if (welcome.markSeenOnClose && !App.settings.systemCheckSeen
+            if (welcomeLoader.item.markSeenOnClose && !App.settings.systemCheckSeen
                     && App.hasDependencyWarnings())
                 firstRunSystemCheck.open()
+            welcomeUnload.restart()
         }
+    }
+    // Tear the tree down only after UWelcome's 140 ms fade-out has finished.
+    Timer {
+        id: welcomeUnload
+        interval: 250
+        repeat: false
+        onTriggered: welcomeLoader.active = false
     }
     Timer {
         interval: 500
@@ -489,8 +514,7 @@ Window {
         repeat: false
         onTriggered: {
             if (App.settings.showWelcome) {
-                welcome.markSeenOnClose = true
-                welcome.open()
+                welcomeLoader.openWelcome(true)
             } else if (!App.settings.systemCheckSeen && App.hasDependencyWarnings()) {
                 firstRunSystemCheck.open()
             }
@@ -501,8 +525,7 @@ Window {
     Connections {
         target: App
         function onShowWelcomeRequested() {
-            welcome.markSeenOnClose = false
-            welcome.open()
+            welcomeLoader.openWelcome(false)
         }
     }
 

@@ -1137,6 +1137,7 @@ void GifRecorder::stop()
     m_stallBytes = -1;
     m_stallSize = -1;
     m_stallMs = 0;
+    m_stopKillSent = false;
     m_stopWatchdog.start();
 }
 
@@ -1164,15 +1165,40 @@ void GifRecorder::stopWatchdogTick()
     m_stallMs += m_stopWatchdog.interval();
     if (m_stallMs < limitMs)
         return;
-    // SIGKILL, not terminate(): the graceful path needs ffmpeg's scheduler to
-    // notice a flag, and a wedged scheduler is exactly what we're escaping.
-    // The killed encoder lands in the finished handler as CrashExit, where the
-    // trailer-less temp is salvaged into a normal conversion.
-    qWarning() << "GifRecorder: encoder made no progress for" << m_stallMs
-               << "ms after stop (bytesToWrite" << bytes << ", temp" << size
-               << ") - killing it and salvaging the temp";
+    if (!m_stopKillSent) {
+        // SIGKILL, not terminate(): the graceful path needs ffmpeg's scheduler
+        // to notice a flag, and a wedged scheduler is exactly what we're
+        // escaping. The killed encoder lands in the finished handler as
+        // CrashExit, where the trailer-less temp is salvaged into a normal
+        // conversion. The watchdog keeps ticking: if the SIGKILL'd child is
+        // never reaped (D-state on a dead network mount), finished() never
+        // fires and the second stage below is the only way out.
+        qWarning() << "GifRecorder: encoder made no progress for" << m_stallMs
+                   << "ms after stop (bytesToWrite" << bytes << ", temp" << size
+                   << ") - killing it and salvaging the temp";
+        m_stopKillSent = true;
+        m_stallMs = 0; // restart the clock for the reap wait
+        m_ffmpeg->kill();
+        return;
+    }
+    // Second stage: the kill never got reaped. Detach the process and salvage
+    // the temp directly. The QProcess stays parented but is NOT deleted —
+    // ~QProcess would wait on the unreapable child and hang the GUI thread.
+    qWarning() << "GifRecorder: killed encoder was never reaped - salvaging without it";
     m_stopWatchdog.stop();
-    m_ffmpeg->kill();
+    QProcess *orphan = m_ffmpeg;
+    m_ffmpeg = nullptr;
+    orphan->disconnect(this);
+    if (m_output == Replay || QFileInfo(m_tempPath).size() <= 0) {
+        fail(tr("Recording encoder hung and nothing could be salvaged"));
+        return;
+    }
+    maybeExcisePauses([this] {
+        if (m_output == Gif)
+            convertToGif();
+        else
+            convertVideo();
+    });
 }
 
 bool GifRecorder::devFreezeEncoderForTest()

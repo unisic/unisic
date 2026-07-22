@@ -1228,6 +1228,7 @@ void AppContext::startGifFullScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr; // stale region target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(GifRecorder::Gif, GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -1243,6 +1244,7 @@ void AppContext::startVideoScreen()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -1265,6 +1267,7 @@ void AppContext::startVideoWindow()
 {
     if (recording()) return;
     m_pendingRecordRegion = QRect();
+    m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(videoOutput(), GifRecorder::Window, {}, nullptr, hold);
     });
@@ -1290,6 +1293,7 @@ void AppContext::startInstantReplay()
 {
     if (recording()) return;
     m_pendingRecordRegion = {};
+    m_pendingRecordScreen = nullptr;
     startRecorderCountdown([this](bool hold) {
         m_recorder->start(GifRecorder::Replay, GifRecorder::Screen, {}, nullptr, hold);
     });
@@ -3904,6 +3908,7 @@ void AppContext::runSmokeTest()
                             : bad == 0 ? QStringLiteral("PASS")
                                        : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
         }
+        smokeLog(QStringLiteral("desktop shortcuts: ") + desktopShortcutsCheck());
         smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
                  ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
                  qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
@@ -5020,7 +5025,14 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         // Fullscreen click-through OVERLAY layer surface — works beyond KWin
         // (wlroots, COSMIC). The QML window is WindowTransparentForInput, so
         // clicks pass through; anchoring all four edges fills the output.
-        win->resize(screen->geometry().size());
+        // setGeometry, NOT resize: layer-shell binds the surface to the wl_output
+        // of QWindow::screen() at map time, and Qt re-resolves that screen from
+        // the window GEOMETRY (screenForGeometry). A resize-only window still
+        // sits at (0,0), which on a multi-monitor layout can overlap the OTHER
+        // monitor more — setScreen() gets overridden and the frame maps on the
+        // wrong output (region on DP-2 showed its REC frame on HDMI-A-1). The
+        // overlay windows never hit this because they setGeometry the same way.
+        win->setGeometry(screen->geometry());
         if (auto *ls = LayerShellQt::Window::get(win)) {
             using LW = LayerShellQt::Window;
             ls->setLayer(LW::LayerOverlay);
@@ -5271,9 +5283,14 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
         runExternalAction(output, path);
 
     const bool uploading = uploadEnabled;
-    quint64 historyId = 0;
-    if (!cliMode && (!uploading || !path.isEmpty()))
-        historyId = m_history->addEntry(path, output, QStringLiteral("image"));
+    // Register the history entry up front — even when uploading an unsaved
+    // capture. The notification card then holds a real entry id, so a manual
+    // Save / Show-in-folder from the card while the upload is still in flight
+    // links the file to THIS entry instead of stranding it (setFilePathById(0)
+    // silently missed). The thumbnail is generated now from `output`, so the
+    // full image no longer stays pinned across the whole network transfer.
+    quint64 historyId = cliMode ? 0
+                                : m_history->addEntry(path, output, QStringLiteral("image"));
 
     auto *notif = cliMode ? nullptr
                           : showCaptureNotification(output, path, QStringLiteral("image"), inhibited);
@@ -5284,24 +5301,24 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     if (uploading) {
         if (np) np->setUploading(true);
         // Encode off-thread (100+ ms at 4K), start the upload in the GUI-thread
-        // continuation. The callback retains the image ONLY when the history
-        // entry can actually need it (nothing saved to disk) — otherwise the
-        // 30-60 MB buffer would stay pinned for the whole network transfer.
-        encodeImageAsync(output, [this, path, np, fileName, uploadDestination,
-                                  img = path.isEmpty() ? output : QImage()](const QByteArray &data, const QString &mime) {
+        // continuation. The full image is released once encoding finishes — the
+        // history entry created above already carries its thumbnail, so nothing
+        // needs the pixels for the duration of the transfer.
+        encodeImageAsync(output, [this, path, np, historyId, fileName,
+                                  uploadDestination](const QByteArray &data, const QString &mime) {
             m_uploads->uploadDataTo(uploadDestination, data, fileName, mime,
-                [this, path, img, np](const QString &url, const QString &del, const QString &err) {
+                [this, path, historyId, np](const QString &url, const QString &del, const QString &err) {
                     if (!err.isEmpty()) {
-                        if (path.isEmpty())
-                            m_history->addEntry({}, img, QStringLiteral("image"));
+                        // The capture already lives in history (added before the
+                        // upload) — a failure just leaves it there without a URL.
                         showToast(tr("Upload failed: %1").arg(err), true);
                         if (np) np->setUploading(false);
                         return;
                     }
-                    if (!path.isEmpty())
-                        m_history->setUrl(path, url, del);
-                    else
-                        m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                    // Attach the URL to the pre-created entry by id; fall back to a
+                    // fresh entry only if it was evicted during a long transfer.
+                    if (!m_history->setUrlById(historyId, url, del))
+                        m_history->addEntry(path, {}, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
                 });
@@ -6176,6 +6193,13 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
         ctx->setParent(win);
         ctl->setParent(win);
         ctl->setWindow(win);
+        // Bind the surface to the monitor the user is working on BEFORE the
+        // layer-shell configure — without this the fullscreen preview surface
+        // lands on whatever output the compositor defaults to (usually the
+        // primary), not the one the capture was taken/clicked on. Same rule as
+        // LayerShellNotifier: the cursor's screen is the working screen.
+        if (QScreen *s = QGuiApplication::screenAt(QCursor::pos()))
+            win->setScreen(s);
         ctl->attach();   // configure layer-shell / flags before the window shows
         connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
             if (!v) {
@@ -6911,6 +6935,108 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
         {QStringLiteral("instant-replay"), tr("Start/save instant replay"), m_settings->hotkeyInstantReplay()},
     };
+}
+
+// The command a desktop custom shortcut runs: our own binary + `--hotkey <id>`,
+// forwarded over the single-instance socket to a running Unisic. Both COSMIC
+// (shlex) and the gsettings/xfconf command fields (g_shell_parse_argv) split
+// the string, so shell-quote a binary path that carries anything special.
+QString AppContext::hotkeyCommand(const QString &actionId) const
+{
+    QString bin = QCoreApplication::applicationFilePath();
+    static const QRegularExpression unsafe(QStringLiteral("[^A-Za-z0-9_./:-]"));
+    if (bin.contains(unsafe)) {
+        bin.replace(QLatin1Char('\''), QLatin1String("'\\''"));
+        bin = QLatin1Char('\'') + bin + QLatin1Char('\'');
+    }
+    return bin + QStringLiteral(" --hotkey ") + actionId;
+}
+
+QList<ShortcutBinder::Binding> AppContext::desktopShortcutBindings() const
+{
+    QList<ShortcutBinder::Binding> out;
+    for (const HotkeyAction &a : hotkeyActions()) {
+        // OCR without tesseract built in would spawn a no-op — leave it out.
+        if (a.id == QLatin1String("ocr-region") && !ocrAvailable())
+            continue;
+        out.append({a.id, a.name, a.keys, hotkeyCommand(a.id)});
+    }
+    return out;
+}
+
+bool AppContext::desktopShortcutsAuto() const
+{
+    if (hotkeysAvailable())
+        return false;
+    return ShortcutBinder::autoInstallable(ShortcutBinder::detect());
+}
+
+QString AppContext::desktopShortcutName() const
+{
+    return ShortcutBinder::desktopName(ShortcutBinder::detect());
+}
+
+bool AppContext::installDesktopShortcuts()
+{
+    const ShortcutBinder::Backend b = ShortcutBinder::detect();
+    if (!ShortcutBinder::autoInstallable(b)) {
+        showToast(tr("This desktop can't be set up automatically - use the commands below."), true);
+        return false;
+    }
+    const ShortcutBinder::Result r = ShortcutBinder::install(b, desktopShortcutBindings());
+    if (!r.ok) {
+        showToast(tr("Could not add shortcuts: %1").arg(r.error), true);
+        return false;
+    }
+    QString msg = tr("Added %n shortcut(s) to %1", nullptr, r.written)
+                      .arg(ShortcutBinder::desktopName(b));
+    if (!r.skipped.isEmpty())
+        msg += QLatin1Char(' ')
+               + tr("(skipped, no mappable key: %1)").arg(r.skipped.join(QStringLiteral(", ")));
+    showToast(msg);
+    return true;
+}
+
+void AppContext::removeDesktopShortcuts()
+{
+    const ShortcutBinder::Backend b = ShortcutBinder::detect();
+    const ShortcutBinder::Result r = ShortcutBinder::remove(b);
+    if (!r.ok)
+        showToast(tr("Could not remove shortcuts: %1").arg(r.error), true);
+    else
+        showToast(tr("Removed Unisic shortcuts from %1").arg(ShortcutBinder::desktopName(b)));
+}
+
+QString AppContext::desktopShortcutManualText() const
+{
+    return ShortcutBinder::manualText(ShortcutBinder::detect(), desktopShortcutBindings());
+}
+
+QString AppContext::desktopShortcutsCheck()
+{
+    const ShortcutBinder::Backend b = ShortcutBinder::detect();
+    if (hotkeysAvailable())
+        return QStringLiteral("SKIP (native hotkey backend active)");
+    if (!ShortcutBinder::autoInstallable(b))
+        return QStringLiteral("SKIP (no writable store here; copy-paste only)");
+    // Only ever touches Unisic's own entries, so the round-trip leaves the
+    // user's other custom shortcuts untouched.
+    const ShortcutBinder::Result ins = ShortcutBinder::install(b, desktopShortcutBindings());
+    const ShortcutBinder::Result rem = ShortcutBinder::remove(b);
+    if (ins.ok && ins.written > 0 && rem.ok)
+        return QStringLiteral("PASS (%1 install+remove round-trip, %2 entries)")
+            .arg(ShortcutBinder::desktopName(b)).arg(ins.written);
+    return QStringLiteral("FAIL (%1: install ok=%2 n=%3, remove ok=%4)")
+        .arg(ShortcutBinder::desktopName(b))
+        .arg(ins.ok ? QStringLiteral("y") : QStringLiteral("n")).arg(ins.written)
+        .arg(rem.ok ? QStringLiteral("y") : QStringLiteral("n"));
+}
+
+void AppContext::devTestDesktopShortcuts()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: desktop shortcuts: %1").arg(desktopShortcutsCheck()));
 }
 
 // Daemon-authoritative display: whatever key is ACTUALLY bound is what the

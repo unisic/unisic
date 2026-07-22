@@ -148,7 +148,6 @@ Item {
     Component.onCompleted: {
         if (App.perAppAudioAvailable)
             page.refreshAppAudioNodes()
-        page.rebuildNotifActionOrderModel()
     }
     readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
     readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
@@ -210,82 +209,10 @@ Item {
                                               qsTr("Bottom left"), qsTr("Bottom center"), qsTr("Bottom right"),
                                               qsTr("Center")]
 
-    // The capture card's action buttons. Ids and icons MUST match
-    // NotificationPopup.qml; notificationActionOrder only rearranges these
-    // descriptors and never becomes a second copy of their metadata.
-    readonly property var notifActions: [
-        { id: "edit",   iconName: "edit",         label: qsTr("Edit") },
-        { id: "copy",   iconName: "edit-copy",    label: qsTr("Copy image") },
-        { id: "link",   iconName: "globe",        label: qsTr("Copy link") },
-        { id: "qr",     iconName: "view-preview", label: qsTr("Show QR code") },
-        { id: "folder", iconName: "folder-open",  label: qsTr("Show in folder") },
-        { id: "upload", iconName: "upload-cloud", label: qsTr("Upload") },
-        { id: "ocr",    iconName: "ocr",          label: qsTr("Copy text (OCR)") },
-        { id: "trim",   iconName: "cut",          label: qsTr("Trim recording") },
-        { id: "delete", iconName: "edit-delete",  label: qsTr("Delete") },
-    ]
-    ListModel { id: notifActionOrderModel }
-    property bool notifActionDragActive: false
-
-    function notifActionIdsInOrder() {
-        const requested = App.settings.notificationActionOrder
-                          ? App.settings.notificationActionOrder.split(",") : []
-        const byId = {}
-        const out = []
-        for (let i = 0; i < notifActions.length; ++i)
-            byId[notifActions[i].id] = true
-        for (let j = 0; j < requested.length; ++j) {
-            const id = requested[j]
-            if (byId[id] && out.indexOf(id) < 0)
-                out.push(id)
-        }
-        for (let k = 0; k < notifActions.length; ++k)
-            if (out.indexOf(notifActions[k].id) < 0)
-                out.push(notifActions[k].id)
-        return out
-    }
-    function notifActionById(id) {
-        for (let i = 0; i < notifActions.length; ++i)
-            if (notifActions[i].id === id)
-                return notifActions[i]
-        return null
-    }
-    function rebuildNotifActionOrderModel() {
-        const ids = notifActionIdsInOrder()
-        notifActionOrderModel.clear()
-        for (let i = 0; i < ids.length; ++i)
-            notifActionOrderModel.append({ actionId: ids[i] })
-    }
-    function persistNotifActionOrderModel() {
-        const ids = []
-        for (let i = 0; i < notifActionOrderModel.count; ++i)
-            ids.push(notifActionOrderModel.get(i).actionId)
-        const csv = ids.join(",")
-        if (App.settings.notificationActionOrder !== csv)
-            App.settings.notificationActionOrder = csv
-        cardPreview.touch()
-    }
-    Connections {
-        target: App.settings
-        function onNotificationActionOrderChanged() {
-            // A drag owns the model until release. Its own setting write emits
-            // this signal synchronously, so rebuilding here would destroy the
-            // delegate while its pointer handler still holds the grab.
-            if (!page.notifActionDragActive)
-                page.rebuildNotifActionOrderModel()
-        }
-    }
-    function notifActionHidden(id) {
-        var csv = App.settings.hiddenNotifActions
-        return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
-    }
-    function setNotifActionHidden(id, hidden) {
-        var csv = App.settings.hiddenNotifActions
-        var list = csv ? csv.split(",").filter(function (x) { return x.length > 0 }) : []
-        list = list.filter(function (x) { return x !== id })
-        if (hidden) list.push(id)
-        App.settings.hiddenNotifActions = list.join(",")
-    }
+    // The capture-card action buttons (ids, icons, hide/show and reorder) are
+    // edited entirely inside UNotifPreview on the Notifications pane now — it
+    // owns its own order model and reads/writes notificationActionOrder and
+    // hiddenNotifActions directly, so the page keeps no second copy.
 
     function toolHidden(id) {
         var csv = App.settings.hiddenTools
@@ -312,41 +239,18 @@ Item {
         App.settings.editorToolIcons = JSON.stringify(m)
     }
 
-    // One hotkey action: the label row (with the searchable "?" badge) on
-    // top, the full-width multi-binding chip editor underneath — chips read
-    // left to right (primary first) and the "+ Add" ghost button is always
-    // at the end of the list, which is where the eye expects it.
-    component HotkeyRow: Column {
-        id: hotkeyRow
-        property alias label: hotkeyHeader.label
-        property alias help: hotkeyHeader.help
-        property alias helpDetail: hotkeyHeader.helpDetail
-        property alias available: hotkeyHeader.available
-        property alias hint: hotkeyHeader.hint
-        property string shortcuts: ""
-        signal changed(string shortcuts)
-        width: parent.width
-        spacing: 2
-        SettingRow {
-            id: hotkeyHeader
-            width: parent.width
-        }
-        UShortcutList {
-            width: parent.width
-            enabled: hotkeyRow.available
-            opacity: hotkeyRow.available ? 1.0 : 0.45
-            shortcuts: hotkeyRow.shortcuts
-            onChanged: (t) => hotkeyRow.changed(t)
-        }
-    }
-
-    component SettingRow: Item {
+    // One setting, drawn as its own bordered surface card (the welcome-screen
+    // "ToggleCard" language applied across all of Settings): the label on top,
+    // the one-line `help` summary inline underneath it, and the control on the
+    // right. A "?" badge appears only when there is MORE to say (`helpDetail`,
+    // or the reason an unavailable row is greyed) — clicking it opens the full
+    // in-app help dialog. `footer` holds optional full-width content laid out
+    // below the label/control row (the hotkey chip editor uses it so a hotkey
+    // stays one card).
+    component SettingRow: Rectangle {
         id: settingRow
         readonly property bool isSettingRow: true   // marker for the settings search
         property alias label: labelText.text
-        // "?" badge: `help` is the one-line summary (hover tooltip); clicking
-        // opens the in-app help dialog with `help` on top and `helpDetail`
-        // (the full explanation) below it. Rows without help show no badge.
         property string help: ""
         property string helpDetail: ""
         // Capability gating: unavailable options are greyed out (not hidden) with
@@ -354,150 +258,143 @@ Item {
         property bool available: true
         property string hint: ""
         default property alias control: slot.data
-        width: parent.width
-        // Rows grow with tall controls (e.g. the multi-binding hotkey chips
-        // wrapping to a second line); everything else keeps the 44px rhythm.
-        height: Math.max(44, slot.height)
-        opacity: available ? 1.0 : 0.45
-        Text {
-            id: labelText
-            anchors.left: parent.left
-            anchors.top: parent.top
-            height: 44
-            verticalAlignment: Text.AlignVCenter
-            // Reserve the "?" badge footprint (8 gap + 16 badge) when a help
-            // badge is present, so a long label elides BEFORE the badge instead
-            // of the badge landing on top of a wide control (e.g. a URL field).
-            width: Math.max(0, slot.x - Theme.spacingM - (settingRow.help !== "" ? 24 : 0))
-            elide: Text.ElideRight
-            // Briefly tinted when this row was just jumped to from the search.
-            color: page.highlightQuery.length > 0
-                   && text.toLowerCase().indexOf(page.highlightQuery) >= 0
-                   ? Theme.accent : Theme.textPrimary
-            font.pixelSize: Theme.fontM
-        }
-        Item {
-            id: slot
-            // Only the CONTROL is disabled on an unavailable row — the "?"
-            // badge must stay clickable so the dialog can explain why.
-            enabled: settingRow.available
-            anchors.right: parent.right
-            anchors.top: parent.top
-            width: childrenRect.width
-            height: Math.max(44, childrenRect.height)
-        }
-        Rectangle {
-            id: helpBadge
-            visible: settingRow.help !== ""
-            x: labelText.x + Math.min(labelText.implicitWidth, labelText.width) + 8
-            y: (44 - height) / 2
-            width: 16; height: 16; radius: 8
-            color: helpMouse.containsMouse ? Theme.accent : "transparent"
-            border.width: 1
-            border.color: helpMouse.containsMouse ? Theme.accent : Theme.textTertiary
-            z: 10
-            Text {
-                anchors.centerIn: parent
-                text: "?"
-                font.pixelSize: 10
-                font.weight: Font.DemiBold
-                color: helpMouse.containsMouse ? Theme.textOnAccent : Theme.textTertiary
-            }
-            MouseArea {
-                id: helpMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                // Pointing hand (it's a click target): Qt.WhatsThisCursor paints a
-                // second blue "?" right next to the pink badge — a jarring duplicate.
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    helpTipDelay.stop()
-                    helpTipPopup.close()
-                    page.showHelp(settingRow.label, settingRow.help, settingRow.helpDetail,
-                                  settingRow.available ? "" : settingRow.hint)
-                }
-                // Short delay so the tip doesn't flash on every mouse pass.
-                onContainsMouseChanged: {
-                    if (containsMouse)
-                        helpTipDelay.start()
-                    else {
-                        helpTipDelay.stop()
-                        helpTipPopup.close()
-                    }
-                }
-            }
-            Timer { id: helpTipDelay; interval: 240; onTriggered: { helpTipPopup.updatePlacement(); helpTipPopup.open() } }
-            Popup {
-                // Popup renders on the overlay layer, so the tooltip can never
-                // be buried under later rows/cards or clipped by the Flickable.
-                id: helpTipPopup
-                parent: helpBadge
-                // Flip above the badge when there isn't room below. Otherwise Qt
-                // shifts the popup up and OVER the badge near the window bottom;
-                // the popup then steals the hover, the badge's containsMouse goes
-                // false, the tip closes and immediately reopens — the flicker.
-                // Computed at open time so scrolling can't leave it stale.
-                property bool openAbove: false
-                function updatePlacement() {
-                    var winH = Overlay.overlay ? Overlay.overlay.height : 0
-                    var gy = helpBadge.mapToItem(Overlay.overlay, 0, 0).y
-                    openAbove = winH > 0
-                        && gy + helpBadge.height + 8 + implicitHeight + margins > winH
-                }
-                x: -(width / 2) + parent.width / 2
-                y: openAbove ? -(implicitHeight + 8) : parent.height + 8
-                margins: 8 // clamp horizontally inside the window near edges
-                width: Math.min(helpTipText.implicitWidth, 300) + leftPadding + rightPadding
-                closePolicy: Popup.NoAutoClose
-                padding: 12
-                background: Rectangle {
-                    radius: Theme.radiusL
-                    color: Theme.surface
-                    border.width: 1
-                    border.color: Theme.alpha(Theme.accent, 0.4)
-                }
-                enter: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 130; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "scale"; from: 0.96; to: 1; duration: 130; easing.type: Easing.OutCubic }
-                }
-                exit: Transition {
-                    NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 90 }
-                }
-                contentItem: Column {
-                    spacing: 6
-                    Text {
+        property alias footer: footerSlot.data
+        // The one-line detail shown under the label: the greyed reason when the
+        // row is unavailable, otherwise the `help` summary.
+        readonly property string detail: (!available && hint !== "") ? hint : help
+        readonly property bool hasBadge: helpDetail !== "" || (!available && hint !== "")
+
+        width: parent ? parent.width : 0
+        implicitHeight: inner.implicitHeight + 2 * Theme.spacingM
+        radius: Theme.radiusM
+        color: Theme.surface
+        border.width: 1
+        border.color: Theme.divider
+        opacity: available ? 1.0 : 0.5
+
+        Column {
+            id: inner
+            x: Theme.spacingM
+            y: Theme.spacingM
+            width: parent.width - 2 * Theme.spacingM
+            spacing: footerSlot.childrenRect.height > 0 ? Theme.spacingS : 0
+
+            Item {
+                id: head
+                width: parent.width
+                // Deliberately independent of slot.height: every control is ≤44px
+                // and the label column governs the rest, so the head never needs
+                // to grow to the control — and reading slot.height here (slot hugs
+                // its childrenRect and is vCenter-anchored to this head) would be a
+                // size↔position binding loop.
+                height: Math.max(44, labelCol.implicitHeight)
+
+                Column {
+                    id: labelCol
+                    anchors.left: parent.left
+                    anchors.right: slot.left
+                    anchors.rightMargin: Theme.spacingM
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
+                    Item {
                         width: parent.width
-                        text: settingRow.label
-                        color: Theme.accent
-                        font.pixelSize: Theme.fontS
-                        font.weight: Font.DemiBold
-                        elide: Text.ElideRight
+                        height: labelText.implicitHeight
+                        Text {
+                            id: labelText
+                            anchors.left: parent.left
+                            width: Math.max(0, parent.width - (settingRow.hasBadge ? 24 : 0))
+                            elide: Text.ElideRight
+                            // Briefly tinted when this row was just jumped to from search.
+                            color: page.highlightQuery.length > 0
+                                   && text.toLowerCase().indexOf(page.highlightQuery) >= 0
+                                   ? Theme.accent : Theme.textPrimary
+                            font.pixelSize: Theme.fontM
+                        }
+                        Rectangle {
+                            id: helpBadge
+                            visible: settingRow.hasBadge
+                            anchors.left: labelText.left
+                            anchors.leftMargin: Math.min(labelText.implicitWidth, labelText.width) + 8
+                            anchors.verticalCenter: labelText.verticalCenter
+                            width: 16; height: 16; radius: 8
+                            color: helpMouse.containsMouse ? Theme.accent : "transparent"
+                            border.width: 1
+                            border.color: helpMouse.containsMouse ? Theme.accent : Theme.textTertiary
+                            z: 10
+                            Text {
+                                anchors.centerIn: parent
+                                text: "?"
+                                font.pixelSize: 10
+                                font.weight: Font.DemiBold
+                                color: helpMouse.containsMouse ? Theme.textOnAccent : Theme.textTertiary
+                            }
+                            MouseArea {
+                                id: helpMouse
+                                anchors.fill: parent
+                                anchors.margins: -4
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: page.showHelp(settingRow.label, settingRow.help,
+                                                         settingRow.helpDetail,
+                                                         settingRow.available ? "" : settingRow.hint)
+                            }
+                        }
                     }
                     Text {
-                        id: helpTipText
+                        id: detailText
+                        visible: settingRow.detail !== ""
                         width: parent.width
+                        text: settingRow.detail
                         wrapMode: Text.WordWrap
-                        text: settingRow.help
-                        color: Theme.textPrimary
-                        font.pixelSize: Theme.fontS + 1
-                        lineHeight: 1.2
-                    }
-                    Text {
-                        visible: settingRow.helpDetail !== "" || !settingRow.available
-                        width: parent.width
-                        text: qsTr("Click for the full explanation")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS - 1
+                        color: (!settingRow.available && settingRow.hint !== "")
+                               ? Theme.danger : Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                 }
+                Item {
+                    id: slot
+                    // Only the CONTROL is disabled on an unavailable row — the "?"
+                    // badge must stay clickable so the dialog can explain why.
+                    enabled: settingRow.available
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: childrenRect.width
+                    height: childrenRect.height
+                }
             }
+            Item {
+                id: footerSlot
+                width: parent.width
+                height: childrenRect.height
+                enabled: settingRow.available
+            }
+        }
+    }
+
+    // One hotkey action: the label/help header of a normal setting card, with
+    // the full-width multi-binding chip editor as the card's footer — chips read
+    // left to right (primary first) and the "+ Add" ghost button is always at
+    // the end of the list, which is where the eye expects it.
+    component HotkeyRow: SettingRow {
+        id: hotkeyRow
+        property string shortcuts: ""
+        signal changed(string shortcuts)
+        footer: UShortcutList {
+            width: parent ? parent.width : 0
+            enabled: hotkeyRow.available
+            opacity: hotkeyRow.available ? 1.0 : 0.45
+            shortcuts: hotkeyRow.shortcuts
+            onChanged: (t) => hotkeyRow.changed(t)
         }
     }
 
     component SectionTitle: Text {
         color: Theme.textPrimary
         font.pixelSize: Theme.fontL
-        font.weight: Font.DemiBold
+        font.weight: Font.Bold
+        // A little air between the header and the first card below it (the
+        // section Column packs its children tight at spacingS).
+        bottomPadding: Theme.spacingXS
     }
 
     // A scrollable settings pane: give it cards as default content.
@@ -518,6 +415,22 @@ Item {
         }
         MiddleScroll { flickable: fl }
         WheelBoost { flickable: fl }
+    }
+
+    // A settings section: the welcome screen groups per-setting cards under a
+    // plain bold header on the flat background rather than boxing a whole
+    // section in one big card, so this is a transparent container (no gradient,
+    // border or shadow of its own) that just stacks its header + cards. It
+    // mirrors UCard's default-content API so a section body — `Column { title;
+    // rows }` — drops in unchanged.
+    component SettingsGroup: Item {
+        default property alias content: groupInner.data
+        implicitWidth: groupInner.childrenRect.width
+        implicitHeight: groupInner.childrenRect.height
+        Item {
+            id: groupInner
+            anchors.fill: parent
+        }
     }
 
     // One entry in the category rail: icon + label, accent-tinted when active.
@@ -782,7 +695,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -838,7 +751,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -859,7 +772,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -978,7 +891,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1038,7 +951,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1102,7 +1015,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1146,7 +1059,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1186,7 +1099,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1207,7 +1120,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1261,7 +1174,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1330,7 +1243,7 @@ Item {
             // Cursor overlay for recordings — its own card, a sibling of
             // Recording / Video acceleration / Audio, not buried among the
             // frame-rate rows.
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1413,7 +1326,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1459,7 +1372,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1508,7 +1421,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1568,7 +1481,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1604,7 +1517,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1684,7 +1597,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1797,7 +1710,7 @@ Item {
                     }
                 }
             }
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -1894,60 +1807,35 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            // Live preview of the capture card: point at the style / position /
-            // margin row and the real card appears where the next capture's
-            // will. Lives HERE, inside the pane, for two reasons: the rows' ids
-            // only resolve within this component (the page root cannot see
-            // them), and the pane's Loader unloads — taking the preview's
-            // hover state with it instead of stranding a card on screen.
-            // A QtObject, not an Item: ScrollPane's default property is a
-            // Column, which would lay an Item out and leave a gap.
-            QtObject {
-                id: cardPreview
-                // Shows the REAL card while you are CHOOSING — a dropdown is
-                // open, or a value just changed — not merely because the
-                // pointer crossed the row. Hover-to-show meant the card popped
-                // up on the way to anything else on this page.
-                // Declarative, not a counter: a counter leaks (a row can be
-                // destroyed, or the window deactivate, with no exit event) and a
-                // leaked count pins a card whose auto-hide is "never".
-                readonly property bool choosing: (popupStyleCombo.visible && popupStyleCombo.listOpen)
-                                                 || (popupPosCombo.visible && popupPosCombo.listOpen)
-                                                 || (popupMarginCombo.visible && popupMarginCombo.listOpen)
-                onChoosingChanged: {
-                    if (choosing) App.previewCapturePopup({})
-                    else hideTimer.restart()
-                }
-                // The entry under the pointer, previewed WITHOUT saving it, so
-                // walking the list walks the card through the options.
-                function option(key, value) {
-                    if (!choosing) return
-                    var o = {}
-                    o[key] = value
-                    App.previewCapturePopup(o)
-                }
-                // A committed change: re-render from the saved values and hold
-                // the card briefly, since picking closes the list and the
-                // pointer is usually gone by then.
-                function touch() {
-                    App.previewCapturePopup({})
-                    holdTimer.restart()
-                }
-                function maybeHide() {
-                    if (!choosing && !holdTimer.running)
-                        App.hideCapturePopupPreview()
-                }
-                property Timer hideTimer: Timer { interval: 250; onTriggered: cardPreview.maybeHide() }
-                property Timer holdTimer: Timer { interval: 2500; onTriggered: cardPreview.maybeHide() }
-                // Leaving Settings must not strand a card with auto-hide off.
-                Component.onDestruction: App.hideCapturePopupPreview()
-            }
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Notifications") }
+                    // The live capture card sits at the very top, above the
+                    // settings that shape it — the same interactive selector the
+                    // welcome screen uses. It shows the real card in the chosen
+                    // style and corner; click an action to hide it (click the
+                    // faded one to bring it back), drag to reorder. No popup is
+                    // thrown at the screen corner.
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        visible: App.settings.showCapturePopup && App.capCustomNotification
+                        UNotifPreview {
+                            width: parent.width
+                            style: App.settings.capturePopupStyle
+                            position: App.settings.capturePopupPosition
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it - an upload link, OCR support, a saved file.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                    }
                     SettingRow {
                         label: qsTr("Show notifications")
                         // No notification backend at all → the switch would do
@@ -1987,12 +1875,7 @@ Item {
                             width: 180
                             model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
                             currentIndex: Math.max(0, ["casual", "compact", "small", "minimal", "thumbnail"].indexOf(App.settings.capturePopupStyle))
-                            onHighlighted: (i) => cardPreview.option("capturePopupStyle",
-                                                                     ["casual", "compact", "small", "minimal", "thumbnail"][i])
-                            onActivated: (i) => {
-                                App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
-                                cardPreview.touch()
-                            }
+                            onActivated: (i) => App.settings.capturePopupStyle = ["casual", "compact", "small", "minimal", "thumbnail"][i]
                         }
                     }
                     SettingRow {
@@ -2012,16 +1895,11 @@ Item {
                             width: 180
                             model: page.popupPosNames
                             currentIndex: Math.max(0, page.popupPosIds.indexOf(App.settings.capturePopupPosition))
-                            onHighlighted: (i) => cardPreview.option("capturePopupPosition", page.popupPosIds[i])
-                            onActivated: (i) => {
-                                App.settings.capturePopupPosition = page.popupPosIds[i]
-                                cardPreview.touch()
-                            }
+                            onActivated: (i) => App.settings.capturePopupPosition = page.popupPosIds[i]
                         }
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Distance from the screen edge")
                         help: qsTr("Gap between the capture card and the edge of the screen.")
                         helpDetail: qsTr("Unisic already keeps the card clear of panels that reserve space for themselves. Raise this when a dock or panel still sits in the way - Wayland gives an app no way to see where those are, so this is the manual knob.")
@@ -2032,13 +1910,11 @@ Item {
                             from: 0; to: 400
                             suffix: " px"
                             value: App.settings.capturePopupMargin
-                            onHighlighted: (v) => cardPreview.option("capturePopupMargin", v)
-                            onChanged: (v) => { App.settings.capturePopupMargin = v; cardPreview.touch() }
+                            onChanged: (v) => App.settings.capturePopupMargin = v
                         }
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Notification auto-hide")
                         help: qsTr("How long the capture card stays on screen. 0 keeps it open.")
                         helpDetail: qsTr("After this many seconds the card disappears on its own. Set 0 to keep it open until you dismiss it manually.")
@@ -2054,7 +1930,6 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.showCapturePopup
-                        height: App.settings.showCapturePopup ? 44 : 0
                         label: qsTr("Hide it during fullscreen / Do Not Disturb")
                         help: qsTr("Mutes capture cards while a fullscreen app or DND is active.")
                         helpDetail: qsTr("Uses the notification server's inhibition state (fullscreen application, Do Not Disturb, screen sharing). Inhibitors that were already stuck when Unisic started are ignored, so a misbehaving third-party app can't silence your capture feedback forever.")
@@ -2063,132 +1938,7 @@ Item {
                 }
             }
 
-            UCard {
-                id: notifActionsCard
-                width: page.cardWidth
-                visible: App.settings.showCapturePopup && App.capCustomNotification
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Notification actions") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it - an upload link, OCR support, a saved file.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    ListView {
-                        id: notifActionOrderList
-                        width: parent.width
-                        height: contentHeight
-                        interactive: false
-                        clip: false
-                        spacing: Theme.spacingS
-                        model: notifActionOrderModel
-                        delegate: Item {
-                            id: actionRow
-                            required property string actionId
-                            required property int index
-                            readonly property var action: page.notifActionById(actionId)
-                            width: ListView.view.width
-                            height: 40
-                            z: reorderDrag.active ? 10 : 0
-
-                            // ListModel.move() shifts the delegate's layout y.
-                            // Subtract that shift from the live pointer delta so
-                            // the dragged row stays under the hand while the
-                            // surrounding rows move out of its way.
-                            transform: Translate {
-                                y: reorderDrag.active
-                                   ? reorderDrag.activeTranslation.y
-                                     - (actionRow.index - reorderDrag.startIndex)
-                                       * (actionRow.height + notifActionOrderList.spacing)
-                                   : 0
-                            }
-
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: Theme.radiusM
-                                color: reorderDrag.active
-                                       ? Theme.alpha(Theme.accent, 0.16)
-                                       : "transparent"
-                                border.width: reorderDrag.active ? 1 : 0
-                                border.color: Theme.accent
-                            }
-                            Row {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 10
-                                Item {
-                                    id: reorderHandle
-                                    width: 24
-                                    height: actionRow.height
-                                    UIcon {
-                                        anchors.centerIn: parent
-                                        name: "drag-handle"
-                                        size: 16
-                                        color: handleHover.hovered || reorderDrag.active
-                                               ? Theme.accent : Theme.textTertiary
-                                    }
-                                    HoverHandler {
-                                        id: handleHover
-                                        cursorShape: reorderDrag.active
-                                                     ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-                                    }
-                                    DragHandler {
-                                        id: reorderDrag
-                                        target: null
-                                        acceptedButtons: Qt.LeftButton
-                                        xAxis.enabled: false
-                                        property int startIndex: -1
-                                        onActiveChanged: {
-                                            if (active) {
-                                                startIndex = actionRow.index
-                                                page.notifActionDragActive = true
-                                            } else if (startIndex >= 0) {
-                                                page.persistNotifActionOrderModel()
-                                                page.notifActionDragActive = false
-                                                startIndex = -1
-                                            }
-                                        }
-                                        onActiveTranslationChanged: {
-                                            if (!active || startIndex < 0)
-                                                return
-                                            const step = actionRow.height + notifActionOrderList.spacing
-                                            const targetIndex = Math.max(0, Math.min(
-                                                notifActionOrderModel.count - 1,
-                                                startIndex + Math.round(activeTranslation.y / step)))
-                                            if (targetIndex !== actionRow.index)
-                                                notifActionOrderModel.move(actionRow.index, targetIndex, 1)
-                                        }
-                                    }
-                                    UHoverTip {
-                                        anchor: reorderHandle
-                                        text: qsTr("Drag to reorder")
-                                        show: handleHover.hovered && !reorderDrag.active
-                                    }
-                                }
-                                UIcon { name: actionRow.action.iconName; size: 18; color: Theme.textSecondary; anchors.verticalCenter: parent.verticalCenter }
-                                Text { text: actionRow.action.label; color: Theme.textPrimary; font.pixelSize: Theme.fontM; anchors.verticalCenter: parent.verticalCenter }
-                            }
-                            USwitch {
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                checked: !page.notifActionHidden(actionRow.actionId)
-                                // Re-render the preview card: the point of switching
-                                // a button off is seeing what the card becomes.
-                                onToggled: (c) => { page.setNotifActionHidden(actionRow.actionId, !c); cardPreview.touch() }
-                            }
-                        }
-                        moveDisplaced: Transition {
-                            NumberAnimation { properties: "y"; duration: Theme.animFast; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-            }
-
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2354,7 +2104,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2400,7 +2150,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2422,7 +2172,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2563,32 +2313,11 @@ Item {
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
 
-            // KGlobalAccel missing (niri/sway/GNOME…): the recorders below
-            // would be dead — explain the compositor-bind route instead.
-            UCard {
-                visible: !App.hotkeysAvailable
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Global hotkeys unavailable on this desktop") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        textFormat: Text.MarkdownText
-                        text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Bind keys in your desktop instead; a running Unisic instance picks the command up:\n\n" +
-                                   "```\nunisic --region | --fullscreen | --window | --gif | --measure\nunisic --delay 5 --region\n```\n\n" +
-                                   "GNOME: Settings → Keyboard → Custom Shortcuts, one entry per command above. GNOME 48+ normally supports in-app hotkeys; if this card shows there, update xdg-desktop-portal-gnome or launch Unisic once from its menu entry.\n\n" +
-                                   "niri (`config.kdl`):\n\n" +
-                                   "```\nbinds {\n    Mod+Shift+S { spawn \"unisic\" \"--region\"; }\n    Print { spawn \"unisic\" \"--fullscreen\"; }\n}\n```")
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS + 1
-                    }
-                }
-            }
-
-            UCard {
-                visible: App.hotkeysAvailable
+            SettingsGroup {
+                // Also shown on a desktop with no hotkey backend but a writable
+                // shortcut store (COSMIC/GNOME/Cinnamon/Xfce): record the keys
+                // here, then "Add shortcuts to <desktop>" binds them as commands.
+                visible: App.hotkeysAvailable || App.desktopShortcutsAuto
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2597,7 +2326,9 @@ Item {
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: App.hotkeyBackend === "portal"
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1's keyboard settings.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
                               : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
@@ -2666,14 +2397,20 @@ Item {
                     }
                     UButton {
                         anchors.right: parent.right
-                        text: qsTr("Apply hotkeys")
+                        text: App.hotkeysAvailable ? qsTr("Apply hotkeys")
+                                                   : qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
                         compact: true
-                        onClicked: { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                        onClicked: {
+                            if (App.hotkeysAvailable) { App.applyHotkeys(); App.showToast(qsTr("Hotkeys re-registered")) }
+                            else App.installDesktopShortcuts()
+                        }
                     }
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap
-                        text: App.hotkeyBackend === "portal"
+                        text: !App.hotkeysAvailable
+                              ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
+                              : App.hotkeyBackend === "portal"
                               ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
@@ -2682,7 +2419,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 id: taskPresetCard
                 visible: App.hotkeysAvailable
                 width: page.cardWidth
@@ -2757,6 +2494,87 @@ Item {
                     }
                 }
             }
+
+            // The "no hotkey backend" install / copy-paste card sits LAST on this
+            // pane on purpose: the key recorders come first, and this heavier card
+            // (with its one-click writer) is far less in-your-face down here than
+            // it was leading the pane.
+            SettingsGroup {
+                id: unavCard
+                visible: !App.hotkeysAvailable
+                width: page.cardWidth
+                property bool manualOpen: false
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Global hotkeys unavailable on this desktop") }
+                    UCard {
+                        width: parent.width
+                        Column {
+                            width: parent.width
+                            spacing: Theme.spacingM
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Instead each capture action can be bound to a command in your desktop's own shortcut settings; a running Unisic instance then picks it up.")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS + 1
+                            }
+                            // Auto path: COSMIC/GNOME/Cinnamon/Xfce — one click
+                            // writes the desktop's config with the keys above.
+                            Column {
+                                visible: App.desktopShortcutsAuto
+                                width: parent.width
+                                spacing: Theme.spacingS
+                                Text {
+                                    width: parent.width
+                                    wrapMode: Text.WordWrap
+                                    text: qsTr("Unisic can add these to %1 for you, using the keys above — they stay editable in %1's own keyboard settings.").arg(App.desktopShortcutName)
+                                    color: Theme.textTertiary
+                                    font.pixelSize: Theme.fontS
+                                }
+                                Row {
+                                    spacing: Theme.spacingS
+                                    UButton {
+                                        text: qsTr("Add shortcuts to %1").arg(App.desktopShortcutName)
+                                        onClicked: App.installDesktopShortcuts()
+                                    }
+                                    UButton {
+                                        text: qsTr("Remove")
+                                        variant: "ghost"
+                                        compact: true
+                                        onClicked: App.removeDesktopShortcuts()
+                                    }
+                                }
+                            }
+                            Rectangle {
+                                visible: App.desktopShortcutsAuto
+                                width: parent.width; height: 1
+                                color: Theme.divider
+                            }
+                            // Copy-paste: tucked behind a toggle where auto exists,
+                            // shown directly on niri/sway/etc. (the only path there).
+                            UButton {
+                                visible: App.desktopShortcutsAuto
+                                variant: "ghost"
+                                compact: true
+                                text: unavCard.manualOpen ? qsTr("Hide commands") : qsTr("Show commands")
+                                onClicked: unavCard.manualOpen = !unavCard.manualOpen
+                            }
+                            Text {
+                                visible: !App.desktopShortcutsAuto || unavCard.manualOpen
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                textFormat: Text.MarkdownText
+                                text: (App.desktopShortcutsAuto ? "" : qsTr("Bind these commands in your desktop:") + "\n\n")
+                                      + App.desktopShortcutManualText()
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
+                        }
+                    }
+                }
+            }
         }
         }
 
@@ -2779,7 +2597,7 @@ Item {
             // search would pin every pane (~thousands of items) for the app lifetime.
             onLoaded: if (!page.searchActive) touched = true
             sourceComponent: ScrollPane {
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2879,7 +2697,7 @@ Item {
                 }
             }
 
-            UCard {
+            SettingsGroup {
                 width: page.cardWidth
                 Column {
                     width: parent.width
@@ -2918,6 +2736,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open a file…"); onClicked: App.openFileForEditing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }

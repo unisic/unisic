@@ -5,7 +5,9 @@
 #include <QPainter>
 #include <ctime>
 #include "Settings.h"
+#include "StreamGeometry.h"
 #include "capture/ScreenCastSession.h"
+#include <QGuiApplication>
 #ifdef HAVE_PIPEWIRE
 #include "PipeWireGrabber.h"
 #endif
@@ -499,8 +501,18 @@ void GifRecorder::openPortalSession()
     m_cursorSmoother = CursorSmoother();
 
     // Window source → portal WINDOW picker; otherwise a monitor.
-    const QString restoreToken =
+    // Full-screen recording on a multi-monitor setup: do NOT send the stored
+    // restore token. The system share dialog is the screen selector, and a
+    // token suppresses it while silently replaying whatever was picked when it
+    // was created — including an "entire workspace" share, which recorded BOTH
+    // screens with no dialog to say otherwise (dual-monitor bug). With one
+    // monitor there is nothing to choose, so the token keeps its silent-start
+    // convenience; Region keeps its per-monitor tokens (the overlay already
+    // names the target screen and onStreamReady verifies the stream).
+    QString restoreToken =
         m_settings->raw()->value(restoreTokenKey(m_source, m_targetScreen)).toString();
+    if (m_source == Screen && QGuiApplication::screens().size() > 1)
+        restoreToken.clear();
     m_session->start(cursorMode, m_source == Window ? 2u : 1u, restoreToken);
 #endif
 }
@@ -515,16 +527,24 @@ void GifRecorder::commit()
 #endif
 }
 
-void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &, const QPoint &pos)
+void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, const QPoint &pos)
 {
 #ifdef HAVE_PIPEWIRE
     // Wrong-monitor guard (dual-monitor): the region crop is LOCAL to the
     // screen it was drawn on, so a stream of a different monitor records a
     // misplaced area. Happens when a stale restore token replays a previously
-    // picked monitor, or the user shares the wrong one in the portal dialog.
-    // The portal's stream "position" (logical workspace coords) exposes it.
-    if (m_source == Region && m_targetScreen && pos.x() != INT_MIN
-        && pos != m_targetScreen->geometry().topLeft()) {
+    // picked monitor — or a whole-workspace share, which arrives as ONE stream
+    // spanning every monitor whose position equals a primary-monitor target,
+    // so the reported SIZE has to be checked too — or the user shares the
+    // wrong entry in the portal dialog. StreamGeometry::streamMatchesScreen
+    // tells a workspace/other-monitor stream apart from the one legitimate
+    // mismatch, a fractional-scaling rescale of the right monitor.
+    if (m_source == Region && m_targetScreen
+        && !StreamGeometry::streamMatchesScreen(
+               pos, portalSize, m_targetScreen->geometry(),
+               m_targetScreen->devicePixelRatio(),
+               m_targetScreen->virtualGeometry().size(),
+               int(QGuiApplication::screens().size()))) {
         ::close(fd); // dup'd for us — nobody else will
         m_settings->raw()->remove(restoreTokenKey(m_source, m_targetScreen));
         m_session->disconnect(this);

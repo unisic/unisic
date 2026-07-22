@@ -73,6 +73,11 @@ private:
 
     AppContext *m_app;
     QVector<QQuickWindow *> m_windows;
+    // Screen each created window belongs to, appended in lockstep with m_windows
+    // so confirmFromWindow maps a window back to its screen without assuming
+    // m_windows[i] == m_screens[i] (a per-screen component.create() failure would
+    // break that positional assumption and rescale/remember the wrong screen).
+    QVector<QScreen *> m_windowScreens;
     QVector<QScreen *> m_screens;
     QVector<QImage> m_frozen;
     ImageCallback m_imageCb;

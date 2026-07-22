@@ -18,6 +18,7 @@
 #include "history/HistoryStore.h"
 #include "record/GifRecorder.h"
 #include "update/UpdateChecker.h"
+#include "hotkeys/ShortcutBinder.h"
 
 class QQmlEngine;
 class QMenu;
@@ -27,6 +28,7 @@ class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class QQuickWindow;
+class QScreen;
 class QTimer;
 class QProcess;
 class CaptureManager;
@@ -136,6 +138,11 @@ class AppContext : public QObject
     Q_PROPERTY(bool hotkeysAvailable READ hotkeysAvailable NOTIFY hotkeysAvailableChanged)
     // "kglobalaccel" | "portal" | "" — lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
+    // With no hotkey backend: whether this desktop's own custom-shortcut store
+    // can be written for us (COSMIC/GNOME/Cinnamon/Xfce), and its display name.
+    // Lets the Hotkeys tab offer a one-click "bind these commands" install.
+    Q_PROPERTY(bool desktopShortcutsAuto READ desktopShortcutsAuto NOTIFY hotkeysAvailableChanged)
+    Q_PROPERTY(QString desktopShortcutName READ desktopShortcutName NOTIFY hotkeysAvailableChanged)
     Q_PROPERTY(QString toastText READ toastText NOTIFY toastChanged)
     // Baked in at compile time (CMake): semantic version + CI build number
     // ("dev" for local builds) + git-commit date of the built state
@@ -255,6 +262,7 @@ public:
     Q_INVOKABLE void devTestRecordStartSound();
     Q_INVOKABLE void devTestTrashSound();
     Q_INVOKABLE void devTestAltHotkeys();
+    Q_INVOKABLE void devTestDesktopShortcuts();
     Q_INVOKABLE void devTestTextRender();
     Q_INVOKABLE void devTestKeystrokeBadge();
     Q_INVOKABLE void devTestCustomTheme();
@@ -320,6 +328,8 @@ public:
     Q_INVOKABLE void applyLanguage();
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    bool desktopShortcutsAuto() const;
+    QString desktopShortcutName() const;
     bool autostartEnabled() const;
     void setAutostartEnabled(bool on);
     QStringList trayIconPresets() const;  // image files in trayIconsDir()
@@ -416,6 +426,17 @@ public:
     // Push ONE just-edited action — never re-asserts the app's possibly-stale
     // copies of the others (that used to clobber KCM edits).
     Q_INVOKABLE void applyHotkey(const QString &actionId);
+    // Run a hotkey action's entry point directly. Used by the `--hotkey <id>`
+    // CLI, which is what the desktop custom-shortcut bindings spawn on desktops
+    // without a native hotkey backend.
+    Q_INVOKABLE void runHotkeyAction(const QString &actionId) { dispatchHotkey(actionId); }
+    // Write / clear Unisic's capture actions in the desktop's own custom-shortcut
+    // store (COSMIC/GNOME/Cinnamon/Xfce). Returns false + toasts on failure.
+    Q_INVOKABLE bool installDesktopShortcuts();
+    Q_INVOKABLE void removeDesktopShortcuts();
+    // Copy-paste guidance (the exact commands + where to add them) for desktops
+    // we can't write automatically — and as a fallback everywhere.
+    Q_INVOKABLE QString desktopShortcutManualText() const;
     Q_INVOKABLE QString exportSettings(const QUrl &file);   // "" on success, else error
     Q_INVOKABLE QString importSettings(const QUrl &file);
     // Native (DE) file picker + export/import in one call — the QML FileDialog
@@ -554,6 +575,10 @@ private:
         QString keys;
     };
     QVector<HotkeyAction> hotkeyActions() const;
+    // The capture actions to expose as desktop custom shortcuts, each with its
+    // spawn command `unisic --hotkey <id>` (shell-quoted binary path).
+    QList<ShortcutBinder::Binding> desktopShortcutBindings() const;
+    QString hotkeyCommand(const QString &actionId) const;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
@@ -583,6 +608,9 @@ private:
     QString imgurSetupCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
+    // Round-trips the desktop custom-shortcut writer on the real store (touches
+    // only Unisic's own entries): install then remove, both must succeed.
+    QString desktopShortcutsCheck();
     // Idle gate for the automatic post-update restart: empty = safe to
     // restart, else a comma-joined list of what blocks it (recording, open
     // editors, visible window…).

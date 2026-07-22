@@ -251,6 +251,7 @@ public:
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestCopyLast();
     Q_INVOKABLE void devTestClipboardHistory();
+    Q_INVOKABLE void devTestShowInFolder();
     Q_INVOKABLE void devTestRecordBorder();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
@@ -408,6 +409,9 @@ public:
                      const QString &format, std::function<void(bool)> done = {});
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
+    // Opens the containing folder with the file pre-selected
+    // (org.freedesktop.FileManager1.ShowItems; falls back to openDirectory).
+    Q_INVOKABLE void showInFileManager(const QString &path);
     // Reopens the first-run welcome card (Settings → General → Diagnostics).
     // Main.qml answers with an instance that does NOT consume the one-shot
     // latch, so a manual peek can't hide the card from a genuine first run.

@@ -151,6 +151,25 @@ inline QList<Chord> parseAll(const QString &portable)
     return out;
 }
 
+// "W-S-s" — a labwc rc.xml keybind (Singularity). Modifier letters are labwc's
+// own (W=Super, C=Ctrl, A=Alt, S=Shift); the base key is the same X-keysym name
+// labwc feeds to xkb_keysym_from_name. Empty for an unmapped or modifier-only
+// chord (a labwc keybind needs a base key).
+inline QString toLabwcKey(const Chord &c)
+{
+    if (!c.ok || c.key.isEmpty())
+        return QString();
+    QString out;
+    for (const QString &m : c.mods) {
+        if (m == QLatin1String("Super"))      out += QStringLiteral("W-");
+        else if (m == QLatin1String("Ctrl"))  out += QStringLiteral("C-");
+        else if (m == QLatin1String("Alt"))   out += QStringLiteral("A-");
+        else if (m == QLatin1String("Shift")) out += QStringLiteral("S-");
+    }
+    out += c.key;
+    return out;
+}
+
 // "<Super><Shift>s" — the accelerator gsettings/xfconf both parse. Empty for an
 // unmapped or modifier-only chord (neither store can bind those).
 inline QString toGtkAccel(const Chord &c)

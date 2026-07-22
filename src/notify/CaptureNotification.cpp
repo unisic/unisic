@@ -168,7 +168,7 @@ void CaptureNotification::showInFolder()
     if (m_filePath.isEmpty())
         save();
     if (!m_filePath.isEmpty())
-        m_app->openDirectory(QFileInfo(m_filePath).absolutePath());
+        m_app->showInFileManager(m_filePath);
 }
 
 void CaptureNotification::openCapture()

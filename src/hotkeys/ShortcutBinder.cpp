@@ -421,11 +421,156 @@ Result xfceInstall(const QList<Binding> &bindings)
     return r;
 }
 
+// ==================================================== Singularity (labwc rc.xml) ===
+
+// Singularity is labwc-based: keybinds live in ~/.config/labwc/rc.xml and every
+// DE action dispatches over D-Bus. There is no custom-command shortcut store
+// (dev.sinty.desktop.Shortcuts only remaps its fixed action set — unknown
+// action names are rejected), so Unisic's entries go straight into rc.xml,
+// marked by the --hotkey command text, and labwc is asked to reconfigure.
+// The DE regenerates this file wholesale on login and on any shortcut edit;
+// AppContext watches it and re-installs (see watchPath/present).
+
+QString labwcRcPath()
+{
+    return QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+           + QStringLiteral("/labwc/rc.xml");
+}
+
+QString xmlEscape(const QString &s)
+{
+    QString e = s;
+    e.replace(QLatin1Char('&'), QLatin1String("&amp;"));
+    e.replace(QLatin1Char('<'), QLatin1String("&lt;"));
+    e.replace(QLatin1Char('>'), QLatin1String("&gt;"));
+    e.replace(QLatin1Char('"'), QLatin1String("&quot;"));
+    return e;
+}
+
+QString labwcEntry(const QString &key, const QString &command)
+{
+    return QStringLiteral("    <keybind key=\"") + xmlEscape(key)
+           + QStringLiteral("\"><action name=\"Execute\"><command>")
+           + xmlEscape(command)
+           + QStringLiteral("</command></action></keybind>");
+}
+
+// Strip every keybind whose command is ours (--hotkey AND unisic, same rule as
+// isOurCommand — a user's own unrelated keybind never matches). Handles the
+// single-line form we write AND a pretty-printed multi-line variant, in case a
+// future Singularity settings UI reflows the file before regenerating it.
+QString labwcStripOurs(const QString &text)
+{
+    // First alternative: a self-closing <keybind ... /> — matched on its own so
+    // the tempered-dot form can never span from it into the next element.
+    static const QRegularExpression re(QStringLiteral(
+        R"([ \t]*<keybind\b[^<>]*/>[ \t]*\n?|[ \t]*<keybind\b(?:(?!</keybind>).)*</keybind>[ \t]*\n?)"),
+        QRegularExpression::DotMatchesEverythingOption);
+    QString out;
+    int pos = 0;
+    auto it = re.globalMatch(text);
+    while (it.hasNext()) {
+        const auto m = it.next();
+        out += text.mid(pos, m.capturedStart() - pos);
+        if (!isOurCommand(m.captured()))
+            out += m.captured();
+        pos = m.capturedEnd();
+    }
+    out += text.mid(pos);
+    return out;
+}
+
+bool labwcReconfigure()
+{
+    // Tests run against a redirected config dir — poking the live compositor
+    // from there would be wrong even though it is harmless.
+    if (QStandardPaths::isTestModeEnabled())
+        return true;
+    // Failure is not fatal: labwc rereads rc.xml on the next login anyway.
+    return run(QStringLiteral("labwc"), {QStringLiteral("--reconfigure")});
+}
+
+Result singularityInstall(const QList<Binding> &bindings)
+{
+    Result r;
+    QString text;
+    QFile in(labwcRcPath());
+    if (in.exists() && in.open(QIODevice::ReadOnly))
+        text = QString::fromUtf8(in.readAll());
+    text = labwcStripOurs(text);
+
+    QString entries;
+    for (const Binding &b : bindings) {
+        if (b.portable.trimmed().isEmpty())
+            continue;
+        bool any = false;
+        for (const ShortcutKeyMap::Chord &c : ShortcutKeyMap::parseAll(b.portable)) {
+            const QString key = ShortcutKeyMap::toLabwcKey(c);
+            if (key.isEmpty()) continue;
+            entries += labwcEntry(key, b.command) + QLatin1Char('\n');
+            any = true;
+            r.written++;
+        }
+        if (!any)
+            r.skipped << b.name;
+    }
+
+    // Ours go LAST inside <keyboard>: on duplicate keys labwc keeps the later
+    // bind, so a user pointing e.g. Print at Unisic beats the DE's own bind.
+    QString rebuilt;
+    const int kbClose = text.lastIndexOf(QLatin1String("</keyboard>"));
+    const int cfgClose = text.lastIndexOf(QLatin1String("</labwc_config>"));
+    if (kbClose >= 0) {
+        rebuilt = text.left(kbClose) + entries + text.mid(kbClose);
+    } else if (cfgClose >= 0) {
+        rebuilt = text.left(cfgClose) + QStringLiteral("  <keyboard>\n") + entries
+                  + QStringLiteral("  </keyboard>\n") + text.mid(cfgClose);
+    } else {
+        rebuilt = QStringLiteral("<labwc_config>\n  <keyboard>\n") + entries
+                  + QStringLiteral("  </keyboard>\n</labwc_config>\n");
+    }
+
+    QDir().mkpath(QFileInfo(labwcRcPath()).path());
+    QSaveFile out(labwcRcPath());
+    if (!out.open(QIODevice::WriteOnly) || out.write(rebuilt.toUtf8()) < 0 || !out.commit()) {
+        r.error = QStringLiteral("Could not write %1").arg(labwcRcPath());
+        return r;
+    }
+    labwcReconfigure();
+    r.ok = true;
+    return r;
+}
+
+Result singularityRemove()
+{
+    Result r;
+    QFile in(labwcRcPath());
+    if (!in.exists()) { r.ok = true; return r; }
+    if (!in.open(QIODevice::ReadOnly)) {
+        r.error = QStringLiteral("Could not read %1").arg(labwcRcPath());
+        return r;
+    }
+    const QString stripped = labwcStripOurs(QString::fromUtf8(in.readAll()));
+    in.close();
+    QSaveFile out(labwcRcPath());
+    if (!out.open(QIODevice::WriteOnly) || out.write(stripped.toUtf8()) < 0 || !out.commit()) {
+        r.error = QStringLiteral("Could not write %1").arg(labwcRcPath());
+        return r;
+    }
+    labwcReconfigure();
+    r.ok = true;
+    return r;
+}
+
 // ===================================================================== manual ===
 
 QString manualWhere(Backend b)
 {
     switch (b) {
+    case Backend::Singularity:
+        return QStringLiteral("Singularity: add each command as a <keybind> inside <keyboard> in ~/.config/labwc/rc.xml, e.g.\n\n"
+                              "```\n<keybind key=\"W-S-s\"><action name=\"Execute\"><command>unisic --hotkey capture-region</command></action></keybind>\n```\n\n"
+                              "then run `labwc --reconfigure`. Note: Singularity rewrites this file when you edit its own shortcuts, so prefer the automatic setup above.");
     case Backend::Cosmic:
         return QStringLiteral("COSMIC: Settings → Keyboard → Custom shortcuts → Add shortcut, one per command.");
     case Backend::Gnome:
@@ -460,33 +605,38 @@ Backend detect()
     if (d.contains(QLatin1String("gnome")) || d.contains(QLatin1String("budgie"))
         || d.contains(QLatin1String("unity")) || d.contains(QLatin1String("pop")))
         return haveTool(QStringLiteral("gsettings")) ? Backend::Gnome : Backend::Manual;
+    if (d.contains(QLatin1String("singularity")))
+        return Backend::Singularity;
     return Backend::Manual;
 }
 
 bool autoInstallable(Backend b)
 {
     return b == Backend::Cosmic || b == Backend::Gnome
-        || b == Backend::Cinnamon || b == Backend::Xfce;
+        || b == Backend::Cinnamon || b == Backend::Xfce
+        || b == Backend::Singularity;
 }
 
 QString desktopName(Backend b)
 {
     switch (b) {
-    case Backend::Cosmic:   return QStringLiteral("COSMIC");
-    case Backend::Gnome:    return QStringLiteral("GNOME");
-    case Backend::Cinnamon: return QStringLiteral("Cinnamon");
-    case Backend::Xfce:     return QStringLiteral("Xfce");
-    default:                return QString();
+    case Backend::Cosmic:      return QStringLiteral("COSMIC");
+    case Backend::Gnome:       return QStringLiteral("GNOME");
+    case Backend::Cinnamon:    return QStringLiteral("Cinnamon");
+    case Backend::Xfce:        return QStringLiteral("Xfce");
+    case Backend::Singularity: return QStringLiteral("Singularity");
+    default:                   return QString();
     }
 }
 
 Result install(Backend b, const QList<Binding> &bindings)
 {
     switch (b) {
-    case Backend::Cosmic:   return cosmicInstall(bindings);
-    case Backend::Gnome:    return gsettingsInstall(gnomeProfile(), bindings);
-    case Backend::Cinnamon: return gsettingsInstall(cinnamonProfile(), bindings);
-    case Backend::Xfce:     return xfceInstall(bindings);
+    case Backend::Cosmic:      return cosmicInstall(bindings);
+    case Backend::Gnome:       return gsettingsInstall(gnomeProfile(), bindings);
+    case Backend::Cinnamon:    return gsettingsInstall(cinnamonProfile(), bindings);
+    case Backend::Xfce:        return xfceInstall(bindings);
+    case Backend::Singularity: return singularityInstall(bindings);
     default: { Result r; r.error = QStringLiteral("No auto-install backend"); return r; }
     }
 }
@@ -494,12 +644,29 @@ Result install(Backend b, const QList<Binding> &bindings)
 Result remove(Backend b)
 {
     switch (b) {
-    case Backend::Cosmic:   return cosmicRemove();
-    case Backend::Gnome:    return gsettingsRemove(gnomeProfile());
-    case Backend::Cinnamon: return gsettingsRemove(cinnamonProfile());
-    case Backend::Xfce:     return xfceRemove();
+    case Backend::Cosmic:      return cosmicRemove();
+    case Backend::Gnome:       return gsettingsRemove(gnomeProfile());
+    case Backend::Cinnamon:    return gsettingsRemove(cinnamonProfile());
+    case Backend::Xfce:        return xfceRemove();
+    case Backend::Singularity: return singularityRemove();
     default: { Result r; r.ok = true; return r; }
     }
+}
+
+QString watchPath(Backend b)
+{
+    // Only Singularity's store gets rewritten by the desktop itself.
+    return b == Backend::Singularity ? labwcRcPath() : QString();
+}
+
+bool present(Backend b)
+{
+    if (b != Backend::Singularity)
+        return false;
+    QFile f(labwcRcPath());
+    if (!f.open(QIODevice::ReadOnly))
+        return false;
+    return isOurCommand(QString::fromUtf8(f.readAll()));
 }
 
 QString manualText(Backend b, const QList<Binding> &bindings)

@@ -15,12 +15,19 @@
 //   - COSMIC : rewrite ~/.config/cosmic/...Shortcuts/v1/custom (RON), Spawn(...)
 //   - GNOME / Budgie / Cinnamon : gsettings custom-keybinding relocatable schema
 //   - Xfce   : xfconf-query, /commands/custom/<accel>
+//   - Singularity : inject <keybind> entries into ~/.config/labwc/rc.xml (the
+//     DE is labwc-based, has no GlobalShortcuts portal and no custom-command
+//     store — its dev.sinty.desktop.Shortcuts service only remaps its own fixed
+//     actions), then `labwc --reconfigure`. The DE's ShortcutManager REGENERATES
+//     rc.xml wholesale from a baked-in template on login and on any shortcut
+//     edit (verified: WriteLabwcRcXml wipes foreign keybinds), so AppContext
+//     re-asserts these entries on startup and via a file watcher.
 // Everything else (niri/Hyprland/sway/MATE/unknown) is copy-paste only via
 // manualText(). All writes are idempotent: re-installing replaces Unisic's own
 // entries and never touches the user's other custom shortcuts.
 namespace ShortcutBinder {
 
-enum class Backend { None, Cosmic, Gnome, Cinnamon, Xfce, Manual };
+enum class Backend { None, Cosmic, Gnome, Cinnamon, Xfce, Singularity, Manual };
 
 struct Binding {
     QString actionId;  // e.g. "capture-region" — also the spawned --hotkey arg
@@ -51,5 +58,12 @@ Result remove(Backend b);
 // Copy-paste guidance for `b` (used as the fallback, and as the whole card on a
 // Manual desktop): the exact commands plus where that desktop wants them.
 QString manualText(Backend b, const QList<Binding> &bindings);
+
+// Re-assert support, only for backends whose store the DESKTOP itself rewrites
+// (Singularity regenerates rc.xml on login/edit, dropping our entries).
+// watchPath: the store file AppContext should watch; empty = store is stable,
+// no re-assert needed. present: cheap "are our entries in the store right now".
+QString watchPath(Backend b);
+bool present(Backend b);
 
 } // namespace ShortcutBinder

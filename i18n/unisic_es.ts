@@ -1243,40 +1243,40 @@
     <message>
         <location filename="../src/AppContext.cpp" line="7042"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Este escritorio no se puede configurar automáticamente - usa los comandos de abajo.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7047"/>
         <source>Could not add shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>No se pudieron añadir los atajos: %1</translation>
     </message>
     <message numerus="yes">
         <location filename="../src/AppContext.cpp" line="7051"/>
         <source>Added %n shortcut(s) to %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Se añadió %n atajo a %1</numerusform>
+            <numerusform>Se añadieron %n atajos a %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7055"/>
         <source>(skipped, no mappable key: %1)</source>
-        <translation type="unfinished"></translation>
+        <translation>(omitido, sin tecla asignable: %1)</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7065"/>
         <source>Could not remove shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>No se pudieron eliminar los atajos: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7068"/>
         <source>Removed Unisic shortcuts from %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Atajos de Unisic eliminados de %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7155"/>
         <source>Dev: desktop shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Dev: atajos de escritorio: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7255"/>

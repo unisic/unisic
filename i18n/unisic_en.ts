@@ -1243,40 +1243,40 @@
     <message>
         <location filename="../src/AppContext.cpp" line="7042"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
-        <translation type="unfinished"></translation>
+        <translation>This desktop can&apos;t be set up automatically - use the commands below.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7047"/>
         <source>Could not add shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Could not add shortcuts: %1</translation>
     </message>
     <message numerus="yes">
         <location filename="../src/AppContext.cpp" line="7051"/>
         <source>Added %n shortcut(s) to %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Added %n shortcut to %1</numerusform>
+            <numerusform>Added %n shortcuts to %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7055"/>
         <source>(skipped, no mappable key: %1)</source>
-        <translation type="unfinished"></translation>
+        <translation>(skipped, no mappable key: %1)</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7065"/>
         <source>Could not remove shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Could not remove shortcuts: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7068"/>
         <source>Removed Unisic shortcuts from %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Removed Unisic shortcuts from %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7155"/>
         <source>Dev: desktop shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Dev: desktop shortcuts: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7255"/>

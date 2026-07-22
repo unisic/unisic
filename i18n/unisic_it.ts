@@ -1243,40 +1243,40 @@
     <message>
         <location filename="../src/AppContext.cpp" line="7042"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
-        <translation type="unfinished"></translation>
+        <translation>Questo desktop non può essere configurato automaticamente - usa i comandi qui sotto.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7047"/>
         <source>Could not add shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Impossibile aggiungere le scorciatoie: %1</translation>
     </message>
     <message numerus="yes">
         <location filename="../src/AppContext.cpp" line="7051"/>
         <source>Added %n shortcut(s) to %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Aggiunta %n scorciatoia a %1</numerusform>
+            <numerusform>Aggiunte %n scorciatoie a %1</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7055"/>
         <source>(skipped, no mappable key: %1)</source>
-        <translation type="unfinished"></translation>
+        <translation>(saltato, nessun tasto mappabile: %1)</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7065"/>
         <source>Could not remove shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Impossibile rimuovere le scorciatoie: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7068"/>
         <source>Removed Unisic shortcuts from %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Scorciatoie di Unisic rimosse da %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7155"/>
         <source>Dev: desktop shortcuts: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Dev: scorciatoie desktop: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="7255"/>

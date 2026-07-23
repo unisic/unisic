@@ -40,11 +40,23 @@ Item {
 
             Item { width: 1; height: Theme.spacingS }
 
-            // Flow, not Row: same reason as the capture cards — a narrow window
-            // wraps instead of clipping.
+            // The same stretch-to-fill tile grid as the Capture page, so both
+            // pages share one grid; wraps instead of clipping when narrow.
             Flow {
+                id: modeFlow
                 width: parent.width
                 spacing: Theme.spacingL
+
+                readonly property int count: 2
+                readonly property int minCard: 180
+                readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
+                readonly property int perRow: {
+                    for (var n = Math.min(fits, count); n > 1; --n)
+                        if (count % n === 0)
+                            return n
+                    return 1
+                }
+                readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
 
                 Repeater {
                     model: [
@@ -57,8 +69,10 @@ Item {
                           available: true },
                     ]
 
+                    // Color-only hover feedback — the tiles never move (same
+                    // rule as the Capture page).
                     delegate: Rectangle {
-                        width: 218
+                        width: modeFlow.cardW
                         height: 172
                         radius: Theme.radiusXL
                         gradient: Gradient {
@@ -67,17 +81,13 @@ Item {
                         }
                         border.width: 1
                         border.color: cardMouse.containsMouse ? Theme.alpha(Theme.accent, 0.55) : Theme.divider
-                        scale: cardMouse.pressed ? 0.97 : 1.0
-                        transform: Translate { y: cardMouse.containsMouse && !cardMouse.pressed ? -3 : 0
-                                               Behavior on y { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } } }
-                        Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
                         Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             shadowEnabled: true
                             shadowColor: Theme.shadow
-                            shadowBlur: cardMouse.containsMouse ? 1.0 : 0.7
-                            shadowVerticalOffset: cardMouse.containsMouse ? 8 : 4
+                            shadowBlur: 0.7
+                            shadowVerticalOffset: 4
                             shadowOpacity: 0.55
                         }
 
@@ -125,17 +135,27 @@ Item {
 
             Item { width: 1; height: Theme.spacingS }
 
-            UCard {
-                width: Math.min(parent.width, 694)
+            Text {
+                text: qsTr("Good to know")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontL
+                font.weight: Font.Bold
+                bottomPadding: Theme.spacingXS
+            }
+
+            Rectangle {
+                width: parent.width
+                implicitHeight: infoCol.implicitHeight + 2 * Theme.spacingM
+                radius: Theme.radiusM
+                color: Theme.surface
+                border.width: 1
+                border.color: Theme.divider
                 Column {
-                    width: parent.width
+                    id: infoCol
+                    x: Theme.spacingM
+                    y: Theme.spacingM
+                    width: parent.width - 2 * Theme.spacingM
                     spacing: Theme.spacingS
-                    Text {
-                        text: qsTr("Good to know")
-                        color: Theme.textPrimary
-                        font.pixelSize: Theme.fontL
-                        font.weight: Font.DemiBold
-                    }
                     Text {
                         width: parent.width
                         wrapMode: Text.WordWrap

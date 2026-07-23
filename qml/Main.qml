@@ -165,15 +165,12 @@ Window {
         }
     }
 
-    Rectangle { // content backdrop with subtle vertical falloff
+    Rectangle { // flat backdrop — the content card floats on this
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Theme.background }
-            GradientStop { position: 1.0; color: Theme.backgroundDeep }
-        }
+        color: Theme.backgroundDeep
     }
 
-    Rectangle { // custom title bar (frameless decoration)
+    Item { // custom title bar (frameless decoration) — blends into the backdrop
         id: titleBar
         anchors.top: parent.top
         anchors.left: parent.left
@@ -181,10 +178,6 @@ Window {
         height: 38
         visible: !App.settings.useSystemDecoration
         z: 20
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
-            GradientStop { position: 1.0; color: Theme.primary }
-        }
 
         // Drag anywhere on the bar to move the window (Wayland system move).
         // startSystemMove() is deferred past a small drag threshold: calling it on
@@ -206,12 +199,10 @@ Window {
                                                                     : window.showMaximized()
         }
 
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Theme.spacingL
-            anchors.verticalCenter: parent.verticalCenter
+        Text { // app name, centered in the decoration
+            anchors.centerIn: parent
             text: "Unisic"
-            color: Theme.textPrimary
+            color: Theme.textSecondary
             font.pixelSize: Theme.fontM
             font.weight: Font.DemiBold
         }
@@ -240,72 +231,139 @@ Window {
         }
     }
 
-    Rectangle { // sidebar
+    Item { // sidebar — flat on the backdrop, music-player style
         id: sidebar
         width: 224
         y: window.chromeTop
         height: parent.height - window.chromeTop
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
-            GradientStop { position: 1.0; color: Theme.primary }
-        }
-        layer.enabled: true
-        layer.effect: MultiEffect {
-            shadowEnabled: true
-            shadowColor: Theme.shadow
-            shadowBlur: 1.0
-            shadowHorizontalOffset: 3
-            shadowOpacity: 0.5
-        }
         z: 2
 
         Column {
             anchors.top: parent.top
-            anchors.topMargin: Theme.spacingXL
+            anchors.topMargin: Theme.spacingM
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.leftMargin: Theme.spacingM
             anchors.rightMargin: Theme.spacingM
             spacing: 4
 
-            Column {
-                spacing: 6
-                anchors.horizontalCenter: parent.horizontalCenter
-                Image {
-                    source: "qrc:/resources/icons/unisic.svg"
-                    sourceSize: Qt.size(88, 88)
-                    width: 88; height: 88
-                    smooth: true
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    // Dev builds are gray everywhere (tray, menu, here too).
-                    layer.enabled: App.devBuild
-                    layer.effect: MultiEffect { saturation: -1.0 }
-                }
-                Text {
-                    text: "Unisic"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontXL
-                    font.weight: Font.Bold
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
+            Text { // section header, like the app-name section in music players
+                text: "Unisic"
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+                font.weight: Font.DemiBold
+                leftPadding: 11
+                bottomPadding: 4
             }
-
-            Item { width: 1; height: Theme.spacingXL }
 
             SidebarItem { iconName: "camera-photo";  label: qsTr("Capture");      active: currentPage === 0; onClicked: currentPage = 0 }
             SidebarItem { iconName: "media-record";  label: qsTr("Record");       active: currentPage === 1; onClicked: currentPage = 1 }
             SidebarItem { iconName: "gif";           label: qsTr("GIF");          active: currentPage === 2; onClicked: currentPage = 2 }
             SidebarItem { iconName: "edit";          label: qsTr("Edit");         active: currentPage === 3; onClicked: currentPage = 3 }
+
+            Item { width: 1; height: Theme.spacingM }
+
+            Text {
+                text: qsTr("Library")
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+                font.weight: Font.DemiBold
+                leftPadding: 11
+                bottomPadding: 4
+            }
+
             SidebarItem { iconName: "view-history";  label: qsTr("History");      active: currentPage === 4; onClicked: currentPage = 4 }
             SidebarItem { iconName: "folder-cloud";  label: qsTr("Servers"); active: currentPage === 5; onClicked: currentPage = 5 }
-            SidebarItem { iconName: "configure";     label: qsTr("Settings");     active: currentPage === 6; onClicked: currentPage = 6 }
+        }
+
+        // App card at the bottom (profile-card style): identity + version on
+        // the left (click for the release notes), Settings gear on the right.
+        Rectangle {
+            id: bottomCard
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.spacingM
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Theme.spacingM
+            anchors.rightMargin: Theme.spacingM
+            height: 56
+            radius: Theme.radiusM
+            color: cardMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+            border.width: 1
+            border.color: Theme.divider
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+            MouseArea {
+                id: cardMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { patchNotes.open(); App.markPatchNotesSeen() }
+            }
+            UHoverTip {
+                anchor: bottomCard
+                text: qsTr("What's new")
+                      + (App.buildDate ? "\n" + App.buildDate : "")
+                show: cardMouse.containsMouse && !gearButton.hovered
+            }
+
+            Image {
+                id: cardIcon
+                source: "qrc:/resources/icons/unisic.svg"
+                sourceSize: Qt.size(32, 32)
+                width: 32; height: 32
+                smooth: true
+                anchors.left: parent.left
+                anchors.leftMargin: 11
+                anchors.verticalCenter: parent.verticalCenter
+                // Dev builds are gray everywhere (tray, menu, here too).
+                layer.enabled: App.devBuild
+                layer.effect: MultiEffect { saturation: -1.0 }
+            }
+            Column {
+                anchors.left: cardIcon.right
+                anchors.leftMargin: 10
+                anchors.right: gearButton.left
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 1
+                Text {
+                    width: parent.width
+                    text: "Unisic"
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontM
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    text: "v" + App.appVersion + (App.buildNumber === "dev"
+                            ? " · dev"
+                            : " · build " + App.buildNumber)
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontS
+                    elide: Text.ElideRight
+                }
+            }
+            UIconButton {
+                id: gearButton
+                iconName: "configure"
+                iconSize: 16
+                width: 32; height: 32
+                active: currentPage === 6
+                anchors.right: parent.right
+                anchors.rightMargin: 9
+                anchors.verticalCenter: parent.verticalCenter
+                tooltip: qsTr("Settings")
+                onClicked: currentPage = 6
+            }
         }
 
         // Recording pill
         Rectangle {
             visible: App.recording || App.converting
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.spacingL
+            anchors.bottom: bottomCard.top
+            anchors.bottomMargin: Theme.spacingM
             anchors.horizontalCenter: parent.horizontalCenter
             width: parent.width - 2 * Theme.spacingM
             height: 46
@@ -370,45 +428,15 @@ Window {
             }
         }
 
-        // Version / build footer — hidden while the recording pill occupies the
-        // bottom. Click it to see the running version's release notes.
-        Text {
-            id: versionLabel
-            visible: !App.recording && !App.converting
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.spacingM
-            anchors.horizontalCenter: parent.horizontalCenter
-            horizontalAlignment: Text.AlignHCenter
-            text: "v" + App.appVersion + (App.buildNumber === "dev"
-                    ? " · dev"
-                    : " · build " + App.buildNumber)
-                  + (App.buildDate ? "\n" + App.buildDate : "")
-            color: versionMouse.containsMouse ? Theme.accent : Theme.textTertiary
-            font.pixelSize: Theme.fontS
-
-            MouseArea {
-                id: versionMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: { patchNotes.open(); App.markPatchNotesSeen() }
-            }
-            UHoverTip {
-                anchor: versionLabel
-                text: qsTr("What's new")
-                show: versionMouse.containsMouse
-            }
-        }
-
-        // One-time "new version" nudge: a blinking arrow pointing at the version
-        // label after an update, until the release notes are opened. Gated on
+        // One-time "new version" nudge: a blinking arrow pointing at the app
+        // card after an update, until the release notes are opened. Gated on
         // window.visible so it never animates while the app sits in the tray,
         // and on the welcome flow so it can't burn frames invisibly behind the
         // opaque first-run backdrop.
         Item {
             id: patchHint
             visible: App.patchNotesUnseen && !App.recording && !App.converting
-            anchors.bottom: versionLabel.top
+            anchors.bottom: bottomCard.top
             anchors.bottomMargin: Theme.spacingXS
             anchors.horizontalCenter: parent.horizontalCenter
             width: hintCol.width
@@ -448,7 +476,7 @@ Window {
         }
     }
 
-    // Release notes for the running version, opened from the version label.
+    // Release notes for the running version, opened from the app card.
     UPatchNotes {
         id: patchNotes
         version: App.appVersion
@@ -529,30 +557,63 @@ Window {
         }
     }
 
-    Item { // content
+    Rectangle { // content — a rounded card floating on the dark backdrop
+        id: contentCard
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.topMargin: window.chromeTop
         anchors.bottom: parent.bottom
+        anchors.topMargin: window.chromeTop + Theme.spacingM
+        anchors.rightMargin: Theme.spacingM
+        anchors.bottomMargin: Theme.spacingM
+        radius: Theme.radiusL
+        color: Theme.background
+        border.width: 1
+        border.color: Theme.edgeLight
 
-        // Only the visible page is instantiated; leaving a page unloads it so
-        // idle RAM tracks a single page instead of all six at once.
-        Component { id: capturePage;      CapturePage {} }
-        Component { id: recordPage;       RecordPage {} }
-        Component { id: gifPage;          GifPage {} }
-        Component { id: editPage;         EditPage {} }
-        Component { id: historyPage;      HistoryPage {} }
-        Component { id: destinationsPage; DestinationsPage {} }
-        Component { id: settingsPage;     SettingsPage {} }
+        // Accent glow bleeding down from the card's top edge (the "album art"
+        // wash in the reference look). Its own top corners are rounded so it
+        // can't poke square pixels past the card's rounded edge.
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 1
+            height: 230
+            topLeftRadius: contentCard.radius - 1
+            topRightRadius: contentCard.radius - 1
+            bottomLeftRadius: 0
+            bottomRightRadius: 0
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Theme.alpha(Theme.accent, Theme.isDark ? 0.14 : 0.09) }
+                GradientStop { position: 1.0; color: Theme.alpha(Theme.accent, 0.0) }
+            }
+        }
 
-        Loader { anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
-        Loader { anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
-        Loader { anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: gifPage }
-        Loader { anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: editPage }
-        Loader { anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: historyPage }
-        Loader { anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: destinationsPage }
-        Loader { anchors.fill: parent; active: currentPage === 6; visible: active; sourceComponent: settingsPage }
+        Item { // square clip: every page pads its content, so the corner
+               // regions stay empty and the rounding above shows through
+            anchors.fill: parent
+            anchors.margins: 1
+            clip: true
+
+            // Only the visible page is instantiated; leaving a page unloads it
+            // so idle RAM tracks a single page instead of all six at once.
+            Component { id: capturePage;      CapturePage {} }
+            Component { id: recordPage;       RecordPage {} }
+            Component { id: gifPage;          GifPage {} }
+            Component { id: editPage;         EditPage {} }
+            Component { id: historyPage;      HistoryPage {} }
+            Component { id: destinationsPage; DestinationsPage {} }
+            Component { id: settingsPage;     SettingsPage {} }
+
+            Loader { anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
+            Loader { anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
+            Loader { anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: gifPage }
+            Loader { anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: editPage }
+            Loader { anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: historyPage }
+            Loader { anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: destinationsPage }
+            Loader { anchors.fill: parent; active: currentPage === 6; visible: active; sourceComponent: settingsPage }
+        }
     }
 
     // Toast

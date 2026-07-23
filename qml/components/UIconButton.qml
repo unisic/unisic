@@ -8,6 +8,7 @@ Rectangle {
     property string tooltip: ""
     property bool active: false
     property int iconSize: 18
+    readonly property alias hovered: mouse.containsMouse
     signal clicked()
 
     width: 38; height: 38

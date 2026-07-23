@@ -47,53 +47,59 @@ Item {
                 font.pixelSize: Theme.fontM
             }
 
-            Row {
+            // Always-present buttons that only enable/disable — nothing joins
+            // or leaves the row while a recording starts or stops.
+            Flow {
+                width: parent.width
                 spacing: Theme.spacingM
                 UButton {
-                    iconName: "region"; text: qsTr("Region → GIF")
+                    compact: true; iconName: "region"; text: qsTr("Region → GIF")
                     enabled: App.recordingAvailable && !App.recording && !App.converting
                     onClicked: App.startGifRegion()
                 }
                 UButton {
-                    iconName: "monitor"; text: qsTr("Screen → GIF"); variant: "tonal"
+                    compact: true; iconName: "monitor"; text: qsTr("Screen → GIF"); variant: "tonal"
                     enabled: App.recordingAvailable && !App.recording && !App.converting
                     onClicked: App.startGifFullScreen()
                 }
                 UButton {
-                    iconName: App.recordingPaused ? "play" : "pause"
+                    compact: true; iconName: App.recordingPaused ? "play" : "pause"
                     text: App.recordingPaused ? qsTr("Resume") : qsTr("Pause")
                     variant: "tonal"
-                    visible: App.recordingCanPause && !App.converting
+                    enabled: App.recordingCanPause && !App.converting
                     onClicked: App.togglePauseRecording()
                 }
                 UButton {
-                    iconName: "stop"; text: qsTr("Stop"); variant: "danger"
+                    compact: true; iconName: "stop"; text: qsTr("Stop"); variant: "danger"
                     enabled: App.recording && !App.converting
                     onClicked: App.stopRecording()
                 }
             }
 
-            UCard {
-                width: Math.min(parent.width, 694)
+            // Options as per-option cards next to a tips column — one shared
+            // full-width grid, same breakpoint as the Record page.
+            Flow {
+                id: optsFlow
+                width: parent.width
+                spacing: Theme.spacingL
+                readonly property bool twoCol: width >= 720
+                readonly property real cardW: twoCol ? (width - Theme.spacingL) / 2 : width
+
                 Column {
-                    width: parent.width
-                    spacing: Theme.spacingL
+                    width: optsFlow.cardW
+                    spacing: Theme.spacingS
 
                     Text {
                         text: qsTr("GIF options")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontL
-                        font.weight: Font.DemiBold
+                        font.weight: Font.Bold
+                        bottomPadding: Theme.spacingXS
                     }
 
-                    Item {
-                        width: parent.width; height: 40
-                        Text {
-                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Frame rate"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
-                        }
+                    USettingRow {
+                        label: qsTr("Frame rate")
                         UComboBox {
-                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             width: 130
                             model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]
                             readonly property var opts: [15, 30, 45, 60]
@@ -101,14 +107,9 @@ Item {
                             onActivated: (i) => App.settings.gifFps = opts[i]
                         }
                     }
-                    Item {
-                        width: parent.width; height: 40
-                        Text {
-                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Maximum duration"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
-                        }
+                    USettingRow {
+                        label: qsTr("Maximum duration")
                         UValueCombo {
-                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             width: 130
                             values: [0, 5, 10, 15, 30, 60, 120, 300, 600]
                             from: 0; to: 600
@@ -118,30 +119,70 @@ Item {
                             onChanged: (v) => App.settings.gifMaxDurationSec = v
                         }
                     }
-                    Item {
-                        width: parent.width; height: 40
-                        Text {
-                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Quality"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
-                        }
+                    USettingRow {
+                        label: qsTr("Quality")
                         UComboBox {
-                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             width: 190
                             model: [qsTr("Fast / small"), qsTr("Balanced"), qsTr("Best")]
                             currentIndex: App.settings.gifQuality
                             onActivated: (i) => App.settings.gifQuality = i
                         }
                     }
-                    Item {
-                        width: parent.width; height: 40
-                        Text {
-                            anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Include mouse cursor"); color: Theme.textPrimary; font.pixelSize: Theme.fontM
-                        }
+                    USettingRow {
+                        label: qsTr("Include mouse cursor")
                         USwitch {
-                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                             checked: App.settings.includeCursor
                             onToggled: (c) => App.settings.includeCursor = c
+                        }
+                    }
+                }
+
+                Column {
+                    width: optsFlow.cardW
+                    spacing: Theme.spacingS
+
+                    Text {
+                        text: qsTr("Good to know")
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontL
+                        font.weight: Font.Bold
+                        bottomPadding: Theme.spacingXS
+                    }
+
+                    Rectangle {
+                        width: parent.width
+                        implicitHeight: tipsCol.implicitHeight + 2 * Theme.spacingM
+                        radius: Theme.radiusM
+                        color: Theme.surface
+                        border.width: 1
+                        border.color: Theme.divider
+                        Column {
+                            id: tipsCol
+                            x: Theme.spacingM
+                            y: Theme.spacingM
+                            width: parent.width - 2 * Theme.spacingM
+                            spacing: Theme.spacingS
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("GIF has no audio track. For a clip with sound, record an MP4 or WebM from the Record page instead.")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("File size grows quickly with area, frame rate and duration. A small region at 15-30 FPS usually looks great and stays easy to share.")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("Every recording is converted in two passes (a color palette first, then the frames), so colors stay crisp - the trade-off is a short encode after you stop.")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
                         }
                     }
                 }

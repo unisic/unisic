@@ -61,29 +61,14 @@ Item {
                 font.pixelSize: Theme.fontM
             }
 
-            UCard {
-                width: Math.min(parent.width, 694)
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingM
-
-                    Item {
-                        width: parent.width; height: 40
-                        Text {
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: qsTr("Active server")
-                            color: Theme.textPrimary; font.pixelSize: Theme.fontM
-                        }
-                        UComboBox {
-                            id: activeCombo
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            model: page.destNames()
-                            currentIndex: Math.max(0, page.destNames().indexOf(App.settings.activeDestination))
-                            onActivated: (i) => App.settings.activeDestination = model[i]
-                        }
-                    }
+            USettingRow {
+                width: parent.width
+                label: qsTr("Active server")
+                UComboBox {
+                    id: activeCombo
+                    model: page.destNames()
+                    currentIndex: Math.max(0, page.destNames().indexOf(App.settings.activeDestination))
+                    onActivated: (i) => App.settings.activeDestination = model[i]
                 }
             }
 
@@ -101,9 +86,9 @@ Item {
             Repeater {
                 model: App.uploads.destinations
                 delegate: Rectangle {
-                    width: Math.min(col.width, 694)
+                    width: col.width
                     height: 64
-                    radius: Theme.radiusL
+                    radius: Theme.radiusM
                     color: Theme.surface
                     border.width: 1
                     border.color: App.settings.activeDestination === modelData.name ? Theme.accent : Theme.divider

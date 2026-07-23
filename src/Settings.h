@@ -554,7 +554,7 @@ public:
     U_SETTING(int, recordCountdownSec, setRecordCountdownSec, "record/countdownSec", 0)
     // Playback volume (0-100) for the capture/recording sound cues. 100 = the
     // sample's own level; 0 skips playback entirely.
-    U_SETTING(int, soundVolume, setSoundVolume, "soundVolume", 100)
+    U_SETTING(int, soundVolume, setSoundVolume, "soundVolume", 75)
     // When saving is enabled, prompt for a destination path per capture instead
     // of writing straight into saveDirectory. Off by default.
     U_SETTING(bool, askWhereToSave, setAskWhereToSave, "askWhereToSave", false)

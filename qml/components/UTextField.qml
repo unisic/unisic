@@ -5,6 +5,10 @@ Rectangle {
     id: root
     property alias text: input.text
     property alias placeholder: placeholderText.text
+    // Optional leading icon (e.g. "magnify" for search fields); shifts the
+    // input right when set, no-op when empty so existing fields keep their
+    // layout.
+    property string iconName: ""
     property alias readOnly: input.readOnly
     property alias echoMode: input.echoMode
     property alias validator: input.validator
@@ -25,10 +29,20 @@ Rectangle {
     border.color: input.activeFocus ? Theme.accent : Theme.divider
     Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
+    UIcon {
+        visible: root.iconName !== ""
+        name: root.iconName
+        size: 15
+        color: Theme.textTertiary
+        anchors.left: parent.left
+        anchors.leftMargin: 12
+        anchors.verticalCenter: parent.verticalCenter
+    }
+
     TextInput {
         id: input
         anchors.fill: parent
-        anchors.leftMargin: 14
+        anchors.leftMargin: root.iconName !== "" ? 34 : 14
         anchors.rightMargin: 14
         verticalAlignment: TextInput.AlignVCenter
         color: Theme.textPrimary

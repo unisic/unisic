@@ -36,8 +36,18 @@ Item {
     property string searchQuery: ""
     readonly property bool searchActive: searchQuery.length > 0
     property var searchResults: []
-    // Set when jumping to a result; highlights matching row labels for a moment.
-    property string highlightQuery: ""
+    // Panes are only pulled in for searching once the debounce fires — flipping
+    // this on the first keystroke used to instantiate every pane synchronously
+    // in one frame, which visibly froze typing.
+    property bool searchPanesWanted: false
+    // Panes still incubating for the current search (keeps the "no matches"
+    // empty state from flashing while results are on their way).
+    property int searchPending: 0
+    // Set when jumping to a result: the exact row that was clicked in the
+    // search list, marked with an accent border + tinted surface for a moment
+    // so the eye lands on the one setting it asked for (label-substring
+    // matching used to flash every row containing the query).
+    property var highlightRow: null
     // Debounced: rebuildSearch walks every pane's full item tree and resets the
     // results Repeater — per keystroke that's a lot of churn for characters the
     // user is still typing. Clearing skips the debounce so leaving search (and
@@ -47,21 +57,25 @@ Item {
             searchDebounce.restart()
         } else {
             searchDebounce.stop()
+            searchPanesWanted = false
             rebuildSearch()
         }
     }
     Timer {
         id: searchDebounce
         interval: 160
-        onTriggered: page.rebuildSearch()
+        onTriggered: {
+            page.searchPanesWanted = true
+            page.rebuildSearch()
+        }
     }
     Timer {
         id: highlightTimer
         interval: 4000
-        onTriggered: page.highlightQuery = ""
+        onTriggered: page.highlightRow = null
     }
     function jumpTo(result) {
-        highlightQuery = searchQuery.toLowerCase()
+        highlightRow = result.row || null
         highlightTimer.restart()
         tab = result.tab
         // Latch the destination pane as a REAL visit: onLoaded won't re-fire
@@ -87,15 +101,24 @@ Item {
         })
     }
     function rebuildSearch() {
-        if (!searchActive) { searchResults = []; return }
+        if (!searchActive) { searchResults = []; searchPending = 0; return }
         var q = searchQuery.toLowerCase()
         var out = []
+        var pending = 0
         for (var i = 0; i < paneArea.children.length; ++i) {
             var ld = paneArea.children[i]
-            if (!ld || ld.tabIndex === undefined || !ld.item)
+            if (!ld || ld.tabIndex === undefined)
                 continue
+            if (!ld.item) {
+                // Still incubating (async search build) — its onLoaded re-runs
+                // this rebuild, so the results fill in as panes arrive.
+                if (ld.active)
+                    pending++
+                continue
+            }
             collectRows(ld.item, ld.tabIndex, q, out)
         }
+        searchPending = pending
         searchResults = out
     }
     // Settings help: "?" badge click. Dialog shows the short summary first
@@ -286,12 +309,18 @@ Item {
         readonly property string detail: (!available && hint !== "") ? hint : help
         readonly property bool hasBadge: helpDetail !== "" || (!available && hint !== "")
 
+        // Just jumped to from search: accent border + tinted surface until the
+        // highlight timer clears it.
+        readonly property bool searchHit: page.highlightRow === settingRow
+
         width: parent ? parent.width : 0
         implicitHeight: inner.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
-        color: Theme.surface
+        color: searchHit ? Theme.surfaceHi : Theme.surface
         border.width: 1
-        border.color: Theme.divider
+        border.color: searchHit ? Theme.accent : Theme.divider
+        Behavior on border.color { ColorAnimation { duration: Theme.animMed } }
+        Behavior on color { ColorAnimation { duration: Theme.animMed } }
         opacity: available ? 1.0 : 0.5
 
         Column {
@@ -327,9 +356,7 @@ Item {
                             width: Math.max(0, parent.width - (settingRow.hasBadge ? 24 : 0))
                             elide: Text.ElideRight
                             // Briefly tinted when this row was just jumped to from search.
-                            color: page.highlightQuery.length > 0
-                                   && text.toLowerCase().indexOf(page.highlightQuery) >= 0
-                                   ? Theme.accent : Theme.textPrimary
+                            color: settingRow.searchHit ? Theme.accent : Theme.textPrimary
                             font.pixelSize: Theme.fontM
                         }
                         Rectangle {
@@ -643,7 +670,8 @@ Item {
                 width: parent.width
                 spacing: Theme.spacingS
                 Text {
-                    visible: page.searchResults.length === 0
+                    visible: page.searchResults.length === 0 && !searchDebounce.running
+                             && page.searchPending === 0
                     text: qsTr("No settings match “%1”").arg(page.searchQuery)
                     color: Theme.textTertiary
                     font.pixelSize: Theme.fontM
@@ -707,15 +735,24 @@ Item {
             readonly property int tabIndex: 0
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: page.tab === 0 || page.searchActive
+            visible: page.tab === 0 || page.searchPanesWanted
             opacity: (page.tab === 0 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 0 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -964,14 +1001,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 1
-            visible: page.tab === 1 || page.searchActive
+            visible: page.tab === 1 || page.searchPanesWanted
             opacity: (page.tab === 1 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 1 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -1187,14 +1233,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 2
-            visible: page.tab === 2 || page.searchActive
+            visible: page.tab === 2 || page.searchPanesWanted
             opacity: (page.tab === 2 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 2 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -1434,14 +1489,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 3
-            visible: page.tab === 3 || page.searchActive
+            visible: page.tab === 3 || page.searchPanesWanted
             opacity: (page.tab === 3 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 3 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -1610,14 +1674,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 4
-            visible: page.tab === 4 || page.searchActive
+            visible: page.tab === 4 || page.searchPanesWanted
             opacity: (page.tab === 4 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 4 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -1820,14 +1893,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 5
-            visible: page.tab === 5 || page.searchActive
+            visible: page.tab === 5 || page.searchPanesWanted
             opacity: (page.tab === 5 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 5 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -2117,14 +2199,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 6
-            visible: page.tab === 6 || page.searchActive
+            visible: page.tab === 6 || page.searchPanesWanted
             opacity: (page.tab === 6 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 6 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -2344,14 +2435,23 @@ Item {
         Loader {
             anchors.fill: parent
             readonly property int tabIndex: 7
-            visible: page.tab === 7 || page.searchActive
+            visible: page.tab === 7 || page.searchPanesWanted
             opacity: (page.tab === 7 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 7 && !page.searchActive
             property bool touched: false
-            active: touched || visible || page.searchActive
+            active: touched || visible
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
 
             SettingsGroup {
@@ -2628,15 +2728,24 @@ Item {
             // one would expose the smoke-test buttons on a hidden tab.
             // Visible-but-inert while searching: per-row `visible:` gates keep
             // their real values so collectRows can skip hidden rows.
-            visible: App.devBuild && (page.tab === 8 || page.searchActive)
+            visible: App.devBuild && (page.tab === 8 || page.searchPanesWanted)
             opacity: (page.tab === 8 && !page.searchActive) ? 1 : 0
             enabled: page.tab === 8 && !page.searchActive
             property bool touched: false
             // Search needs every pane instantiated so it can walk the rows.
-            active: App.devBuild && (touched || visible || page.searchActive)
+            active: App.devBuild && (touched || visible)
+            // Search-driven builds incubate asynchronously so even the
+            // debounced pane build never stalls typing; a direct tab visit
+            // stays synchronous (instant pane on click).
+            asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
-            onLoaded: if (!page.searchActive) touched = true
+            onLoaded: {
+                if (!page.searchActive)
+                    touched = true
+                else
+                    Qt.callLater(page.rebuildSearch)
+            }
             sourceComponent: ScrollPane {
             SettingsGroup {
                 width: page.cardWidth
@@ -2719,6 +2828,7 @@ Item {
                         border.color: Theme.divider
                         clip: true
                         Flickable {
+                            id: devLogFlick
                             anchors.fill: parent
                             anchors.margins: 8
                             contentWidth: width
@@ -2732,6 +2842,25 @@ Item {
                                 font.family: "monospace"
                                 font.pixelSize: Theme.fontS
                                 wrapMode: Text.WrapAnywhere
+                            }
+                        }
+                        // The console is a strict scroll island: the wheel over
+                        // it moves ONLY the log (fixed steps, never Flickable's
+                        // physics) and is always consumed, so the page behind
+                        // never scrolls from over the console — and scrolling
+                        // the page stops at its edge instead of dying inside
+                        // it. Wheel-only (NoButton): clicks and drags pass
+                        // through untouched.
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.NoButton
+                            onWheel: (w) => {
+                                const dy = w.pixelDelta.y !== 0 ? w.pixelDelta.y
+                                                                : (w.angleDelta.y / 120) * 110
+                                devLogFlick.contentY = Math.max(0, Math.min(
+                                    Math.max(0, devLogFlick.contentHeight - devLogFlick.height),
+                                    devLogFlick.contentY - dy))
+                                w.accepted = true
                             }
                         }
                     }

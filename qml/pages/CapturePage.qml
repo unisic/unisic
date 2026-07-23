@@ -32,8 +32,6 @@ Item {
                 font.pixelSize: Theme.fontM
             }
 
-            Item { width: 1; height: Theme.spacingS }
-
             // Flow, not Row: at the minimum window width the viewport is
             // narrower than the fixed-width cards, so wrap instead of clipping
             // the last one (the Flickable has no horizontal scroll).
@@ -64,6 +62,9 @@ Item {
                         { iconName: "window",  title: qsTr("Window"), sub: qsTr("Active window"), hotkey: App.settings.hotkeyWindow, action: 2 },
                     ]
 
+                    // Hover feedback is color-only (surface, border, icon tint):
+                    // the tiles never translate, scale or grow their shadow, so
+                    // nothing on the page shifts under the pointer.
                     delegate: Rectangle {
                         width: modeFlow.cardW
                         height: 172
@@ -74,17 +75,13 @@ Item {
                         }
                         border.width: 1
                         border.color: cardMouse.containsMouse ? Theme.alpha(Theme.accent, 0.55) : Theme.divider
-                        scale: cardMouse.pressed ? 0.97 : 1.0
-                        transform: Translate { y: cardMouse.containsMouse && !cardMouse.pressed ? -3 : 0
-                                               Behavior on y { NumberAnimation { duration: Theme.animMed; easing.type: Easing.OutCubic } } }
-                        Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
                         Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
                         layer.enabled: true
                         layer.effect: MultiEffect {
                             shadowEnabled: true
                             shadowColor: Theme.shadow
-                            shadowBlur: cardMouse.containsMouse ? 1.0 : 0.7
-                            shadowVerticalOffset: cardMouse.containsMouse ? 8 : 4
+                            shadowBlur: 0.7
+                            shadowVerticalOffset: 4
                             shadowOpacity: 0.55
                         }
 
@@ -150,60 +147,37 @@ Item {
                 }
             }
 
-            Item { width: 1; height: Theme.spacingS }
+            // Per-option cards on the flat background (the Settings visual
+            // language), aligned to the same full-width grid as the tiles.
+            Text {
+                text: qsTr("After capture")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontL
+                font.weight: Font.Bold
+            }
 
-            UCard {
-                width: Math.min(parent.width, 694)
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingM
+            Flow {
+                id: toggleFlow
+                width: parent.width
+                spacing: Theme.spacingM
+                readonly property bool twoCol: width >= 640
+                readonly property real cellW: twoCol ? (width - Theme.spacingM) / 2 : width
 
-                    Text {
-                        text: qsTr("After capture")
-                        color: Theme.textPrimary
-                        font.pixelSize: Theme.fontL
-                        font.weight: Font.DemiBold
-                    }
-
-                    // Two-column toggle grid: these are all label + switch rows,
-                    // so pairing them halves the card's height and keeps the
-                    // page off the Flickable's scrollbar at the default size.
-                    Flow {
-                        id: toggleFlow
-                        width: parent.width
-                        spacing: Theme.spacingM
-                        readonly property real cellW: (width - Theme.spacingM) / 2
-
-                        Repeater {
-                            model: [
-                                { label: qsTr("Open the editor"), key: "openEditor", cursor: false },
-                                { label: qsTr("Copy image to clipboard"), key: "copyToClipboard", cursor: false },
-                                { label: qsTr("Save to disk automatically"), key: "autoSave", cursor: false },
-                                { label: qsTr("Upload and copy the link"), key: "uploadAfterCapture", cursor: false },
-                                { label: qsTr("Include mouse cursor"), key: "includeCursor", cursor: true },
-                            ]
-                            delegate: Item {
-                                width: toggleFlow.cellW
-                                height: 38
-                                Text {
-                                    anchors.left: parent.left
-                                    anchors.right: sw.left
-                                    anchors.rightMargin: Theme.spacingM
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: modelData.label
-                                    elide: Text.ElideRight
-                                    color: Theme.textPrimary
-                                    font.pixelSize: Theme.fontM
-                                }
-                                USwitch {
-                                    id: sw
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    checked: App.settings[modelData.key]
-                                    enabled: !modelData.cursor || App.capScreenshotCursor || App.devBuild
-                                    onToggled: (c) => App.settings[modelData.key] = c
-                                }
-                            }
+                Repeater {
+                    model: [
+                        { label: qsTr("Open the editor"), key: "openEditor", cursor: false },
+                        { label: qsTr("Copy image to clipboard"), key: "copyToClipboard", cursor: false },
+                        { label: qsTr("Save to disk automatically"), key: "autoSave", cursor: false },
+                        { label: qsTr("Upload and copy the link"), key: "uploadAfterCapture", cursor: false },
+                        { label: qsTr("Include mouse cursor"), key: "includeCursor", cursor: true },
+                    ]
+                    delegate: USettingRow {
+                        width: toggleFlow.cellW
+                        label: modelData.label
+                        USwitch {
+                            checked: App.settings[modelData.key]
+                            enabled: !modelData.cursor || App.capScreenshotCursor || App.devBuild
+                            onToggled: (c) => App.settings[modelData.key] = c
                         }
                     }
                 }

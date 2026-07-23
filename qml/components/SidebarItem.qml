@@ -10,8 +10,8 @@ Rectangle {
     signal clicked()
 
     width: parent ? parent.width : 200
-    height: 44
-    radius: Theme.radiusM
+    height: 38
+    radius: Theme.radiusS
     color: active ? Theme.tertiary
          : mouse.containsMouse ? Theme.alpha(Theme.tertiary, 0.45)
          : "transparent"
@@ -20,13 +20,13 @@ Rectangle {
     Row {
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: parent.left
-        anchors.leftMargin: 14
-        spacing: 12
+        anchors.leftMargin: 11
+        spacing: 10
         UIcon {
             visible: root.iconName !== ""
             name: root.iconName
             color: root.active ? Theme.textPrimary : Theme.textSecondary
-            size: 18
+            size: 17
             anchors.verticalCenter: parent.verticalCenter
         }
         Text {

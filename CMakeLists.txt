@@ -229,6 +229,7 @@ qt_add_qml_module(unisic
         qml/components/UFilterChip.qml
         qml/components/USwitch.qml
         qml/components/USlider.qml
+        qml/components/USettingRow.qml
         qml/components/UTextField.qml
         qml/components/UShortcutRecorder.qml
         qml/components/UShortcutList.qml

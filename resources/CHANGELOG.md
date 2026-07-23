@@ -10,9 +10,16 @@ whole per release (not per individual change).
 
 ### English
 **Improved**
+- **A refreshed main window**: the whole window now sits on one dark backdrop, the content floats as a rounded pane lit by a soft accent glow, and the app name sits centered in the styled window decoration. The sidebar groups its pages under small section headers; the version moved into an app card at the bottom (click it for the release notes) next to a Settings gear, which replaces the old Settings entry in the page list.
+- **The main pages rebuilt on one grid**: every option on Capture, Record, GIF, Edit and Servers is now its own bordered card in the same visual language as Settings, tiles and cards line up on a shared full-width grid, and each of those pages fits above the fold at the default window size. Buttons also hold their place: recording controls no longer appear and disappear mid-row, and the capture tiles no longer shift or lift under the pointer - feedback is color only.
+- **Settings search lands on the exact option**: clicking a result switches to the right category, scrolls to the row and marks just that one row with an accent border for a moment - before, every row containing the typed words flashed at once.
+- **A new Settings icon**, redrawn to sit with the rest of the icon set.
 - **"Show in folder" now selects the file**: the file manager opens with the capture highlighted instead of just showing its folder.
+- **Sound cues default to 75% volume** on fresh installs; an already saved volume is left as is.
 
 **Fixed**
+- **Typing in the Settings search no longer freezes**: the panes it searches through are now built in the background after a short typing pause, instead of all at once on the first keystroke.
+- **The Developer console scrolls independently of the page**: the wheel over the smoke-test log moves only the log, and the page scroll no longer dies when the pointer crosses the console.
 - **The pre-recording countdown scales to what is being recorded**: the disc was always sized to the whole screen, so on a small recorded region it stuck out far beyond the frame. It now sizes itself to the region it sits in, and a window recording sizes it to the recorded window (whose on-screen position cannot be known on Wayland, so there it stays centered on the screen).
 - **"Encoding…" can no longer hang when even force-ending the encoder fails**: on a dead network drive the system can refuse to clean up the killed encoder, which used to bring the hang right back. The recording is now salvaged anyway.
 - **Adding shortcuts on Singularity can no longer stall the window**: the compositor reload after writing the keybinds now runs detached from the interface, and the automatic re-assert stops with a log message instead of fighting forever should the desktop ever start rewriting the file in response.
@@ -20,9 +27,16 @@ whole per release (not per individual change).
 
 ### Polski
 **Ulepszone**
+- **Odświeżone okno główne**: całe okno siedzi teraz na jednym ciemnym tle, treść pływa jako zaokrąglony panel z delikatną poświatą akcentu, a nazwa aplikacji jest wyśrodkowana w stylizowanej dekoracji okna. Panel boczny grupuje strony pod małymi nagłówkami sekcji; wersja przeniosła się do karty aplikacji na dole (kliknięcie otwiera nowości) obok zębatki Ustawień, która zastępuje dawną pozycję Ustawienia na liście stron.
+- **Główne strony przebudowane na jednej siatce**: każda opcja na stronach Przechwyć, Nagrywaj, GIF, Edytuj i Serwery jest teraz osobną kartą z obrysem, w tym samym języku wizualnym co Ustawienia; kafelki i karty układają się na wspólnej siatce pełnej szerokości, a każda z tych stron mieści całą zawartość bez przewijania przy domyślnym rozmiarze okna. Przyciski trzymają też swoje miejsce: kontrolki nagrywania nie pojawiają się już i nie znikają w środku rzędu, a kafelki nie przesuwają się ani nie unoszą pod kursorem - reakcja jest wyłącznie kolorem.
+- **Wyszukiwanie w Ustawieniach trafia w dokładnie tę opcję**: kliknięcie wyniku przełącza na właściwą kategorię, przewija do wiersza i na chwilę oznacza tylko ten jeden wiersz akcentowym obrysem - wcześniej migały naraz wszystkie wiersze zawierające wpisane słowa.
+- **Nowa ikona Ustawień**, przerysowana tak, by pasowała do reszty zestawu ikon.
 - **„Pokaż w folderze" zaznacza teraz plik**: menedżer plików otwiera się z podświetlonym przechwyceniem, zamiast tylko pokazać jego folder.
+- **Dźwięki mają domyślnie 75% głośności** przy świeżej instalacji; już zapisana głośność pozostaje bez zmian.
 
 **Naprawione**
+- **Pisanie w wyszukiwarce Ustawień już nie zamraża okna**: przeszukiwane panele budują się teraz w tle po krótkiej przerwie w pisaniu, zamiast wszystkie naraz przy pierwszym znaku.
+- **Konsola w zakładce Developer przewija się niezależnie od strony**: kółko nad logiem testu dymnego porusza wyłącznie log, a przewijanie strony nie umiera już, gdy kursor przetnie konsolę.
 - **Licznik przed nagraniem skaluje się do tego, co nagrywane**: dysk zawsze miał rozmiar liczony z całego ekranu, więc przy małym nagrywanym obszarze wystawał daleko poza ramkę. Teraz dopasowuje się do obszaru, w którym siedzi, a przy nagrywaniu okna - do rozmiaru nagrywanego okna (pozycji okna na ekranie nie da się poznać na Waylandzie, więc tam pozostaje wyśrodkowany na ekranie).
 - **„Kodowanie…" nie może już zawisnąć, gdy nawet wymuszone zakończenie enkodera zawodzi**: na martwym dysku sieciowym system potrafi odmówić sprzątnięcia ubitego enkodera, co przywracało zawieszenie. Nagranie i tak zostaje teraz uratowane.
 - **Dodawanie skrótów na Singularity nie może już zacinać okna**: przeładowanie kompozytora po zapisaniu skrótów działa teraz niezależnie od interfejsu, a automatyczne przywracanie wpisów kończy się komunikatem w logu, zamiast walczyć w nieskończoność, gdyby pulpit zaczął nadpisywać plik w odpowiedzi.

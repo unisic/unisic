@@ -12,6 +12,14 @@
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
 #endif
+#ifdef HAVE_KWIN_SCREENCAST
+#include "capture/KWinScreencasting.h"
+#include <QCursor>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
+#endif
 #include <QStandardPaths>
 #include <QSettings>
 #include <QDateTime>
@@ -189,6 +197,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_lastFrame.clear();
     m_lastSampledSeq = 0;
     m_monitorRetryDone = false;
+    m_nativeStream = false;
 
     openPortalSession();
 #endif
@@ -322,40 +331,25 @@ void GifRecorder::stopKeyCapture()
     m_keys = nullptr;
 }
 
-void GifRecorder::openPortalSession()
+// The one cursor-mode wish, shared verbatim by the portal's cursor_mode and
+// KWin's zkde_screencast pointer enum (same wire values). Highlighting the
+// pointer means asking for Metadata, which STOPS the compositor drawing the
+// pointer into the stream — from then on m_cursorOverlay is the only thing
+// that draws it. Metadata is optional in the portal spec and an unsupported
+// mode fails SelectSources outright, so a portal without it silently degrades
+// to the plain embedded cursor rather than killing the recording (KWin's own
+// protocol always understands Metadata — the probe only gates the portal).
+uint GifRecorder::resolveCursorMode()
 {
-#ifdef HAVE_PIPEWIRE
-    m_session = new ScreenCastSession(this);
-    connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
-    connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
-    connect(m_session, &ScreenCastSession::sessionClosed, this, [this] {
-        // Sharing stopped from the system UI: finalize what we have.
-        if (m_state == Recording)
-            stop();
-        else if (m_state == Starting)
-            fail(tr("Screen sharing was stopped"));
-    });
-    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this](const QString &token) {
-        const QString key = restoreTokenKey(m_source, m_targetScreen);
-        if (token.isEmpty())
-            m_settings->raw()->remove(key);
-        else
-            m_settings->raw()->setValue(key, token);
-    });
-    // Cursor mode. Highlighting the pointer means asking for CursorMetadata,
-    // which STOPS the compositor drawing the pointer into the stream — from
-    // then on m_cursorOverlay is the only thing that draws it. Metadata is
-    // optional in the portal spec and an unsupported mode fails SelectSources
-    // outright, so a portal without it silently degrades to the plain embedded
-    // cursor rather than killing the recording.
     m_cursorOverlayActive = false;
-    ScreenCastSession::CursorMode cursorMode = m_settings->includeCursor()
-                                                   ? ScreenCastSession::CursorMode::Embedded
-                                                   : ScreenCastSession::CursorMode::Hidden;
+    uint cursorMode = m_settings->includeCursor()
+                          ? uint(ScreenCastSession::CursorMode::Embedded)
+                          : uint(ScreenCastSession::CursorMode::Hidden);
     if (m_settings->includeCursor() && m_settings->cursorHighlight()) {
-        if (ScreenCastSession::availableCursorModes()
-            & uint(ScreenCastSession::CursorMode::Metadata)) {
-            cursorMode = ScreenCastSession::CursorMode::Metadata;
+        if (m_nativeStream
+            || (ScreenCastSession::availableCursorModes()
+                & uint(ScreenCastSession::CursorMode::Metadata))) {
+            cursorMode = uint(ScreenCastSession::CursorMode::Metadata);
             m_cursorOverlayActive = true;
         } else {
             qWarning() << "GifRecorder: portal has no metadata cursor mode,"
@@ -375,6 +369,164 @@ void GifRecorder::openPortalSession()
     m_cursorOverlay.setStyle(style);
     m_cursorOverlay.reset();
     m_cursorSmoother = CursorSmoother();
+    return cursorMode;
+}
+
+// KWin-native screencast: the app names the source, KWin answers with a
+// PipeWire node id on the DEFAULT session daemon — no share dialog, no restore
+// token. Returns false when the interface is unavailable (not KWin, desktop
+// file lacks X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1, or the
+// feature was not built) — the caller then opens the portal. A stream-level
+// failure AFTER a successful request also retries via the portal once,
+// mirroring KWinScreenShot2's auth fallback for screenshots.
+bool GifRecorder::tryOpenKWinStream()
+{
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
+    if (!m_kwinCast)
+        m_kwinCast = new KWinScreencasting(this);
+    if (!m_kwinCast->isAvailable())
+        return false;
+    if (m_source == Region && !m_kwinCast->regionStreamsSupported())
+        return false; // pre-Plasma-6 protocol: portal + ffmpeg crop still works
+
+    m_nativeStream = true;
+    const auto mode = KWinScreencasting::CursorMode(resolveCursorMode());
+
+    KWinScreencastStream *stream = nullptr;
+    if (m_source == Region && m_targetScreen) {
+        // The overlay's crop is PHYSICAL pixels local to its screen; the
+        // protocol wants GLOBAL logical coordinates. toAlignedRect rounds
+        // OUTWARD so a fractional-scale edge can never shave the selection;
+        // scaling = the screen's DPR renders the stream at native pixels.
+        const qreal dpr = m_targetScreen->devicePixelRatio();
+        const QRectF logical(m_targetScreen->geometry().x() + m_crop.x() / dpr,
+                             m_targetScreen->geometry().y() + m_crop.y() / dpr,
+                             m_crop.width() / dpr, m_crop.height() / dpr);
+        stream = m_kwinCast->createRegionStream(logical.toAlignedRect(), dpr, mode);
+    } else if (m_source == Window) {
+        // Interactive pick: KWin's own click-a-window mode resolves the uuid.
+        openKWinWindowStream(mode);
+        return true;
+    } else {
+        // Full screen: the explicit target, else the monitor under the
+        // cursor — with one monitor that is simply the only one, with more it
+        // records where the user is working, no dialog either way.
+        QScreen *screen = m_targetScreen ? m_targetScreen.data()
+                                         : QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        stream = m_kwinCast->createOutputStream(screen, mode);
+    }
+    if (!stream) {
+        m_nativeStream = false;
+        return false; // let the portal handle it
+    }
+    adoptKWinStream(stream);
+    return true;
+#else
+    return false;
+#endif
+}
+
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
+// Wire the created/failed/closed answers of a requested native stream.
+void GifRecorder::adoptKWinStream(KWinScreencastStream *stream)
+{
+    m_kwinStream = stream;
+    connect(stream, &KWinScreencastStream::created, this, [this](quint32 nodeId) {
+        if (m_state != Starting)
+            return;
+        attachStream(-1, nodeId);
+    });
+    connect(stream, &KWinScreencastStream::failed, this, [this](const QString &error) {
+        if (m_state != Starting)
+            return;
+        // Native refusal (permission revoked mid-flight, protocol error):
+        // fall back to the portal once rather than failing the recording.
+        qWarning() << "KWin screencast stream failed:" << error << "- falling back to the portal";
+        delete m_kwinStream;
+        m_kwinStream = nullptr;
+        m_nativeStream = false;
+        if (!m_monitorRetryDone) {
+            m_monitorRetryDone = true;
+            openPortalSession();
+        } else {
+            fail(error);
+        }
+    });
+    connect(stream, &KWinScreencastStream::closed, this, [this] {
+        // The compositor ended the cast (output unplugged, window closed):
+        // finalize what we have — same semantics as the portal's sessionClosed.
+        if (m_state == Recording)
+            stop();
+        else if (m_state == Starting)
+            fail(tr("Screen sharing was stopped"));
+    });
+}
+
+// KWin's interactive window pick (org.kde.KWin queryWindowInfo): the cursor
+// becomes a picker, the clicked window's uuid feeds stream_window. Escape
+// cancels with an error reply — treated as a cancelled recording, not a
+// portal fallback (the portal would only re-ask with its own picker).
+void GifRecorder::openKWinWindowStream(uint cursorMode)
+{
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"),
+        QStringLiteral("org.kde.KWin"), QStringLiteral("queryWindowInfo"));
+    QDBusPendingCall call = QDBusConnection::sessionBus().asyncCall(msg, 60000);
+    auto *watcher = new QDBusPendingCallWatcher(call, this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, cursorMode](QDBusPendingCallWatcher *w) {
+                w->deleteLater();
+                if (m_state != Starting)
+                    return;
+                QDBusPendingReply<QVariantMap> reply = *w;
+                const QString uuid = reply.isValid()
+                                         ? reply.value().value(QStringLiteral("uuid")).toString()
+                                         : QString();
+                if (uuid.isEmpty()) {
+                    fail(tr("No window was picked"));
+                    return;
+                }
+                KWinScreencastStream *stream =
+                    m_kwinCast->createWindowStream(uuid, KWinScreencasting::CursorMode(cursorMode));
+                if (!stream) {
+                    fail(tr("Failed to start the window recording"));
+                    return;
+                }
+                adoptKWinStream(stream);
+            });
+}
+#endif
+
+void GifRecorder::openPortalSession()
+{
+#ifdef HAVE_PIPEWIRE
+    // KDE first: the compositor-native path needs no share dialog and no
+    // restore token — the app names the source itself (Spectacle's model).
+    if (tryOpenKWinStream())
+        return;
+
+    m_session = new ScreenCastSession(this);
+    connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
+    connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
+    connect(m_session, &ScreenCastSession::sessionClosed, this, [this] {
+        // Sharing stopped from the system UI: finalize what we have.
+        if (m_state == Recording)
+            stop();
+        else if (m_state == Starting)
+            fail(tr("Screen sharing was stopped"));
+    });
+    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this](const QString &token) {
+        const QString key = restoreTokenKey(m_source, m_targetScreen);
+        if (token.isEmpty())
+            m_settings->raw()->remove(key);
+        else
+            m_settings->raw()->setValue(key, token);
+    });
+    const ScreenCastSession::CursorMode cursorMode =
+        ScreenCastSession::CursorMode(resolveCursorMode());
+
 
     // Window source → portal WINDOW picker; otherwise a monitor.
     // Full-screen recording on a multi-monitor setup: do NOT send the stored
@@ -437,6 +589,18 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, co
                  .arg(m_targetScreen->name()));
         return;
     }
+    attachStream(fd, nodeId);
+#else
+    Q_UNUSED(fd) Q_UNUSED(nodeId)
+#endif
+}
+
+// Common tail of both stream paths: wire a PipeWireGrabber onto the negotiated
+// node. fd is the portal's OpenPipeWireRemote fd, or -1 on the KWin-native
+// path (the grabber then connects to the default PipeWire daemon).
+void GifRecorder::attachStream(int fd, uint nodeId)
+{
+#ifdef HAVE_PIPEWIRE
     m_grabber = new PipeWireGrabber(this);
     connect(m_grabber, &PipeWireGrabber::formatReady, this, &GifRecorder::beginEncoding);
     // Guard by state: a streamError queued from the PipeWire thread just before
@@ -500,7 +664,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     QRect sourceRect(QPoint(0, 0), m_streamSize);
     QRect c = sourceRect;
 
-    if (m_source == Region) {
+    // KWin-native region streams arrive PRE-CROPPED by the compositor — the
+    // stream IS the selection, so the ffmpeg crop (and the fractional-scale
+    // rescale below, which compares against full-monitor sizes) must not run.
+    if (m_source == Region && !m_nativeStream) {
         QRect crop = m_crop.normalized();
         if (m_targetScreen) {
             const qreal dpr = m_targetScreen->devicePixelRatio();
@@ -990,6 +1157,16 @@ void GifRecorder::stop()
         m_session->deleteLater();
         m_session = nullptr;
     }
+#ifdef HAVE_KWIN_SCREENCAST
+    // Deleting the stream closes the native cast (KWin drops the node and its
+    // "screen is being shared" indicator) — the portal-session equivalent.
+    if (m_kwinStream) {
+        m_kwinStream->disconnect(this);
+        m_kwinStream->deleteLater();
+        m_kwinStream = nullptr;
+    }
+#endif
+    m_nativeStream = false;
 
     if (!m_ffmpeg) {
         fail(tr("Recording encoder is not running"));
@@ -1564,6 +1741,15 @@ void GifRecorder::abort()
         m_session->deleteLater();
         m_session = nullptr;
     }
+#ifdef HAVE_KWIN_SCREENCAST
+    // Same deferred-delete rule: closing the wl stream object ends the cast.
+    if (m_kwinStream) {
+        m_kwinStream->disconnect(this);
+        m_kwinStream->deleteLater();
+        m_kwinStream = nullptr;
+    }
+#endif
+    m_nativeStream = false;
     FfmpegUtil::stopProcess(m_ffmpeg);
     FfmpegUtil::stopProcess(m_converter);
     FfmpegUtil::stopProcess(m_appAudio);

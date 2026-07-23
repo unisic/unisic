@@ -20,6 +20,10 @@
 #include "record/KeystrokeOverlayPainter.h"
 #include <linux/input-event-codes.h>
 #include "capture/ScreenCastSession.h"
+#ifdef HAVE_KWIN_SCREENCAST
+#include "capture/KWinScreencasting.h"
+#include <QCursor>
+#endif
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
@@ -891,6 +895,26 @@ bool AppContext::capCursorMetadata() const
 #ifdef HAVE_PIPEWIRE
     return (ScreenCastSession::availableCursorModes()
             & uint(ScreenCastSession::CursorMode::Metadata)) != 0;
+#else
+    return false;
+#endif
+}
+
+#ifdef HAVE_KWIN_SCREENCAST
+// One process-wide binding of the zkde_screencast global: the answer cannot
+// change without reinstalling the desktop file and restarting anyway, and
+// GifRecorder keeps its own instance for the actual recordings.
+static KWinScreencasting *kwinScreencastProbe()
+{
+    static KWinScreencasting *probe = new KWinScreencasting(qApp);
+    return probe;
+}
+#endif
+
+bool AppContext::capKWinRecord() const
+{
+#ifdef HAVE_KWIN_SCREENCAST
+    return kwinScreencastProbe()->isAvailable();
 #else
     return false;
 #endif
@@ -3418,6 +3442,37 @@ void AppContext::devTestShowInFolder()
     showToast(tr("Dev: show in folder: check the file is selected in the file manager"));
 }
 
+void AppContext::devTestKWinRecord()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_KWIN_SCREENCAST
+    if (!capKWinRecord()) {
+        showToast(tr("Dev: KWin record: interface not granted (desktop file / not KWin)"), true);
+        return;
+    }
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    auto *stream = kwinScreencastProbe()->createOutputStream(
+        screen, KWinScreencasting::Embedded);
+    if (!stream) {
+        showToast(tr("Dev: KWin record: stream request failed"), true);
+        return;
+    }
+    connect(stream, &KWinScreencastStream::created, this, [this, stream](quint32 node) {
+        showToast(tr("Dev: KWin record OK - PipeWire node %1, no portal dialog").arg(node));
+        stream->deleteLater(); // closing the object ends the cast
+    });
+    connect(stream, &KWinScreencastStream::failed, this, [this, stream](const QString &e) {
+        showToast(tr("Dev: KWin record failed: %1").arg(e), true);
+        stream->deleteLater();
+    });
+#else
+    showToast(tr("Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)"), true);
+#endif
+}
+
 void AppContext::devTestRecordBorder()
 {
     if (!devBuild())
@@ -3897,6 +3952,13 @@ void AppContext::runSmokeTest()
                  + (recordingAvailable() ? QStringLiteral("PASS")
                     : capPipeWireBuild() ? QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")
                                          : QStringLiteral("SKIP (built without PipeWire)")));
+#ifdef HAVE_KWIN_SCREENCAST
+        smokeLog(QStringLiteral("KWin native record: ")
+                 + (capKWinRecord() ? QStringLiteral("PASS (zkde_screencast bound - no portal dialog)")
+                                    : QStringLiteral("SKIP (not KWin, or desktop file lacks the grant)")));
+#else
+        smokeLog(QStringLiteral("KWin native record: SKIP (built without qtwayland/plasma-wayland-protocols)"));
+#endif
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
                  .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
                       (capNativeNotification() || capCustomNotification()) ? "PASS" : "FAIL"));

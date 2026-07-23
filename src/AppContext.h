@@ -105,6 +105,11 @@ class AppContext : public QObject
     // The portal's metadata cursor mode, which the recording cursor overlay is
     // built on. Optional in the ScreenCast spec, so it can be absent.
     Q_PROPERTY(bool capCursorMetadata READ capCursorMetadata CONSTANT)
+    // KWin-native screencasting (zkde_screencast): recordings start without the
+    // portal share dialog — the app names the source itself. False off KWin,
+    // when built without qtwayland/plasma-wayland-protocols, or when the
+    // installed desktop file does not carry the X-KDE-Wayland-Interfaces grant.
+    Q_PROPERTY(bool capKWinRecord READ capKWinRecord CONSTANT)
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
     Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
@@ -200,6 +205,7 @@ public:
     bool capDoNotDisturb() const;
     bool capScreenshotCursor() const;
     bool capCursorMetadata() const;
+    bool capKWinRecord() const;
     // Whether click ripples can be captured here: "" when they can, else a
     // ready-to-show reason (no libinput at build time, or no /dev/input access).
     Q_INVOKABLE QString clickCaptureBlockedReason() const;
@@ -253,6 +259,10 @@ public:
     Q_INVOKABLE void devTestClipboardHistory();
     Q_INVOKABLE void devTestShowInFolder();
     Q_INVOKABLE void devTestRecordBorder();
+    // Probe the KWin-native screencast path end to end without recording:
+    // request an output stream of the cursor's screen, report the node id (or
+    // the failure), close it. Non-interactive.
+    Q_INVOKABLE void devTestKWinRecord();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();

@@ -2794,6 +2794,13 @@ Item {
                                color: App.capPipeWireBuild ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
+                        label: qsTr("KWin native recording")
+                        help: qsTr("Whether recordings can start without the portal share dialog.")
+                        helpDetail: qsTr("KWin's zkde_screencast protocol (the Spectacle path): the app names the screen, region or window itself, so no system dialog and no restore tokens are involved. Needs the X-KDE-Wayland-Interfaces grant in the installed desktop file; elsewhere recording falls back to the portal.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capKWinRecord ? "✓" : "-"
+                               color: App.capKWinRecord ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
                         label: qsTr("ScreenCast portal")
                         help: qsTr("Whether this desktop has a ScreenCast portal backend.")
                         helpDetail: qsTr("Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it - the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.")
@@ -2901,6 +2908,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec MP4 (window)"); onClicked: App.startVideoWindow() }
                         UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("KWin native record probe"); onClicked: App.devTestKWinRecord() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }

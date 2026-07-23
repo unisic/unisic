@@ -446,8 +446,11 @@ static void ensureDesktopFile()
     const QByteArray iconLine =
         "Icon=" + QGuiApplication::desktopFileName().toUtf8() + "\n";
 #endif
+    // Two KWin grants: silent screenshots (ScreenShot2 DBus) and native
+    // screencasting (zkde_screencast Wayland protocol — no portal dialog).
     const QByteArray restrictedLine =
-        "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n";
+        "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2\n"
+        "X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1\n";
 
     // Rewrite when missing OR stale (Exec pointing at an old build path) —
     // KWin matches the caller's /proc/<pid>/exe against the desktop Exec, so a

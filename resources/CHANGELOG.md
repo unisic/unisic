@@ -6,6 +6,16 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.7.6
+
+### English
+**Improved**
+- **Recording on KDE Plasma no longer involves the system sharing dialog**: Unisic now records through KWin's native screencasting interface (the same path Spectacle uses), so screen, region and window recordings start immediately - no screen-picker dialog, no "remember this choice" tokens. With several monitors, a full-screen recording captures the monitor the pointer is on. Region recordings are also cropped by the compositor itself instead of recording the whole monitor and cutting it afterwards. On other desktops recording keeps working through the portal exactly as before.
+
+### Polski
+**Ulepszone**
+- **Nagrywanie na KDE Plasma nie przechodzi już przez systemowe okno udostępniania**: Unisic nagrywa teraz przez natywny interfejs przechwytywania KWin (ta sama ścieżka, której używa Spectacle), więc nagrania ekranu, obszaru i okna startują od razu - bez okna wyboru ekranu i bez tokenów „zapamiętaj wybór". Przy kilku monitorach nagranie pełnego ekranu przechwytuje monitor, na którym jest wskaźnik. Nagrania obszaru przycina też sam kompozytor, zamiast nagrywać cały monitor i wycinać obszar po fakcie. Na innych pulpitach nagrywanie działa dalej przez portal, dokładnie jak dotąd.
+
 ## 0.7.5
 
 ### English

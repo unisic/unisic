@@ -1,13 +1,23 @@
 name: AppImage build
 
 # Reusable single source of truth for the AppImage. Builds it ONCE and uploads
-# it as the `unisic-appimage` artifact (.AppImage + .zsync). Called by:
+# it as the `unisic-appimage` artifact (.AppImage + .zsync + the portable
+# .tar.gz of the same AppDir). Called by:
 #   - build.yml   → PR / push smoke check: does the AppImage still build?
-#   - release.yml → produces the published release asset.
+#   - release.yml → produces the published release assets.
+#   - tarball-backfill.yml → rebuilds an old tag to attach the .tar.gz
+#     retroactively (the `ref` input).
 # Keeping it here (not duplicated) means the PR check tests the exact build the
 # release uses — they can never drift.
 on:
   workflow_call:
+    inputs:
+      ref:
+        # Git ref to build (tag/branch/SHA). Empty = the calling workflow's
+        # own ref, which is the right default for build.yml/release.yml.
+        type: string
+        required: false
+        default: ""
 
 defaults:
   run:
@@ -24,6 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
           submodules: recursive
 
       - name: Install host dependencies
@@ -229,6 +240,31 @@ jobs:
           mv ./*.AppImage dist/
           mv ./*.zsync dist/ || { echo "::error::no .zsync produced — update information not embedded?"; exit 1; }
           ls -la dist/
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Build portable tarball
+        # The same fully-deployed AppDir, shipped as a plain unpack-and-run
+        # archive: no FUSE, no package manager, works on any RPM/deb-less
+        # distro (issue #78 — RED OS). linuxdeploy already patched every
+        # rpath to $ORIGIN and wrote qt.conf, so the extracted tree is
+        # self-contained; ./AppRun is the launcher (exactly what
+        # APPIMAGE_EXTRACT_AND_RUN runs).
+        run: |
+          tardir="unisic-${VERSION}-x86_64"
+          mv AppDir "$tardir"
+          cat > "$tardir/README.txt" <<'EOF'
+          Unisic portable bundle
+          ======================
+          Unpack anywhere and run:
+
+              ./AppRun
+
+          Qt and all required libraries are bundled (same contents as the
+          AppImage, but no FUSE needed). Wayland, PipeWire and
+          xdg-desktop-portal come from your system, as on every install.
+          EOF
+          tar czf "dist/${tardir}.tar.gz" "$tardir"
+          ls -la dist/
 
       - uses: actions/upload-artifact@v4
         with:
@@ -236,4 +272,5 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.zsync
+            dist/*.tar.gz
           if-no-files-found: error

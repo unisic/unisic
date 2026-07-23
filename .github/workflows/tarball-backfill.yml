@@ -1,0 +1,56 @@
+name: Tarball backfill
+
+# Manually-dispatched: rebuild an already-released tag through the shared
+# AppImage workflow and attach ONLY the portable .tar.gz to that tag's
+# existing GitHub release. Exists because releases up to v0.7.5 shipped no
+# plain-archive asset (issue #78) — future releases get the tarball
+# automatically from release.yml, so this is for retrofitting old ones.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag to build (must match the release it is attached to)"
+        type: string
+        required: true
+        default: "v0.7.5"
+      release_tag:
+        description: "Existing release tag to upload the .tar.gz to"
+        type: string
+        required: true
+        default: "v0.7.5"
+
+jobs:
+  build:
+    name: Build tarball from tag
+    uses: ./.github/workflows/appimage.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  upload:
+    name: Attach to release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: unisic-appimage
+          path: dist
+
+      - name: Upload tarball to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          tarballs=(dist/*.tar.gz)
+          if [[ ${#tarballs[@]} -ne 1 ]]; then
+            echo "::error::expected exactly one .tar.gz in the artifact, got ${#tarballs[@]}"
+            exit 1
+          fi
+          # --clobber: re-running the dispatch replaces the asset instead of
+          # failing. Only the tarball is uploaded — the release's existing
+          # AppImage/.zsync stay exactly as published.
+          gh release upload "${{ inputs.release_tag }}" "${tarballs[@]}" \
+            --repo "$GITHUB_REPOSITORY" --clobber

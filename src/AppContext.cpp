@@ -711,7 +711,8 @@ void AppContext::applyLanguage()
     // Every language (incl. English) has its own .qm, so English text is
     // editable in i18n/unisic_en.ts without touching source strings.
     static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it")};
+                                          QStringLiteral("es"), QStringLiteral("it"),
+                                          QStringLiteral("fr")};
     QString code;
     if (supported.contains(pref)) {
         code = pref;
@@ -2843,7 +2844,8 @@ static QString cursorOverlayCheck()
 static QString languageCheck()
 {
 #ifdef HAVE_TRANSLATIONS
-    const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it")};
+    const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it"),
+                                QStringLiteral("fr")};
     QStringList parts;
     for (const QString &c : codes) {
         QTranslator tr;
@@ -4809,7 +4811,8 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
     // qsTr strings render in the same language as the rest of the app.
     const QString pref = m_settings->uiLanguage();
     static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it")};
+                                          QStringLiteral("es"), QStringLiteral("it"),
+                                          QStringLiteral("fr")};
     QString lang = pref;
     if (!supported.contains(pref)) {
         const QString sys = QLocale::system().name().left(2);

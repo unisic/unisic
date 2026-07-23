@@ -294,7 +294,8 @@ set(UNISIC_TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_en.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_es.ts
-    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts)
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_fr.ts)
 if(Qt6LinguistTools_FOUND)
     qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
                     QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)
@@ -315,7 +316,7 @@ if(Qt6LinguistTools_FOUND)
     else()
         qt_add_lupdate(unisic TS_FILES ${UNISIC_TS_FILES} SOURCES ${UNISIC_LUPDATE_SOURCES})
     endif()
-    message(STATUS "Translations: enabled (Polish, Spanish, Italian)")
+    message(STATUS "Translations: enabled (Polish, Spanish, Italian, French)")
 else()
     message(STATUS "Translations: disabled (needs Qt6 LinguistTools) — English source strings only")
 endif()

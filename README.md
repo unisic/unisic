@@ -45,7 +45,7 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 - **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, Imgur…); the link auto-copies.
 - **History** - every capture in a thumbnail grid; deleting moves the file to the trash.
 - **Tray, hotkeys & 9 themes** - quick-menu tray icon, fully rebindable global hotkeys, nine palettes including one that follows your system light/dark scheme and accent color.
-- **Languages** - English, Polish, Spanish and Italian; follows your system locale or pick one in Settings.
+- **Languages** - English, Polish, Spanish, Italian and French; follows your system locale or pick one in Settings.
 
 ## Install
 

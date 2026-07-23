@@ -1,0 +1,3 @@
+[submodule "external/unisic-kit"]
+	path = external/unisic-kit
+	url = https://github.com/unisic/unisic-kit.git

@@ -29,6 +29,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
       - id: v
         name: Read version and decide whether to release
         run: |
@@ -78,6 +79,8 @@ jobs:
             liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build DEB
         run: |
@@ -124,6 +127,8 @@ jobs:
             layer-shell-qt-devel wayland-devel
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build RPM
         run: |
@@ -164,6 +169,8 @@ jobs:
             kguiaddons
 
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Build Arch package
         run: |
@@ -180,7 +187,12 @@ jobs:
           fi
           version="${version_line#*VERSION }"
           version="${version%% *}"
-          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar.gz --prefix="unisic-${version}/" HEAD > "packaging/arch/unisic-${version}.tar.gz"
+          # git archive skips submodules — archive the superproject and the
+          # kit separately, concatenate the (uncompressed) tars, then gzip.
+          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar --prefix="unisic-${version}/" -o /tmp/unisic-src.tar HEAD
+          git -C external/unisic-kit -c safe.directory="$GITHUB_WORKSPACE/external/unisic-kit" archive --format=tar --prefix="unisic-${version}/external/unisic-kit/" -o /tmp/unisic-kit-src.tar HEAD
+          tar --concatenate --file=/tmp/unisic-src.tar /tmp/unisic-kit-src.tar
+          gzip -c /tmp/unisic-src.tar > "packaging/arch/unisic-${version}.tar.gz"
           # PKGBUILD carries a literal pkgver (OBS's server-side parser can't
           # expand ${var:-default}); inject the CMakeLists version here.
           sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
@@ -235,6 +247,7 @@ jobs:
           # Full history + tags so the changelog can diff against the previous
           # release and find the last clean semver tag.
           fetch-depth: 0
+          submodules: recursive
 
       # Every package is attached to the GitHub release. The repos stay the
       # UPDATE channel — each direct-download package self-registers its native

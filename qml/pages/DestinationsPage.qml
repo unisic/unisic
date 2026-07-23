@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Dialogs
 import Unisic
+import Unisic.Kit
 import "../components"
 
 Item {

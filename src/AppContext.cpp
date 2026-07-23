@@ -14,6 +14,7 @@
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
+#include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
 #include "record/CursorOverlayPainter.h"
 #include "record/KeystrokeOverlayPainter.h"
@@ -323,8 +324,8 @@ void AppContext::initialize(QQmlEngine *engine)
     // once off-thread; the recording UI updates when the result arrives.
     QPointer<AppContext> self(this);
     (void)QtConcurrent::run([self] {
-        const bool vaapi = GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"));
-        const bool nvenc = GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"));
+        const bool vaapi = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"));
+        const bool nvenc = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"));
         // Post to the always-alive application object and test the QPointer on
         // the GUI thread. Reading `self` HERE (worker thread) would race with
         // AppContext's destruction on the main thread — QPointer is not
@@ -888,7 +889,8 @@ bool AppContext::capDoNotDisturb() const
 bool AppContext::capCursorMetadata() const
 {
 #ifdef HAVE_PIPEWIRE
-    return (ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata) != 0;
+    return (ScreenCastSession::availableCursorModes()
+            & uint(ScreenCastSession::CursorMode::Metadata)) != 0;
 #else
     return false;
 #endif
@@ -2157,9 +2159,9 @@ void AppContext::devTestHardwareEncoder()
     // Verify the WORKING probe, not just the listing: "auto" resolves through
     // it, and a listed-but-broken encoder (seen in the wild with vp9_vaapi)
     // must resolve to software, never be handed out.
-    const bool nv = GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc"));
-    const bool va = GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi"));
-    const bool av1 = GifRecorder::hardwareEncoderWorks(QStringLiteral("av1-nvenc"));
+    const bool nv = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
+    const bool va = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi"));
+    const bool av1 = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("av1-nvenc"));
     const QString resolved = m_recorder ? m_recorder->resolvedVideoEncoder()
                                         : QStringLiteral("?");
     showToast(tr("Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)")
@@ -2212,11 +2214,11 @@ void AppContext::devTestInstantReplay()
 // codec-agnostic, so every trim path still gets exercised).
 static QStringList trimFixtureEncoderArgs()
 {
-    if (GifRecorder::encoderUsable(QStringLiteral("libx264")))
+    if (FfmpegUtil::encoderUsable(QStringLiteral("libx264")))
         return {QStringLiteral("-c:v"), QStringLiteral("libx264"),
                 QStringLiteral("-preset"), QStringLiteral("ultrafast"),
                 QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
-    if (GifRecorder::encoderUsable(QStringLiteral("libopenh264")))
+    if (FfmpegUtil::encoderUsable(QStringLiteral("libopenh264")))
         return {QStringLiteral("-c:v"), QStringLiteral("libopenh264"),
                 QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
     return {QStringLiteral("-c:v"), QStringLiteral("mpeg4"),
@@ -2832,7 +2834,8 @@ static QString cursorOverlayCheck()
             return QStringLiteral("FAIL (cursor alpha double-premultiplied: %1, want ~128)").arg(v);
     }
 
-    const bool meta = ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata;
+    const bool meta = ScreenCastSession::availableCursorModes()
+                      & uint(ScreenCastSession::CursorMode::Metadata);
     return QStringLiteral("PASS (portal metadata cursor: %1, clicks: %2)")
         .arg(meta ? QStringLiteral("yes") : QStringLiteral("NO - would fall back to embedded"),
              InputPermission::probe() == InputPermission::Available
@@ -4033,8 +4036,8 @@ void AppContext::runSmokeTest()
                      .arg(m_vaapiAvailable ? "y" : "n", m_nvencAvailable ? "y" : "n"));
         smokeLog(QStringLiteral("encoder auto→%1 (nvenc works=%2, vaapi works=%3)")
                      .arg(m_recorder ? m_recorder->resolvedVideoEncoder() : QStringLiteral("?"),
-                          GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
-                          GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
+                          FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
+                          FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
         if (!perAppAudioAvailable())
             smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
         else
@@ -5707,7 +5710,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
                  QStringLiteral("-vf"),
-                 range + QLatin1Char(',') + GifRecorder::gifPaletteGenFilter(quality),
+                 range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
                  palette},
                 [this, path, output, palette, range, quality](bool ok, const QString &diagnostic) {
         if (!ok) {
@@ -5721,7 +5724,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                      QStringLiteral("-i"), palette,
                      QStringLiteral("-lavfi"),
                      QStringLiteral("[0:v]%1[x];[x][1:v]%2")
-                         .arg(range, GifRecorder::gifPaletteUseFilter(quality)),
+                         .arg(range, FfmpegUtil::gifPaletteUseFilter(quality)),
                      output},
                     [this, output, palette](bool ok2, const QString &diagnostic2) {
             QFile::remove(palette);
@@ -5791,14 +5794,14 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-row-mt") << QStringLiteral("1");
         } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
-                   && GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
             args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
                  << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
                  << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
                  << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
-                   && GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
             args << QStringLiteral("-vf") << evenCrop
                  << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
                  << QStringLiteral("-preset") << QStringLiteral("p4")
@@ -5806,7 +5809,7 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (GifRecorder::encoderUsable(QStringLiteral("libx264"))) {
+        } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
             args << QStringLiteral("-vf") << evenCrop
                  << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("veryfast")

@@ -1,5 +1,5 @@
 #include "PortalScreenshot.h"
-#include "PortalRequest.h"
+#include "capture/PortalRequest.h"
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCall>

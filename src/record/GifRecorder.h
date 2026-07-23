@@ -46,23 +46,11 @@ public:
     bool canPause() const { return m_state == Recording && m_output != Replay; }
     void togglePause();
     int elapsedSeconds() const;
-    static bool hardwareEncoderAvailable(const QString &id);
-    // Listed AND actually able to encode (cached). See the .cpp: "listed" alone
-    // is not enough — a listed encoder can fail outright.
-    static bool hardwareEncoderWorks(const QString &id);
+    // Encoder probes and the GIF palette filters live in unisic-kit's
+    // FfmpegUtil (media/FfmpegUtil.h) — shared with Unisic Studio.
     // videoEncoder(), with "auto" resolved to a working hardware encoder or
     // software.
     QString resolvedVideoEncoder() const;
-    // True when this ffmpeg can encode with `name` — or when the encoder probe
-    // itself failed (empty set), where callers keep their preferred encoder and
-    // let the "ffmpeg could not be started" path report the real problem.
-    static bool encoderUsable(const QString &name);
-    // The two halves of the palettegen/paletteuse GIF pipeline, without the
-    // fps/trim filters in front of them. Shared with the trim editor, which cuts
-    // a GIF by re-rendering the selection through the same quality settings.
-    // quality: 0 = fast/small, 1 = balanced, 2 = best.
-    static QString gifPaletteGenFilter(int quality);
-    static QString gifPaletteUseFilter(int quality);
     // ffmpeg args that excise the given paused wall-clock spans (ms) from `input`
     // into `output`, cutting the SAME ranges from video and audio so they stay
     // synced. Public so the dev/smoke harness exercises the exact filtergraph.
@@ -141,7 +129,6 @@ private:
     void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
     void convertVideo();          // resolves the encoder off-thread, then…
     void convertVideoWith(const QString &encoder); // …builds and runs ffmpeg
-    void stopProcess(QProcess *&process);
     void cleanup();
     void fail(const QString &msg);
     void stopWatchdogTick();

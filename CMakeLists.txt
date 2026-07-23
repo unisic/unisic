@@ -40,18 +40,23 @@ if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
 endif()
 
+# Shared foundation library (git submodule, also consumed by Unisic Studio):
+# portal ScreenCast/PortalRequest, PipeWireGrabber, ThemeController +
+# IconImageProvider, FfmpegUtil, ConfigPath, the Unisic.Kit QML module (Theme
+# singleton + U* design system) and the symbolic icon set. The kit is the
+# single source for those files — see external/unisic-kit/UPSTREAM.md.
+add_subdirectory(external/unisic-kit)
+
 qt_add_executable(unisic
     src/main.cpp
     src/AppContext.h src/AppContext.cpp
     src/PreviewController.h src/PreviewController.cpp
     src/Settings.h src/Settings.cpp
-    src/capture/PortalRequest.h src/capture/PortalRequest.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
-    src/capture/ScreenCastSession.h src/capture/ScreenCastSession.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
@@ -76,8 +81,6 @@ qt_add_executable(unisic
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
     src/update/VersionCompare.h
-    src/theme/ThemeController.h src/theme/ThemeController.cpp
-    src/theme/IconImageProvider.h src/theme/IconImageProvider.cpp
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/notify/NotifCard.h
@@ -132,11 +135,10 @@ if(UNISIC_DEV_BUILD)
     message(STATUS "Developer build: UNISIC_DEV_BUILD=ON (F8 smoke test enabled)")
 endif()
 
-if(PIPEWIRE_FOUND)
-    target_sources(unisic PRIVATE src/record/PipeWireGrabber.h src/record/PipeWireGrabber.cpp)
-    target_link_libraries(unisic PRIVATE PkgConfig::PIPEWIRE)
-    target_compile_definitions(unisic PRIVATE HAVE_PIPEWIRE)
-else()
+# PipeWireGrabber now lives in the kit (built there under the same
+# HAVE_PIPEWIRE gate, which the kit exports PUBLIC); this only keeps the
+# runtime warning for a pipewire-less build.
+if(NOT PIPEWIRE_FOUND)
     message(WARNING "libpipewire-0.3 not found — GIF/screen recording will be disabled at runtime")
 endif()
 
@@ -195,7 +197,6 @@ else()
     message(STATUS "KDE clipboard-history (Klipper) integration: disabled (needs kf6-kguiaddons-devel) — images copy but skip Klipper history")
 endif()
 
-set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 set_source_files_properties(qml/ToolCatalog.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_qml_module(unisic
@@ -204,8 +205,10 @@ qt_add_qml_module(unisic
     # On case-insensitive filesystems the default "Unisic" output dir would
     # collide with the "unisic" executable name.
     OUTPUT_DIRECTORY qmlmod/Unisic
+    # The Theme singleton and the generic U* design-system components live in
+    # the Unisic.Kit module (external/unisic-kit) — only app-specific QML stays
+    # here. Files referencing kit types carry an explicit `import Unisic.Kit`.
     QML_FILES
-        qml/Theme.qml
         qml/ToolCatalog.qml
         qml/Main.qml
         qml/OverlayWindow.qml
@@ -221,41 +224,20 @@ qt_add_qml_module(unisic
         qml/pages/HistoryPage.qml
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
-        qml/components/UButton.qml
-        qml/components/UIcon.qml
-        qml/components/UIconButton.qml
-        qml/components/USplitIconButton.qml
-        qml/components/UCard.qml
-        qml/components/UFilterChip.qml
-        qml/components/USwitch.qml
-        qml/components/USlider.qml
-        qml/components/USettingRow.qml
-        qml/components/UTextField.qml
-        qml/components/UShortcutRecorder.qml
-        qml/components/UShortcutList.qml
-        qml/components/UShortcutsHelp.qml
-        qml/components/UComboBox.qml
-        qml/components/UValueCombo.qml
-        qml/components/UMenuButton.qml
-        qml/components/UConfirmDialog.qml
         qml/components/USystemCheck.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
         qml/components/UPatchNotes.qml
-        qml/components/UColorPopup.qml
-        qml/components/UHoverTip.qml
-        qml/components/VideoPreview.qml
-        qml/components/SidebarItem.qml
-        qml/components/ToolChip.qml
         qml/components/ToolPropsBar.qml
-        qml/components/ColorDot.qml
-        qml/components/MiddleScroll.qml
-        qml/components/WheelBoost.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/theme src/notify src/update src/record)
+target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/notify src/update src/record)
+# unisic-kit propagates its src/ include dir (capture/, record/, theme/,
+# media/ headers), Qt6::DBus and, when found, PkgConfig::PIPEWIRE +
+# HAVE_PIPEWIRE — so the app-side guards keep working unchanged.
 target_link_libraries(unisic PRIVATE
+    unisic-kit unisic-kitplugin
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Quick Qt6::Qml Qt6::QuickControls2
     Qt6::DBus Qt6::Network Qt6::Concurrent
 )
@@ -269,8 +251,9 @@ qt_add_resources(unisic "changelog" PREFIX "/" FILES resources/CHANGELOG.md)
 file(GLOB UNISIC_THEMES CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/themes/*.json)
 qt_add_resources(unisic "themes" PREFIX "/" FILES ${UNISIC_THEMES})
 
-file(GLOB UNISIC_SYM_ICONS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/icons/sym/*.svg)
-qt_add_resources(unisic "sym_icons" PREFIX "/" FILES ${UNISIC_SYM_ICONS})
+# Symbolic icons (resources/icons/sym) ship inside unisic-kit's qrc under the
+# same :/resources/icons/sym/ path IconImageProvider looks up — nothing to add
+# here. App-only icon additions belong in the kit now.
 
 # Capture sound cues (General > Capture sound). Short bundled WAVs; extracted
 # to the cache dir and played via pw-play/paplay/aplay at capture time.
@@ -304,10 +287,16 @@ if(Qt6LinguistTools_FOUND)
     target_compile_definitions(unisic PRIVATE HAVE_TRANSLATIONS)
     # Manual refresh target (`cmake --build build --target update_translations`):
     # rescans C++ + QML and rewrites the .ts source strings. Not run per build.
+    # The kit's QML components carry user-facing qsTr() strings too (their
+    # translation contexts are the file base names, unchanged by the move to
+    # the submodule — the existing .ts entries keep matching).
     file(GLOB_RECURSE UNISIC_LUPDATE_SOURCES CONFIGURE_DEPENDS
          ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
          ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h
-         ${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml)
+         ${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml
+         ${CMAKE_CURRENT_SOURCE_DIR}/external/unisic-kit/src/*.cpp
+         ${CMAKE_CURRENT_SOURCE_DIR}/external/unisic-kit/src/*.h
+         ${CMAKE_CURRENT_SOURCE_DIR}/external/unisic-kit/qml/*.qml)
     # The target-less qt_add_lupdate() signature is Qt 6.7+. On the declared
     # 6.5/6.6 floor (e.g. openSUSE Leap ships 6.6) the first positional arg is
     # the mandatory target, so pass `unisic` explicitly there.
@@ -455,11 +444,13 @@ if(BUILD_TESTING)
 
     qt_add_executable(unisic_theme_json_test
         tests/ThemeJsonTest.cpp
-        src/theme/ThemeJson.h
+        external/unisic-kit/src/theme/ThemeJson.h
     )
     # QColor lives in Qt6::Gui; no QGuiApplication or platform needed.
+    # ThemeJson.h moved to the kit; shippedThemesAllParse still reads the
+    # SHIPPED seed themes from THIS repo (resources/themes stays app content).
     target_link_libraries(unisic_theme_json_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-    target_include_directories(unisic_theme_json_test PRIVATE src)
+    target_include_directories(unisic_theme_json_test PRIVATE external/unisic-kit/src)
     # shippedThemesAllParse reads resources/themes/*.json from the source tree.
     target_compile_definitions(unisic_theme_json_test
         PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
@@ -497,9 +488,10 @@ if(BUILD_TESTING)
         src/ConfigPath.h
     )
     # Settings.h pulls in qqmlregistration.h (QML_ELEMENT), hence Qt6::Qml.
+    # The kit include dir provides SettingMacro.h (the U_SETTING macro).
     target_link_libraries(unisic_settings_persistence_test PRIVATE
         Qt6::Core Qt6::Qml Qt6::Test)
-    target_include_directories(unisic_settings_persistence_test PRIVATE src)
+    target_include_directories(unisic_settings_persistence_test PRIVATE src external/unisic-kit/src)
     add_test(NAME unisic_settings_persistence_test COMMAND unisic_settings_persistence_test)
     # The test re-execs itself (--verify-child) for a fresh-process read-back.
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

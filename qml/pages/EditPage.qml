@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import Unisic
+import Unisic.Kit
 import "../components"
 
 // Files you already have, not captures: an image opens in the same editor a

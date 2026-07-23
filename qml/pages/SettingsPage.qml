@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Dialogs
 import Unisic
+import Unisic.Kit
 import "../components"
 
 Item {
@@ -434,6 +435,10 @@ Item {
             opacity: hotkeyRow.available ? 1.0 : 0.45
             shortcuts: hotkeyRow.shortcuts
             onChanged: (t) => hotkeyRow.changed(t)
+            // The kit component is app-agnostic: the host supplies the key
+            // formatter and reacts to recording start/stop (hotkey suspend).
+            formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
+            onCaptureStateChanged: (active) => App.setShortcutRecording(active)
         }
     }
 

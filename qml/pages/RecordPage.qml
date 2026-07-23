@@ -1,5 +1,6 @@
 import QtQuick
 import Unisic
+import Unisic.Kit
 import "../components"
 
 Item {

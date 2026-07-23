@@ -4,6 +4,10 @@
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
 #include "update/VersionCompare.h"
+#include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
+// The kit's own ConfigPath.h shares the basename, so it needs the explicit
+// relative path; provides UnisicKit::setConfigFilePath (wired in main()).
+#include "../external/unisic-kit/src/ConfigPath.h"
 #include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -535,6 +539,13 @@ static void execStagedUpdate(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    // Point unisic-kit's config resolution at THIS app's settings file before
+    // anything from the kit (ThemeController's QSettings, themesFolder) is
+    // constructed. The explicit file override — not setConfigName — because
+    // Unisic's historical layout keeps the basename "unisic.conf" even in the
+    // dev build's "unisic-dev" dir, which the kit's <name>/<name>.conf
+    // derivation cannot express.
+    UnisicKit::setConfigFilePath(UnisicConfig::filePath());
     // Record-border helper FIRST — before QApplication (it must boot on xcb,
     // not wayland; the platform is fixed at construction) and before the
     // single-instance handshake (the helper is a child of the running

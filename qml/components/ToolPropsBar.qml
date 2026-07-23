@@ -1,5 +1,6 @@
 import QtQuick
 import Unisic
+import Unisic.Kit
 
 // Contextual tool-properties strip: renders only the controls relevant to the
 // active tool (ToolCatalog `props` — "stroke", "width", "fill", "font").

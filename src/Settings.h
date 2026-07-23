@@ -8,16 +8,10 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include "ConfigPath.h"
+// U_SETTING lives in unisic-kit (SettingMacro.h) so Unisic Studio declares its
+// QSettings-backed properties the same way; the Settings class stays app-side.
+#include "SettingMacro.h"
 #include <qqmlregistration.h>
-
-#define U_SETTING(type, name, setterName, key, defval)                                 \
-    type name() const { return m_s.value(key, defval).value<type>(); }                 \
-    void setterName(const type &v) {                                                   \
-        if (name() == v) return;                                                       \
-        m_s.setValue(key, v);                                                          \
-        m_syncTimer.start();                                                            \
-        emit name##Changed();                                                          \
-    }
 
 class Settings : public QObject
 {

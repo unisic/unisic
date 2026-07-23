@@ -480,7 +480,9 @@ Window {
     // Release notes for the running version, opened from the app card.
     UPatchNotes {
         id: patchNotes
-        version: App.appVersion
+        // changelogVersion, not appVersion: a dev build shows the next
+        // release's in-progress section (release builds: identical values).
+        version: App.changelogVersion
     }
 
     // First-run welcome, then the dependency check — never both at once. The

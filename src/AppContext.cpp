@@ -599,12 +599,29 @@ QString AppContext::buildDate() const
     return QStringLiteral(UNISIC_BUILD_DATE);
 }
 
+QString AppContext::changelogVersion() const
+{
+#ifdef UNISIC_DEV_BUILD
+    // Dev builds run the next release's code, so show the next release's
+    // notes: the file is newest-first, take the first `## ` heading.
+    QFile f(QStringLiteral(":/resources/CHANGELOG.md"));
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        while (!f.atEnd()) {
+            const QString t = QString::fromUtf8(f.readLine()).trimmed();
+            if (t.startsWith(QLatin1String("## ")))
+                return t.mid(3).trimmed();
+        }
+    }
+#endif
+    return appVersion();
+}
+
 QString AppContext::changelog(const QString &lang) const
 {
     QFile f(QStringLiteral(":/resources/CHANGELOG.md"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return QString();
-    const QString verHeading = QStringLiteral("## ") + appVersion();
+    const QString verHeading = QStringLiteral("## ") + changelogVersion();
     const QString langHeading = QStringLiteral("### ")
         + (lang == QLatin1String("pl") ? QStringLiteral("Polski") : QStringLiteral("English"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));

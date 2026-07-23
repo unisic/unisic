@@ -153,6 +153,7 @@ class AppContext : public QObject
     // ("dev" for local builds) + git-commit date of the built state
     // (YYYYMMDD-HHMM, empty when unknown). Shown in the sidebar footer.
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString changelogVersion READ changelogVersion CONSTANT)
     Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
     Q_PROPERTY(QString buildDate READ buildDate CONSTANT)
     // True until the user opens the release notes for the RUNNING version: drives
@@ -352,11 +353,16 @@ public:
     // In the .cpp: the generated unisic_build_date.h changes on every commit —
     // including it here would recompile every AppContext.h dependent each time.
     QString buildDate() const;
-    // Release notes (markdown) for the RUNNING version in `lang` ("en"/"pl"):
-    // the `### English`/`### Polski` block of the bundled CHANGELOG.md section
-    // whose `##` heading matches appVersion(). Empty when there is no such entry.
+    // Release notes (markdown) in `lang` ("en"/"pl"): the `### English`/
+    // `### Polski` block of the bundled CHANGELOG.md section whose `##`
+    // heading matches changelogVersion(). Empty when there is no such entry.
     // Shown when the user clicks the version label.
     Q_INVOKABLE QString changelog(const QString &lang) const;
+    // The version whose section changelog() returns — appVersion() in a
+    // release build. A dev build shows the TOP (newest) section instead: work
+    // for the next release accumulates under its future heading, which would
+    // otherwise stay invisible in-app until the version bump.
+    QString changelogVersion() const;
     bool patchNotesUnseen() const { return m_settings->lastSeenVersion() != appVersion(); }
     // Record the running version as seen so the hint stops (idempotent).
     Q_INVOKABLE void markPatchNotesSeen();

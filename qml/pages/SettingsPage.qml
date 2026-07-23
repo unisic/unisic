@@ -23,7 +23,7 @@ Item {
     // Release notes for the running version, opened from the "Current version" row.
     UPatchNotes {
         id: settingsPatchNotes
-        version: App.appVersion
+        version: App.changelogVersion
     }
 
     // On-demand system/dependency check (the General → Diagnostics button).

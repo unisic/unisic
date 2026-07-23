@@ -771,10 +771,10 @@ Item {
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            property var ids: ["system", "en", "pl", "es", "it"]
+                            property var ids: ["system", "en", "pl", "es", "it", "fr"]
                             // Native names on purpose — every user recognises
                             // their own language regardless of the current UI.
-                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano"]
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français"]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                             onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }

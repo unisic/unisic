@@ -17,6 +17,7 @@ whole per release (not per individual change).
 - **A new Settings icon**, redrawn to sit with the rest of the icon set.
 - **Sound cues default to 75% volume** on fresh installs; an already saved volume is left as is.
 - **Recording on KDE Plasma no longer involves the system sharing dialog**: Unisic now records through KWin's native screencasting interface (the same path Spectacle uses), so screen, region and window recordings start immediately - no screen-picker dialog, no "remember this choice" tokens. With several monitors, a full-screen recording captures the monitor the pointer is on. Region recordings are also cropped by the compositor itself instead of recording the whole monitor and cutting it afterwards. On other desktops recording keeps working through the portal exactly as before.
+- **A portable .tar.gz download**: every release now also ships a plain unpack-and-run archive (same bundle as the AppImage, no FUSE and no package manager needed) - for distros where the rpm/deb/Arch packages don't fit. It was also added retroactively to the 0.7.5 release.
 
 **Fixed**
 - **Typing in the Settings search no longer freezes**: the panes it searches through are now built in the background after a short typing pause, instead of all at once on the first keystroke.
@@ -31,6 +32,7 @@ whole per release (not per individual change).
 - **Nowa ikona Ustawień**, przerysowana tak, by pasowała do reszty zestawu ikon.
 - **Dźwięki mają domyślnie 75% głośności** przy świeżej instalacji; już zapisana głośność pozostaje bez zmian.
 - **Nagrywanie na KDE Plasma nie przechodzi już przez systemowe okno udostępniania**: Unisic nagrywa teraz przez natywny interfejs przechwytywania KWin (ta sama ścieżka, której używa Spectacle), więc nagrania ekranu, obszaru i okna startują od razu - bez okna wyboru ekranu i bez tokenów „zapamiętaj wybór". Przy kilku monitorach nagranie pełnego ekranu przechwytuje monitor, na którym jest wskaźnik. Nagrania obszaru przycina też sam kompozytor, zamiast nagrywać cały monitor i wycinać obszar po fakcie. Na innych pulpitach nagrywanie działa dalej przez portal, dokładnie jak dotąd.
+- **Przenośny plik .tar.gz do pobrania**: każde wydanie zawiera teraz także zwykłe archiwum rozpakuj-i-uruchom (ten sam zestaw co AppImage, bez FUSE i bez menedżera pakietów) - dla dystrybucji, do których pakiety rpm/deb/Arch nie pasują. Zostało też dodane wstecznie do wydania 0.7.5.
 
 **Naprawione**
 - **Pisanie w wyszukiwarce Ustawień już nie zamraża okna**: przeszukiwane panele budują się teraz w tle po krótkiej przerwie w pisaniu, zamiast wszystkie naraz przy pierwszym znaku.

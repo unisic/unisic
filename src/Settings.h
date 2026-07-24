@@ -8,16 +8,10 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include "ConfigPath.h"
+// U_SETTING lives in unisic-kit (SettingMacro.h) so Unisic Studio declares its
+// QSettings-backed properties the same way; the Settings class stays app-side.
+#include "SettingMacro.h"
 #include <qqmlregistration.h>
-
-#define U_SETTING(type, name, setterName, key, defval)                                 \
-    type name() const { return m_s.value(key, defval).value<type>(); }                 \
-    void setterName(const type &v) {                                                   \
-        if (name() == v) return;                                                       \
-        m_s.setValue(key, v);                                                          \
-        m_syncTimer.start();                                                            \
-        emit name##Changed();                                                          \
-    }
 
 class Settings : public QObject
 {
@@ -554,7 +548,7 @@ public:
     U_SETTING(int, recordCountdownSec, setRecordCountdownSec, "record/countdownSec", 0)
     // Playback volume (0-100) for the capture/recording sound cues. 100 = the
     // sample's own level; 0 skips playback entirely.
-    U_SETTING(int, soundVolume, setSoundVolume, "soundVolume", 100)
+    U_SETTING(int, soundVolume, setSoundVolume, "soundVolume", 75)
     // When saving is enabled, prompt for a destination path per capture instead
     // of writing straight into saveDirectory. Off by default.
     U_SETTING(bool, askWhereToSave, setAskWhereToSave, "askWhereToSave", false)

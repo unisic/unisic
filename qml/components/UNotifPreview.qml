@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import Unisic
+import Unisic.Kit
 
 // In-window preview of the capture notification: a mock desktop with an EMPTY
 // card (placeholder thumbnail, no real capture) parked in the configured

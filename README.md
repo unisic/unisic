@@ -49,7 +49,15 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 
 ## Install
 
-Grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through your package manager like any other package.
+The quickest way is the guided installer. Paste this into a terminal:
+
+```sh
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/unisic/unisic/main/scripts/install.sh)"
+```
+
+It runs straight from memory - the script is **never saved to your disk**, it just executes in the terminal - and opens an arrow-key menu that detects your distro and installs the matching package (`.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst`, the openSUSE repo, or a self-updating AppImage / portable `.tar.gz` on immutable and other systems). The same menu also updates, uninstalls, installs an older version, and toggles automatic updates. Nothing is installed until you pick it from the menu.
+
+Prefer to do it by hand? Grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through your package manager like any other package.
 
 Per-distro repository setup (Fedora COPR, Debian/Ubuntu, openSUSE, Arch, Nix flake) with copy-paste snippets: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
 

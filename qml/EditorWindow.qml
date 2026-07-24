@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Effects
 import QtQuick.Dialogs
 import Unisic
+import Unisic.Kit
 import "components"
 
 Window {

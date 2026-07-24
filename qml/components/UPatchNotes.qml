@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Unisic
+import Unisic.Kit
 
 // "What's new" sheet shown when the version label is clicked. Renders the
 // running version's section of the bundled CHANGELOG.md (App.changelog(lang),

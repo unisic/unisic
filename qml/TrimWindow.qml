@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import Unisic
+import Unisic.Kit
 import "components"
 
 Window {

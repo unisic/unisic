@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import Unisic
+import Unisic.Kit
 
 // First-run setup — a full-window flow, NOT a modal dialog: a greeting, a few
 // steps that each ask for one decision, and a send-off. It takes over the
@@ -563,6 +564,8 @@ Item {
                             width: parent.width
                             shortcuts: root.shortcutsFor(modelData.id)
                             onChanged: (t) => root.setShortcut(modelData.id, t)
+                            formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
+                            onCaptureStateChanged: (active) => App.setShortcutRecording(active)
                         }
                     }
                 }

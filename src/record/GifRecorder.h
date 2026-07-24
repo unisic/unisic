@@ -19,12 +19,22 @@ class ClickCapture;
 class KeyCapture;
 class Settings;
 class QScreen;
+class KWinScreencasting;
+class KWinScreencastStream;
 
 // GIF (and MP4) screen recording:
 //   portal ScreenCast -> PipeWireGrabber (latest frame) -> fixed-FPS sampler
 //   -> ffmpeg #1 (rawvideo stdin -> lossless temp .mkv)
 //   -> on stop: ffmpeg #2 (palettegen/paletteuse two-pass -> .gif)
 // Region recording records the full monitor stream and crops in ffmpeg.
+//
+// On KWin (HAVE_KWIN_SCREENCAST + granted zkde_screencast interface) the
+// portal is skipped entirely — the app names the source itself (Spectacle's
+// model): Screen streams the monitor under the cursor (or the explicit
+// target), Region gets a compositor-side cropped stream (no ffmpeg crop),
+// Window resolves a uuid via KWin's interactive picker. No share dialog, no
+// restore tokens. Any native-path failure falls back to the portal, mirroring
+// KWinScreenShot2 -> PortalScreenshot for stills.
 class GifRecorder : public QObject
 {
     Q_OBJECT
@@ -46,23 +56,11 @@ public:
     bool canPause() const { return m_state == Recording && m_output != Replay; }
     void togglePause();
     int elapsedSeconds() const;
-    static bool hardwareEncoderAvailable(const QString &id);
-    // Listed AND actually able to encode (cached). See the .cpp: "listed" alone
-    // is not enough — a listed encoder can fail outright.
-    static bool hardwareEncoderWorks(const QString &id);
+    // Encoder probes and the GIF palette filters live in unisic-kit's
+    // FfmpegUtil (media/FfmpegUtil.h) — shared with Unisic Studio.
     // videoEncoder(), with "auto" resolved to a working hardware encoder or
     // software.
     QString resolvedVideoEncoder() const;
-    // True when this ffmpeg can encode with `name` — or when the encoder probe
-    // itself failed (empty set), where callers keep their preferred encoder and
-    // let the "ffmpeg could not be started" path report the real problem.
-    static bool encoderUsable(const QString &name);
-    // The two halves of the palettegen/paletteuse GIF pipeline, without the
-    // fps/trim filters in front of them. Shared with the trim editor, which cuts
-    // a GIF by re-rendering the selection through the same quality settings.
-    // quality: 0 = fast/small, 1 = balanced, 2 = best.
-    static QString gifPaletteGenFilter(int quality);
-    static QString gifPaletteUseFilter(int quality);
     // ffmpeg args that excise the given paused wall-clock spans (ms) from `input`
     // into `output`, cutting the SAME ranges from video and audio so they stay
     // synced. Public so the dev/smoke harness exercises the exact filtergraph.
@@ -121,8 +119,25 @@ private:
 
     void onStreamReady(int fd, uint nodeId, const QSize &size, const QPoint &pos);
     // Create the ScreenCast session with the (per-monitor) restore token; used
-    // by start() and by the wrong-monitor retry in onStreamReady.
+    // by start() and by the wrong-monitor retry in onStreamReady. Tries the
+    // KWin-native path first (tryOpenKWinStream), then the portal.
     void openPortalSession();
+    // KWin-native zkde_screencast: true = a stream was requested (or is being
+    // resolved) and the portal must NOT be opened; false = unavailable here,
+    // caller continues with the portal.
+    bool tryOpenKWinStream();
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
+    // Wire created/failed/closed of a requested native stream.
+    void adoptKWinStream(KWinScreencastStream *stream);
+    // Interactive KWin window pick (queryWindowInfo) -> stream_window(uuid).
+    void openKWinWindowStream(uint cursorMode);
+#endif
+    // Resolve the requested cursor mode (Hidden/Embedded/Metadata wire value,
+    // shared by the portal and the KWin protocol) and arm m_cursorOverlayActive.
+    uint resolveCursorMode();
+    // Attach the PipeWireGrabber to a negotiated stream. fd = the portal's
+    // OpenPipeWireRemote fd, or -1 for the KWin-native path (default daemon).
+    void attachStream(int fd, uint nodeId);
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
     void startClickCapture();
@@ -141,7 +156,6 @@ private:
     void convertToGifRender(int fps, const QString &paletteUse); // pass 2: paletteuse
     void convertVideo();          // resolves the encoder off-thread, then…
     void convertVideoWith(const QString &encoder); // …builds and runs ffmpeg
-    void stopProcess(QProcess *&process);
     void cleanup();
     void fail(const QString &msg);
     void stopWatchdogTick();
@@ -188,6 +202,14 @@ private:
     QSize m_encodeSize;
     QPointer<QScreen> m_targetScreen;
     bool m_monitorRetryDone = false; // one wrong-monitor self-heal per start()
+    // KWin-native screencast (zkde_screencast). m_kwinCast binds the global
+    // once and is reused across recordings; m_kwinStream is per-recording.
+    // m_nativeStream marks the active recording as native: Region streams
+    // arrive pre-cropped (skip the ffmpeg crop + geometry checks) and the
+    // grabber connects to the default PipeWire daemon (fd -1).
+    KWinScreencasting *m_kwinCast = nullptr;
+    KWinScreencastStream *m_kwinStream = nullptr;
+    bool m_nativeStream = false;
     QByteArray m_lastFrame;
     quint64 m_lastSampledSeq = 0; // grabber seq of m_lastFrame (skip re-crop when unchanged)
 

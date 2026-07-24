@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import Unisic
+import Unisic.Kit
 
 // First-run (and on-demand) system check. Lists the optional runtime
 // dependencies from App.dependencyReport() — each with a tick or an install

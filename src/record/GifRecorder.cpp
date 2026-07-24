@@ -9,7 +9,16 @@
 #include "capture/ScreenCastSession.h"
 #include <QGuiApplication>
 #ifdef HAVE_PIPEWIRE
-#include "PipeWireGrabber.h"
+#include "record/PipeWireGrabber.h"
+#include "media/FfmpegUtil.h"
+#endif
+#ifdef HAVE_KWIN_SCREENCAST
+#include "capture/KWinScreencasting.h"
+#include <QCursor>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #endif
 #include <QStandardPaths>
 #include <QSettings>
@@ -30,136 +39,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-// The ffmpeg found in PATH varies: some builds ship one without GPL
-// x264. Probe the available video encoders once so both the lossless
-// intermediate and the MP4 output can pick a working fallback. An empty set
-// means the probe itself failed (no ffmpeg) — callers keep their preferred
-// encoder and the existing "ffmpeg could not be started" path reports it.
-static QSet<QString> probeFfmpegEncoders()
-{
-    QSet<QString> found;
-    QProcess p;
-    p.start(QStringLiteral("ffmpeg"),
-            {QStringLiteral("-hide_banner"), QStringLiteral("-encoders")});
-    if (p.waitForFinished(5000)) {
-        const QList<QByteArray> lines = p.readAllStandardOutput().split('\n');
-        for (const QByteArray &line : lines) {
-            // " V....D libx264rgb   libx264 H.264 ... (codec h264)"
-            // (skip the legend line " V..... = Video")
-            const QList<QByteArray> cols = line.simplified().split(' ');
-            if (cols.size() >= 2 && cols[0].startsWith('V') && cols[1] != "=")
-                found.insert(QString::fromLatin1(cols[1]));
-        }
-    }
-    return found;
-}
-
-// Magic-static: the first caller runs the probe, later callers get the cache,
-// concurrent callers block until the probe finishes — which makes the warm-up
-// from a worker thread in the constructor safe.
-static const QSet<QString> &ffmpegEncoders()
-{
-    static const QSet<QString> cached = probeFfmpegEncoders();
-    return cached;
-}
-
-bool GifRecorder::encoderUsable(const QString &name)
-{
-    return ffmpegEncoders().contains(name) || ffmpegEncoders().isEmpty();
-}
-
-QString GifRecorder::gifPaletteGenFilter(int quality)
-{
-    const int q = qBound(0, quality, 2);
-    return QStringLiteral("palettegen=stats_mode=%1")
-        .arg(q == 2 ? QStringLiteral("diff") : QStringLiteral("full"));
-}
-
-QString GifRecorder::gifPaletteUseFilter(int quality)
-{
-    const int q = qBound(0, quality, 2);
-    const QString dither = q == 0 ? QStringLiteral("bayer:bayer_scale=3")
-                                  : (q == 1 ? QStringLiteral("bayer:bayer_scale=5")
-                                            : QStringLiteral("sierra2_4a"));
-    return QStringLiteral("paletteuse=dither=%1:diff_mode=rectangle").arg(dither);
-}
-
-bool GifRecorder::hardwareEncoderAvailable(const QString &id)
-{
-    if (id == QLatin1String("vaapi"))
-        return ffmpegEncoders().contains(QStringLiteral("h264_vaapi"))
-               && QFileInfo::exists(QStringLiteral("/dev/dri/renderD128"));
-    if (id == QLatin1String("nvenc"))
-        return ffmpegEncoders().contains(QStringLiteral("h264_nvenc"));
-    // AV1 NVENC (RTX 40+) — the only hardware encoder a WebM can carry here.
-    if (id == QLatin1String("av1-nvenc"))
-        return ffmpegEncoders().contains(QStringLiteral("av1_nvenc"));
-    return false;
-}
-
-// Does the encoder actually ENCODE, not just appear in -encoders? Measured
-// necessity, not caution: on this developer's box ffmpeg lists vp9_vaapi and
-// the render node exists, yet the encode fails outright — the listing describes
-// the ffmpeg build, the hardware behind it may not implement the codec. The
-// "auto" default rides on this, so a listing-only check would hand a broken
-// encoder to every user who never picked one.
-//
-// Encodes two frames of a tiny synthetic clip to /dev/null. ~0.5 s, run at most
-// once per encoder per process.
-bool GifRecorder::hardwareEncoderWorks(const QString &id)
-{
-    // The cache is read from the GUI thread (diagnostics, dev buttons) and
-    // from convertVideo()'s pool-thread resolve — guard the hash, but run the
-    // probe itself outside the lock (a concurrent duplicate probe is harmless,
-    // both sides insert the same answer; holding the lock through it would
-    // block a GUI caller for the probe's full 8 s instead).
-    static QMutex cacheMutex;
-    static QHash<QString, bool> cache;
-    {
-        QMutexLocker lock(&cacheMutex);
-        const auto it = cache.constFind(id);
-        if (it != cache.constEnd())
-            return *it;
-    }
-    if (!hardwareEncoderAvailable(id)) {
-        QMutexLocker lock(&cacheMutex);
-        cache.insert(id, false);
-        return false;
-    }
-    QStringList args{QStringLiteral("-hide_banner"), QStringLiteral("-loglevel"),
-                     QStringLiteral("error"), QStringLiteral("-y")};
-    if (id == QLatin1String("vaapi")) {
-        args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
-             << QStringLiteral("-f") << QStringLiteral("lavfi")
-             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
-             << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
-             << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi");
-    } else {
-        args << QStringLiteral("-f") << QStringLiteral("lavfi")
-             << QStringLiteral("-i") << QStringLiteral("testsrc2=size=320x240:rate=30:duration=0.1")
-             << QStringLiteral("-c:v")
-             << (id == QLatin1String("av1-nvenc") ? QStringLiteral("av1_nvenc")
-                                                  : QStringLiteral("h264_nvenc"))
-             << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
-    }
-    args << QStringLiteral("-f") << QStringLiteral("null") << QStringLiteral("-");
-    QProcess probe;
-    probe.setProcessChannelMode(QProcess::MergedChannels);
-    probe.start(QStringLiteral("ffmpeg"), args);
-    const bool ok = probe.waitForFinished(8000) && probe.exitStatus() == QProcess::NormalExit
-                    && probe.exitCode() == 0;
-    if (!ok) {
-        // Log WHY: "works=n" alone is undiagnosable in the field (session limits,
-        // driver mismatch, a missing device node all look identical without it).
-        const QString why = QString::fromUtf8(probe.readAll()).right(400).trimmed();
-        qInfo().noquote() << "GifRecorder: hardware encoder" << id
-                          << "is listed but does not encode here"
-                          << (why.isEmpty() ? QString() : QStringLiteral("- %1").arg(why));
-    }
-    QMutexLocker lock(&cacheMutex);
-    cache.insert(id, ok);
-    return ok;
-}
+// ffmpeg probing/filters/teardown live in unisic-kit's FfmpegUtil (shared
+// with Unisic Studio): encoders/encoderUsable, gifPaletteGenFilter/
+// gifPaletteUseFilter, hardwareEncoderAvailable/hardwareEncoderWorks and the
+// non-blocking stopProcess escalation.
 
 // "auto" (the default) picks a hardware encoder that really works, else falls
 // back to software. An explicit choice is honoured as-is — including software.
@@ -168,9 +51,9 @@ QString GifRecorder::resolvedVideoEncoder() const
     const QString choice = m_settings->videoEncoder();
     if (choice != QLatin1String("auto"))
         return choice;
-    if (hardwareEncoderWorks(QStringLiteral("nvenc")))
+    if (FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc")))
         return QStringLiteral("nvenc");
-    if (hardwareEncoderWorks(QStringLiteral("vaapi")))
+    if (FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi")))
         return QStringLiteral("vaapi");
     return QStringLiteral("software");
 }
@@ -298,7 +181,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     // start(), so the global pool never holds process exit for the probe.
     if (!m_probeWarmed) {
         m_probeWarmed = true;
-        m_probeWatcher.setFuture(QtConcurrent::run([] { (void)ffmpegEncoders(); }));
+        m_probeWatcher.setFuture(QtConcurrent::run([] { (void)FfmpegUtil::encoders(); }));
     }
     m_state = Starting;
     m_holdForCommit = holdForCommit;
@@ -314,6 +197,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_lastFrame.clear();
     m_lastSampledSeq = 0;
     m_monitorRetryDone = false;
+    m_nativeStream = false;
 
     openPortalSession();
 #endif
@@ -447,39 +331,25 @@ void GifRecorder::stopKeyCapture()
     m_keys = nullptr;
 }
 
-void GifRecorder::openPortalSession()
+// The one cursor-mode wish, shared verbatim by the portal's cursor_mode and
+// KWin's zkde_screencast pointer enum (same wire values). Highlighting the
+// pointer means asking for Metadata, which STOPS the compositor drawing the
+// pointer into the stream — from then on m_cursorOverlay is the only thing
+// that draws it. Metadata is optional in the portal spec and an unsupported
+// mode fails SelectSources outright, so a portal without it silently degrades
+// to the plain embedded cursor rather than killing the recording (KWin's own
+// protocol always understands Metadata — the probe only gates the portal).
+uint GifRecorder::resolveCursorMode()
 {
-#ifdef HAVE_PIPEWIRE
-    m_session = new ScreenCastSession(this);
-    connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
-    connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
-    connect(m_session, &ScreenCastSession::sessionClosed, this, [this] {
-        // Sharing stopped from the system UI: finalize what we have.
-        if (m_state == Recording)
-            stop();
-        else if (m_state == Starting)
-            fail(tr("Screen sharing was stopped"));
-    });
-    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this](const QString &token) {
-        const QString key = restoreTokenKey(m_source, m_targetScreen);
-        if (token.isEmpty())
-            m_settings->raw()->remove(key);
-        else
-            m_settings->raw()->setValue(key, token);
-    });
-    // Cursor mode. Highlighting the pointer means asking for CursorMetadata,
-    // which STOPS the compositor drawing the pointer into the stream — from
-    // then on m_cursorOverlay is the only thing that draws it. Metadata is
-    // optional in the portal spec and an unsupported mode fails SelectSources
-    // outright, so a portal without it silently degrades to the plain embedded
-    // cursor rather than killing the recording.
     m_cursorOverlayActive = false;
-    ScreenCastSession::CursorMode cursorMode = m_settings->includeCursor()
-                                                   ? ScreenCastSession::CursorEmbedded
-                                                   : ScreenCastSession::CursorHidden;
+    uint cursorMode = m_settings->includeCursor()
+                          ? uint(ScreenCastSession::CursorMode::Embedded)
+                          : uint(ScreenCastSession::CursorMode::Hidden);
     if (m_settings->includeCursor() && m_settings->cursorHighlight()) {
-        if (ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata) {
-            cursorMode = ScreenCastSession::CursorMetadata;
+        if (m_nativeStream
+            || (ScreenCastSession::availableCursorModes()
+                & uint(ScreenCastSession::CursorMode::Metadata))) {
+            cursorMode = uint(ScreenCastSession::CursorMode::Metadata);
             m_cursorOverlayActive = true;
         } else {
             qWarning() << "GifRecorder: portal has no metadata cursor mode,"
@@ -499,6 +369,164 @@ void GifRecorder::openPortalSession()
     m_cursorOverlay.setStyle(style);
     m_cursorOverlay.reset();
     m_cursorSmoother = CursorSmoother();
+    return cursorMode;
+}
+
+// KWin-native screencast: the app names the source, KWin answers with a
+// PipeWire node id on the DEFAULT session daemon — no share dialog, no restore
+// token. Returns false when the interface is unavailable (not KWin, desktop
+// file lacks X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1, or the
+// feature was not built) — the caller then opens the portal. A stream-level
+// failure AFTER a successful request also retries via the portal once,
+// mirroring KWinScreenShot2's auth fallback for screenshots.
+bool GifRecorder::tryOpenKWinStream()
+{
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
+    if (!m_kwinCast)
+        m_kwinCast = new KWinScreencasting(this);
+    if (!m_kwinCast->isAvailable())
+        return false;
+    if (m_source == Region && !m_kwinCast->regionStreamsSupported())
+        return false; // pre-Plasma-6 protocol: portal + ffmpeg crop still works
+
+    m_nativeStream = true;
+    const auto mode = KWinScreencasting::CursorMode(resolveCursorMode());
+
+    KWinScreencastStream *stream = nullptr;
+    if (m_source == Region && m_targetScreen) {
+        // The overlay's crop is PHYSICAL pixels local to its screen; the
+        // protocol wants GLOBAL logical coordinates. toAlignedRect rounds
+        // OUTWARD so a fractional-scale edge can never shave the selection;
+        // scaling = the screen's DPR renders the stream at native pixels.
+        const qreal dpr = m_targetScreen->devicePixelRatio();
+        const QRectF logical(m_targetScreen->geometry().x() + m_crop.x() / dpr,
+                             m_targetScreen->geometry().y() + m_crop.y() / dpr,
+                             m_crop.width() / dpr, m_crop.height() / dpr);
+        stream = m_kwinCast->createRegionStream(logical.toAlignedRect(), dpr, mode);
+    } else if (m_source == Window) {
+        // Interactive pick: KWin's own click-a-window mode resolves the uuid.
+        openKWinWindowStream(mode);
+        return true;
+    } else {
+        // Full screen: the explicit target, else the monitor under the
+        // cursor — with one monitor that is simply the only one, with more it
+        // records where the user is working, no dialog either way.
+        QScreen *screen = m_targetScreen ? m_targetScreen.data()
+                                         : QGuiApplication::screenAt(QCursor::pos());
+        if (!screen)
+            screen = QGuiApplication::primaryScreen();
+        stream = m_kwinCast->createOutputStream(screen, mode);
+    }
+    if (!stream) {
+        m_nativeStream = false;
+        return false; // let the portal handle it
+    }
+    adoptKWinStream(stream);
+    return true;
+#else
+    return false;
+#endif
+}
+
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
+// Wire the created/failed/closed answers of a requested native stream.
+void GifRecorder::adoptKWinStream(KWinScreencastStream *stream)
+{
+    m_kwinStream = stream;
+    connect(stream, &KWinScreencastStream::created, this, [this](quint32 nodeId) {
+        if (m_state != Starting)
+            return;
+        attachStream(-1, nodeId);
+    });
+    connect(stream, &KWinScreencastStream::failed, this, [this](const QString &error) {
+        if (m_state != Starting)
+            return;
+        // Native refusal (permission revoked mid-flight, protocol error):
+        // fall back to the portal once rather than failing the recording.
+        qWarning() << "KWin screencast stream failed:" << error << "- falling back to the portal";
+        delete m_kwinStream;
+        m_kwinStream = nullptr;
+        m_nativeStream = false;
+        if (!m_monitorRetryDone) {
+            m_monitorRetryDone = true;
+            openPortalSession();
+        } else {
+            fail(error);
+        }
+    });
+    connect(stream, &KWinScreencastStream::closed, this, [this] {
+        // The compositor ended the cast (output unplugged, window closed):
+        // finalize what we have — same semantics as the portal's sessionClosed.
+        if (m_state == Recording)
+            stop();
+        else if (m_state == Starting)
+            fail(tr("Screen sharing was stopped"));
+    });
+}
+
+// KWin's interactive window pick (org.kde.KWin queryWindowInfo): the cursor
+// becomes a picker, the clicked window's uuid feeds stream_window. Escape
+// cancels with an error reply — treated as a cancelled recording, not a
+// portal fallback (the portal would only re-ask with its own picker).
+void GifRecorder::openKWinWindowStream(uint cursorMode)
+{
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.KWin"), QStringLiteral("/KWin"),
+        QStringLiteral("org.kde.KWin"), QStringLiteral("queryWindowInfo"));
+    QDBusPendingCall call = QDBusConnection::sessionBus().asyncCall(msg, 60000);
+    auto *watcher = new QDBusPendingCallWatcher(call, this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, cursorMode](QDBusPendingCallWatcher *w) {
+                w->deleteLater();
+                if (m_state != Starting)
+                    return;
+                QDBusPendingReply<QVariantMap> reply = *w;
+                const QString uuid = reply.isValid()
+                                         ? reply.value().value(QStringLiteral("uuid")).toString()
+                                         : QString();
+                if (uuid.isEmpty()) {
+                    fail(tr("No window was picked"));
+                    return;
+                }
+                KWinScreencastStream *stream =
+                    m_kwinCast->createWindowStream(uuid, KWinScreencasting::CursorMode(cursorMode));
+                if (!stream) {
+                    fail(tr("Failed to start the window recording"));
+                    return;
+                }
+                adoptKWinStream(stream);
+            });
+}
+#endif
+
+void GifRecorder::openPortalSession()
+{
+#ifdef HAVE_PIPEWIRE
+    // KDE first: the compositor-native path needs no share dialog and no
+    // restore token — the app names the source itself (Spectacle's model).
+    if (tryOpenKWinStream())
+        return;
+
+    m_session = new ScreenCastSession(this);
+    connect(m_session, &ScreenCastSession::ready, this, &GifRecorder::onStreamReady);
+    connect(m_session, &ScreenCastSession::failed, this, [this](const QString &e) { fail(e); });
+    connect(m_session, &ScreenCastSession::sessionClosed, this, [this] {
+        // Sharing stopped from the system UI: finalize what we have.
+        if (m_state == Recording)
+            stop();
+        else if (m_state == Starting)
+            fail(tr("Screen sharing was stopped"));
+    });
+    connect(m_session, &ScreenCastSession::restoreTokenChanged, this, [this](const QString &token) {
+        const QString key = restoreTokenKey(m_source, m_targetScreen);
+        if (token.isEmpty())
+            m_settings->raw()->remove(key);
+        else
+            m_settings->raw()->setValue(key, token);
+    });
+    const ScreenCastSession::CursorMode cursorMode =
+        ScreenCastSession::CursorMode(resolveCursorMode());
+
 
     // Window source → portal WINDOW picker; otherwise a monitor.
     // Full-screen recording on a multi-monitor setup: do NOT send the stored
@@ -561,6 +589,18 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, co
                  .arg(m_targetScreen->name()));
         return;
     }
+    attachStream(fd, nodeId);
+#else
+    Q_UNUSED(fd) Q_UNUSED(nodeId)
+#endif
+}
+
+// Common tail of both stream paths: wire a PipeWireGrabber onto the negotiated
+// node. fd is the portal's OpenPipeWireRemote fd, or -1 on the KWin-native
+// path (the grabber then connects to the default PipeWire daemon).
+void GifRecorder::attachStream(int fd, uint nodeId)
+{
+#ifdef HAVE_PIPEWIRE
     m_grabber = new PipeWireGrabber(this);
     connect(m_grabber, &PipeWireGrabber::formatReady, this, &GifRecorder::beginEncoding);
     // Guard by state: a streamError queued from the PipeWire thread just before
@@ -624,7 +664,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     QRect sourceRect(QPoint(0, 0), m_streamSize);
     QRect c = sourceRect;
 
-    if (m_source == Region) {
+    // KWin-native region streams arrive PRE-CROPPED by the compositor — the
+    // stream IS the selection, so the ffmpeg crop (and the fractional-scale
+    // rescale below, which compares against full-monitor sizes) must not run.
+    if (m_source == Region && !m_nativeStream) {
         QRect crop = m_crop.normalized();
         if (m_targetScreen) {
             const qreal dpr = m_targetScreen->devicePixelRatio();
@@ -764,7 +807,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
     // x264, else utvideo (fast intra-only RGB), else FFV1 — fallbacks for an
     // ffmpeg built without GPL x264.
-    const QSet<QString> &encoders = ffmpegEncoders();
+    const QSet<QString> &encoders = FfmpegUtil::encoders();
     if (m_output == Replay) {
         if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
             args << QStringLiteral("-c:v") << QStringLiteral("libx264")
@@ -1114,12 +1157,22 @@ void GifRecorder::stop()
         m_session->deleteLater();
         m_session = nullptr;
     }
+#ifdef HAVE_KWIN_SCREENCAST
+    // Deleting the stream closes the native cast (KWin drops the node and its
+    // "screen is being shared" indicator) — the portal-session equivalent.
+    if (m_kwinStream) {
+        m_kwinStream->disconnect(this);
+        m_kwinStream->deleteLater();
+        m_kwinStream = nullptr;
+    }
+#endif
+    m_nativeStream = false;
 
     if (!m_ffmpeg) {
         fail(tr("Recording encoder is not running"));
         return;
     }
-    stopProcess(m_appAudio);
+    FfmpegUtil::stopProcess(m_appAudio);
     stopClickCapture(); // release the libinput devices as soon as we stop drawing
     stopKeyCapture();
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
@@ -1350,7 +1403,7 @@ QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &ou
                      QStringLiteral("-vf"), vf};
     // Re-encode losslessly with the same RGB codec the intermediate used, so the
     // final conversion is bit-for-bit unaffected by the excise pass.
-    const QSet<QString> &encoders = ffmpegEncoders();
+    const QSet<QString> &encoders = FfmpegUtil::encoders();
     if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty())
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
              << QStringLiteral("-preset") << QStringLiteral("ultrafast")
@@ -1423,7 +1476,7 @@ void GifRecorder::convertToGif()
     // live in gifPaletteGenFilter/gifPaletteUseFilter — the trim editor renders
     // a GIF cut through the same two passes.
     const int q = qBound(0, m_settings->gifQuality(), 2);
-    const QString dither = gifPaletteUseFilter(q);
+    const QString dither = FfmpegUtil::gifPaletteUseFilter(q);
 
     // True two-pass. A single split-graph command (`split[a][b];[a]palettegen…`)
     // buffers every decoded [b] frame in RAM until palettegen hits EOF — ~3 GB
@@ -1431,7 +1484,7 @@ void GifRecorder::convertToGif()
     // temp file is on disk anyway; decoding the lossless intermediate twice
     // is cheap by comparison.
     m_palettePath = m_tempPath + QStringLiteral(".palette.png");
-    const QString vf = QStringLiteral("fps=%1,%2").arg(fps).arg(gifPaletteGenFilter(q));
+    const QString vf = QStringLiteral("fps=%1,%2").arg(fps).arg(FfmpegUtil::gifPaletteGenFilter(q));
 
     auto *conv = new QProcess(this);
     m_converter = conv;
@@ -1537,15 +1590,15 @@ void GifRecorder::convertVideo()
             // GUI thread. An explicit "software" (or "vaapi" — no AV1 VAAPI
             // path, see convertVideoWith) keeps VP9.
             if (choice != QLatin1String("software") && choice != QLatin1String("vaapi")
-                && hardwareEncoderWorks(QStringLiteral("av1-nvenc")))
+                && FfmpegUtil::hardwareEncoderWorks(QStringLiteral("av1-nvenc")))
                 return QStringLiteral("av1-nvenc");
             return QStringLiteral("software");
         }
         if (choice != QLatin1String("auto"))
             return choice;
-        if (hardwareEncoderWorks(QStringLiteral("nvenc")))
+        if (FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc")))
             return QStringLiteral("nvenc");
-        if (hardwareEncoderWorks(QStringLiteral("vaapi")))
+        if (FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi")))
             return QStringLiteral("vaapi");
         return QStringLiteral("software");
     }));
@@ -1559,7 +1612,7 @@ void GifRecorder::convertVideoWith(const QString &encoder)
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), m_tempPath};
     if (m_output == WebM && encoder == QLatin1String("av1-nvenc")
-        && hardwareEncoderAvailable(QStringLiteral("av1-nvenc"))) {
+        && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("av1-nvenc"))) {
         // -cq shares the 0-51 CRF scale; at 20 measured SSIM 0.9996 (above
         // VP9's 0.9984 at the same setting), file +18%. AV1 VAAPI is
         // deliberately NOT wired as a sibling: no hardware here to verify its
@@ -1590,7 +1643,7 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-row-mt") << QStringLiteral("1");
     } else if (encoder == QLatin1String("vaapi")
-               && hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
         const int qp = qBound(1, crf, 40);
         args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
              << QStringLiteral("-vf") << QStringLiteral("format=nv12,hwupload")
@@ -1598,15 +1651,15 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              << QStringLiteral("-qp") << QString::number(qp)
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     } else if (encoder == QLatin1String("nvenc")
-               && hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+               && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
         args << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
              << QStringLiteral("-preset") << QStringLiteral("p4")
              << QStringLiteral("-cq") << QString::number(crf)
              << QStringLiteral("-b:v") << QStringLiteral("0")
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-    } else if (ffmpegEncoders().contains(QStringLiteral("libx264"))
-               || ffmpegEncoders().isEmpty()) {
+    } else if (FfmpegUtil::encoders().contains(QStringLiteral("libx264"))
+               || FfmpegUtil::encoders().isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264")
              << QStringLiteral("-preset") << QStringLiteral("veryfast")
              << QStringLiteral("-crf") << QString::number(crf)
@@ -1666,33 +1719,6 @@ void GifRecorder::convertVideoWith(const QString &encoder)
     conv->start(QStringLiteral("ffmpeg"), args);
 }
 
-void GifRecorder::stopProcess(QProcess *&process)
-{
-    if (!process)
-        return;
-    QProcess *p = process;
-    process = nullptr;
-    QObject::disconnect(p, nullptr, this, nullptr);
-    if (p->state() == QProcess::NotRunning) {
-        p->deleteLater();
-        return;
-    }
-    // Non-blocking escalation: the old terminate + waitForFinished(1000) +
-    // kill + waitForFinished(3000) froze the GUI for up to 4 s per process on
-    // every cancel/failure (ffmpeg can be slow to flush after SIGTERM). The
-    // detached process reaps itself via finished -> deleteLater; removing the
-    // temp files right after stays correct on Linux (ffmpeg keeps writing to
-    // the unlinked inode, the space is reclaimed when it exits). The singleShot
-    // is parented to p, so it auto-cancels if the process dies sooner.
-    connect(p, &QProcess::finished, p, &QObject::deleteLater);
-    p->closeWriteChannel();
-    p->terminate();
-    QTimer::singleShot(1000, p, [p] {
-        if (p->state() != QProcess::NotRunning)
-            p->kill();
-    });
-}
-
 void GifRecorder::abort()
 {
     m_sampler.stop();
@@ -1715,10 +1741,19 @@ void GifRecorder::abort()
         m_session->deleteLater();
         m_session = nullptr;
     }
-    stopProcess(m_ffmpeg);
-    stopProcess(m_converter);
-    stopProcess(m_appAudio);
-    stopProcess(m_replayExporter);
+#ifdef HAVE_KWIN_SCREENCAST
+    // Same deferred-delete rule: closing the wl stream object ends the cast.
+    if (m_kwinStream) {
+        m_kwinStream->disconnect(this);
+        m_kwinStream->deleteLater();
+        m_kwinStream = nullptr;
+    }
+#endif
+    m_nativeStream = false;
+    FfmpegUtil::stopProcess(m_ffmpeg);
+    FfmpegUtil::stopProcess(m_converter);
+    FfmpegUtil::stopProcess(m_appAudio);
+    FfmpegUtil::stopProcess(m_replayExporter);
     if (!m_tempPath.isEmpty())
         QFile::remove(m_tempPath);
     if (!m_palettePath.isEmpty())

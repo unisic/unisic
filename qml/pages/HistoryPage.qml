@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import Unisic
+import Unisic.Kit
 import "../components"
 
 Item {
@@ -171,6 +172,7 @@ Item {
                     id: searchField
                     width: 220
                     anchors.verticalCenter: parent.verticalCenter
+                    iconName: "magnify"
                     placeholder: qsTr("Search name or link")
                     // edited() is user input only, so every programmatic reset
                     // below clears filter.searchText itself.

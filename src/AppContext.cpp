@@ -14,11 +14,16 @@
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
 #include "record/GifRecorder.h"
+#include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
 #include "record/CursorOverlayPainter.h"
 #include "record/KeystrokeOverlayPainter.h"
 #include <linux/input-event-codes.h>
 #include "capture/ScreenCastSession.h"
+#ifdef HAVE_KWIN_SCREENCAST
+#include "capture/KWinScreencasting.h"
+#include <QCursor>
+#endif
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
@@ -140,10 +145,24 @@ AppContext::AppContext(QObject *parent)
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
+        // Native package install: no silent self-update path, but we CAN offer to
+        // run install.sh in a terminal. Ask instead of toasting — QML opens the
+        // "Install now?" prompt (once per version, gated by updateFound itself).
+        if (m_updater->canInstallViaScript()) {
+            emit installerUpdatePromptRequested(v);
+            return;
+        }
         showToast(m_updater->canSelfUpdate()
                       ? tr("Unisic %1 is available - updating automatically").arg(v)
                       : tr("Unisic %1 is available").arg(v));
     });
+    // The install.sh-in-a-terminal path started (or couldn't): tell the user.
+    connect(m_updater, &UpdateChecker::installerLaunched, this,
+            [this](bool ok, const QString &detail) {
+                showToast(ok ? tr("Opened a terminal to install the update.")
+                             : tr("Couldn't start the update: %1").arg(detail),
+                          !ok);
+            });
     connect(m_updater, &UpdateChecker::installed, this, [this](const QString &v) {
         setupTray(); // the entry flips to "Restart to update"
         if (tryUpdateRestart())
@@ -323,8 +342,8 @@ void AppContext::initialize(QQmlEngine *engine)
     // once off-thread; the recording UI updates when the result arrives.
     QPointer<AppContext> self(this);
     (void)QtConcurrent::run([self] {
-        const bool vaapi = GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"));
-        const bool nvenc = GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"));
+        const bool vaapi = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"));
+        const bool nvenc = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"));
         // Post to the always-alive application object and test the QPointer on
         // the GUI thread. Reading `self` HERE (worker thread) would race with
         // AppContext's destruction on the main thread — QPointer is not
@@ -594,12 +613,29 @@ QString AppContext::buildDate() const
     return QStringLiteral(UNISIC_BUILD_DATE);
 }
 
+QString AppContext::changelogVersion() const
+{
+#ifdef UNISIC_DEV_BUILD
+    // Dev builds run the next release's code, so show the next release's
+    // notes: the file is newest-first, take the first `## ` heading.
+    QFile f(QStringLiteral(":/resources/CHANGELOG.md"));
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        while (!f.atEnd()) {
+            const QString t = QString::fromUtf8(f.readLine()).trimmed();
+            if (t.startsWith(QLatin1String("## ")))
+                return t.mid(3).trimmed();
+        }
+    }
+#endif
+    return appVersion();
+}
+
 QString AppContext::changelog(const QString &lang) const
 {
     QFile f(QStringLiteral(":/resources/CHANGELOG.md"));
     if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
         return QString();
-    const QString verHeading = QStringLiteral("## ") + appVersion();
+    const QString verHeading = QStringLiteral("## ") + changelogVersion();
     const QString langHeading = QStringLiteral("### ")
         + (lang == QLatin1String("pl") ? QStringLiteral("Polski") : QStringLiteral("English"));
     const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
@@ -889,7 +925,28 @@ bool AppContext::capDoNotDisturb() const
 bool AppContext::capCursorMetadata() const
 {
 #ifdef HAVE_PIPEWIRE
-    return (ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata) != 0;
+    return (ScreenCastSession::availableCursorModes()
+            & uint(ScreenCastSession::CursorMode::Metadata)) != 0;
+#else
+    return false;
+#endif
+}
+
+#ifdef HAVE_KWIN_SCREENCAST
+// One process-wide binding of the zkde_screencast global: the answer cannot
+// change without reinstalling the desktop file and restarting anyway, and
+// GifRecorder keeps its own instance for the actual recordings.
+static KWinScreencasting *kwinScreencastProbe()
+{
+    static KWinScreencasting *probe = new KWinScreencasting(qApp);
+    return probe;
+}
+#endif
+
+bool AppContext::capKWinRecord() const
+{
+#ifdef HAVE_KWIN_SCREENCAST
+    return kwinScreencastProbe()->isAvailable();
 #else
     return false;
 #endif
@@ -2158,9 +2215,9 @@ void AppContext::devTestHardwareEncoder()
     // Verify the WORKING probe, not just the listing: "auto" resolves through
     // it, and a listed-but-broken encoder (seen in the wild with vp9_vaapi)
     // must resolve to software, never be handed out.
-    const bool nv = GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc"));
-    const bool va = GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi"));
-    const bool av1 = GifRecorder::hardwareEncoderWorks(QStringLiteral("av1-nvenc"));
+    const bool nv = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc"));
+    const bool va = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi"));
+    const bool av1 = FfmpegUtil::hardwareEncoderWorks(QStringLiteral("av1-nvenc"));
     const QString resolved = m_recorder ? m_recorder->resolvedVideoEncoder()
                                         : QStringLiteral("?");
     showToast(tr("Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)")
@@ -2213,11 +2270,11 @@ void AppContext::devTestInstantReplay()
 // codec-agnostic, so every trim path still gets exercised).
 static QStringList trimFixtureEncoderArgs()
 {
-    if (GifRecorder::encoderUsable(QStringLiteral("libx264")))
+    if (FfmpegUtil::encoderUsable(QStringLiteral("libx264")))
         return {QStringLiteral("-c:v"), QStringLiteral("libx264"),
                 QStringLiteral("-preset"), QStringLiteral("ultrafast"),
                 QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
-    if (GifRecorder::encoderUsable(QStringLiteral("libopenh264")))
+    if (FfmpegUtil::encoderUsable(QStringLiteral("libopenh264")))
         return {QStringLiteral("-c:v"), QStringLiteral("libopenh264"),
                 QStringLiteral("-pix_fmt"), QStringLiteral("yuv420p")};
     return {QStringLiteral("-c:v"), QStringLiteral("mpeg4"),
@@ -2833,7 +2890,8 @@ static QString cursorOverlayCheck()
             return QStringLiteral("FAIL (cursor alpha double-premultiplied: %1, want ~128)").arg(v);
     }
 
-    const bool meta = ScreenCastSession::availableCursorModes() & ScreenCastSession::CursorMetadata;
+    const bool meta = ScreenCastSession::availableCursorModes()
+                      & uint(ScreenCastSession::CursorMode::Metadata);
     return QStringLiteral("PASS (portal metadata cursor: %1, clicks: %2)")
         .arg(meta ? QStringLiteral("yes") : QStringLiteral("NO - would fall back to embedded"),
              InputPermission::probe() == InputPermission::Available
@@ -2904,6 +2962,22 @@ void AppContext::devTestAutoRestart()
     const QString b = autoRestartBlockers();
     showToast(b.isEmpty() ? tr("Dev: auto-restart gate: idle - an installed update would restart now")
                           : tr("Dev: auto-restart gate: deferred (%1)").arg(b));
+}
+
+void AppContext::devTestInstallerUpdate()
+{
+    if (!devBuild())
+        return;
+    // Dry-run only: fetches + validates install.sh and detects a terminal, but
+    // never spawns one or installs anything (a dev build can't self-install).
+    // installKind() is "system" && dev, so canInstallViaScript is false here —
+    // the dry-run deliberately ignores that gate to exercise the machinery.
+    showToast(tr("Dev: installer update: checking…"));
+    m_updater->verifyInstallerReady([this](bool ok, const QString &detail) {
+        showToast(ok ? tr("Dev: installer update: PASS (%1)").arg(detail)
+                     : tr("Dev: installer update: FAIL (%1)").arg(detail),
+                  !ok);
+    });
 }
 
 QString AppContext::autoRestartBlockers() const
@@ -3417,6 +3491,37 @@ void AppContext::devTestShowInFolder()
     showToast(tr("Dev: show in folder: check the file is selected in the file manager"));
 }
 
+void AppContext::devTestKWinRecord()
+{
+    if (!devBuild())
+        return;
+#ifdef HAVE_KWIN_SCREENCAST
+    if (!capKWinRecord()) {
+        showToast(tr("Dev: KWin record: interface not granted (desktop file / not KWin)"), true);
+        return;
+    }
+    QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    auto *stream = kwinScreencastProbe()->createOutputStream(
+        screen, KWinScreencasting::Embedded);
+    if (!stream) {
+        showToast(tr("Dev: KWin record: stream request failed"), true);
+        return;
+    }
+    connect(stream, &KWinScreencastStream::created, this, [this, stream](quint32 node) {
+        showToast(tr("Dev: KWin record OK - PipeWire node %1, no portal dialog").arg(node));
+        stream->deleteLater(); // closing the object ends the cast
+    });
+    connect(stream, &KWinScreencastStream::failed, this, [this, stream](const QString &e) {
+        showToast(tr("Dev: KWin record failed: %1").arg(e), true);
+        stream->deleteLater();
+    });
+#else
+    showToast(tr("Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)"), true);
+#endif
+}
+
 void AppContext::devTestRecordBorder()
 {
     if (!devBuild())
@@ -3896,6 +4001,13 @@ void AppContext::runSmokeTest()
                  + (recordingAvailable() ? QStringLiteral("PASS")
                     : capPipeWireBuild() ? QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")
                                          : QStringLiteral("SKIP (built without PipeWire)")));
+#ifdef HAVE_KWIN_SCREENCAST
+        smokeLog(QStringLiteral("KWin native record: ")
+                 + (capKWinRecord() ? QStringLiteral("PASS (zkde_screencast bound - no portal dialog)")
+                                    : QStringLiteral("SKIP (not KWin, or desktop file lacks the grant)")));
+#else
+        smokeLog(QStringLiteral("KWin native record: SKIP (built without qtwayland/plasma-wayland-protocols)"));
+#endif
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2 -> %3")
                  .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
                       (capNativeNotification() || capCustomNotification()) ? "PASS" : "FAIL"));
@@ -4035,8 +4147,8 @@ void AppContext::runSmokeTest()
                      .arg(m_vaapiAvailable ? "y" : "n", m_nvencAvailable ? "y" : "n"));
         smokeLog(QStringLiteral("encoder auto→%1 (nvenc works=%2, vaapi works=%3)")
                      .arg(m_recorder ? m_recorder->resolvedVideoEncoder() : QStringLiteral("?"),
-                          GifRecorder::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
-                          GifRecorder::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
+                          FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
+                          FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
         if (!perAppAudioAvailable())
             smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
         else
@@ -4726,6 +4838,17 @@ void AppContext::runSmokeTest()
                                         r.updateAvailable ? QStringLiteral("update available")
                                                           : QStringLiteral("up to date"))
                              : QStringLiteral("SKIP (network: %1)").arg(r.error)));
+            smokeNext();
+        });
+    });
+
+    // 5d) native "Install now" via install.sh: dry-run the fetch + terminal
+    // detection (never spawns a terminal or installs). Offline is a SKIP.
+    m_smokeSteps.append([this] {
+        m_updater->verifyInstallerReady([this](bool ok, const QString &detail) {
+            smokeLog(QStringLiteral("installer update: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(detail)
+                           : QStringLiteral("SKIP (%1)").arg(detail)));
             smokeNext();
         });
     });
@@ -5710,7 +5833,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), path,
                  QStringLiteral("-vf"),
-                 range + QLatin1Char(',') + GifRecorder::gifPaletteGenFilter(quality),
+                 range + QLatin1Char(',') + FfmpegUtil::gifPaletteGenFilter(quality),
                  palette},
                 [this, path, output, palette, range, quality](bool ok, const QString &diagnostic) {
         if (!ok) {
@@ -5724,7 +5847,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
                      QStringLiteral("-i"), palette,
                      QStringLiteral("-lavfi"),
                      QStringLiteral("[0:v]%1[x];[x][1:v]%2")
-                         .arg(range, GifRecorder::gifPaletteUseFilter(quality)),
+                         .arg(range, FfmpegUtil::gifPaletteUseFilter(quality)),
                      output},
                     [this, output, palette](bool ok2, const QString &diagnostic2) {
             QFile::remove(palette);
@@ -5794,14 +5917,14 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-row-mt") << QStringLiteral("1");
         } else if (m_settings->videoEncoder() == QLatin1String("vaapi")
-                   && GifRecorder::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
+                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"))) {
             args << QStringLiteral("-vaapi_device") << QStringLiteral("/dev/dri/renderD128")
                  << QStringLiteral("-vf") << evenCrop + QStringLiteral(",format=nv12,hwupload")
                  << QStringLiteral("-c:v") << QStringLiteral("h264_vaapi")
                  << QStringLiteral("-qp") << QString::number(qBound(1, crf, 40))
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         } else if (m_settings->videoEncoder() == QLatin1String("nvenc")
-                   && GifRecorder::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
+                   && FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"))) {
             args << QStringLiteral("-vf") << evenCrop
                  << QStringLiteral("-c:v") << QStringLiteral("h264_nvenc")
                  << QStringLiteral("-preset") << QStringLiteral("p4")
@@ -5809,7 +5932,7 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
                  << QStringLiteral("-b:v") << QStringLiteral("0")
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
-        } else if (GifRecorder::encoderUsable(QStringLiteral("libx264"))) {
+        } else if (FfmpegUtil::encoderUsable(QStringLiteral("libx264"))) {
             args << QStringLiteral("-vf") << evenCrop
                  << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("veryfast")
@@ -7537,6 +7660,12 @@ void AppContext::setupTray()
         // The new version is already swapped in — one click finishes the job.
         menu->addAction(tr("Restart to update to Unisic %1").arg(m_updater->latestVersion()),
                         m_updater, &UpdateChecker::restartNow);
+        menu->addSeparator();
+    } else if (m_updater && m_updater->updateAvailable()
+               && m_updater->canInstallViaScript()) {
+        // Native package: one click runs install.sh in a terminal (sudo there).
+        menu->addAction(tr("Install update to Unisic %1").arg(m_updater->latestVersion()),
+                        m_updater, &UpdateChecker::installViaScript);
         menu->addSeparator();
     } else if (m_updater && m_updater->updateAvailable()) {
         // Persistent counterpart of the one-shot update toast — a tray-dwelling

@@ -149,15 +149,13 @@ session_kind() {
     else echo other; fi
 }
 
-# On X11, screenshots work but screen recording does not — say so plainly so a
-# missing feature is never mistaken for a bug.
+# On X11 everything works: screenshots via the portal/KWin, screen recording via
+# X11's own XShm grab, and global hotkeys (KGlobalAccel on KDE, XGrabKey
+# elsewhere). Confirm it so an X11 user is not left guessing.
 x11_notice() {
     printf '\n'
-    warn "You are using an X11 session — one Unisic feature will not work here."
-    printf '    \033[32m+\033[0m Screenshots, annotation, and uploading work normally.\n'
-    printf '    \033[31mx\033[0m Screen recording (video and GIF) will NOT work on X11.\n'
-    printf '    To record your screen, log out and pick a \033[1mWayland\033[0m session on the\n'
-    printf '    login screen (often a small gear icon), then start Unisic there.\n'
+    printf '    \033[32m+\033[0m X11 session detected - screenshots, annotation, uploading,\n'
+    printf '      screen recording (video and GIF) and global hotkeys all work here.\n'
 }
 
 # Extract every browser_download_url from a release JSON blob on stdin, then

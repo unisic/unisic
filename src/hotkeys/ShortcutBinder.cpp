@@ -1,5 +1,5 @@
 #include "ShortcutBinder.h"
-#include "ShortcutKeyMap.h"
+#include "hotkeys/ShortcutKeyMap.h"
 
 #include <QProcess>
 #include <QStandardPaths>

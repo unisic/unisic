@@ -135,6 +135,7 @@ deps)
     sudo dnf install -y cmake ninja-build gcc-c++ \
         qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-linguist \
         pipewire-devel wl-clipboard rsync \
+        libX11-devel libXext-devel libXfixes-devel \
         rpm-build dpkg
     # ffmpeg: plain Fedora ships ffmpeg-free; RPM Fusion systems have ffmpeg.
     sudo dnf install -y ffmpeg-free || sudo dnf install -y ffmpeg

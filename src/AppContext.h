@@ -35,6 +35,7 @@ class CaptureManager;
 class OverlayController;
 class GlobalHotkeys;
 class PortalGlobalShortcuts;
+class X11Hotkeys;
 class GifRecorder;
 class OcrEngine;
 class AnnotationCanvas;
@@ -76,6 +77,14 @@ class AppContext : public QObject
     // those desktops with no screen-cast portal in sight.
     Q_PROPERTY(bool capPipeWireBuild READ capPipeWireBuild CONSTANT)
     Q_PROPERTY(bool capScreenCastPortal READ capScreenCastPortal NOTIFY recordingAvailableChanged)
+    // X11 session: frames come from XShm instead of the ScreenCast portal, so
+    // recording works on desktops that ship no portal backend at all (Cinnamon,
+    // MATE, XFCE on Xorg). CONSTANT: the QPA platform is fixed for the process.
+    Q_PROPERTY(bool capX11Capture READ capX11Capture CONSTANT)
+    // Window-source recording still needs the portal (or KWin) window picker -
+    // the X11 backend grabs a monitor rect and has no window source, so the
+    // Window button must stay disabled on an X11-only desktop.
+    Q_PROPERTY(bool capRecordWindowSource READ capRecordWindowSource NOTIFY recordingAvailableChanged)
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
@@ -185,6 +194,8 @@ public:
     bool recordingAvailable() const;
     bool capPipeWireBuild() const;
     bool capScreenCastPortal() const;
+    bool capX11Capture() const;
+    bool capRecordWindowSource() const;
     bool trayAvailable() const { return m_tray != nullptr; }
     bool shortcutRecording() const { return m_shortcutRecording; }
     bool layerShellActive() const { return m_layerNotifier != nullptr; }
@@ -264,6 +275,8 @@ public:
     // request an output stream of the cursor's screen, report the node id (or
     // the failure), close it. Non-interactive.
     Q_INVOKABLE void devTestKWinRecord();
+    Q_INVOKABLE void devTestX11Record();
+    Q_INVOKABLE void devTestX11Hotkeys();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
@@ -613,6 +626,7 @@ private:
     int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
+    void bindX11Hotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
@@ -773,7 +787,8 @@ private:
     UpdateChecker *m_updater = nullptr;
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
-    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | ""
+    X11Hotkeys *m_x11hotkeys = nullptr;
+    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm

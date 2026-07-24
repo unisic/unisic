@@ -77,7 +77,6 @@ qt_add_executable(unisic
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
-    src/hotkeys/ShortcutKeyMap.h
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
     src/update/VersionCompare.h
@@ -152,6 +151,9 @@ if(LIBINPUT_FOUND AND LIBUDEV_FOUND)
 else()
     message(WARNING "libinput/libudev not found — click capture (ClickCapture) will be unavailable")
 endif()
+
+# Native X11 global hotkeys (X11Hotkeys) live in unisic-kit next to the X11 frame
+# grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
 
 if(TESSERACT_FOUND)
     target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
@@ -405,11 +407,13 @@ if(BUILD_TESTING)
 
     qt_add_executable(unisic_shortcut_binder_test
         tests/ShortcutBinderTest.cpp
-        src/hotkeys/ShortcutKeyMap.h
+        external/unisic-kit/src/hotkeys/ShortcutKeyMap.h
         src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     )
     target_link_libraries(unisic_shortcut_binder_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-    target_include_directories(unisic_shortcut_binder_test PRIVATE src/hotkeys)
+    # ShortcutKeyMap.h moved into the kit; ShortcutBinder includes it by kit path.
+    target_include_directories(unisic_shortcut_binder_test
+        PRIVATE src/hotkeys external/unisic-kit/src)
     add_test(NAME unisic_shortcut_binder_test COMMAND unisic_shortcut_binder_test)
 
     qt_add_executable(unisic_version_compare_test

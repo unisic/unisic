@@ -13,6 +13,13 @@
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
+#ifdef HAVE_X11_HOTKEYS
+#include "hotkeys/X11Hotkeys.h"
+#endif
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+#include "record/X11ShmGrabber.h"
+#include <QThread>
+#endif
 #include "record/GifRecorder.h"
 #include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
@@ -461,10 +468,31 @@ bool AppContext::recordingAvailable() const
     // Compile-time PipeWire support AND a runtime ScreenCast portal backend —
     // Cinnamon/MATE/XFCE (-xapp) and LXQt ship none, so the record UI must say
     // so instead of failing with a raw D-Bus error.
-    return m_screenCastPortalPresent;
+    // On an X11 session the portal is not the only way in: XShm grabs the
+    // monitor directly, which is exactly how those portal-less desktops record.
+    return m_screenCastPortalPresent || capX11Capture();
 #else
     return false;
 #endif
+}
+
+bool AppContext::capX11Capture() const
+{
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+    // The X11 grabber feeds the same sampler/encoder pipeline, which is itself
+    // compiled under HAVE_PIPEWIRE - hence both flags, plus an actual X11 session.
+    return QGuiApplication::platformName() == QLatin1String("xcb");
+#else
+    return false;
+#endif
+}
+
+bool AppContext::capRecordWindowSource() const
+{
+    // Window recording is resolved by the portal's window picker (or KWin's).
+    // The X11 backend records a monitor rect and has no window source, so an
+    // X11-only desktop can record screen and region but not a single window.
+    return m_screenCastPortalPresent;
 }
 
 bool AppContext::capPipeWireBuild() const
@@ -1329,6 +1357,14 @@ void AppContext::startVideoRegion()
 void AppContext::startVideoWindow()
 {
     if (recording()) return;
+    // Reachable from the tray menu and the dev pane too, not just the (disabled)
+    // Window button: on an X11-only desktop there is no window picker, so say so
+    // instead of opening a portal session that fails with a raw D-Bus error.
+    if (!capRecordWindowSource()) {
+        showToast(tr("Recording a single window needs a window picker this desktop "
+                     "does not provide - record the screen or a region instead."), true);
+        return;
+    }
     m_pendingRecordRegion = QRect();
     m_pendingRecordScreen = nullptr; // stale target would misplace the countdown
     startRecorderCountdown([this](bool hold) {
@@ -3951,6 +3987,80 @@ static QString fileManager1Check()
     return QStringLiteral("SKIP (no FileManager1 host - falls back to opening the folder)");
 }
 
+// Dev/smoke: exercise the X11 XShm grabber directly - construct it on the
+// primary monitor, grab one frame and verify the tight-packed size. No ffmpeg,
+// so it isolates the new frame source. English status (like the other *Check()).
+static QString x11RecordCheck()
+{
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+    if (QGuiApplication::platformName() != QLatin1String("xcb"))
+        return QStringLiteral("SKIP (not an X11 session)");
+    QScreen *scr = QGuiApplication::primaryScreen();
+    if (!scr)
+        return QStringLiteral("FAIL (no screen)");
+    const qreal dpr = scr->devicePixelRatio();
+    const QRect g = scr->geometry();
+    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
+                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    X11ShmGrabber grab;
+    if (!grab.start(rootRect, 10, false))
+        return QStringLiteral("FAIL (grabber start)");
+    QByteArray frame;
+    const qsizetype expected = qsizetype(rootRect.width()) * rootRect.height() * 4;
+    QElapsedTimer t;
+    t.start();
+    while (t.elapsed() < 1000 && !grab.latestFrame(frame))
+        QThread::msleep(20);
+    const QString fmt = grab.pixelFormat();
+    grab.stop();
+    if (frame.isEmpty())
+        return QStringLiteral("FAIL (no frame in 1s)");
+    if (frame.size() != expected)
+        return QStringLiteral("FAIL (size %1 != %2)").arg(frame.size()).arg(expected);
+    return QStringLiteral("PASS (%1x%2 %3)").arg(rootRect.width()).arg(rootRect.height()).arg(fmt);
+#else
+    return QStringLiteral("SKIP (built without X11 capture)");
+#endif
+}
+
+// Dev/smoke: prove XGrabKey works end-to-end without disturbing the live binds -
+// grab an unlikely scratch combo through a throwaway backend (its destructor
+// ungrabs). Reports the active hotkey backend too.
+static QString x11HotkeysCheck(const QString &backend)
+{
+#ifdef HAVE_X11_HOTKEYS
+    if (!X11Hotkeys::isAvailable())
+        return QStringLiteral("SKIP (not an X11 session)");
+    X11Hotkeys probe;
+    const QVector<X11Hotkeys::Shortcut> one{
+        {QStringLiteral("dev-x11-probe"), QStringLiteral("Ctrl+Alt+Shift+F12")}};
+    probe.bind(one); // conflict on the scratch combo is not our failure
+    return backend == QLatin1String("x11")
+               ? QStringLiteral("PASS (active backend)")
+               : QStringLiteral("PASS (available; active backend: %1)")
+                     .arg(backend.isEmpty() ? QStringLiteral("none") : backend);
+#else
+    Q_UNUSED(backend)
+    return QStringLiteral("SKIP (built without X11 hotkeys)");
+#endif
+}
+
+void AppContext::devTestX11Record()
+{
+    if (!devBuild())
+        return;
+    const QString r = x11RecordCheck();
+    showToast(tr("Dev: X11 record grab: %1").arg(r), r.startsWith(QLatin1String("FAIL")));
+}
+
+void AppContext::devTestX11Hotkeys()
+{
+    if (!devBuild())
+        return;
+    const QString r = x11HotkeysCheck(m_hotkeyBackend);
+    showToast(tr("Dev: X11 hotkeys: %1").arg(r), r.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -3998,9 +4108,16 @@ void AppContext::runSmokeTest()
                  + (capScreenshotCursor() ? QStringLiteral("PASS")
                                           : QStringLiteral("SKIP (portal screenshot has no cursor mode)")));
         smokeLog(QStringLiteral("recording: ")
-                 + (recordingAvailable() ? QStringLiteral("PASS")
+                 + (recordingAvailable()
+                        ? QStringLiteral("PASS (%1)").arg(m_screenCastPortalPresent
+                              ? QStringLiteral("ScreenCast portal")
+                              : QStringLiteral("X11 XShm - no portal needed"))
                     : capPipeWireBuild() ? QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")
                                          : QStringLiteral("SKIP (built without PipeWire)")));
+        smokeLog(QStringLiteral("window record source: ")
+                 + (capRecordWindowSource() ? QStringLiteral("PASS")
+                                            : QStringLiteral("SKIP (no window picker - X11 grabs a monitor)")));
+        smokeLog(QStringLiteral("X11 record grab: ") + x11RecordCheck());
 #ifdef HAVE_KWIN_SCREENCAST
         smokeLog(QStringLiteral("KWin native record: ")
                  + (capKWinRecord() ? QStringLiteral("PASS (zkde_screencast bound - no portal dialog)")
@@ -4068,6 +4185,7 @@ void AppContext::runSmokeTest()
                             : bad == 0 ? QStringLiteral("PASS")
                                        : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
         }
+        smokeLog(QStringLiteral("X11 hotkeys: ") + x11HotkeysCheck(hotkeyBackend()));
         smokeLog(QStringLiteral("desktop shortcuts: ") + desktopShortcutsCheck());
         smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
                  ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
@@ -4908,6 +5026,15 @@ bool AppContext::capNotificationHelper() const
         return true;
     if (m_layerShellAvailable)
         return false;
+    // X11 session: the helper is a plain X11 program, so it works on EVERY X11
+    // WM - muffin/Cinnamon, metacity, xfwm, KWin's X11 backend. There is no
+    // layer-shell on X11, and an in-process fullscreen transparent toplevel is
+    // unredirected (renders black) exactly like on mutter, so the
+    // override-redirect helper is the only way to get the stylized card here.
+    // Checked BEFORE the KWin test on purpose: KWin-on-X11 has no layer-shell
+    // either, so it needs the helper just as much as the others.
+    if (QGuiApplication::platformName() == QLatin1String("xcb"))
+        return qEnvironmentVariableIsSet("DISPLAY");
     if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
         return false;
     auto *bi = QDBusConnection::sessionBus().interface();
@@ -5023,7 +5150,7 @@ bool AppContext::capRecordBorder() const
     if (m_layerShellAvailable)
         return true; // layer-shell overlay: KWin, wlroots, COSMIC…
     if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
-        return true; // X11 session: StaysOnTop + input-transparent work natively
+        return true; // X11 session: the override-redirect helper always works
     // KWin can still host the fullscreen-transparent border without layer-shell.
     auto *bi = QDBusConnection::sessionBus().interface();
     if (bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin")))
@@ -5061,11 +5188,23 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     // physical layout mode) need not match either of ours.
     // UNISIC_RECORD_BORDER=helper forces this path on any compositor (testing).
     const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    // Native X11 session: the SAME helper, and for the same reason. An in-process
+    // fullscreen transparent toplevel is unredirected by every mutter-family WM
+    // (muffin/Cinnamon, metacity, and KWin's X11 backend honours the same
+    // bypass-compositor path), so its transparency is never composited and the
+    // frame shows up black - or not at all. An override-redirect window is
+    // invisible to the WM, so it is never unredirected, never focused and always
+    // stacks on top. The helper is a plain X11 program; on an X11 session it runs
+    // natively rather than through XWayland.
+    // UNISIC_RECORD_BORDER=inprocess forces the QML path back on for testing.
+    const bool x11 = QGuiApplication::platformName() == QLatin1String("xcb")
+                     && qEnvironmentVariable("UNISIC_RECORD_BORDER")
+                            != QLatin1String("inprocess");
     auto *bi = QDBusConnection::sessionBus().interface();
     const bool kwin = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     const bool forceHelper =
         qEnvironmentVariable("UNISIC_RECORD_BORDER") == QLatin1String("helper");
-    if (forceHelper
+    if (forceHelper || x11
         || (wayland && !m_layerShellAvailable && !kwin
             && qEnvironmentVariableIsSet("DISPLAY"))) {
         const qreal hdpr = screen->devicePixelRatio() > 0 ? screen->devicePixelRatio() : 1.0;
@@ -7370,6 +7509,27 @@ void AppContext::defineHotkeys()
 
     const QVector<HotkeyAction> acts = hotkeyActions();
 
+#ifdef HAVE_X11_HOTKEYS
+    // X11 session: XGrabKey is the reliable global-hotkey path on non-KDE X11
+    // (GNOME/Xorg, Xfce), and beats the flaky GlobalShortcuts portal there. On
+    // KDE-X11 KGlobalAccel still owns hotkeys (handled by the branch below), but
+    // UNISIC_HOTKEY_BACKEND=x11 forces this path for testing; =portal opts out.
+    {
+        const QString forced = qEnvironmentVariable("UNISIC_HOTKEY_BACKEND");
+        const bool wantX11 = X11Hotkeys::isAvailable()
+            && (forced == QLatin1String("x11")
+                || (forced != QLatin1String("portal") && !m_hotkeys->available()));
+        if (wantX11) {
+            m_x11hotkeys = new X11Hotkeys(this);
+            connect(m_x11hotkeys, &X11Hotkeys::activated, this, &AppContext::dispatchHotkey);
+            m_hotkeyBackend = QStringLiteral("x11");
+            bindX11Hotkeys();
+            emit hotkeysAvailableChanged();
+            return;
+        }
+    }
+#endif
+
     if (m_hotkeys->available()) {
         m_hotkeyBackend = QStringLiteral("kglobalaccel");
         for (const HotkeyAction &a : acts)
@@ -7502,12 +7662,39 @@ void AppContext::bindPortalHotkeys()
     m_portalHotkeys->bind(list);
 }
 
+// Grab the whole set through XGrabKey (X11 session). Re-grabs everything (the
+// backend has no per-action rebind); a key another client owns is surfaced as a
+// conflict toast, mirroring the KGlobalAccel path.
+void AppContext::bindX11Hotkeys()
+{
+#ifdef HAVE_X11_HOTKEYS
+    if (!m_x11hotkeys)
+        return;
+    QVector<X11Hotkeys::Shortcut> list;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts)
+        list.append({a.id, a.keys});
+    // Fixed emergency stop, same key the other backends reserve.
+    list.append({QStringLiteral("stop-recording"), QStringLiteral("Ctrl+Escape")});
+    const QStringList conflicts = m_x11hotkeys->bind(list);
+    if (!conflicts.isEmpty()) {
+        qWarning().noquote() << "X11 hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
+        showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
+                     "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
+    }
+#endif
+}
+
 // Push ONE action's stored key to the system. KGlobalAccel: setShortcut with
 // SetPresent|NoAutoloading, conflict surfaced as a toast + the daemon's actual
 // key synced back into the UI. Portal: re-bind the whole set (the portal has
 // no per-shortcut rebind; unchanged sets don't re-prompt on KDE/GNOME).
 void AppContext::applyHotkey(const QString &actionId)
 {
+    if (m_hotkeyBackend == QLatin1String("x11")) {
+        bindX11Hotkeys();
+        return;
+    }
     if (m_portalHotkeys && m_hotkeyBackend == QLatin1String("portal")) {
         bindPortalHotkeys();
         return;
@@ -7535,6 +7722,10 @@ void AppContext::applyHotkey(const QString &actionId)
 // stored keys are the user's intent here, so all five are asserted.
 void AppContext::applyHotkeys()
 {
+    if (m_hotkeyBackend == QLatin1String("x11")) {
+        bindX11Hotkeys();
+        return;
+    }
     if (m_portalHotkeys && m_hotkeyBackend == QLatin1String("portal")) {
         bindPortalHotkeys();
         return;

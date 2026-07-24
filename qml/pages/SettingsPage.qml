@@ -2486,6 +2486,8 @@ Item {
                               ? qsTr("Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1's keyboard settings.").arg(App.desktopShortcutName)
                               : App.hotkeyBackend === "portal"
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
+                              : App.hotkeyBackend === "x11"
+                              ? qsTr("Registered directly with the X server (XGrabKey) for this X11 session. Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                               : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -2568,6 +2570,8 @@ Item {
                               ? qsTr("Changing a key here updates the stored shortcut; press “Add shortcuts to %1” to write it into the desktop.").arg(App.desktopShortcutName)
                               : App.hotkeyBackend === "portal"
                               ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
+                              : App.hotkeyBackend === "x11"
+                              ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -2818,6 +2822,13 @@ Item {
                                color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
+                        label: qsTr("X11 screen capture")
+                        help: qsTr("Whether recording can grab frames directly from the X server.")
+                        helpDetail: qsTr("Needs an X11 session (xcb platform) and a build with libX11/libXext/libXfixes. On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
+                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capX11Capture ? "✓" : "-"
+                               color: App.capX11Capture ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
+                    }
+                    SettingRow {
                         label: qsTr("Video preview")
                         help: qsTr("Whether the trim editor can show a live video preview.")
                         helpDetail: qsTr("Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.")
@@ -2919,6 +2930,8 @@ Item {
                         UButton { compact: true; variant: "danger"; text: qsTr("Stop recording"); onClicked: App.stopRecording() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("KWin native record probe"); onClicked: App.devTestKWinRecord() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("X11 record grab"); onClicked: App.devTestX11Record() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("X11 hotkeys probe"); onClicked: App.devTestX11Hotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }

@@ -3,7 +3,7 @@
 #include <QFile>
 #include <QDir>
 
-#include "ShortcutKeyMap.h"
+#include "hotkeys/ShortcutKeyMap.h"
 #include "ShortcutBinder.h"
 
 using namespace ShortcutBinder;

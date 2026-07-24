@@ -76,7 +76,8 @@ jobs:
             qt6-tools-dev qt6-l10n-tools \
             libpipewire-0.3-dev \
             libtesseract-dev libleptonica-dev libzxing-dev \
-            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev
+            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev \
+            libx11-dev libxext-dev libxfixes-dev libxcb1-dev
 
       - uses: actions/checkout@v4
         with:
@@ -124,7 +125,8 @@ jobs:
             qt6-qttools-devel \
             pipewire-devel \
             tesseract-devel leptonica-devel zxing-cpp-devel \
-            layer-shell-qt-devel wayland-devel
+            layer-shell-qt-devel wayland-devel \
+            libX11-devel libXext-devel libXfixes-devel libxcb-devel
 
       - uses: actions/checkout@v4
         with:
@@ -166,7 +168,7 @@ jobs:
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kguiaddons
+            kguiaddons libx11 libxext libxfixes libxcb
 
       - uses: actions/checkout@v4
         with:

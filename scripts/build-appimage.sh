@@ -53,6 +53,7 @@ if ! command -v patchelf >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; 
         python3 python3-pip \
         cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
         libfontconfig1-dev libfreetype-dev \
+        libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
         libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
         libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
         libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \

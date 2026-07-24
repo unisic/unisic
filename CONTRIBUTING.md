@@ -21,7 +21,8 @@ Needs **Qt 6.5+**, CMake and Ninja.
 ```sh
 sudo dnf install -y cmake ninja-build gcc-c++ \
     qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-    pipewire-devel kf6-kguiaddons-devel ffmpeg wl-clipboard xdg-desktop-portal
+    pipewire-devel kf6-kguiaddons-devel ffmpeg wl-clipboard xdg-desktop-portal \
+    libX11-devel libXext-devel libXfixes-devel libxcb-devel
 ```
 
 **Debian / Ubuntu** (trixie / 24.10+ for Qt 6.5+)
@@ -29,14 +30,16 @@ sudo dnf install -y cmake ninja-build gcc-c++ \
 ```sh
 sudo apt install cmake ninja-build g++ pkg-config \
     qt6-base-dev qt6-declarative-dev libqt6svg6-dev qt6-wayland \
-    libpipewire-0.3-dev libkf6guiaddons-dev ffmpeg wl-clipboard xdg-desktop-portal
+    libpipewire-0.3-dev libkf6guiaddons-dev ffmpeg wl-clipboard xdg-desktop-portal \
+    libx11-dev libxext-dev libxfixes-dev libxcb1-dev
 ```
 
 **Arch**
 
 ```sh
 sudo pacman -S --needed base-devel qt6-base qt6-declarative qt6-svg qt6-wayland \
-    pipewire kguiaddons ffmpeg wl-clipboard xdg-desktop-portal cmake ninja pkgconf
+    pipewire kguiaddons ffmpeg wl-clipboard xdg-desktop-portal cmake ninja pkgconf \
+    libx11 libxext libxfixes libxcb
 ```
 
 **Build & run**
@@ -47,7 +50,7 @@ cmake --build build
 ./build/unisic
 ```
 
-PipeWire, Tesseract, zxing-cpp, LayerShellQt and KF6GuiAddons dev packages are all optional — each feature it powers compiles out gracefully when its dependency is absent. `kf6-kguiaddons-devel` / `libkf6guiaddons-dev` / `kguiaddons` (KSystemClipboard) is what lets copied screenshots enter KDE Plasma's Klipper clipboard **history**; without it images still copy and paste, they just aren't recorded in the applet.
+PipeWire, Tesseract, zxing-cpp, LayerShellQt, KF6GuiAddons and the X11 dev packages are all optional - each feature it powers compiles out gracefully when its dependency is absent. The X11 ones are two independent gates: `libX11` + `libXext` + `libXfixes` enable `HAVE_X11` (XShm screen recording on an X11 session), `libX11` + `libxcb` enable `HAVE_X11_HOTKEYS` (`XGrabKey` global hotkeys there). Leave either out and the build still works, it just falls back to the Wayland-only behavior for that path. `kf6-kguiaddons-devel` / `libkf6guiaddons-dev` / `kguiaddons` (KSystemClipboard) is what lets copied screenshots enter KDE Plasma's Klipper clipboard **history**; without it images still copy and paste, they just aren't recorded in the applet.
 
 ## Development approach
 

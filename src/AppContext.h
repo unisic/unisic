@@ -105,6 +105,11 @@ class AppContext : public QObject
     // The portal's metadata cursor mode, which the recording cursor overlay is
     // built on. Optional in the ScreenCast spec, so it can be absent.
     Q_PROPERTY(bool capCursorMetadata READ capCursorMetadata CONSTANT)
+    // KWin-native screencasting (zkde_screencast): recordings start without the
+    // portal share dialog — the app names the source itself. False off KWin,
+    // when built without qtwayland/plasma-wayland-protocols, or when the
+    // installed desktop file does not carry the X-KDE-Wayland-Interfaces grant.
+    Q_PROPERTY(bool capKWinRecord READ capKWinRecord CONSTANT)
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
     Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
@@ -148,6 +153,7 @@ class AppContext : public QObject
     // ("dev" for local builds) + git-commit date of the built state
     // (YYYYMMDD-HHMM, empty when unknown). Shown in the sidebar footer.
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString changelogVersion READ changelogVersion CONSTANT)
     Q_PROPERTY(QString buildNumber READ buildNumber CONSTANT)
     Q_PROPERTY(QString buildDate READ buildDate CONSTANT)
     // True until the user opens the release notes for the RUNNING version: drives
@@ -200,6 +206,7 @@ public:
     bool capDoNotDisturb() const;
     bool capScreenshotCursor() const;
     bool capCursorMetadata() const;
+    bool capKWinRecord() const;
     // Whether click ripples can be captured here: "" when they can, else a
     // ready-to-show reason (no libinput at build time, or no /dev/input access).
     Q_INVOKABLE QString clickCaptureBlockedReason() const;
@@ -253,6 +260,10 @@ public:
     Q_INVOKABLE void devTestClipboardHistory();
     Q_INVOKABLE void devTestShowInFolder();
     Q_INVOKABLE void devTestRecordBorder();
+    // Probe the KWin-native screencast path end to end without recording:
+    // request an output stream of the cursor's screen, report the node id (or
+    // the failure), close it. Non-interactive.
+    Q_INVOKABLE void devTestKWinRecord();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
@@ -306,6 +317,7 @@ public:
     Q_INVOKABLE void devTestZipExport();
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
+    Q_INVOKABLE void devTestInstallerUpdate();
     Q_INVOKABLE void devTestCountdown();
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
@@ -342,11 +354,16 @@ public:
     // In the .cpp: the generated unisic_build_date.h changes on every commit —
     // including it here would recompile every AppContext.h dependent each time.
     QString buildDate() const;
-    // Release notes (markdown) for the RUNNING version in `lang` ("en"/"pl"):
-    // the `### English`/`### Polski` block of the bundled CHANGELOG.md section
-    // whose `##` heading matches appVersion(). Empty when there is no such entry.
+    // Release notes (markdown) in `lang` ("en"/"pl"): the `### English`/
+    // `### Polski` block of the bundled CHANGELOG.md section whose `##`
+    // heading matches changelogVersion(). Empty when there is no such entry.
     // Shown when the user clicks the version label.
     Q_INVOKABLE QString changelog(const QString &lang) const;
+    // The version whose section changelog() returns — appVersion() in a
+    // release build. A dev build shows the TOP (newest) section instead: work
+    // for the next release accumulates under its future heading, which would
+    // otherwise stay invisible in-app until the version bump.
+    QString changelogVersion() const;
     bool patchNotesUnseen() const { return m_settings->lastSeenVersion() != appVersion(); }
     // Record the running version as seen so the hint stops (idempotent).
     Q_INVOKABLE void markPatchNotesSeen();
@@ -548,6 +565,9 @@ signals:
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
+    // A native-package update was discovered and can be installed via the
+    // install.sh-in-a-terminal path — QML opens the "Install now?" prompt.
+    void installerUpdatePromptRequested(const QString &version);
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);

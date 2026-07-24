@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Effects
 import Unisic
+import Unisic.Kit
 import "components"
 
 Window {

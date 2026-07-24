@@ -61,6 +61,8 @@ cmake --build build
 - New optional features that need a heavy dep must follow the `HAVE_PIPEWIRE`/`HAVE_TESSERACT` compile-time-guard pattern so the default build stays lean.
 - Keep `CPACK_STRIP_FILES` working; don't add anything that bloats the shipped binary or the Debian/RPM/Arch/AppImage runtime dep lists in `CMakeLists.txt` / `packaging/` without updating them.
 
+**End-user install path (`scripts/install.sh`).** Separate from building from source: a self-contained bash installer aimed at Linux newcomers, **TUI-only (no CLI)** by design. Run it (`bash <(curl -fsSL …/scripts/install.sh)`, or `curl … | bash` — the menu reads `/dev/tty` so a pipe still works) and it opens a **btop-style bordered arrow-key menu** in the terminal's **alternate-screen buffer**: the whole run — menu AND the install's own output — happens in that window, and leaving it restores the terminal to the command line, so only a final thank-you remains. It is one morphing menu whose main screen offers **Install or update / Settings / Remove / Quit** under a green install-status line (`installed_status()` — installed version + auto-update state, or "not installed yet"); each of the first three opens a submenu — Install (recommended install, portable install, "install a specific version" → version picker), Settings (auto-updates timer toggle + pre-release toggle, both flip in place), Remove (uninstall, uninstall+purge). Full-redrawn in place; `q`/Esc backs out one level (submenu → main, version picker → Install); `_draw` renders a rounded box; `die()`/`_cleanup` leave the alt screen before printing so errors survive. The single non-interactive entry is the private `--self-update <appimage|tarball|native> <prefix> [pre]` — the systemd-user auto-update timer invokes the portable channels, and Unisic's in-app "Install now" (native `/usr` package installs, which can't self-update in place; `UpdateChecker::installViaScript` → `AppContext`/`UUpdatePrompt`) invokes `native` inside a terminal it spawns so the `sudo` password prompt is visible. There are **no user-facing flags**. It auto-detects the distro and installs the matching release asset — `.deb` (apt), `.fedora.x86_64.rpm` (**Fedora only** — QML links Qt PRIVATE symbols so the rpm is Qt-minor-locked; openSUSE gets the OBS zypper repo, never the rpm), `.pkg.tar.zst` (pacman) — while **atomic/immutable** desktops (Silverblue/Bazzite/…, `/run/ostree-booted`) and no-native-package distros get the self-updating AppImage or portable tarball in `~/.local` (no password). Native packages self-register their OBS/COPR update repo, so re-running == updating; the menu also uninstalls (± delete settings), installs older versions, and toggles the auto-update timer + pre-releases. It detects the session and warns X11 users after install that **screen recording is Wayland-only** (screenshots and everything else work; recording is the PipeWire ScreenCast portal in `src/record`, no X11 path). Keep it in sync when release-asset names, update repos, or supported distros/channels change. Test with `bash -n scripts/install.sh` and the private `--self-update <tarball> <tmpdir>` path (a real download+unpack, no root); the menu itself is driven via a pseudo-terminal. Not covered by `ctest`.
+
 ---
 
 ## 4. Repository map
@@ -114,6 +116,13 @@ qml/
 resources/icons/sym/   Bundled monochrome SVGs recolored by IconImageProvider.
 packaging/             Arch PKGBUILD (+ Debian/RPM via CPack in CMakeLists).
 .github/               release.yml workflow, issue templates.
+scripts/               install.sh — END-USER universal installer/updater (NOT the build; see §3).
+                       Auto-detects distro → right release asset (deb/rpm[Fedora]/pkg.tar.zst/
+                       AppImage/portable tar.gz) or OBS zypper repo; atomic desktops → AppImage.
+                       TUI-ONLY (no CLI): btop-style alt-screen arrow-key menu; whole run lives in
+                       the window, thank-you after. Private --self-update feeds the systemd-user
+                       auto-update timer. Update/uninstall, older-version picker, pre-release toggle.
+                       Warns X11 users that recording is Wayland-only. Also: build-appimage.sh, gen-changelog.sh, vm-test.sh.
 ```
 
 The whole `src/` tree is ~8.9k lines. It is meant to stay comprehensible in an afternoon. If a file balloons, that is a smell — prefer extracting a focused helper over piling onto `AppContext.cpp`.

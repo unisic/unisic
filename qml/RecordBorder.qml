@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import Unisic
+import Unisic.Kit
 
 // Persistent visual marker of the area being recorded (region GIF/video).
 // Fills the screen (geometry set from C++) and is transparent + click-through,

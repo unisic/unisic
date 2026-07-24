@@ -6,6 +6,40 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.7.6
+
+### English
+**Improved**
+- **French translation**: the whole interface is now available in French - added with the help of Anthony Blanchard ([@Lib-LOCALE](https://github.com/Lib-LOCALE)). Pick "Français" in Settings → Language, or let "System" follow a French desktop locale.
+- **A refreshed main window**: the whole window now sits on one dark backdrop, the content floats as a rounded pane lit by a soft accent glow, and the app name sits centered in the styled window decoration. The sidebar groups its pages under small section headers; the version moved into an app card at the bottom (click it for the release notes) next to a Settings gear, which replaces the old Settings entry in the page list.
+- **The main pages rebuilt on one grid**: every option on Capture, Record, GIF, Edit and Servers is now its own bordered card in the same visual language as Settings, tiles and cards line up on a shared full-width grid, and each of those pages fits above the fold at the default window size. Buttons also hold their place: recording controls no longer appear and disappear mid-row, and the capture tiles no longer shift or lift under the pointer - feedback is color only.
+- **Settings search lands on the exact option**: clicking a result switches to the right category, scrolls to the row and marks just that one row with an accent border for a moment - before, every row containing the typed words flashed at once.
+- **A new Settings icon**, redrawn to sit with the rest of the icon set.
+- **Sound cues default to 75% volume** on fresh installs; an already saved volume is left as is.
+- **Recording on KDE Plasma no longer involves the system sharing dialog**: Unisic now records through KWin's native screencasting interface (the same path Spectacle uses), so screen, region and window recordings start immediately - no screen-picker dialog, no "remember this choice" tokens. With several monitors, a full-screen recording captures the monitor the pointer is on. Region recordings are also cropped by the compositor itself instead of recording the whole monitor and cutting it afterwards. On other desktops recording keeps working through the portal exactly as before.
+- **A portable .tar.gz download**: every release now also ships a plain unpack-and-run archive (same bundle as the AppImage, no FUSE and no package manager needed) - for distros where the rpm/deb/Arch packages don't fit. It was also added retroactively to the 0.7.5 release.
+- **Install updates on packaged systems from inside the app**: when a Unisic installed from a .deb/.rpm/Arch package finds a new version, it now offers to install it right away - it opens a terminal and asks for your password to fetch and install the new package, instead of only waiting for your system's next update. AppImage and portable installs keep updating on their own, as before.
+
+**Fixed**
+- **Typing in the Settings search no longer freezes**: the panes it searches through are now built in the background after a short typing pause, instead of all at once on the first keystroke.
+- **The Developer console scrolls independently of the page**: the wheel over the smoke-test log moves only the log, and the page scroll no longer dies when the pointer crosses the console.
+
+### Polski
+**Ulepszone**
+- **Francuska wersja językowa**: cały interfejs jest teraz dostępny po francusku - dodana z pomocą Anthony'ego Blancharda ([@Lib-LOCALE](https://github.com/Lib-LOCALE)). Wybierz „Français" w Ustawienia → Język albo zostaw „System", by podążał za francuskim ustawieniem pulpitu.
+- **Odświeżone okno główne**: całe okno siedzi teraz na jednym ciemnym tle, treść pływa jako zaokrąglony panel z delikatną poświatą akcentu, a nazwa aplikacji jest wyśrodkowana w stylizowanej dekoracji okna. Panel boczny grupuje strony pod małymi nagłówkami sekcji; wersja przeniosła się do karty aplikacji na dole (kliknięcie otwiera nowości) obok zębatki Ustawień, która zastępuje dawną pozycję Ustawienia na liście stron.
+- **Główne strony przebudowane na jednej siatce**: każda opcja na stronach Przechwyć, Nagrywaj, GIF, Edytuj i Serwery jest teraz osobną kartą z obrysem, w tym samym języku wizualnym co Ustawienia; kafelki i karty układają się na wspólnej siatce pełnej szerokości, a każda z tych stron mieści całą zawartość bez przewijania przy domyślnym rozmiarze okna. Przyciski trzymają też swoje miejsce: kontrolki nagrywania nie pojawiają się już i nie znikają w środku rzędu, a kafelki nie przesuwają się ani nie unoszą pod kursorem - reakcja jest wyłącznie kolorem.
+- **Wyszukiwanie w Ustawieniach trafia w dokładnie tę opcję**: kliknięcie wyniku przełącza na właściwą kategorię, przewija do wiersza i na chwilę oznacza tylko ten jeden wiersz akcentowym obrysem - wcześniej migały naraz wszystkie wiersze zawierające wpisane słowa.
+- **Nowa ikona Ustawień**, przerysowana tak, by pasowała do reszty zestawu ikon.
+- **Dźwięki mają domyślnie 75% głośności** przy świeżej instalacji; już zapisana głośność pozostaje bez zmian.
+- **Nagrywanie na KDE Plasma nie przechodzi już przez systemowe okno udostępniania**: Unisic nagrywa teraz przez natywny interfejs przechwytywania KWin (ta sama ścieżka, której używa Spectacle), więc nagrania ekranu, obszaru i okna startują od razu - bez okna wyboru ekranu i bez tokenów „zapamiętaj wybór". Przy kilku monitorach nagranie pełnego ekranu przechwytuje monitor, na którym jest wskaźnik. Nagrania obszaru przycina też sam kompozytor, zamiast nagrywać cały monitor i wycinać obszar po fakcie. Na innych pulpitach nagrywanie działa dalej przez portal, dokładnie jak dotąd.
+- **Przenośny plik .tar.gz do pobrania**: każde wydanie zawiera teraz także zwykłe archiwum rozpakuj-i-uruchom (ten sam zestaw co AppImage, bez FUSE i bez menedżera pakietów) - dla dystrybucji, do których pakiety rpm/deb/Arch nie pasują. Zostało też dodane wstecznie do wydania 0.7.5.
+- **Instalacja aktualizacji na systemach pakietowych z poziomu aplikacji**: gdy Unisic zainstalowany z pakietu .deb/.rpm/Arch wykryje nową wersję, proponuje teraz jej natychmiastową instalację - otwiera terminal i prosi o hasło, aby pobrać i zainstalować nowy pakiet, zamiast tylko czekać na kolejną aktualizację systemu. Instalacje AppImage i przenośne aktualizują się dalej samodzielnie, jak dotąd.
+
+**Naprawione**
+- **Pisanie w wyszukiwarce Ustawień już nie zamraża okna**: przeszukiwane panele budują się teraz w tle po krótkiej przerwie w pisaniu, zamiast wszystkie naraz przy pierwszym znaku.
+- **Konsola w zakładce Developer przewija się niezależnie od strony**: kółko nad logiem testu dymnego porusza wyłącznie log, a przewijanie strony nie umiera już, gdy kursor przetnie konsolę.
+
 ## 0.7.5
 
 ### English

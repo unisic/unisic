@@ -317,6 +317,7 @@ public:
     Q_INVOKABLE void devTestZipExport();
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
+    Q_INVOKABLE void devTestInstallerUpdate();
     Q_INVOKABLE void devTestCountdown();
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
@@ -564,6 +565,9 @@ signals:
     void recordSecondsChanged();
     void toastChanged();
     void showMainWindowRequested();
+    // A native-package update was discovered and can be installed via the
+    // install.sh-in-a-terminal path — QML opens the "Install now?" prompt.
+    void installerUpdatePromptRequested(const QString &version);
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);

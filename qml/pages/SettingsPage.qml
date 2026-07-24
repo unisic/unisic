@@ -932,14 +932,22 @@ Item {
                                 onClicked: App.updater.downloadAndInstall()
                             }
                             UButton {
+                                // Native package: run install.sh in a terminal (sudo there).
+                                visible: App.updater.canInstallViaScript && !App.updater.restartPending
+                                text: qsTr("Install now")
+                                enabled: !App.updater.busy
+                                onClicked: App.updater.installViaScript()
+                            }
+                            UButton {
                                 visible: App.updater.restartPending
                                 text: qsTr("Restart now")
                                 onClicked: App.updater.restartNow()
                             }
                         }
                         Text {
-                            // No self-update path here — the package manager (or, for a
-                            // read-only AppImage, its owner) does the swap.
+                            // No in-place self-update here. Native packages CAN still be
+                            // updated now via install.sh (the "Install now" button above);
+                            // a read-only AppImage needs its owner to swap it.
                             visible: !App.updater.canSelfUpdate
                             width: parent.width
                             wrapMode: Text.WordWrap
@@ -947,7 +955,9 @@ Item {
                                   ? qsTr("Self-update is disabled in dev builds.")
                                   : App.updater.installKind === "appimage"
                                     ? qsTr("The AppImage location is read-only - it can't update itself from here.")
-                                    : qsTr("This install updates natively through your package manager (the package set up its repository).")
+                                    : App.updater.canInstallViaScript
+                                      ? qsTr("\"Install now\" opens a terminal and asks for your password to install the new package. Your package manager will also update it in time.")
+                                      : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
@@ -2980,6 +2990,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Installer update (dry-run)"); onClicked: App.devTestInstallerUpdate() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record countdown"); onClicked: App.devTestCountdown() }

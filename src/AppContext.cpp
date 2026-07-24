@@ -145,10 +145,24 @@ AppContext::AppContext(QObject *parent)
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
+        // Native package install: no silent self-update path, but we CAN offer to
+        // run install.sh in a terminal. Ask instead of toasting — QML opens the
+        // "Install now?" prompt (once per version, gated by updateFound itself).
+        if (m_updater->canInstallViaScript()) {
+            emit installerUpdatePromptRequested(v);
+            return;
+        }
         showToast(m_updater->canSelfUpdate()
                       ? tr("Unisic %1 is available - updating automatically").arg(v)
                       : tr("Unisic %1 is available").arg(v));
     });
+    // The install.sh-in-a-terminal path started (or couldn't): tell the user.
+    connect(m_updater, &UpdateChecker::installerLaunched, this,
+            [this](bool ok, const QString &detail) {
+                showToast(ok ? tr("Opened a terminal to install the update.")
+                             : tr("Couldn't start the update: %1").arg(detail),
+                          !ok);
+            });
     connect(m_updater, &UpdateChecker::installed, this, [this](const QString &v) {
         setupTray(); // the entry flips to "Restart to update"
         if (tryUpdateRestart())
@@ -2950,6 +2964,22 @@ void AppContext::devTestAutoRestart()
                           : tr("Dev: auto-restart gate: deferred (%1)").arg(b));
 }
 
+void AppContext::devTestInstallerUpdate()
+{
+    if (!devBuild())
+        return;
+    // Dry-run only: fetches + validates install.sh and detects a terminal, but
+    // never spawns one or installs anything (a dev build can't self-install).
+    // installKind() is "system" && dev, so canInstallViaScript is false here —
+    // the dry-run deliberately ignores that gate to exercise the machinery.
+    showToast(tr("Dev: installer update: checking…"));
+    m_updater->verifyInstallerReady([this](bool ok, const QString &detail) {
+        showToast(ok ? tr("Dev: installer update: PASS (%1)").arg(detail)
+                     : tr("Dev: installer update: FAIL (%1)").arg(detail),
+                  !ok);
+    });
+}
+
 QString AppContext::autoRestartBlockers() const
 {
     QStringList b;
@@ -4808,6 +4838,17 @@ void AppContext::runSmokeTest()
                                         r.updateAvailable ? QStringLiteral("update available")
                                                           : QStringLiteral("up to date"))
                              : QStringLiteral("SKIP (network: %1)").arg(r.error)));
+            smokeNext();
+        });
+    });
+
+    // 5d) native "Install now" via install.sh: dry-run the fetch + terminal
+    // detection (never spawns a terminal or installs). Offline is a SKIP.
+    m_smokeSteps.append([this] {
+        m_updater->verifyInstallerReady([this](bool ok, const QString &detail) {
+            smokeLog(QStringLiteral("installer update: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(detail)
+                           : QStringLiteral("SKIP (%1)").arg(detail)));
             smokeNext();
         });
     });
@@ -7619,6 +7660,12 @@ void AppContext::setupTray()
         // The new version is already swapped in — one click finishes the job.
         menu->addAction(tr("Restart to update to Unisic %1").arg(m_updater->latestVersion()),
                         m_updater, &UpdateChecker::restartNow);
+        menu->addSeparator();
+    } else if (m_updater && m_updater->updateAvailable()
+               && m_updater->canInstallViaScript()) {
+        // Native package: one click runs install.sh in a terminal (sudo there).
+        menu->addAction(tr("Install update to Unisic %1").arg(m_updater->latestVersion()),
+                        m_updater, &UpdateChecker::installViaScript);
         menu->addSeparator();
     } else if (m_updater && m_updater->updateAvailable()) {
         // Persistent counterpart of the one-shot update toast — a tray-dwelling

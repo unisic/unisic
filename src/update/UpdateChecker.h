@@ -37,6 +37,10 @@ class UpdateChecker : public QObject
     Q_PROPERTY(QString installKind READ installKind CONSTANT)
     // Running from an AppImage whose file (and directory) we can replace.
     Q_PROPERTY(bool canSelfUpdate READ canSelfUpdate CONSTANT)
+    // A native package install under /usr — can't self-update in place, but CAN
+    // be updated now by running install.sh in a spawned terminal (sudo there).
+    // The "Install now" button / prompt only appears when this is true.
+    Q_PROPERTY(bool canInstallViaScript READ canInstallViaScript CONSTANT)
 
 public:
     // Callback payload shared by the smoke test and the dev button.
@@ -58,6 +62,7 @@ public:
     bool restartPending() const { return m_restartPending; }
     QString installKind() const;
     bool canSelfUpdate() const;
+    bool canInstallViaScript() const;
 
     // Automatic policy: first check shortly after startup, then daily. No-op
     // (and stops the timer) on dev builds and while the autoCheckUpdates
@@ -69,6 +74,16 @@ public:
     // trayOnly relaunches hidden — used by the idle auto-restart so an update
     // applied while the app sits in the tray doesn't pop a window.
     Q_INVOKABLE void restartNow(bool trayOnly = false);
+
+    // Native-package "Install now": fetch the canonical install.sh from the repo
+    // to the cache, then open a terminal running it as `--self-update native`,
+    // where its sudo prompt can ask for the password. Fire-and-forget — the
+    // native install completes in that terminal, outside the app; emits
+    // installerLaunched(ok, detail) once the terminal has (or hasn't) started.
+    Q_INVOKABLE void installViaScript();
+    // Dev/smoke dry-run: fetch + validate install.sh and detect a terminal, but
+    // never launch anything. done(ok, humanDetail).
+    void verifyInstallerReady(std::function<void(bool ok, const QString &detail)> done);
 
     // manual=true keeps failures visible in statusText and never toasts;
     // an automatic check additionally emits updateFound (once per version).
@@ -87,6 +102,9 @@ signals:
     void updateFound(const QString &version);
     // The new version is swapped in place; a restart activates it.
     void installed(const QString &version);
+    // The install.sh-in-a-terminal path was (ok=true) or wasn't (ok=false)
+    // started; detail is a short human string (terminal name, or the failure).
+    void installerLaunched(bool ok, const QString &detail);
 
 private:
     QUrl feedUrl() const;
@@ -108,6 +126,26 @@ private:
     // Startup: drop stages the package version has caught up with.
     void cleanStaleStage();
     QNetworkAccessManager *nam();
+
+    // --- native "Install now" via install.sh ---
+    // The canonical raw install.sh URL (env UNISIC_INSTALLER_URL overrides it for
+    // dev/tests, e.g. a file:// path).
+    QUrl installerScriptUrl() const;
+    QString installerCacheDir() const;
+    // Download install.sh to cacheFile; done(ok, error). Validates it looks like
+    // the real installer (a marker line) before reporting ok.
+    void fetchInstallerScript(const QString &cacheFile,
+                              std::function<void(bool ok, const QString &error)> done);
+    // First installed terminal emulator ("" if none), preferring $TERMINAL then
+    // a KDE-first candidate list.
+    static QString detectTerminal();
+    // argv prefix that makes `exe` run a single script path as its command.
+    static QStringList terminalArgv(const QString &exe, const QString &scriptPath);
+    // Write a small wrapper that runs the installer + pauses, then spawn a
+    // terminal on it. Sets m_status and emits installerLaunched.
+    void launchInstallerTerminal(const QString &installerPath);
+
+    bool m_installerBusy = false; // a fetch/launch is in flight
 
     Settings *m_settings;
     QNetworkAccessManager *m_nam = nullptr; // lazy; parented so quit aborts transfers

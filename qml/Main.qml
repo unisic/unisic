@@ -485,6 +485,19 @@ Window {
         version: App.changelogVersion
     }
 
+    // "Install now?" prompt for native package installs (once per version, only
+    // when the app can run install.sh in a terminal). AppContext emits the
+    // request in place of the plain update toast for that install kind.
+    UUpdatePrompt {
+        id: updatePrompt
+    }
+    Connections {
+        target: App
+        function onInstallerUpdatePromptRequested(version) {
+            updatePrompt.openFor(version)
+        }
+    }
+
     // First-run welcome, then the dependency check — never both at once. The
     // welcome always shows on a fresh config (showWelcome latch); the check
     // only when a core optional tool is actually missing, so a fully set-up

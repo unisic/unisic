@@ -26,6 +26,14 @@
 
 static const char *kFeedUrl = "https://api.github.com/repos/unisic/unisic/releases/latest";
 
+// Single-quote a string for safe inclusion in a /bin/bash command line.
+static QString shQuote(const QString &s)
+{
+    QString out = s;
+    out.replace(QLatin1Char('\''), QLatin1String("'\\''"));
+    return QLatin1Char('\'') + out + QLatin1Char('\'');
+}
+
 UpdateChecker::UpdateChecker(Settings *settings, QObject *parent)
     : QObject(parent)
     , m_settings(settings)
@@ -96,6 +104,19 @@ bool UpdateChecker::canSelfUpdate() const
     if (kind == QLatin1String("system"))
         return !QCoreApplication::applicationFilePath().startsWith(QLatin1String("/usr/"));
     return false;
+}
+
+bool UpdateChecker::canInstallViaScript() const
+{
+    // Only the native-package case (the exact inverse of the /usr branch in
+    // canSelfUpdate above): can't swap itself in place, but install.sh can
+    // reinstall the matching .deb/.rpm/.pkg with sudo in a spawned terminal.
+    // AppImage and $HOME-tarball installs already self-update, so they never
+    // take this path; a dev tree must never install a public release over itself.
+    if (QLatin1String(UNISIC_BUILD) == QLatin1String("dev"))
+        return false;
+    return installKind() == QLatin1String("system")
+           && QCoreApplication::applicationFilePath().startsWith(QLatin1String("/usr/"));
 }
 
 void UpdateChecker::startAutoCheck()
@@ -546,4 +567,228 @@ void UpdateChecker::simulateAvailable(const QString &version)
     setAvailable(true);
     emit stateChanged();
     emit updateFound(version); // deliberately skips the once-per-version gate
+}
+
+// ===================================================================
+// Native "Install now" via install.sh (in a spawned terminal for sudo).
+// ===================================================================
+
+QUrl UpdateChecker::installerScriptUrl() const
+{
+    // Env override lets the dev button / smoke test point at a local file:// copy
+    // instead of hitting GitHub.
+    const QString env = qEnvironmentVariable("UNISIC_INSTALLER_URL");
+    if (!env.isEmpty())
+        return QUrl(env);
+    return QUrl(QStringLiteral(
+        "https://raw.githubusercontent.com/unisic/unisic/main/scripts/install.sh"));
+}
+
+QString UpdateChecker::installerCacheDir() const
+{
+    return QStandardPaths::writableLocation(QStandardPaths::CacheLocation)
+           + QStringLiteral("/installer");
+}
+
+void UpdateChecker::fetchInstallerScript(
+    const QString &cacheFile, std::function<void(bool, const QString &)> done)
+{
+    if (!QDir().mkpath(QFileInfo(cacheFile).absolutePath())) {
+        if (done)
+            done(false, tr("cannot create the cache folder"));
+        return;
+    }
+    QNetworkRequest req(installerScriptUrl());
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Unisic/" UNISIC_VERSION " (screenshot tool)"));
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                     QNetworkRequest::NoLessSafeRedirectPolicy);
+    req.setTransferTimeout(30000);
+    QNetworkReply *reply = nam()->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, cacheFile, done] {
+        reply->deleteLater();
+        if (reply->error() != QNetworkReply::NoError) {
+            if (done)
+                done(false, reply->errorString());
+            return;
+        }
+        const QByteArray body = reply->readAll();
+        // Sanity gate: it must be the real installer, not a proxy login page or a
+        // redirect stub. The marker lives in install.sh's header comment (and is
+        // what the script's own auto-update copy check greps for).
+        if (!body.contains("Unisic universal installer")) {
+            if (done)
+                done(false, tr("the downloaded file is not the Unisic installer"));
+            return;
+        }
+        QFile f(cacheFile);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)
+            || f.write(body) != body.size() || !f.flush()) {
+            f.close();
+            if (done)
+                done(false, tr("cannot write %1").arg(cacheFile));
+            return;
+        }
+        f.close();
+        QFile::setPermissions(cacheFile,
+                              QFile::permissions(cacheFile) | QFileDevice::ExeOwner);
+        if (done)
+            done(true, QString());
+    });
+}
+
+QString UpdateChecker::detectTerminal()
+{
+    QStringList candidates;
+    const QString envTerm = qEnvironmentVariable("TERMINAL");
+    if (!envTerm.isEmpty())
+        candidates << envTerm;
+    // KDE Plasma first (Unisic's primary target), then common GTK / Wayland
+    // terminals, X fallbacks last.
+    candidates << QStringLiteral("konsole") << QStringLiteral("gnome-terminal")
+               << QStringLiteral("kgx") << QStringLiteral("ptyxis")
+               << QStringLiteral("tilix") << QStringLiteral("foot")
+               << QStringLiteral("kitty") << QStringLiteral("alacritty")
+               << QStringLiteral("wezterm") << QStringLiteral("xfce4-terminal")
+               << QStringLiteral("mate-terminal") << QStringLiteral("lxterminal")
+               << QStringLiteral("terminator") << QStringLiteral("x-terminal-emulator")
+               << QStringLiteral("xterm");
+    for (const QString &c : std::as_const(candidates)) {
+        // findExecutable resolves both a bare name (via PATH) and an absolute
+        // path (as $TERMINAL may be).
+        if (!QStandardPaths::findExecutable(c).isEmpty())
+            return c;
+    }
+    return QString();
+}
+
+QStringList UpdateChecker::terminalArgv(const QString &exe, const QString &scriptPath)
+{
+    const QString base = QFileInfo(exe).fileName();
+    // `-- <cmd>` flavour (GNOME family).
+    static const QStringList dashDash = {QStringLiteral("gnome-terminal"),
+                                         QStringLiteral("kgx"),
+                                         QStringLiteral("ptyxis")};
+    // Program taken positionally, no flag.
+    static const QStringList positional = {QStringLiteral("foot"),
+                                           QStringLiteral("kitty")};
+    if (base == QStringLiteral("wezterm"))
+        return {QStringLiteral("start"), scriptPath};
+    if (dashDash.contains(base))
+        return {QStringLiteral("--"), scriptPath};
+    if (positional.contains(base))
+        return {scriptPath};
+    // konsole / xterm / alacritty / tilix / xfce4-terminal / mate-terminal /
+    // lxterminal / terminator / x-terminal-emulator and any unknown $TERMINAL:
+    // `-e <script>` works because the script path is a single token.
+    return {QStringLiteral("-e"), scriptPath};
+}
+
+void UpdateChecker::launchInstallerTerminal(const QString &installerPath)
+{
+    const QString term = detectTerminal();
+    const QString exe = term.isEmpty() ? QString() : QStandardPaths::findExecutable(term);
+    if (exe.isEmpty()) {
+        m_status = tr("No terminal program was found to run the installer.");
+        emit stateChanged();
+        emit installerLaunched(false, tr("no terminal found"));
+        return;
+    }
+
+    const QString prefix = QDir::homePath() + QStringLiteral("/.local");
+    const bool beta = m_settings
+                      && m_settings->updateChannel().compare(QLatin1String("beta"),
+                                                             Qt::CaseInsensitive) == 0;
+
+    // A wrapper script (a) keeps the terminal open after the install so the user
+    // can read the outcome, and (b) lets us hand every terminal flavour a single
+    // token instead of an embedded command string.
+    const QString wrapper = installerCacheDir() + QStringLiteral("/run-update.sh");
+    QFile w(wrapper);
+    if (!w.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        m_status = tr("Update failed: cannot write %1").arg(wrapper);
+        emit stateChanged();
+        emit installerLaunched(false, tr("cannot write the helper script"));
+        return;
+    }
+    QString body;
+    body += QStringLiteral("#!/usr/bin/env bash\n");
+    body += QStringLiteral("echo 'Updating Unisic to the latest version...'\n");
+    body += QStringLiteral("echo 'You may be asked for your login password.'\n");
+    body += QStringLiteral("echo\n");
+    body += QStringLiteral("bash %1 --self-update native %2%3\n")
+                .arg(shQuote(installerPath), shQuote(prefix),
+                     beta ? QStringLiteral(" pre") : QString());
+    body += QStringLiteral("status=$?\n");
+    body += QStringLiteral("echo\n");
+    body += QStringLiteral(
+        "if [ \"$status\" -eq 0 ]; then echo 'Update finished. You can close this window.'; "
+        "else echo \"The update did not finish (exit $status). You can close this window.\"; fi\n");
+    body += QStringLiteral("read -rp 'Press Enter to close this window... ' _ || true\n");
+    const QByteArray bytes = body.toUtf8();
+    if (w.write(bytes) != bytes.size() || !w.flush()) {
+        w.close();
+        m_status = tr("Update failed: cannot write %1").arg(wrapper);
+        emit stateChanged();
+        emit installerLaunched(false, tr("cannot write the helper script"));
+        return;
+    }
+    w.close();
+    QFile::setPermissions(wrapper, QFile::permissions(wrapper) | QFileDevice::ExeOwner);
+
+    if (QProcess::startDetached(exe, terminalArgv(exe, wrapper))) {
+        m_status = tr("A terminal opened to install the update - restart Unisic when it finishes.");
+        emit stateChanged();
+        emit installerLaunched(true, QFileInfo(exe).fileName());
+    } else {
+        m_status = tr("Could not open a terminal to run the installer.");
+        emit stateChanged();
+        emit installerLaunched(false, tr("the terminal failed to start"));
+    }
+}
+
+void UpdateChecker::installViaScript()
+{
+    if (!canInstallViaScript()) {
+        emit installerLaunched(false, tr("this install can't be updated this way"));
+        return;
+    }
+    if (m_installerBusy)
+        return;
+    m_installerBusy = true;
+    m_status = tr("Fetching the installer…");
+    emit stateChanged();
+    const QString cacheFile = installerCacheDir() + QStringLiteral("/install.sh");
+    fetchInstallerScript(cacheFile, [this, cacheFile](bool ok, const QString &err) {
+        m_installerBusy = false;
+        if (!ok) {
+            m_status = tr("Update failed: %1").arg(err);
+            emit stateChanged();
+            emit installerLaunched(false, err);
+            return;
+        }
+        launchInstallerTerminal(cacheFile);
+    });
+}
+
+void UpdateChecker::verifyInstallerReady(
+    std::function<void(bool, const QString &)> done)
+{
+    // Dry-run for the dev button / smoke test: exercises the real fetch + the
+    // terminal detection, but launches nothing and needs no native install.
+    const QString term = detectTerminal();
+    const QString cacheFile = installerCacheDir() + QStringLiteral("/install.sh");
+    fetchInstallerScript(cacheFile, [term, done](bool ok, const QString &err) {
+        if (!done)
+            return;
+        if (!ok) {
+            done(false, err);
+            return;
+        }
+        if (term.isEmpty()) {
+            done(false, QStringLiteral("no terminal emulator found"));
+            return;
+        }
+        done(true, QStringLiteral("installer OK, terminal: %1").arg(term));
+    });
 }

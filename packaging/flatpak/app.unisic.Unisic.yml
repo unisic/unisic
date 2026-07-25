@@ -1,0 +1,228 @@
+id: app.unisic.Unisic
+runtime: org.kde.Platform
+runtime-version: "6.11"
+sdk: org.kde.Sdk
+command: unisic
+
+# Every hole here is one Unisic actually uses; the portals cover the rest.
+# Screenshots and screen recording go through xdg-desktop-portal (Screenshot,
+# ScreenCast) and file dialogs through the FileChooser portal, so none of those
+# need a static permission.
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  # X11 session support (XShm capture, the XWayland record-border and
+  # notification helpers). Unisic is Wayland-first but runs on Xorg too.
+  - --socket=fallback-x11
+  # Hardware video encoding (VAAPI/NVENC) and GPU rendering of the overlay.
+  - --device=dri
+  # Upload destinations and the "new version available" check.
+  - --share=network
+  # Sound cues, plus microphone and system audio in recordings.
+  - --socket=pulseaudio
+  # Per-application audio picker enumerates PipeWire nodes. The ScreenCast
+  # stream itself arrives as a portal fd and needs no socket of its own.
+  - --filesystem=xdg-run/pipewire-0
+  # Default save locations (Settings can point elsewhere through the portal).
+  - --filesystem=xdg-pictures:create
+  - --filesystem=xdg-videos:create
+  # Tray icon (StatusNotifierItem) and capture notifications: the filtered
+  # session bus hides both names, which would leave the app with no tray entry
+  # and no feedback after a capture.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Global capture hotkeys on KDE Plasma. Every other desktop goes through
+  # org.freedesktop.portal.GlobalShortcuts, which needs no static permission.
+  - --talk-name=org.kde.kglobalaccel
+  # Self-grants the Screenshot portal permission once, so the overlay freeze
+  # does not raise a portal dialog on every single capture. Spectacle and
+  # Flameshot take the same route; without it a screenshot tool is unusable.
+  - --talk-name=org.freedesktop.impl.portal.PermissionStore
+  # The bundled tesseract resolves language data from /app (the sandbox cannot
+  # see host langpacks, and /app is read-only at runtime).
+  - --env=TESSDATA_PREFIX=/app/share/tessdata
+
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /lib/*.a
+  - /lib/*.la
+  - /share/man
+  - /share/doc
+  # CLI front ends of the bundled libraries; Unisic links the libraries.
+  - /bin/tesseract
+  - /bin/x264
+  # Native-packaging leftovers with no meaning inside the sandbox: the second,
+  # legacy icon name (flatpak only exports app-ID-prefixed files) and the OBS
+  # repository signing key the .deb/.rpm postinst uses.
+  - /share/icons/hicolor/scalable/apps/unisic.svg
+  - /share/unisic/obs-signing-key.asc
+
+modules:
+  # H.264 encoder for MP4 recordings and for the lossless intermediate the GIF
+  # pipeline records into. The runtime's own ffmpeg is built without it (and
+  # without any software H.264 encoder), so MP4 would only work on machines
+  # with a VAAPI-capable GPU. Unisic is GPL-3.0-or-later, so the GPL build of
+  # x264 and ffmpeg is fine here.
+  - name: x264
+    config-opts:
+      - --enable-shared
+      - --disable-cli
+      - --disable-opencl
+    sources:
+      - type: git
+        url: https://code.videolan.org/videolan/x264.git
+        commit: 31e19f92f00c7003fa115047ce50978bc98c3a0d
+        x-checker-data:
+          type: git
+          tag-pattern: ^stable$
+
+  # Unisic drives the ffmpeg CLI: frames piped into an encoder, two-pass
+  # palettegen/paletteuse for GIF, VAAPI for MP4 where the GPU offers it, the
+  # pulse input for microphone and system audio, and the segment muxer for the
+  # instant-replay ring. The default component set is kept deliberately: a
+  # hand-picked --disable-everything list is one forgotten filter away from a
+  # feature that fails at runtime, where nothing here would catch it. Only the
+  # external libraries are chosen.
+  - name: ffmpeg
+    config-opts:
+      - --prefix=/app
+      - --disable-static
+      - --enable-shared
+      - --disable-debug
+      - --disable-doc
+      - --disable-ffplay
+      - --enable-gpl
+      - --enable-version3
+      # H.264 for MP4 and for the lossless libx264rgb intermediate.
+      - --enable-libx264
+      # WebM.
+      - --enable-libvpx
+      - --enable-libopus
+      # Hardware encoding when the GPU has it (--device=dri).
+      - --enable-vaapi
+      # `-f pulse` capture of microphone and system audio.
+      - --enable-libpulse
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-7.1.5.tar.xz
+        sha256: de668509caf9e35e3cd162473441fdb29538c6d96ed080292b3cf9e6fc5d558f
+        x-checker-data:
+          type: anitya
+          project-id: 5405
+          stable-only: true
+          url-template: https://ffmpeg.org/releases/ffmpeg-$version.tar.xz
+
+  # OCR ("copy text out of a region"). Neither leptonica nor tesseract is in
+  # the runtime; without them the app still builds, with OCR compiled out.
+  - name: leptonica
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz
+        sha256: 3745ae3bf271a6801a2292eead83ac926e3a9bc1bf622e9cd4dd0f3786e17205
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DDISABLE_CURL=ON
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.0.tar.gz
+        sha256: f2fb34ca035b6d087a42875a35a7a5c4155fa9979c6132365b1e5a28ebc3fc11
+
+  # Language data for the bundled tesseract. The sandbox cannot read host
+  # langpacks and /app is read-only at runtime, so the shipped languages are
+  # the languages OCR can offer.
+  - name: tessdata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
+      - install -Dm644 pol.traineddata /app/share/tessdata/pol.traineddata
+    sources:
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/pol.traineddata
+        sha256: c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2
+
+  # QR and barcode payloads inside the OCR path.
+  - name: zxing-cpp
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_EXAMPLES=OFF
+      - -DBUILD_BLACKBOX_TESTS=OFF
+      - -DBUILD_UNIT_TESTS=OFF
+    sources:
+      - type: archive
+        url: https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v2.2.1.tar.gz
+        sha256: 02078ae15f19f9d423a441f205b1d1bee32349ddda7467e2c84e8f08876f8635
+
+  # Clipboard reliability on Wayland: copies are mirrored through wl-copy when
+  # it is present, and the runtime does not ship it.
+  - name: wl-clipboard
+    buildsystem: meson
+    config-opts:
+      # Auto-detected completion dirs resolve outside /app and fail to install.
+      - -Dzshcompletiondir=no
+      - -Dfishcompletiondir=no
+    sources:
+      - type: archive
+        url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.2.1.tar.gz
+        sha256: 6eb8081207fb5581d1d82c4bcd9587205a31a3d47bea3ebeb7f41aa1143783eb
+
+  # HAVE_LAYERSHELL: the styled notification card, the capture overlay above
+  # fullscreen windows and the pinned preview. Without it those fall back to
+  # the GNOME paths (XWayland helpers), which also work.
+  - name: layer-shell-qt
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/plasma/6.7.3/layer-shell-qt-6.7.3.tar.xz
+        sha256: 51924fa14d05320eacef8defea51895c96117bc89dd709e74536dd8ecdfb4581
+        x-checker-data:
+          type: anitya
+          project-id: 240630
+          stable-only: true
+          url-template: https://download.kde.org/stable/plasma/$version/layer-shell-qt-$version.tar.xz
+
+  - name: unisic
+    buildsystem: cmake-ninja
+    builddir: true
+    # flatpak-builder runs cmake in a cleaned environment, so the release
+    # defaults are pinned by hand: otherwise CMakeLists.txt flips
+    # UNISIC_DEV_BUILD to ON and the bundle would ship the Developer tab and
+    # the F8 smoke test.
+    build-options:
+      env:
+        UNISIC_BUILD_NUMBER: ""
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DUNISIC_DEV_BUILD=OFF
+    post-install:
+      - install -Dm644 LICENSE /app/share/licenses/app.unisic.Unisic/LICENSE
+    sources:
+      - type: git
+        url: https://github.com/unisic/unisic.git
+        tag: v0.7.5
+        commit: 8d5ec9621ddb8be076f92bc98b684a8d1df74ba9
+        x-checker-data:
+          type: git
+          tag-pattern: ^v([\d.]+)$

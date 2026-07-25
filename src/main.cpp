@@ -501,7 +501,11 @@ static void ensureDesktopFile()
 static void execStagedUpdate(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty())
+        || !qEnvironmentVariable("APPIMAGE").isEmpty()
+        // A flatpak never stages: the bundle is read-only, it is updated by
+        // the flatpak client, and exec'ing a downloaded binary inside the
+        // sandbox is exactly what the store forbids.
+        || qEnvironmentVariableIsSet("FLATPAK_ID"))
         return;
 #ifdef UNISIC_DEV_BUILD
     const QString appName = QStringLiteral("unisic-dev");

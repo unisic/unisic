@@ -1,0 +1,97 @@
+name: Flatpak build
+
+# Guards the Flathub manifest the same way the AppImage workflow guards the
+# AppImage: does the bundle still build, and does it still pass the linter
+# Flathub reviewers run? Nothing is published from here - Flathub builds and
+# publishes from its own repository (flathub/app.unisic.Unisic); this job only
+# proves the manifest in THIS repo is still correct.
+#
+# The manifest builds from a git TAG, so a plain PR would test the last release
+# rather than the change in front of it. `local: true` (the default on
+# pull_request and workflow_dispatch) rewrites that one source to the checked
+# out tree, exactly like `packaging/flatpak/build.sh --local`.
+on:
+  pull_request:
+    paths:
+      - "packaging/flatpak/**"
+      - "resources/app.unisic.Unisic.metainfo.xml"
+      - "resources/app.unisic.Unisic.desktop"
+      - ".github/workflows/flatpak.yml"
+  workflow_dispatch:
+    inputs:
+      local:
+        description: "Build the checked out tree instead of the tag in the manifest"
+        type: boolean
+        required: false
+        default: true
+  workflow_call:
+    inputs:
+      local:
+        type: boolean
+        required: false
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  flatpak:
+    name: Build and lint the Flatpak
+    runs-on: ubuntu-latest
+    # The KDE runtime + SDK and an ffmpeg build from source: this is slow.
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The manifest's `unisic` module pins a tag; --local needs the tree.
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Point the manifest at this checkout
+        if: ${{ inputs.local != false }}
+        run: |
+          python3 - packaging/flatpak/app.unisic.Unisic.yml "$PWD" <<'PY'
+          import re, sys
+          path, root = sys.argv[1], sys.argv[2]
+          text = open(path, encoding="utf-8").read()
+          pat = re.compile(
+              r"( {4}sources:\n)"
+              r"( {6}- type: git\n {8}url: https://github\.com/unisic/unisic\.git\n(?: {8,}.*\n)*)\Z",
+              re.M)
+          if not pat.search(text):
+              raise SystemExit("could not find the unisic git source block to rewrite")
+          open(path, "w", encoding="utf-8").write(
+              pat.sub(lambda m: m.group(1) + f"      - type: dir\n        path: {root}\n", text))
+          print("manifest now builds from", root)
+          PY
+
+      - name: Validate the metainfo
+        run: |
+          appstreamcli validate --pedantic --explain \
+            resources/app.unisic.Unisic.metainfo.xml
+
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: unisic.flatpak
+          manifest-path: packaging/flatpak/app.unisic.Unisic.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          # The submission is checked by the same linter Flathub runs.
+          run-tests: false
+          verbose: false
+
+      - name: Lint the manifest and the built repo
+        run: |
+          flatpak install -y --noninteractive flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            manifest packaging/flatpak/app.unisic.Unisic.yml
+          # `repo` checks what actually landed in the bundle (exported files,
+          # icon and metainfo naming, permissions) - the half a manifest lint
+          # cannot see. Skipped for --local builds, whose version metadata
+          # deliberately does not match a release tag.
+          if [ "${{ inputs.local }}" = "false" ]; then
+            flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+          fi

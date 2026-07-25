@@ -20,6 +20,8 @@
 // the async call just fails, harmlessly.
 static void registerHostAppId()
 {
+    if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
+        return; // sandboxed: the identity comes from the sandbox metadata
     // NOTE: only the INTERFACE name carries the "host" domain — the object
     // lives on the main portal path (verified live on xdg-desktop-portal
     // 1.22: the /org/freedesktop/host/... path returns "Object does not

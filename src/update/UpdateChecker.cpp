@@ -64,9 +64,22 @@ QUrl UpdateChecker::feedUrl() const
 
 QString UpdateChecker::installKind() const
 {
+    if (qEnvironmentVariableIsSet("FLATPAK_ID"))
+        return QStringLiteral("flatpak");
     if (!qEnvironmentVariable("APPIMAGE").isEmpty())
         return QStringLiteral("appimage");
     return QStringLiteral("system");
+}
+
+bool UpdateChecker::updatesManagedExternally() const
+{
+    // The flatpak client owns the update: the bundle is read-only, there is
+    // nothing for us to swap, and Flathub's own rules put updates in the
+    // store's hands. So the app does not even ASK GitHub - a daily request
+    // whose only possible outcome is "go run flatpak update" is a network
+    // call the user did not sign up for. The Settings pane says as much
+    // instead of showing a dead check button.
+    return installKind() == QLatin1String("flatpak");
 }
 
 QString UpdateChecker::appImageTarget() const
@@ -167,12 +180,15 @@ void UpdateChecker::cleanStaleStage()
 void UpdateChecker::applyAutoPolicy()
 {
     const bool devBuild = QLatin1String(UNISIC_BUILD) == QLatin1String("dev");
-    const bool eligible = !devBuild && m_settings->autoCheckUpdates();
+    const bool external = updatesManagedExternally();
+    const bool eligible = !devBuild && !external && m_settings->autoCheckUpdates();
     if (!eligible) {
         if (m_periodic)
             m_periodic->stop();
         qInfo() << "Automatic update checks off:"
-                << (devBuild ? "dev build" : "disabled in settings");
+                << (devBuild ? "dev build"
+                             : external ? "updates managed by the flatpak client"
+                                        : "disabled in settings");
         return;
     }
     const bool wasActive = m_periodic && m_periodic->isActive();

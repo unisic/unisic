@@ -33,8 +33,11 @@ class UpdateChecker : public QObject
     Q_PROPERTY(qreal downloadProgress READ downloadProgress NOTIFY stateChanged)
     // The new file is in place; only a restart is left.
     Q_PROPERTY(bool restartPending READ restartPending NOTIFY stateChanged)
-    // "appimage" | "system" — which update affordance the UI shows.
+    // "appimage" | "flatpak" | "system" - which update affordance the UI shows.
     Q_PROPERTY(QString installKind READ installKind CONSTANT)
+    // The packaging channel updates the app itself (flatpak), so Unisic neither
+    // checks nor offers to install: the Updates pane explains instead.
+    Q_PROPERTY(bool updatesManagedExternally READ updatesManagedExternally CONSTANT)
     // Running from an AppImage whose file (and directory) we can replace.
     Q_PROPERTY(bool canSelfUpdate READ canSelfUpdate CONSTANT)
     // A native package install under /usr — can't self-update in place, but CAN
@@ -61,6 +64,7 @@ public:
     qreal downloadProgress() const { return m_progress; }
     bool restartPending() const { return m_restartPending; }
     QString installKind() const;
+    bool updatesManagedExternally() const;
     bool canSelfUpdate() const;
     bool canInstallViaScript() const;
 

@@ -79,6 +79,11 @@ qt_add_executable(unisic
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    # Diagnostic log + crash report. CrashHandler.cpp is
+    # async-signal-safe-only code; see its header before touching it.
+    src/diag/DiagLog.h src/diag/DiagLog.cpp
+    src/diag/DiagRedact.h
+    src/diag/CrashHandler.h src/diag/CrashHandler.cpp
     src/update/VersionCompare.h
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
@@ -319,7 +324,27 @@ install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # see packaging/obs/README.md).
 install(FILES packaging/obs/home_unisic.key
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME obs-signing-key.asc)
-install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+# The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
+# restricted interfaces this app declares. KWin authorizes a caller by
+# comparing QFileInfo(splitCommand(Exec).first()).canonicalFilePath() against
+# /proc/<pid>/exe: a bare "unisic" is resolved against KWIN's working
+# directory, finds nothing, and canonicalFilePath() returns an empty string
+# that can never match. Every KDE app that holds one of these interfaces
+# installs an absolute Exec for exactly this reason (Spectacle installs
+# ${KDE_INSTALL_FULL_BINDIR}/spectacle). Dev builds already got this right by
+# accident - ensureDesktopFile() writes applicationFilePath() - which is why
+# the silent KWin capture path worked here and on no packaged install.
+#
+# UNISIC_DESKTOP_EXEC is overridable because the AppImage/tarball AppDir is
+# relocatable: an absolute /usr/bin path baked into the AppDir would point at
+# the host system, and the sandboxed/portable channels cannot use the KWin
+# interfaces anyway (the exe lives on a transient mount or inside /app).
+set(UNISIC_DESKTOP_EXEC "${CMAKE_INSTALL_FULL_BINDIR}/unisic"
+    CACHE STRING "Exec= line written into the installed .desktop file")
+configure_file(resources/app.unisic.Unisic.desktop.in
+    ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
@@ -500,5 +525,13 @@ if(BUILD_TESTING)
     add_test(NAME unisic_settings_persistence_test COMMAND unisic_settings_persistence_test)
     # The test re-execs itself (--verify-child) for a fresh-process read-back.
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_diag_redact_test
+        tests/DiagRedactTest.cpp
+        src/diag/DiagRedact.h
+    )
+    target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_diag_redact_test PRIVATE src)
+    add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
 
 endif()

@@ -649,6 +649,15 @@ Window {
                 welcomeLoader.openWelcome(true)
             } else if (!App.settings.systemCheckSeen && App.hasDependencyWarnings()) {
                 firstRunSystemCheck.open()
+            } else if (App.hasUnseenCrash()) {
+                // A toast and not a modal, deliberately: the previous run has
+                // already ended, there is nothing for the user to decide, and a
+                // third first-run dialog stacked behind the other two would be
+                // hostile. It names where the report is and latches on the
+                // report's own content, so the same crash never says this
+                // twice and a different one still does.
+                App.showToast(qsTr("Unisic did not shut down properly last time. Settings \u203A General \u203A Activity log has the report."), true)
+                App.markCrashNoticeSeen()
             }
         }
     }

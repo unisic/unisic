@@ -11,6 +11,11 @@
 #include "history/HistoryFilterModel.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
+#include "diag/CrashHandler.h"
+#include "diag/DiagLog.h"
+
+#include <csignal>
+#include <QTemporaryFile>
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
@@ -1622,6 +1627,35 @@ QString AppContext::systemDiagnostics() const
 #else
     L << QStringLiteral("Translations baked in: no");
 #endif
+    // Every remaining optional flag, listed even when off: a feature compiled
+    // out by a missing -dev package in one packaging channel is invisible from
+    // the outside, and that is exactly how KWin-native recording shipped
+    // disabled everywhere. A pasted diagnostics block now says so outright.
+#ifdef HAVE_LAYERSHELL
+    L << QStringLiteral("Layer shell (on-top card): yes");
+#else
+    L << QStringLiteral("Layer shell (on-top card): no");
+#endif
+#ifdef HAVE_LIBINPUT
+    L << QStringLiteral("libinput (click/key overlays): yes");
+#else
+    L << QStringLiteral("libinput (click/key overlays): no");
+#endif
+#ifdef HAVE_KWIN_SCREENCAST
+    L << QStringLiteral("KWin-native screencast: yes");
+#else
+    L << QStringLiteral("KWin-native screencast: no");
+#endif
+#ifdef HAVE_X11
+    L << QStringLiteral("X11 (XShm) capture: yes");
+#else
+    L << QStringLiteral("X11 (XShm) capture: no");
+#endif
+#ifdef HAVE_X11_HOTKEYS
+    L << QStringLiteral("X11 global hotkeys: yes");
+#else
+    L << QStringLiteral("X11 global hotkeys: no");
+#endif
 
     L << QString() << QStringLiteral("[Capabilities]");
     L << QStringLiteral("Recording (ScreenCast): %1").arg(yn(recordingAvailable()));
@@ -1649,7 +1683,65 @@ QString AppContext::systemDiagnostics() const
     L << QStringLiteral("OCR script-detect (osd): %1")
              .arg(yn(OcrEngine::scriptDetectionAvailable()));
 #endif
+    L << QString() << QStringLiteral("[Log]");
+    const QString lf = DiagLog::logFilePath();
+    L << QStringLiteral("File: %1").arg(lf.isEmpty() ? QStringLiteral("(memory only)") : lf);
+    L << QStringLiteral("Buffered lines: %1").arg(DiagLog::bufferedLineCount());
+    const DiagLog::PreviousRun &prev = DiagLog::previousRun();
+    L << QStringLiteral("Previous run: %1").arg(
+        prev.outcome == DiagLog::PreviousRun::Crashed
+            ? QStringLiteral("crashed (%1)").arg(prev.signalName)
+        : prev.outcome == DiagLog::PreviousRun::Clean  ? QStringLiteral("clean exit")
+        : prev.outcome == DiagLog::PreviousRun::Killed ? QStringLiteral("ended without a clean exit (kill/OOM/power)")
+                                                       : QStringLiteral("unknown (no earlier log)"));
+
     return L.join(QLatin1Char('\n'));
+}
+
+QString AppContext::diagnosticsWithLog() const
+{
+    // What the user actually attaches to an issue: the static picture plus what
+    // the app was DOING. Kept a separate invokable so the plain Copy
+    // diagnostics button stays a small, obviously safe paste.
+    QString out = systemDiagnostics();
+    const DiagLog::PreviousRun &prev = DiagLog::previousRun();
+    if (!prev.report.isEmpty())
+        out += QStringLiteral("\n\n[Crash report from the previous run]\n") + prev.report;
+    out += QStringLiteral("\n\n[Recent log]\n") + DiagLog::recentLines();
+    return out;
+}
+
+QString AppContext::logFilePath() const
+{
+    const QString p = DiagLog::logFilePath();
+    return p.isEmpty() ? DiagLog::logDirPath() : p;
+}
+
+bool AppContext::hasPreviousCrash() const
+{
+    return DiagLog::previousRun().outcome == DiagLog::PreviousRun::Crashed;
+}
+
+bool AppContext::hasUnseenCrash() const
+{
+    const QString key = DiagLog::previousRunKey();
+    return !key.isEmpty() && m_settings && m_settings->crashNoticeSeen() != key;
+}
+
+void AppContext::markCrashNoticeSeen()
+{
+    if (m_settings)
+        m_settings->setCrashNoticeSeen(DiagLog::previousRunKey());
+}
+
+void AppContext::showLogInFileManager()
+{
+    const QString p = DiagLog::logFilePath();
+    if (p.isEmpty()) {
+        showToast(tr("No log file was opened for this run"), true);
+        return;
+    }
+    showInFileManager(p);
 }
 
 QVariantList AppContext::dependencyReport() const
@@ -3509,6 +3601,55 @@ void AppContext::devTestClipboardHistory()
               status.startsWith(QLatin1String("FAIL")));
 }
 
+void AppContext::devTestDiagLog()
+{
+    if (!devBuild())
+        return;
+    // Writes through the real handler, so this exercises redaction, the ring,
+    // the file and the child-tag path exactly as a live run would.
+    qWarning() << "Dev: diagnostic log check, Authorization: Bearer devtoken123 in"
+               << QDir::homePath();
+    DiagLog::appendRaw(QStringLiteral("dev"), QStringLiteral("synthetic helper line"));
+    const QString tail = DiagLog::recentLines(4);
+    const bool leaked = tail.contains(QStringLiteral("devtoken123"))
+                        || tail.contains(QDir::homePath());
+    const QString where = DiagLog::logFilePath().isEmpty()
+                              ? tr("memory only")
+                              : DiagLog::logFilePath();
+    showToast(leaked ? tr("Dev: log FAILED to redact a secret")
+                     : tr("Dev: log OK (%1 lines) - %2")
+                           .arg(DiagLog::bufferedLineCount())
+                           .arg(where),
+              leaked);
+}
+
+void AppContext::devTestCrashReport()
+{
+    if (!devBuild())
+        return;
+    // Renders the REAL report through the same writer the signal handler uses,
+    // into a temp file, without raising anything: the point is to check the
+    // shape of what a user would paste, not to kill the app to get one.
+    QTemporaryFile f;
+    f.setAutoRemove(false);
+    if (!f.open()) {
+        showToast(tr("Dev: crash report: could not open a temp file"), true);
+        return;
+    }
+    CrashHandler::devWriteSyntheticReport(f.handle(), SIGSEGV);
+    f.flush();
+    f.seek(0);
+    const QString text = QString::fromUtf8(f.readAll());
+    const bool ok = text.contains(QLatin1String("=== unisic crash report ==="))
+                    && text.contains(QLatin1String("SIGSEGV"))
+                    && text.contains(QLatin1String("backtrace"))
+                    && text.count(QLatin1Char('\n')) > 6;
+    showInFileManager(f.fileName());
+    showToast(ok ? tr("Dev: crash report renders - opened it in the file manager")
+                 : tr("Dev: crash report is malformed"),
+              !ok);
+}
+
 void AppContext::devTestPreview()
 {
     if (!devBuild())
@@ -3832,6 +3973,40 @@ void AppContext::devTestSettingsRoundTrip()
     if (!devBuild())
         return;
     showToast(tr("Dev: settings round-trip: %1").arg(settingsRoundTripCheck()));
+}
+
+QString AppContext::installChannelCheck() const
+{
+    const QString kind = m_updater->installKind();
+    const bool external = m_updater->updatesManagedExternally();
+    const bool selfUpdate = m_updater->canSelfUpdate();
+    const bool viaScript = m_updater->canInstallViaScript();
+
+    // Exactly one of the three has to be true for a shipped install, and an
+    // externally managed channel must offer NEITHER button: "Install now" runs
+    // install.sh, which on an AUR box would pacman -U the GitHub package over
+    // the helper's and register the OBS repo on top.
+    QString verdict = QStringLiteral("PASS");
+    if (external && (selfUpdate || viaScript))
+        verdict = QStringLiteral("FAIL (externally managed but still offers an install button)");
+    else if (QLatin1String(UNISIC_BUILD) == QLatin1String("dev"))
+        verdict = QStringLiteral("SKIP (dev build: every update path is off by design)");
+    else if (!external && !selfUpdate && !viaScript)
+        verdict = QStringLiteral("FAIL (no update path at all)");
+
+    return QStringLiteral("%1 - channel '%2'%3, self-update %4, install-via-script %5")
+        .arg(verdict,
+             kind,
+             external ? QStringLiteral(" (owns updates)") : QString(),
+             selfUpdate ? QStringLiteral("yes") : QStringLiteral("no"),
+             viaScript ? QStringLiteral("yes") : QStringLiteral("no"));
+}
+
+void AppContext::devTestInstallChannel()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: install channel: %1").arg(installChannelCheck()));
 }
 
 void AppContext::devTestUpload()
@@ -4690,6 +4865,44 @@ void AppContext::runSmokeTest()
                                           .arg(warn)
                                           .arg(missing.join(QStringLiteral(", ")))));
 
+        // Diagnostic log: four assertions, because each one fails on its own.
+        // (1) the handler is installed and the ring receives, (2) redaction
+        // actually removed a secret and the home path, (3) a log file exists
+        // or the reason it does not is legitimate, (4) the crash report still
+        // renders in the shape a user would paste.
+        const int before = DiagLog::bufferedLineCount();
+        qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
+        const QString tail = DiagLog::recentLines(3);
+        const bool grew = DiagLog::bufferedLineCount() > before;
+        const bool clean = !tail.contains(QStringLiteral("smoketoken987"))
+                           && !tail.contains(QDir::homePath());
+        smokeLog(QStringLiteral("diagnostic log: %1")
+                     .arg(!grew    ? QStringLiteral("FAIL (message handler is not recording)")
+                          : !clean ? QStringLiteral("FAIL (a secret or the home path survived redaction)")
+                                   : QStringLiteral("PASS (%1 lines buffered)")
+                                         .arg(DiagLog::bufferedLineCount())));
+        const QString lf = DiagLog::logFilePath();
+        smokeLog(QStringLiteral("log file: %1")
+                     .arg(lf.isEmpty()
+                              ? QStringLiteral("SKIP (memory only - UNISIC_LOG=0 or the file could not be opened)")
+                              : QStringLiteral("PASS (%1, %2 bytes)").arg(lf).arg(DiagLog::logFileSize())));
+        {
+            QTemporaryFile cf;
+            bool ok = cf.open();
+            if (ok) {
+                CrashHandler::devWriteSyntheticReport(cf.handle(), SIGSEGV);
+                cf.flush();
+                cf.seek(0);
+                const QString rep = QString::fromUtf8(cf.readAll());
+                ok = rep.contains(QLatin1String("=== unisic crash report ==="))
+                     && rep.contains(QLatin1String("SIGSEGV"))
+                     && rep.contains(QLatin1String("backtrace"));
+            }
+            smokeLog(QStringLiteral("crash report: %1")
+                         .arg(ok ? QStringLiteral("PASS (renders with signal and frames)")
+                                 : QStringLiteral("FAIL (missing header, signal or backtrace)")));
+        }
+
         // First-run welcome. The card itself is QML (the dev button shows it by
         // eye); what can silently break here is the one-shot LATCH — a settings
         // key that fails to persist would either re-show the card every launch
@@ -5428,6 +5641,12 @@ void AppContext::runSmokeTest()
         });
     });
 
+    // 5c2) which packaging channel owns updates, and whether the buttons agree.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("install channel: ") + installChannelCheck());
+        smokeNext();
+    });
+
     // 5d) native "Install now" via install.sh: dry-run the fetch + terminal
     // detection (never spawns a terminal or installs). Offline is a SKIP.
     m_smokeSteps.append([this] {
@@ -5571,6 +5790,14 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
                         n->thumbFilePath(),
                         n->filePath()});
 
+    // stdout is the action protocol on both helpers, so the log takes stderr
+    // ONLY - including a helper's crash block, which its own signal handler
+    // writes there. One merged file keeps the interleaving readable.
+    connect(proc, &QProcess::readyReadStandardError, this, [proc] {
+        DiagLog::appendChildOutput(QStringLiteral("notif-helper"),
+                                   proc->readAllStandardError());
+    });
+
     // Route the card's action tokens (stdout) onto the real CaptureNotification.
     connect(proc, &QProcess::readyReadStandardOutput, n, [proc, n] {
         const QList<QByteArray> lines = proc->readAllStandardOutput().split('\n');
@@ -5708,6 +5935,12 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         const auto frac = [](double v) { return QString::number(v, 'f', 8); };
         auto *proc = new QProcess(this);
         proc->setProgram(QCoreApplication::applicationFilePath());
+        // Same rule as the notification helper: stdout is the protocol, so
+        // only stderr (warnings and its crash block) goes into the log.
+        connect(proc, &QProcess::readyReadStandardError, this, [proc] {
+            DiagLog::appendChildOutput(QStringLiteral("border-helper"),
+                                       proc->readAllStandardError());
+        });
         proc->setArguments({QStringLiteral("--record-border-helper"),
                             screen->name(),
                             QString::number(lg.x()), QString::number(lg.y()),

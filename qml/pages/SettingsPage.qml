@@ -12,6 +12,14 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Why the whole Updates pane is inert. Two packaging channels own their own
+    // updates, for different reasons, and the row hints must say WHICH one is
+    // in charge - "updates are managed externally" tells nobody what to run.
+    readonly property string externalUpdateHint:
+        App.updater.installKind === "aur"
+        ? qsTr("This copy came from the AUR - your AUR helper updates it, so Unisic does not check on its own.")
+        : qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
+
     // Read by Main.qml (window.modalOpen): drag-and-drop and Ctrl+V are off
     // while one of this page's dialogs is up, or a dropped file would open an
     // editor window behind it.
@@ -1027,7 +1035,7 @@ Item {
                     SettingRow {
                         available: App.buildNumber !== "dev" && !App.updater.updatesManagedExternally
                         hint: App.updater.updatesManagedExternally
-                              ? qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
+                              ? page.externalUpdateHint
                               : qsTr("Automatic checks are disabled in dev builds.")
                         label: qsTr("Automatic updates")
                         help: qsTr("Checks for a new release shortly after startup and once a day, then installs it in the background.")
@@ -1039,9 +1047,7 @@ Item {
                     }
                     SettingRow {
                         available: App.buildNumber !== "dev" && !App.updater.updatesManagedExternally
-                        hint: App.updater.updatesManagedExternally
-                              ? qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
-                              : ""
+                        hint: App.updater.updatesManagedExternally ? page.externalUpdateHint : ""
                         label: qsTr("Update channel")
                         help: qsTr("Which releases to offer: stable only, or the newest including pre-releases.")
                         helpDetail: qsTr("Beta fetches the most recent GitHub release even when it is marked a pre-release, so you get new features earlier at the cost of stability.")
@@ -1054,11 +1060,12 @@ Item {
                         }
                     }
                     SettingRow {
-                        // Not just disabled: with the store owning updates there
-                        // is nothing this button could do that "flatpak update"
-                        // does not do better, and the row below says so.
+                        // Not just disabled: with another channel owning updates
+                        // there is nothing this button could do that "flatpak
+                        // update" / the user's AUR helper does not do better,
+                        // and the row below says so.
                         available: !App.updater.updatesManagedExternally
-                        hint: qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
+                        hint: page.externalUpdateHint
                         label: qsTr("Check now")
                         help: qsTr("Ask GitHub for the latest release immediately.")
                         UButton {
@@ -1126,6 +1133,8 @@ Item {
                                   ? qsTr("Self-update is disabled in dev builds.")
                                   : App.updater.installKind === "flatpak"
                                     ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software centre do it.")
+                                    : App.updater.installKind === "aur"
+                                    ? qsTr("Your AUR helper keeps this install up to date - run \"paru -Syu\", \"yay -Syu\" or whichever helper you use.")
                                     : App.updater.installKind === "appimage"
                                     ? qsTr("The AppImage location is read-only - it can't update itself from here.")
                                     : App.updater.canInstallViaScript
@@ -1176,6 +1185,25 @@ Item {
                             iconName: "edit-copy"
                             text: qsTr("Copy diagnostics")
                             onClicked: { App.copyText(App.systemDiagnostics()); App.showToast(qsTr("Diagnostics copied")) }
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Activity log")
+                        help: qsTr("Copy the same summary plus what Unisic has been doing this run.")
+                        helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "edit-copy"
+                            text: qsTr("Copy with log")
+                            onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
+                        }
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "folder-open"
+                            text: qsTr("Show log file")
+                            onClicked: App.showLogInFileManager()
                         }
                     }
                 }
@@ -3231,6 +3259,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Server test upload"); onClicked: App.devTestDestinationTest() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
@@ -3260,6 +3289,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }

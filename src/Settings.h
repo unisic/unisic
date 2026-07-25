@@ -67,6 +67,7 @@ class Settings : public QObject
     // then this stays true. The "Run system check" button in Settings reopens it
     // on demand regardless.
     Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
+    Q_PROPERTY(QString crashNoticeSeen READ crashNoticeSeen WRITE setCrashNoticeSeen NOTIFY crashNoticeSeenChanged)
     // Sandboxed autostart only: what the Background portal last ANSWERED to a
     // RequestBackground call. The portal has no getter, and inside flatpak the
     // autostart .desktop is written host-side by the portal, where the sandbox
@@ -408,6 +409,9 @@ public:
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
+    // Content key of the last crash report the user was told about. A string,
+    // not a bool: a NEW crash must be reported again, the same one must not.
+    U_SETTING(QString, crashNoticeSeen, setCrashNoticeSeen, "crashNoticeSeen", QString())
     U_SETTING(bool, portalAutostartGranted, setPortalAutostartGranted, "ui/portalAutostartGranted", false)
     U_SETTING(bool, showWelcome, setShowWelcome, "showWelcome", true)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
@@ -593,6 +597,7 @@ public:
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
         emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
+        emit crashNoticeSeenChanged();
         emit portalAutostartGrantedChanged();
         emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
@@ -677,6 +682,7 @@ signals:
     void watermarkImagePathChanged();
     void showNotificationsChanged();
     void systemCheckSeenChanged();
+    void crashNoticeSeenChanged();
     void portalAutostartGrantedChanged();
     void showWelcomeChanged();
     void minimizeToTrayOnCloseChanged();

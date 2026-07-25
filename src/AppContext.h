@@ -231,6 +231,17 @@ public:
     // are present. Zero telemetry — nothing leaves the machine on its own; the
     // user pastes this into an issue. Wired to the "Copy diagnostics" button.
     Q_INVOKABLE QString systemDiagnostics() const;
+    // systemDiagnostics() plus the previous run's crash report and the recent
+    // log. Separate from the plain one so "Copy diagnostics" stays a small,
+    // obviously safe paste and the bigger one is an explicit choice.
+    Q_INVOKABLE QString diagnosticsWithLog() const;
+    Q_INVOKABLE QString logFilePath() const;
+    Q_INVOKABLE bool hasPreviousCrash() const;
+    // Latched on the report's own content: the same crash never nags twice, a
+    // different one is reported again.
+    Q_INVOKABLE bool hasUnseenCrash() const;
+    Q_INVOKABLE void markCrashNoticeSeen();
+    Q_INVOKABLE void showLogInFileManager();
     // The optional runtime dependencies and whether each is satisfied, as a list
     // of {label, ok, warn, detail} maps for the first-run system check to render.
     // `warn` marks the ones whose absence actually degrades a core path (drives
@@ -278,6 +289,8 @@ public:
     Q_INVOKABLE void devTestKWinRecord();
     Q_INVOKABLE void devTestX11Record();
     Q_INVOKABLE void devTestX11Hotkeys();
+    Q_INVOKABLE void devTestDiagLog();
+    Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
@@ -293,6 +306,7 @@ public:
     // the page Loader is destroyed on every navigation).
     Q_INVOKABLE void devTestRecordPageMode();
     Q_INVOKABLE void devTestSettingsRoundTrip();
+    Q_INVOKABLE void devTestInstallChannel();
     Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestRecordingSound();
     Q_INVOKABLE void devTestRecordStartSound();
@@ -689,6 +703,11 @@ private:
     // Export -> verify all properties serialized -> import back. Returns a
     // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
     QString settingsRoundTripCheck();
+    // Which packaging channel owns updates, and whether the update affordances
+    // agree with it. The AUR case is the one that can go wrong silently: the
+    // marker file is the only thing separating "your helper updates this" from
+    // an "Install now" button that would pacman -U over the helper's package.
+    QString installChannelCheck() const;
     // Loads the QML singleton and verifies the complete editor/overlay letter
     // mapping from the same ToolCatalog table the keyboard handlers consume.
     QString toolShortcutsCheck() const;

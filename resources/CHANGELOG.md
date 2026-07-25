@@ -6,7 +6,7 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
-## 0.7.6
+## 0.8
 
 ### English
 **Improved**
@@ -31,6 +31,8 @@ whole per release (not per individual change).
 - **The History grid scrolls at its own pace**: one wheel notch used to move almost exactly one row of thumbnails, so the bigger the window the less of it a notch covered. A notch now moves a row and a half, or a third of the visible area once the window is large, whichever is more, and spinning the wheel quickly ramps the step up and eases it in instead of jumping. Touchpad scrolling is untouched and every other page keeps its previous step.
 
 **Fixed**
+- **The silent KDE capture path works on installed packages at last**: on Plasma, Unisic asks KWin for the screenshot directly instead of going through the portal, so there is no dialog and no flicker. That had only ever worked in development builds: the installed application entry named the program without a path, and KWin authorizes a caller by resolving exactly that path, so on every .deb, .rpm, Arch and COPR install it quietly fell back to the portal instead. The entry now carries the full path, the way KDE's own tools do.
+- **KDE-native recording is really in the packages now**: recording through KWin, without the screen-picker dialog, was added but no package was ever built with the pieces it needs, so every installed copy still got the dialog it was meant to remove. Fedora, openSUSE, Arch, the AppImage and the portable archive now build it in. Debian and Ubuntu keep the portal path for the moment, because their Qt packages are missing a build file Unisic needs for it.
 - **Typing in the Settings search no longer freezes**: the panes it searches through are now built in the background after a short typing pause, instead of all at once on the first keystroke.
 - **The Settings search now answers the first character you type**: a one-letter query came back empty and results only started appearing from the second character. Clearing the box no longer leaves every settings pane loaded in the background for the rest of the session either.
 - **Tab no longer damages a text annotation**: while typing one in the editor, Tab used to put a literal tab into the annotation - an invisible wide gap baked into the exported image - and Shift+Tab jumped out of the box mid-word, leaving the half-typed text floating over the picture while the following letters switched tools. Both keys are now ignored while the box is open; finish the text with Ctrl+Enter or drop it with Escape, exactly as before.
@@ -67,6 +69,8 @@ whole per release (not per individual change).
 - **Siatka Historii przewija się we własnym tempie**: jedno kliknięcie kółka przesuwało dotąd niemal dokładnie jeden rząd miniatur, więc im większe okno, tym mniejszą jego część pokonywało. Teraz jedno kliknięcie przesuwa półtora rzędu albo trzecią część widocznego obszaru w dużym oknie - zależnie od tego, co większe - a szybkie kręcenie kółkiem stopniowo zwiększa krok i wygładza ruch, zamiast skakać. Przewijanie gładzikiem pozostaje bez zmian, a pozostałe strony zachowują dotychczasowy krok.
 
 **Naprawione**
+- **Cicha ścieżka przechwytywania na KDE działa wreszcie w zainstalowanych pakietach**: na Plasmie Unisic prosi KWin o zrzut bezpośrednio, zamiast iść przez portal, więc nie ma żadnego okna dialogowego ani mrugnięcia. Działało to dotąd wyłącznie w buildach deweloperskich: zainstalowany wpis aplikacji podawał nazwę programu bez ścieżki, a KWin autoryzuje wywołującego, rozwiązując dokładnie tę ścieżkę, więc na każdej instalacji .deb, .rpm, Arch i COPR aplikacja po cichu wracała do portalu. Wpis niesie teraz pełną ścieżkę, tak jak robią to własne narzędzia KDE.
+- **Nagrywanie natywne KWin naprawdę trafiło do pakietów**: nagrywanie przez KWin, bez okna wyboru ekranu, zostało dodane, ale żaden pakiet nie był budowany ze składnikami, których ono wymaga, więc każda zainstalowana kopia dalej dostawała to okno, które miało zniknąć. Fedora, openSUSE, Arch, AppImage i archiwum przenośne mają je teraz wkompilowane. Debian i Ubuntu zostają na razie przy portalu, bo w ich pakietach Qt brakuje pliku budowania, którego Unisic do tego potrzebuje.
 - **Pisanie w wyszukiwarce Ustawień już nie zamraża okna**: przeszukiwane panele budują się teraz w tle po krótkiej przerwie w pisaniu, zamiast wszystkie naraz przy pierwszym znaku.
 - **Wyszukiwarka w Ustawieniach odpowiada już od pierwszego znaku**: zapytanie jednoliterowe nie zwracało nic, a wyniki pojawiały się dopiero od drugiego znaku. Wyczyszczenie pola nie zostawia też już wszystkich paneli ustawień wczytanych w tle do końca sesji.
 - **Tab nie psuje już adnotacji tekstowej**: podczas pisania jej w edytorze Tab wstawiał do adnotacji prawdziwy znak tabulacji - niewidoczną szeroką przerwę zapisaną w wyeksportowanym obrazie - a Shift+Tab wyskakiwał z pola w połowie słowa, zostawiając niedokończony tekst nad obrazem, podczas gdy kolejne litery przełączały narzędzia. Oba klawisze są teraz ignorowane, dopóki pole jest otwarte; tekst kończysz Ctrl+Enter albo porzucasz Escape, dokładnie jak dotąd.

@@ -49,7 +49,7 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 
 ## X11 support
 
-Unisic is Wayland-first, but it runs on an X11 session as well. Screenshots, the overlay, the editor, OCR, history and uploads are session-agnostic and always worked there. Since 0.7.6 the two paths that did not now do:
+Unisic is Wayland-first, but it runs on an X11 session as well. Screenshots, the overlay, the editor, OCR, history and uploads are session-agnostic and always worked there. Since 0.8 the two paths that did not now do:
 
 - **Screen recording** grabs frames from the X server with XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all (Cinnamon, MATE, XFCE on Xorg). Cursor, click ripples and the keystroke badge come along; the record-region frame and the styled notification card are drawn as override-redirect windows.
 - **Global hotkeys** use `XGrabKey` on desktops without KGlobalAccel, so they no longer depend on the GlobalShortcuts portal.

@@ -231,6 +231,7 @@ qt_add_qml_module(unisic
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
         qml/components/USystemCheck.qml
+        qml/components/UTour.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
         qml/components/UPatchNotes.qml

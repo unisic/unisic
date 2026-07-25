@@ -1176,6 +1176,17 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Tour")
+                        help: qsTr("Six cards on the things that are easy to miss.")
+                        helpDetail: qsTr("Tool letters, the keys the selection overlay and the editor use, opening files by dropping or pasting them, retaking a capture, custom upload servers and instant replay. It changes nothing on its own and can be left at any point.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            text: qsTr("Take the tour")
+                            onClicked: App.showTour()
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Diagnostics")
                         help: qsTr("Copy a text summary of your setup for a bug report.")
                         helpDetail: qsTr("Copies your Unisic and Qt versions, desktop and session, compiled-in features and detected tools to the clipboard. Nothing is sent anywhere - you paste it into an issue yourself.")
@@ -3289,6 +3300,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tour"); onClicked: App.devTestTour() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }

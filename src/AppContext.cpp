@@ -3601,6 +3601,15 @@ void AppContext::devTestClipboardHistory()
               status.startsWith(QLatin1String("FAIL")));
 }
 
+void AppContext::devTestTour()
+{
+    if (!devBuild())
+        return;
+    // markSeenOnClose is false on this path: a dev peek must not consume the
+    // one-shot latch, the same rule the welcome card follows.
+    emit showTourRequested();
+}
+
 void AppContext::devTestDiagLog()
 {
     if (!devBuild())
@@ -3780,6 +3789,21 @@ QString AppContext::settingsRoundTripCheck()
     return QStringLiteral("PASS (%1 settings + %2 destinations)")
         .arg(s.size())
         .arg(root.value(QStringLiteral("destinations")).toArray().size());
+}
+
+QString AppContext::tourCardCheck() const
+{
+    if (!m_engine)
+        return QStringLiteral("FAIL (no QML engine)");
+    // COMPILE the card without instantiating it: a Popup with no Window would
+    // only warn, and what can rot here is a typo, a dropped import or a
+    // qt_add_qml_module registration that was never added - all of which are
+    // compile-time, and all of which would otherwise surface the first time a
+    // user pressed the button.
+    QQmlComponent probe(m_engine, QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/components/UTour.qml")));
+    if (probe.status() != QQmlComponent::Ready)
+        return QStringLiteral("FAIL (the tour card does not compile: %1)").arg(probe.errorString().trimmed());
+    return QStringLiteral("PASS (latch round-trips, card compiles)");
 }
 
 QString AppContext::toolShortcutsCheck() const
@@ -4901,6 +4925,22 @@ void AppContext::runSmokeTest()
             smokeLog(QStringLiteral("crash report: %1")
                          .arg(ok ? QStringLiteral("PASS (renders with signal and frames)")
                                  : QStringLiteral("FAIL (missing header, signal or backtrace)")));
+        }
+
+        // The optional tour: same reasoning as the welcome latch below, plus the
+        // one thing that can rot silently in the card itself. Its first step is
+        // built from ToolCatalog rather than a second hardcoded list, so a
+        // renamed shortcut cannot make it lie - but a catalog with no lettered
+        // editor tools at all would leave that step empty and nothing would say
+        // so. Assert there are letters to show.
+        {
+            const bool originalTour = m_settings->tourSeen();
+            m_settings->setTourSeen(!originalTour);
+            const bool flipped = m_settings->tourSeen() == !originalTour;
+            m_settings->setTourSeen(originalTour);
+            smokeLog(QStringLiteral("tour: %1")
+                         .arg(!flipped ? QStringLiteral("FAIL (the tourSeen latch does not persist)")
+                                       : tourCardCheck()));
         }
 
         // First-run welcome. The card itself is QML (the dev button shows it by
@@ -7879,6 +7919,11 @@ void AppContext::showInFileManager(const QString &path)
             openDirectory(dir);
         w->deleteLater();
     });
+}
+
+void AppContext::showTour()
+{
+    emit showTourRequested();
 }
 
 void AppContext::showWelcome()

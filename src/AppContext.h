@@ -289,6 +289,7 @@ public:
     Q_INVOKABLE void devTestKWinRecord();
     Q_INVOKABLE void devTestX11Record();
     Q_INVOKABLE void devTestX11Hotkeys();
+    Q_INVOKABLE void devTestTour();
     Q_INVOKABLE void devTestDiagLog();
     Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
@@ -492,6 +493,9 @@ public:
     // Main.qml answers with an instance that does NOT consume the one-shot
     // latch, so a manual peek can't hide the card from a genuine first run.
     Q_INVOKABLE void showWelcome();
+    // Optional tour. Never auto-opened: offered from the welcome send-off and
+    // available from Settings, so this only ever runs on request.
+    Q_INVOKABLE void showTour();
     // "text/uri-list" payload for dragging a history capture out to another
     // app (file manager, or a video editor like LosslessCut). Fully-encoded so
     // spaces/# in the path survive the drop (external consumers percent-decode).
@@ -629,6 +633,7 @@ signals:
     void installerUpdatePromptRequested(const QString &version);
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
+    void showTourRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
@@ -710,6 +715,8 @@ private:
     QString installChannelCheck() const;
     // Loads the QML singleton and verifies the complete editor/overlay letter
     // mapping from the same ToolCatalog table the keyboard handlers consume.
+    // Compile-checks qml/components/UTour.qml without instantiating it.
+    QString tourCardCheck() const;
     QString toolShortcutsCheck() const;
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.

@@ -668,6 +668,20 @@ Window {
         function onShowWelcomeRequested() {
             welcomeLoader.openWelcome(false)
         }
+        function onShowTourRequested() {
+            tourLoader.active = true
+            tourLoader.item.openTour(false)
+        }
+    }
+
+    // The optional tour. Behind a Loader for the same reason the welcome is:
+    // six steps of text and a live ToolCatalog read have no business staying
+    // resident for the whole app lifetime after being shown once. Never
+    // auto-opened - it is offered, never imposed.
+    Loader {
+        id: tourLoader
+        active: false
+        sourceComponent: UTour {}
     }
 
     Rectangle { // content — a rounded card floating on the dark backdrop

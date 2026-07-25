@@ -231,7 +231,6 @@ qt_add_qml_module(unisic
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
         qml/components/USystemCheck.qml
-        qml/components/UTour.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
         qml/components/UPatchNotes.qml
@@ -251,10 +250,6 @@ target_link_libraries(unisic PRIVATE
 )
 
 qt_add_resources(unisic "icons" PREFIX "/" FILES resources/icons/unisic.svg)
-# Uni, the mascot. Used by the guided tour, which needs a face to point at
-# things with; docs/ is where the art already lives (README, social preview),
-# so it is referenced from there rather than copied.
-qt_add_resources(unisic "mascot" PREFIX "/" FILES docs/uni.png)
 qt_add_resources(unisic "changelog" PREFIX "/" FILES resources/CHANGELOG.md)
 
 # Bundled color themes: the non-core palettes ship as the SAME JSON format the

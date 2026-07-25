@@ -76,7 +76,6 @@ class Settings : public QObject
     // Same one-shot latch for the first-run welcome screen (shown before the
     // dependency check, so two modals never stack).
     Q_PROPERTY(bool showWelcome READ showWelcome WRITE setShowWelcome NOTIFY showWelcomeChanged)
-    Q_PROPERTY(bool tourSeen READ tourSeen WRITE setTourSeen NOTIFY tourSeenChanged)
     Q_PROPERTY(bool minimizeToTrayOnClose READ minimizeToTrayOnClose WRITE setMinimizeToTrayOnClose NOTIFY minimizeToTrayOnCloseChanged)
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
@@ -415,10 +414,6 @@ public:
     U_SETTING(QString, crashNoticeSeen, setCrashNoticeSeen, "crashNoticeSeen", QString())
     U_SETTING(bool, portalAutostartGranted, setPortalAutostartGranted, "ui/portalAutostartGranted", false)
     U_SETTING(bool, showWelcome, setShowWelcome, "showWelcome", true)
-    // One-shot latch for the optional tour. It is never auto-opened - it is
-    // OFFERED from the welcome send-off and lives in Settings - so this only
-    // records that the offer was answered.
-    U_SETTING(bool, tourSeen, setTourSeen, "tourSeen", false)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
@@ -603,7 +598,6 @@ public:
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
         emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
         emit crashNoticeSeenChanged();
-        emit tourSeenChanged();
         emit portalAutostartGrantedChanged();
         emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
@@ -689,7 +683,6 @@ signals:
     void showNotificationsChanged();
     void systemCheckSeenChanged();
     void crashNoticeSeenChanged();
-    void tourSeenChanged();
     void portalAutostartGrantedChanged();
     void showWelcomeChanged();
     void minimizeToTrayOnCloseChanged();

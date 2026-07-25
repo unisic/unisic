@@ -727,7 +727,6 @@ Item {
     // same place.
     UTextField {
         id: searchField
-        objectName: "tour.settings.search"
         anchors.top: persistWarn.bottom
         anchors.topMargin: persistWarn.visible ? Theme.spacingM : 0
         anchors.left: parent.left
@@ -1174,17 +1173,6 @@ Item {
                             variant: "tonal"
                             text: qsTr("Show welcome screen")
                             onClicked: App.showWelcome()
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Tour")
-                        help: qsTr("Seven steps through the window, page by page.")
-                        helpDetail: qsTr("Each step switches to the page it is describing and names what is on it, with the card in the corner so the page stays visible. It ends with the tool letters and the keys the selection overlay uses. It changes nothing on its own and can be left at any point.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            text: qsTr("Take the tour")
-                            onClicked: App.showTour()
                         }
                     }
                     SettingRow {
@@ -3301,7 +3289,6 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Tour"); onClicked: App.devTestTour() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }

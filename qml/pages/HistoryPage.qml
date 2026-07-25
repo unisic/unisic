@@ -222,7 +222,6 @@ Item {
 
             Row {
                 id: historyActions
-                objectName: "tour.history.search"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
@@ -270,7 +269,6 @@ Item {
         // and stacking both bars would cost a whole tile row of height.
         Item {
             id: filterBar
-            objectName: "tour.history.filters"
             width: parent.width
             // Follows the chips when they wrap: seven translated chip labels
             // measure 568 px against a 580 px body at the 880 px minimum window

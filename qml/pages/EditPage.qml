@@ -49,7 +49,6 @@ Item {
             // pages share one grid; wraps instead of clipping when narrow.
             Flow {
                 id: modeFlow
-                objectName: "tour.edit.tiles"
                 width: parent.width
                 spacing: Theme.spacingL
 

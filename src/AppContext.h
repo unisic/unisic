@@ -234,10 +234,6 @@ public:
     // systemDiagnostics() plus the previous run's crash report and the recent
     // log. Separate from the plain one so "Copy diagnostics" stays a small,
     // obviously safe paste and the bigger one is an explicit choice.
-    // Rectangle of a control marked objectName: "tour.<id>", in window
-    // coordinates, for the guided tour's spotlight. Empty when the control is
-    // not on screen (its page is unloaded, or it is hidden).
-    Q_INVOKABLE QRectF tourTargetRect(const QString &tourId) const;
     Q_INVOKABLE QString diagnosticsWithLog() const;
     Q_INVOKABLE QString logFilePath() const;
     Q_INVOKABLE bool hasPreviousCrash() const;
@@ -293,7 +289,6 @@ public:
     Q_INVOKABLE void devTestKWinRecord();
     Q_INVOKABLE void devTestX11Record();
     Q_INVOKABLE void devTestX11Hotkeys();
-    Q_INVOKABLE void devTestTour();
     Q_INVOKABLE void devTestDiagLog();
     Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
@@ -497,15 +492,6 @@ public:
     // Main.qml answers with an instance that does NOT consume the one-shot
     // latch, so a manual peek can't hide the card from a genuine first run.
     Q_INVOKABLE void showWelcome();
-    // Optional tour. Never auto-opened: offered from the welcome send-off and
-    // available from Settings, so this only ever runs on request.
-    Q_INVOKABLE void showTour();
-    // UNISIC_TOUR=1: open the tour on a normal launch. A testing affordance in
-    // the same family as UNISIC_HOTKEY_BACKEND and UNISIC_RECORD_BORDER - the
-    // tour is otherwise only reachable by clicking, which a scripted run
-    // cannot do.
-    Q_PROPERTY(bool tourAutoOpen READ tourAutoOpen CONSTANT)
-    bool tourAutoOpen() const { return qEnvironmentVariable("UNISIC_TOUR") == QLatin1String("1"); }
     // "text/uri-list" payload for dragging a history capture out to another
     // app (file manager, or a video editor like LosslessCut). Fully-encoded so
     // spaces/# in the path survive the drop (external consumers percent-decode).
@@ -643,7 +629,6 @@ signals:
     void installerUpdatePromptRequested(const QString &version);
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
-    void showTourRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
@@ -725,8 +710,6 @@ private:
     QString installChannelCheck() const;
     // Loads the QML singleton and verifies the complete editor/overlay letter
     // mapping from the same ToolCatalog table the keyboard handlers consume.
-    // Compile-checks qml/components/UTour.qml without instantiating it.
-    QString tourCardCheck() const;
     QString toolShortcutsCheck() const;
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.

@@ -755,33 +755,11 @@ Item {
                 compact: true
                 onClicked: root.back()
             }
-            // The tour is OFFERED here and nowhere else automatically: a second
-            // sequence that opened by itself would be the third dialog on a
-            // fresh launch. Taking it closes this card first, so the two never
-            // stack; declining simply finishes setup, and Settings > General
-            // keeps the offer open for later. Setting the latch here is what
-            // records that the offer was answered, either way.
-            UButton {
-                visible: root.step === root.stepCount - 1
-                text: qsTr("Take the tour")
-                variant: "ghost"
-                compact: true
-                accessibleDescription: qsTr("Seven steps that walk you through the window, page by page. Nothing is changed by it.")
-                onClicked: {
-                    App.settings.tourSeen = true
-                    root.close()
-                    App.showTour()
-                }
-            }
             UButton {
                 text: root.step === root.stepCount - 1 ? qsTr("Start using Unisic") : qsTr("Next")
                 variant: "filled"
                 compact: true
-                onClicked: {
-                    if (root.step === root.stepCount - 1)
-                        App.settings.tourSeen = true
-                    root.next()
-                }
+                onClicked: root.next()
             }
         }
     }

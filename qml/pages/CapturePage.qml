@@ -69,7 +69,6 @@ Item {
             // the last one (the Flickable has no horizontal scroll).
             Flow {
                 id: modeFlow
-                objectName: "tour.capture.tiles"
                 width: parent.width
                 spacing: Theme.spacingL
 
@@ -233,7 +232,6 @@ Item {
 
             Flow {
                 id: toggleFlow
-                objectName: "tour.capture.options"
                 width: parent.width
                 spacing: Theme.spacingM
                 readonly property bool twoCol: width >= 640

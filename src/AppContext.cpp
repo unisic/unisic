@@ -82,6 +82,7 @@
 #include <QLocale>
 #include <QQmlComponent>
 #include <QQmlContext>
+#include <QQuickItem>
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
@@ -3138,6 +3139,32 @@ bool AppContext::mainWindowVisible() const
         if (auto *w = qobject_cast<QQuickWindow *>(o))
             return w->isVisible();
     return true;
+}
+
+QRectF AppContext::tourTargetRect(const QString &tourId) const
+{
+    // The tour dims the window and cuts a hole over a real control, so it needs
+    // that control's rectangle in WINDOW coordinates. Resolved here rather than
+    // in QML because QML has no findChild: every highlightable control just
+    // carries objectName: "tour.<id>" and nothing else - no registry to keep in
+    // sync, no attached property, and a control that is removed simply stops
+    // being findable (an empty rect, which the tour reads as "no highlight").
+    auto *appEngine = qobject_cast<QQmlApplicationEngine *>(m_engine);
+    if (!appEngine)
+        return {};
+    for (QObject *o : appEngine->rootObjects()) {
+        auto *w = qobject_cast<QQuickWindow *>(o);
+        if (!w)
+            continue;
+        auto *item = w->findChild<QQuickItem *>(QStringLiteral("tour.") + tourId);
+        // A page behind a destroyed Loader leaves nothing to find, and an item
+        // on a page that is loaded but hidden must not be highlighted either.
+        if (!item || !item->isVisible() || item->width() <= 0 || item->height() <= 0)
+            continue;
+        const QPointF topLeft = item->mapToScene(QPointF(0, 0));
+        return QRectF(topLeft, QSizeF(item->width(), item->height()));
+    }
+    return {};
 }
 
 bool AppContext::tryUpdateRestart()

@@ -727,6 +727,7 @@ Item {
     // same place.
     UTextField {
         id: searchField
+        objectName: "tour.settings.search"
         anchors.top: persistWarn.bottom
         anchors.topMargin: persistWarn.visible ? Theme.spacingM : 0
         anchors.left: parent.left

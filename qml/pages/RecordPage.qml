@@ -88,6 +88,7 @@ Item {
                     // segment sideways - the chips keep their place in both modes.
                     Row {
                         id: modeRow
+                        objectName: "tour.record.mode"
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Theme.spacingS
@@ -207,6 +208,7 @@ Item {
             // disappears inside a row that stays.
             Flow {
                 id: optsFlow
+                objectName: "tour.record.options"
                 width: parent.width
                 spacing: Theme.spacingL
                 readonly property bool twoCol: width >= 720

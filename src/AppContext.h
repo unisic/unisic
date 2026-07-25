@@ -234,6 +234,10 @@ public:
     // systemDiagnostics() plus the previous run's crash report and the recent
     // log. Separate from the plain one so "Copy diagnostics" stays a small,
     // obviously safe paste and the bigger one is an explicit choice.
+    // Rectangle of a control marked objectName: "tour.<id>", in window
+    // coordinates, for the guided tour's spotlight. Empty when the control is
+    // not on screen (its page is unloaded, or it is hidden).
+    Q_INVOKABLE QRectF tourTargetRect(const QString &tourId) const;
     Q_INVOKABLE QString diagnosticsWithLog() const;
     Q_INVOKABLE QString logFilePath() const;
     Q_INVOKABLE bool hasPreviousCrash() const;
@@ -496,6 +500,12 @@ public:
     // Optional tour. Never auto-opened: offered from the welcome send-off and
     // available from Settings, so this only ever runs on request.
     Q_INVOKABLE void showTour();
+    // UNISIC_TOUR=1: open the tour on a normal launch. A testing affordance in
+    // the same family as UNISIC_HOTKEY_BACKEND and UNISIC_RECORD_BORDER - the
+    // tour is otherwise only reachable by clicking, which a scripted run
+    // cannot do.
+    Q_PROPERTY(bool tourAutoOpen READ tourAutoOpen CONSTANT)
+    bool tourAutoOpen() const { return qEnvironmentVariable("UNISIC_TOUR") == QLatin1String("1"); }
     // "text/uri-list" payload for dragging a history capture out to another
     // app (file manager, or a video editor like LosslessCut). Fully-encoded so
     // spaces/# in the path survive the drop (external consumers percent-decode).

@@ -278,6 +278,7 @@ Window {
 
     Item { // sidebar — flat on the backdrop, music-player style
         id: sidebar
+        objectName: "tour.sidebar"
         width: 224
         y: window.chromeTop
         height: parent.height - window.chromeTop
@@ -649,6 +650,14 @@ Window {
                 welcomeLoader.openWelcome(true)
             } else if (!App.settings.systemCheckSeen && App.hasDependencyWarnings()) {
                 firstRunSystemCheck.open()
+            } else if (App.tourAutoOpen) {
+                // UNISIC_TOUR=1 opens the tour on a normal launch. Same family
+                // as UNISIC_HOTKEY_BACKEND and UNISIC_RECORD_BORDER: a way to
+                // reach a path that otherwise needs a click, so it can be
+                // looked at in a sandboxed run without touching real settings.
+                tourUnload.stop()
+                tourLoader.active = true
+                tourLoader.item.openTour(false)
             } else if (App.hasUnseenCrash()) {
                 // A toast and not a modal, deliberately: the previous run has
                 // already ended, there is nothing for the user to decide, and a
@@ -690,7 +699,7 @@ Window {
         anchors.topMargin: window.chromeTop
         z: 900
         active: false
-        sourceComponent: UTour {}
+        sourceComponent: UTour { sceneOffsetY: window.chromeTop }
         // The tour asks; the window navigates. Keeping currentPage out of the
         // card means the tour cannot get out of step with the sidebar.
         Connections {

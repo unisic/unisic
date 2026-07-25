@@ -2,31 +2,30 @@ import QtQuick
 import Unisic
 import Unisic.Kit
 
-// A seven-step guided tour that DRIVES the window instead of describing it:
-// each step navigates to the page it is talking about and the card sits in the
-// corner, so the thing being named is on screen while you read about it.
+// The guided tour: the window dims, a hole is cut over one real control, and
+// Uni sits next to it with a speech bubble saying what it is and what you can
+// do with it. The control inside the hole stays LIVE - it is the only thing
+// still clickable - so a step that says "these three tiles take the shot" can
+// be answered by taking one.
 //
-// That is why it is NOT a modal Popup like USystemCheck. A modal dims and
-// covers exactly the page the step is pointing at, which turns a tour into a
-// wall of text. This is a floating card over a live window: the sidebar still
-// works, the page underneath is real, and a step can offer to actually DO the
-// thing it just described.
+// How the hole finds its control, and why it is not a registry: every
+// highlightable item carries objectName: "tour.<id>" and nothing else.
+// AppContext::tourTargetRect() resolves that with findChild and maps it to
+// window coordinates. A control that moves, is renamed or is deleted simply
+// stops being found, and an unfound target degrades to "dim everything, no
+// hole" rather than to a wrong hole somewhere else.
 //
-// A spotlight cut-out is still not possible and should not be retried: the
-// tool letters belong to OverlayWindow and EditorWindow, which do not exist
-// while the main window is up; every page lives behind a Loader destroyed on
-// navigation, so a highlighted Item vanishes as the tour advances; and a hole
-// plus a follower tooltip opening under the pointer is what the layout rules
-// forbid. Naming the control and putting its page on screen gets most of the
-// value with none of that.
+// The earlier objection to a spotlight was real but narrower than it looked:
+// it applies to controls in OverlayWindow and EditorWindow, which do not exist
+// while the main window is up, and to a page whose Loader has been destroyed.
+// The tour owns navigation, so it only ever highlights a control on the page it
+// has just switched to. Those two windows are covered by the closing step,
+// which describes their keys instead of pointing at them.
 //
-// The tool letters in the last step are read LIVE from ToolCatalog - a second
-// hardcoded list would be wrong the first time a shortcut moved.
-//
-// To remove the feature completely: delete this file, its line in
-// CMakeLists.txt, the tourSeen setting, the tourLoader block and its
-// Connections handler in Main.qml, the send-off button in UWelcome.qml, the
-// Settings row, showTour(), devTestTour(), tourCardCheck() and its smoke step.
+// Geometry is re-read rather than bound: mapToScene is not a bindable
+// expression, so a binding would go stale on a resize. Re-read on step change,
+// on any window resize, and on a short poll after navigation, because the
+// page's Loader needs a frame or two before its children have a size.
 Item {
     id: root
 
@@ -36,13 +35,14 @@ Item {
     property int step: 0
     readonly property int stepCount: 7
     property bool showing: false
+    // Window coordinates are offset from this item by the custom title bar.
+    property real sceneOffsetY: 0
 
     // The host owns navigation and the shortcut sheet; the tour only asks.
     signal pageRequested(int page)
     signal shortcutSheetRequested()
     signal finished()
 
-    // Live from the single source of the annotation tools AND their letters.
     readonly property var letteredTools: {
         var out = []
         var all = ToolCatalog.visibleFor("editor", "")
@@ -59,52 +59,85 @@ Item {
         applyStep()
     }
     function applyStep() {
-        var p = stepData(step).page
-        if (p >= 0)
-            root.pageRequested(p)
+        var d = stepData(step)
+        if (d.page >= 0)
+            root.pageRequested(d.page)
+        hole = Qt.rect(0, 0, 0, 0)
+        settleTries = 0
+        settle.restart()
     }
     function next() {
-        if (step + 1 < stepCount) {
-            step++
-            applyStep()
-        } else {
-            closeTour()
-        }
+        if (step + 1 < stepCount) { step++; applyStep() } else { closeTour() }
     }
     function back() {
-        if (step > 0) {
-            step--
-            applyStep()
-        }
+        if (step > 0) { step--; applyStep() }
     }
     function closeTour() {
+        settle.stop()
         showing = false
         if (markSeenOnClose)
             App.settings.tourSeen = true
         root.finished()
     }
 
+    // The hole, in THIS item's coordinates. Empty means "no control to point
+    // at": everything dims and Uni speaks from the middle.
+    property rect hole: Qt.rect(0, 0, 0, 0)
+    readonly property bool hasHole: hole.width > 0 && hole.height > 0
+    readonly property int holePad: 8
+
+    function readHole() {
+        var id = stepData(step).target
+        if (id === "") {
+            hole = Qt.rect(0, 0, 0, 0)
+            return true
+        }
+        var r = App.tourTargetRect(id)
+        if (r.width <= 0 || r.height <= 0) {
+            hole = Qt.rect(0, 0, 0, 0)
+            return false
+        }
+        hole = Qt.rect(r.x - holePad,
+                       r.y - root.sceneOffsetY - holePad,
+                       r.width + 2 * holePad,
+                       r.height + 2 * holePad)
+        return true
+    }
+
+    property int settleTries: 0
+    // The page behind a Loader is not laid out on the frame the tour asks for
+    // it, so poll briefly instead of reading once and giving up. Stops as soon
+    // as the rect is real, and gives up quietly after two seconds rather than
+    // polling for the life of the step.
+    Timer {
+        id: settle
+        interval: 80
+        repeat: true
+        running: false
+        onTriggered: {
+            if (root.readHole() || ++root.settleTries > 25)
+                settle.stop()
+        }
+    }
+    onWidthChanged: if (showing) readHole()
+    onHeightChanged: if (showing) readHole()
+
     anchors.fill: parent
     visible: showing
-    // Transparent and without a MouseArea of its own, so everything outside the
-    // card stays clickable: the page below is the point.
     z: 900
 
-    // Escape closes, as everywhere else. A Shortcut rather than a Keys handler
-    // because the card deliberately does not hold focus.
     Shortcut {
         enabled: root.showing && !App.shortcutRecording
         sequences: ["Escape"]
         onActivated: root.closeTour()
     }
 
-    // Each step is { page, title, intro, rows: [[what, does]], action, note }.
-    // A function, not a property, so every qsTr() re-runs on a language change
-    // while the tour is open. page = -1 means "leave the window where it is".
+    // page = which page to switch to (-1 = leave it), target = objectName
+    // suffix of the control to cut the hole over ("" = no hole).
     function stepData(i) {
         if (i === 0) {
             return {
-                page: 0,
+                page: 0, target: "capture.tiles",
                 title: qsTr("Capture: this page takes the shot"),
                 intro: qsTr("The three tiles at the top are the ways to take one. Everything under them decides what happens to it afterwards."),
                 rows: [
@@ -120,7 +153,7 @@ Item {
         }
         if (i === 1) {
             return {
-                page: 1,
+                page: 1, target: "record.mode",
                 title: qsTr("Record: video and GIF on one page"),
                 intro: qsTr("The switch at the top picks what comes out. The three buttons under it stay where they are and only change what they will produce."),
                 rows: [
@@ -135,7 +168,7 @@ Item {
         }
         if (i === 2) {
             return {
-                page: 2,
+                page: 2, target: "edit.tiles",
                 title: qsTr("Edit: the editor takes files you already have"),
                 intro: qsTr("It opens by itself after a capture, and this page is how you get an existing file into it."),
                 rows: [
@@ -150,7 +183,7 @@ Item {
         }
         if (i === 3) {
             return {
-                page: 3,
+                page: 3, target: "history.search",
                 title: qsTr("History: everything you have captured"),
                 intro: qsTr("Kept with a thumbnail, searchable, and the fastest way back to a file you took an hour ago."),
                 rows: [
@@ -165,7 +198,7 @@ Item {
         }
         if (i === 4) {
             return {
-                page: 4,
+                page: 4, target: "servers.add",
                 title: qsTr("Servers: where Upload sends things"),
                 intro: qsTr("Any custom HTTP, FTP or SFTP endpoint works, and the link it answers with is copied for you."),
                 rows: [
@@ -180,7 +213,7 @@ Item {
         }
         if (i === 5) {
             return {
-                page: 5,
+                page: 5, target: "settings.search",
                 title: qsTr("Settings: the gear at the bottom, or Ctrl+6"),
                 intro: qsTr("Everything the pages do not carry, on the same bordered-card grid. The search box at the top jumps straight to a row."),
                 rows: [
@@ -194,7 +227,7 @@ Item {
             }
         }
         return {
-            page: -1,
+            page: -1, target: "sidebar",
             title: qsTr("The keys worth knowing"),
             intro: qsTr("Two vocabularies. The tool letters are the same on the selection overlay and in the editor, so the tool you want is one key away in both."),
             rows: [
@@ -209,210 +242,335 @@ Item {
         }
     }
 
-    // NOT named "data": that is Item's default property, the one every
-    // child is appended to, and shadowing it silently breaks the card.
     readonly property var stepInfo: stepData(step)
 
-    Rectangle {
-        id: card
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: Theme.spacingL
-        width: Math.min(430, parent.width - 2 * Theme.spacingL)
-        height: Math.min(bodyCol.implicitHeight + 2 * Theme.spacingL,
-                         parent.height - 2 * Theme.spacingL)
-        radius: Theme.radiusL
-        color: Theme.surface
-        border.width: 1
-        border.color: Theme.accent
+    // ---- the dim, as four rectangles around the hole ----
+    // Four plain rectangles rather than a shader or an OpacityMask: it works on
+    // every backend, needs no extra render pass, and leaves the control inside
+    // the hole untouched instead of drawing a masked copy of it. Each one eats
+    // clicks, so the ONLY live thing in the window is what the hole exposes.
+    component Dim: Rectangle {
+        color: Qt.rgba(0, 0, 0, 0.62)
+        MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; hoverEnabled: true }
+    }
 
-        // The card floats over a live page, so it needs to read as lifted, not
-        // as part of it. Colour and a border only - no drop shadow item, which
-        // would be another scene-graph layer for nothing.
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -1
-            radius: parent.radius + 1
-            color: "transparent"
-            border.width: 1
-            border.color: Theme.alpha(Theme.accent, 0.25)
-            z: -1
+    Dim { // above the hole, or the whole window when there is none
+        x: 0; y: 0
+        width: parent.width
+        height: root.hasHole ? Math.max(0, root.hole.y) : parent.height
+    }
+    Dim { // below
+        visible: root.hasHole
+        x: 0
+        y: root.hole.y + root.hole.height
+        width: parent.width
+        height: Math.max(0, parent.height - y)
+    }
+    Dim { // left
+        visible: root.hasHole
+        x: 0
+        y: root.hole.y
+        width: Math.max(0, root.hole.x)
+        height: root.hole.height
+    }
+    Dim { // right
+        visible: root.hasHole
+        x: root.hole.x + root.hole.width
+        y: root.hole.y
+        width: Math.max(0, parent.width - x)
+        height: root.hole.height
+    }
+
+    // The ring around the live control. Not a MouseArea and not filled - the
+    // control underneath has to stay clickable, which is the whole point.
+    Rectangle {
+        visible: root.hasHole
+        x: root.hole.x; y: root.hole.y
+        width: root.hole.width; height: root.hole.height
+        radius: Theme.radiusM
+        color: "transparent"
+        border.width: 2
+        border.color: Theme.accent
+        Behavior on x { NumberAnimation { duration: Theme.animFast } }
+        Behavior on y { NumberAnimation { duration: Theme.animFast } }
+        Behavior on width { NumberAnimation { duration: Theme.animFast } }
+        Behavior on height { NumberAnimation { duration: Theme.animFast } }
+
+        // A slow breath, so the eye finds the ring. Nothing the pointer could
+        // be over moves: the ring sits outside the control, and only its
+        // opacity changes.
+        SequentialAnimation on opacity {
+            running: root.showing
+            loops: Animation.Infinite
+            NumberAnimation { from: 1.0; to: 0.45; duration: 1100; easing.type: Easing.InOutQuad }
+            NumberAnimation { from: 0.45; to: 1.0; duration: 1100; easing.type: Easing.InOutQuad }
+        }
+    }
+
+    // ---- Uni and her speech bubble ----
+    // Placed on the side of the hole with more room, so she never covers the
+    // control she is pointing at. Horizontally centred on the hole and clamped
+    // to the window.
+    readonly property bool speakBelow: !hasHole || (hole.y + hole.height / 2) < height / 2
+    // Uni and the bubble are ONE clamped group, laid out side by side. Placing
+    // her relative to the bubble AFTER the bubble was clamped is what let her
+    // run off the window edge: every clamp fixed the bubble and she was
+    // computed from it afterwards. Now the clamp is applied to both together.
+    readonly property real uniW: uniShown ? Math.round(uniH * 0.66) : 0   // the art is ~564x855
+    readonly property real uniH: 190
+    // She is dropped, not squeezed, when the window is too small to hold her
+    // beside a readable bubble.
+    readonly property bool uniShown: width >= 620 && height >= 360
+    readonly property real bubbleW: Math.min(460, width - 2 * Theme.spacingL - uniW)
+    readonly property real groupW: bubbleW + uniW
+
+    Item {
+        id: group
+        width: root.groupW
+        height: bubble.height
+        x: {
+            var want = root.hasHole ? root.hole.x + root.hole.width / 2 - width / 2
+                                    : (root.width - width) / 2
+            return Math.max(Theme.spacingL,
+                            Math.min(root.width - width - Theme.spacingL, want))
+        }
+        y: {
+            if (!root.hasHole)
+                return Math.max(Theme.spacingL, (root.height - height) / 2)
+            var want = root.speakBelow ? root.hole.y + root.hole.height + Theme.spacingM
+                                       : root.hole.y - height - Theme.spacingM
+            return Math.max(Theme.spacingL,
+                            Math.min(root.height - height - Theme.spacingL, want))
+        }
+        Behavior on x { NumberAnimation { duration: Theme.animFast } }
+        Behavior on y { NumberAnimation { duration: Theme.animFast } }
+
+        // Uni, inside the group so she is clamped with it and can never leave
+        // the window. Bottom-aligned with the bubble, the way she sits on a
+        // window frame in the app's own artwork.
+        Image {
+            id: uni
+            source: "qrc:/docs/uni.png"
+            visible: root.uniShown
+            width: root.uniW
+            height: root.uniH
+            // sourceSize keeps the decode small instead of holding the
+            // full-size art in memory for a 190 px draw.
+            sourceSize.height: root.uniH
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            z: 4
+            x: 0
+            y: bubble.height - height + 8
+            Accessible.ignored: true
         }
 
-        // Swallows clicks so a press on the card never reaches the page below.
-        MouseArea { anchors.fill: parent }
+        // The tail: a rotated square poking out of the bubble toward the hole,
+        // clamped so it never rides off the rounded corners.
+        Rectangle {
+            visible: root.hasHole
+            width: 14; height: 14
+            rotation: 45
+            color: Theme.surface
+            border.width: 1
+            border.color: Theme.accent
+            z: 2
+            x: Math.max(root.uniW + Theme.radiusL,
+                        Math.min(group.width - Theme.radiusL - width,
+                                 root.hole.x + root.hole.width / 2 - group.x - width / 2))
+            y: root.speakBelow ? -height / 2 : bubble.height - height / 2
+        }
 
-        Flickable {
-            id: bodyFlick
-            anchors.fill: parent
-            anchors.margins: Theme.spacingL
-            contentWidth: width
-            contentHeight: bodyCol.implicitHeight
-            clip: true
-            interactive: contentHeight > height
-            boundsBehavior: Flickable.StopAtBounds
+        Rectangle {
+            id: bubble
+            x: root.uniW
+            width: root.bubbleW
+            y: 0
+            height: Math.min(bodyFlick.contentHeight + 2 * Theme.spacingL,
+                             root.height - 2 * Theme.spacingL)
+            radius: Theme.radiusL
+            color: Theme.surface
+            border.width: 1
+            border.color: Theme.accent
+            z: 3
 
-            Column {
-                id: bodyCol
-                width: bodyFlick.width
-                spacing: Theme.spacingM
+            // Keeps a click on the bubble from reaching the live control on the
+            // rare step where the two overlap.
+            MouseArea { anchors.fill: parent }
 
-                // Accessible attaches to an Item, and it carries the step
-                // position because a screen reader user has no dots to look at.
-                Accessible.role: Accessible.Dialog
-                Accessible.name: qsTr("Tour, step %1 of %2: %3")
-                                    .arg(root.step + 1).arg(root.stepCount).arg(root.stepInfo.title)
-
-                Text {
-                    width: parent.width
-                    text: root.stepInfo.title
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontL
-                    font.weight: Font.DemiBold
-                    wrapMode: Text.WordWrap
-                    Accessible.ignored: true
-                }
-                Text {
-                    width: parent.width
-                    text: root.stepInfo.intro
-                    color: Theme.textSecondary
-                    font.pixelSize: Theme.fontS
-                    wrapMode: Text.WordWrap
-                    Accessible.ignored: true
-                }
+            Flickable {
+                id: bodyFlick
+                anchors.fill: parent
+                anchors.margins: Theme.spacingL
+                contentWidth: width
+                contentHeight: bodyCol.implicitHeight
+                clip: true
+                interactive: contentHeight > height
+                boundsBehavior: Flickable.StopAtBounds
 
                 Column {
-                    width: parent.width
+                    id: bodyCol
+                    width: bodyFlick.width
                     spacing: Theme.spacingS
-                    Repeater {
-                        model: root.stepInfo.rows
-                        delegate: Column {
-                            width: bodyCol.width
-                            spacing: 1
-                            Text {
-                                text: modelData[0]
-                                color: Theme.accent
-                                font.pixelSize: Theme.fontS
-                                font.weight: Font.DemiBold
-                                wrapMode: Text.WordWrap
-                                width: parent.width
-                                Accessible.ignored: true
-                            }
-                            Text {
-                                text: modelData[1]
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontS
-                                wrapMode: Text.WordWrap
-                                width: parent.width
-                                Accessible.ignored: true
-                            }
-                        }
-                    }
-                }
 
-                // The tool letters, only on the last step and only from the
-                // catalog. A Flow, because the number of lettered tools is not
-                // fixed - hiding tools in Settings shortens this list.
-                Flow {
-                    width: parent.width
-                    spacing: Theme.spacingXS
-                    visible: root.step === root.stepCount - 1
-                    Repeater {
-                        model: root.letteredTools
-                        delegate: Rectangle {
-                            width: letterText.implicitWidth + Theme.spacingM
-                            height: letterText.implicitHeight + Theme.spacingXS
-                            radius: Theme.radiusS
-                            color: Theme.alpha(Theme.accent, 0.12)
-                            Text {
-                                id: letterText
-                                anchors.centerIn: parent
-                                text: modelData.shortcut + "  " + modelData.label
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontS
-                                Accessible.ignored: true
-                            }
-                        }
-                    }
-                }
+                    // Accessible attaches to an Item, and it carries the step
+                    // position because a screen reader user has neither the
+                    // dots nor the spotlight to look at.
+                    Accessible.role: Accessible.Dialog
+                    Accessible.name: qsTr("Tour, step %1 of %2: %3")
+                                        .arg(root.step + 1).arg(root.stepCount).arg(root.stepInfo.title)
 
-                Text {
-                    width: parent.width
-                    text: root.stepInfo.note
-                    color: Theme.textTertiary
-                    font.pixelSize: Theme.fontS
-                    wrapMode: Text.WordWrap
-                    Accessible.ignored: true
-                }
-
-                // The step's own action, where there honestly is one: a tour
-                // that says "you can do X" and then lets you do X beats a tour
-                // that only says it.
-                UButton {
-                    visible: root.stepInfo.action !== ""
-                    text: root.stepInfo.action
-                    variant: "tonal"
-                    compact: true
-                    onClicked: {
-                        if (root.step === 0)
-                            App.captureRegion()
-                        else
-                            root.shortcutSheetRequested()
-                    }
-                }
-
-                Item { width: 1; height: Theme.spacingXS }
-
-                Item {
-                    width: parent.width
-                    height: Math.max(dots.height, navRow.height)
-
-                    // Position, drawn. Never interactive: a dot small enough to
-                    // fit is too small to be a target, and the buttons already
-                    // move in both directions.
-                    Row {
-                        id: dots
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingXS
+                    Text {
+                        width: parent.width
+                        text: root.stepInfo.title
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontL
+                        font.weight: Font.DemiBold
+                        wrapMode: Text.WordWrap
                         Accessible.ignored: true
+                    }
+                    Text {
+                        width: parent.width
+                        text: root.stepInfo.intro
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                        wrapMode: Text.WordWrap
+                        Accessible.ignored: true
+                    }
+
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingXS
                         Repeater {
-                            model: root.stepCount
-                            delegate: Rectangle {
-                                width: 6; height: 6; radius: 3
-                                color: index === root.step ? Theme.accent
-                                                           : Theme.alpha(Theme.textPrimary, 0.25)
+                            model: root.stepInfo.rows
+                            delegate: Column {
+                                width: bodyCol.width
+                                spacing: 1
+                                Text {
+                                    width: parent.width
+                                    text: modelData[0]
+                                    color: Theme.accent
+                                    font.pixelSize: Theme.fontS
+                                    font.weight: Font.DemiBold
+                                    wrapMode: Text.WordWrap
+                                    Accessible.ignored: true
+                                }
+                                Text {
+                                    width: parent.width
+                                    text: modelData[1]
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontS
+                                    wrapMode: Text.WordWrap
+                                    Accessible.ignored: true
+                                }
                             }
                         }
                     }
 
-                    Row {
-                        id: navRow
-                        anchors.right: parent.right
-                        spacing: Theme.spacingS
-                        UButton {
-                            text: qsTr("Close")
-                            variant: "ghost"
-                            compact: true
-                            accessibleDescription: qsTr("Close the tour. It stays available in Settings.")
-                            onClicked: root.closeTour()
+                    // The tool letters, only on the closing step and only from
+                    // the catalog - hiding tools in Settings shortens this list.
+                    Flow {
+                        width: parent.width
+                        spacing: Theme.spacingXS
+                        visible: root.step === root.stepCount - 1
+                        Repeater {
+                            model: root.letteredTools
+                            delegate: Rectangle {
+                                width: letterText.implicitWidth + Theme.spacingM
+                                height: letterText.implicitHeight + Theme.spacingXS
+                                radius: Theme.radiusS
+                                color: Theme.alpha(Theme.accent, 0.12)
+                                Text {
+                                    id: letterText
+                                    anchors.centerIn: parent
+                                    text: modelData.shortcut + "  " + modelData.label
+                                    color: Theme.textPrimary
+                                    font.pixelSize: Theme.fontS
+                                    Accessible.ignored: true
+                                }
+                            }
                         }
-                        UButton {
-                            text: qsTr("Back")
-                            variant: "ghost"
-                            compact: true
-                            enabled: root.step > 0
-                            onClicked: root.back()
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: root.stepInfo.note
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                        wrapMode: Text.WordWrap
+                        Accessible.ignored: true
+                    }
+
+                    // The step's own action, where there honestly is one. The
+                    // highlighted control is live too, so this is a second way
+                    // to do the thing, not the only one.
+                    UButton {
+                        visible: root.stepInfo.action !== ""
+                        text: root.stepInfo.action
+                        variant: "tonal"
+                        compact: true
+                        onClicked: {
+                            if (root.step === 0)
+                                App.captureRegion()
+                            else
+                                root.shortcutSheetRequested()
                         }
-                        UButton {
-                            text: root.step + 1 < root.stepCount ? qsTr("Next") : qsTr("Done")
-                            variant: "filled"
-                            compact: true
-                            onClicked: root.next()
+                    }
+
+                    Item { width: 1; height: 1 }
+
+                    Item {
+                        width: parent.width
+                        height: Math.max(dots.height, navRow.height)
+
+                        // Position, drawn. Never interactive: a dot small
+                        // enough to fit is too small to be a target, and the
+                        // buttons already move in both directions.
+                        Row {
+                            id: dots
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingXS
+                            Accessible.ignored: true
+                            Repeater {
+                                model: root.stepCount
+                                delegate: Rectangle {
+                                    width: 6; height: 6; radius: 3
+                                    color: index === root.step ? Theme.accent
+                                                               : Theme.alpha(Theme.textPrimary, 0.25)
+                                }
+                            }
+                        }
+
+                        Row {
+                            id: navRow
+                            anchors.right: parent.right
+                            spacing: Theme.spacingS
+                            UButton {
+                                text: qsTr("Close")
+                                variant: "ghost"
+                                compact: true
+                                accessibleDescription: qsTr("Close the tour. It stays available in Settings.")
+                                onClicked: root.closeTour()
+                            }
+                            UButton {
+                                text: qsTr("Back")
+                                variant: "ghost"
+                                compact: true
+                                enabled: root.step > 0
+                                onClicked: root.back()
+                            }
+                            UButton {
+                                text: root.step + 1 < root.stepCount ? qsTr("Next") : qsTr("Done")
+                                variant: "filled"
+                                compact: true
+                                onClicked: root.next()
+                            }
                         }
                     }
                 }
             }
         }
     }
+
 }

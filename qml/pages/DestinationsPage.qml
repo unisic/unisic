@@ -122,6 +122,7 @@ Item {
             }
             Row {
                 id: addRow
+                objectName: "tour.servers.add"
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS

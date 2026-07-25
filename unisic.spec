@@ -41,6 +41,18 @@ BuildRequires:  cmake(Qt6Concurrent)
 BuildRequires:  cmake(Qt6Svg)
 BuildRequires:  cmake(Qt6LinguistTools)
 BuildRequires:  cmake(Qt6WaylandClient)
+# KWin-native screencasting (HAVE_KWIN_SCREENCAST, zkde_screencast_unstable_v1
+# - the Spectacle path). Without BOTH of these the code compiles out and every
+# recording on Plasma falls back to the portal share dialog, which is the whole
+# thing the feature removes. Qt6 GuiPrivate is a separate package (Fedora
+# qt6-qtbase-private-devel, openSUSE qt6-gui-private-devel) and both distros
+# generate the cmake() provide. Leap 15.x is skipped for the same reason as
+# LayerShellQt above: too old to carry a Qt6-usable pair, and the feature
+# degrades to the portal instead of failing the build.
+%if !0%{?suse_version} || 0%{?suse_version} >= 1600
+BuildRequires:  cmake(Qt6GuiPrivate)
+BuildRequires:  cmake(PlasmaWaylandProtocols) >= 1.7
+%endif
 BuildRequires:  pkgconfig(libpipewire-0.3)
 BuildRequires:  pkgconfig(tesseract)
 # openSUSE's tesseract link interface drags in -lcurl (libarchive chain);

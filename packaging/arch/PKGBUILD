@@ -12,7 +12,10 @@ license=('GPL-3.0-or-later')
 # (HAVE_TESSERACT / HAVE_LAYERSHELL), so the binary needs the libs at runtime.
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal'
          'tesseract' 'leptonica' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb')
-makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb')
+# plasma-wayland-protocols carries zkde-screencast-unstable-v1.xml, which
+# HAVE_KWIN_SCREENCAST (KWin-native recording, no portal share dialog) is
+# generated from. Build-time only: the generated client code is linked in.
+makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'plasma-wayland-protocols' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb')
 optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'

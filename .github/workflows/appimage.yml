@@ -138,6 +138,24 @@ jobs:
           cmake --build build-kga --parallel
           cmake --install build-kga
 
+      - name: Build plasma-wayland-protocols (for KWin-native recording)
+        # HAVE_KWIN_SCREENCAST needs zkde-screencast-unstable-v1.xml, which
+        # lives in plasma-wayland-protocols >= 1.7; jammy ships an older one.
+        # Without it the AppImage and the portable tarball fall back to the
+        # portal share dialog on Plasma, i.e. the KDE-native recording path
+        # is silently absent from the two channels most users download.
+        # The package is XML plus a cmake config, so there is nothing to
+        # compile and nothing to bundle - it is consumed at build time by
+        # qt6_generate_wayland_protocol_client_sources.
+        continue-on-error: true
+        run: |
+          git clone --depth 1 --branch v1.13.0 https://invent.kde.org/libraries/plasma-wayland-protocols.git
+          cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --install build-pwp
+
       - name: Build AppDir
         run: |
           # The two optional builds above are continue-on-error — surface a
@@ -148,6 +166,8 @@ jobs:
             || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
           find lsq-prefix -name 'KF6GuiAddonsConfig.cmake' 2>/dev/null | grep -q . \
             || echo "::warning::kguiaddons build failed — AppImage ships without HAVE_KGUIADDONS (screenshots skip KDE Klipper history)"
+          find lsq-prefix -name 'PlasmaWaylandProtocolsConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::plasma-wayland-protocols build failed — AppImage ships without HAVE_KWIN_SCREENCAST (Plasma recording falls back to the portal share dialog)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \

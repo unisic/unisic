@@ -70,9 +70,15 @@ jobs:
           # the shipped binary has OCR and the on-top layer-shell surfaces
           # (custom notification card, overlay-over-fullscreen, preview pin)
           # compiled out no matter what the user installs at runtime.
+          # Same trap for HAVE_KWIN_SCREENCAST (KWin-native recording, no
+          # portal share dialog): it needs qt6-wayland-dev (Qt6WaylandClient +
+          # the protocol scanner), qt6-base-private-dev (Qt6GuiPrivate, for the
+          # per-screen wl_output) and plasma-wayland-protocols. Runtime
+          # qt6-wayland alone is not enough.
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
+            qt6-wayland-dev qt6-base-private-dev plasma-wayland-protocols \
             qt6-tools-dev qt6-l10n-tools \
             libpipewire-0.3-dev \
             libtesseract-dev libleptonica-dev libzxing-dev \
@@ -122,6 +128,7 @@ jobs:
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
+            qt6-qtwayland-devel qt6-qtbase-private-devel plasma-wayland-protocols-devel \
             qt6-qttools-devel \
             pipewire-devel \
             tesseract-devel leptonica-devel zxing-cpp-devel \
@@ -166,6 +173,7 @@ jobs:
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
+            plasma-wayland-protocols \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
             kguiaddons libx11 libxext libxfixes libxcb

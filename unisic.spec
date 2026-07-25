@@ -147,6 +147,7 @@ appstream-util validate-relax --nonet \
 %dir %{_datadir}/unisic
 %{_datadir}/unisic/obs-signing-key.asc
 %{_datadir}/applications/app.unisic.Unisic.desktop
+%{_mandir}/man1/unisic.1*
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg

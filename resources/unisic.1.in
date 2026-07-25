@@ -1,0 +1,177 @@
+.\" Manual page for Unisic. Generated from resources/unisic.1.in by CMake so
+.\" the version in the header cannot drift from UNISIC_VERSION_STRING.
+.TH UNISIC 1 "@UNISIC_MAN_DATE@" "Unisic @UNISIC_VERSION_STRING@" "User Commands"
+.SH NAME
+unisic \- capture, annotate, record and upload your screen on Wayland
+.SH SYNOPSIS
+.B unisic
+.RI [ MODE ]
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+.B Unisic
+is a screenshot and screen\-recording tool for Wayland, built on
+xdg\-desktop\-portal, PipeWire and, on KDE Plasma, KWin's own interfaces. It
+covers the whole workflow after the shortcut is pressed: annotate on the
+selection overlay before the shot is taken, keep editing afterwards, record the
+same region as GIF, MP4 or WebM, and push the result to the clipboard, to disk
+or to an upload destination of your own.
+.PP
+Run without arguments,
+.B unisic
+opens its window. Run with a mode it takes that capture and, if an instance is
+already running, hands the request to it rather than starting a second one.
+There is exactly one instance per user.
+.SH CAPTURE MODES
+Exactly one mode may be given.
+.TP
+.B \-\-fullscreen
+Capture every monitor as one image.
+.TP
+.B \-\-region
+Open the selection overlay and capture the region you drag out. The overlay has
+its own keys: a tool letter annotates, Space or Enter confirms, Escape cancels,
+Ctrl+C confirms and copies even when auto\-copy is off.
+.TP
+.B \-\-window
+Capture a single window, picked through the desktop's own window chooser.
+.TP
+.B \-\-monitor
+Capture the monitor the pointer is on.
+.TP
+.B \-\-recapture
+Repeat the last region capture: the same rectangle on the same monitor, without
+opening the overlay again.
+.TP
+.B \-\-measure
+Open the overlay in measuring mode, which reports distances instead of taking a
+shot.
+.TP
+.B \-\-gif
+Start a GIF recording of a region.
+.SH OPTIONS
+.TP
+.BI \-\-delay " SECONDS"
+Wait before capturing, so a menu or a hover state can be opened first. Accepts
+.BI \-\-delay= SECONDS
+as well. Only valid together with a screenshot mode.
+.TP
+.BI \-\-output " PATH"
+Write the capture to
+.IR PATH
+instead of following the configured save rules. A single
+.B \-
+writes the image to standard output, which is what makes
+.B unisic
+usable in a pipeline. Only valid together with a screenshot mode.
+.TP
+.BI \-\-format " FORMAT"
+Image format for
+.BR \-\-output :
+.BR png " (default), " jpg " or " webp .
+.TP
+.B \-\-tray\-only
+Start hidden in the system tray, with no window. This is what the autostart
+entry uses, so the global shortcuts work right after login.
+.TP
+.BI \-\-hotkey " ACTION"
+Run one capture action by name. This exists for desktops with no global\-shortcut
+service of their own, where Unisic writes its bindings into the desktop's own
+custom\-shortcut store and those bindings spawn this command.
+.TP
+.BI \-\-export\-settings " FILE"
+Write every setting and every upload destination to
+.IR FILE
+as JSON, then exit. Runs headless: no window, no tray, and it never disturbs a
+running instance.
+.TP
+.BI \-\-import\-settings " FILE"
+Read settings and destinations back from a file written by
+.BR \-\-export\-settings ,
+then exit.
+.SH EXAMPLES
+.TP
+Take a region shot and write it to a file:
+.EX
+unisic \-\-region \-\-output ~/shot.png
+.EE
+.TP
+Pipe a full\-screen capture into another program:
+.EX
+unisic \-\-fullscreen \-\-output \- \-\-format jpg | xdg\-open /dev/stdin
+.EE
+.TP
+Open a menu, then capture it three seconds later:
+.EX
+unisic \-\-region \-\-delay 3
+.EE
+.TP
+Move a configuration to another machine:
+.EX
+unisic \-\-export\-settings unisic\-settings.json
+.EE
+.SH FILES
+.TP
+.I ~/.config/unisic/unisic.conf
+All settings. Plain INI; the application rewrites it, so edit it while Unisic is
+not running.
+.TP
+.I ~/.config/unisic/destinations.json
+Upload destinations, in a ShareX\-like format. Files with the
+.I .sxcu
+extension can be imported directly from the Servers page.
+.TP
+.I ~/.config/unisic/themes/
+Custom colour themes. Any
+.I .json
+file dropped here appears in Settings, and is re\-read when it changes.
+.TP
+.I ~/.local/share/Unisic/unisic/logs/unisic.log
+The activity log of the current run, with the previous run kept alongside it as
+.IR unisic.log.1 .
+Passwords, upload tokens and the home directory path are removed before anything
+is written. Nothing is ever sent anywhere; Settings has a button that copies it
+for a bug report.
+.SH ENVIRONMENT
+.TP
+.B UNISIC_LOG
+Set to
+.B 0
+to keep the activity log in memory only and write no file.
+.TP
+.B UNISIC_HOTKEY_BACKEND
+Set to
+.B portal
+to force the xdg\-desktop\-portal GlobalShortcuts backend on a desktop that has
+its own shortcut service. For testing.
+.TP
+.B UNISIC_RECORD_BORDER
+Set to
+.B helper
+to force the separate\-process recording frame. For testing.
+.SH EXIT STATUS
+.TP
+.B 0
+The capture was taken, or the request was handed to the running instance.
+.TP
+.B 2
+The command line was wrong, for example
+.B \-\-delay
+without a capture mode, or an unsupported
+.BR \-\-format .
+.SH NOTES
+Screen recording needs a Wayland session or, since 0.8, an X11 session with the
+X11 capture path compiled in. Screenshots, annotation, the editor, OCR, history
+and uploads work on both.
+.PP
+On KDE Plasma, captures go through KWin directly, with no portal dialog. That
+path is authorised by the installed desktop entry, so it is unavailable to the
+Flatpak build and to the AppImage, which fall back to the portal.
+.SH SEE ALSO
+.BR ffmpeg (1),
+.BR wl\-copy (1)
+.PP
+Full documentation and issue tracker:
+.UR https://github.com/unisic/unisic
+.UE
+.SH AUTHOR
+Unisic is written by D3anDark and contributors.

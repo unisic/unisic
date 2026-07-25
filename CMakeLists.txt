@@ -325,6 +325,15 @@ install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # see packaging/obs/README.md).
 install(FILES packaging/obs/home_unisic.key
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME obs-signing-key.asc)
+# Man page. Generated so the version in its header cannot drift from
+# UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
+# was last hand-edited. It is the ONLY CLI documentation Unisic has - there is
+# no --help - and Debian's linters flag a binary that ships without one.
+string(TIMESTAMP UNISIC_MAN_DATE "%Y-%m-%d" UTC)
+configure_file(resources/unisic.1.in ${CMAKE_CURRENT_BINARY_DIR}/unisic.1 @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+
 # The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
 # restricted interfaces this app declares. KWin authorizes a caller by
 # comparing QFileInfo(splitCommand(Exec).first()).canonicalFilePath() against

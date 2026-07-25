@@ -5422,8 +5422,8 @@ Si applica alla prossima cattura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2999"/>
-        <source>Unisic can add these to %1 for you, using the keys above — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation>Unisic può aggiungerle a %1 per te, usando i tasti qui sopra — restano modificabili nelle impostazioni della tastiera di %1.</translation>
+        <source>Unisic can add these to %1 for you, using the keys above - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation>Unisic può aggiungerle a %1 per te, usando i tasti qui sopra - restano modificabili nelle impostazioni della tastiera di %1.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3028"/>
@@ -6399,8 +6399,8 @@ Si applica alla prossima cattura.</translation>
         <translation>Questo desktop non offre né KGlobalAccel né un portale GlobalShortcuts funzionante, quindi Unisic non può registrare le scorciatoie globali da solo. Ogni azione di cattura può invece essere associata a un comando nelle impostazioni delle scorciatoie del desktop; un&apos;istanza di Unisic in esecuzione lo rileva.</translation>
     </message>
     <message>
-        <source>Unisic can add these to %1 for you, using the keys below — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation type="vanished">Unisic può aggiungerle a %1 per te, usando i tasti qui sotto — restano modificabili nelle impostazioni della tastiera di %1.</translation>
+        <source>Unisic can add these to %1 for you, using the keys below - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation type="vanished">Unisic può aggiungerle a %1 per te, usando i tasti qui sotto - restano modificabili nelle impostazioni della tastiera di %1.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2856"/>
@@ -6424,7 +6424,7 @@ Si applica alla prossima cattura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2783"/>
-        <source>Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
+        <source>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
         <translation>Registra il tasto che vuoi per ogni azione, poi usa «Aggiungi scorciatoie a %1» qui sotto: Unisic associa ciascuna come comando nelle impostazioni della tastiera di %1.</translation>
     </message>
     <message>

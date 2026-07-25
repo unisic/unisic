@@ -4942,8 +4942,8 @@ S’applique à la prochaine capture.</translation>
         <translation>Ce bureau n’offre ni KGlobalAccel ni un portail GlobalShortcuts fonctionnel, donc Unisic ne peut pas enregistrer lui-même de raccourcis globaux. À la place, chaque action de capture peut être liée à une commande dans les réglages de raccourcis propres à votre bureau ; une instance d’Unisic en cours d’exécution la récupère alors.</translation>
     </message>
     <message>
-        <source>Unisic can add these to %1 for you, using the keys below — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation type="vanished">Unisic peut les ajouter à %1 pour vous, en utilisant les touches ci-dessous — elles restent modifiables dans les propres réglages clavier de %1.</translation>
+        <source>Unisic can add these to %1 for you, using the keys below - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation type="vanished">Unisic peut les ajouter à %1 pour vous, en utilisant les touches ci-dessous - elles restent modifiables dans les propres réglages clavier de %1.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2856"/>
@@ -4967,8 +4967,8 @@ S’applique à la prochaine capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2783"/>
-        <source>Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
-        <translation>Enregistrez la touche voulue pour chaque action, puis utilisez « Ajouter les raccourcis à %1 » ci-dessous — Unisic lie chacune d’elles comme une commande dans les réglages clavier de %1.</translation>
+        <source>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
+        <translation>Enregistrez la touche voulue pour chaque action, puis utilisez « Ajouter les raccourcis à %1 » ci-dessous - Unisic lie chacune d’elles comme une commande dans les réglages clavier de %1.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2795"/>
@@ -6430,8 +6430,8 @@ S’applique à la prochaine capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2999"/>
-        <source>Unisic can add these to %1 for you, using the keys above — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation>Unisic peut les ajouter à %1 pour vous, en utilisant les touches ci-dessus — elles restent modifiables dans les propres réglages clavier de %1.</translation>
+        <source>Unisic can add these to %1 for you, using the keys above - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation>Unisic peut les ajouter à %1 pour vous, en utilisant les touches ci-dessus - elles restent modifiables dans les propres réglages clavier de %1.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3088"/>

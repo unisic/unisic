@@ -4946,8 +4946,8 @@ Applies to the next capture.</translation>
         <translation>This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Instead each capture action can be bound to a command in your desktop&apos;s own shortcut settings; a running Unisic instance then picks it up.</translation>
     </message>
     <message>
-        <source>Unisic can add these to %1 for you, using the keys below — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation type="vanished">Unisic can add these to %1 for you, using the keys below — they stay editable in %1&apos;s own keyboard settings.</translation>
+        <source>Unisic can add these to %1 for you, using the keys below - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation type="vanished">Unisic can add these to %1 for you, using the keys below - they stay editable in %1&apos;s own keyboard settings.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2856"/>
@@ -4971,8 +4971,8 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2783"/>
-        <source>Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
-        <translation>Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1&apos;s keyboard settings.</translation>
+        <source>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
+        <translation>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2795"/>
@@ -6434,8 +6434,8 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2999"/>
-        <source>Unisic can add these to %1 for you, using the keys above — they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation>Unisic can add these to %1 for you, using the keys above — they stay editable in %1&apos;s own keyboard settings.</translation>
+        <source>Unisic can add these to %1 for you, using the keys above - they stay editable in %1&apos;s own keyboard settings.</source>
+        <translation>Unisic can add these to %1 for you, using the keys above - they stay editable in %1&apos;s own keyboard settings.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3088"/>

@@ -2780,7 +2780,7 @@ Item {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: !App.hotkeysAvailable
-                              ? qsTr("Record the key you want for each action, then use “Add shortcuts to %1” below — Unisic binds each one as a command in %1's keyboard settings.").arg(App.desktopShortcutName)
+                              ? qsTr("Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1's keyboard settings.").arg(App.desktopShortcutName)
                               : App.hotkeyBackend === "portal"
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
                               : App.hotkeyBackend === "x11"
@@ -2996,7 +2996,7 @@ Item {
                                 Text {
                                     width: parent.width
                                     wrapMode: Text.WordWrap
-                                    text: qsTr("Unisic can add these to %1 for you, using the keys above — they stay editable in %1's own keyboard settings.").arg(App.desktopShortcutName)
+                                    text: qsTr("Unisic can add these to %1 for you, using the keys above - they stay editable in %1's own keyboard settings.").arg(App.desktopShortcutName)
                                     color: Theme.textTertiary
                                     font.pixelSize: Theme.fontS
                                 }

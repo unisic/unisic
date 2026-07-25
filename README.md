@@ -118,7 +118,7 @@ Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.c
 <div align="center">
 <br />
 
-<img src="docs/uni.png" width="230" alt="Uni, the Unisic mascot — a purple cat-girl sitting on a window" />
+<img src="docs/uni.png" width="230" alt="Uni, the Unisic mascot - a purple cat-girl sitting on a window" />
 
 *Uni approves this capture.*
 

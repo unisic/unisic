@@ -45,10 +45,14 @@ class UploadManager : public QObject
     QML_UNCREATABLE("Provided by AppContext")
 
     Q_PROPERTY(QVariantList destinations READ destinationsVariant NOTIFY destinationsChanged)
+    // True while at least one CAPTURE upload is in flight; the server editor's
+    // test upload deliberately does not count (see Purpose).
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
     using Callback = std::function<void(const QString &url, const QString &deleteUrl, const QString &error)>;
+    // Same three values testFinished() carries, delivered to one caller only.
+    using TestCallback = std::function<void(bool ok, const QString &url, const QString &error)>;
 
     explicit UploadManager(Settings *settings, QObject *parent = nullptr);
 
@@ -63,6 +67,25 @@ public:
     Q_INVOKABLE void saveDestination(const QVariantMap &dest);
     Q_INVOKABLE void removeDestination(const QString &name);
     Q_INVOKABLE QVariantMap destination(const QString &name) const;
+
+    // Try a destination that has NOT been saved yet: the server editor hands in
+    // the current (unsaved) form state, this uploads a tiny generated PNG
+    // through the very same http/curl path a real capture takes and answers
+    // with testFinished(). Nothing is persisted: no destinations.json write, no
+    // history entry, no clipboard touch. It takes the whole object and not a
+    // name (the way uploadDataTo() does) because a name has to be looked up,
+    // and destinationNamed() silently falls back to the FIRST stored
+    // destination for an unknown one - an unsaved config would be "tested"
+    // against somebody else's server.
+    Q_INVOKABLE void testDestination(const QVariantMap &dest);
+    // The same test, answered on a PRIVATE channel. testFinished() is one
+    // global signal that the server editor's sheet listens to permanently
+    // (guarded only by "my sheet is open and testing"), so a second tester
+    // emitting it would let the two steal each other's answer: whichever
+    // finishes first repaints the sheet, and the other reads a verdict it never
+    // asked for. Everything that is not that sheet - the developer check, the
+    // F8 smoke run - therefore takes this overload.
+    void testDestination(const QVariantMap &dest, TestCallback cb);
 
     // Imgur talks to a per-user Client-ID that the app deliberately does not
     // ship (see the note in the .cpp). The destination list marks an Imgur
@@ -88,8 +111,24 @@ public:
 signals:
     void destinationsChanged();
     void busyChanged();
+    // Result of testDestination(). `ok` false carries `error`; `ok` true with an
+    // empty `url` is the legitimate curl case (no publicUrlBase configured).
+    void testFinished(bool ok, const QString &url, const QString &error);
 
 private:
+    // What a request is FOR. A capture upload and the server editor's test
+    // upload take the very same code path and differ in exactly two ways:
+    //   - how long a server that goes quiet is given (a capture may be a
+    //     hundreds-of-MB recording on a slow link; a test is a few hundred
+    //     bytes with someone watching a "Testing…" sheet, so it fails fast -
+    //     the timeouts and their reasoning live at the top of the .cpp);
+    //   - whether it raises busy(), which is the UI's "a capture is being
+    //     uploaded" lamp. A test must not grey out an open editor's Upload
+    //     button, so it stays out of the count.
+    // Both travel as this argument rather than as a flag on the request, so
+    // every entry point has to say which kind of upload it is starting.
+    enum class Purpose { Capture, Test };
+
     QJsonObject activeDestination() const;
     QJsonObject destinationNamed(const QString &name) const;
     void loadDestinations();
@@ -101,11 +140,17 @@ private:
     // STREAM the payload (multipart body device / curl -T <path>) instead of
     // holding the whole file in RAM for the duration of the transfer.
     void httpUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
-                    const QString &fileName, const QString &mime, Callback cb);
+                    const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
-                    const QString &fileName, Callback cb);
+                    const QString &fileName, Purpose purpose, Callback cb);
     void startUpload(const QByteArray &data, const QString &srcPath, const QString &fileName,
                      const QString &mime, const QString &destination, Callback cb);
+    // Same as startUpload() but with the destination object already resolved, so
+    // a caller can upload to a config that is not (or not yet) in the store.
+    // Every caller states its Purpose: the three public upload entry points are
+    // real captures, testDestination() is the one test.
+    void startUploadTo(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
+                       const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
     static bool isImgur(const QJsonObject &dest);
@@ -117,5 +162,8 @@ private:
     QJsonArray m_destinations;
     bool m_busy = false;
     QString m_lastImportError;
-    int m_active = 0; // in-flight uploads; busy = m_active > 0
+    int m_active = 0; // in-flight CAPTURE uploads; busy = m_active > 0
+    // Correlates a testFinished() emission with the QML test that asked for it
+    // (see the QML overload in the .cpp): only the newest one may speak.
+    quint64 m_qmlTestGen = 0;
 };

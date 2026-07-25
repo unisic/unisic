@@ -3,6 +3,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QHttpMultiPart>
+#include <QBuffer>
+#include <QImage>
 #include <QJsonDocument>
 #include <QJsonValue>
 #include <QRegularExpression>
@@ -35,6 +37,35 @@
 static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
 static const char kImgurHost[] = "api.imgur.com";
 
+// The two squares of the checkerboard testDestination() uploads: the mandatory
+// palette's Secondary (#2E236C) and Accent (#C8ACD6), i.e. the `secondary` and
+// `accent` tokens of the unisic palette in Theme.qml, so the test image is
+// recognisably Unisic in a server's file listing. UploadManager is plain C++
+// with no access to the QML Theme singleton, so the two values are mirrored by
+// hand HERE and nowhere else - if the palette changes, this is the only place
+// outside Theme.qml to follow it.
+static constexpr QRgb kTestTileSecondary = 0xff2e236cu;
+static constexpr QRgb kTestTileAccent = 0xffc8acd6u;
+
+// Stall (INACTIVITY) timeouts for the http path: they restart on every byte
+// transferred, so a slow but progressing transfer of any size is unaffected;
+// only a server that accepts the connection and then goes quiet hits them.
+//   Capture: a real upload can be a hundreds-of-MB recording on a hotel Wi-Fi
+//   and nobody is staring at it, so it gets the long grace period. This is also
+//   the manager-wide default set in the constructor.
+//   Test: a few hundred bytes with the server editor's sheet stuck on
+//   "Testing…" until an answer arrives, so it gives up in half the time.
+static constexpr int kCaptureStallMs = 120000;
+static constexpr int kTestStallMs = 60000;
+
+// Absolute ceilings on a whole curl transfer - NOT inactivity timeouts (the
+// watchdog in curlUpload explains why curl needs one on top of --speed-time).
+// A real upload may legitimately run for a long time; a test moves a few
+// hundred bytes, so its entire life is capped at the minute a stalled test
+// would get.
+static constexpr int kCaptureCurlCeilingMs = 30 * 60 * 1000;
+static constexpr int kTestCurlCeilingMs = 60000;
+
 bool UploadManager::isImgur(const QJsonObject &dest)
 {
     return QUrl(dest.value(QStringLiteral("requestUrl")).toString()).host()
@@ -57,12 +88,12 @@ UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
 {
     m_nam->setRedirectPolicy(QNetworkRequest::NoLessSafeRedirectPolicy);
-    // Inactivity timeout (restarts whenever bytes flow, so slow-but-progressing
-    // transfers are unaffected). Without it a server that accepts the connection
-    // and stalls pins the reply + the full multipart payload forever and wedges
-    // the busy state. Surfaces as OperationCanceledError through the existing
+    // Manager-wide fallback for any request that does not state its own (see
+    // kCaptureStallMs). Without it a server that accepts the connection and
+    // stalls pins the reply + the full multipart payload forever and wedges the
+    // busy state. Surfaces as OperationCanceledError through the existing
     // finished handler. (int overload: the chrono one needs Qt 6.7.)
-    m_nam->setTransferTimeout(120000);
+    m_nam->setTransferTimeout(kCaptureStallMs);
     loadDestinations();
     ensureBuiltins();
 }
@@ -492,8 +523,14 @@ void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
                                 const QString &fileName, const QString &mime,
                                 const QString &destination, Callback cb)
 {
-    const QJsonObject dest = destination.isEmpty() ? activeDestination()
-                                                    : destinationNamed(destination);
+    startUploadTo(destination.isEmpty() ? activeDestination() : destinationNamed(destination),
+                  data, srcPath, fileName, mime, Purpose::Capture, std::move(cb));
+}
+
+void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &data,
+                                  const QString &srcPath, const QString &fileName,
+                                  const QString &mime, Purpose purpose, Callback cb)
+{
     if (dest.isEmpty()) {
         cb({}, {}, tr("No upload server configured"));
         return;
@@ -509,16 +546,81 @@ void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
         return;
     }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
-    ++m_active; // concurrent uploads: busy until the last one completes
-    setBusy(true);
-    auto done = [this, cb](const QString &url, const QString &del, const QString &err) {
-        setBusy(--m_active > 0);
+    // `busy` means "a capture is on its way to a server": it greys the editor's
+    // Upload button out and relabels it "Uploading…". A configuration test is
+    // not that - it moves a few hundred bytes of generated PNG on a server the
+    // user is still editing - so it must not disable an unrelated open editor.
+    // The sheet shows its own "Testing…" state and never reads this flag.
+    const bool counted = purpose == Purpose::Capture;
+    if (counted) {
+        ++m_active; // concurrent uploads: busy until the last one completes
+        setBusy(true);
+    }
+    auto done = [this, cb, counted](const QString &url, const QString &del, const QString &err) {
+        if (counted)
+            setBusy(--m_active > 0);
         cb(url, del, err);
     };
     if (type == QLatin1String("curl"))
-        curlUpload(dest, data, srcPath, fileName, done);
+        curlUpload(dest, data, srcPath, fileName, purpose, done);
     else
-        httpUpload(dest, data, srcPath, fileName, mime, done);
+        httpUpload(dest, data, srcPath, fileName, mime, purpose, done);
+}
+
+void UploadManager::testDestination(const QVariantMap &destMap)
+{
+    // The sheet can outrun itself: close it on a pending test, reopen it on
+    // another server, test again, and its own guard ("my sheet is open and
+    // testing") is true for BOTH answers. The stale one would land first and be
+    // painted as the new server's verdict, after which the real one is dropped
+    // as "not testing". So each QML test takes a generation and only the newest
+    // may speak; the superseded test is silently abandoned (its sheet is gone
+    // by definition).
+    const quint64 gen = ++m_qmlTestGen;
+    testDestination(destMap, [this, gen](bool ok, const QString &url, const QString &error) {
+        if (gen != m_qmlTestGen)
+            return;
+        emit testFinished(ok, url, error);
+    });
+}
+
+void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
+{
+    const QJsonObject dest = QJsonObject::fromVariantMap(destMap);
+    if (dest.value(QStringLiteral("requestUrl")).toString().trimmed().isEmpty()) {
+        cb(false, {}, tr("Enter a request URL first."));
+        return;
+    }
+    // Same rule as the real upload path, but worded for someone who is already
+    // standing in the editor the long message would send them to.
+    if (isImgur(dest) && imgurClientId(dest).isEmpty()) {
+        cb(false, {}, tr("Imgur needs your own Client-ID. Paste it into the "
+                         "field above, then test again."));
+        return;
+    }
+
+    // A tiny recognisable tile: some hosts reject degenerate dimensions, and a
+    // visible checker is friendlier than a blank pixel when the user opens the
+    // returned link. A few hundred bytes, so a test costs almost nothing (and
+    // Imgur's per-Client-ID daily cap is not something to spend carelessly).
+    QImage img(64, 64, QImage::Format_ARGB32);
+    for (int y = 0; y < img.height(); ++y)
+        for (int x = 0; x < img.width(); ++x)
+            img.setPixel(x, y, ((x / 16 + y / 16) % 2) ? kTestTileSecondary : kTestTileAccent);
+    QByteArray png;
+    QBuffer buf(&png);
+    buf.open(QIODevice::WriteOnly);
+    img.save(&buf, "PNG");
+    buf.close();
+
+    // Purpose::Test changes exactly two things (see the enum): it fails faster,
+    // and it stays out of the busy state. Everything else - headers, verb, body
+    // encoding, URL extraction - is deliberately the real upload path.
+    startUploadTo(dest, png, {}, QStringLiteral("unisic-test.png"), QStringLiteral("image/png"),
+                  Purpose::Test,
+                  [cb = std::move(cb)](const QString &url, const QString &, const QString &err) {
+        cb(err.isEmpty(), url, err);
+    });
 }
 
 // Resolve a single $text$/$json:...$/$regex:...$ token against the response.
@@ -610,9 +712,19 @@ static QString sanitizeFileName(QString name)
 
 void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &srcPath, const QString &fileName,
-                               const QString &mime, Callback cb)
+                               const QString &mime, Purpose purpose, Callback cb)
 {
     QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
+    // Stall protection, the http twin of curlUpload's --speed-time 60: a server
+    // that accepts the connection and then goes quiet would otherwise hold the
+    // QNetworkReply, the busy state and (for the server editor's Test upload)
+    // a sheet stuck on "Testing…" forever, with nothing to cancel it. A stall
+    // ends as OperationCanceledError in the normal finished() cleanup path.
+    // Both values are stated here rather than letting the capture case fall
+    // through to the manager-wide default: a request-level setTransferTimeout()
+    // OVERRIDES the manager's, so one unqualified call would silently retime
+    // every capture upload too.
+    req.setTransferTimeout(purpose == Purpose::Test ? kTestStallMs : kCaptureStallMs);
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
     bool hasContentType = false;
     for (auto it = headers.begin(); it != headers.end(); ++it) {
@@ -734,7 +846,8 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
 }
 
 void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
-                               const QString &srcPath, const QString &fileName, Callback cb)
+                               const QString &srcPath, const QString &fileName,
+                               Purpose purpose, Callback cb)
 {
     // File source: hand curl the original path directly — copying a recording
     // into a QTemporaryFile doubled both the RAM (readAll upstream) and disk.
@@ -834,8 +947,10 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     // Absolute watchdog on top of --speed-*: some curl builds don't apply the
     // low-speed check while stuck in non-transfer protocol states (e.g. an SFTP
     // handshake). Parented to proc, so it auto-cancels on normal completion;
-    // kill() delivers finished() and the standard cleanup path runs.
-    QTimer::singleShot(30 * 60 * 1000, proc, [proc] {
+    // kill() delivers finished() and the standard cleanup path runs. The two
+    // ceilings are up at the constants block with the http timeouts.
+    QTimer::singleShot(purpose == Purpose::Test ? kTestCurlCeilingMs : kCaptureCurlCeilingMs,
+                       proc, [proc] {
         if (proc->state() != QProcess::NotRunning)
             proc->kill();
     });

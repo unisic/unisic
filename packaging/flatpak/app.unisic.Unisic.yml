@@ -217,7 +217,9 @@ modules:
       - -DCMAKE_INSTALL_PREFIX=/app
       - -DUNISIC_DEV_BUILD=OFF
     post-install:
-      - install -Dm644 LICENSE /app/share/licenses/app.unisic.Unisic/LICENSE
+      # ../LICENSE, not LICENSE: builddir: true runs every command of this
+      # module from _flatpak_build, and the license sits in the source root.
+      - install -Dm644 ../LICENSE /app/share/licenses/app.unisic.Unisic/LICENSE
     sources:
       - type: git
         url: https://github.com/unisic/unisic.git

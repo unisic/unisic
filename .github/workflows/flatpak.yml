@@ -86,12 +86,43 @@ jobs:
       - name: Lint the manifest and the built repo
         run: |
           flatpak install -y --noninteractive flathub org.flatpak.Builder
+          # Three linter errors are expected for this app and can never clear
+          # here, so a bare exit-code check would fail every single run: the
+          # permission-store hole is granted by a Flathub reviewer as an
+          # exception, and the two screenshot ones only pass on Flathub's own
+          # build service, which mirrors screenshots to dl.flathub.org.
+          # Everything else is a real failure.
+          cat > /tmp/lintcheck.py <<'PY'
+          import json, sys
+          ALLOWED = {
+              "finish-args-portal-impl-permissionstore-talk-name",
+              "appstream-screenshots-not-mirrored-in-ostree",
+              "appstream-external-screenshot-url",
+          }
+          raw = open(sys.argv[1], encoding="utf-8").read().strip()
+          if not raw:
+              sys.exit(0)
+          try:
+              errors = json.loads(raw).get("errors", [])
+          except json.JSONDecodeError:
+              print("::error::flatpak-builder-lint produced no usable JSON")
+              print(raw)
+              sys.exit(1)
+          unexpected = [e for e in errors if e not in ALLOWED]
+          for e in unexpected:
+              print(f"::error::flatpak-builder-lint: {e}")
+          sys.exit(1 if unexpected else 0)
+          PY
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            manifest packaging/flatpak/app.unisic.Unisic.yml
+            manifest packaging/flatpak/app.unisic.Unisic.yml > manifest-lint.json || true
+          cat manifest-lint.json
+          python3 /tmp/lintcheck.py manifest-lint.json
           # `repo` checks what actually landed in the bundle (exported files,
           # icon and metainfo naming, permissions) - the half a manifest lint
           # cannot see. Skipped for --local builds, whose version metadata
           # deliberately does not match a release tag.
           if [ "${{ inputs.local }}" = "false" ]; then
-            flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+            flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo > repo-lint.json || true
+            cat repo-lint.json
+            python3 /tmp/lintcheck.py repo-lint.json
           fi

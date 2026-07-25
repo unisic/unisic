@@ -91,11 +91,18 @@ the short form of it, with the Unisic-specific answers filled in.
 2. **Check the metainfo** (`appstreamcli validate --pedantic
    resources/app.unisic.Unisic.metainfo.xml`). The one pedantic hint about an
    uppercase character in the component ID is expected and accepted.
-3. **Build and lint locally** until both are clean:
+3. **Build and lint locally**:
    ```sh
    packaging/flatpak/build.sh --run
    packaging/flatpak/build.sh --lint
    ```
+   Three linter errors are expected and are not something to fix here.
+   `finish-args-portal-impl-permissionstore-talk-name` is the permission-store
+   hole below, which a reviewer grants as an exception. The two screenshot ones
+   (`appstream-screenshots-not-mirrored-in-ostree`,
+   `appstream-external-screenshot-url`) only clear on Flathub's own build
+   service, which mirrors the screenshots to dl.flathub.org. Anything else in
+   the output is a real failure.
 4. **Fork <https://github.com/flathub/flathub>**, branch from `new-pr` (not
    `master`), and add exactly two files at the repository root:
    `app.unisic.Unisic.yml` (this manifest, unchanged) and nothing else unless a

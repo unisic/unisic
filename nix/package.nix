@@ -23,10 +23,13 @@
 # compositor-free and runs headless under QT_QPA_PLATFORM=offscreen.
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.7.4";
+  version = "0.7.5";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
-  # so build/ dist/ and .git never enter the derivation.
+  # so build/ dist/ and .git never enter the derivation. That copy carries the
+  # external/unisic-kit submodule only when the flake ref asks for it, hence the
+  # ?submodules=1 in the build commands below - without it the kit is an empty
+  # directory and the CMake configure fails.
   src = lib.cleanSource ../.;
 
   nativeBuildInputs = [

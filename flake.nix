@@ -10,7 +10,9 @@
         nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
     in
     {
-      # nix build .#unisic   |   nix run .#unisic -- --region
+      # nix build '.?submodules=1#unisic'   |   nix run '.?submodules=1#unisic' -- --region
+      # ?submodules=1 is required: external/unisic-kit is a submodule, and a
+      # plain flake ref copies only the parent repo's own tracked files.
       packages = forAllSystems (pkgs: {
         unisic = pkgs.callPackage ./nix/package.nix { };
         default = self.packages.${pkgs.system}.unisic;

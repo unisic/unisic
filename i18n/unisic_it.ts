@@ -3636,6 +3636,11 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="957"/>
+        <source>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</source>
+        <translation>La sandbox di Flatpak non può sostituire l&apos;applicazione dall&apos;interno - aggiornala con flatpak update.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="959"/>
         <source>The AppImage location is read-only - it can&apos;t update itself from here.</source>
         <translation>La posizione dell&apos;AppImage è di sola lettura - non può aggiornarsi da qui.</translation>
     </message>

@@ -70,6 +70,8 @@ It runs straight from memory - the script is **never saved to your disk**, it ju
 
 Prefer to do it by hand? Grab a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. The AppImage updates itself, and the `.deb` / Fedora `.rpm` / Arch `.pkg.tar.zst` register their native repo on first install - from then on updates arrive through your package manager like any other package.
 
+A Flatpak bundle (`unisic.flatpak`) ships with each release too - install it with `flatpak install --user ./unisic.flatpak`. A bundle carries no update channel, so that one is a manual re-download; see [`packaging/flatpak/`](packaging/flatpak/README.md) for building it yourself or hosting a repo that does update automatically.
+
 Per-distro repository setup (Fedora COPR, Debian/Ubuntu, openSUSE, Arch, Nix flake) with copy-paste snippets: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
 
 ## First steps

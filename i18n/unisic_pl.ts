@@ -3505,6 +3505,11 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="957"/>
+        <source>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</source>
+        <translation>Piaskownica Flatpaka nie może zastąpić aplikacji od środka - zaktualizuj ją poleceniem flatpak update.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="959"/>
         <source>The AppImage location is read-only - it can&apos;t update itself from here.</source>
         <translation>Lokalizacja AppImage jest tylko do odczytu - aktualizacja z tego miejsca nie jest możliwa.</translation>
     </message>

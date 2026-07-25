@@ -1,0 +1,158 @@
+id: app.unisic.Unisic
+runtime: org.kde.Platform
+# 6.10 is the newest branch with a matching flatpak-github-actions CI image
+# (ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10); 6.11 has no image yet.
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+command: unisic
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  # X11 sessions are supported since 0.7.5 (recording + global hotkeys);
+  # fallback-x11 hands over X11 only when there is no Wayland display.
+  - --socket=fallback-x11
+  # Capture/recording sound cues shell out to pw-play/paplay/aplay.
+  - --socket=pulseaudio
+  - --device=dri
+  - --filesystem=xdg-pictures:create
+  - --filesystem=xdg-videos:create
+  # Self-grant the "screenshot" permission so the silent portal screenshot
+  # (the overlay freeze) never pops a consent dialog per capture. Inside the
+  # sandbox PortalScreenshot::candidateAppIds() writes only FLATPAK_ID.
+  - --talk-name=org.freedesktop.impl.portal.PermissionStore
+  # NOT for org.kde.KWin.ScreenShot2 — KWin rejects sandboxed clients, so
+  # KWinScreenShot2::isAvailable() returns false here and capture goes through
+  # the portal. This name is still needed for KWin's queryWindowInfo, i.e. the
+  # interactive window pick when recording a single window.
+  - --talk-name=org.kde.KWin
+  # Global capture hotkeys via KGlobalAccel on KDE (elsewhere the app uses the
+  # GlobalShortcuts portal, which needs no extra permission).
+  - --talk-name=org.kde.kglobalaccel
+  # Tray icon (StatusNotifierItem) and native capture notifications: the
+  # filtered session bus hides these names by default, which would leave the
+  # flatpak with no tray icon and no notification feedback.
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Bundled tesseract resolves its language data from /app/share/tessdata
+  # (installed by the tessdata module below); pin it for robustness.
+  - --env=TESSDATA_PREFIX=/app/share/tessdata
+
+cleanup:
+  - /include
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /bin/tesseract
+  - /share/man
+
+modules:
+  # Optional compile-time deps (HAVE_TESSERACT / HAVE_LAYERSHELL): the KDE
+  # runtime ships neither, and without them the app builds with OCR and the
+  # on-top layer-shell surfaces (custom notification card, overlay over
+  # fullscreen apps, preview pin) compiled out.
+  - name: leptonica
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_PROG=OFF
+      - -DSW_BUILD=OFF
+    sources:
+      - type: archive
+        url: https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz
+        sha256: c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7
+
+  - name: tesseract
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TRAINING_TOOLS=OFF
+      - -DDISABLE_CURL=ON
+    sources:
+      - type: archive
+        url: https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz
+        sha256: 9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884
+
+  # Language data for the bundled tesseract. Matches the default ocrLanguages
+  # ("pol+eng"): the sandbox cannot see host langpacks and /app is read-only at
+  # runtime, so without shipping the .traineddata here OCR always fails.
+  # Adding a language = one more `file` source + one more install line.
+  - name: tessdata
+    buildsystem: simple
+    build-commands:
+      - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
+      - install -Dm644 pol.traineddata /app/share/tessdata/pol.traineddata
+    sources:
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
+        sha256: 7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/pol.traineddata
+        sha256: c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2
+
+  # QR/barcode reading in OCR. Kept on the 2.x series: OcrEngine.cpp adapts to
+  # the 2.2 DecodeHints -> ReaderOptions rename via __has_include and to the
+  # text() return type, but 3.x is a wider API break and is untested here.
+  - name: zxing-cpp
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_EXAMPLES=OFF
+      - -DBUILD_BLACKBOX_TESTS=OFF
+      - -DBUILD_UNIT_TESTS=OFF
+    sources:
+      - type: archive
+        url: https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v2.3.0.tar.gz
+        sha256: 64e4139103fdbc57752698ee15b5f0b0f7af9a0331ecbdc492047e0772c417ba
+
+  # Clipboard reliability on Wayland: the app mirrors copies through wl-copy
+  # when present, and the runtime does not ship it.
+  - name: wl-clipboard
+    buildsystem: meson
+    config-opts:
+      # Auto-detected completion dirs resolve outside /app and fail install.
+      - -Dzshcompletiondir=no
+      - -Dfishcompletiondir=no
+    sources:
+      - type: archive
+        url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.3.0.tar.gz
+        sha256: b4dc560973f0cd74e02f817ffa2fd44ba645a4f1ea94b7b9614dacc9f895f402
+
+  - name: layer-shell-qt
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://download.kde.org/stable/plasma/6.7.3/layer-shell-qt-6.7.3.tar.xz
+        sha256: 51924fa14d05320eacef8defea51895c96117bc89dd709e74536dd8ecdfb4581
+
+  - name: unisic
+    buildsystem: cmake-ninja
+    # flatpak-builder runs cmake in a cleaned bwrap sandbox, so pin the release
+    # defaults explicitly — otherwise CMakeLists.txt would flip
+    # UNISIC_DEV_BUILD to ON and ship the Developer tab + F8 smoke test.
+    build-options:
+      env:
+        UNISIC_BUILD_NUMBER: ""
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/app
+      - -DUNISIC_DEV_BUILD=OFF
+    sources:
+      # Builds the working tree this manifest ships in, so a CI bundle always
+      # matches the commit being released. For a reproducible standalone build
+      # of a published version, swap this for:
+      #   - type: git
+      #     url: https://github.com/unisic/unisic.git
+      #     tag: v0.7.5
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - build

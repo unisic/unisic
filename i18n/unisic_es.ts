@@ -3636,6 +3636,11 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="957"/>
+        <source>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</source>
+        <translation>El aislamiento de Flatpak no puede reemplazar la aplicación desde dentro - actualícela con flatpak update.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="959"/>
         <source>The AppImage location is read-only - it can&apos;t update itself from here.</source>
         <translation>La ubicación del AppImage es de solo lectura - no puede actualizarse desde aquí.</translation>
     </message>

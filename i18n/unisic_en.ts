@@ -3864,6 +3864,11 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="957"/>
+        <source>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</source>
+        <translation>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="959"/>
         <source>The AppImage location is read-only - it can&apos;t update itself from here.</source>
         <translation>The AppImage location is read-only - it can&apos;t update itself from here.</translation>
     </message>

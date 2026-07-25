@@ -3860,6 +3860,11 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="957"/>
+        <source>The Flatpak sandbox can&apos;t replace the app from inside - update it with flatpak update.</source>
+        <translation>Le bac à sable Flatpak ne peut pas remplacer l’application de l’intérieur - mettez-la à jour avec flatpak update.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="959"/>
         <source>The AppImage location is read-only - it can&apos;t update itself from here.</source>
         <translation>L’emplacement de l’AppImage est en lecture seule - elle ne peut pas se mettre à jour depuis ici.</translation>
     </message>

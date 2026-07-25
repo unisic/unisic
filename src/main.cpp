@@ -495,13 +495,14 @@ static void ensureDesktopFile()
 // so UpdateChecker stages a newer version under the user's data dir and this
 // bootstrap execs it — the packaged binary keeps working as a launcher until
 // the distro package catches up. The staged copy runs with UNISIC_STAGED=1 so
-// it never re-redirects; AppImage never stages. Path composition
+// it never re-redirects; AppImage and Flatpak never stage. Path composition
 // must stay in sync with UpdateChecker::stagingDir() (org "Unisic" + app name
 // under XDG data), computed by hand because this runs before QApplication.
 static void execStagedUpdate(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty())
+        || !qEnvironmentVariable("APPIMAGE").isEmpty()
+        || qEnvironmentVariableIsSet("FLATPAK_ID"))
         return;
 #ifdef UNISIC_DEV_BUILD
     const QString appName = QStringLiteral("unisic-dev");

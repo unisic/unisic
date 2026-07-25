@@ -46,15 +46,30 @@ Window {
             var r = canvas.selectionRect
             return Qt.rect(r.x * s, r.y * s, r.width * s, r.height * s)
         }
+        // How wide the pill's CONTENT may get: the screen less an 8 px margin
+        // on each side and the pill's own 12 px padding on each side. Both
+        // rows inside the pill wrap against this, so the pill can never be
+        // wider than the screen it floats over - it used to come out 894 px
+        // wide from the 16 tool chips alone, which is off the edge of anything
+        // narrower than about 910 logical px.
+        readonly property real maxBarWidth: Math.max(200, width - 40)
+
+        // Every fixed toolbar position has to end up inside the screen too.
+        // Only the "follow" branch used to clamp; left/right/centre computed a
+        // raw coordinate that goes negative as soon as the pill is wider than
+        // the screen, and the follow branch's own last-resort fallback can push
+        // the pill off the top of a short screen.
+        function clampX(v) { return Math.max(8, Math.min(v, width - toolbar.width - 8)) }
+        function clampY(v) { return Math.max(8, Math.min(v, height - toolbar.height - 8)) }
         function toolbarX() {
             var pos = App.settings.overlayToolbarPosition
             var m = 12
             var sel = selItem()
             if (pos === "follow")
-                return Math.max(8, Math.min(sel.x + sel.width / 2 - toolbar.width / 2, width - toolbar.width - 8))
-            if (pos.indexOf("left") >= 0) return m
-            if (pos.indexOf("right") >= 0) return width - toolbar.width - m
-            return width / 2 - toolbar.width / 2
+                return clampX(sel.x + sel.width / 2 - toolbar.width / 2)
+            if (pos.indexOf("left") >= 0) return clampX(m)
+            if (pos.indexOf("right") >= 0) return clampX(width - toolbar.width - m)
+            return clampX(width / 2 - toolbar.width / 2)
         }
         function toolbarY() {
             var pos = App.settings.overlayToolbarPosition
@@ -72,11 +87,32 @@ Window {
                     return above
                 // Selection spans (almost) the full height: nowhere outside —
                 // overlap its bottom edge as the least harmful spot.
-                return height - toolbar.height - 8
+                return clampY(height - toolbar.height - 8)
             }
-            if (pos.indexOf("top") >= 0) return m + 44
-            if (pos.indexOf("bottom") >= 0) return height - toolbar.height - m
-            return height / 2 - toolbar.height / 2
+            if (pos.indexOf("top") >= 0) return clampY(m + 44)
+            if (pos.indexOf("bottom") >= 0) return clampY(height - toolbar.height - m)
+            return clampY(height / 2 - toolbar.height / 2)
+        }
+
+        // Sum of a positioner's visible children plus its gaps: what the row
+        // WOULD measure on a single line. A Flow's own implicitWidth is the
+        // width of the already-wrapped content, so it cannot answer that.
+        function naturalRowWidth(item) {
+            var w = 0
+            var n = 0
+            for (var i = 0; i < item.children.length; ++i) {
+                var c = item.children[i]
+                if (!c || !c.visible)
+                    continue
+                var cw = c.implicitWidth > 0 ? c.implicitWidth : c.width
+                // A Repeater is itself a zero-sized child of the positioner and
+                // is skipped by the layout; counting it would add a phantom gap.
+                if (cw <= 0)
+                    continue
+                w += cw
+                ++n
+            }
+            return n > 0 ? w + item.spacing * (n - 1) : 0
         }
 
         // ---- tool grouping (Shapes) — same model as the editor top bar ----
@@ -99,6 +135,16 @@ Window {
             if (picked.group)
                 currentShapeId = picked.id
             return true
+        }
+        // Members of a group, spoken by the group chip so assistive tech can
+        // say what pressing it opens. Same text as the editor's, resolved for
+        // the "overlay" context, which hides a different set of tools.
+        function groupMembers(groupId) {
+            const ts = ToolCatalog.groupTools(groupId, "overlay", App.settings.hiddenTools)
+            var out = []
+            for (var i = 0; i < ts.length; ++i)
+                out.push(ToolCatalog.labelWithShortcut(ts[i]))
+            return out.join(", ")
         }
         function mainRowModel() {
             var out = []
@@ -216,7 +262,7 @@ Window {
             } else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) {
                 canvas.redo()
             } else if (annotationToolsEnabled && canvas.hasSelection
-                       && e.modifiers === Qt.NoModifier
+                       && UKeys.unmodified(e)
                        && root.activateToolShortcut(e.key)) {
                 // Only switch to a drawing tool once a region exists — the region
                 // path needs tool==None to arm, so a tool press before selecting
@@ -263,6 +309,12 @@ Window {
             id: canvas
             objectName: "overlayCanvas"
             anchors.fill: parent
+            // The frozen screen plus the live selection: a graphic with no text
+            // of its own, so assistive tech gets a name and the key vocabulary
+            // rather than an anonymous unlabelled surface.
+            Accessible.role: Accessible.Canvas
+            Accessible.name: qsTr("Capture region")
+            Accessible.description: qsTr("Drag to select. Space or Enter captures, Escape cancels, arrow keys nudge the selection.")
             selectionMode: true
             tool: AnnotationCanvas.None
             onCopyRequested: {
@@ -459,6 +511,8 @@ Window {
             opacity: 0.97
             border.width: 1
             border.color: Theme.divider
+            Accessible.role: Accessible.ToolBar
+            Accessible.name: qsTr("Capture tools")
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true; shadowColor: Theme.shadow
@@ -475,13 +529,34 @@ Window {
                     anchors.horizontalCenter: parent.horizontalCenter
                     spacing: 5
 
-                    Row {
+                    // A Flow, not a Row: on a small screen sixteen 40 px chips
+                    // plus Capture and Cancel measure 870 px of content and the
+                    // pill simply ran off the edge (the toolbar is layered for
+                    // its shadow, so the part outside was not even painted).
+                    // Bounded by what the pill can afford, the chips wrap onto a
+                    // second line instead. `Capture` and `Cancel` stay outside
+                    // the wrap so they never move away from the pill's end.
+                    Flow {
+                        id: toolChipFlow
                         visible: annotationToolsEnabled
                         spacing: 5
+                        width: Math.max(45, Math.min(root.naturalRowWidth(toolChipFlow),
+                                                     root.maxBarWidth - captureButton.width
+                                                     - cancelButton.width - 2 * toolRow.spacing))
 
                         Repeater {
-                            model: root.mainRowModel()
+                            model: annotationToolsEnabled ? root.mainRowModel() : []
                             delegate: ToolChip {
+                                // NOTHING in this toolbar is a tab stop. On the
+                                // capture surface Space and Enter mean "confirm
+                                // the capture" (the hint bar says so) and the
+                                // window holds an exclusive keyboard grab, so a
+                                // focused chip would swallow the one gesture
+                                // that finishes the shot. Every tool already
+                                // has a single-letter shortcut here, and
+                                // AT-SPI's Press action works without focus, so
+                                // dropping out of the Tab chain costs nothing.
+                                activeFocusOnTab: false
                                 iconName: modelData.kind === "group"
                                           ? modelData.group.iconName
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
@@ -489,36 +564,67 @@ Window {
                                 label: modelData.kind === "group"
                                        ? modelData.group.label
                                        : ToolCatalog.labelWithShortcut(modelData.tool)
+                                // Same reason as the editor's copy of this
+                                // chip: a tool's hover-tip label already is its
+                                // spoken name, but a GROUP chip's label is the
+                                // bare word "Shapes", which says nothing about
+                                // being a group or about opening a sub-bar.
+                                accessibleName: modelData.kind === "group"
+                                                ? qsTr("%1 tool group").arg(modelData.group.label)
+                                                : ""
+                                accessibleDescription: modelData.kind === "group"
+                                                ? qsTr("Opens these tools in the bar below: %1. The group itself has no shortcut.")
+                                                      .arg(root.groupMembers(modelData.group.id))
+                                                : ""
                                 active: modelData.kind === "group"
                                         ? root.shapesActive
                                         : canvas.tool === modelData.tool.tool
-                                anchors.verticalCenter: parent.verticalCenter
                                 onClicked: modelData.kind === "group"
                                            ? root.toggleShapesGroup()
                                            : canvas.tool = modelData.tool.tool
                             }
                         }
-                        ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.undo() }
-                        ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; anchors.verticalCenter: parent.verticalCenter; onClicked: canvas.redo() }
+                        ToolChip { activeFocusOnTab: false; iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
+                        ToolChip { activeFocusOnTab: false; iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
 
-                        Rectangle { width: 1; height: 28; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
+                        // Carried in a chip-tall Item: a Flow positions its
+                        // children itself, so a 28 px divider cannot centre
+                        // itself against the row with an anchor.
+                        Item {
+                            width: 1; height: 40
+                            Rectangle { anchors.centerIn: parent; width: 1; height: 28; color: Theme.divider }
+                        }
                     }
 
                     UButton {
+                        id: captureButton
+                        // Same rule as the chips above: named, pressable from
+                        // AT, but never a tab stop on this surface.
+                        activeFocusOnTab: false
                         compact: true
                         iconName: "checkmark"
                         text: annotationToolsEnabled ? qsTr("Capture") : qsTr("Start")
+                        accessibleDescription: qsTr("Space or Enter also confirms")
                         anchors.verticalCenter: parent.verticalCenter
                         onClicked: overlayController.confirmFromWindow(overlayWindow)
                     }
                     UIconButton {
+                        id: cancelButton
+                        activeFocusOnTab: false
                         iconName: "close"; iconSize: 15
+                        // No tooltip on this one (it sits on a frozen screen
+                        // where a floating tip would read as part of the shot),
+                        // so the spoken name has to be supplied by hand.
+                        accessibleName: qsTr("Cancel")
+                        accessibleDescription: qsTr("Escape also cancels")
                         anchors.verticalCenter: parent.verticalCenter
                         onClicked: overlayController.cancel()
                     }
                 }
 
-                Row {
+                // Also a Flow: the shape chips and the props strip wrap onto a
+                // second line when the pill cannot be made wide enough for both.
+                Flow {
                     id: overlaySubBar
                     readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
                     visible: annotationToolsEnabled
@@ -526,38 +632,60 @@ Window {
                                  || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection))
                     anchors.horizontalCenter: parent.horizontalCenter
                     spacing: 5
+                    width: Math.min(root.naturalRowWidth(overlaySubBar), root.maxBarWidth)
 
-                    Repeater {
-                        model: root.shapesActive ? root.shapesTools : []
-                        delegate: ToolChip {
-                            iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                            iconStyle: App.settings.editorIconStyle
-                            label: ToolCatalog.labelWithShortcut(modelData)
-                            active: canvas.tool === modelData.tool
-                            anchors.verticalCenter: parent.verticalCenter
-                            onClicked: {
-                                canvas.tool = modelData.tool
-                                root.currentShapeId = modelData.id
+                    // The group chips and the delete affordance wrap as one
+                    // block. `visible` is spelled out rather than derived from
+                    // the content: a positioner reports content size 0 while it
+                    // is itself invisible, so an `implicitWidth > 0` form
+                    // latches off and never comes back.
+                    Row {
+                        id: overlaySubLead
+                        spacing: 5
+                        visible: root.shapesActive || canvas.hasAnnotSelection
+
+                        Repeater {
+                            model: root.shapesActive ? root.shapesTools : []
+                            delegate: ToolChip {
+                                activeFocusOnTab: false
+                                iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: App.settings.editorIconStyle
+                                label: ToolCatalog.labelWithShortcut(modelData)
+                                active: canvas.tool === modelData.tool
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: {
+                                    canvas.tool = modelData.tool
+                                    root.currentShapeId = modelData.id
+                                }
                             }
                         }
-                    }
-                    ToolChip {
-                        visible: canvas.hasAnnotSelection
-                        iconName: "edit-delete"
-                        label: qsTr("Delete shape")
-                        anchors.verticalCenter: parent.verticalCenter
-                        onClicked: canvas.removeSelectedAnnot()
-                    }
-                    Rectangle {
-                        visible: root.shapesActive
-                                 || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
-                        width: 1; height: 28; color: Theme.divider
-                        anchors.verticalCenter: parent.verticalCenter
+                        ToolChip {
+                            activeFocusOnTab: false
+                            visible: canvas.hasAnnotSelection
+                            iconName: "edit-delete"
+                            label: qsTr("Delete shape")
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: canvas.removeSelectedAnnot()
+                        }
+                        Rectangle {
+                            visible: root.shapesActive
+                                     || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                            width: 1; height: 28; color: Theme.divider
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
                     }
                     ToolPropsBar {
                         canvas: canvas
                         props: overlaySubBar.ctxProps
-                        anchors.verticalCenter: parent.verticalCenter
+                        // Keeps the whole strip out of the Tab chain, for the
+                        // same reason as the chips above. A Flow cannot carry
+                        // the opt-out itself, so it forwards it (see the
+                        // property).
+                        controlsFocusable: false
+                        // Never wider than the pill can be on this screen; the
+                        // strip wraps inside itself when even a whole line of
+                        // the pill is not enough for it.
+                        maxWidth: root.maxBarWidth
                         onStrokePickerRequested: overlayColorDialog.openWith(canvas.strokeColor)
                         onFillPickerRequested: overlayFillDialog.openWith(canvas.shapeFillColor)
                         onTextOutlinePickerRequested: overlayOutlineDialog.openWith(canvas.textOutlineColor)
@@ -606,6 +734,11 @@ Window {
                 font.bold: canvas.fontBold
                 font.italic: canvas.fontItalic
                 font.underline: canvas.fontUnderline
+                Accessible.role: Accessible.EditableText
+                Accessible.name: qsTr("Annotation text")
+                Accessible.description: qsTr("Ctrl+Enter finishes, Escape discards")
+                Accessible.editable: true
+                Accessible.multiLine: true
                 // MUST accept Ctrl+Enter/Escape here so they do NOT bubble to
                 // the overlay root: commitTextBox() sets textEditor.visible =
                 // false, and the root handler — re-checking visibility AFTER

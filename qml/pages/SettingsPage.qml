@@ -12,6 +12,21 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // Read by Main.qml (window.modalOpen): drag-and-drop and Ctrl+V are off
+    // while one of this page's dialogs is up, or a dropped file would open an
+    // editor window behind it.
+    //
+    // `visible`, NOT `opened` - the same rule (and reason) as the window-level
+    // guard in Main.qml: a Popup with an enter transition (UPatchNotes fades +
+    // scales in) is on screen and modal from the moment open() is called, but
+    // only reports `opened` once that transition has FINISHED. Reading `opened`
+    // left the drop zone live for the whole enter animation, so a drop that
+    // landed in those ~600 ms opened an editor behind a modal that was already
+    // covering the window. `visible` covers the whole on-screen life, fade-out
+    // included, which is the side to err on.
+    readonly property bool modalOpen: helpDialog.visible || settingsPatchNotes.visible
+                                      || settingsSystemCheck.visible || haloColorPopup.visible
+
     // Free colour choice for the recording halo. Declared at the page root, not
     // inside the row: the row is inside a Flickable, and a popup parented there
     // would be clipped by it.
@@ -53,8 +68,16 @@ Item {
     // results Repeater — per keystroke that's a lot of churn for characters the
     // user is still typing. Clearing skips the debounce so leaving search (and
     // jumpTo's searchQuery = "") reacts instantly.
+    // Tests `searchQuery.length`, NOT `searchActive`: inside this handler the
+    // derived property is still one notification behind (the handler runs
+    // before its own binding re-evaluates), so it reports the PREVIOUS state.
+    // Reading it here sent both branches the wrong way - the first character
+    // typed took the "cleared" branch and never started a search, and clearing
+    // the box took the "typing" branch, which re-armed searchPanesWanted 160 ms
+    // later and left all nine panes instantiated for the rest of the session -
+    // exactly the pin the transient-load comment further down warns about.
     onSearchQueryChanged: {
-        if (searchActive) {
+        if (searchQuery.length > 0) {
             searchDebounce.restart()
         } else {
             searchDebounce.stop()
@@ -75,6 +98,29 @@ Item {
         interval: 4000
         onTriggered: page.highlightRow = null
     }
+    // Latches the pane the user is actually on, one tick after it loads. The
+    // Loaders below cannot do it from their own onLoaded: that handler runs
+    // synchronously inside the evaluation of the Loader's `active` binding,
+    // and `active` reads `touched`, so writing it there re-enters the binding
+    // ("Binding loop detected for property active" on every first tab visit).
+    // A Timer owned by the page is the safe way to defer it - it is destroyed
+    // with the page, so navigating away from Settings in that one tick cannot
+    // fire a callback into a torn-down QML context.
+    Timer {
+        id: latchTimer
+        interval: 0
+        onTriggered: if (!page.searchActive) page.latchPane(page.tab)
+    }
+    // Marks a pane as really visited, so it survives the next tab switch with
+    // its scroll position instead of being torn down. jumpTo calls it directly
+    // (its pane was already built by search, so no onLoaded will re-fire).
+    function latchPane(tabIndex) {
+        for (var i = 0; i < paneArea.children.length; ++i) {
+            var ld = paneArea.children[i]
+            if (ld && ld.tabIndex === tabIndex)
+                ld.touched = true
+        }
+    }
     function jumpTo(result) {
         highlightRow = result.row || null
         highlightTimer.restart()
@@ -82,11 +128,7 @@ Item {
         // Latch the destination pane as a REAL visit: onLoaded won't re-fire
         // (search already built the Loader), so without this the visited pane
         // is torn down on the next tab switch, losing its scroll position.
-        for (var i = 0; i < paneArea.children.length; ++i) {
-            var ld = paneArea.children[i]
-            if (ld && ld.tabIndex === result.tab)
-                ld.touched = true
-        }
+        latchPane(result.tab)
         searchQuery = ""
         // Scroll the row's pane so the highlighted match is actually on
         // screen — panes keep their last scroll position, so without this
@@ -102,7 +144,10 @@ Item {
         })
     }
     function rebuildSearch() {
-        if (!searchActive) { searchResults = []; searchPending = 0; return }
+        // searchQuery, not searchActive - see onSearchQueryChanged. This runs
+        // synchronously from that handler on a clear, where searchActive still
+        // reads true and would leave the last query's rows referenced.
+        if (searchQuery.length === 0) { searchResults = []; searchPending = 0; return }
         var q = searchQuery.toLowerCase()
         var out = []
         var pending = 0
@@ -310,6 +355,16 @@ Item {
         readonly property string detail: (!available && hint !== "") ? hint : help
         readonly property bool hasBadge: helpDetail !== "" || (!available && hint !== "")
 
+        // The row's label speaks for the mute control next to it - UNameBridge
+        // owns that rule and explains it. Held by a property, not written as a
+        // child: this row's DEFAULT property is redirected to `slot`, so a
+        // plain child object would land in the caller's control slot instead.
+        readonly property UNameBridge nameBridge: UNameBridge {
+            targets: [slot, footerSlot]
+            name: labelText.text
+            description: settingRow.detail
+        }
+
         // Just jumped to from search: accent border + tinted surface until the
         // highlight timer clears it.
         readonly property bool searchHit: page.highlightRow === settingRow
@@ -384,10 +439,23 @@ Item {
                                 anchors.margins: -4
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: page.showHelp(settingRow.label, settingRow.help,
-                                                         settingRow.helpDetail,
-                                                         settingRow.available ? "" : settingRow.hint)
+                                onClicked: helpBadge.showIt()
                             }
+
+                            function showIt() {
+                                page.showHelp(settingRow.label, settingRow.help,
+                                              settingRow.helpDetail,
+                                              settingRow.available ? "" : settingRow.hint)
+                            }
+                            activeFocusOnTab: visible
+                            Keys.onSpacePressed: (e) => UKeys.activate(e, helpBadge.showIt)
+                            Keys.onReturnPressed: (e) => UKeys.activate(e, helpBadge.showIt)
+                            Keys.onEnterPressed: (e) => UKeys.activate(e, helpBadge.showIt)
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("More about %1").arg(settingRow.label)
+                            Accessible.focusable: helpBadge.activeFocusOnTab
+                            Accessible.onPressAction: helpBadge.showIt()
+                            UFocusRing { inset: 0 }
                         }
                     }
                     Text {
@@ -408,8 +476,15 @@ Item {
                     enabled: settingRow.available
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
+                    // The slot HUGS its control, and is itself centred in the
+                    // row - so a control must never anchor itself to the slot's
+                    // own centre. childrenRect would then depend on the child's
+                    // y, which depends on this height, which is childrenRect:
+                    // "QML QQuickItem: Binding loop detected for property
+                    // height". Just drop the anchor; the row centres it anyway.
                     width: childrenRect.width
                     height: childrenRect.height
+                    onChildrenChanged: settingRow.nameBridge.refresh()
                 }
             }
             Item {
@@ -417,6 +492,7 @@ Item {
                 width: parent.width
                 height: childrenRect.height
                 enabled: settingRow.available
+                onChildrenChanged: settingRow.nameBridge.refresh()
             }
         }
     }
@@ -460,7 +536,21 @@ Item {
         contentHeight: paneCol.height + Theme.spacingXL
         boundsBehavior: Flickable.StopAtBounds
         flickableDirection: Flickable.VerticalFlick
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+            // A pointer affordance that Tab deliberately never visits (46
+            // presses on the Hotkeys pane never reached it) - but assistive
+            // tech CAN work it, through the Increase/Decrease actions Qt gives
+            // every scroll bar, so it stays in the accessible tree and gets a
+            // name instead. Measured before this: role=ScrollBar with an empty
+            // name, which reads as a bare "scroll bar" in an element list with
+            // nothing saying what it scrolls.
+            Accessible.name: qsTr("Settings pane")
+            // And it must not advertise a keyboard focus it never takes: Qt
+            // appends the SetFocus action to anything whose state says
+            // focusable, which is the second half of what the sweep saw.
+            Accessible.focusable: false
+        }
         default property alias content: paneCol.data
         Column {
             id: paneCol
@@ -469,6 +559,12 @@ Item {
         }
         MiddleScroll { flickable: fl }
         WheelBoost { flickable: fl }
+        // Tab must not walk off the bottom of the pane: nothing in Qt scrolls a
+        // plain Flickable to its focused child (this is not a ScrollView), so
+        // without this the ring left the viewport at the seventh card and every
+        // stop after it - "Apply shortcuts" included - was focused off screen.
+        // One implementation, in the kit: see FocusScroll.qml.
+        FocusScroll { flickable: fl }
     }
 
     // A settings section: the welcome screen groups per-setting cards under a
@@ -494,6 +590,7 @@ Item {
         property string label: ""
         property bool active: false
         signal clicked()
+        function _activate() { nav.clicked() }
         width: parent ? parent.width : 180
         height: 38
         radius: Theme.radiusM
@@ -533,8 +630,24 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: nav.clicked()
+            onClicked: nav._activate()
         }
+
+        // UKeys keeps the window shortcuts (Ctrl+1..6, Ctrl+,) bubbling past a
+        // focused rail row.
+        activeFocusOnTab: true
+        Keys.onSpacePressed: (e) => UKeys.activate(e, nav._activate)
+        Keys.onReturnPressed: (e) => UKeys.activate(e, nav._activate)
+        Keys.onEnterPressed: (e) => UKeys.activate(e, nav._activate)
+
+        Accessible.role: Accessible.ListItem
+        Accessible.name: nav.label
+        Accessible.focusable: nav.activeFocusOnTab
+        Accessible.selectable: true
+        Accessible.selected: nav.active
+        Accessible.onPressAction: nav._activate()
+
+        UFocusRing { inset: 1 }
     }
 
     // Import/Export use the DESKTOP's native file picker (C++ QFileDialog via
@@ -629,6 +742,9 @@ Item {
         contentWidth: width
         contentHeight: navCol.height
         boundsBehavior: Flickable.StopAtBounds
+        // Every rail row is a Tab stop, and at the 560 px minimum window height
+        // the last categories are below the rail's fold.
+        FocusScroll { flickable: navRail }
         Column {
             id: navCol
             width: parent.width
@@ -662,6 +778,7 @@ Item {
 
         // ===== search results (shown instead of the panes while typing) =====
         Flickable {
+            id: resultsFlick
             visible: page.searchActive
             // Above the panes, which stay visible-but-transparent during search.
             z: 1
@@ -670,6 +787,9 @@ Item {
             contentHeight: resultsCol.height + Theme.spacingXL
             clip: true
             boundsBehavior: Flickable.StopAtBounds
+            // Result rows are Tab stops and a broad query lists far more of
+            // them than the viewport holds.
+            FocusScroll { flickable: resultsFlick }
             Column {
                 id: resultsCol
                 width: parent.width
@@ -684,7 +804,9 @@ Item {
                 Repeater {
                     model: page.searchResults
                     delegate: Rectangle {
+                        id: resultRow
                         required property var modelData
+                        function _activate() { page.jumpTo(resultRow.modelData) }
                         width: page.cardWidth
                         height: 46
                         radius: Theme.radiusM
@@ -724,8 +846,20 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: page.jumpTo(modelData)
+                            onClicked: resultRow._activate()
                         }
+
+                        activeFocusOnTab: true
+                        Keys.onSpacePressed: (e) => UKeys.activate(e, resultRow._activate)
+                        Keys.onReturnPressed: (e) => UKeys.activate(e, resultRow._activate)
+                        Keys.onEnterPressed: (e) => UKeys.activate(e, resultRow._activate)
+                        Accessible.role: Accessible.ListItem
+                        Accessible.name: modelData.label
+                        Accessible.description: page.tabNames[modelData.tab] !== undefined
+                                                ? page.tabNames[modelData.tab] : ""
+                        Accessible.focusable: resultRow.activeFocusOnTab
+                        Accessible.onPressAction: resultRow._activate()
+                        UFocusRing { inset: 1 }
                     }
                 }
             }
@@ -752,9 +886,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -854,18 +991,44 @@ Item {
                                   + (App.buildDate ? " · " + App.buildDate : "")
                             color: settingsVersionMouse.containsMouse ? Theme.accent : Theme.textSecondary
                             font.pixelSize: Theme.fontM
+
+                            // Same action as the sidebar's app card, so it gets
+                            // the same treatment: one entry point for pointer,
+                            // keyboard and assistive tech.
+                            function _activate() {
+                                settingsPatchNotes.open()
+                                App.markPatchNotesSeen()
+                            }
+
                             MouseArea {
                                 id: settingsVersionMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: { settingsPatchNotes.open(); App.markPatchNotesSeen() }
+                                onClicked: settingsVersion._activate()
                             }
+
+                            // UKeys keeps the window's Ctrl+1..6, Ctrl+, and
+                            // Ctrl+/ bubbling past a focused version label.
+                            activeFocusOnTab: true
+                            Keys.onSpacePressed: (e) => UKeys.activate(e, settingsVersion._activate)
+                            Keys.onReturnPressed: (e) => UKeys.activate(e, settingsVersion._activate)
+                            Keys.onEnterPressed: (e) => UKeys.activate(e, settingsVersion._activate)
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Open the release notes")
+                            Accessible.focusable: settingsVersion.activeFocusOnTab
+                            Accessible.onPressAction: settingsVersion._activate()
+                            // Inset, not outset: this label is 44 px tall (the
+                            // row's control height), so a ring inside its own
+                            // bounds clears the glyphs on its own.
+                            UFocusRing { hostRadius: Theme.radiusS; inset: 0 }
                         }
                     }
                     SettingRow {
-                        available: App.buildNumber !== "dev"
-                        hint: qsTr("Automatic checks are disabled in dev builds.")
+                        available: App.buildNumber !== "dev" && !App.updater.updatesManagedExternally
+                        hint: App.updater.updatesManagedExternally
+                              ? qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
+                              : qsTr("Automatic checks are disabled in dev builds.")
                         label: qsTr("Automatic updates")
                         help: qsTr("Checks for a new release shortly after startup and once a day, then installs it in the background.")
                         helpDetail: qsTr("Only the latest release version is fetched from the GitHub API - nothing about you or your system is sent. AppImage installs are downloaded and swapped in place automatically; the new version starts on the next launch (or via the tray's Restart entry). Package installs are updated by the system package manager instead.")
@@ -875,7 +1038,10 @@ Item {
                         }
                     }
                     SettingRow {
-                        available: App.buildNumber !== "dev"
+                        available: App.buildNumber !== "dev" && !App.updater.updatesManagedExternally
+                        hint: App.updater.updatesManagedExternally
+                              ? qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
+                              : ""
                         label: qsTr("Update channel")
                         help: qsTr("Which releases to offer: stable only, or the newest including pre-releases.")
                         helpDetail: qsTr("Beta fetches the most recent GitHub release even when it is marked a pre-release, so you get new features earlier at the cost of stability.")
@@ -888,6 +1054,11 @@ Item {
                         }
                     }
                     SettingRow {
+                        // Not just disabled: with the store owning updates there
+                        // is nothing this button could do that "flatpak update"
+                        // does not do better, and the row below says so.
+                        available: !App.updater.updatesManagedExternally
+                        hint: qsTr("Flatpak installs are updated by Flatpak - Unisic does not check on its own.")
                         label: qsTr("Check now")
                         help: qsTr("Ask GitHub for the latest release immediately.")
                         UButton {
@@ -953,7 +1124,9 @@ Item {
                             wrapMode: Text.WordWrap
                             text: App.buildNumber === "dev"
                                   ? qsTr("Self-update is disabled in dev builds.")
-                                  : App.updater.installKind === "appimage"
+                                  : App.updater.installKind === "flatpak"
+                                    ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software centre do it.")
+                                    : App.updater.installKind === "appimage"
                                     ? qsTr("The AppImage location is read-only - it can't update itself from here.")
                                     : App.updater.canInstallViaScript
                                       ? qsTr("\"Install now\" opens a terminal and asks for your password to install the new package. Your package manager will also update it in time.")
@@ -1027,9 +1200,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -1259,9 +1435,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -1368,7 +1547,6 @@ Item {
                         help: qsTr("Colour of the glow drawn under the pointer.")
                         Row {
                             spacing: 6
-                            anchors.verticalCenter: parent.verticalCenter
                             Repeater {
                                 model: ["#FFD600", "#00E5FF", "#FF4757", "#7CFF6B", "#FFFFFF"]
                                 delegate: ColorDot {
@@ -1515,9 +1693,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -1610,6 +1791,14 @@ Item {
                             USwitch {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
+                                // The tool label is a sibling Text, not a
+                                // SettingRow caption, so no UNameBridge runs
+                                // here and a screen reader would read seventeen
+                                // bare "on/off" switches. There is exactly ONE
+                                // control and ONE source site, so the caption is
+                                // handed over directly - the same rule the
+                                // bridge applies, without the machinery.
+                                accessibleName: modelData.label
                                 checked: !page.toolHidden(modelData.id)
                                 onToggled: (c) => page.setToolHidden(modelData.id, !c)
                             }
@@ -1674,6 +1863,18 @@ Item {
                                 anchors.right: parent.right
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 200
+                                // Same missing-caption case as the show/hide
+                                // switches above, with one twist: naming this
+                                // field "Pen" would put a second "Pen" on the
+                                // very same pane, so the name says what the
+                                // field holds. Without it the only spoken name
+                                // is UTextField's placeholder fallback - here
+                                // the tool's DEFAULT icon name, which sounds
+                                // like a value, not a label. The placeholder
+                                // then becomes the description, exactly as
+                                // UNameBridge does for a named field.
+                                accessibleName: qsTr("Icon name for %1").arg(modelData.label)
+                                accessibleDescription: modelData.iconName
                                 text: page.iconOverride(modelData.id)
                                 placeholder: modelData.iconName
                                 onEdited: (t) => page.setIconOverride(modelData.id, t.trim())
@@ -1700,9 +1901,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -1713,7 +1917,17 @@ Item {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Storage & file naming") }
+                    // These two folder rows are captions with a field AND a
+                    // button under them, so they are the "several controls"
+                    // case UNameBridge describes - except the caption is a
+                    // loose Text here and no bridge runs at all. The field has
+                    // no placeholder either, so it was announced nameless. It
+                    // takes the caption as its name (it is the control the
+                    // caption is really about), and the identical "Open"
+                    // buttons take it as their DESCRIPTION, which is what tells
+                    // the two of them apart.
                     Text {
+                        id: shotDirLabel
                         text: qsTr("Screenshots folder")
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontS
@@ -1723,12 +1937,18 @@ Item {
                         spacing: Theme.spacingM
                         UTextField {
                             width: parent.width - 110 - Theme.spacingM
+                            accessibleName: shotDirLabel.text
                             text: App.settings.saveDirectory
                             onEdited: (t) => App.settings.saveDirectory = t
                         }
-                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory("") }
+                        UButton {
+                            width: 110; text: qsTr("Open"); variant: "tonal"
+                            accessibleDescription: shotDirLabel.text
+                            onClicked: App.openDirectory("")
+                        }
                     }
                     Text {
+                        id: recDirLabel
                         text: qsTr("Recordings folder (GIF and video)")
                         color: Theme.textSecondary
                         font.pixelSize: Theme.fontS
@@ -1738,10 +1958,15 @@ Item {
                         spacing: Theme.spacingM
                         UTextField {
                             width: parent.width - 110 - Theme.spacingM
+                            accessibleName: recDirLabel.text
                             text: App.settings.videoSaveDirectory
                             onEdited: (t) => App.settings.videoSaveDirectory = t
                         }
-                        UButton { width: 110; text: qsTr("Open"); variant: "tonal"; onClicked: App.openDirectory(App.settings.videoSaveDirectory) }
+                        UButton {
+                            width: 110; text: qsTr("Open"); variant: "tonal"
+                            accessibleDescription: recDirLabel.text
+                            onClicked: App.openDirectory(App.settings.videoSaveDirectory)
+                        }
                     }
                     SettingRow {
                         label: qsTr("Image format")
@@ -1769,6 +1994,7 @@ Item {
                         width: parent.width
                         spacing: 4
                         Text {
+                            id: templateCaption
                             text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
@@ -1776,6 +2002,14 @@ Item {
                         UTextField {
                             id: templateField
                             width: parent.width
+                            // Caption + field, with no placeholder to fall back
+                            // on: unnamed before this. The caption is a whole
+                            // sentence, so only its subject is the name and the
+                            // token list rides along as the description - a
+                            // name is what an element list shows, and a
+                            // paragraph makes a poor entry there.
+                            accessibleName: qsTr("Filename template")
+                            accessibleDescription: templateCaption.text
                             text: App.settings.filenameTemplate
                             onEdited: (t) => App.settings.filenameTemplate = t
                         }
@@ -1919,9 +2153,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -2225,9 +2462,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -2262,7 +2502,6 @@ Item {
                         helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
                         Row {
                             spacing: Theme.spacingS
-                            anchors.verticalCenter: parent.verticalCenter
                             UButton { compact: true; variant: "tonal"; text: qsTr("Open themes folder"); onClicked: ThemeController.openThemesFolder() }
                             UButton { compact: true; variant: "tonal"; text: qsTr("Reload"); onClicked: ThemeController.reloadCustomThemes() }
                         }
@@ -2325,6 +2564,7 @@ Item {
                                 id: tile
                                 required property var modelData
                                 readonly property bool sel: App.settings.trayIconPath === modelData.path
+                                function _activate() { App.selectTrayIcon(tile.modelData.path) }
                                 width: 62; height: 62
                                 radius: Theme.radiusM
                                 color: sel ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
@@ -2345,8 +2585,22 @@ Item {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: App.selectTrayIcon(tile.modelData.path)
+                                    onClicked: tile._activate()
                                 }
+
+                                activeFocusOnTab: true
+                                Keys.onSpacePressed: (e) => UKeys.activate(e, tile._activate)
+                                Keys.onReturnPressed: (e) => UKeys.activate(e, tile._activate)
+                                Keys.onEnterPressed: (e) => UKeys.activate(e, tile._activate)
+                                Accessible.role: Accessible.Button
+                                // The tile is nothing but a picture, so its
+                                // only spoken identity is the tooltip label.
+                                Accessible.name: qsTr("Tray icon %1").arg(tile.modelData.label)
+                                Accessible.focusable: tile.activeFocusOnTab
+                                Accessible.checkable: true
+                                Accessible.checked: tile.sel
+                                Accessible.onPressAction: tile._activate()
+                                UFocusRing { inset: 1 }
                                 // UHoverTip, not Controls' ToolTip: the Basic
                                 // style's grey box matches nothing else here.
                                 UHoverTip {
@@ -2406,11 +2660,13 @@ Item {
                         // "+" tile — pick an image; it is copied into the icons
                         // folder and selected.
                         Rectangle {
+                            id: addIconTile
                             width: 62; height: 62
                             radius: Theme.radiusM
                             color: Theme.surfaceHi
                             border.width: 1
                             border.color: Theme.divider
+                            function _activate() { App.addTrayIcon() }
                             Text {
                                 anchors.centerIn: parent
                                 text: "+"
@@ -2422,8 +2678,18 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: App.addTrayIcon()
+                                onClicked: addIconTile._activate()
                             }
+
+                            activeFocusOnTab: true
+                            Keys.onSpacePressed: (e) => UKeys.activate(e, addIconTile._activate)
+                            Keys.onReturnPressed: (e) => UKeys.activate(e, addIconTile._activate)
+                            Keys.onEnterPressed: (e) => UKeys.activate(e, addIconTile._activate)
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Add an icon")
+                            Accessible.focusable: addIconTile.activeFocusOnTab
+                            Accessible.onPressAction: addIconTile._activate()
+                            UFocusRing { inset: 1 }
                             UHoverTip {
                                 anchor: parent
                                 text: qsTr("Add an icon (copies it here)")
@@ -2461,9 +2727,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -2611,6 +2880,14 @@ Item {
                                 onActivated: (i) => App.settings.fullScreenTask = taskPresetCard.taskIds[i]
                             }
                             UComboBox {
+                                // Two combo boxes share this row, so the row
+                                // caption is only their common description and
+                                // each has to say what IT picks. The actions
+                                // combo speaks through its value ("Copy +
+                                // save"); a bare server name does not, so this
+                                // one is named at the call site - the one way
+                                // out of the shared-slot rule.
+                                accessibleName: qsTr("Upload destination")
                                 width: 150; model: page.taskDestinationLabels
                                 enabled: taskPresetCard.usesUpload(App.settings.fullScreenTask)
                                 currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.fullScreenTaskDestination))
@@ -2628,6 +2905,7 @@ Item {
                                 onActivated: (i) => App.settings.regionTask = taskPresetCard.taskIds[i]
                             }
                             UComboBox {
+                                accessibleName: qsTr("Upload destination")
                                 width: 150; model: page.taskDestinationLabels
                                 enabled: taskPresetCard.usesUpload(App.settings.regionTask)
                                 currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.regionTaskDestination))
@@ -2645,6 +2923,7 @@ Item {
                                 onActivated: (i) => App.settings.windowTask = taskPresetCard.taskIds[i]
                             }
                             UComboBox {
+                                accessibleName: qsTr("Upload destination")
                                 width: 150; model: page.taskDestinationLabels
                                 enabled: taskPresetCard.usesUpload(App.settings.windowTask)
                                 currentIndex: Math.max(0, page.taskDestinationIds.indexOf(App.settings.windowTaskDestination))
@@ -2759,9 +3038,12 @@ Item {
             asynchronous: page.searchActive && !touched
             // Search-driven loads stay transient: latch only a REAL visit, or one
             // search would pin every pane (~thousands of items) for the app lifetime.
+            // Latching goes through latchTimer, never straight from here - see
+            // the timer's comment for why an inline `touched = true` is a
+            // binding loop.
             onLoaded: {
                 if (!page.searchActive)
-                    touched = true
+                    latchTimer.restart()
                 else
                     Qt.callLater(page.rebuildSearch)
             }
@@ -2783,56 +3065,56 @@ Item {
                         label: qsTr("Native notifications")
                         help: qsTr("Whether a desktop notification server is available.")
                         helpDetail: qsTr("Detected from org.freedesktop.Notifications on the session bus. Without it (e.g. bare Sway) capture cards need the layer-shell path instead.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capNativeNotification ? "✓" : "-"
+                        Text { text: App.capNativeNotification ? "✓" : "-"
                                color: App.capNativeNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Custom card (layer-shell)")
                         help: qsTr("Whether the compositor supports wlr-layer-shell surfaces.")
                         helpDetail: qsTr("Layer-shell powers the always-on-top capture card, the selection overlay above fullscreen apps and the pinned preview. KWin, wlroots and COSMIC have it; GNOME does not.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capCustomNotification ? "✓" : "-"
+                        Text { text: App.capCustomNotification ? "✓" : "-"
                                color: App.capCustomNotification ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Recording border")
                         help: qsTr("Whether a border can be drawn around the recorded region.")
                         helpDetail: qsTr("Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capRecordBorder ? "✓" : "-"
+                        Text { text: App.capRecordBorder ? "✓" : "-"
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("PipeWire (build)")
                         help: qsTr("Whether this build was compiled against PipeWire.")
                         helpDetail: qsTr("Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capPipeWireBuild ? "✓" : "-"
+                        Text { text: App.capPipeWireBuild ? "✓" : "-"
                                color: App.capPipeWireBuild ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("KWin native recording")
                         help: qsTr("Whether recordings can start without the portal share dialog.")
                         helpDetail: qsTr("KWin's zkde_screencast protocol (the Spectacle path): the app names the screen, region or window itself, so no system dialog and no restore tokens are involved. Needs the X-KDE-Wayland-Interfaces grant in the installed desktop file; elsewhere recording falls back to the portal.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capKWinRecord ? "✓" : "-"
+                        Text { text: App.capKWinRecord ? "✓" : "-"
                                color: App.capKWinRecord ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("ScreenCast portal")
                         help: qsTr("Whether this desktop has a ScreenCast portal backend.")
                         helpDetail: qsTr("Probed at startup by reading the version property of org.freedesktop.portal.ScreenCast. The backend is what asks for permission and opens the PipeWire stream; a running pipewire daemon does not imply one. KDE, GNOME, wlroots and COSMIC have it - the -xapp backend (Cinnamon, MATE, XFCE) and -lxqt do not.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capScreenCastPortal ? "✓" : "-"
+                        Text { text: App.capScreenCastPortal ? "✓" : "-"
                                color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("X11 screen capture")
                         help: qsTr("Whether recording can grab frames directly from the X server.")
                         helpDetail: qsTr("Needs an X11 session (xcb platform) and a build with libX11/libXext/libXfixes. On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capX11Capture ? "✓" : "-"
+                        Text { text: App.capX11Capture ? "✓" : "-"
                                color: App.capX11Capture ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
                         label: qsTr("Video preview")
                         help: qsTr("Whether the trim editor can show a live video preview.")
                         helpDetail: qsTr("Needs the QtMultimedia QML module (qt6-qtmultimedia). Without it the trim editor falls back to a slider-only range picker.")
-                        Text { anchors.verticalCenter: parent.verticalCenter; text: App.capVideoPlayback ? "✓" : "-"
+                        Text { text: App.capVideoPlayback ? "✓" : "-"
                                color: App.capVideoPlayback ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     Row {
@@ -2887,6 +3169,7 @@ Item {
                         MouseArea {
                             anchors.fill: parent
                             acceptedButtons: Qt.NoButton
+                            Accessible.ignored: true
                             onWheel: (w) => {
                                 const dy = w.pixelDelta.y !== 0 ? w.pixelDelta.y
                                                                 : (w.angleDelta.y / 120) * 110
@@ -2940,11 +3223,15 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open a file…"); onClicked: App.openFileForEditing() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Drop import routing"); onClicked: App.devTestImportDrop() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Paste import (Ctrl+V)"); onClicked: App.devTestClipboardImport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Verify hotkey binds"); onClicked: App.devTestHotkeyBinds() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Alternate hotkeys"); onClicked: App.devTestAltHotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Server test upload"); onClicked: App.devTestDestinationTest() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }

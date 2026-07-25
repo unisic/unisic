@@ -3,6 +3,7 @@
 #include "Settings.h"
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
+#include "capture/PortalRequest.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -57,9 +58,11 @@
 #include <ZXing/BitMatrix.h>
 #include <ZXing/MultiFormatWriter.h>
 #endif
+// Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
+// payloads all speak QMimeData, so it is needed with or without KGuiAddons.
+#include <QMimeData>
 #ifdef HAVE_KGUIADDONS
 #include <KSystemClipboard>
-#include <QMimeData>
 #endif
 #include <QGuiApplication>
 #include <QtMath>
@@ -3844,6 +3847,341 @@ void AppContext::devTestUpload()
     });
 }
 
+void AppContext::destinationTestCheck(std::function<void(const QString &)> done)
+{
+    // The server editor's "Test upload" button: it hands UploadManager the
+    // UNSAVED form state, which then pushes a generated PNG through the very
+    // same http/curl path a real capture takes. Two promises can rot silently
+    // here, so both are asserted: (a) an unusable form is refused before any
+    // request goes out, and (b) a test never persists anything.
+    //
+    // Phase one is that guard. Its verdict arrives on the check's own callback
+    // channel (the overload, never the shared testFinished signal - see
+    // UploadManager.h) and the transport phase is chained off it, never read
+    // off the stack right after the call. testDestination() does answer
+    // synchronously for an empty form today, but a check that quietly depends
+    // on that starts lying the day the guard grows any asynchronous branch (a
+    // reachability probe, a name lookup), and it would lie by reporting PASS.
+    const int destsBefore = m_uploads->destinationsJson().size();
+
+    auto guarded = std::make_shared<bool>(false);
+    QPointer<AppContext> self(this);
+    m_uploads->testDestination(QVariantMap{}, // no requestUrl: nothing may leave the app
+                               [self, guarded, destsBefore, done]
+                               (bool ok, const QString &, const QString &err) {
+        if (!self || *guarded)
+            return;
+        *guarded = true;
+        self->destinationTestTransport((!ok && !err.isEmpty())
+                                           ? QStringLiteral("PASS")
+                                           : QStringLiteral("FAIL (an empty form was not refused)"),
+                                       destsBefore, done);
+    });
+    // No answer at all is a failure of the guard, not of the transport: report
+    // it and still run the transport half, which is the more interesting one.
+    QTimer::singleShot(5000, this, [this, guarded, destsBefore, done] {
+        if (*guarded)
+            return;
+        *guarded = true;
+        destinationTestTransport(QStringLiteral("FAIL (no answer)"), destsBefore, done);
+    });
+}
+
+void AppContext::destinationTestTransport(const QString &guard, int destsBefore,
+                                          std::function<void(const QString &)> done)
+{
+    // The transport half runs curl against a file:// target in a scratch dir,
+    // so the check stays offline and costs nobody's upload quota. Testing the
+    // user's real destination would put a stray file on their server on every
+    // F8 run.
+    if (QStandardPaths::findExecutable(QStringLiteral("curl")).isEmpty()) {
+        done(QStringLiteral("guard %1, transport SKIP (curl missing)").arg(guard));
+        return;
+    }
+    auto dir = std::make_shared<QTemporaryDir>();
+    if (!dir->isValid()) {
+        done(QStringLiteral("guard %1, transport FAIL (no scratch dir)").arg(guard));
+        return;
+    }
+    const QString landed = dir->filePath(QStringLiteral("unisic-test.png"));
+    QVariantMap dest;
+    dest[QStringLiteral("name")] = QStringLiteral("unisic-dev-test-destination");
+    dest[QStringLiteral("type")] = QStringLiteral("curl");
+    dest[QStringLiteral("requestUrl")] = QUrl::fromLocalFile(dir->path()).toString();
+    dest[QStringLiteral("publicUrlBase")] = QStringLiteral("https://example.invalid/unisic-dev");
+
+    auto answered = std::make_shared<bool>(false);
+    QPointer<AppContext> self(this);
+    // Answered on the check's own channel again (see destinationTestCheck), and
+    // the scratch dir rides along in the callback so it outlives a curl that is
+    // still writing into it when the timeout below gives up.
+    m_uploads->testDestination(dest, [self, answered, dir, landed, guard, destsBefore, done]
+                               (bool ok, const QString &url, const QString &err) {
+        if (!self || *answered)
+            return;
+        *answered = true;
+        const bool fileOk = QFileInfo(landed).size() > 0;
+        const bool urlOk = url.endsWith(QLatin1String("unisic-test.png"));
+        const bool cleanOk = self->m_uploads->destinationsJson().size() == destsBefore
+                             && self->m_uploads->destination(QStringLiteral("unisic-dev-test-destination")).isEmpty();
+        done(QStringLiteral("guard %1, transport %2, no side effects %3")
+                 .arg(guard,
+                      ok && fileOk && urlOk
+                          ? QStringLiteral("PASS (%1 bytes uploaded, link built)")
+                                .arg(QFileInfo(landed).size())
+                          : QStringLiteral("FAIL (%1)")
+                                .arg(err.isEmpty() ? QStringLiteral("no file at the target")
+                                                   : err.left(80)),
+                      cleanOk ? QStringLiteral("PASS")
+                              : QStringLiteral("FAIL (the test saved the destination)")));
+    });
+    // A wedged curl must not stall the whole smoke run behind it.
+    QTimer::singleShot(15000, this, [answered, guard, done] {
+        if (*answered)
+            return;
+        *answered = true;
+        done(QStringLiteral("guard %1, transport FAIL (timed out)").arg(guard));
+    });
+}
+
+void AppContext::devTestDestinationTest()
+{
+    if (!devBuild())
+        return;
+    destinationTestCheck([this](const QString &result) {
+        // contains(), not the startsWith() the other dev buttons use: this
+        // check reports three verdicts in one line ("guard …, transport …,
+        // no side effects …"), so a failure can sit anywhere in it.
+        showToast(tr("Dev: server test upload: %1").arg(result),
+                  result.contains(QLatin1String("FAIL")));
+    });
+}
+
+AppContext::CheckWindowCollector::CheckWindowCollector(AppContext *c)
+    : ctx(c)
+{
+    ctx->m_collectCheckWindows = true;
+    ctx->m_checkWindows.clear();
+}
+
+AppContext::CheckWindowCollector::~CheckWindowCollector()
+{
+    ctx->m_collectCheckWindows = false;
+    for (const QPointer<QQuickWindow> &w : std::as_const(ctx->m_checkWindows)) {
+        // During a smoke run the same windows are ALSO in m_smokeWindows; the
+        // QPointers there simply go null, and the final cleanup step counts
+        // whatever is left.
+        if (w)
+            w->close();
+    }
+    ctx->m_checkWindows.clear();
+}
+
+QString AppContext::importDropCheck()
+{
+    // Everything the main window's DropArea can hand over, routed through the
+    // one router (openPath) the file dialog and Ctrl+V also use. The drag
+    // itself cannot be synthesized headlessly, so what is asserted is the part
+    // that decides where a payload lands - and that nothing lands silently.
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("FAIL (no scratch dir)");
+    const QString png = dir.filePath(QStringLiteral("unisic-drop.png"));
+    const QString png2 = dir.filePath(QStringLiteral("unisic-drop-2.png"));
+    if (!devTestImage().save(png, "PNG") || !devTestImage().save(png2, "PNG"))
+        return QStringLiteral("FAIL (couldn't write the fixture)");
+    const QString txt = dir.filePath(QStringLiteral("unisic-drop.txt"));
+    {
+        QFile f(txt);
+        if (!f.open(QIODevice::WriteOnly))
+            return QStringLiteral("FAIL (couldn't write the fixture)");
+        f.write("not an image\n");
+    }
+    // Every window this opens is real (it is the assertion), so collect and
+    // close them again instead of leaving a stack of editors on the desktop.
+    CheckWindowCollector collect(this);
+
+    int before = m_editorWindows;
+    openDroppedUrls({QUrl::fromLocalFile(png)});
+    const bool imageOk = m_editorWindows > before;
+
+    before = m_editorWindows;
+    openDroppedUrls({QUrl(QStringLiteral("https://example.invalid/remote.png"))});
+    const bool remoteRefused = m_editorWindows == before;
+
+    before = m_editorWindows;
+    openDroppedUrls({QUrl::fromLocalFile(txt)});
+    const bool unsupportedRefused = m_editorWindows == before;
+
+    before = m_editorWindows;
+    openPath(dir.filePath(QStringLiteral("gone.png")));
+    const bool missingRefused = m_editorWindows == before;
+
+    // A whole FOLDER is a legal drop payload (drag one out of a file manager)
+    // and gets its own answer, both through the drop router and through the
+    // shared openPath() a paste lands in.
+    before = m_editorWindows;
+    openDroppedUrls({QUrl::fromLocalFile(dir.path())});
+    openPath(dir.path());
+    const bool folderRefused = m_editorWindows == before;
+
+    // Multi-file drop: the first payload Unisic can open wins, the rest is
+    // reported rather than dumped onto the desktop as extra windows. Both
+    // shapes of "the rest" run, because they get different notes: one entry
+    // that could never have opened (the text file), and one that could (the
+    // second image).
+    before = m_editorWindows;
+    openDroppedUrls({QUrl::fromLocalFile(txt), QUrl::fromLocalFile(png)});
+    openDroppedUrls({QUrl::fromLocalFile(png), QUrl::fromLocalFile(png2)});
+    const bool multiOk = m_editorWindows == before + 2;
+
+    // A drag out of a browser carries PIXELS, not a path.
+    QByteArray bytes;
+    QBuffer buf(&bytes);
+    buf.open(QIODevice::WriteOnly);
+    devTestImage().save(&buf, "PNG");
+    buf.close();
+    before = m_editorWindows;
+    const bool dataOk = openImageData(bytes) && m_editorWindows > before;
+    const bool junkRefused = !openImageData(QByteArrayLiteral("definitely not a PNG"));
+
+    if (!imageOk)
+        return QStringLiteral("FAIL (a dropped image did not open the editor)");
+    if (!remoteRefused)
+        return QStringLiteral("FAIL (a remote url was not refused)");
+    if (!unsupportedRefused)
+        return QStringLiteral("FAIL (an unsupported file was not refused)");
+    if (!missingRefused)
+        return QStringLiteral("FAIL (a missing file was not refused)");
+    if (!folderRefused)
+        return QStringLiteral("FAIL (a dropped folder was not refused)");
+    if (!multiOk)
+        return QStringLiteral("FAIL (a multi-file drop opened the wrong number of windows)");
+    if (!dataOk)
+        return QStringLiteral("FAIL (dropped image data did not open the editor)");
+    if (!junkRefused)
+        return QStringLiteral("FAIL (junk bytes were accepted as an image)");
+    return QStringLiteral("PASS (file, pixels, multi-drop; "
+                          "remote/unsupported/missing/folder refused)");
+}
+
+void AppContext::devTestImportDrop()
+{
+    if (!devBuild())
+        return;
+    const QString result = importDropCheck();
+    showToast(tr("Dev: drop import: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
+QString AppContext::clipboardImportCheck()
+{
+    // Ctrl+V in the main window. Both branches matter: pixels open a NEW
+    // editor document (no overwrite path), a copied FILE goes through the same
+    // router a drop uses.
+    //
+    // The payloads are handed straight to the paste ROUTER; the system
+    // clipboard is never read and never written. Not touching it at all beats
+    // the snapshot/restore the smoke run has to do for the steps that really
+    // must copy (snapshotClipboardForSmoke): that one is best-effort by nature
+    // - formats are served on demand by the source application, and on Plasma
+    // putting the selection back adds another Klipper history entry. The only
+    // line this check skips is clipboard()->mimeData() itself; everything that
+    // DECIDES where a payload lands is below.
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("FAIL (no scratch dir)");
+    CheckWindowCollector collect(this);
+
+    QMimeData pixels;
+    pixels.setImageData(devTestImage());
+    int before = m_editorWindows;
+    pasteMimeData(&pixels);
+    const bool imageOk = m_editorWindows > before;
+
+    const QString png = dir.filePath(QStringLiteral("unisic-paste.png"));
+    if (!devTestImage().save(png, "PNG"))
+        return QStringLiteral("FAIL (couldn't write the fixture)");
+    QMimeData copiedFile;
+    copiedFile.setUrls({QUrl::fromLocalFile(png)});
+    before = m_editorWindows;
+    pasteMimeData(&copiedFile);
+    const bool fileOk = m_editorWindows > before;
+
+    // Copying SEVERAL files takes the same rule a multi-file drop does: the
+    // first entry Unisic can open wins, not simply the first entry.
+    const QString txt = dir.filePath(QStringLiteral("unisic-paste.txt"));
+    {
+        QFile f(txt);
+        if (!f.open(QIODevice::WriteOnly))
+            return QStringLiteral("FAIL (couldn't write the fixture)");
+        f.write("not an image\n");
+    }
+    QMimeData copiedPair;
+    copiedPair.setUrls({QUrl::fromLocalFile(txt), QUrl::fromLocalFile(png)});
+    before = m_editorWindows;
+    pasteMimeData(&copiedPair);
+    const bool pairOk = m_editorWindows > before;
+
+    // Plain text is not a capture: it must be refused out loud, not opened.
+    QMimeData plainText;
+    plainText.setText(QStringLiteral("Unisic paste import check"));
+    before = m_editorWindows;
+    pasteMimeData(&plainText);
+    const bool textRefused = m_editorWindows == before;
+
+    // An empty clipboard hands over no QMimeData at all: its own branch.
+    before = m_editorWindows;
+    pasteMimeData(nullptr);
+    const bool emptyRefused = m_editorWindows == before;
+
+    if (!imageOk)
+        return QStringLiteral("FAIL (a clipboard image did not open the editor)");
+    if (!fileOk)
+        return QStringLiteral("FAIL (a copied file did not open the editor)");
+    if (!pairOk)
+        return QStringLiteral("FAIL (a multi-file paste skipped the openable file)");
+    if (!textRefused)
+        return QStringLiteral("FAIL (plain text was opened as a capture)");
+    if (!emptyRefused)
+        return QStringLiteral("FAIL (an empty clipboard opened something)");
+    return QStringLiteral("PASS (image, copied file, multi-file copy; "
+                          "plain text and an empty clipboard refused)");
+}
+
+void AppContext::devTestClipboardImport()
+{
+    if (!devBuild())
+        return;
+    const QString result = clipboardImportCheck();
+    showToast(tr("Dev: paste import: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
+QString AppContext::recordPageModeCheck()
+{
+    // The Record page hosts Video and GIF behind one mode segment, and the page
+    // Loader is destroyed on every navigation - so the chosen mode only
+    // survives because it is a persisted setting, not page state.
+    const int original = m_settings->recordPageMode();
+    m_settings->setRecordPageMode(1);
+    const bool gif = m_settings->recordPageMode() == 1;
+    m_settings->setRecordPageMode(0);
+    const bool video = m_settings->recordPageMode() == 0;
+    m_settings->setRecordPageMode(original);
+    const bool restored = m_settings->recordPageMode() == original;
+    if (!gif || !video || !restored)
+        return QStringLiteral("FAIL (the mode does not persist)");
+    return QStringLiteral("PASS (mode round-trips; currently %1)")
+        .arg(original == 1 ? QStringLiteral("GIF") : QStringLiteral("video"));
+}
+
+void AppContext::devTestRecordPageMode()
+{
+    if (!devBuild())
+        return;
+    const QString result = recordPageModeCheck();
+    showToast(tr("Dev: record page mode: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
 QString AppContext::altHotkeysCheck()
 {
     // Round-trip a MULTI-binding through the real daemon on a scratch action:
@@ -4061,6 +4399,109 @@ void AppContext::devTestX11Hotkeys()
     showToast(tr("Dev: X11 hotkeys: %1").arg(r), r.startsWith(QLatin1String("FAIL")));
 }
 
+// F8 overwrites the clipboard several times over on purpose: "copy last
+// capture" seeds it with a known image, the Klipper history-hint step copies
+// another, and the canvas paste check writes text and an image straight through
+// QClipboard. Losing whatever the user had copied is a real cost for a check
+// they press casually, so the run takes the selection away and gives it back.
+//
+// A clipboard offer cannot simply be held onto: the QMimeData QClipboard hands
+// out belongs to Qt, it dies with the next selection change, and its formats
+// are served on demand BY THE SOURCE APPLICATION. Putting it back later
+// therefore means pulling every format's bytes NOW - one real transfer each -
+// so the snapshot is bounded. Blowing the budget drops the snapshot entirely
+// rather than restoring half a clipboard; the log says which happened.
+//
+// What NO restore can undo is the clipboard HISTORY: on Plasma every copy the
+// run makes lands in Klipper (that is what the x-kde-force-image-copy hint is
+// for), and nothing can take those entries back out. The smoke log states it.
+void AppContext::snapshotClipboardForSmoke()
+{
+    constexpr qint64 kBudget = 16 * 1024 * 1024;
+    // Generous on purpose: an office suite offers a dozen-plus (mostly tiny)
+    // flavours of one selection, and that is exactly the clipboard worth
+    // protecting. The byte budget, not the count, is what bounds the cost.
+    constexpr int kMaxFormats = 24;
+    m_smokeClipboard.reset();
+    m_smokeClipboardNote.clear();
+
+    auto copy = std::make_unique<QMimeData>();
+    const QMimeData *src = QGuiApplication::clipboard()->mimeData(QClipboard::Clipboard);
+    if (!src) {
+        m_smokeClipboard = std::move(copy); // nothing on it -> restore == clear
+        return;
+    }
+    const QStringList formats = src->formats();
+    const bool havePng = formats.contains(QLatin1String("image/png"));
+    bool tookImage = false;
+    qint64 total = 0;
+    int taken = 0;
+    for (const QString &f : formats) {
+        // Qt's own synthesized types ("application/x-qt-image", the mime-type
+        // name marker): they are rebuilt from the real formats on the way back
+        // out, and copying them verbatim would put Qt internals on the wire.
+        if (f.startsWith(QLatin1String("application/x-qt")))
+            continue;
+        if (f.startsWith(QLatin1String("image/"))) {
+            // One encoding is enough - every consumer converts - and a picture
+            // is usually offered in six of them, i.e. six full transfers.
+            if (tookImage || (havePng && f != QLatin1String("image/png")))
+                continue;
+        }
+        if (taken >= kMaxFormats) {
+            m_smokeClipboardNote = QStringLiteral("it offers %1 formats").arg(formats.size());
+            return;
+        }
+        const QByteArray bytes = src->data(f);
+        if (bytes.isEmpty())
+            continue;
+        total += bytes.size();
+        if (total > kBudget) {
+            m_smokeClipboardNote = QStringLiteral("more than %1 MB on it").arg(kBudget >> 20);
+            return;
+        }
+        copy->setData(f, bytes);
+        ++taken;
+        if (f.startsWith(QLatin1String("image/")))
+            tookImage = true;
+    }
+    m_smokeClipboard = std::move(copy);
+}
+
+QString AppContext::restoreClipboardAfterSmoke()
+{
+    // A deferred wl-copy mirror scheduled by the run's copyImageToClipboard
+    // must not land after this and take the selection back.
+    ++m_clipboardSeq;
+    if (!m_smokeClipboard)
+        return QStringLiteral("not put back (%1) - it now holds the test image, and the run's "
+                              "copies stay in the clipboard history")
+            .arg(m_smokeClipboardNote.isEmpty() ? QStringLiteral("could not be read")
+                                                : m_smokeClipboardNote);
+    QMimeData *data = m_smokeClipboard.release();
+    const int formats = data->formats().size();
+    if (formats == 0) {
+        delete data;
+        QGuiApplication::clipboard()->clear(QClipboard::Clipboard);
+        return QStringLiteral("emptied again - nothing was on it before the run "
+                              "(the run's copies stay in the clipboard history)");
+    }
+#ifdef HAVE_KGUIADDONS
+    if (auto *bus = QDBusConnection::sessionBus().interface();
+        bus && bus->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
+        // The same path copyImageToClipboard uses on Plasma: data-control sets
+        // the selection without a focused window, and Klipper's history then
+        // ends on the user's own entry instead of on the smoke test's image.
+        KSystemClipboard::instance()->setMimeData(data, QClipboard::Clipboard);
+        return QStringLiteral("%1 format(s) put back - the run's copies stay in Klipper's history")
+            .arg(formats);
+    }
+#endif
+    QGuiApplication::clipboard()->setMimeData(data); // ownership passes to Qt
+    return QStringLiteral("%1 format(s) put back - the run's copies stay in the clipboard history")
+        .arg(formats);
+}
+
 void AppContext::smokeNext()
 {
     if (m_smokeIdx >= m_smokeSteps.size()) {
@@ -4093,6 +4534,17 @@ void AppContext::runSmokeTest()
     m_smokeSteps.clear();
     m_smokeWindows.clear();
     smokeLog(QStringLiteral("=== Unisic smoke test ==="));
+    // Several steps copy on purpose, so take the selection away first and hand
+    // it back in the cleanup step. Said out loud right here, and hedged on
+    // whether the snapshot actually succeeded, because the one part of the cost
+    // that CANNOT be undone is the clipboard history.
+    snapshotClipboardForSmoke();
+    smokeLog(QStringLiteral("note: this run copies to the clipboard several times. What is on it "
+                            "now %1. Either way, every entry the run copies stays in the "
+                            "clipboard history (Klipper on Plasma).")
+                 .arg(m_smokeClipboard
+                          ? QStringLiteral("was saved and the last step puts it back")
+                          : QStringLiteral("could not be saved and is lost")));
     emit smokeTestChanged();
 
     // 1) capability / availability snapshot (synchronous)
@@ -4483,6 +4935,21 @@ void AppContext::runSmokeTest()
         editFromHistory(p);
         smokeLog(QStringLiteral("edit from history: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS (overwrite editor)") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 3b2) drag and drop import: the router behind the main window's DropArea.
+    // The drag itself cannot be synthesized here, so what is asserted is where
+    // each payload LANDS - and that nothing is refused silently.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("drop import: ") + importDropCheck());
+        smokeNext();
+    });
+
+    // 3b3) Ctrl+V import in the main window (pixels -> a new editor document,
+    // a copied file -> the same router, anything else -> refused out loud).
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("paste import: ") + clipboardImportCheck());
         smokeNext();
     });
 
@@ -4930,6 +5397,7 @@ void AppContext::runSmokeTest()
     // regression history — the [%General] key folding).
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
+        smokeLog(QStringLiteral("record page mode: ") + recordPageModeCheck());
         smokeNext();
     });
 
@@ -4978,6 +5446,16 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 6b) the server editor's "Test upload" button. Unlike the step above this
+    // one CAN run unattended: it targets a scratch file:// directory through
+    // the real curl transport, so it costs no quota and touches no server.
+    m_smokeSteps.append([this] {
+        destinationTestCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("server test upload: ") + result);
+            smokeNext();
+        });
+    });
+
     // Essentials: filename tokens, save routing, countdown, volume, channel.
     m_smokeSteps.append([this] {
         const QString name = makeFileName();
@@ -4998,8 +5476,8 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // 7) cleanup: close every editor/preview window the run opened — F8 must
-    // verify and leave the desktop exactly as it found it.
+    // 7) cleanup: close every editor/preview window the run opened and give the
+    // clipboard back - F8 must verify and leave the desktop as it found it.
     m_smokeSteps.append([this] {
         int closed = 0;
         for (const QPointer<QQuickWindow> &w : std::as_const(m_smokeWindows)) {
@@ -5010,6 +5488,7 @@ void AppContext::runSmokeTest()
         }
         m_smokeWindows.clear();
         smokeLog(QStringLiteral("cleanup: closed %1 test window(s)").arg(closed));
+        smokeLog(QStringLiteral("clipboard: ") + restoreClipboardAfterSmoke());
         smokeNext();
     });
 
@@ -5798,7 +6277,27 @@ void AppContext::openFileForEditing(const QString &kind)
     if (path.isEmpty())
         return; // cancelled
 
-    // What the file IS decides, not what the dialog was filtered to.
+    openPath(path);
+}
+
+void AppContext::openPath(const QString &path)
+{
+    if (path.isEmpty())
+        return;
+    const QFileInfo info(path);
+    if (!info.exists()) {
+        showToast(tr("Can't find %1").arg(info.fileName()), true);
+        return;
+    }
+    // A folder reaches here from a drop or a paste (never from the file
+    // dialog). Answering "cannot edit this file type" would be a non-answer:
+    // a folder is not a type, it is the wrong THING.
+    if (info.isDir()) {
+        showToast(tr("Unisic opens files, not folders"), true);
+        return;
+    }
+    // What the file IS decides, not what the dialog was filtered to (nor what
+    // the drag source claimed).
     const QString actual = editableKindFor(path);
     if (actual == QLatin1String("video"))
         openTrimRecording(path);
@@ -5806,6 +6305,136 @@ void AppContext::openFileForEditing(const QString &kind)
         editFromHistory(path);
     else
         showToast(tr("Unisic cannot edit this file type"), true);
+}
+
+void AppContext::openDroppedUrls(const QVariantList &urls)
+{
+    QStringList localFiles;
+    bool sawRemote = false;
+    for (const QVariant &v : urls) {
+        const QUrl url = v.toUrl();
+        if (url.isEmpty())
+            continue;
+        if (url.isLocalFile())
+            localFiles << url.toLocalFile();
+        else
+            sawRemote = true;
+    }
+    if (localFiles.isEmpty()) {
+        // A browser image drag offers an http url. Downloading it silently
+        // would be a surprise (and a network call nobody asked for), so say no.
+        showToast(sawRemote ? tr("Unisic can only open files from this computer")
+                            : tr("Nothing to open in that drop"),
+                  true);
+        return;
+    }
+    // The first file Unisic can open wins; the count of the rest decides what
+    // the note below is allowed to say.
+    QString chosen;
+    int openable = 0;
+    for (const QString &p : std::as_const(localFiles)) {
+        if (editableKindFor(p).isEmpty())
+            continue;
+        ++openable;
+        if (chosen.isEmpty())
+            chosen = p;
+    }
+    if (chosen.isEmpty()) {
+        // Dragging a folder out of a file manager is the common miss (it has no
+        // extension, so the loop above never picks it) and deserves a straight
+        // answer instead of "cannot edit this file type".
+        bool folder = false;
+        for (const QString &p : std::as_const(localFiles))
+            if (QFileInfo(p).isDir()) { folder = true; break; }
+        showToast(folder ? tr("Unisic opens files, not folders")
+                         : tr("Unisic cannot edit this file type"), true);
+        return;
+    }
+    // The note below claims the drop worked, so it must not run ahead of the
+    // one thing that can still refuse it: a stale drag whose file is gone gets
+    // "Can't find ..." from openPath, and two toasts contradicting each other
+    // are worse than one.
+    //
+    // Plain, NOT important: the drop did what it was asked to and the sentence
+    // only says where the rest of the batch went. `important` is reserved for
+    // failures (it overrides the user's "don't show notifications" choice), and
+    // a note that reads as an error next to an editor that just opened
+    // correctly is worse than no note.
+    if (localFiles.size() > 1 && QFileInfo::exists(chosen)) {
+        // Two different situations, and telling them apart matters: "drop them
+        // one at a time" is only true advice when there really is another file
+        // that WOULD open. Drop a PNG next to a .txt and the batch is already
+        // finished - sending the user back for the .txt would send them after
+        // something that can never open.
+        showToast(openable > 1
+                      ? tr("Opened %1. Drop one file at a time to open the others.")
+                            .arg(QFileInfo(chosen).fileName())
+                      : tr("Opened %1. Nothing else in that drop is a file Unisic can open.")
+                            .arg(QFileInfo(chosen).fileName()));
+    }
+    openPath(chosen);
+}
+
+bool AppContext::openImageData(const QByteArray &data)
+{
+    if (data.isEmpty())
+        return false;
+    QImage img;
+    if (!img.loadFromData(data))
+        return false;
+    // The bytes came from somewhere else's scene graph: force DPR 1 so the
+    // editor treats them as plain image pixels (AnnotationCanvas' rule).
+    img.setDevicePixelRatio(1.0);
+    openEditor(img);
+    return true;
+}
+
+void AppContext::pasteFromClipboard()
+{
+    // Reading needs no KDE branch: the KSystemClipboard/wl-copy machinery in
+    // copyImageToClipboard is about OFFERING data, not taking it.
+    pasteMimeData(QGuiApplication::clipboard()->mimeData());
+}
+
+void AppContext::pasteMimeData(const QMimeData *mime)
+{
+    if (!mime) {
+        showToast(tr("The clipboard is empty"), true);
+        return;
+    }
+    if (mime->hasImage()) {
+        QImage img = qvariant_cast<QImage>(mime->imageData());
+        if (!img.isNull()) {
+            img.setDevicePixelRatio(1.0);
+            // No overwrite path on purpose: a pasted image has no file of its
+            // own, so Ctrl+S must save a NEW capture instead of writing over
+            // whatever file the pixels originally came from.
+            openEditor(img);
+            return;
+        }
+    }
+    // Same selection rule as a dropped payload (openDroppedUrls): the first
+    // file Unisic can actually open wins, so a copied .txt lying next to the
+    // PNG does not hijack the paste. If nothing in it is openable, the first
+    // local file still goes to openPath, which says why it cannot be opened.
+    const QList<QUrl> urls = mime->urls();
+    QString firstLocal;
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile())
+            continue;
+        const QString p = url.toLocalFile();
+        if (firstLocal.isEmpty())
+            firstLocal = p;
+        if (!editableKindFor(p).isEmpty()) {
+            openPath(p);
+            return;
+        }
+    }
+    if (!firstLocal.isEmpty()) {
+        openPath(firstLocal);
+        return;
+    }
+    showToast(tr("The clipboard holds no image to paste"), true);
 }
 
 void AppContext::openTrimRecording(const QString &path)
@@ -6415,6 +7044,8 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
         emit editorWindowsOpenChanged();
         if (m_smokeRunning)
             m_smokeWindows.append(win); // auto-closed by the smoke test's last step
+        if (m_collectCheckWindows)
+            m_checkWindows.append(win); // auto-closed by the dev check that opened it
         connect(win, &QQuickWindow::visibleChanged, session, [this, session, win](bool v) {
             if (!v) {
                 win->deleteLater(); session->deleteLater(); scheduleMemoryTrim();
@@ -8120,8 +8751,24 @@ QString AppContext::autostartFilePath() const
            + QStringLiteral(".desktop");
 }
 
+// Sandboxed autostart goes through the Background portal, not through a file:
+// $XDG_CONFIG_HOME inside the sandbox is ~/.var/app/<id>/config, which the
+// host session never reads, so a .desktop written there would leave the switch
+// saying "on" while nothing starts at login. The portal writes the host-side
+// entry itself (and, on some backends, asks the user first).
+static bool sandboxed()
+{
+    return qEnvironmentVariableIsSet("FLATPAK_ID");
+}
+
 bool AppContext::autostartEnabled() const
 {
+    // The portal exposes no getter, so the last answer it gave is the state.
+    // It is the ANSWER that is stored, never the request: a backend that
+    // refuses (or a user who says no) leaves this false and the switch snaps
+    // back, which is the honest reading.
+    if (sandboxed())
+        return m_settings && m_settings->portalAutostartGranted();
     return QFile::exists(autostartFilePath());
 }
 
@@ -8163,6 +8810,10 @@ bool AppContext::writeAutostartFile()
 
 void AppContext::refreshAutostartIfStale()
 {
+    // Nothing to keep fresh in a sandbox: the entry lives host-side and is the
+    // portal's to write, and the exec path inside /app never moves.
+    if (sandboxed())
+        return;
     // Pre-rename installs wrote org.unisic.Unisic.desktop; migrate it or the
     // old entry keeps autostarting alongside (and ignores the toggle).
     const QString legacy = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
@@ -8185,10 +8836,51 @@ void AppContext::refreshAutostartIfStale()
         writeAutostartFile();
 }
 
+void AppContext::requestPortalAutostart(bool on)
+{
+    const QString token = PortalRequest::nextToken();
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"),
+        QStringLiteral("/org/freedesktop/portal/desktop"),
+        QStringLiteral("org.freedesktop.portal.Background"),
+        QStringLiteral("RequestBackground"));
+    QVariantMap options{
+        {QStringLiteral("handle_token"), token},
+        {QStringLiteral("autostart"), on},
+        // Without this the portal grants "may run in the background" but writes
+        // no autostart entry; with it the entry runs the same tray-only launch
+        // the native autostart file does. `unisic` resolves inside the sandbox.
+        {QStringLiteral("commandline"), QStringList{QStringLiteral("unisic"),
+                                                    QStringLiteral("--tray-only")}},
+        {QStringLiteral("reason"), tr("Unisic starts hidden in the tray so its capture "
+                                      "shortcuts work right after you log in.")},
+    };
+    msg << QString() << options; // parent_window: empty (no exported handle on Wayland)
+
+    PortalRequest::send(msg, token, [this, on](uint code, const QVariantMap &results) {
+        if (code != 0) {
+            if (code != 1) // 1 = the user cancelled; not worth a toast
+                showToast(tr("The desktop refused the autostart request"), true);
+            emit autostartEnabledChanged(); // snap the switch back to reality
+            return;
+        }
+        const bool granted = results.value(QStringLiteral("autostart"), false).toBool();
+        if (m_settings)
+            m_settings->setPortalAutostartGranted(granted);
+        if (on && !granted)
+            showToast(tr("Autostart was not granted"), true);
+        emit autostartEnabledChanged();
+    }, this, 0); // a portal that asks the user must be allowed to wait for them
+}
+
 void AppContext::setAutostartEnabled(bool on)
 {
     if (on == autostartEnabled())
         return;
+    if (sandboxed()) {
+        requestPortalAutostart(on);
+        return;
+    }
     const QString path = autostartFilePath();
     if (!on) {
         if (!QFile::remove(path) && QFile::exists(path))

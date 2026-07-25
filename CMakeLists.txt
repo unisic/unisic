@@ -221,7 +221,6 @@ qt_add_qml_module(unisic
         qml/TrimWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
-        qml/pages/GifPage.qml
         qml/pages/EditPage.qml
         qml/pages/HistoryPage.qml
         qml/pages/DestinationsPage.qml

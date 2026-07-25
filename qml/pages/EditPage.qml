@@ -9,6 +9,10 @@ import "../components"
 // Its own page rather than a fourth card on Capture — nothing here captures
 // anything, and the two cases want different file dialogs.
 Item {
+    // Nothing modal on this page - the flag exists on every page so Main.qml
+    // can ask the active one without a per-page special case.
+    readonly property bool modalOpen: false
+
     Flickable {
         id: pageFlick
         anchors.fill: parent
@@ -73,8 +77,15 @@ Item {
                     // Color-only hover feedback — the tiles never move (same
                     // rule as the Capture page).
                     delegate: Rectangle {
+                        id: modeTile
+                        // One entry point for pointer, keyboard and assistive
+                        // tech, so the three can never drift apart.
+                        function activate() { App.openFileForEditing(modelData.kind) }
                         width: modeFlow.cardW
-                        height: 172
+                        // Kept in lockstep with CapturePage's tiles: the two
+                        // pages share one grid, so a height that differs
+                        // between them is visible the moment you switch.
+                        height: 140
                         radius: Theme.radiusXL
                         gradient: Gradient {
                             GradientStop { position: 0.0; color: cardMouse.containsMouse ? Theme.surfaceHiTop : Theme.surfaceTop }
@@ -108,18 +119,22 @@ Item {
                                 color: cardMouse.containsMouse ? Theme.accent : Theme.textPrimary
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
+                            // Folded into the tile's Accessible.name below, so
+                            // the button announces itself exactly once.
                             Text {
                                 text: modelData.title
                                 color: Theme.textPrimary
                                 font.pixelSize: Theme.fontL
                                 font.weight: Font.DemiBold
                                 anchors.horizontalCenter: parent.horizontalCenter
+                                Accessible.ignored: true
                             }
                             Text {
                                 text: modelData.sub
                                 color: Theme.textSecondary
                                 font.pixelSize: Theme.fontS
                                 anchors.horizontalCenter: parent.horizontalCenter
+                                Accessible.ignored: true
                             }
                         }
 
@@ -128,8 +143,21 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: App.openFileForEditing(modelData.kind)
+                            onClicked: modeTile.activate()
                         }
+
+                        // Same rule as the Capture tiles.
+                        activeFocusOnTab: true
+                        Keys.onSpacePressed: (e) => UKeys.activate(e, modeTile.activate)
+                        Keys.onReturnPressed: (e) => UKeys.activate(e, modeTile.activate)
+                        Keys.onEnterPressed: (e) => UKeys.activate(e, modeTile.activate)
+
+                        Accessible.role: Accessible.Button
+                        //: Spoken name of an Edit tile: title, subtitle.
+                        Accessible.name: qsTr("%1, %2").arg(modelData.title).arg(modelData.sub)
+                        Accessible.focusable: modeTile.activeFocusOnTab
+                        Accessible.onPressAction: modeTile.activate()
+                        UFocusRing { inset: 3 }
                     }
                 }
             }

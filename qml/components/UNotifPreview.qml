@@ -309,6 +309,20 @@ Item {
                     // Only fires when the press did NOT turn into a drag.
                     TapHandler { onTapped: if (btn.action) root.toggleAction(btn.action.id) }
 
+                    // Toggling is reachable from assistive tech; REORDERING is
+                    // not - it is a drag with no keyboard equivalent today, so
+                    // the description says which of the two this button can do
+                    // rather than offering an action that would do nothing.
+                    Accessible.role: Accessible.CheckBox
+                    Accessible.name: btn.action ? btn.action.label : ""
+                    Accessible.description: btn.off ? qsTr("Hidden from the card")
+                                            : btn.reorderable ? qsTr("Shown on the card. Drag to reorder.")
+                                            : qsTr("Shown on the card")
+                    Accessible.checkable: true
+                    Accessible.checked: !btn.off
+                    Accessible.onToggleAction: if (btn.action) root.toggleAction(btn.action.id)
+                    Accessible.onPressAction: if (btn.action) root.toggleAction(btn.action.id)
+
                     // Which icon is which. Parented to the window overlay, so it
                     // is never clipped by the preview's mock-screen frame.
                     UHoverTip {

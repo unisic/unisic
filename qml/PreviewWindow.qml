@@ -95,6 +95,12 @@ Window {
                     id: dragArea
                     anchors.fill: parent
                     cursorShape: pressed ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                    // Pointer-only by nature (a layer surface cannot be moved
+                    // by the keyboard), so it gets a name and a description but
+                    // deliberately no Press action that would do nothing.
+                    Accessible.role: Accessible.TitleBar
+                    Accessible.name: qsTr("Preview window bar")
+                    Accessible.description: qsTr("Drag to move the preview")
                     property real pressX: 0
                     property real pressY: 0
                     property bool moving: false
@@ -140,6 +146,7 @@ Window {
                 }
                 USlider {
                     id: opacitySlider
+                    accessibleName: qsTr("Preview opacity")
                     width: 110; height: 30
                     anchors.right: closeBtn.left
                     anchors.rightMargin: 8
@@ -180,6 +187,11 @@ Window {
                 anchors.bottom: parent.bottom
                 cursorShape: Qt.SizeFDiagCursor
                 preventStealing: true
+                // Same honesty as the drag bar: named, described, no fake
+                // action - there is no keyboard resize on a layer surface.
+                Accessible.role: Accessible.Grip
+                Accessible.name: qsTr("Resize the preview")
+                Accessible.description: qsTr("Drag to resize; the aspect ratio is kept")
                 property real pressRootX: 0
                 property real startW: 0
                 onPressed: (m) => {

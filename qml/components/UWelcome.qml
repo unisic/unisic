@@ -35,6 +35,25 @@ Item {
         closed()
     }
 
+    // A full-window flow rather than a Popup, so it has to declare the dialog
+    // identity itself - nothing above it does.
+    Accessible.role: Accessible.Dialog
+    Accessible.name: qsTr("Welcome to Unisic")
+    // The flow keeps ONE dialog identity across all seven steps, so the
+    // description is the only thing that can say where you are - and a bare
+    // "step 4 of 7" names nothing that is on the screen. The step headings are
+    // plain Text (nothing focuses them, so nothing reads them out), so the
+    // current one is folded in here, bound to the heading ITEMS rather than
+    // copied: one translated string, and it cannot drift from what is drawn.
+    Accessible.description: qsTr("Setup step %1 of %2: %3")
+                                .arg(root.step + 1).arg(root.stepCount).arg(root.stepTitle)
+    readonly property string stepTitle: {
+        const titles = [greetTitle, lookTitle, pipelineTitle, behaviourTitle,
+                        cardTitle, keysTitle, doneTitle]
+        return (root.step >= 0 && root.step < titles.length && titles[root.step])
+                ? titles[root.step].text : ""
+    }
+
     property bool shown: false
     property int step: 0
     readonly property int stepCount: 7
@@ -64,6 +83,17 @@ Item {
         property bool value: false
         signal toggled(bool v)
 
+        // The card's label speaks for the mute switch beside it - UNameBridge
+        // owns that rule and explains it. Without it the switch announces bare
+        // "on"/"off": the caption is the only thing that says WHICH decision,
+        // and it is a Text the switch has no link to. Same shape as USettingRow,
+        // which is what these cards are the first-run stand-in for.
+        readonly property UNameBridge nameBridge: UNameBridge {
+            targets: [cardRow]
+            name: card.label
+            description: card.detail
+        }
+
         width: parent ? parent.width : 0
         height: cardCol.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
@@ -72,10 +102,14 @@ Item {
         border.color: Theme.divider
 
         Row {
+            id: cardRow
             x: Theme.spacingM
             y: Theme.spacingM
             width: parent.width - 2 * Theme.spacingM
             spacing: Theme.spacingM
+            // Required by the bridge: it is what picks up a control that
+            // arrives later and prunes one that goes away.
+            onChildrenChanged: card.nameBridge.refresh()
 
             Column {
                 id: cardCol
@@ -155,7 +189,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         color: Theme.background
-        MouseArea { anchors.fill: parent; hoverEnabled: true }
+        // Pure input shield, nothing to announce.
+        MouseArea { anchors.fill: parent; hoverEnabled: true; Accessible.ignored: true }
     }
 
     // ---- skip, top right ----
@@ -177,6 +212,19 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: root.close()
         }
+
+        // UKeys keeps the flow's own Left/Right step navigation and its Escape
+        // bubbling to the root Keys handler above.
+        activeFocusOnTab: visible
+        Keys.onSpacePressed: (e) => UKeys.activate(e, root.close)
+        Keys.onReturnPressed: (e) => UKeys.activate(e, root.close)
+        Keys.onEnterPressed: (e) => UKeys.activate(e, root.close)
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Skip setup")
+        Accessible.focusable: skipLink.activeFocusOnTab
+        Accessible.onPressAction: root.close()
+        // Standalone text link - see THE INSET RULE in UFocusRing.qml.
+        UFocusRing { hostRadius: Theme.radiusS; inset: -4 }
     }
 
     // ---- the steps ----
@@ -218,6 +266,7 @@ Item {
                     layer.effect: MultiEffect { saturation: -1.0 }
                 }
                 Text {
+                    id: greetTitle
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("Welcome to Unisic")
@@ -254,6 +303,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: lookTitle
                     width: parent.width
                     text: qsTr("Make it yours")
                     color: Theme.textPrimary
@@ -273,6 +323,7 @@ Item {
                     width: parent.width
                     spacing: 6
                     Text {
+                        id: themeLabel
                         text: qsTr("Theme")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontM
@@ -282,6 +333,15 @@ Item {
                         model: root.themeNames
                         currentIndex: Math.max(0, root.themeIds.indexOf(ThemeController.themeName))
                         onActivated: (i) => ThemeController.themeName = root.themeIds[i]
+                        // These steps stack a caption above the control instead
+                        // of using a USettingRow, so there is no row to push the
+                        // caption down for them - each combo takes it directly.
+                        // Unnamed it announces only its current value ("Unisic"),
+                        // which says nothing about what the value IS. Bound to
+                        // the caption item, so it cannot drift from what is on
+                        // screen and costs no second translated string. See
+                        // UNameBridge for the rule this follows.
+                        accessibleName: themeLabel.text
                     }
                     Text {
                         width: parent.width
@@ -296,6 +356,7 @@ Item {
                     width: parent.width
                     spacing: 6
                     Text {
+                        id: langLabel
                         text: qsTr("Language")
                         color: Theme.textPrimary
                         font.pixelSize: Theme.fontM
@@ -308,6 +369,7 @@ Item {
                         model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français"]
                         currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                         onActivated: (i) => App.settings.uiLanguage = ids[i]
+                        accessibleName: langLabel.text
                     }
                 }
 
@@ -329,6 +391,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: pipelineTitle
                     width: parent.width
                     text: qsTr("What happens after a capture")
                     color: Theme.textPrimary
@@ -374,6 +437,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: behaviourTitle
                     width: parent.width
                     text: qsTr("How Unisic behaves")
                     color: Theme.textPrimary
@@ -419,6 +483,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: cardTitle
                     width: parent.width
                     text: qsTr("The capture card")
                     color: Theme.textPrimary
@@ -468,6 +533,7 @@ Item {
                         width: (parent.width - Theme.spacingM) / 2
                         spacing: 6
                         Text {
+                            id: styleLabel
                             text: qsTr("Style")
                             color: Theme.textPrimary
                             font.pixelSize: Theme.fontM
@@ -478,12 +544,14 @@ Item {
                             model: [qsTr("Casual"), qsTr("Compact"), qsTr("Small"), qsTr("Minimal"), qsTr("Thumbnail")]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.capturePopupStyle))
                             onActivated: (i) => App.settings.capturePopupStyle = ids[i]
+                            accessibleName: styleLabel.text
                         }
                     }
                     Column {
                         width: (parent.width - Theme.spacingM) / 2
                         spacing: 6
                         Text {
+                            id: cornerLabel
                             text: qsTr("Corner")
                             color: Theme.textPrimary
                             font.pixelSize: Theme.fontM
@@ -493,6 +561,7 @@ Item {
                         }
                         UComboBox {
                             width: parent.width
+                            accessibleName: cornerLabel.text
                             enabled: App.capCustomNotification
                             readonly property var ids: ["top-left", "top-center", "top-right",
                                                         "bottom-left", "bottom-center", "bottom-right"]
@@ -523,6 +592,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: keysTitle
                     width: parent.width
                     text: qsTr("Your shortcuts")
                     color: Theme.textPrimary
@@ -562,6 +632,16 @@ Item {
                         }
                         UShortcutList {
                             width: parent.width
+                            // Four of these sit on this step, each offering the
+                            // same "+ Add shortcut" and "Remove this binding":
+                            // measured without this, an element list is four
+                            // identical pairs with nothing tying one to "Capture
+                            // a region" and the next to "Record video". The kit
+                            // spends this as their DESCRIPTION, never as a name
+                            // (see UShortcutList) - the Settings hotkey rows get
+                            // it from their row caption, this step has no row so
+                            // it passes the label itself.
+                            accessibleName: modelData.label
                             shortcuts: root.shortcutsFor(modelData.id)
                             onChanged: (t) => root.setShortcut(modelData.id, t)
                             formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
@@ -610,6 +690,7 @@ Item {
                 spacing: Theme.spacingM
 
                 Text {
+                    id: doneTitle
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     text: qsTr("You're all set")

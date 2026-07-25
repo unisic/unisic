@@ -62,12 +62,38 @@ QUrl UpdateChecker::feedUrl() const
     return QUrl(QLatin1String(kFeedUrl));
 }
 
+// A packaging channel that owns the update path drops a one-word marker at
+// <prefix>/share/unisic/install-channel. Flatpak and AppImage announce
+// themselves through the environment; a pacman package cannot, and the file
+// is the only thing that survives into the installed tree. Read relative to
+// the binary, not hardcoded /usr, so a --prefix=/usr/local package works too.
+//
+// The value is WHITELISTED: a stray or hand-edited file must never be able to
+// invent an install kind the rest of the class does not handle.
+static QString readInstallChannel()
+{
+    const QString path = QDir::cleanPath(QCoreApplication::applicationDirPath()
+                                         + QStringLiteral("/../share/unisic/install-channel"));
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+        return {};
+    const QString value = QString::fromUtf8(f.readLine(64)).trimmed().toLower();
+    if (value == QLatin1String("aur"))
+        return value;
+    return {};
+}
+
 QString UpdateChecker::installKind() const
 {
     if (qEnvironmentVariableIsSet("FLATPAK_ID"))
         return QStringLiteral("flatpak");
     if (!qEnvironmentVariable("APPIMAGE").isEmpty())
         return QStringLiteral("appimage");
+    // Cached: the marker is part of the installed tree, so it cannot change
+    // under a running process, and installKind() is called on every UI read.
+    static const QString channel = readInstallChannel();
+    if (!channel.isEmpty())
+        return channel;
     return QStringLiteral("system");
 }
 
@@ -79,7 +105,14 @@ bool UpdateChecker::updatesManagedExternally() const
     // whose only possible outcome is "go run flatpak update" is a network
     // call the user did not sign up for. The Settings pane says as much
     // instead of showing a dead check button.
-    return installKind() == QLatin1String("flatpak");
+    //
+    // AUR is the same deal for a different reason: the user's helper (yay,
+    // paru, …) rebuilds the recipe, and "Install now" would run install.sh,
+    // which pacman -U's the GitHub .pkg.tar.zst OVER the AUR package and
+    // appends the OBS repo to pacman.conf - silently taking the install out
+    // from under the helper that owns it. Never do that to an AUR user.
+    const QString kind = installKind();
+    return kind == QLatin1String("flatpak") || kind == QLatin1String("aur");
 }
 
 QString UpdateChecker::appImageTarget() const
@@ -187,7 +220,8 @@ void UpdateChecker::applyAutoPolicy()
             m_periodic->stop();
         qInfo() << "Automatic update checks off:"
                 << (devBuild ? "dev build"
-                             : external ? "updates managed by the flatpak client"
+                             : external ? qPrintable(QStringLiteral("updates managed by the %1 channel")
+                                                         .arg(installKind()))
                                         : "disabled in settings");
         return;
     }

@@ -100,6 +100,45 @@ trap _cleanup EXIT
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# --- AUR ---------------------------------------------------------------
+# pacman itself can NEVER update an AUR package: the AUR hosts build recipes,
+# not built packages, so there is no sync database for `pacman -Syu` to read.
+# A helper is the only thing that updates one, by diffing foreign packages
+# (`pacman -Qm`) against the AUR by name. yay is the best known; it is nowhere
+# near the only one, so probe the field in rough order of current popularity.
+AUR_HELPERS='paru yay pikaur trizen aura pacaur yaourt'
+
+aur_helper() {
+    local h
+    # A helper refuses to run as root (it builds packages), so under sudo
+    # there is no helper to speak of even when one is installed.
+    [ "$(id -u)" -eq 0 ] && return 1
+    for h in $AUR_HELPERS; do have "$h" && { printf '%s' "$h"; return 0; }; done
+    return 1
+}
+
+# Runs "<helper> install <pkg>". aura is the odd one out: it splits AUR
+# operations onto -A, while everything else in the list overloads -S.
+aur_install() {
+    local helper="$1" pkg="$2"
+    case "$helper" in
+        aura) "$helper" -A --noconfirm "$pkg" ;;
+        *)    "$helper" -S --noconfirm "$pkg" ;;
+    esac
+}
+
+# True when the installed Unisic belongs to the AUR, so this installer must
+# keep its hands off it. Deliberately NOT `pacman -Qm unisic`: a directly
+# downloaded .pkg.tar.zst whose repo registration failed is foreign too, and
+# that one IS ours to replace.
+aur_owned() {
+    if [ -r /usr/share/unisic/install-channel ] \
+       && grep -qx 'aur' /usr/share/unisic/install-channel 2>/dev/null; then
+        return 0
+    fi
+    have pacman && pacman -Qq unisic-bin >/dev/null 2>&1
+}
+
 fetch() {   # curl or wget, to stdout
     if have curl; then curl -fsSL "$1"
     elif have wget; then wget -qO- "$1"
@@ -174,9 +213,12 @@ prestate() { if [ "$PRERELEASE" -eq 1 ]; then printf 'ON'; else printf 'OFF'; fi
 # Prints "not-installed" or "Unisic <ver> installed (<kind>)". Local queries
 # only (no network) so opening the menu stays instant.
 installed_status() {
-    local v="" kind="" link tgt
-    if have pacman && pacman -Qq unisic >/dev/null 2>&1; then
-        v="$(pacman -Q unisic 2>/dev/null | awk '{print $2}')"; kind="system package"
+    local v="" kind="" link tgt p
+    if have pacman && { pacman -Qq unisic >/dev/null 2>&1 || pacman -Qq unisic-bin >/dev/null 2>&1; }; then
+        p=unisic; pacman -Qq unisic >/dev/null 2>&1 || p=unisic-bin
+        v="$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')"
+        # Which channel owns it decides what the menu may offer, so name it.
+        if aur_owned; then kind="AUR package"; else kind="system package"; fi
     elif have dpkg && dpkg -s unisic 2>/dev/null | grep -q '^Status: install ok installed'; then
         v="$(dpkg-query -W -f='${Version}' unisic 2>/dev/null)"; kind="system package"
     elif have rpm && rpm -q unisic >/dev/null 2>&1; then
@@ -730,8 +772,41 @@ install_rpm() {
 }
 
 install_arch() {
-    local url file
-    url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.pkg\.tar\.zst$')"
+    local url file helper
+    helper="$(aur_helper || true)"
+
+    # Already an AUR install: hand it back to the helper that owns it. Running
+    # `pacman -U` over it would swap the channel behind the user's back AND
+    # let the downloaded package's scriptlet add the OBS repo, leaving two
+    # things convinced they manage the same install.
+    if aur_owned; then
+        if [ -n "$helper" ]; then
+            say "Unisic came from the AUR here, so I'll update it with ${helper}."
+            aur_install "$helper" unisic-bin || native_fail
+            return
+        fi
+        die "This Unisic was installed from the AUR, and only an AUR helper can update it.
+    Run one of these instead (whichever you use):
+      paru -S unisic-bin
+      yay -S unisic-bin
+    Or remove it first (sudo pacman -R unisic-bin) and run this installer again."
+    fi
+
+    # Fresh install with a helper present: go through the AUR, because that is
+    # the channel Arch users expect to update from afterwards. unisic-bin is
+    # the same binary this script would have downloaded - it repacks this very
+    # release asset - so nothing is compiled and nothing is slower.
+    if [ -n "$helper" ]; then
+        say "Installing Unisic from the AUR with ${helper}... (from now on ${helper} updates it)"
+        if aur_install "$helper" unisic-bin; then
+            return
+        fi
+        warn "${helper} couldn't install it, so I'll fall back to the direct download."
+    fi
+
+    # Anchored on "unisic-<digit>" so the release's unisic-debug-*.pkg.tar.zst
+    # can never be the match head -n1 happens to pick.
+    url="$(printf '%s' "$RELEASE_JSON" | asset_url 'unisic-[0-9][^/]*\.pkg\.tar\.zst$')"
     [ -n "$url" ] || die "This release has no Arch package."
     file="${tmpdir}/$(basename "$url")"
     download "$url" "$file"

@@ -286,7 +286,7 @@ Never report "done" for an untested runtime change. If you couldn't run it, stat
 - **Branch off `main`; don't commit or push unless the human asks.** Never force-push shared branches.
 - **One logical change per PR.** Keep it reviewable.
 - **PR description checklist** (see §12) - state what you tested and on which compositor.
-- The GitHub release pipeline is `.github/workflows/release.yml`; packaging metadata lives in `CMakeLists.txt` (CPack) and `packaging/arch/PKGBUILD`. If a change affects runtime deps or installed files, update all relevant ones.
+- The GitHub release pipeline is `.github/workflows/release.yml`; packaging metadata lives in `CMakeLists.txt` (CPack), `packaging/arch/PKGBUILD` (OBS + the release asset), `packaging/flatpak/` and `packaging/aur/` (`unisic` + `unisic-bin`). If a change affects runtime deps or installed files, update all relevant ones - a dependency added only to `packaging/arch/PKGBUILD` makes `packaging/aur/sync.sh` refuse to publish, which is the intended failure.
 
 ---
 

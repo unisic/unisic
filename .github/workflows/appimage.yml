@@ -171,7 +171,8 @@ jobs:
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DUNISIC_DESKTOP_EXEC=unisic
           cmake --build build-appimage --parallel
           mkdir -p AppDir
           DESTDIR="$PWD/AppDir" cmake --install build-appimage --strip

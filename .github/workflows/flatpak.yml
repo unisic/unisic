@@ -15,7 +15,7 @@ on:
     paths:
       - "packaging/flatpak/**"
       - "resources/app.unisic.Unisic.metainfo.xml"
-      - "resources/app.unisic.Unisic.desktop"
+      - "resources/app.unisic.Unisic.desktop.in"
       - ".github/workflows/flatpak.yml"
   workflow_dispatch:
     inputs:

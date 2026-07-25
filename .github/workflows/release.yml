@@ -71,10 +71,18 @@ jobs:
           # (custom notification card, overlay-over-fullscreen, preview pin)
           # compiled out no matter what the user installs at runtime.
           # Same trap for HAVE_KWIN_SCREENCAST (KWin-native recording, no
-          # portal share dialog): it needs qt6-wayland-dev (Qt6WaylandClient +
-          # the protocol scanner), qt6-base-private-dev (Qt6GuiPrivate, for the
-          # per-screen wl_output) and plasma-wayland-protocols. Runtime
-          # qt6-wayland alone is not enough.
+          # portal share dialog): it needs Qt6WaylandClient + the protocol
+          # scanner (qt6-wayland-dev, which pulls qt6-wayland-dev-tools),
+          # plasma-wayland-protocols for zkde-screencast-unstable-v1.xml, and
+          # Qt6GuiPrivate for the per-screen wl_output. Runtime qt6-wayland
+          # alone is not enough.
+          # KNOWN GAP, deliberately not worked around here: trixie ships NO
+          # Qt6GuiPrivateConfig.cmake at all (qt6-base-private-dev is headers
+          # only; sid moved the config into qt6-base-dev), so the kit's
+          # find_package(Qt6 COMPONENTS GuiPrivate) fails and the .deb still
+          # falls back to the portal. The private headers are installed anyway
+          # so that a kit-side fallback can use them without touching this
+          # list again.
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \

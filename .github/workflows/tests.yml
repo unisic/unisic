@@ -34,7 +34,7 @@ env:
   LAYERSHELL_TAG: v6.3.5
   KGUIADDONS_TAG: v6.10.0
   ZXING_TAG: v2.2.1
-  PLASMA_PROTOCOLS_TAG: v1.13.0
+  PLASMA_PROTOCOLS_TAG: v1.16.0
 
 jobs:
   ctest:
@@ -94,6 +94,16 @@ jobs:
             -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
             -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
           cmake --install build-ecm
+          # plasma-wayland-protocols is XML plus a tiny cmake config; jammy
+          # ships 1.6, the kit requires >= 1.7 for zkde-screencast-v1 and
+          # layer-shell-qt $LAYERSHELL_TAG refuses to configure below 1.15.0.
+          # It has to be installed before layer-shell-qt is configured.
+          git clone --depth 1 --branch "$PLASMA_PROTOCOLS_TAG" https://invent.kde.org/libraries/plasma-wayland-protocols.git
+          cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --install build-pwp
           git clone --depth 1 --branch "$LAYERSHELL_TAG" https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -120,14 +130,6 @@ jobs:
             -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
           cmake --build build-zxing --parallel
           cmake --install build-zxing
-          # plasma-wayland-protocols is XML plus a tiny cmake config; jammy
-          # ships 1.6 and the kit requires >= 1.7 for zkde-screencast-v1.
-          git clone --depth 1 --branch "$PLASMA_PROTOCOLS_TAG" https://invent.kde.org/libraries/plasma-wayland-protocols.git
-          cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
-            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
-            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
-            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
-          cmake --install build-pwp
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1

@@ -3267,32 +3267,32 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
         <translation>Unisic ne s&apos;est pas fermé correctement la dernière fois. Le rapport se trouve dans Réglages › Général › Journal d&apos;activité.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="909"/>
+        <location filename="../qml/Main.qml" line="935"/>
         <source>Unisic cannot open what you dropped</source>
         <translation>Unisic ne peut pas ouvrir ce que vous avez déposé</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="954"/>
+        <location filename="../qml/Main.qml" line="980"/>
         <source>Drop to open in the editor</source>
         <translation>Déposez pour ouvrir dans l’éditeur</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="955"/>
+        <location filename="../qml/Main.qml" line="981"/>
         <source>Drop to open in the trim window</source>
         <translation>Déposez pour ouvrir dans la fenêtre de découpe</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="956"/>
+        <location filename="../qml/Main.qml" line="982"/>
         <source>Unisic cannot open this</source>
         <translation>Unisic ne peut pas ouvrir ceci</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="957"/>
+        <location filename="../qml/Main.qml" line="983"/>
         <source>Drop to try opening it</source>
         <translation>Déposez pour essayer de l’ouvrir</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="966"/>
+        <location filename="../qml/Main.qml" line="992"/>
         <source>Images open in the editor, recordings in the trim window.</source>
         <translation>Les images s’ouvrent dans l’éditeur, les enregistrements dans la fenêtre de découpe.</translation>
     </message>
@@ -5398,14 +5398,12 @@ S’applique à la prochaine capture.</translation>
         <translation>Visite guidée</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1180"/>
         <source>Six cards on the things that are easy to miss.</source>
-        <translation>Six cartes sur les choses faciles à manquer.</translation>
+        <translation type="vanished">Six cartes sur les choses faciles à manquer.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1181"/>
         <source>Tool letters, the keys the selection overlay and the editor use, opening files by dropping or pasting them, retaking a capture, custom upload servers and instant replay. It changes nothing on its own and can be left at any point.</source>
-        <translation>Les lettres des outils, les touches utilisées par la surcouche de sélection et l’éditeur, l’ouverture de fichiers en les déposant ou en les collant, la reprise d’une capture, les serveurs de téléversement personnalisés et la relecture instantanée. Elle ne change rien par elle-même et peut être quittée à tout moment.</translation>
+        <translation type="vanished">Les lettres des outils, les touches utilisées par la surcouche de sélection et l’éditeur, l’ouverture de fichiers en les déposant ou en les collant, la reprise d’une capture, les serveurs de téléversement personnalisés et la relecture instantanée. Elle ne change rien par elle-même et peut être quittée à tout moment.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1185"/>
@@ -5778,6 +5776,16 @@ S’applique à la prochaine capture.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="20"/>
         <source>This copy came from the AUR - your AUR helper updates it, so Unisic does not check on its own.</source>
         <translation>Cette copie vient de l&apos;AUR - votre assistant AUR la met à jour, donc Unisic ne vérifie pas de lui-même.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1180"/>
+        <source>Seven steps through the window, page by page.</source>
+        <translation>Sept étapes à travers la fenêtre, page par page.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1181"/>
+        <source>Each step switches to the page it is describing and names what is on it, with the card in the corner so the page stays visible. It ends with the tool letters and the keys the selection overlay uses. It changes nothing on its own and can be left at any point.</source>
+        <translation>Chaque étape bascule vers la page qu'elle décrit et nomme ce qui s'y trouve, la carte restant dans le coin pour que la page demeure visible. Elle se termine par les lettres des outils et les touches utilisées par la surcouche de sélection. Cela ne change rien en soi et peut être quitté à tout moment.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1354"/>
@@ -7913,302 +7921,624 @@ binds {
 <context>
     <name>UTour</name>
     <message>
-        <location filename="../qml/components/UTour.qml" line="88"/>
         <source>Every tool has a letter</source>
-        <translation>Chaque outil a une lettre</translation>
+        <translation type="vanished">Chaque outil a une lettre</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="89"/>
         <source>The same letters work on the selection overlay and in the editor, so the tool you reach for is one key away in both. These are the current bindings, read from the toolbar itself.</source>
-        <translation>Les mêmes lettres fonctionnent sur la surcouche de sélection et dans l’éditeur : l’outil que vous cherchez est donc à une touche près dans les deux. Voici les raccourcis actuels, lus depuis la barre d’outils elle-même.</translation>
+        <translation type="vanished">Les mêmes lettres fonctionnent sur la surcouche de sélection et dans l’éditeur : l’outil que vous cherchez est donc à une touche près dans les deux. Voici les raccourcis actuels, lus depuis la barre d’outils elle-même.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="91"/>
         <source>Hover any tool button to see its letter again.</source>
-        <translation>Survolez n’importe quel bouton d’outil pour revoir sa lettre.</translation>
+        <translation type="vanished">Survolez n’importe quel bouton d’outil pour revoir sa lettre.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="96"/>
         <source>The selection overlay has its own keys</source>
-        <translation>La surcouche de sélection a ses propres touches</translation>
+        <translation type="vanished">La surcouche de sélection a ses propres touches</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="97"/>
         <source>While you are dragging out a region, the overlay owns the keyboard. It is not the main window, so the usual shortcuts do not apply.</source>
-        <translation>Pendant que vous tracez une région, la surcouche possède le clavier. Ce n’est pas la fenêtre principale, les raccourcis habituels ne s’appliquent donc pas.</translation>
+        <translation type="vanished">Pendant que vous tracez une région, la surcouche possède le clavier. Ce n’est pas la fenêtre principale, les raccourcis habituels ne s’appliquent donc pas.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="99"/>
+        <location filename="../qml/components/UTour.qml" line="202"/>
         <source>Space or Enter</source>
         <translation>Espace ou Entrée</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="99"/>
         <source>Take the shot</source>
-        <translation>Prendre la capture</translation>
+        <translation type="vanished">Prendre la capture</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="100"/>
+        <location filename="../qml/components/UTour.qml" line="203"/>
         <source>Escape</source>
         <translation>Échap</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="100"/>
         <source>Cancel without capturing</source>
-        <translation>Annuler sans capturer</translation>
+        <translation type="vanished">Annuler sans capturer</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="101"/>
         <source>Confirm and copy, even with auto-copy off</source>
-        <translation>Confirmer et copier, même si la copie automatique est désactivée</translation>
+        <translation type="vanished">Confirmer et copier, même si la copie automatique est désactivée</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="102"/>
+        <location filename="../qml/components/UTour.qml" line="205"/>
         <source>Ctrl+scroll</source>
         <translation>Ctrl+molette</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="102"/>
         <source>Zoom the pixel loupe while you aim</source>
-        <translation>Zoomer la loupe pixel pendant que vous visez</translation>
+        <translation type="vanished">Zoomer la loupe pixel pendant que vous visez</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="103"/>
         <source>A letter</source>
-        <translation>Une lettre</translation>
+        <translation type="vanished">Une lettre</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="103"/>
         <source>Annotate before the shot is taken</source>
-        <translation>Annoter avant la prise de la capture</translation>
+        <translation type="vanished">Annoter avant la prise de la capture</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="105"/>
         <source>Annotating on the overlay means the shot is finished the moment you press Space.</source>
-        <translation>Annoter sur la surcouche signifie que la capture est terminée dès que vous appuyez sur Espace.</translation>
+        <translation type="vanished">Annoter sur la surcouche signifie que la capture est terminée dès que vous appuyez sur Espace.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="110"/>
         <source>Bringing a file in</source>
-        <translation>Faire entrer un fichier</translation>
+        <translation type="vanished">Faire entrer un fichier</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="111"/>
         <source>Unisic opens what you give it, and what the file IS decides where it goes - not where it came from.</source>
-        <translation>Unisic ouvre ce que vous lui donnez, et c’est ce que le fichier EST qui décide où il va - pas sa provenance.</translation>
+        <translation type="vanished">Unisic ouvre ce que vous lui donnez, et c’est ce que le fichier EST qui décide où il va - pas sa provenance.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="113"/>
         <source>Drop an image</source>
-        <translation>Déposer une image</translation>
+        <translation type="vanished">Déposer une image</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="113"/>
         <source>Opens in the editor, and Ctrl+S writes over the original</source>
-        <translation>S’ouvre dans l’éditeur, et Ctrl+S écrase l’original</translation>
+        <translation type="vanished">S’ouvre dans l’éditeur, et Ctrl+S écrase l’original</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="114"/>
         <source>Drop a recording</source>
-        <translation>Déposer un enregistrement</translation>
+        <translation type="vanished">Déposer un enregistrement</translation>
+    </message>
+    <message>
+        <source>Opens in the trim window</source>
+        <translation type="vanished">S’ouvre dans la fenêtre de découpe</translation>
+    </message>
+    <message>
+        <source>Opens a copied image as a new capture</source>
+        <translation type="vanished">Ouvre une image copiée comme une nouvelle capture</translation>
+    </message>
+    <message>
+        <source>Drop a web link</source>
+        <translation type="vanished">Déposer un lien web</translation>
+    </message>
+    <message>
+        <source>Refused with a message, never downloaded quietly</source>
+        <translation type="vanished">Refusé avec un message, jamais téléchargé en silence</translation>
+    </message>
+    <message>
+        <source>A pasted image has no file of its own, so Ctrl+S saves it as a new capture instead of overwriting anything.</source>
+        <translation type="vanished">Une image collée n’a pas de fichier à elle : Ctrl+S l’enregistre donc comme une nouvelle capture au lieu d’écraser quoi que ce soit.</translation>
+    </message>
+    <message>
+        <source>Taking the same shot again</source>
+        <translation type="vanished">Reprendre la même capture</translation>
+    </message>
+    <message>
+        <source>Three things exist for the capture you just took, or the one you keep retaking.</source>
+        <translation type="vanished">Trois choses existent pour la capture que vous venez de prendre, ou celle que vous reprenez sans cesse.</translation>
     </message>
     <message>
         <location filename="../qml/components/UTour.qml" line="114"/>
-        <source>Opens in the trim window</source>
-        <translation>S’ouvre dans la fenêtre de découpe</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="115"/>
-        <source>Opens a copied image as a new capture</source>
-        <translation>Ouvre une image copiée comme une nouvelle capture</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="116"/>
-        <source>Drop a web link</source>
-        <translation>Déposer un lien web</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="116"/>
-        <source>Refused with a message, never downloaded quietly</source>
-        <translation>Refusé avec un message, jamais téléchargé en silence</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="118"/>
-        <source>A pasted image has no file of its own, so Ctrl+S saves it as a new capture instead of overwriting anything.</source>
-        <translation>Une image collée n’a pas de fichier à elle : Ctrl+S l’enregistre donc comme une nouvelle capture au lieu d’écraser quoi que ce soit.</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="123"/>
-        <source>Taking the same shot again</source>
-        <translation>Reprendre la même capture</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="124"/>
-        <source>Three things exist for the capture you just took, or the one you keep retaking.</source>
-        <translation>Trois choses existent pour la capture que vous venez de prendre, ou celle que vous reprenez sans cesse.</translation>
-    </message>
-    <message>
-        <location filename="../qml/components/UTour.qml" line="126"/>
         <source>Repeat last region</source>
         <translation>Répéter la dernière région</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="126"/>
         <source>Retakes the exact area of your last region shot, from the Capture page or the tray</source>
-        <translation>Reprend la zone exacte de votre dernière capture de région, depuis la page Capture ou la zone de notification</translation>
+        <translation type="vanished">Reprend la zone exacte de votre dernière capture de région, depuis la page Capture ou la zone de notification</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="127"/>
         <source>Copy last capture</source>
-        <translation>Copier la dernière capture</translation>
+        <translation type="vanished">Copier la dernière capture</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="127"/>
         <source>A global shortcut that puts the newest shot back on the clipboard</source>
-        <translation>Un raccourci global qui remet la dernière capture dans le presse-papiers</translation>
+        <translation type="vanished">Un raccourci global qui remet la dernière capture dans le presse-papiers</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="128"/>
         <source>Drag the notification</source>
-        <translation>Glisser la notification</translation>
+        <translation type="vanished">Glisser la notification</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="128"/>
         <source>Drag the thumbnail straight into a chat or an editor</source>
-        <translation>Glissez la vignette directement dans une discussion ou un éditeur</translation>
+        <translation type="vanished">Glissez la vignette directement dans une discussion ou un éditeur</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="129"/>
         <source>Click the notification</source>
-        <translation>Cliquer la notification</translation>
+        <translation type="vanished">Cliquer la notification</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="129"/>
         <source>Opens a floating preview you can pin on top</source>
-        <translation>Ouvre un aperçu flottant que vous pouvez épingler au premier plan</translation>
+        <translation type="vanished">Ouvre un aperçu flottant que vous pouvez épingler au premier plan</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="131"/>
         <source>The floating preview can be pinned above other windows and faded, for copying something while you work.</source>
-        <translation>L’aperçu flottant peut être épinglé au-dessus des autres fenêtres et rendu transparent, pour recopier quelque chose pendant que vous travaillez.</translation>
+        <translation type="vanished">L’aperçu flottant peut être épinglé au-dessus des autres fenêtres et rendu transparent, pour recopier quelque chose pendant que vous travaillez.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="136"/>
         <source>Uploading somewhere of your own</source>
-        <translation>Téléverser sur votre propre serveur</translation>
+        <translation type="vanished">Téléverser sur votre propre serveur</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="137"/>
         <source>Servers takes any custom HTTP, FTP or SFTP destination, and imports ShareX .sxcu files as they are.</source>
-        <translation>Serveurs accepte n’importe quelle destination HTTP, FTP ou SFTP personnalisée, et importe les fichiers ShareX .sxcu tels quels.</translation>
+        <translation type="vanished">Serveurs accepte n’importe quelle destination HTTP, FTP ou SFTP personnalisée, et importe les fichiers ShareX .sxcu tels quels.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="139"/>
+        <location filename="../qml/components/UTour.qml" line="175"/>
         <source>Test upload</source>
         <translation>Tester le téléversement</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="139"/>
         <source>Sends a tiny generated image through the server you are editing, before you save it</source>
-        <translation>Envoie une petite image générée via le serveur que vous modifiez, avant de l’enregistrer</translation>
+        <translation type="vanished">Envoie une petite image générée via le serveur que vous modifiez, avant de l’enregistrer</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="140"/>
+        <location filename="../qml/components/UTour.qml" line="176"/>
         <source>Imgur</source>
         <translation>Imgur</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="140"/>
         <source>Needs your own Client-ID, pasted in the server editor</source>
-        <translation>Nécessite votre propre Client-ID, collé dans l’éditeur de serveur</translation>
+        <translation type="vanished">Nécessite votre propre Client-ID, collé dans l’éditeur de serveur</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="141"/>
         <source>After upload</source>
-        <translation>Après le téléversement</translation>
+        <translation type="vanished">Après le téléversement</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="141"/>
         <source>The link can be copied and the page opened for you</source>
-        <translation>Le lien peut être copié et la page ouverte pour vous</translation>
+        <translation type="vanished">Le lien peut être copié et la page ouverte pour vous</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="143"/>
         <source>Unisic ships without an Imgur ID on purpose: one shared ID would put every user on one daily limit.</source>
-        <translation>Unisic est livré sans identifiant Imgur exprès : un identifiant partagé placerait tous les utilisateurs sous une seule limite quotidienne.</translation>
+        <translation type="vanished">Unisic est livré sans identifiant Imgur exprès : un identifiant partagé placerait tous les utilisateurs sous une seule limite quotidienne.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="147"/>
+        <location filename="../qml/components/UTour.qml" line="130"/>
         <source>Instant replay</source>
         <translation>Relecture instantanée</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="148"/>
         <source>Recording can keep the last few seconds in memory the whole time, so you can save something after it has already happened.</source>
-        <translation>L’enregistrement peut garder les dernières secondes en mémoire en permanence, afin que vous puissiez enregistrer quelque chose après coup.</translation>
+        <translation type="vanished">L’enregistrement peut garder les dernières secondes en mémoire en permanence, afin que vous puissiez enregistrer quelque chose après coup.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="150"/>
         <source>Turn it on</source>
-        <translation>L’activer</translation>
+        <translation type="vanished">L’activer</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="150"/>
         <source>Record page, Instant replay</source>
-        <translation>Page Vidéo, Relecture instantanée</translation>
+        <translation type="vanished">Page Vidéo, Relecture instantanée</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="151"/>
         <source>Save the buffer</source>
-        <translation>Enregistrer le tampon</translation>
+        <translation type="vanished">Enregistrer le tampon</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="151"/>
         <source>A global shortcut writes the last seconds to a file</source>
-        <translation>Un raccourci global écrit les dernières secondes dans un fichier</translation>
+        <translation type="vanished">Un raccourci global écrit les dernières secondes dans un fichier</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="152"/>
         <source>Find it later</source>
-        <translation>La retrouver ensuite</translation>
+        <translation type="vanished">La retrouver ensuite</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="152"/>
         <source>History filters replays separately from recordings</source>
-        <translation>L’historique filtre les relectures séparément des enregistrements</translation>
+        <translation type="vanished">L’historique filtre les relectures séparément des enregistrements</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="154"/>
         <source>That is the tour. Everything in it is in Settings too, and this card lives in Settings &gt; General.</source>
-        <translation>Voilà pour la visite. Tout ce qu’elle contient se trouve aussi dans les Réglages, et cette carte vit dans Réglages &gt; Général.</translation>
+        <translation type="vanished">Voilà pour la visite. Tout ce qu’elle contient se trouve aussi dans les Réglages, et cette carte vit dans Réglages &gt; Général.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="180"/>
+        <location filename="../qml/components/UTour.qml" line="262"/>
         <source>Tour, step %1 of %2: %3</source>
         <translation>Visite guidée, étape %1 sur %2 : %3</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="282"/>
         <source>Skip</source>
-        <translation>Passer</translation>
+        <translation type="vanished">Passer</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="285"/>
+        <location filename="../qml/components/UTour.qml" line="109"/>
+        <source>Capture: this page takes the shot</source>
+        <translation>Capture : c’est cette page qui prend la capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="110"/>
+        <source>The three tiles at the top are the ways to take one. Everything under them decides what happens to it afterwards.</source>
+        <translation>Les trois tuiles en haut sont les façons d’en prendre une. Tout ce qui se trouve en dessous décide de ce qui lui arrive ensuite.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="112"/>
+        <source>The three tiles</source>
+        <translation>Les trois tuiles</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="112"/>
+        <source>The whole screen, a region you drag, or a window you click</source>
+        <translation>Tout l’écran, une région que vous tracez, ou une fenêtre que vous cliquez</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="113"/>
+        <source>Delay</source>
+        <translation>Délai</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="113"/>
+        <source>Waits before the shot, so you can open a menu first</source>
+        <translation>Attend avant la capture, le temps d’ouvrir un menu</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="114"/>
+        <source>Retakes the exact area of your last region shot</source>
+        <translation>Reprend la zone exacte de votre dernière capture de région</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="115"/>
+        <source>Upload server</source>
+        <translation>Serveur de téléversement</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="115"/>
+        <source>Which destination the Upload switch below sends to</source>
+        <translation>La destination utilisée par l’interrupteur «&#xa0;Téléverser et copier le lien&#xa0;» ci-dessous</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="116"/>
+        <source>The switches</source>
+        <translation>Les interrupteurs</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="116"/>
+        <source>Copy, save, upload and open the editor - each one fires on its own</source>
+        <translation>Copier, enregistrer, téléverser et ouvrir l’éditeur - chacun se déclenche de son côté</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="118"/>
+        <source>Take a region shot now</source>
+        <translation>Prendre une capture de région maintenant</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="119"/>
+        <source>Every one of these also has a global shortcut, so you rarely come back to this page.</source>
+        <translation>Chacune de ces actions a aussi un raccourci global : vous reviendrez donc rarement sur cette page.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="125"/>
+        <source>Record: video and GIF on one page</source>
+        <translation>Vidéo : la vidéo et le GIF sur une seule page</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="126"/>
+        <source>The switch at the top picks what comes out. The three buttons under it stay where they are and only change what they will produce.</source>
+        <translation>Le sélecteur en haut choisit ce qui sort. Les trois boutons en dessous restent à leur place et changent seulement ce qu’ils vont produire.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="128"/>
+        <source>Video or GIF</source>
+        <translation>Vidéo ou GIF</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="128"/>
+        <source>The same recording, encoded differently. GIF has no window source, so that button greys out</source>
+        <translation>Le même enregistrement, encodé autrement. Le GIF n’a pas de source fenêtre : ce bouton est donc grisé</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="129"/>
+        <source>Screen, Region, Window</source>
+        <translation>Écran, Région, Fenêtre</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="129"/>
+        <source>What gets recorded. A region is cropped by the compositor, not afterwards</source>
+        <translation>Ce qui est enregistré. Une région est recadrée par le compositeur, pas après coup</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="130"/>
+        <source>Keeps the last seconds in memory the whole time, so you can save something after it has happened</source>
+        <translation>Garde en permanence les dernières secondes en mémoire, pour enregistrer quelque chose après coup</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="131"/>
+        <source>Cursor and keystrokes</source>
+        <translation>Curseur et frappes</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="131"/>
+        <source>Optional overlays drawn into the recording as it is made</source>
+        <translation>Incrustations facultatives dessinées dans l’enregistrement au moment où il se fait</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="134"/>
+        <source>A recording can be trimmed afterwards without re-encoding it, from History.</source>
+        <translation>Un enregistrement peut être découpé ensuite sans réencodage, depuis l’Historique.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="140"/>
+        <source>Edit: the editor takes files you already have</source>
+        <translation>Modifier : l’éditeur accepte les fichiers que vous avez déjà</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="141"/>
+        <source>It opens by itself after a capture, and this page is how you get an existing file into it.</source>
+        <translation>Il s’ouvre tout seul après une capture, et cette page sert à y faire entrer un fichier existant.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="143"/>
+        <source>Open a file</source>
+        <translation>Ouvrir un fichier</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="143"/>
+        <source>An image goes to the editor, a recording goes to the trim window</source>
+        <translation>Une image va dans l’éditeur, un enregistrement va dans la fenêtre de découpe</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="144"/>
+        <source>Drop it on the window</source>
+        <translation>Le déposer sur la fenêtre</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="144"/>
+        <source>Anywhere in Unisic. The banner names which of the two it will open</source>
+        <translation>N’importe où dans Unisic. La bannière annonce lequel des deux va s’ouvrir</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="145"/>
+        <source>Opens whatever image is on the clipboard as a new capture</source>
+        <translation>Ouvre l’image présente dans le presse-papiers comme une nouvelle capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="146"/>
+        <source>Ctrl+S in the editor</source>
+        <translation>Ctrl+S dans l’éditeur</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="146"/>
+        <source>Writes over the file you opened. A pasted image has no file, so it is saved as a new one</source>
+        <translation>Écrase le fichier que vous avez ouvert. Une image collée n’a pas de fichier : elle est donc enregistrée comme une nouvelle</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="149"/>
+        <source>A dragged web address is refused with a message rather than downloaded quietly.</source>
+        <translation>Une adresse web glissée est refusée avec un message plutôt que téléchargée en silence.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="155"/>
+        <source>History: everything you have captured</source>
+        <translation>Historique : tout ce que vous avez capturé</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="156"/>
+        <source>Kept with a thumbnail, searchable, and the fastest way back to a file you took an hour ago.</source>
+        <translation>Conservé avec une vignette, consultable par recherche, et le chemin le plus rapide vers un fichier pris il y a une heure.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="158"/>
+        <source>Search and filters</source>
+        <translation>Recherche et filtres</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="158"/>
+        <source>By name, by kind, favourites only, uploaded only</source>
+        <translation>Par nom, par type, favoris seulement, téléversés seulement</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="159"/>
+        <source>Arrow keys</source>
+        <translation>Touches fléchées</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="159"/>
+        <source>Move between captures. Space selects, Enter opens, Delete removes</source>
+        <translation>Se déplacent entre les captures. Espace sélectionne, Entrée ouvre, Suppr supprime</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="160"/>
+        <source>Drag a thumbnail</source>
+        <translation>Glisser une vignette</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="160"/>
+        <source>Drops the file straight into a chat window or another editor</source>
+        <translation>Dépose le fichier directement dans une discussion ou un autre éditeur</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="161"/>
+        <source>Shift and click</source>
+        <translation>Maj et clic</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="161"/>
+        <source>Selects a range, for deleting or favouriting many at once</source>
+        <translation>Sélectionne une plage, pour en supprimer ou en mettre en favori plusieurs d’un coup</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="164"/>
+        <source>Instant replays are filtered separately from ordinary recordings, even though both are .mp4 files.</source>
+        <translation>Les relectures instantanées se filtrent séparément des enregistrements ordinaires, même si les deux sont des fichiers .mp4.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="170"/>
+        <source>Servers: where Upload sends things</source>
+        <translation>Serveurs : là où part le téléversement</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="171"/>
+        <source>Any custom HTTP, FTP or SFTP endpoint works, and the link it answers with is copied for you.</source>
+        <translation>N’importe quelle adresse HTTP, FTP ou SFTP personnalisée fonctionne, et le lien renvoyé est copié pour vous.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="173"/>
+        <source>Add custom server</source>
+        <translation>Ajouter un serveur personnalisé</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="173"/>
+        <source>Your own endpoint, with the response parsed for the link</source>
+        <translation>Votre propre adresse, avec la réponse analysée pour en extraire le lien</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="174"/>
+        <source>Import .sxcu</source>
+        <translation>Importer un .sxcu</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="174"/>
+        <source>Takes ShareX destination files as they are</source>
+        <translation>Accepte les fichiers de destination ShareX tels quels</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="175"/>
+        <source>Pushes a tiny generated image through the server you are editing, before you save it</source>
+        <translation>Envoie une petite image générée via le serveur que vous modifiez, avant de l’enregistrer</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="176"/>
+        <source>Paste your own Client-ID. Unisic ships without one so nobody shares a daily limit</source>
+        <translation>Collez votre propre Client-ID. Unisic est livré sans, pour que personne ne partage une limite quotidienne</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="179"/>
+        <source>A test against an FTP server really does leave the test image behind, and the sheet says so first.</source>
+        <translation>Un test vers un serveur FTP laisse vraiment l’image de test sur place, et le panneau le dit avant.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="185"/>
+        <source>Settings: the gear at the bottom, or Ctrl+6</source>
+        <translation>Réglages : l’engrenage en bas, ou Ctrl+6</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="186"/>
+        <source>Everything the pages do not carry, on the same bordered-card grid. The search box at the top jumps straight to a row.</source>
+        <translation>Tout ce que les pages ne portent pas, sur la même grille de cartes bordées. Le champ de recherche en haut mène droit à une ligne.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="188"/>
+        <source>Hotkeys</source>
+        <translation>Raccourcis</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="188"/>
+        <source>Global shortcuts that work while Unisic sits in the tray</source>
+        <translation>Raccourcis globaux qui fonctionnent pendant qu’Unisic attend dans la zone de notification</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="189"/>
+        <source>Appearance</source>
+        <translation>Apparence</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="189"/>
+        <source>Nine palettes, and a folder you can drop your own theme file into</source>
+        <translation>Neuf palettes, et un dossier où déposer votre propre fichier de thème</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="190"/>
+        <source>After capture</source>
+        <translation>Après la capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="190"/>
+        <source>Filenames, formats, the sound cue and where files are saved</source>
+        <translation>Noms de fichiers, formats, le son joué et l’endroit où les fichiers sont enregistrés</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="191"/>
+        <source>Diagnostics</source>
+        <translation>Diagnostics</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="191"/>
+        <source>Copies a report, with the activity log, for a bug report. Nothing is sent anywhere</source>
+        <translation>Copie un rapport, avec le journal d’activité, pour un signalement de bogue. Rien n’est envoyé nulle part</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="194"/>
+        <source>Every row has a &quot;?&quot; that explains what the option actually changes.</source>
+        <translation>Chaque ligne a un &quot;?&quot; qui explique ce que l’option change vraiment.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="199"/>
+        <source>The keys worth knowing</source>
+        <translation>Les touches à connaître</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="200"/>
+        <source>Two vocabularies. The tool letters are the same on the selection overlay and in the editor, so the tool you want is one key away in both.</source>
+        <translation>Deux vocabulaires. Les lettres des outils sont les mêmes sur la surcouche de sélection et dans l’éditeur : l’outil voulu est donc à une touche près dans les deux.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="202"/>
+        <source>On the overlay: take the shot</source>
+        <translation>Sur la surcouche : prendre la capture</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="203"/>
+        <source>On the overlay: cancel without capturing</source>
+        <translation>Sur la surcouche : annuler sans capturer</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="204"/>
+        <source>On the overlay: confirm and copy, even with auto-copy off</source>
+        <translation>Sur la surcouche : confirmer et copier, même si la copie automatique est désactivée</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="205"/>
+        <source>On the overlay: zoom the pixel loupe while you aim</source>
+        <translation>Sur la surcouche : zoomer la loupe pixel pendant que vous visez</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="206"/>
+        <source>Jump between the pages of this window</source>
+        <translation>Passer d’une page à l’autre de cette fenêtre</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="208"/>
+        <source>Show the shortcut sheet</source>
+        <translation>Afficher les raccourcis clavier</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="209"/>
+        <source>That is the tour. It stays in Settings, General, if you want it again.</source>
+        <translation>Voilà pour la visite. Elle reste dans Réglages, Général, si vous voulez la revoir.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="393"/>
+        <source>Close</source>
+        <translation>Fermer</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UTour.qml" line="396"/>
         <source>Close the tour. It stays available in Settings.</source>
         <translation>Fermer la visite. Elle reste disponible dans les Réglages.</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="289"/>
+        <location filename="../qml/components/UTour.qml" line="400"/>
         <source>Back</source>
         <translation>Retour</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="296"/>
+        <location filename="../qml/components/UTour.qml" line="407"/>
         <source>Next</source>
         <translation>Suivant</translation>
     </message>
     <message>
-        <location filename="../qml/components/UTour.qml" line="296"/>
+        <location filename="../qml/components/UTour.qml" line="407"/>
         <source>Done</source>
         <translation>Terminé</translation>
     </message>
@@ -8610,12 +8940,26 @@ binds {
         <translation>Retour</translation>
     </message>
     <message>
-        <location filename="../qml/components/UWelcome.qml" line="759"/>
+        <location filename="../qml/components/UWelcome.qml" line="766"/>
+        <source>Take the tour</source>
+        <translation>Suivre la visite</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="769"/>
+        <source>Seven steps that walk you through the window, page by page. Nothing is changed by it.</source>
+        <translation>Sept étapes qui vous font parcourir la fenêtre, page par page. Cela ne change rien en soi.</translation>
+    </message>
+    <message>
+        <source>Six cards on the parts of Unisic that are easy to miss. Nothing is changed by it.</source>
+        <translation type="vanished">Six fiches sur les parties d’Unisic faciles à manquer. Rien n’est modifié au passage.</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/UWelcome.qml" line="777"/>
         <source>Start using Unisic</source>
         <translation>Commencer à utiliser Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/components/UWelcome.qml" line="759"/>
+        <location filename="../qml/components/UWelcome.qml" line="777"/>
         <source>Next</source>
         <translation>Suivant</translation>
     </message>

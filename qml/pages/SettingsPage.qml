@@ -1177,8 +1177,8 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Tour")
-                        help: qsTr("Six cards on the things that are easy to miss.")
-                        helpDetail: qsTr("Tool letters, the keys the selection overlay and the editor use, opening files by dropping or pasting them, retaking a capture, custom upload servers and instant replay. It changes nothing on its own and can be left at any point.")
+                        help: qsTr("Seven steps through the window, page by page.")
+                        helpDetail: qsTr("Each step switches to the page it is describing and names what is on it, with the card in the corner so the page stays visible. It ends with the tool letters and the keys the selection overlay uses. It changes nothing on its own and can be left at any point.")
                         UButton {
                             compact: true
                             variant: "tonal"

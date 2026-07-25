@@ -766,7 +766,7 @@ Item {
                 text: qsTr("Take the tour")
                 variant: "ghost"
                 compact: true
-                accessibleDescription: qsTr("Six cards on the parts of Unisic that are easy to miss. Nothing is changed by it.")
+                accessibleDescription: qsTr("Seven steps that walk you through the window, page by page. Nothing is changed by it.")
                 onClicked: {
                     App.settings.tourSeen = true
                     root.close()

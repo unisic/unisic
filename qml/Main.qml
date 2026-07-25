@@ -669,19 +669,45 @@ Window {
             welcomeLoader.openWelcome(false)
         }
         function onShowTourRequested() {
+            tourUnload.stop()
             tourLoader.active = true
             tourLoader.item.openTour(false)
         }
     }
 
     // The optional tour. Behind a Loader for the same reason the welcome is:
-    // six steps of text and a live ToolCatalog read have no business staying
+    // seven steps of text and a live ToolCatalog read have no business staying
     // resident for the whole app lifetime after being shown once. Never
     // auto-opened - it is offered, never imposed.
+    //
+    // It fills the window rather than sitting on Overlay.overlay, because it is
+    // NOT modal: the card floats in the corner over a live page, and the page
+    // it names has to stay visible and clickable. Anchored below the custom
+    // title bar so the window can still be moved and closed while it is up.
     Loader {
         id: tourLoader
+        anchors.fill: parent
+        anchors.topMargin: window.chromeTop
+        z: 900
         active: false
         sourceComponent: UTour {}
+        // The tour asks; the window navigates. Keeping currentPage out of the
+        // card means the tour cannot get out of step with the sidebar.
+        Connections {
+            target: tourLoader.item
+            enabled: tourLoader.item !== null
+            function onPageRequested(page) { window.currentPage = page }
+            function onShortcutSheetRequested() { shortcutsHelp.open() }
+            function onFinished() { tourUnload.restart() }
+        }
+    }
+    // Same teardown pattern as the welcome: unload after the card is gone, and
+    // a reopen beats a pending teardown.
+    Timer {
+        id: tourUnload
+        interval: 400
+        repeat: false
+        onTriggered: tourLoader.active = false
     }
 
     Rectangle { // content — a rounded card floating on the dark backdrop

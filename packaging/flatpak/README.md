@@ -19,7 +19,7 @@ preference:
 | `registerHostAppId` / `PortalGlobalShortcuts::registerAppId` | self-assigns the app id so portal permissions are keyed per app | skipped: identity comes from the sandbox metadata |
 | `PortalScreenshot::candidateAppIds` | grants the silent-screenshot permission to the desktop-file id, the systemd scope and the anonymous `""` host bucket | grants it to the flatpak id only |
 | `execStagedUpdate` | execs a staged newer build | never: the bundle is read-only and running a downloaded binary is exactly what the store forbids |
-| `UpdateChecker` | checks GitHub, self-updates or offers `install.sh` | `installKind() == "flatpak"`, `updatesManagedExternally()` true: no check at all, and the Updates pane says Flatpak owns updates |
+| `UpdateChecker` | checks GitHub, self-updates or offers `install.sh` | `installKind() == "flatpak"`, `updatesManagedExternally()` true: no check at all, and the Updates pane says Flatpak owns updates (see below - `install.sh` does the updating, from the host) |
 | autostart | writes `~/.config/autostart/app.unisic.Unisic.desktop` | `org.freedesktop.portal.Background.RequestBackground` with `autostart: true`: the host-side entry is the portal's to write, and the granted answer is persisted as `ui/portalAutostartGranted` because the portal has no getter |
 
 ## What the manifest bundles, and why
@@ -56,6 +56,37 @@ through portals and need nothing static.
 a word to a reviewer: it self-grants the Screenshot portal permission once, so
 the overlay freeze does not raise a portal dialog on every capture. Spectacle
 and Flameshot do the same; a screenshot tool that asks per capture is unusable.
+
+## How a user gets it, and how it updates
+
+Two ways in, and the same script owns both afterwards:
+
+- `flatpak install flathub app.unisic.Unisic` once the listing is live, or the
+  software centre, which is the normal Flatpak route.
+- `scripts/install.sh` -> Install or update -> "Install the Flatpak version".
+  The entry only appears where the `flatpak` command exists.
+
+Updating has to come from outside the sandbox. An app that could update itself
+would need `--talk-name=org.freedesktop.Flatpak`, which is a sandbox escape and
+is rejected by Flathub, which is why `updatesManagedExternally()` turns the
+Updates pane into an explanation. `install.sh` runs on the host, so it can:
+
+- `flathub_has_app()` asks `flathub.org/api/v2/appstream/app.unisic.Unisic`
+  whether the listing exists yet. While it does not, the installer takes the
+  `unisic-<version>-x86_64.flatpak` bundle attached to each GitHub release (a
+  bundle carries no remote to update from, so a second bundle lands with
+  `--reinstall`; `~/.var/app` is untouched by that).
+- Once the listing is live the same run moves the install onto the flathub
+  remote, and from then on it is a plain `flatpak update` - the user's software
+  centre keeps it current like everything else. Nothing has to be re-run by
+  hand for that switch to happen.
+- The installer's daily auto-update timer covers a `--user` install. A
+  `--system` one it refuses on purpose: that needs the password every time, and
+  a background timer has nowhere to ask.
+
+The release asset comes from `.github/workflows/flatpak.yml`, which `release.yml`
+calls with `local: true` - at that point in the pipeline the `v<version>` tag
+the manifest pins does not exist yet, so the checkout is what gets built.
 
 ## Build and test locally
 

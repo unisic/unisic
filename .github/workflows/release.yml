@@ -247,6 +247,21 @@ jobs:
     # release job downloads below.
     uses: ./.github/workflows/appimage.yml
 
+  flatpak:
+    name: Flatpak bundle
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    # Deliberately NOT in the release job's `needs`: the KDE runtime plus an
+    # ffmpeg built from source makes this the slowest job by far, and a Flatpak
+    # that fails to build must not hold back the packages that did. The bundle
+    # is attached afterwards by flatpak-asset.
+    #
+    # local: true builds this checkout instead of the tag the manifest pins -
+    # v<version> does not exist until the release job below creates it.
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      local: true
+
   release:
     name: GitHub Release
     needs:
@@ -276,9 +291,16 @@ jobs:
       #               release rpm: it installs from the OBS repos (README)
       #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
       #   AppImage  → self-updates via the embedded zsync info
+      #   .flatpak  → attached by the flatpak-asset job, which runs after this
+      #               one; install.sh installs from it until the Flathub
+      #               listing is live, then moves the install to that remote
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
+          # The pattern is what keeps the Flatpak bundle out: that job may well
+          # still be running, and whether it happened to finish first must not
+          # decide which assets a release carries.
+          pattern: unisic-*
           path: dist
           merge-multiple: true
 
@@ -309,6 +331,29 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "Unisic ${VERSION}" \
             --notes-file NOTES.md "${prerelease[@]}"
+
+  flatpak-asset:
+    name: Attach the Flatpak bundle
+    # Both: `release` for the release to attach to, `flatpak` for the bundle.
+    needs:
+      - check
+      - release
+      - flatpak
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: dist
+
+      - name: Upload it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${VERSION}" dist/*.flatpak --clobber
 
   obs:
     name: Trigger OBS rebuild

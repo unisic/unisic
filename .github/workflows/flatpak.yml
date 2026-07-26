@@ -2,14 +2,18 @@ name: Flatpak build
 
 # Guards the Flathub manifest the same way the AppImage workflow guards the
 # AppImage: does the bundle still build, and does it still pass the linter
-# Flathub reviewers run? Nothing is published from here - Flathub builds and
-# publishes from its own repository (flathub/app.unisic.Unisic); this job only
-# proves the manifest in THIS repo is still correct.
+# Flathub reviewers run? Flathub itself builds and publishes from its own
+# repository (flathub/app.unisic.Unisic), so nothing is published from here -
+# but the bundle this produces IS attached to the GitHub release, because
+# scripts/install.sh installs from it until the Flathub listing goes live.
 #
 # The manifest builds from a git TAG, so a plain PR would test the last release
 # rather than the change in front of it. `local: true` (the default on
-# pull_request and workflow_dispatch) rewrites that one source to the checked
-# out tree, exactly like `packaging/flatpak/build.sh --local`.
+# pull_request and workflow_dispatch, and what release.yml passes) rewrites that
+# one source to the checked out tree, exactly like
+# `packaging/flatpak/build.sh --local`. The release needs it too: it runs before
+# the v<version> tag exists, so building the pin would ship the previous release
+# under the new version's name.
 on:
   pull_request:
     paths:
@@ -44,6 +48,12 @@ jobs:
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
       options: --privileged
+    env:
+      # Resolved once, because `inputs.local` is NULL on pull_request (that
+      # trigger has no inputs at all) and null compares equal to false in a
+      # GitHub expression - so a plain `inputs.local != false` would quietly
+      # build the tag on exactly the runs that exist to test the branch.
+      LOCAL: ${{ (github.event_name == 'pull_request' || inputs.local) && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +62,7 @@ jobs:
           submodules: recursive
 
       - name: Point the manifest at this checkout
-        if: ${{ inputs.local != false }}
+        if: ${{ env.LOCAL == 'true' }}
         run: |
           python3 - packaging/flatpak/app.unisic.Unisic.yml "$PWD" <<'PY'
           import re, sys
@@ -82,6 +92,34 @@ jobs:
           # The submission is checked by the same linter Flathub runs.
           run-tests: false
           verbose: false
+          # The step below uploads it under a version-stamped name instead.
+          upload-artifact: false
+
+      # release.yml attaches this to the GitHub release, where install.sh finds
+      # it. The name carries the version because a release asset called
+      # unisic.flatpak would say nothing about which version it is.
+      - name: Name the bundle after the version it contains
+        id: bundle
+        run: |
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
+          mv unisic.flatpak "unisic-${version}-x86_64.flatpak"
+          echo "name=unisic-${version}-x86_64.flatpak" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # Deliberately not unisic-*: the release job sweeps up every artifact
+          # matching that prefix, and this one is attached separately (a Flatpak
+          # build takes long enough that the release must not wait for it).
+          name: flatpak-bundle
+          path: ${{ steps.bundle.outputs.name }}
+          if-no-files-found: error
 
       - name: Lint the manifest and the built repo
         run: |
@@ -121,7 +159,7 @@ jobs:
           # icon and metainfo naming, permissions) - the half a manifest lint
           # cannot see. Skipped for --local builds, whose version metadata
           # deliberately does not match a release tag.
-          if [ "${{ inputs.local }}" = "false" ]; then
+          if [ "$LOCAL" = "false" ]; then
             flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo > repo-lint.json || true
             cat repo-lint.json
             python3 /tmp/lintcheck.py repo-lint.json

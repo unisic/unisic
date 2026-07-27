@@ -1,0 +1,76 @@
+name: Debian package
+
+# Reusable single source of truth for the .deb. Builds it and uploads it as the
+# `unisic-deb` artifact. Called by:
+#   - build.yml   -> PR smoke check: does the package still build and install?
+#   - release.yml -> produces the published release asset.
+# Keeping it here (not duplicated) means the PR check tests the exact build the
+# release uses, so the two can never drift.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Release
+  UNISIC_BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  deb:
+    name: Debian package
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
+          # (HAVE_TESSERACT / HAVE_LAYERSHELL) - without the -dev packages here
+          # the shipped binary has OCR and the on-top layer-shell surfaces
+          # (custom notification card, overlay-over-fullscreen, preview pin)
+          # compiled out no matter what the user installs at runtime.
+          # Same trap for HAVE_KWIN_SCREENCAST (KWin-native recording, no
+          # portal share dialog): it needs Qt6WaylandClient + the protocol
+          # scanner (qt6-wayland-dev, which pulls qt6-wayland-dev-tools),
+          # plasma-wayland-protocols for zkde-screencast-unstable-v1.xml, and
+          # Qt6GuiPrivate for the per-screen wl_output. Runtime qt6-wayland
+          # alone is not enough.
+          # KNOWN GAP, deliberately not worked around here: trixie ships NO
+          # Qt6GuiPrivateConfig.cmake at all (qt6-base-private-dev is headers
+          # only; sid moved the config into qt6-base-dev), so the kit's
+          # find_package(Qt6 COMPONENTS GuiPrivate) fails and the .deb still
+          # falls back to the portal. The private headers are installed anyway
+          # so that a kit-side fallback can use them without touching this
+          # list again.
+          apt-get install -y --no-install-recommends \
+            ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
+            qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
+            qt6-wayland-dev qt6-base-private-dev plasma-wayland-protocols \
+            qt6-tools-dev qt6-l10n-tools \
+            libpipewire-0.3-dev \
+            libtesseract-dev libleptonica-dev libzxing-dev \
+            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev \
+            libx11-dev libxext-dev libxfixes-dev libxcb1-dev
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build DEB
+        run: |
+          cmake -B build-deb -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCPACK_GENERATOR=DEB
+          cmake --build build-deb --parallel
+          cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
+          dpkg-deb --field dist/*.deb Depends Recommends
+          apt-get install -y --no-install-recommends ./dist/*.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-deb
+          path: dist/*.deb
+          if-no-files-found: error

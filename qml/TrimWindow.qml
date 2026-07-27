@@ -39,12 +39,12 @@ Window {
     property bool lossless: false
     readonly property bool snapping: lossless && !trimController.gif
                                      && trimController.keyframeState === TrimController.Ready
-    // Which handle the pointer is dragging (0 none, 1 in, 2 out) — the preview
+    // Which handle the pointer is dragging (0 none, 1 in, 2 out) - the preview
     // follows it, so you always see the frame you are placing.
     property int activeHandle: 0
     // One source frame, in seconds (ffprobe avg_frame_rate; 30 fps fallback).
     // ffmpeg's -t and the GIF trim filter treat the out-point as the first
-    // EXCLUDED frame, so "the last frame" previews half a frame before it —
+    // EXCLUDED frame, so "the last frame" previews half a frame before it -
     // the frame the saved file really ends on, not the one after it.
     readonly property real frameDur: trimController.frameDuration > 0.0001
                                      ? trimController.frameDuration : 1 / 30
@@ -169,13 +169,22 @@ Window {
         }
     }
 
-    // Keyboard: space play/pause, I/O mark in-out at playhead, arrows scrub.
+    // Keyboard: space play/pause, I/O mark in-out at playhead, arrows scrub,
+    // Home/End jump to the cut edges, L loops, Ctrl+W closes.
+    //
+    // This scope WRAPS the whole window content (title bar + card) - it must
+    // not be a sibling of it. The kit's controls are tab stops and they accept
+    // only the keys they own (UButton takes an unmodified Space/Return, USlider
+    // its arrows), deliberately letting everything else bubble up to "the
+    // window's key scope" - which only works if this item is an ANCESTOR of
+    // whatever holds focus. As a sibling it kept the focus (and the keys) only
+    // until the first Tab, and the entire vocabulary below went dead.
     Item {
         id: keys
         anchors.fill: parent
         focus: true
         Keys.onPressed: (e) => {
-            // Window keys first — they must work without a video preview.
+            // Window keys first - they must work without a video preview.
             if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) {
                 trimWindow.close(); e.accepted = true; return
             }
@@ -192,501 +201,527 @@ Window {
             }
         }
         Component.onCompleted: keys.forceActiveFocus()
-    }
 
-    // ---------- custom title bar (frameless decoration) ----------
-    Rectangle {
-        id: trimTitleBar
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: trimWindow.chromeTop
-        visible: !App.settings.useSystemDecoration
-        z: 20
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
-            GradientStop { position: 1.0; color: Theme.primary }
-        }
-        // Deferred startSystemMove past a drag threshold — same pattern
-        // (and reason) as Main.qml's title bar.
-        MouseArea {
-            anchors.fill: parent
-            property real pressX: 0
-            property real pressY: 0
-            property bool moving: false
-            onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
-            onPositionChanged: (m) => {
-                if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
-                    moving = true
-                    trimWindow.startSystemMove()
-                }
-            }
-            onDoubleClicked: trimWindow.visibility === Window.Maximized
-                             ? trimWindow.showNormal() : trimWindow.showMaximized()
-        }
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Theme.spacingL
-            anchors.verticalCenter: parent.verticalCenter
-            text: trimWindow.title
-            color: Theme.textPrimary
-            font.pixelSize: Theme.fontM
-            font.weight: Font.DemiBold
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.rightMargin: 6
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
-            UIconButton {
-                iconName: "minus"; iconSize: 14; width: 30; height: 30
-                tooltip: qsTr("Minimize")
-                onClicked: trimWindow.showMinimized()
-            }
-            UIconButton {
-                iconName: "window"; iconSize: 13; width: 30; height: 30
-                tooltip: qsTr("Maximize")
-                onClicked: trimWindow.visibility === Window.Maximized
-                           ? trimWindow.showNormal() : trimWindow.showMaximized()
-            }
-            UIconButton {
-                iconName: "close"; iconSize: 14; width: 30; height: 30
-                tooltip: qsTr("Close")
-                onClicked: trimWindow.close()
-            }
-        }
-    }
-
-    UCard {
-        anchors.fill: parent
-        anchors.margins: Theme.spacingL
-        anchors.topMargin: Theme.spacingL + trimWindow.chromeTop
-
-        // --- Header (top) ---
-        Column {
-            id: header
+        // ---------- custom title bar (frameless decoration) ----------
+        Rectangle {
+            id: trimTitleBar
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            spacing: Theme.spacingXS
-            Text {
-                text: qsTr("Trim recording")
-                color: Theme.textPrimary; font.pixelSize: Theme.fontXL; font.weight: Font.Bold
+            height: trimWindow.chromeTop
+            visible: !App.settings.useSystemDecoration
+            z: 20
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            // Deferred startSystemMove past a drag threshold - same pattern
+            // (and reason) as Main.qml's title bar.
+            MouseArea {
+                anchors.fill: parent
+                property real pressX: 0
+                property real pressY: 0
+                property bool moving: false
+                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                onPositionChanged: (m) => {
+                    if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                        moving = true
+                        trimWindow.startSystemMove()
+                    }
+                }
+                onDoubleClicked: trimWindow.visibility === Window.Maximized
+                                 ? trimWindow.showNormal() : trimWindow.showMaximized()
             }
             Text {
-                width: parent.width; elide: Text.ElideMiddle; text: trimSourcePath
-                color: Theme.textSecondary; font.pixelSize: Theme.fontS
+                anchors.left: parent.left
+                anchors.leftMargin: Theme.spacingL
+                anchors.verticalCenter: parent.verticalCenter
+                text: trimWindow.title
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontM
+                font.weight: Font.DemiBold
+            }
+            Row {
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                UIconButton {
+                    iconName: "minus"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Minimize")
+                    onClicked: trimWindow.showMinimized()
+                }
+                UIconButton {
+                    iconName: "window"; iconSize: 13; width: 30; height: 30
+                    tooltip: qsTr("Maximize")
+                    onClicked: trimWindow.visibility === Window.Maximized
+                               ? trimWindow.showNormal() : trimWindow.showMaximized()
+                }
+                UIconButton {
+                    iconName: "close"; iconSize: 14; width: 30; height: 30
+                    tooltip: qsTr("Close")
+                    onClicked: trimWindow.close()
+                }
             }
         }
 
-        // --- Controls (bottom) ---
-        Column {
-            id: controls
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            spacing: Theme.spacingM
+        UCard {
+            anchors.fill: parent
+            anchors.margins: Theme.spacingL
+            anchors.topMargin: Theme.spacingL + trimWindow.chromeTop
 
-            // Timeline (only meaningful with a live playhead).
-            Item {
-                id: timeline
-                width: parent.width
-                height: 82
-                visible: hasPreview
-
-                function timeAt(x) {
-                    return track.width > 0
-                           ? Math.max(0, Math.min(x / track.width * trimWindow.duration, trimWindow.duration))
-                           : 0
+            // --- Header (top) ---
+            Column {
+                id: header
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                spacing: Theme.spacingXS
+                Text {
+                    text: qsTr("Trim recording")
+                    color: Theme.textPrimary; font.pixelSize: Theme.fontXL; font.weight: Font.Bold
                 }
-                function xOf(t) {
-                    return trimWindow.duration > 0 ? track.width * (t / trimWindow.duration) : 0
+                Text {
+                    width: parent.width; elide: Text.ElideMiddle; text: trimSourcePath
+                    color: Theme.textSecondary; font.pixelSize: Theme.fontS
                 }
+            }
 
-                Rectangle {
-                    id: track
-                    anchors.fill: parent
-                    radius: Theme.radiusS
-                    color: Theme.surfaceHi
-                    clip: true
+            // --- Controls (bottom) ---
+            Column {
+                id: controls
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                spacing: Theme.spacingM
 
-                    // The strip is a single tiled PNG; this hidden probe reports
-                    // its natural size so a cell can slice one tile out of it.
-                    Image {
-                        id: stripProbe
-                        source: trimController.filmstrip
-                        visible: false
-                        asynchronous: true
+                // Timeline (only meaningful with a live playhead).
+                Item {
+                    id: timeline
+                    width: parent.width
+                    height: 82
+                    visible: hasPreview
+
+                    function timeAt(x) {
+                        return track.width > 0
+                               ? Math.max(0, Math.min(x / track.width * trimWindow.duration, trimWindow.duration))
+                               : 0
                     }
-                    readonly property real tileW: (stripProbe.implicitWidth > 0
-                                                   && trimController.filmstripTiles > 0)
-                                                  ? stripProbe.implicitWidth / trimController.filmstripTiles : 0
-                    readonly property real tileH: stripProbe.implicitHeight
-                    // Cells keep the tile's aspect, so each one is an undistorted
-                    // frame; the count follows the window width, the strip does not.
-                    readonly property int cellW: (tileW > 0 && tileH > 0)
-                                                 ? Math.max(16, Math.round(tileW * (track.height / tileH))) : 0
-                    readonly property bool stripReady: cellW > 0 && stripProbe.status === Image.Ready
-
-                    Repeater {
-                        model: track.stripReady ? Math.ceil(track.width / track.cellW) : 0
-                        Image {
-                            required property int index
-                            x: index * track.cellW
-                            width: track.cellW
-                            height: track.height
-                            source: trimController.filmstrip
-                            asynchronous: true
-                            smooth: true
-                            // Nearest tile in TIME to this cell's centre.
-                            sourceClipRect: {
-                                const cells = Math.max(1, Math.ceil(track.width / track.cellW))
-                                const tiles = trimController.filmstripTiles
-                                const i = Math.max(0, Math.min(Math.floor((index + 0.5) / cells * tiles), tiles - 1))
-                                return Qt.rect(Math.round(i * track.tileW), 0,
-                                               Math.round(track.tileW), Math.round(track.tileH))
-                            }
-                        }
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        visible: !track.stripReady
-                        text: trimController.filmstripState === TrimController.Failed
-                              ? qsTr("No thumbnails for this file")
-                              : qsTr("Loading thumbnails…")
-                        color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                    function xOf(t) {
+                        return trimWindow.duration > 0 ? track.width * (t / trimWindow.duration) : 0
                     }
 
-                    // Everything outside the selection is dimmed: what stays lit
-                    // is exactly what the saved file will contain.
                     Rectangle {
-                        x: 0; width: Math.max(0, timeline.xOf(trimWindow.trimStart))
-                        height: parent.height
-                        color: Qt.rgba(0, 0, 0, 0.66)
-                    }
-                    Rectangle {
-                        x: timeline.xOf(trimWindow.trimEnd)
-                        width: Math.max(0, track.width - x)
-                        height: parent.height
-                        color: Qt.rgba(0, 0, 0, 0.66)
-                    }
-                    Rectangle {
-                        x: timeline.xOf(trimWindow.trimStart)
-                        width: Math.max(0, timeline.xOf(trimWindow.trimEnd) - x)
-                        height: parent.height
-                        color: "transparent"
-                        border.width: 2
-                        border.color: Theme.accent
-                    }
-
-                    // Where a lossless cut can actually start. The FULL table
-                    // stays in trimController for snapping; the visible ticks
-                    // are decimated to the timeline's pixel resolution — an
-                    // all-intra or short-GOP clip has a keyframe per frame, and
-                    // a Rectangle per entry froze the UI on long recordings.
-                    readonly property var visibleKeyframes: {
-                        if (!trimWindow.snapping || track.width <= 0)
-                            return []
-                        const kfs = trimController.keyframes
-                        const minPx = 3
-                        const out = []
-                        let lastX = -minPx
-                        for (let i = 0; i < kfs.length; ++i) {
-                            const x = timeline.xOf(kfs[i])
-                            if (x - lastX >= minPx) {
-                                out.push(kfs[i])
-                                lastX = x
-                            }
-                        }
-                        return out
-                    }
-                    Repeater {
-                        model: track.visibleKeyframes
-                        Rectangle {
-                            required property var modelData
-                            x: timeline.xOf(modelData)
-                            y: track.height - 7
-                            width: 1; height: 7
-                            color: Theme.textSecondary
-                            opacity: 0.8
-                        }
-                    }
-
-                    // Click / drag anywhere on the strip to move the playhead.
-                    MouseArea {
+                        id: track
                         anchors.fill: parent
-                        onPressed: (m) => trimWindow.seekTo(timeline.timeAt(m.x))
-                        onPositionChanged: (m) => trimWindow.scrubTo(timeline.timeAt(m.x))
-                    }
-                }
+                        radius: Theme.radiusS
+                        color: Theme.surfaceHi
+                        clip: true
 
-                // Playhead.
-                Rectangle {
-                    width: 2; height: track.height + 8
-                    y: -4
-                    color: Theme.textPrimary
-                    x: timeline.xOf(trimWindow.playhead) - width / 2
-                }
-
-                // IN / OUT handles: x is a one-way function of the time value;
-                // dragging maps the pointer into track space and pushes the time
-                // back through setStart/setEnd — no binding loop, resize-safe.
-                // While one is dragged the preview seeks to it, so the frame on
-                // screen is the frame the cut will land on.
-                Repeater {
-                    model: 2
-                    Rectangle {
-                        id: handle
-                        required property int index
-                        readonly property bool isStart: index === 0
-                        x: timeline.xOf(isStart ? trimWindow.trimStart : trimWindow.trimEnd) - width / 2
-                        y: -5
-                        width: 10
-                        height: track.height + 10
-                        radius: 3
-                        color: trimWindow.activeHandle === (isStart ? 1 : 2)
-                               ? Qt.lighter(Theme.accent, 1.2) : Theme.accent
-                        border.width: 1
-                        border.color: Theme.background
-                        Rectangle {   // grip
-                            anchors.centerIn: parent
-                            width: 2; height: 14; radius: 1
-                            color: Theme.background
-                            opacity: 0.7
+                        // The strip is a single tiled PNG; this hidden probe reports
+                        // its natural size so a cell can slice one tile out of it.
+                        Image {
+                            id: stripProbe
+                            source: trimController.filmstrip
+                            visible: false
+                            asynchronous: true
                         }
+                        readonly property real tileW: (stripProbe.implicitWidth > 0
+                                                       && trimController.filmstripTiles > 0)
+                                                      ? stripProbe.implicitWidth / trimController.filmstripTiles : 0
+                        readonly property real tileH: stripProbe.implicitHeight
+                        // Cells keep the tile's aspect, so each one is an undistorted
+                        // frame; the count follows the window width, the strip does not.
+                        readonly property int cellW: (tileW > 0 && tileH > 0)
+                                                     ? Math.max(16, Math.round(tileW * (track.height / tileH))) : 0
+                        readonly property bool stripReady: cellW > 0 && stripProbe.status === Image.Ready
+
+                        Repeater {
+                            model: track.stripReady ? Math.ceil(track.width / track.cellW) : 0
+                            Image {
+                                required property int index
+                                x: index * track.cellW
+                                width: track.cellW
+                                height: track.height
+                                source: trimController.filmstrip
+                                asynchronous: true
+                                smooth: true
+                                // Nearest tile in TIME to this cell's centre.
+                                sourceClipRect: {
+                                    const cells = Math.max(1, Math.ceil(track.width / track.cellW))
+                                    const tiles = trimController.filmstripTiles
+                                    const i = Math.max(0, Math.min(Math.floor((index + 0.5) / cells * tiles), tiles - 1))
+                                    return Qt.rect(Math.round(i * track.tileW), 0,
+                                                   Math.round(track.tileW), Math.round(track.tileH))
+                                }
+                            }
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            visible: !track.stripReady
+                            text: trimController.filmstripState === TrimController.Failed
+                                  ? qsTr("No thumbnails for this file")
+                                  : qsTr("Loading thumbnails…")
+                            color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                        }
+
+                        // Everything outside the selection is dimmed: what stays lit
+                        // is exactly what the saved file will contain.
+                        Rectangle {
+                            x: 0; width: Math.max(0, timeline.xOf(trimWindow.trimStart))
+                            height: parent.height
+                            color: Qt.rgba(0, 0, 0, 0.66)
+                        }
+                        Rectangle {
+                            x: timeline.xOf(trimWindow.trimEnd)
+                            width: Math.max(0, track.width - x)
+                            height: parent.height
+                            color: Qt.rgba(0, 0, 0, 0.66)
+                        }
+                        Rectangle {
+                            x: timeline.xOf(trimWindow.trimStart)
+                            width: Math.max(0, timeline.xOf(trimWindow.trimEnd) - x)
+                            height: parent.height
+                            color: "transparent"
+                            border.width: 2
+                            border.color: Theme.accent
+                        }
+
+                        // Where a lossless cut can actually start. The FULL table
+                        // stays in trimController for snapping; the visible ticks
+                        // are decimated to the timeline's pixel resolution - an
+                        // all-intra or short-GOP clip has a keyframe per frame, and
+                        // a Rectangle per entry froze the UI on long recordings.
+                        readonly property var visibleKeyframes: {
+                            if (!trimWindow.snapping || track.width <= 0)
+                                return []
+                            const kfs = trimController.keyframes
+                            const minPx = 3
+                            const out = []
+                            let lastX = -minPx
+                            for (let i = 0; i < kfs.length; ++i) {
+                                const x = timeline.xOf(kfs[i])
+                                if (x - lastX >= minPx) {
+                                    out.push(kfs[i])
+                                    lastX = x
+                                }
+                            }
+                            return out
+                        }
+                        Repeater {
+                            model: track.visibleKeyframes
+                            Rectangle {
+                                required property var modelData
+                                x: timeline.xOf(modelData)
+                                y: track.height - 7
+                                width: 1; height: 7
+                                color: Theme.textSecondary
+                                opacity: 0.8
+                            }
+                        }
+
+                        // Click / drag anywhere on the strip to move the playhead.
                         MouseArea {
                             anchors.fill: parent
-                            anchors.margins: -6      // fat target, thin handle
-                            cursorShape: Qt.SizeHorCursor
-                            preventStealing: true
-                            onPressed: {
-                                trimWindow.activeHandle = handle.isStart ? 1 : 2
-                                if (previewLoader.item)
-                                    previewLoader.item.pause()
+                            onPressed: (m) => trimWindow.seekTo(timeline.timeAt(m.x))
+                            onPositionChanged: (m) => trimWindow.scrubTo(timeline.timeAt(m.x))
+                            // The keyboard equivalent lives at window level (the
+                            // `keys` Item: arrows scrub, Home/End jump), so this
+                            // reports the value and points at those keys instead of
+                            // becoming a second focus stop that would swallow them.
+                            Accessible.role: Accessible.Slider
+                            Accessible.name: qsTr("Playhead")
+                            Accessible.description: qsTr("%1 of %2 seconds. Arrow keys scrub, Home and End jump.")
+                                                        .arg(trimWindow.playhead.toFixed(1))
+                                                        .arg(trimWindow.duration.toFixed(1))
+                            Accessible.onIncreaseAction: trimWindow.seekTo(trimWindow.playhead + 1)
+                            Accessible.onDecreaseAction: trimWindow.seekTo(trimWindow.playhead - 1)
+                        }
+                    }
+
+                    // Playhead.
+                    Rectangle {
+                        width: 2; height: track.height + 8
+                        y: -4
+                        color: Theme.textPrimary
+                        x: timeline.xOf(trimWindow.playhead) - width / 2
+                    }
+
+                    // IN / OUT handles: x is a one-way function of the time value;
+                    // dragging maps the pointer into track space and pushes the time
+                    // back through setStart/setEnd - no binding loop, resize-safe.
+                    // While one is dragged the preview seeks to it, so the frame on
+                    // screen is the frame the cut will land on.
+                    Repeater {
+                        model: 2
+                        Rectangle {
+                            id: handle
+                            required property int index
+                            readonly property bool isStart: index === 0
+                            x: timeline.xOf(isStart ? trimWindow.trimStart : trimWindow.trimEnd) - width / 2
+                            y: -5
+                            width: 10
+                            height: track.height + 10
+                            radius: 3
+                            color: trimWindow.activeHandle === (isStart ? 1 : 2)
+                                   ? Qt.lighter(Theme.accent, 1.2) : Theme.accent
+                            border.width: 1
+                            border.color: Theme.background
+                            Rectangle {   // grip
+                                anchors.centerIn: parent
+                                width: 2; height: 14; radius: 1
+                                color: Theme.background
+                                opacity: 0.7
                             }
-                            onReleased: {
-                                trimWindow.activeHandle = 0
-                                trimWindow.seekTo(handle.isStart ? trimWindow.trimStart
-                                                                 : trimWindow.endPreviewTime())
-                            }
-                            onPositionChanged: (m) => {
-                                const t = timeline.timeAt(mapToItem(track, m.x, 0).x)
-                                if (handle.isStart) {
-                                    trimWindow.setStart(t)
-                                    trimWindow.scrubTo(trimWindow.trimStart)
-                                } else {
-                                    trimWindow.setEnd(t)
-                                    trimWindow.scrubTo(trimWindow.endPreviewTime())
+                            MouseArea {
+                                anchors.fill: parent
+                                anchors.margins: -6      // fat target, thin handle
+                                cursorShape: Qt.SizeHorCursor
+                                preventStealing: true
+                                Accessible.role: Accessible.Slider
+                                Accessible.name: handle.isStart ? qsTr("Trim start") : qsTr("Trim end")
+                                Accessible.description: handle.isStart
+                                    ? qsTr("%1 seconds. Press I to move it to the playhead.")
+                                          .arg(trimWindow.trimStart.toFixed(1))
+                                    : qsTr("%1 seconds. Press O to move it to the playhead.")
+                                          .arg(trimWindow.trimEnd.toFixed(1))
+                                Accessible.onIncreaseAction: handle.isStart
+                                    ? trimWindow.setStart(trimWindow.trimStart + 1)
+                                    : trimWindow.setEnd(trimWindow.trimEnd + 1)
+                                Accessible.onDecreaseAction: handle.isStart
+                                    ? trimWindow.setStart(trimWindow.trimStart - 1)
+                                    : trimWindow.setEnd(trimWindow.trimEnd - 1)
+                                onPressed: {
+                                    trimWindow.activeHandle = handle.isStart ? 1 : 2
+                                    if (previewLoader.item)
+                                        previewLoader.item.pause()
+                                }
+                                onReleased: {
+                                    trimWindow.activeHandle = 0
+                                    trimWindow.seekTo(handle.isStart ? trimWindow.trimStart
+                                                                     : trimWindow.endPreviewTime())
+                                }
+                                onPositionChanged: (m) => {
+                                    const t = timeline.timeAt(mapToItem(track, m.x, 0).x)
+                                    if (handle.isStart) {
+                                        trimWindow.setStart(t)
+                                        trimWindow.scrubTo(trimWindow.trimStart)
+                                    } else {
+                                        trimWindow.setEnd(t)
+                                        trimWindow.scrubTo(trimWindow.endPreviewTime())
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            // Time readout: playhead position (left), selection summary (right).
-            Item {
-                width: parent.width
-                height: selLabel.implicitHeight
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
+                // Time readout: playhead position (left), selection summary (right).
+                Item {
+                    width: parent.width
+                    height: selLabel.implicitHeight
+                    Text {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: hasPreview
+                        text: qsTr("%1 / %2").arg(trimWindow.fmt(trimWindow.playhead)).arg(trimWindow.fmt(trimWindow.duration))
+                        color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                    }
+                    Text {
+                        id: selLabel
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Selection: %1 → %2 (%3)")
+                              .arg(trimWindow.fmt(trimWindow.trimStart))
+                              .arg(trimWindow.fmt(trimWindow.trimEnd))
+                              .arg(trimWindow.fmt(trimWindow.trimEnd - trimWindow.trimStart))
+                        color: Theme.accent; font.pixelSize: Theme.fontM
+                    }
+                }
+
+                // Transport + mark buttons (preview mode).
+                Row {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     visible: hasPreview
-                    text: qsTr("%1 / %2").arg(trimWindow.fmt(trimWindow.playhead)).arg(trimWindow.fmt(trimWindow.duration))
-                    color: Theme.textPrimary; font.pixelSize: Theme.fontM
+                    UIconButton {
+                        iconName: (previewLoader.item && previewLoader.item.playing) ? "pause" : "play"
+                        iconSize: 18
+                        tooltip: qsTr("Play the selection (Space)")
+                        onClicked: trimWindow.playPause()
+                    }
+                    UIconButton {
+                        iconName: "media-repeat"
+                        iconSize: 18
+                        active: trimWindow.loopSelection
+                        tooltip: qsTr("Loop the selection (L)")
+                        onClicked: trimWindow.loopSelection = !trimWindow.loopSelection
+                    }
+                    UButton { compact: true; variant: "tonal"; text: qsTr("Set start (I)"); onClicked: trimWindow.setStart(trimWindow.playhead) }
+                    UButton { compact: true; variant: "tonal"; text: qsTr("Set end (O)"); onClicked: trimWindow.setEnd(trimWindow.playhead) }
                 }
-                Text {
-                    id: selLabel
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: qsTr("Selection: %1 → %2 (%3)")
-                          .arg(trimWindow.fmt(trimWindow.trimStart))
-                          .arg(trimWindow.fmt(trimWindow.trimEnd))
-                          .arg(trimWindow.fmt(trimWindow.trimEnd - trimWindow.trimStart))
-                    color: Theme.accent; font.pixelSize: Theme.fontM
-                }
-            }
 
-            // Transport + mark buttons (preview mode).
-            Row {
-                width: parent.width
-                spacing: Theme.spacingS
-                visible: hasPreview
-                UIconButton {
-                    iconName: (previewLoader.item && previewLoader.item.playing) ? "pause" : "play"
-                    iconSize: 18
-                    tooltip: qsTr("Play the selection (Space)")
-                    onClicked: trimWindow.playPause()
-                }
-                UIconButton {
-                    iconName: "media-repeat"
-                    iconSize: 18
-                    active: trimWindow.loopSelection
-                    tooltip: qsTr("Loop the selection (L)")
-                    onClicked: trimWindow.loopSelection = !trimWindow.loopSelection
-                }
-                UButton { compact: true; variant: "tonal"; text: qsTr("Set start (I)"); onClicked: trimWindow.setStart(trimWindow.playhead) }
-                UButton { compact: true; variant: "tonal"; text: qsTr("Set end (O)"); onClicked: trimWindow.setEnd(trimWindow.playhead) }
-            }
-
-            // Fallback: no QtMultimedia → blind sliders + a hint.
-            Column {
-                width: parent.width
-                spacing: Theme.spacingS
-                visible: !hasPreview
-                Text {
-                    width: parent.width; wrapMode: Text.WordWrap
-                    text: qsTr("Install qt6-qtmultimedia for a video preview. Adjust the range below.")
-                    color: Theme.textTertiary; font.pixelSize: Theme.fontS
-                }
-                Text { text: qsTr("Start: %1 s").arg(trimWindow.trimStart.toFixed(1)); color: Theme.textPrimary; font.pixelSize: Theme.fontM }
-                USlider {
-                    width: parent.width; from: 0; to: Math.max(0.1, trimWindow.duration - 0.1)
-                    value: trimWindow.trimStart
-                    // Through setStart(), NOT a raw assignment: with Fast
-                    // lossless on, the in-point must snap onto a keyframe here
-                    // too, or ffmpeg stream-copies from the previous keyframe
-                    // while the UI shows the unsnapped value.
-                    onMoved: (v) => trimWindow.setStart(v)
-                }
-                Text { text: qsTr("End: %1 s").arg(trimWindow.trimEnd.toFixed(1)); color: Theme.textPrimary; font.pixelSize: Theme.fontM }
-                USlider {
-                    width: parent.width; from: 0.1; to: trimWindow.duration
-                    value: trimWindow.trimEnd
-                    onMoved: (v) => trimWindow.setEnd(v)
-                }
-            }
-
-            // Actions.
-            Item {
-                width: parent.width
-                height: Math.max(saveRow.implicitHeight, cutMode.implicitHeight)
-
-                // How the file gets cut. Default (off) re-encodes the selection,
-                // which is the only way the saved frames match the preview
-                // exactly; a stream copy is instant but starts on a keyframe.
-                Row {
-                    id: cutMode
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
+                // Fallback: no QtMultimedia → blind sliders + a hint.
+                Column {
+                    width: parent.width
                     spacing: Theme.spacingS
-                    visible: !trimController.gif
-                    USwitch {
-                        id: losslessSwitch
+                    visible: !hasPreview
+                    Text {
+                        width: parent.width; wrapMode: Text.WordWrap
+                        text: qsTr("Install qt6-qtmultimedia for a video preview. Adjust the range below.")
+                        color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                    }
+                    Text { text: qsTr("Start: %1 s").arg(trimWindow.trimStart.toFixed(1)); color: Theme.textPrimary; font.pixelSize: Theme.fontM }
+                    USlider {
+                        accessibleName: qsTr("Start")
+                        width: parent.width; from: 0; to: Math.max(0.1, trimWindow.duration - 0.1)
+                        value: trimWindow.trimStart
+                        // Through setStart(), NOT a raw assignment: with Fast
+                        // lossless on, the in-point must snap onto a keyframe here
+                        // too, or ffmpeg stream-copies from the previous keyframe
+                        // while the UI shows the unsnapped value.
+                        onMoved: (v) => trimWindow.setStart(v)
+                    }
+                    Text { text: qsTr("End: %1 s").arg(trimWindow.trimEnd.toFixed(1)); color: Theme.textPrimary; font.pixelSize: Theme.fontM }
+                    USlider {
+                        accessibleName: qsTr("End")
+                        width: parent.width; from: 0.1; to: trimWindow.duration
+                        value: trimWindow.trimEnd
+                        onMoved: (v) => trimWindow.setEnd(v)
+                    }
+                }
+
+                // Actions.
+                Item {
+                    width: parent.width
+                    height: Math.max(saveRow.implicitHeight, cutMode.implicitHeight)
+
+                    // How the file gets cut. Default (off) re-encodes the selection,
+                    // which is the only way the saved frames match the preview
+                    // exactly; a stream copy is instant but starts on a keyframe.
+                    Row {
+                        id: cutMode
+                        anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        checked: trimWindow.lossless
-                        onToggled: trimWindow.lossless = checked
+                        spacing: Theme.spacingS
+                        visible: !trimController.gif
+                        USwitch {
+                            id: losslessSwitch
+                            anchors.verticalCenter: parent.verticalCenter
+                            checked: trimWindow.lossless
+                            onToggled: trimWindow.lossless = checked
+                        }
+                        Column {
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 1
+                            // Constrained + wrapping: at the 680 px minimum width
+                            // (and with longer translations) unbounded text ran
+                            // underneath the Cancel/Save row on the right.
+                            width: Math.max(120, cutMode.parent.width - saveRow.width
+                                                 - losslessSwitch.width - cutMode.spacing
+                                                 - Theme.spacingL)
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("Fast lossless cut")
+                                color: Theme.textPrimary; font.pixelSize: Theme.fontS
+                            }
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: !trimWindow.lossless
+                                      ? qsTr("Off: the selection is re-encoded and starts on the exact frame.")
+                                      : (trimController.keyframeState === TrimController.Busy
+                                         ? qsTr("Reading keyframes…")
+                                         : (trimController.keyframeState === TrimController.Ready
+                                            ? qsTr("On: copies the streams, so the start snaps to a keyframe (ticks).")
+                                            : qsTr("No keyframes found - saving will re-encode instead.")))
+                                color: Theme.textTertiary; font.pixelSize: Theme.fontS
+                            }
+                        }
                     }
-                    Column {
+                    Text {
+                        anchors.left: parent.left
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: 1
-                        // Constrained + wrapping: at the 680 px minimum width
-                        // (and with longer translations) unbounded text ran
-                        // underneath the Cancel/Save row on the right.
-                        width: Math.max(120, cutMode.parent.width - saveRow.width
-                                             - losslessSwitch.width - cutMode.spacing
-                                             - Theme.spacingL)
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: qsTr("Fast lossless cut")
-                            color: Theme.textPrimary; font.pixelSize: Theme.fontS
-                        }
-                        Text {
-                            width: parent.width
-                            wrapMode: Text.WordWrap
-                            text: !trimWindow.lossless
-                                  ? qsTr("Off: the selection is re-encoded and starts on the exact frame.")
-                                  : (trimController.keyframeState === TrimController.Busy
-                                     ? qsTr("Reading keyframes…")
-                                     : (trimController.keyframeState === TrimController.Ready
-                                        ? qsTr("On: copies the streams, so the start snaps to a keyframe (ticks).")
-                                        : qsTr("No keyframes found - saving will re-encode instead.")))
-                            color: Theme.textTertiary; font.pixelSize: Theme.fontS
-                        }
+                        width: parent.width - saveRow.width - Theme.spacingL
+                        visible: trimController.gif
+                        wrapMode: Text.WordWrap
+                        text: qsTr("A GIF is always re-rendered, so the cut lands on the exact frame.")
+                        color: Theme.textTertiary; font.pixelSize: Theme.fontS
                     }
-                }
-                Text {
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - saveRow.width - Theme.spacingL
-                    visible: trimController.gif
-                    wrapMode: Text.WordWrap
-                    text: qsTr("A GIF is always re-rendered, so the cut lands on the exact frame.")
-                    color: Theme.textTertiary; font.pixelSize: Theme.fontS
-                }
 
-                Row {
-                    id: saveRow
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.spacingS
-                    UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: trimWindow.close() }
-                    UButton {
-                        text: qsTr("Save trimmed copy")
-                        enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
-                        onClicked: {
-                            App.trimRecording(trimSourcePath, trimWindow.trimStart, trimWindow.trimEnd,
-                                              trimWindow.snapping)
-                            trimWindow.close()
+                    Row {
+                        id: saveRow
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: Theme.spacingS
+                        UButton { text: qsTr("Cancel"); variant: "ghost"; onClicked: trimWindow.close() }
+                        UButton {
+                            text: qsTr("Save trimmed copy")
+                            enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
+                            onClicked: {
+                                App.trimRecording(trimSourcePath, trimWindow.trimStart, trimWindow.trimEnd,
+                                                  trimWindow.snapping)
+                                trimWindow.close()
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // --- Preview fills the space between header and controls ---
-        Rectangle {
-            anchors.top: header.bottom
-            anchors.bottom: controls.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.topMargin: Theme.spacingM
-            anchors.bottomMargin: Theme.spacingM
-            radius: Theme.radiusM
-            color: hasPreview ? "#000000" : Theme.surface
-            clip: true
-
-            Loader {
-                id: previewLoader
-                anchors.fill: parent
-                active: hasPreview
-                sourceComponent: previewComp
-            }
-            Component {
-                id: previewComp
-                VideoPreview { fileUrl: App.fileDragUri(trimSourcePath) }
-            }
-
-            // While a handle is being dragged the frame on screen IS the cut
-            // point — say which one, so the two are never confused.
+            // --- Preview fills the space between header and controls ---
             Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
+                anchors.top: header.bottom
+                anchors.bottom: controls.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.topMargin: Theme.spacingM
                 anchors.bottomMargin: Theme.spacingM
-                visible: trimWindow.activeHandle !== 0
-                width: edgeLabel.implicitWidth + 2 * Theme.spacingM
-                height: edgeLabel.implicitHeight + Theme.spacingS
-                radius: height / 2
-                color: Qt.rgba(0, 0, 0, 0.72)
-                Text {
-                    id: edgeLabel
-                    anchors.centerIn: parent
-                    text: trimWindow.activeHandle === 1
-                          ? qsTr("First frame · %1").arg(trimWindow.fmt(trimWindow.trimStart))
-                          : qsTr("Last frame · %1").arg(trimWindow.fmt(trimWindow.trimEnd))
-                    color: Theme.accent; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold
-                }
-            }
+                radius: Theme.radiusM
+                color: hasPreview ? "#000000" : Theme.surface
+                clip: true
 
-            Text {
-                anchors.centerIn: parent
-                visible: !hasPreview
-                width: parent.width - 2 * Theme.spacingXL
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
-                text: qsTr("No video preview available.")
-                color: Theme.textTertiary; font.pixelSize: Theme.fontM
+                Loader {
+                    id: previewLoader
+                    anchors.fill: parent
+                    active: hasPreview
+                    sourceComponent: previewComp
+                }
+                Component {
+                    id: previewComp
+                    VideoPreview { fileUrl: App.fileDragUri(trimSourcePath) }
+                }
+
+                // While a handle is being dragged the frame on screen IS the cut
+                // point - say which one, so the two are never confused.
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: Theme.spacingM
+                    visible: trimWindow.activeHandle !== 0
+                    width: edgeLabel.implicitWidth + 2 * Theme.spacingM
+                    height: edgeLabel.implicitHeight + Theme.spacingS
+                    radius: height / 2
+                    color: Qt.rgba(0, 0, 0, 0.72)
+                    Text {
+                        id: edgeLabel
+                        anchors.centerIn: parent
+                        text: trimWindow.activeHandle === 1
+                              ? qsTr("First frame · %1").arg(trimWindow.fmt(trimWindow.trimStart))
+                              : qsTr("Last frame · %1").arg(trimWindow.fmt(trimWindow.trimEnd))
+                        color: Theme.accent; font.pixelSize: Theme.fontS; font.weight: Font.DemiBold
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: !hasPreview
+                    width: parent.width - 2 * Theme.spacingXL
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    text: qsTr("No video preview available.")
+                    color: Theme.textTertiary; font.pixelSize: Theme.fontM
+                }
             }
         }
     }

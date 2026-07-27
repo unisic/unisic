@@ -236,6 +236,15 @@ Window {
         enabled: notif.kind === "image" || notif.filePath !== ""
         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
         hoverEnabled: true
+        // The thumbnail is a control, not decoration: clicking it opens the
+        // floating preview. The drag-out is pointer-only and has no keyboard
+        // equivalent, so it is described rather than offered as an action.
+        Accessible.role: Accessible.Button
+        Accessible.name: qsTr("Capture thumbnail")
+        Accessible.description: notif.kind === "image"
+                                ? qsTr("Opens the floating preview. Drag it to another app to hand over the file.")
+                                : qsTr("Drag it to another app to hand over the file.")
+        Accessible.onPressAction: if (notif.kind === "image") notif.preview()
         drag.target: dragProxy
         drag.threshold: 8
         property string uri: ""
@@ -292,6 +301,13 @@ Window {
         y: popupY
         width: popupW
         height: popupH
+
+        // The whole card is one notification, whatever style drew it.
+        Accessible.role: Accessible.Notification
+        Accessible.name: notif.uploading ? qsTr("Uploading a capture")
+                         : notif.url !== "" ? qsTr("Capture uploaded: %1").arg(notif.url)
+                         : notif.fileName !== "" ? qsTr("Capture ready: %1").arg(notif.fileName)
+                         : qsTr("Capture ready")
 
         // Keep the static background/shadow in its own layer. Layering `card`
         // itself also cached every child, so a button hover invalidated and
@@ -452,6 +468,9 @@ Window {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 iconName: "close"; iconSize: 11; width: 22; height: 22
+                // No tooltip on the slim styles (a floating tip would overflow
+                // the card), so the spoken name is supplied here.
+                accessibleName: qsTr("Dismiss")
                 onClicked: notif.dismiss()
             }
             ActionRow {
@@ -490,6 +509,8 @@ Window {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 iconName: "close"; iconSize: 10; width: 20; height: 20
+                // The pill has no room for a tooltip, so name it by hand.
+                accessibleName: qsTr("Dismiss")
                 onClicked: notif.dismiss()
             }
             StatusText {
@@ -508,6 +529,9 @@ Window {
                 enabled: notif.kind === "image"
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: notif.preview()
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("Open the floating preview")
+                Accessible.onPressAction: notif.preview()
             }
         }
 
@@ -567,6 +591,7 @@ Window {
                      || (popup.style === "thumbnail" && hover.hovered)
             anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 4
             iconName: "close"; iconSize: 12; width: 24; height: 24
+            accessibleName: qsTr("Dismiss")
             onClicked: notif.dismiss()
         }
 

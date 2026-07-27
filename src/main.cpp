@@ -9,6 +9,8 @@
 // relative path; provides UnisicKit::setConfigFilePath (wired in main()).
 #include "../external/unisic-kit/src/ConfigPath.h"
 #include <QApplication>
+
+#include "diag/DiagLog.h"
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQmlEngine>
@@ -501,7 +503,11 @@ static void ensureDesktopFile()
 static void execStagedUpdate(int argc, char *argv[])
 {
     if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty())
+        || !qEnvironmentVariable("APPIMAGE").isEmpty()
+        // A flatpak never stages: the bundle is read-only, it is updated by
+        // the flatpak client, and exec'ing a downloaded binary inside the
+        // sandbox is exactly what the store forbids.
+        || qEnvironmentVariableIsSet("FLATPAK_ID"))
         return;
 #ifdef UNISIC_DEV_BUILD
     const QString appName = QStringLiteral("unisic-dev");
@@ -542,6 +548,12 @@ static void execStagedUpdate(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
+    // FIRST statement, before QApplication and before the helper dispatch
+    // below: a crash or a QPA/QML warning that happens during construction is
+    // exactly the kind this exists to catch. Opens no file (that waits until
+    // this process has won the single-instance handshake) and installs the
+    // message handler by CHAINING, so journald keeps getting everything.
+    DiagLog::install(argc, argv);
     // Point unisic-kit's config resolution at THIS app's settings file before
     // anything from the kit (ThemeController's QSettings, themesFolder) is
     // constructed. The explicit file override — not setConfigName — because
@@ -688,6 +700,14 @@ int main(int argc, char *argv[])
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });
     }
+
+    // PHASE 2 of the diagnostic log, deliberately here and not earlier: every
+    // return above this line belongs to a process that forwarded its command
+    // to the RUNNING instance and is about to exit, and rotating the log from
+    // one of those would throw away the running instance's own file.
+    DiagLog::openLogFile();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
+                     [] { DiagLog::markCleanExit(); });
 
     QQuickStyle::setStyle(QStringLiteral("Basic")); // fully custom look, no platform theme
 

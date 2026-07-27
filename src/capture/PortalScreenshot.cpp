@@ -32,6 +32,13 @@ static QString scopeAppId()
 
 QStringList PortalScreenshot::candidateAppIds()
 {
+    // Inside a sandbox the portal keys permissions on the flatpak id and on
+    // nothing else: the desktop-file name, the "" host bucket and the systemd
+    // scope are all host-side notions, and writing them would grant a
+    // permission to every unidentified host app for no benefit to us.
+    const QString flatpakId = qEnvironmentVariable("FLATPAK_ID");
+    if (!flatpakId.isEmpty())
+        return {flatpakId};
     QStringList ids{QGuiApplication::desktopFileName(), QString()};
     const QString scoped = scopeAppId();
     if (!scoped.isEmpty() && !ids.contains(scoped))

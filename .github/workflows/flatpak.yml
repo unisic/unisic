@@ -1,0 +1,171 @@
+name: Flatpak build
+
+# Guards the Flathub manifest the same way the AppImage workflow guards the
+# AppImage: does the bundle still build, and does it still pass the linter
+# Flathub reviewers run? Flathub itself builds and publishes from its own
+# repository (flathub/app.unisic.Unisic), so nothing is published from here -
+# but the bundle this produces IS attached to the GitHub release, because
+# scripts/install.sh installs from it until the Flathub listing goes live.
+#
+# The manifest builds from a git TAG, so a plain PR would test the last release
+# rather than the change in front of it. `local: true` (the default on
+# pull_request and workflow_dispatch, and what release.yml passes) rewrites that
+# one source to the checked out tree, exactly like
+# `packaging/flatpak/build.sh --local`. The release needs it too: it runs before
+# the v<version> tag exists, so building the pin would ship the previous release
+# under the new version's name.
+#
+# No pull_request trigger of its own: build.yml calls this on every PR, and a
+# second path-filtered trigger here would build the same Flatpak twice on any
+# PR that touches packaging/flatpak/**.
+on:
+  workflow_dispatch:
+    inputs:
+      local:
+        description: "Build the checked out tree instead of the tag in the manifest"
+        type: boolean
+        required: false
+        default: true
+  workflow_call:
+    inputs:
+      local:
+        type: boolean
+        required: false
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  flatpak:
+    name: Build and lint the Flatpak
+    runs-on: ubuntu-latest
+    # The KDE runtime + SDK and an ffmpeg build from source: this is slow.
+    timeout-minutes: 120
+    container:
+      # DELIBERATELY one minor behind the manifest's runtime-version: that repo
+      # publishes KDE tags only up to kde-6.10, and pointing this at kde-6.11
+      # failed every run before the first step with
+      # "manifest unknown" from the docker pull. The image only PRESEEDS a
+      # runtime - flatpak-builder runs with --install-deps-from=flathub, so it
+      # pulls whatever org.kde.Sdk the manifest actually names. Bump this the
+      # day a kde-6.11 tag appears, not before.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
+      options: --privileged
+    env:
+      # Resolved once, because `inputs.local` is NULL when this workflow is
+      # reached without that input and null compares equal to false in a
+      # GitHub expression - so a plain `inputs.local != false` would quietly
+      # build the tag on exactly the runs that exist to test the branch.
+      LOCAL: ${{ (github.event_name == 'pull_request' || inputs.local) && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The manifest's `unisic` module pins a tag; --local needs the tree.
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Point the manifest at this checkout
+        if: ${{ env.LOCAL == 'true' }}
+        run: |
+          python3 - packaging/flatpak/app.unisic.Unisic.yml "$PWD" <<'PY'
+          import re, sys
+          path, root = sys.argv[1], sys.argv[2]
+          text = open(path, encoding="utf-8").read()
+          pat = re.compile(
+              r"( {4}sources:\n)"
+              r"( {6}- type: git\n {8}url: https://github\.com/unisic/unisic\.git\n(?: {8,}.*\n)*)\Z",
+              re.M)
+          if not pat.search(text):
+              raise SystemExit("could not find the unisic git source block to rewrite")
+          open(path, "w", encoding="utf-8").write(
+              pat.sub(lambda m: m.group(1) + f"      - type: dir\n        path: {root}\n", text))
+          print("manifest now builds from", root)
+          PY
+
+      - name: Validate the metainfo
+        run: |
+          appstreamcli validate --pedantic --explain \
+            resources/app.unisic.Unisic.metainfo.xml
+
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: unisic.flatpak
+          manifest-path: packaging/flatpak/app.unisic.Unisic.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          # The submission is checked by the same linter Flathub runs.
+          run-tests: false
+          verbose: false
+          # The step below uploads it under a version-stamped name instead.
+          upload-artifact: false
+
+      # release.yml attaches this to the GitHub release, where install.sh finds
+      # it. The name carries the version because a release asset called
+      # unisic.flatpak would say nothing about which version it is.
+      - name: Name the bundle after the version it contains
+        id: bundle
+        run: |
+          version_line="$(grep -m1 '^set(UNISIC_VERSION_STRING' CMakeLists.txt || true)"
+          if [[ -n "$version_line" ]]; then
+            version="$(sed -E 's/.*"([^"]+)".*/\1/' <<<"$version_line")"
+          else
+            version_line="$(grep -m1 '^project(unisic VERSION' CMakeLists.txt)"
+            version="${version_line#*VERSION }"
+            version="${version%% *}"
+          fi
+          mv unisic.flatpak "unisic-${version}-x86_64.flatpak"
+          echo "name=unisic-${version}-x86_64.flatpak" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # Deliberately not unisic-*: the release job sweeps up every artifact
+          # matching that prefix, and this one is attached separately (a Flatpak
+          # build takes long enough that the release must not wait for it).
+          name: flatpak-bundle
+          path: ${{ steps.bundle.outputs.name }}
+          if-no-files-found: error
+
+      - name: Lint the manifest and the built repo
+        run: |
+          flatpak install -y --noninteractive flathub org.flatpak.Builder
+          # Three linter errors are expected for this app and can never clear
+          # here, so a bare exit-code check would fail every single run: the
+          # permission-store hole is granted by a Flathub reviewer as an
+          # exception, and the two screenshot ones only pass on Flathub's own
+          # build service, which mirrors screenshots to dl.flathub.org.
+          # Everything else is a real failure.
+          cat > /tmp/lintcheck.py <<'PY'
+          import json, sys
+          ALLOWED = {
+              "finish-args-portal-impl-permissionstore-talk-name",
+              "appstream-screenshots-not-mirrored-in-ostree",
+              "appstream-external-screenshot-url",
+          }
+          raw = open(sys.argv[1], encoding="utf-8").read().strip()
+          if not raw:
+              sys.exit(0)
+          try:
+              errors = json.loads(raw).get("errors", [])
+          except json.JSONDecodeError:
+              print("::error::flatpak-builder-lint produced no usable JSON")
+              print(raw)
+              sys.exit(1)
+          unexpected = [e for e in errors if e not in ALLOWED]
+          for e in unexpected:
+              print(f"::error::flatpak-builder-lint: {e}")
+          sys.exit(1 if unexpected else 0)
+          PY
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            manifest packaging/flatpak/app.unisic.Unisic.yml > manifest-lint.json || true
+          cat manifest-lint.json
+          python3 /tmp/lintcheck.py manifest-lint.json
+          # `repo` checks what actually landed in the bundle (exported files,
+          # icon and metainfo naming, permissions) - the half a manifest lint
+          # cannot see. Skipped for --local builds, whose version metadata
+          # deliberately does not match a release tag.
+          if [ "$LOCAL" = "false" ]; then
+            flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo > repo-lint.json || true
+            cat repo-lint.json
+            python3 /tmp/lintcheck.py repo-lint.json
+          fi

@@ -17,6 +17,11 @@
     <param name="versionrewrite-pattern">v(.*)</param>
     <param name="versionrewrite-replacement">\1</param>
     <param name="match-tag">v*</param>
+    <!-- Stated rather than left to the default: from 0.8 the tree carries the
+         external/unisic-kit submodule, and CMakeLists.txt does
+         add_subdirectory() on it, so a tarball without submodule content
+         fails at configure time on every OBS target. -->
+    <param name="submodules">enable</param>
   </service>
   <!-- Server-side: pull the packaging files out of the checkout so they are
        owned by git, not by OBS. Files land in the package under their

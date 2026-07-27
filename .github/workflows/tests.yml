@@ -1,0 +1,201 @@
+name: Tests
+
+# The cheap gate that fires on EVERY push. build.yml only runs on pull
+# requests and builds the whole AppImage (~15 min), so between releases
+# nothing was compiling the tree or running ctest at all - the ten QtTest
+# targets in tests/ existed but no machine ever ran them.
+#
+# This job compiles the full app with every optional dependency enabled
+# (so the HAVE_* guarded code compiles too, not just the default path) and
+# then runs ctest. Qt and the two source-built optional libs are cached, so
+# a warm run is a compile plus half a second of tests.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the still-running check of the
+# previous commit - only the newest commit's result matters.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Pinned so the optional-prefix cache key is stable and a bumped tag
+  # invalidates it by itself.
+  QT_VERSION: "6.8.3"
+  ECM_TAG: v6.10.0
+  LAYERSHELL_TAG: v6.3.5
+  KGUIADDONS_TAG: v6.10.0
+  ZXING_TAG: v2.2.1
+  PLASMA_PROTOCOLS_TAG: v1.16.0
+
+jobs:
+  ctest:
+    name: Build + unit tests
+    # Same runner as the release AppImage build, so a green run here means
+    # the toolchain that ships is the toolchain that was tested.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install host dependencies
+        run: |
+          sudo apt-get update
+          # Every optional dependency the tree probes for is installed, so a
+          # syntax error inside HAVE_PIPEWIRE / HAVE_TESSERACT / HAVE_LIBINPUT
+          # / the kit's X11 grabber fails here instead of at release time.
+          sudo apt-get install -y --no-install-recommends \
+            cmake ninja-build g++ pkg-config \
+            libpipewire-0.3-dev \
+            libtesseract-dev libleptonica-dev \
+            libinput-dev libudev-dev \
+            libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
+            libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
+            libwayland-dev extra-cmake-modules wayland-protocols
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Restore source-built optional libs
+        id: optprefix
+        uses: actions/cache@v4
+        with:
+          path: lsq-prefix
+          key: optprefix-${{ runner.os }}-qt${{ env.QT_VERSION }}-ecm${{ env.ECM_TAG }}-lsq${{ env.LAYERSHELL_TAG }}-kga${{ env.KGUIADDONS_TAG }}-zxing${{ env.ZXING_TAG }}-pwp${{ env.PLASMA_PROTOCOLS_TAG }}
+
+      - name: Build the optional libs Ubuntu 22.04 has no usable package for
+        # Four features would otherwise never be compiled by this job:
+        #   HAVE_LAYERSHELL      on-top notification card, overlay over a
+        #                        fullscreen window, preview pin
+        #   HAVE_KGUIADDONS      Klipper clipboard history (issue #51)
+        #   HAVE_ZXING           QR/barcode decode inside the OCR path
+        #   HAVE_KWIN_SCREENCAST KWin-native recording (no portal dialog)
+        # Jammy has no package matching the aqt Qt (or, for the plasma
+        # protocols, none new enough), so they are source-built once and
+        # cached - a warm run restores the prefix and skips this step.
+        if: steps.optprefix.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$ECM_TAG" https://invent.kde.org/frameworks/extra-cmake-modules.git
+          cmake -S extra-cmake-modules -B build-ecm -G Ninja \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
+            -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
+          cmake --install build-ecm
+          # plasma-wayland-protocols is XML plus a tiny cmake config; jammy
+          # ships 1.6, the kit requires >= 1.7 for zkde-screencast-v1 and
+          # layer-shell-qt $LAYERSHELL_TAG refuses to configure below 1.15.0.
+          # It has to be installed before layer-shell-qt is configured.
+          git clone --depth 1 --branch "$PLASMA_PROTOCOLS_TAG" https://invent.kde.org/libraries/plasma-wayland-protocols.git
+          cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --install build-pwp
+          git clone --depth 1 --branch "$LAYERSHELL_TAG" https://invent.kde.org/plasma/layer-shell-qt.git
+          cmake -S layer-shell-qt -B build-lsq -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_TESTING=OFF
+          cmake --build build-lsq --parallel
+          cmake --install build-lsq
+          git clone --depth 1 --branch "$KGUIADDONS_TAG" https://invent.kde.org/frameworks/kguiaddons.git
+          cmake -S kguiaddons -B build-kga -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_TESTING=OFF
+          cmake --build build-kga --parallel
+          cmake --install build-kga
+          git clone --depth 1 --branch "$ZXING_TAG" https://github.com/zxing-cpp/zxing-cpp.git
+          cmake -S zxing-cpp -B build-zxing -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
+          cmake --build build-zxing --parallel
+          cmake --install build-zxing
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: tests-${{ runner.os }}-qt${{ env.QT_VERSION }}
+
+      - name: Configure
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Check every optional feature really is compiled in
+        # A missing -dev package silently compiles a feature OUT and the job
+        # would still go green while covering less code than it claims - the
+        # exact way HAVE_ONNX was off in every shipped package for months.
+        # Read the real -D flags out of the generated build system rather
+        # than grepping configure messages, whose wording drifts.
+        run: |
+          have="$(grep -o 'HAVE_[A-Z0-9_]*' build/build.ninja | sort -u)"
+          echo "$have"
+          missing=0
+          for f in HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT \
+                   HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS \
+                   HAVE_X11 HAVE_X11_HOTKEYS HAVE_KWIN_SCREENCAST
+          do
+            grep -qx "$f" <<<"$have" || {
+              echo "::error::$f is OFF - this run does not compile the code behind it"
+              missing=1
+            }
+          done
+          exit "$missing"
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Run unit tests
+        env:
+          # The tests construct QGuiApplication and QQuickPaintedItem items;
+          # the runner has no display server.
+          QT_QPA_PLATFORM: offscreen
+        # --no-tests=error: if a refactor ever stops registering the test
+        # targets, an empty ctest run must fail rather than report success.
+        run: ctest --test-dir build --output-on-failure --no-tests=error
+
+  i18n:
+    name: Translations complete
+    # CLAUDE.md makes this a hard requirement: lrelease bakes the .qm into
+    # the qrc, so an unfinished or empty <translation> ships as a silent
+    # fallback to English. Nothing enforced it before this job.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail on unfinished or empty translations
+        run: |
+          status=0
+          for f in i18n/unisic_*.ts; do
+            unfinished="$(grep -c 'type="unfinished"' "$f" || true)"
+            empty="$(grep -c '<translation></translation>' "$f" || true)"
+            if [ "$unfinished" != "0" ] || [ "$empty" != "0" ]; then
+              echo "::error file=$f::$unfinished unfinished and $empty empty translations - fill them before merging"
+              status=1
+            fi
+          done
+          [ "$status" = "0" ] && echo "all five .ts files are complete"
+          exit "$status"

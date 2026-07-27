@@ -55,170 +55,26 @@ jobs:
             echo "::notice::Releasing v${version}."
           fi
 
+  # deb, rpm and arch are extracted to reusable workflows so build.yml's PR
+  # smoke check runs the identical build (no drift). Each uploads the same
+  # artifact name the release job downloads below.
   deb:
     name: Debian package
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: debian:trixie
-    steps:
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
-          # (HAVE_TESSERACT / HAVE_LAYERSHELL) — without the -dev packages here
-          # the shipped binary has OCR and the on-top layer-shell surfaces
-          # (custom notification card, overlay-over-fullscreen, preview pin)
-          # compiled out no matter what the user installs at runtime.
-          apt-get install -y --no-install-recommends \
-            ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
-            qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
-            qt6-tools-dev qt6-l10n-tools \
-            libpipewire-0.3-dev \
-            libtesseract-dev libleptonica-dev libzxing-dev \
-            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev
+    uses: ./.github/workflows/deb.yml
 
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build DEB
-        run: |
-          cmake -B build-deb -G Ninja \
-            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-            -DCPACK_GENERATOR=DEB
-          cmake --build build-deb --parallel
-          cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
-          dpkg-deb --field dist/*.deb Depends Recommends
-          apt-get install -y --no-install-recommends ./dist/*.deb
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-deb
-          path: dist/*.deb
-          if-no-files-found: error
-
-  # The rpm asset is FEDORA-ONLY, deliberately: QML type registration links
-  # Qt PRIVATE API symbols (QQmlPrivate via qt_add_qml_module), so a binary
-  # rpm hard-requires the EXACT Qt minor it was built against —
-  # libQt6Qml.so.6(Qt_6.11_PRIVATE_API) from fedora:latest can never resolve
-  # on openSUSE's Qt, and one rpm across distros is impossible by
-  # construction. openSUSE ships from the OBS repos instead (TW + Leap 16,
-  # auto-rebuilt when TW's dependencies move — see packaging/obs/README.md);
-  # a COPR suse lane was tried (2026-07) and reverted after COPR's Pulp
-  # storage migration broke the opensuse chroots at mock-bootstrap time.
   rpm:
     name: RPM (Fedora)
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: fedora:latest
-    steps:
-      - name: Install build dependencies
-        run: |
-          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
-          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) — see the deb job comment.
-          dnf install -y \
-            ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
-            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-            qt6-qttools-devel \
-            pipewire-devel \
-            tesseract-devel leptonica-devel zxing-cpp-devel \
-            layer-shell-qt-devel wayland-devel
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build RPM
-        run: |
-          cmake -B build-rpm -G Ninja \
-            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-            -DCPACK_GENERATOR=RPM
-          cmake --build build-rpm --parallel
-          cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
-          # Install gate: resolves the runtime Requires against Fedora repos
-          # and runs the COPR %post (self-registration) in the container.
-          dnf install -y ./dist/*.rpm
-          test -e /etc/yum.repos.d/unisic-copr.repo
-          for f in dist/*.x86_64.rpm; do
-            mv "$f" "${f%.x86_64.rpm}.fedora.x86_64.rpm"
-          done
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-rpm-fedora
-          path: dist/*.rpm
-          if-no-files-found: error
+    uses: ./.github/workflows/rpm.yml
 
   arch:
     name: Arch package
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: archlinux:base-devel
-    steps:
-      - name: Install build dependencies
-        run: |
-          pacman -Sy --noconfirm archlinux-keyring
-          pacman -Syu --noconfirm --needed \
-            ca-certificates git base-devel cmake ninja pkgconf \
-            qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
-            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
-            tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kguiaddons
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build Arch package
-        run: |
-          version_line=""
-          while IFS= read -r line; do
-            if [[ "$line" == project\(unisic\ VERSION* ]]; then
-              version_line="$line"
-              break
-            fi
-          done < CMakeLists.txt
-          if [[ -z "$version_line" ]]; then
-            printf 'Could not read project version from CMakeLists.txt\n' >&2
-            exit 1
-          fi
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
-          # git archive skips submodules — archive the superproject and the
-          # kit separately, concatenate the (uncompressed) tars, then gzip.
-          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar --prefix="unisic-${version}/" -o /tmp/unisic-src.tar HEAD
-          git -C external/unisic-kit -c safe.directory="$GITHUB_WORKSPACE/external/unisic-kit" archive --format=tar --prefix="unisic-${version}/external/unisic-kit/" -o /tmp/unisic-kit-src.tar HEAD
-          tar --concatenate --file=/tmp/unisic-src.tar /tmp/unisic-kit-src.tar
-          gzip -c /tmp/unisic-src.tar > "packaging/arch/unisic-${version}.tar.gz"
-          # PKGBUILD carries a literal pkgver (OBS's server-side parser can't
-          # expand ${var:-default}); inject the CMakeLists version here.
-          sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
-          useradd -m builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
-          mkdir -p dist
-          cp packaging/arch/*.pkg.tar.zst dist/
-          # Install gate: runs unisic.install's post_install in the container.
-          # Either outcome is valid — repo added (container keyring is
-          # populated, so the key import should succeed) or the printed
-          # fallback (uninitialized keyring). INVALID is the half-state:
-          # repo entry present without the trusted key.
-          pacman -U --noconfirm dist/*.pkg.tar.zst
-          if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
-            pacman-key --list-keys E5057FCB0F3DF876 >/dev/null
-            pacman -Sy   # the registered OBS repo must actually resolve
-          else
-            echo "post_install took the manual-instructions fallback (no repo entry) — OK"
-          fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-arch
-          path: dist/*.pkg.tar.zst
-          if-no-files-found: error
+    uses: ./.github/workflows/arch.yml
 
   appimage:
     name: AppImage
@@ -228,6 +84,21 @@ jobs:
     # identical build (no drift). Uploads the unisic-appimage artifact the
     # release job downloads below.
     uses: ./.github/workflows/appimage.yml
+
+  flatpak:
+    name: Flatpak bundle
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    # Deliberately NOT in the release job's `needs`: the KDE runtime plus an
+    # ffmpeg built from source makes this the slowest job by far, and a Flatpak
+    # that fails to build must not hold back the packages that did. The bundle
+    # is attached afterwards by flatpak-asset.
+    #
+    # local: true builds this checkout instead of the tag the manifest pins -
+    # v<version> does not exist until the release job below creates it.
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      local: true
 
   release:
     name: GitHub Release
@@ -258,9 +129,16 @@ jobs:
       #               release rpm: it installs from the OBS repos (README)
       #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
       #   AppImage  → self-updates via the embedded zsync info
+      #   .flatpak  → attached by the flatpak-asset job, which runs after this
+      #               one; install.sh installs from it until the Flathub
+      #               listing is live, then moves the install to that remote
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
+          # The pattern is what keeps the Flatpak bundle out: that job may well
+          # still be running, and whether it happened to finish first must not
+          # decide which assets a release carries.
+          pattern: unisic-*
           path: dist
           merge-multiple: true
 
@@ -292,6 +170,29 @@ jobs:
             --title "Unisic ${VERSION}" \
             --notes-file NOTES.md "${prerelease[@]}"
 
+  flatpak-asset:
+    name: Attach the Flatpak bundle
+    # Both: `release` for the release to attach to, `flatpak` for the bundle.
+    needs:
+      - check
+      - release
+      - flatpak
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: dist
+
+      - name: Upload it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${VERSION}" dist/*.flatpak --clobber
+
   obs:
     name: Trigger OBS rebuild
     # needs `release` so the v<version> tag exists when OBS's obs_scm service
@@ -318,3 +219,78 @@ jobs:
           echo "$resp"
           grep -q 'code="ok"' <<<"$resp" \
             || { echo "::error::OBS trigger did not return ok"; exit 1; }
+
+  aur:
+    name: AUR
+    # After `release`, because sync.sh downloads the published assets (the
+    # source tarball and the .pkg.tar.zst it repacks) to hash them - they do
+    # not exist until the release job has created the release.
+    needs:
+      - check
+      - release
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - name: Install tooling
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed git openssh namcap pacman-contrib
+
+      - uses: actions/checkout@v4
+
+      # makepkg refuses to run as root, and the container is root. Everything
+      # below therefore runs as `builder`, which needs passwordless sudo for
+      # makepkg -s to install build dependencies.
+      - name: Create the build user
+        run: |
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Configure SSH for the AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          if [[ -z "$AUR_SSH_KEY" ]]; then
+            echo "::error::AUR_SSH_KEY secret is not configured (see packaging/aur/README.md)"
+            exit 1
+          fi
+          install -d -m 700 -o builder -g builder /home/builder/.ssh
+          printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
+          # The host key is PINNED rather than ssh-keyscan'd: a keyscan trusts
+          # whatever answers on the day, which is exactly the thing a known
+          # hosts file exists to prevent.
+          cat > /home/builder/.ssh/known_hosts <<'EOF'
+          aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN
+          EOF
+          cat > /home/builder/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+              User aur
+              IdentityFile ~/.ssh/aur
+              IdentitiesOnly yes
+          EOF
+          chown -R builder:builder /home/builder/.ssh
+          chmod 600 /home/builder/.ssh/aur /home/builder/.ssh/config
+          chmod 644 /home/builder/.ssh/known_hosts
+
+      - name: Publish to the AUR
+        run: |
+          # Pre-releases keep out of the AUR: an AUR package with no explicit
+          # channel is understood to be the stable one, and a helper would push
+          # a beta onto every user who typed `paru -Syu`. The release job marks
+          # these the same way - a letter anywhere in the version.
+          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+            echo "::notice::${VERSION} is a pre-release - leaving the AUR on the last stable version"
+            exit 0
+          fi
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -lc "
+            set -e
+            git config --global user.name 'Unisic release bot'
+            git config --global user.email 'noreply@github.com'
+            cd '$GITHUB_WORKSPACE/packaging/aur'
+            ./sync.sh --version '$VERSION' --check bin --push
+          "

@@ -24,11 +24,30 @@ Popup {
 
     parent: Overlay.overlay
     anchors.centerIn: parent
+    // Centred, so the WINDOW is its anchor - the containment rule is the one
+    // every flyout follows, see UFlyout.qml. The width gutter below is its own,
+    // and wider than UFlyout.margin on purpose: a sheet that hugs the window
+    // sides reads as a panel.
+    margins: UFlyout.margin
     modal: true
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
     width: Math.min(560, parent ? parent.width - 2 * Theme.spacingXL : 560)
-    readonly property real maxBodyHeight: (parent ? parent.height : 600) * 0.62
+    // Everything in the sheet that is NOT the notes: the header, the two 1px
+    // dividers, the footer and the four Column gaps between the five visible
+    // rows. Read off the items themselves - each has an explicit height that
+    // does not depend on the body, so this can never become a binding loop and
+    // never drifts when one of them is restyled.
+    readonly property real chromeHeight: headerRow.height + divTop.height + divBottom.height
+                                         + footerRow.height + 4 * sheetCol.spacing
+    // The notes scroller gets whatever the window leaves once the sheet is
+    // capped by the containment rule (UFlyout rule 3: shrink and scroll, never
+    // grow past an edge). It used to be a flat 62% of the window height, which
+    // both wasted room in a tall window and only happened to be small enough to
+    // fit in a short one.
+    readonly property real maxBodyHeight:
+        Math.max(120, UFlyout.fitHeight(root.parent, root.parent ? root.parent.height : 600)
+                      - root.topPadding - root.bottomPadding - root.chromeHeight)
     padding: Theme.spacingXL
     topPadding: Theme.spacingL
 
@@ -120,10 +139,16 @@ Popup {
     }
 
     contentItem: Column {
+        id: sheetCol
+        // Accessible only attaches to an Item, so the dialog identity lives on
+        // the content column, not on the Popup itself.
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("What's new in Unisic %1").arg(root.version)
         spacing: Theme.spacingM
 
         // Header: icon tile + title + version pill on the left, language toggle right.
         Item {
+            id: headerRow
             width: parent.width
             height: 40
 
@@ -188,8 +213,10 @@ Popup {
                         model: [{ code: "en", label: qsTr("EN") },
                                 { code: "pl", label: qsTr("PL") }]
                         delegate: Rectangle {
+                            id: langChip
                             required property var modelData
                             readonly property bool selected: root.lang === modelData.code
+                            function _activate() { root.lang = langChip.modelData.code }
                             width: 40; height: 22; radius: 11
                             color: selected ? Theme.accent : "transparent"
                             Behavior on color { ColorAnimation { duration: Theme.animFast } }
@@ -203,15 +230,35 @@ Popup {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.lang = parent.modelData.code
+                                onClicked: langChip._activate()
                             }
+
+                            activeFocusOnTab: true
+                            Keys.onSpacePressed: (e) => UKeys.activate(e, langChip._activate)
+                            Keys.onReturnPressed: (e) => UKeys.activate(e, langChip._activate)
+                            Keys.onEnterPressed: (e) => UKeys.activate(e, langChip._activate)
+                            Accessible.role: Accessible.RadioButton
+                            // The spoken name spells the language out, but it
+                            // still CONTAINS the two letters on the chip: a name
+                            // that drops the visible label is one a voice-control
+                            // user cannot say ("click PL" would match nothing).
+                            // Composed, not a separate string, so the parenthesis
+                            // follows whatever the chip is translated to.
+                            Accessible.name: (modelData.code === "pl" ? qsTr("Polish")
+                                                                      : qsTr("English"))
+                                             + " (" + modelData.label + ")"
+                            Accessible.focusable: langChip.activeFocusOnTab
+                            Accessible.checkable: true
+                            Accessible.checked: selected
+                            Accessible.onPressAction: langChip._activate()
+                            UFocusRing { inset: 0 }
                         }
                     }
                 }
             }
         }
 
-        Rectangle { width: parent.width; height: 1; color: Theme.divider }
+        Rectangle { id: divTop; width: parent.width; height: 1; color: Theme.divider }
 
         // Empty state.
         Column {
@@ -369,27 +416,44 @@ Popup {
             }
         }
 
-        Rectangle { width: parent.width; height: 1; color: Theme.divider }
+        Rectangle { id: divBottom; width: parent.width; height: 1; color: Theme.divider }
 
         // Footer: release-history link left, dismiss right.
         Item {
+            id: footerRow
             width: parent.width
             height: 32
 
             Text {
+                id: historyLink
                 anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Full release history →")
                 color: Theme.accent
                 font.pixelSize: Theme.fontS
                 font.underline: historyMouse.containsMouse
+
+                function _open() { Qt.openUrlExternally("https://github.com/unisic/unisic/releases") }
+
                 MouseArea {
                     id: historyMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: Qt.openUrlExternally("https://github.com/unisic/unisic/releases")
+                    onClicked: historyLink._open()
                 }
+
+                activeFocusOnTab: true
+                Keys.onSpacePressed: (e) => UKeys.activate(e, historyLink._open)
+                Keys.onReturnPressed: (e) => UKeys.activate(e, historyLink._open)
+                Keys.onEnterPressed: (e) => UKeys.activate(e, historyLink._open)
+                Accessible.role: Accessible.Link
+                Accessible.name: qsTr("Full release history")
+                Accessible.description: qsTr("Opens the releases page in your browser")
+                Accessible.focusable: historyLink.activeFocusOnTab
+                Accessible.onPressAction: historyLink._open()
+                // Standalone text link - see THE INSET RULE in UFocusRing.qml.
+                UFocusRing { hostRadius: Theme.radiusS; inset: -3 }
             }
 
             UButton {

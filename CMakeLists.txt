@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.7.5 LANGUAGES CXX)
+project(unisic VERSION 0.8 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.7.5")
+set(UNISIC_VERSION_STRING "0.8")
 
 include(GNUInstallDirs)
 
@@ -77,9 +77,13 @@ qt_add_executable(unisic
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
-    src/hotkeys/ShortcutKeyMap.h
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    # Diagnostic log + crash report. CrashHandler.cpp is
+    # async-signal-safe-only code; see its header before touching it.
+    src/diag/DiagLog.h src/diag/DiagLog.cpp
+    src/diag/DiagRedact.h
+    src/diag/CrashHandler.h src/diag/CrashHandler.cpp
     src/update/VersionCompare.h
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
@@ -153,6 +157,9 @@ else()
     message(WARNING "libinput/libudev not found — click capture (ClickCapture) will be unavailable")
 endif()
 
+# Native X11 global hotkeys (X11Hotkeys) live in unisic-kit next to the X11 frame
+# grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
+
 if(TESSERACT_FOUND)
     target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
     target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT)
@@ -219,7 +226,6 @@ qt_add_qml_module(unisic
         qml/TrimWindow.qml
         qml/pages/CapturePage.qml
         qml/pages/RecordPage.qml
-        qml/pages/GifPage.qml
         qml/pages/EditPage.qml
         qml/pages/HistoryPage.qml
         qml/pages/DestinationsPage.qml
@@ -318,7 +324,36 @@ install(TARGETS unisic RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 # see packaging/obs/README.md).
 install(FILES packaging/obs/home_unisic.key
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME obs-signing-key.asc)
-install(FILES resources/app.unisic.Unisic.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+# Man page. Generated so the version in its header cannot drift from
+# UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
+# was last hand-edited. It is the ONLY CLI documentation Unisic has - there is
+# no --help - and Debian's linters flag a binary that ships without one.
+string(TIMESTAMP UNISIC_MAN_DATE "%Y-%m-%d" UTC)
+configure_file(resources/unisic.1.in ${CMAKE_CURRENT_BINARY_DIR}/unisic.1 @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
+    DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+
+# The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
+# restricted interfaces this app declares. KWin authorizes a caller by
+# comparing QFileInfo(splitCommand(Exec).first()).canonicalFilePath() against
+# /proc/<pid>/exe: a bare "unisic" is resolved against KWIN's working
+# directory, finds nothing, and canonicalFilePath() returns an empty string
+# that can never match. Every KDE app that holds one of these interfaces
+# installs an absolute Exec for exactly this reason (Spectacle installs
+# ${KDE_INSTALL_FULL_BINDIR}/spectacle). Dev builds already got this right by
+# accident - ensureDesktopFile() writes applicationFilePath() - which is why
+# the silent KWin capture path worked here and on no packaged install.
+#
+# UNISIC_DESKTOP_EXEC is overridable because the AppImage/tarball AppDir is
+# relocatable: an absolute /usr/bin path baked into the AppDir would point at
+# the host system, and the sandboxed/portable channels cannot use the KWin
+# interfaces anyway (the exe lives on a transient mount or inside /app).
+set(UNISIC_DESKTOP_EXEC "${CMAKE_INSTALL_FULL_BINDIR}/unisic"
+    CACHE STRING "Exec= line written into the installed .desktop file")
+configure_file(resources/app.unisic.Unisic.desktop.in
+    ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES resources/app.unisic.Unisic.metainfo.xml DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
 install(FILES resources/icons/unisic.svg
     DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
@@ -405,11 +440,13 @@ if(BUILD_TESTING)
 
     qt_add_executable(unisic_shortcut_binder_test
         tests/ShortcutBinderTest.cpp
-        src/hotkeys/ShortcutKeyMap.h
+        external/unisic-kit/src/hotkeys/ShortcutKeyMap.h
         src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     )
     target_link_libraries(unisic_shortcut_binder_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
-    target_include_directories(unisic_shortcut_binder_test PRIVATE src/hotkeys)
+    # ShortcutKeyMap.h moved into the kit; ShortcutBinder includes it by kit path.
+    target_include_directories(unisic_shortcut_binder_test
+        PRIVATE src/hotkeys external/unisic-kit/src)
     add_test(NAME unisic_shortcut_binder_test COMMAND unisic_shortcut_binder_test)
 
     qt_add_executable(unisic_version_compare_test
@@ -497,5 +534,13 @@ if(BUILD_TESTING)
     add_test(NAME unisic_settings_persistence_test COMMAND unisic_settings_persistence_test)
     # The test re-execs itself (--verify-child) for a fresh-process read-back.
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_diag_redact_test
+        tests/DiagRedactTest.cpp
+        src/diag/DiagRedact.h
+    )
+    target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_diag_redact_test PRIVATE src)
+    add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
 
 endif()

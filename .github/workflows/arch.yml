@@ -1,0 +1,95 @@
+name: Arch package
+
+# Reusable single source of truth for the Arch package. Builds it and uploads
+# it as the `unisic-arch` artifact, together with the complete source tarball
+# (the only published tarball that carries external/unisic-kit). Called by:
+#   - build.yml   -> PR smoke check: does the package still build and install?
+#   - release.yml -> produces the published release assets.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Release
+  UNISIC_BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  arch:
+    name: Arch package
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed \
+            ca-certificates git base-devel cmake ninja pkgconf \
+            qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
+            plasma-wayland-protocols \
+            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
+            tesseract leptonica layer-shell-qt wayland zxing-cpp \
+            kguiaddons libx11 libxext libxfixes libxcb
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Arch package
+        run: |
+          version_line=""
+          while IFS= read -r line; do
+            if [[ "$line" == project\(unisic\ VERSION* ]]; then
+              version_line="$line"
+              break
+            fi
+          done < CMakeLists.txt
+          if [[ -z "$version_line" ]]; then
+            printf 'Could not read project version from CMakeLists.txt\n' >&2
+            exit 1
+          fi
+          version="${version_line#*VERSION }"
+          version="${version%% *}"
+          # git archive skips submodules - archive the superproject and the
+          # kit separately, concatenate the (uncompressed) tars, then gzip.
+          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar --prefix="unisic-${version}/" -o /tmp/unisic-src.tar HEAD
+          git -C external/unisic-kit -c safe.directory="$GITHUB_WORKSPACE/external/unisic-kit" archive --format=tar --prefix="unisic-${version}/external/unisic-kit/" -o /tmp/unisic-kit-src.tar HEAD
+          tar --concatenate --file=/tmp/unisic-src.tar /tmp/unisic-kit-src.tar
+          gzip -c /tmp/unisic-src.tar > "packaging/arch/unisic-${version}.tar.gz"
+          # PKGBUILD carries a literal pkgver (OBS's server-side parser can't
+          # expand ${var:-default}); inject the CMakeLists version here.
+          sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
+          useradd -m builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
+          mkdir -p dist
+          cp packaging/arch/*.pkg.tar.zst dist/
+          # The complete source tarball ships as a release asset too: it is the
+          # only published tarball that carries external/unisic-kit, so it is
+          # what the AUR `unisic` recipe (and anyone building from source)
+          # fetches. The portable bundle is unisic-<version>-x86_64.tar.gz, so
+          # the two names never collide.
+          cp "packaging/arch/unisic-${version}.tar.gz" dist/
+          # Install gate: runs unisic.install's post_install in the container.
+          # Either outcome is valid - repo added (container keyring is
+          # populated, so the key import should succeed) or the printed
+          # fallback (uninitialized keyring). INVALID is the half-state:
+          # repo entry present without the trusted key.
+          pacman -U --noconfirm dist/*.pkg.tar.zst
+          if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
+            pacman-key --list-keys E5057FCB0F3DF876 >/dev/null
+            pacman -Sy   # the registered OBS repo must actually resolve
+          else
+            echo "post_install took the manual-instructions fallback (no repo entry) - OK"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-arch
+          path: |
+            dist/*.pkg.tar.zst
+            dist/unisic-*.tar.gz
+          if-no-files-found: error

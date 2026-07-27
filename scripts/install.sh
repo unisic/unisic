@@ -22,6 +22,9 @@
 #   AppImage / portable .tar.gz  atomic desktops (Silverblue/Bazzite/…) and any
 #                             distro with no native package — installed in $HOME,
 #                             no password needed, self-updating.
+#   *.flatpak / Flathub       chosen from the menu, or an install that already
+#                             is a Flatpak (the sandbox can never update itself,
+#                             so this script does it from the host side).
 # Native packages self-register Unisic's OBS/COPR update repo, so later versions
 # arrive through the system's normal updates; portable installs re-run this to
 # update (or turn on the daily auto-update timer in "More options").
@@ -37,7 +40,7 @@ UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
 # --- state --------------------------------------------------------------
 ACTION="install"     # install | uninstall | autoupdate-on | autoupdate-off
-CHANNEL="auto"       # auto | appimage | tarball | native
+CHANNEL="auto"       # auto | appimage | tarball | native | flatpak
 REQ_VERSION=""       # a tag chosen in the version picker (NOT named VERSION —
                      # sourcing /etc/os-release would clobber a var of that name)
 PREFIX="${HOME}/.local"
@@ -51,9 +54,10 @@ SELF_UPDATE=0        # 1 in the private timer-driven update mode
 MENU_CHOICE=""
 
 # The ONLY non-interactive entry:
-#   install.sh --self-update <appimage|tarball|native> <prefix> [pre]
-# The auto-update systemd timer uses the portable channels (appimage|tarball),
-# which need no password. `native` is the in-app "Install now" path: Unisic runs
+#   install.sh --self-update <appimage|tarball|native|flatpak> <prefix> [pre]
+# The auto-update systemd timer uses the channels that need no password
+# (appimage|tarball, and flatpak when it is a --user install). `native` is the
+# in-app "Install now" path: Unisic runs
 # it inside a terminal it spawned, so the sudo password prompt has somewhere to
 # go — it reinstalls the matching .deb/.rpm/.pkg for the running distro.
 # Anything else ignores its arguments and opens the menu.
@@ -99,6 +103,88 @@ _cleanup() {
 trap _cleanup EXIT
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# --- AUR ---------------------------------------------------------------
+# pacman itself can NEVER update an AUR package: the AUR hosts build recipes,
+# not built packages, so there is no sync database for `pacman -Syu` to read.
+# A helper is the only thing that updates one, by diffing foreign packages
+# (`pacman -Qm`) against the AUR by name. yay is the best known; it is nowhere
+# near the only one, so probe the field in rough order of current popularity.
+AUR_HELPERS='paru yay pikaur trizen aura pacaur yaourt'
+
+aur_helper() {
+    local h
+    # A helper refuses to run as root (it builds packages), so under sudo
+    # there is no helper to speak of even when one is installed.
+    [ "$(id -u)" -eq 0 ] && return 1
+    for h in $AUR_HELPERS; do have "$h" && { printf '%s' "$h"; return 0; }; done
+    return 1
+}
+
+# Runs "<helper> install <pkg>". aura is the odd one out: it splits AUR
+# operations onto -A, while everything else in the list overloads -S.
+aur_install() {
+    local helper="$1" pkg="$2"
+    case "$helper" in
+        aura) "$helper" -A --noconfirm "$pkg" ;;
+        *)    "$helper" -S --noconfirm "$pkg" ;;
+    esac
+}
+
+# True when the installed Unisic belongs to the AUR, so this installer must
+# keep its hands off it. Deliberately NOT `pacman -Qm unisic`: a directly
+# downloaded .pkg.tar.zst whose repo registration failed is foreign too, and
+# that one IS ours to replace.
+aur_owned() {
+    if [ -r /usr/share/unisic/install-channel ] \
+       && grep -qx 'aur' /usr/share/unisic/install-channel 2>/dev/null; then
+        return 0
+    fi
+    have pacman && pacman -Qq unisic-bin >/dev/null 2>&1
+}
+
+# --- Flatpak -----------------------------------------------------------
+# The sandboxed app can never update itself: doing so needs
+# --talk-name=org.freedesktop.Flatpak, which is a sandbox escape and rejected
+# by Flathub. This script runs on the host, so it can - and Unisic's Updates
+# pane says so instead of offering a button that could not work.
+FLATPAK_ID="app.unisic.Unisic"
+FLATHUB_REPO="https://dl.flathub.org/repo/flathub.flatpakrepo"
+# Overridable so the "Flathub is live" branch can be exercised (with a file://
+# URL) while the listing is still a 404.
+FLATHUB_API="${UNISIC_FLATHUB_API:-https://flathub.org/api/v2/appstream/${FLATPAK_ID}}"
+
+# Which flatpak installation owns Unisic: "user" or "system". Fails when it is
+# not installed as a Flatpak at all.
+flatpak_scope() {
+    have flatpak || return 1
+    if flatpak info --user "$FLATPAK_ID" >/dev/null 2>&1; then printf 'user'; return 0; fi
+    if flatpak info --system "$FLATPAK_ID" >/dev/null 2>&1; then printf 'system'; return 0; fi
+    return 1
+}
+
+# One field of `flatpak info` ("Version", "Origin"), whose output is indented
+# "  Field: value" lines.
+flatpak_field() {   # <user|system> <field>
+    flatpak info "--$1" "$FLATPAK_ID" 2>/dev/null \
+        | awk -F': +' -v f="$2" '$1 ~ ("^ *" f "$") { print $2; exit }'
+}
+
+# A system-wide flatpak install is root's, so every change to it needs the
+# password; a --user one never does.
+fp_run() {   # <user|system> <flatpak args...>
+    local scope="$1"; shift
+    if [ "$scope" = system ]; then priv flatpak "$@"; else flatpak "$@"; fi
+}
+
+# Is Unisic published on Flathub yet? Until it is, the release bundle is the
+# only source there is; once it is, this is what moves a bundle install over to
+# the remote, after which plain `flatpak update` keeps it current.
+flathub_has_app() {
+    local body
+    body="$(fetch "$FLATHUB_API" 2>/dev/null)" || return 1
+    printf '%s' "$body" | grep -q "$FLATPAK_ID"
+}
 
 fetch() {   # curl or wget, to stdout
     if have curl; then curl -fsSL "$1"
@@ -149,15 +235,13 @@ session_kind() {
     else echo other; fi
 }
 
-# On X11, screenshots work but screen recording does not — say so plainly so a
-# missing feature is never mistaken for a bug.
+# On X11 everything works: screenshots via the portal/KWin, screen recording via
+# X11's own XShm grab, and global hotkeys (KGlobalAccel on KDE, XGrabKey
+# elsewhere). Confirm it so an X11 user is not left guessing.
 x11_notice() {
     printf '\n'
-    warn "You are using an X11 session — one Unisic feature will not work here."
-    printf '    \033[32m+\033[0m Screenshots, annotation, and uploading work normally.\n'
-    printf '    \033[31mx\033[0m Screen recording (video and GIF) will NOT work on X11.\n'
-    printf '    To record your screen, log out and pick a \033[1mWayland\033[0m session on the\n'
-    printf '    login screen (often a small gear icon), then start Unisic there.\n'
+    printf '    \033[32m+\033[0m X11 session detected - screenshots, annotation, uploading,\n'
+    printf '      screen recording (video and GIF) and global hotkeys all work here.\n'
 }
 
 # Extract every browser_download_url from a release JSON blob on stdin, then
@@ -175,14 +259,30 @@ prestate() { if [ "$PRERELEASE" -eq 1 ]; then printf 'ON'; else printf 'OFF'; fi
 # Best-effort snapshot of what's installed now, for the menu's status line.
 # Prints "not-installed" or "Unisic <ver> installed (<kind>)". Local queries
 # only (no network) so opening the menu stays instant.
+# Is there a native package of Unisic installed right now? (Distro capability is
+# a different question - that one is $native_pm.)
+native_installed() {
+    if have pacman && { pacman -Qq unisic >/dev/null 2>&1 || pacman -Qq unisic-bin >/dev/null 2>&1; }; then return 0; fi
+    if have dpkg && dpkg -s unisic 2>/dev/null | grep -q '^Status: install ok installed'; then return 0; fi
+    if have rpm && rpm -q unisic >/dev/null 2>&1; then return 0; fi
+    return 1
+}
+
 installed_status() {
-    local v="" kind="" link tgt
-    if have pacman && pacman -Qq unisic >/dev/null 2>&1; then
-        v="$(pacman -Q unisic 2>/dev/null | awk '{print $2}')"; kind="system package"
+    local v="" kind="" link tgt p sc
+    if have pacman && { pacman -Qq unisic >/dev/null 2>&1 || pacman -Qq unisic-bin >/dev/null 2>&1; }; then
+        p=unisic; pacman -Qq unisic >/dev/null 2>&1 || p=unisic-bin
+        v="$(pacman -Q "$p" 2>/dev/null | awk '{print $2}')"
+        # Which channel owns it decides what the menu may offer, so name it.
+        if aur_owned; then kind="AUR package"; else kind="system package"; fi
     elif have dpkg && dpkg -s unisic 2>/dev/null | grep -q '^Status: install ok installed'; then
         v="$(dpkg-query -W -f='${Version}' unisic 2>/dev/null)"; kind="system package"
     elif have rpm && rpm -q unisic >/dev/null 2>&1; then
         v="$(rpm -q --qf '%{VERSION}' unisic 2>/dev/null)"; kind="system package"
+    fi
+    if [ -z "$kind" ] && sc="$(flatpak_scope)"; then
+        kind="Flatpak"
+        v="$(flatpak_field "$sc" Version)"
     fi
     if [ -z "$kind" ]; then
         link="${PREFIX}/bin/unisic"
@@ -203,6 +303,7 @@ tui_apply() {
     case "$1" in
         native)         ACTION="install";   CHANNEL="auto" ;;
         appimage)       ACTION="install";   CHANNEL="appimage" ;;
+        flatpak)        ACTION="install";   CHANNEL="flatpak" ;;
         uninstall)      ACTION="uninstall" ;;
         purge)          ACTION="uninstall"; PURGE=1 ;;
         autoupdate-on)  ACTION="autoupdate-on" ;;
@@ -322,20 +423,29 @@ tui_run() {
         qhint=back
         status_line="Install or update"
         status_style=dim
-        ids=(native appimage pickver __back)
+        ids=(native appimage)
         labels=(
             "Install or update Unisic          (recommended)"
             "Install the portable version      (no password)"
-            "Install a specific (older) version"
-            "Back"
         )
         helps=(
             "Installs Unisic (or updates it). Asks for your password."
             "Puts Unisic in your home folder. No password needed."
-            "Pick an exact, older version from a list."
-            "Return to the main menu."
         )
-        hdr=("" "" "" "-")
+        hdr=("" "")
+        # Only offered where Flatpak exists: there is nothing this installer
+        # could do about a missing flatpak command that the user's own software
+        # manager does not do better.
+        if have flatpak; then
+            ids+=(flatpak)
+            labels+=("Install the Flatpak version       (sandboxed)")
+            helps+=("Installs Unisic as a Flatpak. No password needed.")
+            hdr+=("")
+        fi
+        ids+=(pickver __back)
+        labels+=("Install a specific (older) version" "Back")
+        helps+=("Pick an exact, older version from a list." "Return to the main menu.")
+        hdr+=("" "-")
     }
 
     # Submenu: settings (both toggle in place / on select).
@@ -539,6 +649,18 @@ do_uninstall() {
             did=1
         fi
     fi
+    # A Flatpak install can sit next to any of the above, so this is its own
+    # check rather than another branch of the chain. --delete-data is what takes
+    # ~/.var/app/app.unisic.Unisic (settings and history live in there, not in
+    # ~/.config), so it only runs when the user asked to delete their settings.
+    local fp_scope fp_args
+    if fp_scope="$(flatpak_scope)"; then
+        say "Removing the Unisic Flatpak..."
+        fp_args=(uninstall -y "--${fp_scope}")
+        if [ "$PURGE" -eq 1 ]; then fp_args+=(--delete-data); fi
+        fp_run "$fp_scope" "${fp_args[@]}" "$FLATPAK_ID" || die "Couldn't remove the Unisic Flatpak."
+        did=1
+    fi
     if uninstall_portable; then
         say "Removed the portable copy of Unisic from your home folder."
         did=1
@@ -561,6 +683,7 @@ do_uninstall() {
 detect_portable_channel() {
     if ls "${PREFIX}"/lib/unisic/*.AppImage >/dev/null 2>&1; then echo appimage
     elif ls -d "${PREFIX}"/lib/unisic-*-x86_64 >/dev/null 2>&1; then echo tarball
+    elif flatpak_scope >/dev/null 2>&1; then echo flatpak
     else echo appimage; fi
 }
 
@@ -583,6 +706,14 @@ setup_autoupdate() {
             say "This install already updates automatically with your system — nothing to set up."
             return 0 ;;
     esac
+    # A Flatpak installed for all users belongs to root, so every update asks
+    # for the password - which a background timer has no way to answer.
+    if [ "$ch" = flatpak ] && [ "$(flatpak_scope || true)" = system ]; then
+        say "Unisic is installed as a Flatpak for all users here, and updating that asks for your"
+        say "  password every time, so it cannot run in the background. Your software centre"
+        say "  updates it instead, or run this installer again whenever you like."
+        return 0
+    fi
     if ! have systemctl || [ -z "${XDG_RUNTIME_DIR:-}" ]; then
         warn "Automatic updates need a background helper that isn't available here, so I'll skip it.
     You can update anytime by running this installer again."
@@ -732,8 +863,41 @@ install_rpm() {
 }
 
 install_arch() {
-    local url file
-    url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.pkg\.tar\.zst$')"
+    local url file helper
+    helper="$(aur_helper || true)"
+
+    # Already an AUR install: hand it back to the helper that owns it. Running
+    # `pacman -U` over it would swap the channel behind the user's back AND
+    # let the downloaded package's scriptlet add the OBS repo, leaving two
+    # things convinced they manage the same install.
+    if aur_owned; then
+        if [ -n "$helper" ]; then
+            say "Unisic came from the AUR here, so I'll update it with ${helper}."
+            aur_install "$helper" unisic-bin || native_fail
+            return
+        fi
+        die "This Unisic was installed from the AUR, and only an AUR helper can update it.
+    Run one of these instead (whichever you use):
+      paru -S unisic-bin
+      yay -S unisic-bin
+    Or remove it first (sudo pacman -R unisic-bin) and run this installer again."
+    fi
+
+    # Fresh install with a helper present: go through the AUR, because that is
+    # the channel Arch users expect to update from afterwards. unisic-bin is
+    # the same binary this script would have downloaded - it repacks this very
+    # release asset - so nothing is compiled and nothing is slower.
+    if [ -n "$helper" ]; then
+        say "Installing Unisic from the AUR with ${helper}... (from now on ${helper} updates it)"
+        if aur_install "$helper" unisic-bin; then
+            return
+        fi
+        warn "${helper} couldn't install it, so I'll fall back to the direct download."
+    fi
+
+    # Anchored on "unisic-<digit>" so the release's unisic-debug-*.pkg.tar.zst
+    # can never be the match head -n1 happens to pick.
+    url="$(printf '%s' "$RELEASE_JSON" | asset_url 'unisic-[0-9][^/]*\.pkg\.tar\.zst$')"
     [ -n "$url" ] || die "This release has no Arch package."
     file="${tmpdir}/$(basename "$url")"
     download "$url" "$file"
@@ -775,6 +939,68 @@ install_appimage() {
     ln -sf "$dest" "${bindir}/unisic"
 }
 
+install_flatpak() {
+    local scope flag origin="" cur="" url file args
+    have flatpak || die "This system doesn't have Flatpak installed, so there is nothing to install into.
+    Install it with your software manager (for example: sudo apt install flatpak), log out and
+    back in once, and run this installer again."
+
+    if scope="$(flatpak_scope)"; then
+        origin="$(flatpak_field "$scope" Origin)"
+        cur="$(flatpak_field "$scope" Version)"
+    else
+        scope=user      # a fresh install goes into the user's own installation
+    fi
+    flag="--${scope}"
+
+    # The app needs org.kde.Platform, which lives on Flathub - so the remote has
+    # to be configured even when the app itself arrives as a downloaded bundle.
+    fp_run "$scope" remote-add --if-not-exists "$flag" flathub "$FLATHUB_REPO" || true
+
+    # Flathub is the channel as soon as Unisic is published there. An install
+    # that already came from it just updates; a bundle install is moved over,
+    # and from then on the user's software centre updates Unisic like everything
+    # else. A specific older version is never on Flathub, so that one always
+    # takes the bundle path below.
+    if [ -z "$REQ_VERSION" ] && flathub_has_app; then
+        if [ "$origin" = flathub ]; then
+            say "Updating Unisic through Flathub..."
+            fp_run "$scope" update -y "$flag" "$FLATPAK_ID" \
+                || die "Flatpak couldn't update Unisic. Please try again in a moment."
+            return
+        fi
+        args=(install -y "$flag")
+        if [ -n "$origin" ]; then
+            say "Unisic is on Flathub now, so I'll move this install over to it."
+            args+=(--reinstall)
+        else
+            say "Installing Unisic from Flathub..."
+        fi
+        fp_run "$scope" "${args[@]}" flathub "$FLATPAK_ID" \
+            || die "Flatpak couldn't install Unisic from Flathub. Please try again in a moment."
+        return
+    fi
+
+    # Up to date before the asset is even looked for: a release that ships no
+    # bundle is not a reason to fail when there is nothing to install anyway.
+    if [ -z "$REQ_VERSION" ] && [ -n "$cur" ] && [ "$cur" = "$latest_ver" ]; then
+        say "You already have the newest Unisic (${latest_ver}) - nothing to do."
+        return
+    fi
+    url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.flatpak$')"
+    [ -n "$url" ] || die "This release has no Flatpak download."
+    file="${tmpdir}/$(basename "$url")"
+    download "$url" "$file"
+    say "Installing the Unisic Flatpak..."
+    # --reinstall over an existing one: a bundle carries no remote to update
+    # from, so replacing the installed copy is the only way a second bundle can
+    # land. Settings and history live in ~/.var/app and are left alone by it.
+    args=(install -y "$flag")
+    if [ -n "$origin" ]; then args+=(--reinstall); fi
+    fp_run "$scope" "${args[@]}" --bundle "$file" \
+        || die "Flatpak couldn't install the downloaded package. Please try again in a moment."
+}
+
 install_tarball() {
     local url tgz
     url="$(printf '%s' "$RELEASE_JSON" | asset_url 'x86_64\.tar\.gz$')"
@@ -814,9 +1040,15 @@ start_hint() {
 # --- dispatch -----------------------------------------------------------
 eff="$CHANNEL"
 if [ "$eff" = auto ]; then
-    if   [ -n "$native_pm" ];    then eff="native"
-    elif [ "$IS_ATOMIC" -eq 1 ]; then eff="appimage"
-    else                              eff="tarball"; fi
+    # An existing install decides before the distro does: a machine that already
+    # runs the Flatpak must get THAT one updated, not a second copy of Unisic
+    # installed beside it. A native package still wins over it, because that is
+    # the one the system's own updates keep current.
+    if   [ -n "$native_pm" ] && native_installed;  then eff="native"
+    elif flatpak_scope >/dev/null 2>&1;            then eff="flatpak"
+    elif [ -n "$native_pm" ];                      then eff="native"
+    elif [ "$IS_ATOMIC" -eq 1 ];                   then eff="appimage"
+    else                                                eff="tarball"; fi
 fi
 RESOLVED_CHANNEL="$eff"
 
@@ -843,6 +1075,8 @@ case "$eff" in
             say "Your Linux (${ID:-unknown}) has no ready-made package, so I'll install the portable version (no password)."
         fi
         install_tarball ;;
+    flatpak)
+        install_flatpak ;;
 esac
 
 # Restore the normal terminal, THEN print the summary so it stays on screen.
@@ -852,6 +1086,14 @@ say "✓ Thank you for installing Unisic!"
 if [ "$RESOLVED_CHANNEL" = native ]; then
     say "  Open it from your applications menu (search \"Unisic\"), or type:  unisic"
     say "  It updates automatically with the rest of your system."
+elif [ "$RESOLVED_CHANNEL" = flatpak ]; then
+    say "  Open it from your applications menu (search \"Unisic\")."
+    say "  Or type:  flatpak run ${FLATPAK_ID}"
+    if [ -f "${UNIT_DIR}/unisic-update.timer" ]; then
+        say "  Automatic updates are on - Unisic checks for a newer version once a day."
+    else
+        say "  To update later, just run this installer again."
+    fi
 else
     say "  Open it from your applications menu (search \"Unisic\")."
     start_hint

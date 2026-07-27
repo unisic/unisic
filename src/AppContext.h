@@ -28,6 +28,7 @@ class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
 class QQuickWindow;
+class QMimeData;
 class QScreen;
 class QTimer;
 class QProcess;
@@ -35,6 +36,7 @@ class CaptureManager;
 class OverlayController;
 class GlobalHotkeys;
 class PortalGlobalShortcuts;
+class X11Hotkeys;
 class GifRecorder;
 class OcrEngine;
 class AnnotationCanvas;
@@ -76,6 +78,14 @@ class AppContext : public QObject
     // those desktops with no screen-cast portal in sight.
     Q_PROPERTY(bool capPipeWireBuild READ capPipeWireBuild CONSTANT)
     Q_PROPERTY(bool capScreenCastPortal READ capScreenCastPortal NOTIFY recordingAvailableChanged)
+    // X11 session: frames come from XShm instead of the ScreenCast portal, so
+    // recording works on desktops that ship no portal backend at all (Cinnamon,
+    // MATE, XFCE on Xorg). CONSTANT: the QPA platform is fixed for the process.
+    Q_PROPERTY(bool capX11Capture READ capX11Capture CONSTANT)
+    // Window-source recording still needs the portal (or KWin) window picker -
+    // the X11 backend grabs a monitor rect and has no window source, so the
+    // Window button must stay disabled on an X11-only desktop.
+    Q_PROPERTY(bool capRecordWindowSource READ capRecordWindowSource NOTIFY recordingAvailableChanged)
     // No StatusNotifier host (GNOME without the AppIndicator extension, bare
     // wlroots): close must actually close, not hide into a tray that isn't there.
     Q_PROPERTY(bool trayAvailable READ trayAvailable NOTIFY trayAvailableChanged)
@@ -185,6 +195,8 @@ public:
     bool recordingAvailable() const;
     bool capPipeWireBuild() const;
     bool capScreenCastPortal() const;
+    bool capX11Capture() const;
+    bool capRecordWindowSource() const;
     bool trayAvailable() const { return m_tray != nullptr; }
     bool shortcutRecording() const { return m_shortcutRecording; }
     bool layerShellActive() const { return m_layerNotifier != nullptr; }
@@ -219,6 +231,17 @@ public:
     // are present. Zero telemetry — nothing leaves the machine on its own; the
     // user pastes this into an issue. Wired to the "Copy diagnostics" button.
     Q_INVOKABLE QString systemDiagnostics() const;
+    // systemDiagnostics() plus the previous run's crash report and the recent
+    // log. Separate from the plain one so "Copy diagnostics" stays a small,
+    // obviously safe paste and the bigger one is an explicit choice.
+    Q_INVOKABLE QString diagnosticsWithLog() const;
+    Q_INVOKABLE QString logFilePath() const;
+    Q_INVOKABLE bool hasPreviousCrash() const;
+    // Latched on the report's own content: the same crash never nags twice, a
+    // different one is reported again.
+    Q_INVOKABLE bool hasUnseenCrash() const;
+    Q_INVOKABLE void markCrashNoticeSeen();
+    Q_INVOKABLE void showLogInFileManager();
     // The optional runtime dependencies and whether each is satisfied, as a list
     // of {label, ok, warn, detail} maps for the first-run system check to render.
     // `warn` marks the ones whose absence actually degrades a core path (drives
@@ -264,11 +287,26 @@ public:
     // request an output stream of the cursor's screen, report the node id (or
     // the failure), close it. Non-interactive.
     Q_INVOKABLE void devTestKWinRecord();
+    Q_INVOKABLE void devTestX11Record();
+    Q_INVOKABLE void devTestX11Hotkeys();
+    Q_INVOKABLE void devTestDiagLog();
+    Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
     Q_INVOKABLE void devTestHotkeyBinds();
     Q_INVOKABLE void devTestUpload();
+    // The server editor's "Test upload": guard + a real curl transport against
+    // a scratch file:// target, plus the promise that nothing is persisted.
+    Q_INVOKABLE void devTestDestinationTest();
+    // Drag and drop import: the router behind the main window's DropArea.
+    Q_INVOKABLE void devTestImportDrop();
+    // Ctrl+V import: clipboard pixels and a copied file.
+    Q_INVOKABLE void devTestClipboardImport();
+    // The Record page's Video/GIF mode segment (a persisted setting, because
+    // the page Loader is destroyed on every navigation).
+    Q_INVOKABLE void devTestRecordPageMode();
     Q_INVOKABLE void devTestSettingsRoundTrip();
+    Q_INVOKABLE void devTestInstallChannel();
     Q_INVOKABLE void devTestCaptureSound();
     Q_INVOKABLE void devTestRecordingSound();
     Q_INVOKABLE void devTestRecordStartSound();
@@ -394,6 +432,27 @@ public:
     // by what it IS (editableKindFor), so picking an mp4 under "Images" still
     // opens the trim window instead of failing.
     Q_INVOKABLE void openFileForEditing(const QString &kind = {});
+    // THE router: a path already on disk goes to the window that can take it
+    // (image -> editor, recording -> trim window, anything else -> a toast).
+    // openFileForEditing, the main window's drop target and the clipboard
+    // paste all end here, so there is exactly one routing rule to maintain.
+    // NOT openFile(), which hands the path to the DESKTOP's default app.
+    Q_INVOKABLE void openPath(const QString &path);
+    // A drop payload that carries file references. Picks the first entry
+    // Unisic can actually open (the editor and the trim window are both
+    // single-document, so a whole folder would bury the desktop) and says out
+    // loud what happened to the rest. Remote urls are refused, not downloaded.
+    Q_INVOKABLE void openDroppedUrls(const QVariantList &urls);
+    // A drop that carries PIXELS instead of a file (a drag out of a browser).
+    // Returns false when the bytes are not a decodable image, so the caller
+    // can try the next offered mime type before giving up.
+    Q_INVOKABLE bool openImageData(const QByteArray &data);
+    // Ctrl+V in the main window: clipboard image -> a NEW editor document (no
+    // overwrite path, so Ctrl+S saves a fresh capture), else the first copied
+    // file url Unisic can open, through openPath() - the same rule a drop
+    // follows. Never fails silently. The routing itself lives in
+    // pasteMimeData(), which takes the payload from anywhere.
+    Q_INVOKABLE void pasteFromClipboard();
     // "image" | "video" | "" — which window (if any) can take this file. Split
     // out of openFileForEditing so the routing is checkable without a dialog.
     static QString editableKindFor(const QString &path);
@@ -584,12 +643,18 @@ signals:
     void recordingCapabilitiesChanged();
 
 private:
+    // The paste ROUTER, split from pasteFromClipboard() so a payload can be
+    // routed without going near QClipboard: pixels -> a new editor document,
+    // a local file url -> openPath(), anything else (and a null payload, which
+    // is what an empty clipboard hands over) -> a toast that says why.
+    void pasteMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
     QString autostartFilePath() const;
     QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
     bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
     void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
+    void requestPortalAutostart(bool on); // sandboxed path: org.freedesktop.portal.Background
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
@@ -613,6 +678,7 @@ private:
     int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
+    void bindX11Hotkeys();
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
@@ -624,9 +690,24 @@ private:
     // Windows (editor/preview) opened while the smoke test runs — the final
     // step closes them so F8 leaves no manual cleanup behind.
     QVector<QPointer<QQuickWindow>> m_smokeWindows;
+    // Same idea one scope down, for a dev CHECK that has to open real windows
+    // to assert anything (the import routing opens four editors). RAII, so an
+    // early "FAIL (...)" return still takes its windows with it.
+    bool m_collectCheckWindows = false;
+    QVector<QPointer<QQuickWindow>> m_checkWindows;
+    struct CheckWindowCollector {
+        explicit CheckWindowCollector(AppContext *ctx);
+        ~CheckWindowCollector();
+        AppContext *ctx;
+    };
     // Export -> verify all properties serialized -> import back. Returns a
     // "PASS (...)"/"FAIL (...)" line shared by the smoke test and dev button.
     QString settingsRoundTripCheck();
+    // Which packaging channel owns updates, and whether the update affordances
+    // agree with it. The AUR case is the one that can go wrong silently: the
+    // marker file is the only thing separating "your helper updates this" from
+    // an "Install now" button that would pacman -U over the helper's package.
+    QString installChannelCheck() const;
     // Loads the QML singleton and verifies the complete editor/overlay letter
     // mapping from the same ToolCatalog table the keyboard handlers consume.
     QString toolShortcutsCheck() const;
@@ -638,6 +719,28 @@ private:
     // destination without an ID fails fast with a message that says what to do
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
+    // The server editor's "Test upload" path (UploadManager::testDestination):
+    // an unusable form must be refused before any request goes out, a usable
+    // one must really travel the curl transport (scratch file:// target, so the
+    // check stays offline), and neither may persist anything. Async - `done`
+    // gets one summary line, shared by the smoke step and the dev button.
+    void destinationTestCheck(std::function<void(const QString &)> done);
+    // Second half of destinationTestCheck(), chained off the guard's answer.
+    // Split out precisely so the guard can WAIT for its answer instead of
+    // assuming an empty form is refused synchronously.
+    void destinationTestTransport(const QString &guard, int destsBefore,
+                                  std::function<void(const QString &)> done);
+    // Drop import: file payload, pixel payload, multi-file drop, and the four
+    // refusals (remote url, unsupported type, missing file, folder). Exercises
+    // the real router, so it opens - and then closes - real editor windows.
+    QString importDropCheck();
+    // Ctrl+V import: clipboard image, a copied file, several copied files,
+    // plain text and an empty clipboard. Feeds pasteMimeData() directly, so the
+    // real clipboard is neither read nor written - a dev check may not
+    // overwrite what the user has on it (see the note in the .cpp).
+    QString clipboardImportCheck();
+    // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
+    QString recordPageModeCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
     // Round-trips the desktop custom-shortcut writer on the real store (touches
@@ -773,7 +876,8 @@ private:
     UpdateChecker *m_updater = nullptr;
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
-    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | ""
+    X11Hotkeys *m_x11hotkeys = nullptr;
+    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
     GifRecorder *m_recorder;
     OcrEngine *m_ocr = nullptr;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
@@ -830,4 +934,16 @@ private:
     bool m_smokeRunning = false;
     QVector<std::function<void()>> m_smokeSteps;
     int m_smokeIdx = 0;
+    // F8 writes the clipboard several times over (copy last capture, the
+    // Klipper history hint, the canvas paste check), so the run snapshots what
+    // was on it first and the cleanup step puts it back: a dev harness may
+    // verify the clipboard, it may not eat what the user had on it. The copy is
+    // owned here until QClipboard/KSystemClipboard takes ownership again; an
+    // empty snapshot means the clipboard was empty and is cleared instead.
+    // What a restore CANNOT undo is Plasma's clipboard history, which keeps
+    // every entry the run copied - the smoke log says so.
+    std::unique_ptr<QMimeData> m_smokeClipboard;
+    QString m_smokeClipboardNote; // why there is no snapshot, for the log
+    void snapshotClipboardForSmoke();
+    QString restoreClipboardAfterSmoke();
 };

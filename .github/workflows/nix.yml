@@ -12,6 +12,8 @@ on:
       - nix/**
       - .github/workflows/nix.yml
   workflow_dispatch:
+  # Called by build.yml so a PR test-builds this packaging path too.
+  workflow_call:
 
 permissions:
   contents: read
@@ -28,4 +30,9 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Build the package (compiles Unisic + runs the QtTest suite)
-        run: nix build .#unisic -L
+        # ?submodules=1 is not optional: a plain `nix build .#unisic` copies the
+        # parent tree's tracked content into the store, and a submodule is a
+        # gitlink there, not content. external/unisic-kit would arrive EMPTY and
+        # CMakeLists' add_subdirectory would fail - which it did, even though
+        # this job checks out with submodules: recursive.
+        run: nix build '.?submodules=1#unisic' -L

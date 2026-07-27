@@ -63,6 +63,14 @@ protected:
     bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const override;
 
 private:
+    // The ONE place that knows how this Qt spells "I am about to change a
+    // filter parameter". 6.9 deprecated invalidateFilter() for an explicit
+    // begin/end pair around the member write; the project still builds against
+    // Qt 6.6 (openSUSE Leap 15.6), so both spellings have to stay. endFilterEdit()
+    // also emits filterChanged(), which every setter wants anyway.
+    void beginFilterEdit();
+    void endFilterEdit();
+
     QString m_searchText;
     QString m_kindFilter;
     bool m_favoritesOnly = false;

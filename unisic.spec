@@ -1,10 +1,16 @@
 Name:           unisic
-Version:        0.6.4
+Version:        0.8
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/unisic/unisic
+# Both builders hand this spec a tarball built elsewhere: Packit runs
+# packaging/packit-archive.sh, OBS runs tar_scm with submodules enabled. The
+# URL is the documented origin, but do NOT feed the spec that tag archive
+# directly - GitHub archives carry no submodule content, and the build needs
+# external/unisic-kit. The release assets include a complete
+# unisic-%%{version}.tar.gz for a manual rpmbuild.
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 # cmake()/pkgconfig() virtual provides instead of distro package names: the
@@ -41,6 +47,18 @@ BuildRequires:  cmake(Qt6Concurrent)
 BuildRequires:  cmake(Qt6Svg)
 BuildRequires:  cmake(Qt6LinguistTools)
 BuildRequires:  cmake(Qt6WaylandClient)
+# KWin-native screencasting (HAVE_KWIN_SCREENCAST, zkde_screencast_unstable_v1
+# - the Spectacle path). Without BOTH of these the code compiles out and every
+# recording on Plasma falls back to the portal share dialog, which is the whole
+# thing the feature removes. Qt6 GuiPrivate is a separate package (Fedora
+# qt6-qtbase-private-devel, openSUSE qt6-gui-private-devel) and both distros
+# generate the cmake() provide. Leap 15.x is skipped for the same reason as
+# LayerShellQt above: too old to carry a Qt6-usable pair, and the feature
+# degrades to the portal instead of failing the build.
+%if !0%{?suse_version} || 0%{?suse_version} >= 1600
+BuildRequires:  cmake(Qt6GuiPrivate)
+BuildRequires:  cmake(PlasmaWaylandProtocols) >= 1.7
+%endif
 BuildRequires:  pkgconfig(libpipewire-0.3)
 BuildRequires:  pkgconfig(tesseract)
 # openSUSE's tesseract link interface drags in -lcurl (libarchive chain);
@@ -135,11 +153,24 @@ appstream-util validate-relax --nonet \
 %dir %{_datadir}/unisic
 %{_datadir}/unisic/obs-signing-key.asc
 %{_datadir}/applications/app.unisic.Unisic.desktop
+%{_mandir}/man1/unisic.1*
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Mon Jul 27 2026 Unisic maintainers <unisic@debondor.com> - 0.8-1
+- Recording on KDE Plasma runs through KWin's native screencasting, so screen,
+  region and window clips start with no screen-picker dialog.
+- X11 sessions gain fast screen recording and native global hotkeys.
+- Rebuilt main window: one backdrop, every page on a shared card grid, nothing
+  that moves or appears under the pointer. Recording and GIF are one page.
+- Drag and drop or paste an image or a recording onto the window; test an
+  upload destination before saving it.
+- Full keyboard and screen-reader support across the interface.
+- Adds a French translation, a man page, an activity log plus crash report, a
+  Flatpak build, AUR packages, and in-app updates for deb/rpm/Arch installs.
+
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.4-1
 - Fix GNOME capture: the silent-screenshot permission is repaired before
   every portal request (a once-denied GNOME access dialog left a sticky "no"

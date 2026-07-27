@@ -10,7 +10,7 @@ import "components"
 Window {
     id: editorWindow
     // Track the image size, but never below the minimum that keeps every
-    // toolbar control visible, and never above the work area — oversized
+    // toolbar control visible, and never above the work area - oversized
     // images get a fit-scaled (and zoomable/pannable) canvas instead.
     width: Math.min(Math.max(minimumWidth, canvas.imageSize.width / Screen.devicePixelRatio + 96),
                     Screen.width * 0.9)
@@ -30,11 +30,14 @@ Window {
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
     readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
-    // Constant chrome allowance for the window-size math, sized for the worst
+    // Constant chrome allowance for the window-size math, sized for the common
     // case (2 toolbar rows: ToolChip = 40px each + Column spacing + topBar's 18px
     // padding). Reserving the 2-row height means toggling the Shapes sub-bar
-    // never resizes the window — canvasFrame (topBar.bottom..bottomBar.top)
-    // absorbs the delta instead of the whole Window growing.
+    // never resizes the window - canvasFrame (topBar.bottom..bottomBar.top)
+    // absorbs the delta instead of the whole Window growing. A narrow window
+    // wraps the sub-bar to two or three lines (see editorSubBar) and the top bar
+    // is then taller than this allowance; that only makes the STARTING window
+    // height a little small, and canvasFrame absorbs the rest the same way.
     readonly property int reservedTopBar: 2 * 40 + Theme.spacingS + 18   // = 104
     readonly property int reservedBottomBar: 64                          // == bottomBar.height
 
@@ -43,7 +46,7 @@ Window {
     }
 
     // True once the user has taken any export action (save/copy/upload/OCR)
-    // — statusText is only ever set by those. Used to skip the
+    // - statusText is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.
@@ -66,7 +69,7 @@ Window {
     }
 
     // Text still being typed in the floating input is visible on the canvas but
-    // only becomes an annotation on Enter — commit it before any export so the
+    // only becomes an annotation on Enter - commit it before any export so the
     // result is exactly what's rendered (empty text is a safe no-op).
     function commitPendingText() {
         if (editorTextInput.visible) {
@@ -123,6 +126,18 @@ Window {
             currentShapeId = picked.id
         return true
     }
+    // The visible members of a group, each with its letter - for the group
+    // chip's spoken description. ToolCatalog.groups carries NO `shortcut`
+    // field: the letters belong to the tools (L/A/M/R/O/D), never to the group,
+    // so the chip says which keys its members answer to instead of implying it
+    // has one of its own. Follows the hidden-tools setting, like the sub-bar.
+    function groupMembers(groupId) {
+        const ts = ToolCatalog.groupTools(groupId, "editor", App.settings.hiddenTools)
+        var out = []
+        for (var i = 0; i < ts.length; ++i)
+            out.push(ToolCatalog.labelWithShortcut(ts[i]))
+        return out.join(", ")
+    }
     // Main-row model: ungrouped tools in catalog order, with each group's chip
     // inserted at its first member's position.
     function mainRowModel() {
@@ -154,7 +169,7 @@ Window {
     }
 
     // In-scene pickers, NOT QtQuick.Dialogs' ColorDialog: that was a separate
-    // modal window which greyed the whole screen — impossible to judge the
+    // modal window which greyed the whole screen - impossible to judge the
     // colour against the image. These Popups live in the editor scene, dim it
     // only lightly and preview every change live on the canvas. The eyedropper
     // samples from the (frozen) image via the canvas colour-picking mode.
@@ -221,7 +236,9 @@ Window {
                 canvas.removeSelectedAnnot()
             // Single-key tool switching. Text inputs consume their own keys
             // before this parent scope, so typing an annotation is unaffected.
-            else if (!canvas.ocrMode && e.modifiers === Qt.NoModifier
+            // UKeys.unmodified, never a hand-rolled modifier test: it is the
+            // one bare-key rule the whole app shares (see UKeys for why).
+            else if (!canvas.ocrMode && UKeys.unmodified(e)
                      && editorWindow.activateToolShortcut(e.key)) {}
             // Ctrl+Enter = quick copy-and-close. A BARE Enter must not end the
             // session (it copies to the clipboard and the copy marks the session
@@ -271,7 +288,7 @@ Window {
                 GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.12) }
                 GradientStop { position: 1.0; color: Theme.primary }
             }
-            // Deferred startSystemMove past a drag threshold — same pattern
+            // Deferred startSystemMove past a drag threshold - same pattern
             // (and reason) as Main.qml's title bar.
             MouseArea {
                 anchors.fill: parent
@@ -324,7 +341,7 @@ Window {
         // ---------- top toolbar ----------
         // Main row: ungrouped tools + one chip per tool group (Shapes) + undo/
         // redo. Sub-bar below: the active group's tools and/or the properties
-        // relevant to the active tool (ToolPropsBar) — shown contextually
+        // relevant to the active tool (ToolPropsBar) - shown contextually
         // instead of the old always-visible flat properties row. Each row is a
         // Flow so a narrow window wraps instead of overlapping.
         Rectangle {
@@ -342,12 +359,30 @@ Window {
             }
             border.width: 1
             border.color: Theme.divider
+            Accessible.role: Accessible.ToolBar
+            Accessible.name: qsTr("Annotation tools")
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true; shadowColor: Theme.shadow
                 shadowBlur: 0.8; shadowVerticalOffset: 4; shadowOpacity: 0.5
             }
 
+            // UNLIKE the capture overlay, the chips in here ARE tab stops (the
+            // kit default). They can be: this window's key scope ends its
+            // if/else chain with a bare `return`, so an unmatched key - Tab
+            // included - is left UNaccepted and Qt's focus chain still works;
+            // and ToolChip only binds Space/Return/Enter, which auto-accept
+            // exactly themselves, so P/L/A/T/... and every Ctrl chord keep
+            // bubbling from a focused chip up to shortcutScope.
+            //
+            // Measured with real key events on a focused chip, in an offscreen
+            // probe built from this file's own handler text: P and T switched
+            // the tool, Ctrl+Z reached undo and Escape reached the scope, all
+            // three with the chip's activation count still 0, while Space,
+            // Return and Enter activated the chip and did NOT reach the scope.
+            // Tab alone is not covered by that probe (a qmltestrunner window
+            // runs no focus chain), so that half rests on the `else return`
+            // that closes the chain.
             Column {
                 id: barColumn
                 anchors.left: parent.left
@@ -370,11 +405,27 @@ Window {
                                 iconName: modelData.kind === "group"
                                           ? modelData.group.iconName
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                                // The group glyph has no freedesktop equivalent — always bundled.
+                                // The group glyph has no freedesktop equivalent - always bundled.
                                 iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
                                 label: modelData.kind === "group"
                                        ? modelData.group.label
                                        : ToolCatalog.labelWithShortcut(modelData.tool)
+                                // A tool chip's hover-tip label already IS its
+                                // spoken name, shortcut letter included, and
+                                // ToolChip falls back to it. A GROUP chip's
+                                // label is the bare word "Shapes", which says
+                                // nothing about it being a group or about the
+                                // press opening a sub-bar - so it names itself
+                                // here instead. The visible label is untouched,
+                                // and the spoken name still STARTS with it, so
+                                // "click Shapes" keeps working.
+                                accessibleName: modelData.kind === "group"
+                                                ? qsTr("%1 tool group").arg(modelData.group.label)
+                                                : ""
+                                accessibleDescription: modelData.kind === "group"
+                                                ? qsTr("Opens these tools in the bar below: %1. The group itself has no shortcut.")
+                                                      .arg(editorWindow.groupMembers(modelData.group.id))
+                                                : ""
                                 active: modelData.kind === "group"
                                         ? editorWindow.shapesActive
                                         : canvas.tool === modelData.tool.tool
@@ -401,69 +452,96 @@ Window {
 
                 // The sub-bar slot is ALWAYS reserved at one row height: the
                 // old visible-toggle collapsed the row, so every tool click
-                // shifted the toolbar edge and the whole canvas below it —
+                // shifted the toolbar edge and the whole canvas below it -
                 // the content fades in place instead.
                 Item {
                     width: parent.width
                     height: Math.max(40, editorSubBar.implicitHeight)
 
                     Flow {
-                    id: editorSubBar
-                    width: parent.width
-                    spacing: Theme.spacingL
-                    // Props follow the active tool, or the SELECTED shape when
-                    // the Edit tool is active.
-                    readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
-                    readonly property bool active: editorWindow.shapesActive || ctxProps.length > 0
-                             || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
-                    opacity: active ? 1 : 0
-                    visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-
-                    Row {
+                        id: editorSubBar
+                        width: parent.width
+                        // The group chips and the props strip are DIRECT children
+                        // so the Flow can wrap between them; with the two of them
+                        // nested in one Row it had a single child and could never
+                        // wrap at all, which is how the strip came to be laid out
+                        // 1057 px wide inside an 832 px slot. Same 6 px gap the
+                        // strip uses internally, horizontally and between lines.
                         spacing: 6
+                        // Props follow the active tool, or the SELECTED shape when
+                        // the Edit tool is active.
+                        readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
+                        readonly property bool active: editorWindow.shapesActive || ctxProps.length > 0
+                                 || (canvas.tool === AnnotationCanvas.EditShapes && canvas.hasAnnotSelection)
+                        opacity: active ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
-                        Repeater {
-                            model: editorWindow.shapesActive ? editorWindow.shapesTools : []
-                            delegate: ToolChip {
-                                iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                                iconStyle: App.settings.editorIconStyle
-                                label: ToolCatalog.labelWithShortcut(modelData)
-                                active: canvas.tool === modelData.tool
-                                onClicked: {
-                                    canvas.tool = modelData.tool
-                                    editorWindow.currentShapeId = modelData.id
+                        // The group chips and the delete affordance are one
+                        // block, so they wrap as one.
+                        Row {
+                            id: editorSubLead
+                            spacing: 6
+                            // A zero-width but VISIBLE child still costs the
+                            // Flow a spacing gap. Spelled out rather than
+                            // derived from `implicitWidth > 0`: a positioner
+                            // reports content size 0 while it is itself
+                            // invisible, so that form latches off the first
+                            // time it is false and never comes back.
+                            visible: editorWindow.shapesActive || canvas.hasAnnotSelection
+
+                            Repeater {
+                                model: editorWindow.shapesActive ? editorWindow.shapesTools : []
+                                delegate: ToolChip {
+                                    iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                    iconStyle: App.settings.editorIconStyle
+                                    label: ToolCatalog.labelWithShortcut(modelData)
+                                    active: canvas.tool === modelData.tool
+                                    onClicked: {
+                                        canvas.tool = modelData.tool
+                                        editorWindow.currentShapeId = modelData.id
+                                    }
                                 }
                             }
-                        }
 
-                        // Delete affordance for the selected shape — shown for
-                        // any tool, since a plain click selects shapes now.
-                        ToolChip {
-                            visible: canvas.hasAnnotSelection
-                            iconName: "edit-delete"
-                            label: qsTr("Delete shape")
-                            anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.removeSelectedAnnot()
-                        }
+                            // Delete affordance for the selected shape - shown for
+                            // any tool, since a plain click selects shapes now.
+                            ToolChip {
+                                visible: canvas.hasAnnotSelection
+                                iconName: "edit-delete"
+                                label: qsTr("Delete shape")
+                                anchors.verticalCenter: parent.verticalCenter
+                                onClicked: canvas.removeSelectedAnnot()
+                            }
 
-                        Rectangle {
-                            visible: editorWindow.shapesActive || canvas.hasAnnotSelection
-                            width: 1; height: 30; color: Theme.divider
-                            anchors.verticalCenter: parent.verticalCenter
+                            Rectangle {
+                                visible: editorWindow.shapesActive || canvas.hasAnnotSelection
+                                width: 1; height: 30; color: Theme.divider
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         ToolPropsBar {
                             canvas: canvas
                             props: editorSubBar.ctxProps
                             recentColors: editorWindow.recentList()
-                            anchors.verticalCenter: parent.verticalCenter
+                            // The strip must never claim more than the slot.
+                            // Unbounded it lays every control out on one line
+                            // however wide that comes out (1057 px for the text
+                            // tool with six recent colours, against an 832 px
+                            // slot at the minimum window size) and topBar's
+                            // `layer.enabled` clips the remainder away, so the
+                            // controls past the edge end up invisible rather
+                            // than merely misplaced. Bounded, the strip wraps -
+                            // and the Flow drops it onto its own line first, so
+                            // it only has to wrap inside itself when even a
+                            // whole line is not enough.
+                            maxWidth: editorSubBar.width
                             onStrokePickerRequested: strokePopup.openWith(canvas.strokeColor)
                             onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
                             onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
                             onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
                         }
-                    }
                     }
                 }
             }
@@ -488,7 +566,7 @@ Window {
                 anchors.fill: parent
                 anchors.margins: Theme.spacingM
                 clip: true
-                // Drawing owns the left button — panning happens via the wheel,
+                // Drawing owns the left button - panning happens via the wheel,
                 // scrollbars and keyboard, never by dragging the canvas.
                 interactive: false
                 contentWidth: Math.max(width, canvas.width)
@@ -507,7 +585,7 @@ Window {
                 // QQuickPaintedItem's texture follows the item size × DPR:
                 // cap the zoomed item so the device-pixel texture stays under
                 // common GPU limits (blank canvas otherwise) and strokes don't
-                // repaint hundreds of MB. Fit is always allowed — a fitted
+                // repaint hundreds of MB. Fit is always allowed - a fitted
                 // item never exceeds the viewport.
                 readonly property real texCap: 6000 / Math.max(1, Screen.devicePixelRatio)
                 readonly property real maxZoom: canvas.imageSize.width > 0
@@ -561,7 +639,7 @@ Window {
 
                 // Middle-button drag pans 1:1 (the canvas only claims the left
                 // button, so the press falls through to this area). Coordinates
-                // are mapped to the viewport — measuring in the moving content
+                // are mapped to the viewport - measuring in the moving content
                 // space would feed the pan back into itself.
                 MouseArea {
                     anchors.fill: parent
@@ -589,6 +667,11 @@ Window {
                     id: canvas
                     width: imageSize.width * canvasFlick.effectiveScale
                     height: imageSize.height * canvasFlick.effectiveScale
+                    Accessible.role: Accessible.Canvas
+                    Accessible.name: qsTr("Annotation canvas")
+                    Accessible.description: qsTr("%1 by %2 pixels")
+                                                .arg(canvas.imageSize.width)
+                                                .arg(canvas.imageSize.height)
                     onCopyRequested: {
                         editorWindow.commitPendingText()
                         editorSession.copyToClipboard()
@@ -616,7 +699,7 @@ Window {
                         textBackgroundColor = App.settings.editorTextBgColor
                     }
                     // The automatic highlighter red<->yellow swap must not leak
-                    // into the saved default — persist only real user picks.
+                    // into the saved default - persist only real user picks.
                     // While a placed shape is selected (Edit tool), a property
                     // change restyles THAT shape and must NOT overwrite the
                     // saved "next shape" defaults.
@@ -706,12 +789,43 @@ Window {
                         font.bold: canvas.fontBold
                         font.italic: canvas.fontItalic
                         font.underline: canvas.fontUnderline
+                        Accessible.role: Accessible.EditableText
+                        Accessible.name: qsTr("Annotation text")
+                        Accessible.description: qsTr("Ctrl+Enter finishes, Escape discards")
+                        Accessible.editable: true
+                        Accessible.multiLine: true
                         // Return focus to the shortcut scope, else Ctrl+Z/S/C/U
                         // and Escape stay dead after using the text tool.
                         Keys.onPressed: (e) => {
                             if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter)
                                     && (e.modifiers & Qt.ControlModifier)) {
                                 editorWindow.commitPendingText()
+                                e.accepted = true
+                            } else if (e.key === Qt.Key_Tab || e.key === Qt.Key_Backtab) {
+                                // Tab keys are swallowed here: this box owns the
+                                // keyboard until the text is committed
+                                // (Ctrl+Enter) or dropped (Escape).
+                                //
+                                // Measured, with the toolbar chips now tab stops
+                                // (offscreen probe, real key events): SHIFT+TAB
+                                // left the box and landed on a chip mid-typing,
+                                // with the half-typed text still floating over
+                                // the canvas and every following letter going to
+                                // a chip's tool shortcut instead. Plain TAB did
+                                // not move focus - QQuickTextEdit accepts it
+                                // itself - it TYPED a literal \t into the
+                                // annotation, i.e. an ~80 px invisible gap in
+                                // the exported image, from a key no other text
+                                // field in this app produces a character with.
+                                //
+                                // Neither is wanted, and both go away with one
+                                // rule that matches the rest of the app: Tab is
+                                // a NAVIGATION key everywhere here (UTextField
+                                // is a tab stop and Tab moves to the next
+                                // field), never a character. This box is a
+                                // transient in-canvas input, not one field in a
+                                // row of them, so there is nowhere to navigate
+                                // to and the navigation is a no-op.
                                 e.accepted = true
                             } else if (e.key === Qt.Key_Escape) {
                                 editorTextInput.visible = false
@@ -733,7 +847,7 @@ Window {
                 }
             }
 
-            // OCR mode hint — persistent on-canvas guidance so the user isn't
+            // OCR mode hint - persistent on-canvas guidance so the user isn't
             // left with a dimmed image and a greyed "Copy selection" button.
             Text {
                 visible: canvas.ocrMode && !canvas.ocrBusy && !canvas.hasOcrSelection
@@ -762,6 +876,8 @@ Window {
             }
             border.width: 1
             border.color: Theme.divider
+            Accessible.role: Accessible.ToolBar
+            Accessible.name: qsTr("Editor actions")
             layer.enabled: true
             layer.effect: MultiEffect {
                 shadowEnabled: true; shadowColor: Theme.shadow
@@ -785,7 +901,7 @@ Window {
             }
 
             // Primary exports stay labeled; the occasional OCR actions
-            // live behind one "More" menu, and Close is an icon — so the row
+            // live behind one "More" menu, and Close is an icon - so the row
             // fits the fixed bar at the minimum window width with no scrolling
             // and never grows the window (it is right-anchored; the status text
             // elides into whatever space is left).
@@ -859,7 +975,7 @@ Window {
                 }
                 UButton {
                     visible: canvas.ocrMode
-                    // No "blur" icon — redaction paints an OPAQUE black bar (a
+                    // No "blur" icon - redaction paints an OPAQUE black bar (a
                     // blur/mosaic of a password is recoverable); the wrong icon
                     // misrepresented the result.
                     iconName: "edit-delete"
@@ -870,7 +986,7 @@ Window {
                 // Pattern redaction: the point is to black out the few secrets
                 // in a shot, not all of its text (Select all + Redact selection
                 // already does that, and leaves an unreadable image). The
-                // patterns are regexes and are NOT translated — only the labels.
+                // patterns are regexes and are NOT translated - only the labels.
                 UMenuButton {
                     visible: canvas.ocrMode
                     anchors.verticalCenter: parent.verticalCenter

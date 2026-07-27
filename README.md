@@ -13,7 +13,7 @@ Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Z
 [![Download latest release](https://img.shields.io/badge/Download_Latest_Release-C8ACD6?style=for-the-badge&logo=linux&logoColor=17153B)](https://github.com/unisic/unisic/releases/latest)
 
 <p>
-  <img alt="Linux Wayland" src="https://img.shields.io/badge/Linux-Wayland-000?style=for-the-badge&color=433D8B">
+  <img alt="Linux Wayland and X11" src="https://img.shields.io/badge/Linux-Wayland_%2B_X11-000?style=for-the-badge&color=433D8B">
   <a href="https://github.com/unisic/unisic/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/unisic/unisic?include_prereleases&style=for-the-badge&label=release&color=433D8B"></a>
   <a href="https://github.com/unisic/unisic/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/unisic/unisic/total?style=for-the-badge&color=433D8B"></a>
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
@@ -33,7 +33,7 @@ Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Z
 
 Most screenshot tools hand you a rectangle of pixels and walk away. Unisic covers the whole workflow after you press the hotkey: draw on the selection **before the shot is even taken**, polish it in the editor (blur, numbered steps, crop, smart eraser), record the same region as a GIF or video, and send the result where it belongs - clipboard, disk, or your own upload destination with the link ready to paste.
 
-Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the fully silent native path; GNOME and wlroots desktops work through portals - see [compositor support](https://unisic.app/docs/compositors). **C++20 · Qt 6 · QML**, fully custom UI.
+Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the fully silent native path; GNOME and wlroots desktops work through portals - see [compositor support](https://unisic.app/docs/compositors). An **X11 session works too**, with the caveats in [X11 support](#x11-support). **C++20 · Qt 6 · QML**, fully custom UI.
 
 ## Features
 
@@ -46,6 +46,17 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 - **History** - every capture in a thumbnail grid; deleting moves the file to the trash.
 - **Tray, hotkeys & 9 themes** - quick-menu tray icon, fully rebindable global hotkeys, nine palettes including one that follows your system light/dark scheme and accent color.
 - **Languages** - English, Polish, Spanish, Italian and French; follows your system locale or pick one in Settings.
+
+## X11 support
+
+Unisic is Wayland-first, but it runs on an X11 session as well. Screenshots, the overlay, the editor, OCR, history and uploads are session-agnostic and always worked there. Since 0.8 the two paths that did not now do:
+
+- **Screen recording** grabs frames from the X server with XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all (Cinnamon, MATE, XFCE on Xorg). Cursor, click ripples and the keystroke badge come along; the record-region frame and the styled notification card are drawn as override-redirect windows.
+- **Global hotkeys** use `XGrabKey` on desktops without KGlobalAccel, so they no longer depend on the GlobalShortcuts portal.
+
+One source stays unavailable on X11: recording a **single window** needs the portal's window picker. Record the full screen or a region instead.
+
+**Please treat X11 as a best-effort second target.** Development and daily use happen on Wayland, so X11 does not get continuous testing - it was verified by walking through the features once, on one desktop, not by living in it. Regressions there will not be noticed on their own, so if something breaks [file an issue](https://github.com/unisic/unisic/issues) with your desktop and window manager.
 
 ## Install
 
@@ -107,7 +118,7 @@ Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.c
 <div align="center">
 <br />
 
-<img src="docs/uni.png" width="230" alt="Uni, the Unisic mascot — a purple cat-girl sitting on a window" />
+<img src="docs/uni.png" width="230" alt="Uni, the Unisic mascot - a purple cat-girl sitting on a window" />
 
 *Uni approves this capture.*
 

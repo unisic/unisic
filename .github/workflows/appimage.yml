@@ -51,6 +51,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             ca-certificates curl file desktop-file-utils patchelf libfuse2 \
             cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
+            libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
             libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
@@ -70,12 +71,15 @@ jobs:
           modules: qtwaylandcompositor
           cache: true
 
-      - name: Build LayerShellQt (against the aqt Qt)
+      - name: Build plasma-wayland-protocols and LayerShellQt (against the aqt Qt)
         # Layer-shell (HAVE_LAYERSHELL) powers the on-top custom notification
         # card, the overlay-over-fullscreen capture and the preview pin. No
         # Ubuntu package matches the aqt-installed Qt, so build the small KDE
         # lib from source. Best-effort: on failure the app still builds, with
         # layer-shell features compiled out (the Build AppDir step warns).
+        # plasma-wayland-protocols shares this step because layer-shell-qt
+        # 6.3.x refuses to configure without it, and it is installed FIRST so
+        # a later layer-shell failure still leaves HAVE_KWIN_SCREENCAST usable.
         continue-on-error: true
         run: |
           # layer-shell-qt 6.3.x hard-requires ECM >= 6.10 and jammy ships
@@ -91,6 +95,22 @@ jobs:
             -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
             -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
           cmake --install build-ecm
+          # HAVE_KWIN_SCREENCAST needs zkde-screencast-unstable-v1.xml, which
+          # lives in plasma-wayland-protocols >= 1.7; jammy ships an older one.
+          # Without it the AppImage and the portable tarball fall back to the
+          # portal share dialog on Plasma, i.e. the KDE-native recording path
+          # is silently absent from the two channels most users download.
+          # layer-shell-qt 6.3.x additionally hard-requires >= 1.15.0 at
+          # configure time, which is why this runs before it and not after.
+          # The package is XML plus a cmake config, so there is nothing to
+          # compile and nothing to bundle - it is consumed at build time by
+          # qt6_generate_wayland_protocol_client_sources.
+          git clone --depth 1 --branch v1.16.0 https://invent.kde.org/libraries/plasma-wayland-protocols.git
+          cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
+            -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
+            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
+            -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --install build-pwp
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -147,10 +167,13 @@ jobs:
             || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
           find lsq-prefix -name 'KF6GuiAddonsConfig.cmake' 2>/dev/null | grep -q . \
             || echo "::warning::kguiaddons build failed — AppImage ships without HAVE_KGUIADDONS (screenshots skip KDE Klipper history)"
+          find lsq-prefix -name 'PlasmaWaylandProtocolsConfig.cmake' 2>/dev/null | grep -q . \
+            || echo "::warning::plasma-wayland-protocols build failed — AppImage ships without HAVE_KWIN_SCREENCAST (Plasma recording falls back to the portal share dialog)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
-            -DCMAKE_INSTALL_PREFIX=/usr
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DUNISIC_DESKTOP_EXEC=unisic
           cmake --build build-appimage --parallel
           mkdir -p AppDir
           DESTDIR="$PWD/AppDir" cmake --install build-appimage --strip

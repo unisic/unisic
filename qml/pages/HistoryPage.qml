@@ -7,6 +7,26 @@ import "../components"
 Item {
     id: page
 
+    // Read by Main.qml (window.modalOpen): drag-and-drop and Ctrl+V are off
+    // while a confirmation is up, or a dropped file would open an editor
+    // window behind it.
+    //
+    // `visible`, NOT `opened` - the same rule (and reason) as the window-level
+    // guard in Main.qml: a Popup is on screen and modal from the moment open()
+    // is called, but only reports `opened` once its enter transition has
+    // FINISHED, so `opened` leaves the drop zone live while the dialog is
+    // already covering the window. `visible` covers the whole on-screen life,
+    // fade-out included, which is the side to err on.
+    readonly property bool modalOpen: clearAllConfirm.visible || deleteSelectedConfirm.visible
+
+    // Also read by Main.qml (window.pageDragOut): true only while a tile is
+    // being dragged OUT of Unisic. The tiles start a REAL system drag, which
+    // the compositor offers back to our own window, so the window-level drop
+    // target has to stand down until the drag finishes - otherwise dragging a
+    // capture to another app covers the window with the "drop to open" overlay
+    // and releasing inside it opens an editor for the file being exported.
+    property bool dragOutActive: false
+
     // ---- selection ----
     // Keyed by entryId, never by row: a filter switch renumbers every row, and a
     // batch delete shifts the rows behind it. Actions resolve ids through
@@ -59,6 +79,27 @@ Item {
         if (filePath === "") return
         if (kind === "image") App.copyImageFromHistory(filePath)
         else App.copyAsFromHistory(filePath, url, "path")
+    }
+
+    // ---- spoken identity of a tile ----
+    // The grid delegates are Items with a thumbnail and two elided lines; a
+    // screen reader gets none of that for free, so the whole identity is
+    // assembled here and set as the tile's Accessible.name.
+    function kindLabel(kind) {
+        if (kind === "image") return qsTr("Image")
+        if (kind === "gif") return qsTr("GIF")
+        if (kind === "video") return qsTr("Recording")
+        return kind
+    }
+    function tileName(kind, filePath, url, timestamp) {
+        var who = url !== "" ? url
+                : filePath !== "" ? filePath.split("/").pop()
+                : qsTr("(not saved)")
+        var when = page.tileTime(timestamp)
+        //: Spoken name of a history tile: file name or link, kind, time.
+        return when !== "" ? qsTr("%1, %2, %3").arg(who).arg(page.kindLabel(kind)).arg(when)
+                           //: Spoken name of a history tile with no timestamp: file name or link, kind.
+                           : qsTr("%1, %2").arg(who).arg(page.kindLabel(kind))
     }
 
     // Midnight of the day `daysAgo` days back — the boundary both date labels
@@ -139,9 +180,21 @@ Item {
         spacing: Theme.spacingL
 
         // ---- title + search + clear all ----
+        // Title on the left, actions on the right, and NOTHING between them
+        // that can grow into the other side: at the 880 px minimum window the
+        // history body is 580 px and the two blocks measured 598-636 px in
+        // Spanish, French, Italian and Polish - the count text was drawn under
+        // the search field. The search field gives width back instead (it is
+        // the only elastic control here), and the count is bounded by the
+        // actions so the worst case elides rather than overlaps.
         Item {
+            id: historyHeader
             width: parent.width
             height: 40
+
+            readonly property real leftWidth:
+                titleText.implicitWidth
+                + (countText.visible ? Theme.spacingM + countText.implicitWidth : 0)
 
             Text {
                 id: titleText
@@ -153,9 +206,13 @@ Item {
                 font.weight: Font.Bold
             }
             Text {
+                id: countText
                 anchors.left: titleText.right
                 anchors.leftMargin: Theme.spacingM
+                anchors.right: historyActions.left
+                anchors.rightMargin: Theme.spacingM
                 anchors.baseline: titleText.baseline
+                elide: Text.ElideRight
                 visible: App.history.count > 0
                 text: filter.filtering ? qsTr("%1 of %2").arg(filter.count).arg(App.history.count)
                                        : qsTr("%1 items").arg(App.history.count)
@@ -164,13 +221,20 @@ Item {
             }
 
             Row {
+                id: historyActions
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
 
                 UTextField {
                     id: searchField
-                    width: 220
+                    // 220 when the window can afford it, never below 130 - the
+                    // placeholder is elided by the field itself, and a search
+                    // box narrower than that stops being usable.
+                    width: Math.max(130, Math.min(220, historyHeader.width - historyHeader.leftWidth
+                                                  - Theme.spacingM - clearAllButton.width - Theme.spacingS
+                                                  - (clearSearchButton.visible
+                                                     ? clearSearchButton.width + Theme.spacingS : 0)))
                     anchors.verticalCenter: parent.verticalCenter
                     iconName: "magnify"
                     placeholder: qsTr("Search name or link")
@@ -180,6 +244,7 @@ Item {
                     Keys.onEscapePressed: { searchField.text = ""; filter.searchText = "" }
                 }
                 UIconButton {
+                    id: clearSearchButton
                     anchors.verticalCenter: parent.verticalCenter
                     iconName: "close"
                     iconSize: 14
@@ -188,6 +253,7 @@ Item {
                     onClicked: { searchField.text = ""; filter.searchText = "" }
                 }
                 UButton {
+                    id: clearAllButton
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("Clear all")
                     variant: "ghost"
@@ -202,12 +268,20 @@ Item {
         // One row, two states: filtering is pointless while a batch is staged,
         // and stacking both bars would cost a whole tile row of height.
         Item {
+            id: filterBar
             width: parent.width
-            height: 32
+            // Follows the chips when they wrap: seven translated chip labels
+            // measure 568 px against a 580 px body at the 880 px minimum window
+            // (Polish), so one more chip or one longer translation would have
+            // been clipped away by the page's Flickable, which has no
+            // horizontal scroll.
+            height: Math.max(32, filterFlow.visible ? filterFlow.implicitHeight : 0)
             visible: App.history.count > 0
 
-            Row {
+            Flow {
+                id: filterFlow
                 anchors.left: parent.left
+                anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: Theme.spacingS
                 visible: page.selectionCount === 0
@@ -231,9 +305,11 @@ Item {
                         onClicked: filter.kindFilter = modelData.kind
                     }
                 }
-                Rectangle {
-                    width: 1; height: 18; color: Theme.divider
-                    anchors.verticalCenter: parent.verticalCenter
+                // Carried in a chip-tall Item: a Flow positions its children
+                // itself, so the hairline cannot centre itself with an anchor.
+                Item {
+                    width: 1; height: 28
+                    Rectangle { anchors.centerIn: parent; width: 1; height: 18; color: Theme.divider }
                 }
                 UFilterChip {
                     text: qsTr("Starred")
@@ -368,6 +444,14 @@ Item {
                 model: filter
                 boundsBehavior: Flickable.StopAtBounds
                 focus: true
+                // The GRID is the tab stop, not its tiles. Every other control
+                // on the page is one now, so without this Tab walked straight
+                // past the grid and there was no way back into it from the
+                // keyboard. Landing here hands over to the arrow/Space/Return
+                // handling below; Tab is not accepted by any of it, so the next
+                // Tab leaves again and the delegates (deliberately not tab
+                // stops - see the tile) stay out of the chain.
+                activeFocusOnTab: true
                 // Fill the width evenly instead of leaving a ragged gutter at the
                 // right edge: derive the column count from a minimum tile width
                 // and hand the remainder back to the cells.
@@ -375,8 +459,26 @@ Item {
                 cellWidth: Math.floor(width / columns)
                 cellHeight: Math.round(cellWidth * 0.56) + page.nameLine + page.metaLine + page.tileChrome
 
+                Accessible.role: Accessible.List
+                Accessible.name: qsTr("Capture history")
+                Accessible.description: qsTr("Arrow keys move, Space selects, Return opens, Delete removes")
+
                 MiddleScroll { flickable: grid }
-                WheelBoost { flickable: grid }
+                WheelBoost {
+                    flickable: grid
+                    // The kit's 220 px default is written for a page of short
+                    // rows; here a row is a whole tile (213 px at the default
+                    // window, 223 px at 1920), so a notch moved exactly one
+                    // row - a quarter of the viewport maximized, a sixth at
+                    // 1440p, which is what "far too slow" felt like. A row and
+                    // a half is the floor, and once about four and a half rows
+                    // fit the viewport takes over, so the big window stops
+                    // crawling while the small one still keeps ~30% of the
+                    // previous view. WheelBoost caps a boosted notch at 90% of
+                    // the viewport by itself, so nothing here can skip a row
+                    // nobody saw.
+                    stepPx: Math.max(Math.round(grid.cellHeight * 1.5), Math.round(grid.height / 3))
+                }
 
                 // Click past the tiles = deselect, like a file manager.
                 MouseArea {
@@ -432,6 +534,19 @@ Item {
                     readonly property string thumbUrl: thumbnail !== ""
                         ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent)
                         : ""
+
+                    // Deliberately NOT a tab stop: the GridView owns keyboard
+                    // navigation (currentIndex + its own Keys handler), and a
+                    // per-tile tab stop would fight it - Tab would walk a
+                    // hundred captures one by one and the arrow keys would then
+                    // move a different cursor than the one the ring shows.
+                    // AT-SPI still enumerates and can Press every tile.
+                    Accessible.role: Accessible.ListItem
+                    Accessible.name: page.tileName(kind, filePath, url, timestamp)
+                    Accessible.description: favorite ? qsTr("Starred") : ""
+                    Accessible.selectable: true
+                    Accessible.selected: tile.selected
+                    Accessible.onPressAction: page.activate(kind, filePath)
 
                     Rectangle {
                         id: card
@@ -489,6 +604,20 @@ Item {
                                     Drag.supportedActions: Qt.CopyAction
                                     Drag.mimeData: { "text/uri-list": App.fileDragUri(filePath) }
                                     Drag.imageSource: tile.thumbUrl
+                                    // Raise the window's drag guard for exactly
+                                    // the drag's lifetime. These two bracket the
+                                    // blocking QDrag inside Qt (dragStarted is
+                                    // emitted immediately before it, dragFinished
+                                    // immediately after), so the guard is up
+                                    // before the first drag event can reach our
+                                    // own DropArea and down again the moment the
+                                    // drop resolves. Neither MouseArea.pressed
+                                    // nor Drag.active can stand in for them: the
+                                    // platform drag takes the pointer grab, so
+                                    // both can fall to false while the drag is
+                                    // still in flight.
+                                    Drag.onDragStarted: page.dragOutActive = true
+                                    Drag.onDragFinished: page.dragOutActive = false
                                 }
                                 MouseArea {
                                     id: dragArea
@@ -543,6 +672,8 @@ Item {
                                         color: Theme.textOnAccent
                                         font.pixelSize: 10
                                         font.weight: Font.Bold
+                                        // Already spoken as part of the tile name.
+                                        Accessible.ignored: true
                                     }
                                 }
 
@@ -550,6 +681,7 @@ Item {
                                 // pinned while a batch is staged so the selection
                                 // stays readable without the pointer.
                                 Rectangle {
+                                    id: selectBox
                                     z: 2
                                     anchors.top: parent.top
                                     anchors.left: parent.left
@@ -566,19 +698,30 @@ Item {
                                         size: 14
                                         color: Theme.textOnAccent
                                     }
+                                    function toggle() {
+                                        page.toggleSelect(entryId)
+                                        page.anchorRow = index
+                                    }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            page.toggleSelect(entryId)
-                                            page.anchorRow = index
-                                        }
+                                        onClicked: selectBox.toggle()
                                     }
+                                    // Reachable from assistive tech, but out of
+                                    // the tab chain like its tile: the grid's
+                                    // own Space already toggles the selection.
+                                    Accessible.role: Accessible.CheckBox
+                                    Accessible.name: qsTr("Select this capture")
+                                    Accessible.checkable: true
+                                    Accessible.checked: tile.selected
+                                    Accessible.onToggleAction: selectBox.toggle()
+                                    Accessible.onPressAction: selectBox.toggle()
                                 }
 
                                 // Star: top-right, dark scrim disc so it reads on
                                 // any capture.
                                 Rectangle {
+                                    id: starBox
                                     z: 2
                                     anchors.top: parent.top
                                     anchors.right: parent.right
@@ -586,6 +729,7 @@ Item {
                                     width: 26; height: 26; radius: 13
                                     color: Qt.rgba(0, 0, 0, 0.5)
                                     visible: favorite || cardHover.hovered
+                                    function toggle() { App.history.setFavoriteByIds([entryId], !favorite) }
                                     UIcon {
                                         anchors.centerIn: parent
                                         name: favorite ? "star-filled" : "star"
@@ -595,8 +739,15 @@ Item {
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: App.history.setFavoriteByIds([entryId], !favorite)
+                                        onClicked: starBox.toggle()
                                     }
+                                    Accessible.role: Accessible.CheckBox
+                                    Accessible.name: qsTr("Star this capture")
+                                    Accessible.description: qsTr("Starred captures survive Clear all")
+                                    Accessible.checkable: true
+                                    Accessible.checked: favorite
+                                    Accessible.onToggleAction: starBox.toggle()
+                                    Accessible.onPressAction: starBox.toggle()
                                 }
 
                                 // Action strip: slides up along the bottom edge on
@@ -626,11 +777,33 @@ Item {
                                             GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.85) }
                                         }
 
+                                        // NOTHING in this strip is a tab stop.
+                                        // It exists only while the pointer is
+                                        // on the tile, so a keyboard user can
+                                        // never land on it anyway - but as a
+                                        // tab stop it still rewrote the
+                                        // window's tab ORDER as the mouse moved
+                                        // across the grid, splicing six
+                                        // controls per hovered tile in between
+                                        // the grid and whatever follows it.
+                                        // (Measured: a VISIBLE control with
+                                        // activeFocusOnTab true takes the Tab;
+                                        // with false the Tab skips straight
+                                        // past it.) The keyboard route to these
+                                        // actions is the grid itself - Return
+                                        // opens, Ctrl+C copies, Delete trashes,
+                                        // Space stages a selection - and the
+                                        // selection bar that staging reveals,
+                                        // which IS in the chain (star, unstar,
+                                        // copy paths, upload, export, delete).
+                                        // AT-SPI is unaffected: its Press
+                                        // action needs no focus.
                                         Row {
                                             anchors.centerIn: parent
                                             anchors.verticalCenterOffset: 3
                                             spacing: 2
                                             UIconButton {
+                                                activeFocusOnTab: false
                                                 iconName: kind === "image" ? "content-copy" : "document-open"
                                                 tooltip: kind === "image" ? qsTr("Copy image") : qsTr("Copy file path")
                                                 iconSize: 16; width: 30; height: 30
@@ -638,6 +811,7 @@ Item {
                                                 onClicked: page.copyOne(kind, filePath, url)
                                             }
                                             UIconButton {
+                                                activeFocusOnTab: false
                                                 iconName: "globe"
                                                 tooltip: qsTr("Copy link")
                                                 iconSize: 16; width: 30; height: 30
@@ -645,6 +819,7 @@ Item {
                                                 onClicked: { App.copyText(url); App.showToast(qsTr("Link copied")) }
                                             }
                                             UIconButton {
+                                                activeFocusOnTab: false
                                                 iconName: "folder-open"
                                                 tooltip: qsTr("Open file")
                                                 iconSize: 16; width: 30; height: 30
@@ -652,6 +827,7 @@ Item {
                                                 onClicked: App.openFile(filePath)
                                             }
                                             UIconButton {
+                                                activeFocusOnTab: false
                                                 iconName: "edit"
                                                 tooltip: qsTr("Edit (overwrites the file on save)")
                                                 iconSize: 16; width: 30; height: 30
@@ -659,6 +835,7 @@ Item {
                                                 onClicked: App.editFromHistory(filePath)
                                             }
                                             UIconButton {
+                                                activeFocusOnTab: false
                                                 iconName: "cut"
                                                 tooltip: qsTr("Trim recording")
                                                 iconSize: 16; width: 30; height: 30
@@ -666,6 +843,7 @@ Item {
                                                 onClicked: App.openTrimRecording(filePath)
                                             }
                                             UMenuButton {
+                                                activeFocusOnTab: false
                                                 iconOnly: true; iconName: "view-more"
                                                 tooltip: qsTr("More")
                                                 width: 30; height: 30
@@ -705,7 +883,10 @@ Item {
 
                             // Both footer lines are pinned to the height the cell
                             // was sized for, so a taller-than-expected line can
-                            // never push the other one out of the card.
+                            // never push the other one out of the card - and
+                            // both are already folded into the tile's
+                            // Accessible.name, so they opt out here instead of
+                            // being read a second time.
                             Text {
                                 width: parent.width
                                 height: page.nameLine
@@ -715,6 +896,7 @@ Item {
                                 color: url !== "" ? Theme.accent : Theme.textSecondary
                                 font.pixelSize: Theme.fontS
                                 elide: Text.ElideMiddle
+                                Accessible.ignored: true
                             }
                             Text {
                                 width: parent.width
@@ -733,6 +915,7 @@ Item {
                                 color: Theme.textTertiary
                                 font.pixelSize: Theme.fontS - 1
                                 elide: Text.ElideRight
+                                Accessible.ignored: true
                             }
                         }
                     }

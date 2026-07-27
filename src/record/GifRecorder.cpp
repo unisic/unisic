@@ -8,9 +8,14 @@
 #include "StreamGeometry.h"
 #include "capture/ScreenCastSession.h"
 #include <QGuiApplication>
+#include "record/IScreenGrabber.h"
 #ifdef HAVE_PIPEWIRE
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
+#endif
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+#include "record/X11ShmGrabber.h"
+#include <QCursor>
 #endif
 #ifdef HAVE_KWIN_SCREENCAST
 #include "capture/KWinScreencasting.h"
@@ -199,6 +204,15 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_monitorRetryDone = false;
     m_nativeStream = false;
 
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+    // X11 session: the ScreenCast portal has no working path there, so grab the
+    // monitor directly with XShm. Window source is not offered on X11 (v1), so
+    // it still falls through to the portal (which will just fail on X11).
+    if (m_source != Window && QGuiApplication::platformName() == QLatin1String("xcb")) {
+        openX11Session();
+        return;
+    }
+#endif
     openPortalSession();
 #endif
 }
@@ -598,38 +612,89 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, co
 // Common tail of both stream paths: wire a PipeWireGrabber onto the negotiated
 // node. fd is the portal's OpenPipeWireRemote fd, or -1 on the KWin-native
 // path (the grabber then connects to the default PipeWire daemon).
-void GifRecorder::attachStream(int fd, uint nodeId)
+// Shared by both grabber backends: connect the base signals and start the
+// input-capture overlays. Does not construct or start the grabber - the caller
+// owns that (the start() signature differs per backend).
+void GifRecorder::wireGrabber(IScreenGrabber *grabber)
 {
-#ifdef HAVE_PIPEWIRE
-    m_grabber = new PipeWireGrabber(this);
-    connect(m_grabber, &PipeWireGrabber::formatReady, this, &GifRecorder::beginEncoding);
-    // Guard by state: a streamError queued from the PipeWire thread just before
+    connect(grabber, &IScreenGrabber::formatReady, this, &GifRecorder::beginEncoding);
+    // Guard by state: a streamError queued from the capture thread just before
     // stop() is still delivered during Converting (disconnect doesn't cancel
     // already-posted metacalls) and would abort the finalizing recording.
-    connect(m_grabber, &PipeWireGrabber::streamError, this, [this](const QString &e) {
+    connect(grabber, &IScreenGrabber::streamError, this, [this](const QString &e) {
         if (m_state == Starting || m_state == Recording)
             fail(e);
     });
-    // Cap the negotiated stream framerate at the rate the sampler consumes so
-    // the compositor throttles delivery instead of running onProcess's full-
-    // frame copy at monitor refresh (most of those copies would be discarded).
-    const int targetFps = qBound(1, m_output == Gif ? m_settings->gifFps()
-                                                    : m_settings->videoFps(), 60);
     if (m_cursorOverlayActive) {
-        // Queued by default (emitted from the PipeWire thread).
-        connect(m_grabber, &PipeWireGrabber::cursorShapeChanged, this,
+        // Queued by default (emitted from the capture thread).
+        connect(grabber, &IScreenGrabber::cursorShapeChanged, this,
                 [this](int id, const QImage &img, const QPoint &hotspot) {
                     m_cursorOverlay.setShape(id, img, hotspot);
                 });
         startClickCapture();
     }
     startKeyCapture();   // independent of the cursor overlay mode
-    if (!m_grabber->start(fd, nodeId, targetFps, m_cursorOverlayActive))
+}
+
+void GifRecorder::attachStream(int fd, uint nodeId)
+{
+#ifdef HAVE_PIPEWIRE
+    auto *pw = new PipeWireGrabber(this);
+    m_grabber = pw;
+    wireGrabber(pw);
+    // Cap the negotiated stream framerate at the rate the sampler consumes so
+    // the compositor throttles delivery instead of running onProcess's full-
+    // frame copy at monitor refresh (most of those copies would be discarded).
+    const int targetFps = qBound(1, m_output == Gif ? m_settings->gifFps()
+                                                    : m_settings->videoFps(), 60);
+    if (!pw->start(fd, nodeId, targetFps, m_cursorOverlayActive))
         fail(tr("Failed to connect to the PipeWire stream"));
 #else
     Q_UNUSED(fd) Q_UNUSED(nodeId)
 #endif
 }
+
+#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
+void GifRecorder::openX11Session()
+{
+    // Pick the target monitor: the explicit target, else the screen under the
+    // cursor - matching the single-monitor stream the Wayland path records.
+    QScreen *scr = m_targetScreen ? m_targetScreen.data() : nullptr;
+    if (!scr)
+        scr = QGuiApplication::screenAt(QCursor::pos());
+    if (!scr)
+        scr = QGuiApplication::primaryScreen();
+    if (!scr) {
+        fail(tr("No screen is available to record"));
+        return;
+    }
+    m_targetScreen = scr;
+    // Configure the cursor overlay (style, smoother, reset) exactly like the
+    // Wayland paths, then FORCE it on whenever the cursor is wanted: XShmGetImage
+    // never grabs the hardware cursor, so the XFixes-fed overlay is the ONLY
+    // cursor source on X11 - there is no compositor-embedded fallback, so the
+    // Metadata/Embedded distinction resolveCursorMode() makes for the portal
+    // does not apply here.
+    resolveCursorMode();
+    m_cursorOverlayActive = m_settings->includeCursor();
+    // Grab the WHOLE monitor and let beginEncoding apply m_crop, exactly as the
+    // Wayland monitor stream - so the region crop, cursor offset and rescale
+    // logic downstream are unchanged. QScreen geometry is logical; X server
+    // pixels are physical, so scale by the device pixel ratio (they coincide on
+    // the common dpr==1 X11 setup).
+    const qreal dpr = scr->devicePixelRatio();
+    const QRect g = scr->geometry();
+    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
+                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    auto *x = new X11ShmGrabber(this);
+    m_grabber = x;
+    wireGrabber(x);
+    const int targetFps = qBound(1, m_output == Gif ? m_settings->gifFps()
+                                                    : m_settings->videoFps(), 60);
+    if (!x->start(rootRect, targetFps, m_cursorOverlayActive))
+        fail(tr("Failed to start X11 screen capture"));
+}
+#endif
 
 void GifRecorder::beginEncoding(const QSize &streamSize)
 {
@@ -1140,7 +1205,7 @@ void GifRecorder::stop()
         // abort()/fail()/the destructor see m_grabber == nullptr and cannot
         // double-stop it; only the worker touches the object until its
         // deleteLater lands back on the GUI thread.
-        PipeWireGrabber *g = m_grabber;
+        IScreenGrabber *g = m_grabber;
         m_grabber = nullptr;
         g->disconnect(this);
         // Un-parent, or ~GifRecorder at app quit deletes the child on the GUI

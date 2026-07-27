@@ -67,6 +67,12 @@ class Settings : public QObject
     // then this stays true. The "Run system check" button in Settings reopens it
     // on demand regardless.
     Q_PROPERTY(bool systemCheckSeen READ systemCheckSeen WRITE setSystemCheckSeen NOTIFY systemCheckSeenChanged)
+    Q_PROPERTY(QString crashNoticeSeen READ crashNoticeSeen WRITE setCrashNoticeSeen NOTIFY crashNoticeSeenChanged)
+    // Sandboxed autostart only: what the Background portal last ANSWERED to a
+    // RequestBackground call. The portal has no getter, and inside flatpak the
+    // autostart .desktop is written host-side by the portal, where the sandbox
+    // cannot see it - so the granted answer is the only readable state.
+    Q_PROPERTY(bool portalAutostartGranted READ portalAutostartGranted WRITE setPortalAutostartGranted NOTIFY portalAutostartGrantedChanged)
     // Same one-shot latch for the first-run welcome screen (shown before the
     // dependency check, so two modals never stack).
     Q_PROPERTY(bool showWelcome READ showWelcome WRITE setShowWelcome NOTIFY showWelcomeChanged)
@@ -130,6 +136,7 @@ class Settings : public QObject
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
+    Q_PROPERTY(int recordPageMode READ recordPageMode WRITE setRecordPageMode NOTIFY recordPageModeChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
     Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
     Q_PROPERTY(QString updateChannel READ updateChannel WRITE setUpdateChannel NOTIFY updateChannelChanged)
@@ -402,6 +409,10 @@ public:
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
+    // Content key of the last crash report the user was told about. A string,
+    // not a bool: a NEW crash must be reported again, the same one must not.
+    U_SETTING(QString, crashNoticeSeen, setCrashNoticeSeen, "crashNoticeSeen", QString())
+    U_SETTING(bool, portalAutostartGranted, setPortalAutostartGranted, "ui/portalAutostartGranted", false)
     U_SETTING(bool, showWelcome, setShowWelcome, "showWelcome", true)
     U_SETTING(bool, minimizeToTrayOnClose, setMinimizeToTrayOnClose, "minimizeToTrayOnClose", true)
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
@@ -534,6 +545,10 @@ public:
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).
     U_SETTING(bool, useSystemDecoration, setUseSystemDecoration, "ui/useSystemDecoration", false)
+    // Which half of the merged Record page is showing: 0 = video, 1 = GIF. The
+    // page Loader is destroyed on navigation, so the choice has to live here to
+    // survive walking away from the page (and a restart).
+    U_SETTING(int, recordPageMode, setRecordPageMode, "ui/recordMode", 0)
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
@@ -582,6 +597,8 @@ public:
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
         emit watermarkTypeChanged(); emit watermarkImagePathChanged();
         emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
+        emit crashNoticeSeenChanged();
+        emit portalAutostartGrantedChanged();
         emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
@@ -612,6 +629,7 @@ public:
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged();
+        emit recordPageModeChanged();
         emit autoCheckUpdatesChanged();
         emit updateChannelChanged(); emit recordCountdownSecChanged(); emit soundVolumeChanged();
         emit askWhereToSaveChanged(); emit stripMetadataChanged(); emit dateSubfoldersChanged();
@@ -664,6 +682,8 @@ signals:
     void watermarkImagePathChanged();
     void showNotificationsChanged();
     void systemCheckSeenChanged();
+    void crashNoticeSeenChanged();
+    void portalAutostartGrantedChanged();
     void showWelcomeChanged();
     void minimizeToTrayOnCloseChanged();
     void openAfterSaveChanged();
@@ -726,6 +746,7 @@ signals:
     void editorToolIconsChanged();
     void uiLanguageChanged();
     void useSystemDecorationChanged();
+    void recordPageModeChanged();
     void trayIconPathChanged();
     void autoCheckUpdatesChanged();
     void updateChannelChanged();

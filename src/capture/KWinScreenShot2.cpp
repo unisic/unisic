@@ -14,6 +14,13 @@
 
 bool KWinScreenShot2::isAvailable()
 {
+    // KWin authorizes this restricted interface by the caller's executable
+    // path against the installed .desktop file, which a sandboxed client can
+    // never satisfy (its exe lives in /app, the .desktop is exported by
+    // flatpak). Inside a sandbox go straight to the portal instead of failing
+    // one auth round-trip per capture first.
+    if (qEnvironmentVariableIsSet("FLATPAK_ID"))
+        return false;
     auto *iface = QDBusConnection::sessionBus().interface();
     return iface && iface->isServiceRegistered(QStringLiteral("org.kde.KWin"));
 }

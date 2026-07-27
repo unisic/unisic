@@ -14,6 +14,7 @@
 #include "KeystrokeOverlayPainter.h"
 
 class ScreenCastSession;
+class IScreenGrabber;
 class PipeWireGrabber;
 class ClickCapture;
 class KeyCapture;
@@ -138,6 +139,15 @@ private:
     // Attach the PipeWireGrabber to a negotiated stream. fd = the portal's
     // OpenPipeWireRemote fd, or -1 for the KWin-native path (default daemon).
     void attachStream(int fd, uint nodeId);
+    // X11 session: skip the portal entirely and grab the target monitor with an
+    // X11ShmGrabber (chosen at runtime when qApp is on the xcb QPA). The grabber
+    // plays the role of the monitor stream, so beginEncoding/sampleFrame crop and
+    // composite exactly as on the Wayland path.
+    void openX11Session();
+    // Wire the shared grabber signals (formatReady/streamError/cursorShapeChanged)
+    // and start the input-capture overlays. Backend-agnostic: both grabbers call
+    // this before their own start(). Does NOT construct or start the grabber.
+    void wireGrabber(IScreenGrabber *grabber);
     void beginEncoding(const QSize &streamSize);
     void sampleFrame();
     void startClickCapture();
@@ -169,7 +179,7 @@ private:
     bool m_orphansSwept = false; // stale-temp sweep runs once, on first start()
     QFutureWatcher<void> m_probeWatcher; // gates beginEncoding until the probe warms
     ScreenCastSession *m_session = nullptr;
-    PipeWireGrabber *m_grabber = nullptr;
+    IScreenGrabber *m_grabber = nullptr;
     QProcess *m_ffmpeg = nullptr;
     QProcess *m_converter = nullptr;
     QProcess *m_appAudio = nullptr;

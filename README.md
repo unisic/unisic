@@ -24,8 +24,10 @@ Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Z
 <br />
 
 <img src="docs/screenshots/editor.png" width="99%" alt="Unisic post-capture editor" />
+<img src="docs/screenshots/capture.png" width="49%" alt="Unisic capture page" />
+<img src="docs/screenshots/record.png" width="49%" alt="Unisic screen recording page" />
 <img src="docs/screenshots/history.png" width="49%" alt="Unisic history page" />
-<img src="docs/screenshots/destinations.png" width="49%" alt="Unisic destinations page" />
+<img src="docs/screenshots/edit.png" width="49%" alt="Unisic edit page" />
 
 </div>
 

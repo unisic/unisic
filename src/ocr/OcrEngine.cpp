@@ -18,8 +18,10 @@ using ZXingOptions = ZXing::DecodeHints;
 // Result::text() returns std::string in zxing-cpp 2.x but std::wstring in
 // 1.x (still what openSUSE Leap 15.6 ships) — overloads pick the right
 // conversion at compile time.
-static QString zxingText(const std::string &s) { return QString::fromStdString(s); }
-static QString zxingText(const std::wstring &s) { return QString::fromStdWString(s); }
+// maybe_unused: exactly ONE of the two is called per zxing-cpp version, so the
+// other is always dead and would warn on every build.
+[[maybe_unused]] static QString zxingText(const std::string &s) { return QString::fromStdString(s); }
+[[maybe_unused]] static QString zxingText(const std::wstring &s) { return QString::fromStdWString(s); }
 #endif
 
 namespace {

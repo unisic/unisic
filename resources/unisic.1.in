@@ -62,7 +62,11 @@ instead of following the configured save rules. A single
 .B \-
 writes the image to standard output, which is what makes
 .B unisic
-usable in a pipeline. Only valid together with a screenshot mode.
+usable in a pipeline. Only valid together with a screenshot mode. Either form is
+a one\-shot:
+.B unisic
+exits once the capture has been written, with status 1 if it could not be
+written or the selection was cancelled.
 .TP
 .BI \-\-format " FORMAT"
 Image format for

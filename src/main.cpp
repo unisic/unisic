@@ -832,6 +832,15 @@ int main(int argc, char *argv[])
             out.close();
             app.exit(0);
         });
+    } else if (!outputArg.isEmpty()) {
+        // `unisic --region --output shot.png` is a one-shot, exactly like the
+        // `--output -` variant above: end when the capture has been written,
+        // instead of staying resident and holding the terminal for good. The
+        // connect lives HERE, in the process that parsed --output off argv - a
+        // running instance handed the same command over the single-instance
+        // socket never reaches this line, so it is not the one that exits.
+        QObject::connect(&context, &AppContext::cliCaptureFinished, &app,
+                         [&app](bool ok) { app.exit(ok ? 0 : 1); });
     }
     QTimer::singleShot(300, &context, [&context, args, delayMs, outputArg, outputFormat] {
         if (delayMs >= 0)

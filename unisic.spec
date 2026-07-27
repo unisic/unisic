@@ -1,10 +1,16 @@
 Name:           unisic
-Version:        0.6.4
+Version:        0.8
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/unisic/unisic
+# Both builders hand this spec a tarball built elsewhere: Packit runs
+# packaging/packit-archive.sh, OBS runs tar_scm with submodules enabled. The
+# URL is the documented origin, but do NOT feed the spec that tag archive
+# directly - GitHub archives carry no submodule content, and the build needs
+# external/unisic-kit. The release assets include a complete
+# unisic-%%{version}.tar.gz for a manual rpmbuild.
 Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 # cmake()/pkgconfig() virtual provides instead of distro package names: the
@@ -153,6 +159,18 @@ appstream-util validate-relax --nonet \
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg
 
 %changelog
+* Mon Jul 27 2026 Unisic maintainers <unisic@debondor.com> - 0.8-1
+- Recording on KDE Plasma runs through KWin's native screencasting, so screen,
+  region and window clips start with no screen-picker dialog.
+- X11 sessions gain fast screen recording and native global hotkeys.
+- Rebuilt main window: one backdrop, every page on a shared card grid, nothing
+  that moves or appears under the pointer. Recording and GIF are one page.
+- Drag and drop or paste an image or a recording onto the window; test an
+  upload destination before saving it.
+- Full keyboard and screen-reader support across the interface.
+- Adds a French translation, a man page, an activity log plus crash report, a
+  Flatpak build, AUR packages, and in-app updates for deb/rpm/Arch installs.
+
 * Sun Jul 12 2026 Unisic maintainers <unisic@debondor.com> - 0.6.4-1
 - Fix GNOME capture: the silent-screenshot permission is repaired before
   every portal request (a once-denied GNOME access dialog left a sticky "no"

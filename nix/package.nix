@@ -23,7 +23,7 @@
 # compositor-free and runs headless under QT_QPA_PLATFORM=offscreen.
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.7.5";
+  version = "0.8";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the

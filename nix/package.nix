@@ -9,6 +9,8 @@
   pipewire,
   tesseract,
   leptonica,
+  libarchive,
+  curl,
   libinput,
   udev,
   zxing-cpp,
@@ -26,7 +28,7 @@
 # compositor-free and runs headless under QT_QPA_PLATFORM=offscreen.
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.8";
+  version = "0.8.1";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the
@@ -65,6 +67,13 @@ stdenv.mkDerivation (finalAttrs: {
     pipewire # HAVE_PIPEWIRE - GIF/video recording
     (tesseract.override { enableLanguages = [ "eng" "pol" ]; }) # HAVE_TESSERACT (OCR)
     leptonica
+    # nixpkgs' tesseract.pc puts `-larchive -lcurl` in the PUBLIC Libs:, so
+    # pkg_check_modules(TESSERACT) drops both onto our link line and the binary
+    # ends up NEEDING them. Without them here they get no RPATH entry: on a
+    # distro with /usr/lib the loader papers over it, on NixOS the app dies with
+    # "libarchive.so.13: cannot open shared object file".
+    libarchive
+    curl
     zxing-cpp # HAVE_ZXING - QR/barcode decode inside the OCR path
     libinput # HAVE_LIBINPUT - click/keystroke capture (needs the `input` group)
     udev

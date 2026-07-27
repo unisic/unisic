@@ -1,0 +1,96 @@
+name: AUR publish
+
+# Retargets both AUR recipes (`unisic` source + `unisic-bin` release repack) at
+# a published release and pushes them. release.yml calls this after its
+# `release` job; workflow_dispatch exists because that is the ONLY retry path -
+# a re-run of the release pipeline re-checks the tag, finds it already there,
+# and skips every job, so a failure here could otherwise never be corrected
+# without cutting another version.
+#
+# sync.sh downloads the published assets (the source tarball and the
+# .pkg.tar.zst it repacks) to hash them, so the release must exist first.
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released version to publish, without the leading v (e.g. 0.8)"
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  aur:
+    name: AUR
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Install tooling
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed git openssh namcap pacman-contrib
+
+      - uses: actions/checkout@v4
+
+      # makepkg refuses to run as root, and the container is root. Everything
+      # below therefore runs as `builder`, which needs passwordless sudo for
+      # makepkg -s to install build dependencies.
+      - name: Create the build user
+        run: |
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chown -R builder:builder "$GITHUB_WORKSPACE"
+
+      - name: Configure SSH for the AUR
+        env:
+          AUR_SSH_KEY: ${{ secrets.AUR_SSH_KEY }}
+        run: |
+          if [[ -z "$AUR_SSH_KEY" ]]; then
+            echo "::error::AUR_SSH_KEY secret is not configured (see packaging/aur/README.md)"
+            exit 1
+          fi
+          install -d -m 700 -o builder -g builder /home/builder/.ssh
+          printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
+          # The host key is PINNED rather than ssh-keyscan'd: a keyscan trusts
+          # whatever answers on the day, which is exactly the thing a known
+          # hosts file exists to prevent.
+          cat > /home/builder/.ssh/known_hosts <<'EOF'
+          aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN
+          EOF
+          cat > /home/builder/.ssh/config <<'EOF'
+          Host aur.archlinux.org
+              User aur
+              IdentityFile ~/.ssh/aur
+              IdentitiesOnly yes
+          EOF
+          chown -R builder:builder /home/builder/.ssh
+          chmod 600 /home/builder/.ssh/aur /home/builder/.ssh/config
+          chmod 644 /home/builder/.ssh/known_hosts
+
+      - name: Publish to the AUR
+        run: |
+          # Pre-releases keep out of the AUR: an AUR package with no explicit
+          # channel is understood to be the stable one, and a helper would push
+          # a beta onto every user who typed `paru -Syu`. The release job marks
+          # these the same way - a letter anywhere in the version.
+          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+            echo "::notice::${VERSION} is a pre-release - leaving the AUR on the last stable version"
+            exit 0
+          fi
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          runuser -u builder -- bash -lc "
+            set -e
+            git config --global user.name 'Unisic release bot'
+            git config --global user.email 'noreply@github.com'
+            cd '$GITHUB_WORKSPACE/packaging/aur'
+            bash ./sync.sh --version '$VERSION' --check bin --push
+          "

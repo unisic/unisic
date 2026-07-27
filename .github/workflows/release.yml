@@ -219,6 +219,12 @@ jobs:
           runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
           mkdir -p dist
           cp packaging/arch/*.pkg.tar.zst dist/
+          # The complete source tarball ships as a release asset too: it is the
+          # only published tarball that carries external/unisic-kit, so it is
+          # what the AUR `unisic` recipe (and anyone building from source)
+          # fetches. The portable bundle is unisic-<version>-x86_64.tar.gz, so
+          # the two names never collide.
+          cp "packaging/arch/unisic-${version}.tar.gz" dist/
           # Install gate: runs unisic.install's post_install in the container.
           # Either outcome is valid — repo added (container keyring is
           # populated, so the key import should succeed) or the printed
@@ -235,7 +241,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: unisic-arch
-          path: dist/*.pkg.tar.zst
+          path: |
+            dist/*.pkg.tar.zst
+            dist/unisic-*.tar.gz
           if-no-files-found: error
 
   appimage:

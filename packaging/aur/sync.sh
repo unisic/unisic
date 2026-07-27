@@ -61,7 +61,10 @@ fetch_sha() {
     sha256sum "$out" | cut -d' ' -f1
 }
 
-src_url="https://github.com/${repo}/archive/refs/tags/v${version}.tar.gz"
+# The release asset, not the tag archive: GitHub's archives carry no submodule
+# content, and from 0.8 the build needs external/unisic-kit. The release
+# workflow attaches the complete tarball under this name.
+src_url="https://github.com/${repo}/releases/download/v${version}/unisic-${version}.tar.gz"
 say "Hashing the source tarball"
 src_sha="$(fetch_sha "$src_url")"
 

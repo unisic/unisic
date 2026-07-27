@@ -153,23 +153,20 @@ system.
 
 ### Source tarballs and the kit submodule
 
-Up to and including 0.7.5 the tree had no submodules, so `unisic` sources
-GitHub's tag tarball directly. From the commit that split `external/unisic-kit`
-out, that tarball is **incomplete** - GitHub's archives never contain
-submodules. Before publishing the first release that carries the submodule,
-either add a second `source=()` entry for the kit pinned by commit:
+Up to and including 0.7.5 the tree had no submodules, so `unisic` sourced
+GitHub's tag tarball directly. From 0.8 that tarball is **incomplete** -
+GitHub's archives never contain submodules, and `CMakeLists.txt` does
+`add_subdirectory(external/unisic-kit)`, so a build from it dies at configure
+time.
 
-```sh
-source=("unisic-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz"
-        "unisic-kit-${_kitcommit}.tar.gz::https://github.com/unisic/unisic-kit/archive/${_kitcommit}.tar.gz")
-prepare() {
-    rmdir "${pkgname}-${pkgver}/external/unisic-kit"
-    mv "unisic-kit-${_kitcommit}" "${pkgname}-${pkgver}/external/unisic-kit"
-}
-```
+Resolved by publishing the complete tarball the release workflow already builds
+(superproject + kit concatenated) as a release asset. `source=()` therefore
+points at `releases/download/v<ver>/unisic-<ver>.tar.gz`, not at the tag
+archive, and `sync.sh` hashes the same URL. The portable bundle is
+`unisic-<ver>-x86_64.tar.gz`, so the two assets never collide.
 
-or publish the complete source tarball the release workflow already builds
-(`packaging/arch/unisic-<version>.tar.gz`, superproject + kit concatenated) as
-a release asset and point `source=()` at that instead. Whichever route, the
-kit commit must exist on `github.com/unisic/unisic-kit` first - the org repo
-tends to lag the local checkout.
+Two things still have to hold at release time: the kit commit must exist on
+`github.com/unisic/unisic-kit` (the org repo tends to lag the local checkout,
+and the release workflow archives whatever the submodule points at), and the
+`arch` job must have run - the source tarball is produced there, so a release
+where that job failed has no tarball for the AUR recipe to fetch.

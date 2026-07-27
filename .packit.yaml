@@ -7,8 +7,16 @@ upstream_package_name: unisic
 downstream_package_name: unisic
 
 # Version comes from the git tag (v0.3 -> 0.3); Packit rewrites the spec's
-# Version and packs the git archive as Source0, so no manual bump is needed.
+# Version, so no manual bump is needed.
 upstream_tag_template: "v{version}"
+
+# Source0 is NOT Packit's default `git archive`: that skips submodule content,
+# and from 0.8 the tree carries external/unisic-kit, which CMakeLists.txt does
+# add_subdirectory() on. The script builds a complete tarball instead and
+# prints its path, which is what Packit consumes.
+actions:
+  create-archive:
+    - packaging/packit-archive.sh
 
 jobs:
   - job: copr_build

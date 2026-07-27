@@ -31,7 +31,13 @@ optdepends=('curl: FTP/SFTP upload destinations'
             'tesseract-data-pol: Polish OCR language data')
 provides=("unisic=${pkgver}")
 conflicts=('unisic-bin')
-source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/refs/tags/v${pkgver}.tar.gz")
+# The release asset, NOT ${url}/archive/refs/tags/v${pkgver}.tar.gz. From 0.8
+# the tree carries the external/unisic-kit submodule and CMakeLists.txt does
+# add_subdirectory() on it, but GitHub's tag archives never contain submodule
+# content, so that tarball fails at configure time. The release workflow builds
+# a complete one (superproject + kit concatenated) and attaches it under this
+# name; unisic-bin already sources a release asset the same way.
+source=("${pkgname}-${pkgver}.tar.gz::${url}/releases/download/v${pkgver}/${pkgname}-${pkgver}.tar.gz")
 sha256sums=('7fe8c1e788c096932c759df820e0dec24fac7efbb0c19557a76e83d52b462fd2')
 
 build() {

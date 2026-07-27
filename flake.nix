@@ -1,24 +1,40 @@
 {
-  description = "Unisic — Wayland screenshot & screen-recording tool";
+  description = "Unisic - Wayland screenshot & screen-recording tool";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs }:
+    # The shared design/foundation kit lives in its own repository and is a git
+    # submodule here (external/unisic-kit). A flake ref fetched from GitHub
+    # copies only the parent repo's own tracked files, so that directory would
+    # arrive empty and the CMake configure would fail on add_subdirectory.
+    # Carrying the kit as a flake input instead makes `nix build github:...`
+    # work with no extra flags; `?submodules=1` still works and wins, since the
+    # copy below only fills the directory when the submodule is absent.
+    # KEEP THE REV IN SYNC with `git submodule status external/unisic-kit`.
+    unisic-kit = {
+      url = "github:unisic/unisic-kit/81d697a9895849b76fd6a9334b4bf72f8f6e0a9c";
+      flake = false;
+    };
+  };
+
+  outputs = { self, nixpkgs, unisic-kit }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system: f (import nixpkgs { inherit system; }));
     in
     {
-      # nix build '.?submodules=1#unisic'   |   nix run '.?submodules=1#unisic' -- --region
-      # ?submodules=1 is required: external/unisic-kit is a submodule, and a
-      # plain flake ref copies only the parent repo's own tracked files.
+      # nix build '.#unisic'   |   nix run '.#unisic' -- --region
       packages = forAllSystems (pkgs: {
-        unisic = pkgs.callPackage ./nix/package.nix { };
+        unisic = pkgs.callPackage ./nix/package.nix { unisicKitSrc = unisic-kit; };
         default = self.packages.${pkgs.system}.unisic;
       });
 
       # nix develop   ->   cmake -B build -G Ninja && cmake --build build
+      # A dev shell builds from the working tree, where the submodule is a real
+      # checkout: clone with --recurse-submodules (or run `git submodule update
+      # --init`) before configuring, the kit input above does not apply here.
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           inputsFrom = [ self.packages.${pkgs.system}.unisic ];

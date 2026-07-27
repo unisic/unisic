@@ -15,40 +15,57 @@ HistoryFilterModel::HistoryFilterModel(QObject *parent)
     connect(this, &HistoryFilterModel::filterChanged, this, emitCount);
 }
 
+void HistoryFilterModel::beginFilterEdit()
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    beginFilterChange();
+#endif
+}
+
+void HistoryFilterModel::endFilterEdit()
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    endFilterChange();
+#else
+    invalidateFilter();
+#endif
+    emit filterChanged();
+}
+
 void HistoryFilterModel::setSearchText(const QString &t)
 {
     if (m_searchText == t)
         return;
+    beginFilterEdit();
     m_searchText = t;
-    invalidateFilter();
-    emit filterChanged();
+    endFilterEdit();
 }
 
 void HistoryFilterModel::setKindFilter(const QString &k)
 {
     if (m_kindFilter == k)
         return;
+    beginFilterEdit();
     m_kindFilter = k;
-    invalidateFilter();
-    emit filterChanged();
+    endFilterEdit();
 }
 
 void HistoryFilterModel::setFavoritesOnly(bool v)
 {
     if (m_favoritesOnly == v)
         return;
+    beginFilterEdit();
     m_favoritesOnly = v;
-    invalidateFilter();
-    emit filterChanged();
+    endFilterEdit();
 }
 
 void HistoryFilterModel::setUploadedOnly(bool v)
 {
     if (m_uploadedOnly == v)
         return;
+    beginFilterEdit();
     m_uploadedOnly = v;
-    invalidateFilter();
-    emit filterChanged();
+    endFilterEdit();
 }
 
 bool HistoryFilterModel::filtering() const

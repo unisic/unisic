@@ -2,7 +2,7 @@
 # explicit entries cover runtime-loaded pieces ${shlibs:Depends} cannot see:
 # QML modules, the Qt SVG image plugin, the pipewire daemon, the ffmpeg CLI,
 # portals, wl-clipboard). Keep both lists in sync when either changes.
-# Build-Depends mirror the debian:trixie CI job in .github/workflows/release.yml
+# Build-Depends mirror the debian:trixie CI job in .github/workflows/deb.yml
 # and the Build-Depends line in unisic.dsc.
 Source: unisic
 Section: graphics

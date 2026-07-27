@@ -1,0 +1,72 @@
+name: RPM package
+
+# Reusable single source of truth for the .rpm. Builds it and uploads it as the
+# `unisic-rpm-fedora` artifact. Called by:
+#   - build.yml   -> PR smoke check: does the package still build and install?
+#   - release.yml -> produces the published release asset.
+#
+# FEDORA-ONLY, deliberately: QML type registration links Qt PRIVATE API symbols
+# (QQmlPrivate via qt_add_qml_module), so a binary rpm hard-requires the EXACT
+# Qt minor it was built against - libQt6Qml.so.6(Qt_6.11_PRIVATE_API) from
+# fedora:latest can never resolve on openSUSE's Qt, and one rpm across distros
+# is impossible by construction. openSUSE ships from the OBS repos instead
+# (TW + Leap 16, auto-rebuilt when TW's dependencies move - see
+# packaging/obs/README.md); a COPR suse lane was tried (2026-07) and reverted
+# after COPR's Pulp storage migration broke the opensuse chroots at
+# mock-bootstrap time.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  BUILD_TYPE: Release
+  UNISIC_BUILD_NUMBER: ${{ github.run_number }}
+
+jobs:
+  rpm:
+    name: RPM (Fedora)
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
+          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) - see the deb job comment.
+          dnf install -y \
+            ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
+            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
+            qt6-qtwayland-devel qt6-qtbase-private-devel plasma-wayland-protocols-devel \
+            qt6-qttools-devel \
+            pipewire-devel \
+            tesseract-devel leptonica-devel zxing-cpp-devel \
+            layer-shell-qt-devel wayland-devel \
+            libX11-devel libXext-devel libXfixes-devel libxcb-devel
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build RPM
+        run: |
+          cmake -B build-rpm -G Ninja \
+            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCPACK_GENERATOR=RPM
+          cmake --build build-rpm --parallel
+          cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
+          # Install gate: resolves the runtime Requires against Fedora repos
+          # and runs the COPR %post (self-registration) in the container.
+          dnf install -y ./dist/*.rpm
+          test -e /etc/yum.repos.d/unisic-copr.repo
+          for f in dist/*.x86_64.rpm; do
+            mv "$f" "${f%.x86_64.rpm}.fedora.x86_64.rpm"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unisic-rpm-fedora
+          path: dist/*.rpm
+          if-no-files-found: error

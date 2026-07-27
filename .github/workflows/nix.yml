@@ -12,6 +12,8 @@ on:
       - nix/**
       - .github/workflows/nix.yml
   workflow_dispatch:
+  # Called by build.yml so a PR test-builds this packaging path too.
+  workflow_call:
 
 permissions:
   contents: read

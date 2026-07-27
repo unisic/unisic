@@ -1,26 +1,57 @@
 name: Build
 
-# PR smoke check: does the AppImage still build? The AppImage is the fragile
-# package (bundled Qt wayland stack, source-built layer-shell-qt + zxing via
-# linuxdeploy), so it's the one worth catching before merge. It reuses the exact
-# build release.yml publishes, so a green PR means a buildable release AppImage.
+# PR smoke check: does EVERY package Unisic ships still build?
 #
-# It replaces the old Fedora compile+ctest job (that ran on every push): the
-# Fedora compile is still exercised at release time by release.yml's rpm job.
-# Only runs on pull requests (and on demand) — the AppImage build is heavy, so
-# it should not fire on every commit push.
+# Each job here calls the same reusable workflow release.yml calls, so a green
+# PR means a buildable release - there is one build definition per format, not
+# a PR copy that can drift from the release copy. The formats are not
+# interchangeable smoke tests: the .deb and .rpm catch distro dependency
+# breakage, the Arch job also produces (and therefore validates) the source
+# tarball that carries external/unisic-kit, the AppImage is the fragile one
+# (bundled Qt wayland stack, source-built layer-shell-qt + zxing via
+# linuxdeploy), the Flatpak guards the Flathub manifest and its linter, and the
+# Nix flake compiles and runs the QtTest suite in its checkPhase.
+#
+# It replaces the old Fedora compile+ctest job (that ran on every push); the
+# Fedora compile now happens here in the rpm job. Only runs on pull requests
+# (and on demand) - these builds are heavy, so they must not fire on every
+# commit push.
 on:
   pull_request:
     branches: [dev, main]
   workflow_dispatch:
 
 # A new push to the PR branch cancels the still-running check of the previous
-# commit — only the newest commit's result matters.
+# commit - only the newest commit's result matters.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  deb:
+    name: Debian build check
+    uses: ./.github/workflows/deb.yml
+
+  rpm:
+    name: RPM build check
+    uses: ./.github/workflows/rpm.yml
+
+  arch:
+    name: Arch build check
+    uses: ./.github/workflows/arch.yml
+
   appimage:
     name: AppImage build check
     uses: ./.github/workflows/appimage.yml
+
+  flatpak:
+    name: Flatpak build check
+    # local: true builds this checkout instead of the release tag the manifest
+    # pins - otherwise the PR would test the last release, not the change.
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      local: true
+
+  nix:
+    name: Nix flake build check
+    uses: ./.github/workflows/nix.yml

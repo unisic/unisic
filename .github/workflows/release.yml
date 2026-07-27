@@ -55,196 +55,26 @@ jobs:
             echo "::notice::Releasing v${version}."
           fi
 
+  # deb, rpm and arch are extracted to reusable workflows so build.yml's PR
+  # smoke check runs the identical build (no drift). Each uploads the same
+  # artifact name the release job downloads below.
   deb:
     name: Debian package
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: debian:trixie
-    steps:
-      - name: Install build dependencies
-        run: |
-          apt-get update
-          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
-          # (HAVE_TESSERACT / HAVE_LAYERSHELL) — without the -dev packages here
-          # the shipped binary has OCR and the on-top layer-shell surfaces
-          # (custom notification card, overlay-over-fullscreen, preview pin)
-          # compiled out no matter what the user installs at runtime.
-          # Same trap for HAVE_KWIN_SCREENCAST (KWin-native recording, no
-          # portal share dialog): it needs Qt6WaylandClient + the protocol
-          # scanner (qt6-wayland-dev, which pulls qt6-wayland-dev-tools),
-          # plasma-wayland-protocols for zkde-screencast-unstable-v1.xml, and
-          # Qt6GuiPrivate for the per-screen wl_output. Runtime qt6-wayland
-          # alone is not enough.
-          # KNOWN GAP, deliberately not worked around here: trixie ships NO
-          # Qt6GuiPrivateConfig.cmake at all (qt6-base-private-dev is headers
-          # only; sid moved the config into qt6-base-dev), so the kit's
-          # find_package(Qt6 COMPONENTS GuiPrivate) fails and the .deb still
-          # falls back to the portal. The private headers are installed anyway
-          # so that a kit-side fallback can use them without touching this
-          # list again.
-          apt-get install -y --no-install-recommends \
-            ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
-            qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
-            qt6-wayland-dev qt6-base-private-dev plasma-wayland-protocols \
-            qt6-tools-dev qt6-l10n-tools \
-            libpipewire-0.3-dev \
-            libtesseract-dev libleptonica-dev libzxing-dev \
-            liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev \
-            libx11-dev libxext-dev libxfixes-dev libxcb1-dev
+    uses: ./.github/workflows/deb.yml
 
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build DEB
-        run: |
-          cmake -B build-deb -G Ninja \
-            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-            -DCPACK_GENERATOR=DEB
-          cmake --build build-deb --parallel
-          cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
-          dpkg-deb --field dist/*.deb Depends Recommends
-          apt-get install -y --no-install-recommends ./dist/*.deb
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-deb
-          path: dist/*.deb
-          if-no-files-found: error
-
-  # The rpm asset is FEDORA-ONLY, deliberately: QML type registration links
-  # Qt PRIVATE API symbols (QQmlPrivate via qt_add_qml_module), so a binary
-  # rpm hard-requires the EXACT Qt minor it was built against —
-  # libQt6Qml.so.6(Qt_6.11_PRIVATE_API) from fedora:latest can never resolve
-  # on openSUSE's Qt, and one rpm across distros is impossible by
-  # construction. openSUSE ships from the OBS repos instead (TW + Leap 16,
-  # auto-rebuilt when TW's dependencies move — see packaging/obs/README.md);
-  # a COPR suse lane was tried (2026-07) and reverted after COPR's Pulp
-  # storage migration broke the opensuse chroots at mock-bootstrap time.
   rpm:
     name: RPM (Fedora)
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: fedora:latest
-    steps:
-      - name: Install build dependencies
-        run: |
-          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
-          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) — see the deb job comment.
-          dnf install -y \
-            ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
-            qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
-            qt6-qtwayland-devel qt6-qtbase-private-devel plasma-wayland-protocols-devel \
-            qt6-qttools-devel \
-            pipewire-devel \
-            tesseract-devel leptonica-devel zxing-cpp-devel \
-            layer-shell-qt-devel wayland-devel \
-            libX11-devel libXext-devel libXfixes-devel libxcb-devel
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build RPM
-        run: |
-          cmake -B build-rpm -G Ninja \
-            -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-            -DCPACK_GENERATOR=RPM
-          cmake --build build-rpm --parallel
-          cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
-          # Install gate: resolves the runtime Requires against Fedora repos
-          # and runs the COPR %post (self-registration) in the container.
-          dnf install -y ./dist/*.rpm
-          test -e /etc/yum.repos.d/unisic-copr.repo
-          for f in dist/*.x86_64.rpm; do
-            mv "$f" "${f%.x86_64.rpm}.fedora.x86_64.rpm"
-          done
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-rpm-fedora
-          path: dist/*.rpm
-          if-no-files-found: error
+    uses: ./.github/workflows/rpm.yml
 
   arch:
     name: Arch package
     needs: check
     if: ${{ needs.check.outputs.should_release == 'true' }}
-    runs-on: ubuntu-latest
-    container: archlinux:base-devel
-    steps:
-      - name: Install build dependencies
-        run: |
-          pacman -Sy --noconfirm archlinux-keyring
-          pacman -Syu --noconfirm --needed \
-            ca-certificates git base-devel cmake ninja pkgconf \
-            qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
-            plasma-wayland-protocols \
-            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
-            tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kguiaddons libx11 libxext libxfixes libxcb
-
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Build Arch package
-        run: |
-          version_line=""
-          while IFS= read -r line; do
-            if [[ "$line" == project\(unisic\ VERSION* ]]; then
-              version_line="$line"
-              break
-            fi
-          done < CMakeLists.txt
-          if [[ -z "$version_line" ]]; then
-            printf 'Could not read project version from CMakeLists.txt\n' >&2
-            exit 1
-          fi
-          version="${version_line#*VERSION }"
-          version="${version%% *}"
-          # git archive skips submodules — archive the superproject and the
-          # kit separately, concatenate the (uncompressed) tars, then gzip.
-          git -c safe.directory="$GITHUB_WORKSPACE" archive --format=tar --prefix="unisic-${version}/" -o /tmp/unisic-src.tar HEAD
-          git -C external/unisic-kit -c safe.directory="$GITHUB_WORKSPACE/external/unisic-kit" archive --format=tar --prefix="unisic-${version}/external/unisic-kit/" -o /tmp/unisic-kit-src.tar HEAD
-          tar --concatenate --file=/tmp/unisic-src.tar /tmp/unisic-kit-src.tar
-          gzip -c /tmp/unisic-src.tar > "packaging/arch/unisic-${version}.tar.gz"
-          # PKGBUILD carries a literal pkgver (OBS's server-side parser can't
-          # expand ${var:-default}); inject the CMakeLists version here.
-          sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
-          useradd -m builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
-          mkdir -p dist
-          cp packaging/arch/*.pkg.tar.zst dist/
-          # The complete source tarball ships as a release asset too: it is the
-          # only published tarball that carries external/unisic-kit, so it is
-          # what the AUR `unisic` recipe (and anyone building from source)
-          # fetches. The portable bundle is unisic-<version>-x86_64.tar.gz, so
-          # the two names never collide.
-          cp "packaging/arch/unisic-${version}.tar.gz" dist/
-          # Install gate: runs unisic.install's post_install in the container.
-          # Either outcome is valid — repo added (container keyring is
-          # populated, so the key import should succeed) or the printed
-          # fallback (uninitialized keyring). INVALID is the half-state:
-          # repo entry present without the trusted key.
-          pacman -U --noconfirm dist/*.pkg.tar.zst
-          if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
-            pacman-key --list-keys E5057FCB0F3DF876 >/dev/null
-            pacman -Sy   # the registered OBS repo must actually resolve
-          else
-            echo "post_install took the manual-instructions fallback (no repo entry) — OK"
-          fi
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: unisic-arch
-          path: |
-            dist/*.pkg.tar.zst
-            dist/unisic-*.tar.gz
-          if-no-files-found: error
+    uses: ./.github/workflows/arch.yml
 
   appimage:
     name: AppImage

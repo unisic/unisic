@@ -14,13 +14,11 @@ name: Flatpak build
 # `packaging/flatpak/build.sh --local`. The release needs it too: it runs before
 # the v<version> tag exists, so building the pin would ship the previous release
 # under the new version's name.
+#
+# No pull_request trigger of its own: build.yml calls this on every PR, and a
+# second path-filtered trigger here would build the same Flatpak twice on any
+# PR that touches packaging/flatpak/**.
 on:
-  pull_request:
-    paths:
-      - "packaging/flatpak/**"
-      - "resources/app.unisic.Unisic.metainfo.xml"
-      - "resources/app.unisic.Unisic.desktop.in"
-      - ".github/workflows/flatpak.yml"
   workflow_dispatch:
     inputs:
       local:
@@ -46,11 +44,18 @@ jobs:
     # The KDE runtime + SDK and an ffmpeg build from source: this is slow.
     timeout-minutes: 120
     container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.11
+      # DELIBERATELY one minor behind the manifest's runtime-version: that repo
+      # publishes KDE tags only up to kde-6.10, and pointing this at kde-6.11
+      # failed every run before the first step with
+      # "manifest unknown" from the docker pull. The image only PRESEEDS a
+      # runtime - flatpak-builder runs with --install-deps-from=flathub, so it
+      # pulls whatever org.kde.Sdk the manifest actually names. Bump this the
+      # day a kde-6.11 tag appears, not before.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-6.10
       options: --privileged
     env:
-      # Resolved once, because `inputs.local` is NULL on pull_request (that
-      # trigger has no inputs at all) and null compares equal to false in a
+      # Resolved once, because `inputs.local` is NULL when this workflow is
+      # reached without that input and null compares equal to false in a
       # GitHub expression - so a plain `inputs.local != false` would quietly
       # build the tag on exactly the runs that exist to test the branch.
       LOCAL: ${{ (github.event_name == 'pull_request' || inputs.local) && 'true' || 'false' }}

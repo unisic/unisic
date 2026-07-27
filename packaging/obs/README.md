@@ -50,7 +50,7 @@ the next service run overwrites them.
 
 Sync rules: `debian.control` Depends mirrors the CPack DEB block in
 `CMakeLists.txt`; `unisic.dsc` Build-Depends mirrors `debian.control`;
-both mirror the debian:trixie CI job in `release.yml`. If the OBS project
+both mirror the debian:trixie CI job in `deb.yml`. If the OBS project
 key is ever rotated, re-download it into `packaging/obs/home_unisic.key`
 (`https://build.opensuse.org/projects/home:unisic/signing_keys/download?kind=gpg`)
 and update the fingerprint in `packaging/arch/unisic.install`.

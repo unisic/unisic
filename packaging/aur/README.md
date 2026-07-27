@@ -107,8 +107,8 @@ AUR-only fix at an unchanged `pkgver`, bump `pkgrel` by hand, regenerate
 
 ## Publishing from CI
 
-The `aur` job in `.github/workflows/release.yml` does the above by itself after
-each release. It runs in an `archlinux:base-devel` container, as an
+`.github/workflows/aur.yml` does the above by itself after each release, called
+by `release.yml`. It runs in an `archlinux:base-devel` container, as an
 unprivileged `builder` user with passwordless sudo (makepkg refuses to run as
 root, and `makepkg -s` needs sudo to install dependencies - without a sudoers
 rule it fails with the unhelpful "Could not resolve all dependencies").
@@ -117,6 +117,12 @@ It runs `--check bin`, not a full `--check`: the pipeline's own `arch` job has
 already compiled and installed this exact tree, so building the source recipe
 again would cost about ten minutes and verify nothing new. The repack has no
 such twin, so it is built and namcap'd.
+
+**Retrying a failed push.** Re-running the release pipeline is useless: its
+version check sees the tag it already created and skips every job. So `aur.yml`
+is `workflow_dispatch`-able on its own, taking the released version as input -
+`gh workflow run aur.yml --ref dev -f version=0.8`. It only reads the recipes
+out of the checkout; everything it hashes is downloaded from the release.
 
 **Pre-releases are skipped.** A version with a letter in it (`0.8b`, `1.0rc1`)
 leaves the AUR on the last stable version - an AUR package with no channel in

@@ -14,9 +14,13 @@ upstream_tag_template: "v{version}"
 # and from 0.8 the tree carries external/unisic-kit, which CMakeLists.txt does
 # add_subdirectory() on. The script builds a complete tarball instead and
 # prints its path, which is what Packit consumes.
+# Run through `bash` rather than executing the script directly: this repo is
+# also worked on from a FAT filesystem, where core.filemode is off, so a lost
+# exec bit is a real failure mode - it took out the v0.8 SRPM build on all
+# three chroots with "[Errno 13] Permission denied: 'packaging/packit-archive.sh'".
 actions:
   create-archive:
-    - packaging/packit-archive.sh
+    - bash packaging/packit-archive.sh
 
 jobs:
   - job: copr_build

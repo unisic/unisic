@@ -1258,6 +1258,12 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Hide Unisic while capturing")
+                        help: qsTr("Takes the Unisic window off screen so it never lands in the shot.")
+                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
+                        USwitch { checked: App.settings.hideWindowOnCapture; onToggled: (c) => App.settings.hideWindowOnCapture = c }
+                    }
+                    SettingRow {
                         label: qsTr("Include mouse cursor")
                         help: App.capScreenshotCursor ? qsTr("Draws the mouse pointer into the capture.") : qsTr("The plain Screenshot portal cannot include the cursor on this desktop.")
                         helpDetail: qsTr("KWin ScreenShot2, grim and recording ScreenCast streams support cursor embedding. The plain portal Screenshot API does not expose a cursor mode.")
@@ -3294,6 +3300,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Hide while capturing"); onClicked: App.devTestHideOnCapture() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action"); onClicked: App.devTestExternalAction() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }

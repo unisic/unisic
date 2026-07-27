@@ -33,6 +33,7 @@ class Settings : public QObject
     Q_PROPERTY(bool recordKeystrokes READ recordKeystrokes WRITE setRecordKeystrokes NOTIFY recordKeystrokesChanged)
     Q_PROPERTY(QString measureCopyFormat READ measureCopyFormat WRITE setMeasureCopyFormat NOTIFY measureCopyFormatChanged)
     Q_PROPERTY(int captureDelayMs READ captureDelayMs WRITE setCaptureDelayMs NOTIFY captureDelayMsChanged)
+    Q_PROPERTY(bool hideWindowOnCapture READ hideWindowOnCapture WRITE setHideWindowOnCapture NOTIFY hideWindowOnCaptureChanged)
     Q_PROPERTY(QString captureSound READ captureSound WRITE setCaptureSound NOTIFY captureSoundChanged)
     Q_PROPERTY(QString recordingSound READ recordingSound WRITE setRecordingSound NOTIFY recordingSoundChanged)
     Q_PROPERTY(QString recordStartSound READ recordStartSound WRITE setRecordStartSound NOTIFY recordStartSoundChanged)
@@ -358,6 +359,13 @@ public:
     // 412 px), "plain" (842x317 / 412) or "css" (width: 842px; height: 317px).
     U_SETTING(QString, measureCopyFormat, setMeasureCopyFormat, "capture/measureCopyFormat", QStringLiteral("readable"))
     U_SETTING(int, captureDelayMs, setCaptureDelayMs, "captureDelayMs", 200)
+    // Take Unisic's own window off screen for the duration of a capture. Without
+    // it, every capture started from the main window photographs that window -
+    // the region overlay freezes the screen with it still up, "full screen"
+    // includes it, and "active window" IS it, because we are the window that was
+    // just clicked. Off only makes sense when the subject is Unisic itself
+    // (documentation screenshots), which is why it is not the default.
+    U_SETTING(bool, hideWindowOnCapture, setHideWindowOnCapture, "capture/hideWindowOnCapture", true)
     // Capture sound cue (General tab). Bare key (never a "general"-named
     // group, see the INI [%General] trap). "off" or a bundled id.
     U_SETTING(QString, captureSound, setCaptureSound, "captureSound", QStringLiteral("shutter"))
@@ -587,7 +595,8 @@ public:
         emit cursorHighlightColorChanged(); emit cursorClickRippleChanged();
         emit recordKeystrokesChanged();
         emit measureCopyFormatChanged();
-        emit captureDelayMsChanged(); emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
+        emit captureDelayMsChanged(); emit hideWindowOnCaptureChanged();
+        emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
@@ -651,6 +660,7 @@ signals:
     void recordKeystrokesChanged();
     void measureCopyFormatChanged();
     void captureDelayMsChanged();
+    void hideWindowOnCaptureChanged();
     void captureSoundChanged();
     void recordingSoundChanged();
     void recordStartSoundChanged();

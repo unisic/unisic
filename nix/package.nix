@@ -15,9 +15,12 @@
   wayland,
   ffmpeg,
   wl-clipboard,
+  # The unisic-kit checkout, passed by the flake. Only used when the source
+  # copy has no submodule content of its own (see postUnpack).
+  unisicKitSrc ? null,
 }:
 
-# Unisic — Wayland screenshot & screen-recording tool. Plain qt6 CMake build.
+# Unisic - Wayland screenshot & screen-recording tool. Plain qt6 CMake build.
 # The interesting bits: ffmpeg + wl-clipboard are shelled out at RUNTIME, so
 # they are put on the wrapped app's PATH (not buildInputs); the QtTest suite is
 # compositor-free and runs headless under QT_QPA_PLATFORM=offscreen.
@@ -27,10 +30,22 @@ stdenv.mkDerivation (finalAttrs: {
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the
-  # external/unisic-kit submodule only when the flake ref asks for it, hence the
-  # ?submodules=1 in the build commands below - without it the kit is an empty
-  # directory and the CMake configure fails.
+  # external/unisic-kit submodule only when the flake ref asked for it
+  # (?submodules=1); otherwise postUnpack fills the directory from the kit input.
   src = lib.cleanSource ../.;
+
+  # A GitHub flake ref without ?submodules=1 leaves external/unisic-kit empty,
+  # and CMakeLists.txt add_subdirectory()s it. Drop the kit input in when the
+  # submodule did not come along, so `nix build github:unisic/unisic` works
+  # unflagged; a real submodule checkout is left untouched.
+  postUnpack = lib.optionalString (unisicKitSrc != null) ''
+    kit="$sourceRoot/external/unisic-kit"
+    if [ ! -e "$kit/CMakeLists.txt" ]; then
+      rm -rf "$kit"
+      mkdir -p "$kit"
+      cp -r --no-preserve=mode,ownership ${unisicKitSrc}/. "$kit/"
+    fi
+  '';
 
   nativeBuildInputs = [
     cmake
@@ -46,12 +61,12 @@ stdenv.mkDerivation (finalAttrs: {
     qt6.qtsvg
     qt6.qtwayland
     kdePackages.layer-shell-qt # LayerShellQt (notification/preview surfaces)
-    kdePackages.kguiaddons # KF6::GuiAddons — KSystemClipboard (Klipper history)
-    pipewire # HAVE_PIPEWIRE — GIF/video recording
+    kdePackages.kguiaddons # KF6::GuiAddons - KSystemClipboard (Klipper history)
+    pipewire # HAVE_PIPEWIRE - GIF/video recording
     (tesseract.override { enableLanguages = [ "eng" "pol" ]; }) # HAVE_TESSERACT (OCR)
     leptonica
-    zxing-cpp # HAVE_ZXING — QR/barcode decode inside the OCR path
-    libinput # HAVE_LIBINPUT — click/keystroke capture (needs the `input` group)
+    zxing-cpp # HAVE_ZXING - QR/barcode decode inside the OCR path
+    libinput # HAVE_LIBINPUT - click/keystroke capture (needs the `input` group)
     udev
     wayland # wayland-client
   ];
@@ -63,7 +78,7 @@ stdenv.mkDerivation (finalAttrs: {
   ];
 
   # Recording pipes frames to ffmpeg; the clipboard is mirrored through wl-copy.
-  # Both are looked up on PATH at runtime — wrap them in so capture/record work.
+  # Both are looked up on PATH at runtime - wrap them in so capture/record work.
   qtWrapperArgs = [
     "--prefix PATH : ${lib.makeBinPath [ ffmpeg wl-clipboard ]}"
   ];

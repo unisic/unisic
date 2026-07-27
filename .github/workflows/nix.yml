@@ -26,13 +26,29 @@ jobs:
         with:
           submodules: recursive
 
+      - name: The flake's kit input must match the submodule
+        # Two pins for one dependency: whoever bumps the submodule has to bump
+        # the flake input too, or Nix users silently build an older kit.
+        run: |
+          sub=$(git rev-parse HEAD:external/unisic-kit)
+          flake=$(grep -oP 'unisic-kit/\K[0-9a-f]{40}' flake.nix)
+          if [ "$sub" != "$flake" ]; then
+            echo "submodule is at $sub but flake.nix pins $flake" >&2
+            exit 1
+          fi
+
       - name: Install Nix (flakes enabled)
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Build the package (compiles Unisic + runs the QtTest suite)
-        # ?submodules=1 is not optional: a plain `nix build .#unisic` copies the
-        # parent tree's tracked content into the store, and a submodule is a
-        # gitlink there, not content. external/unisic-kit would arrive EMPTY and
-        # CMakeLists' add_subdirectory would fail - which it did, even though
-        # this job checks out with submodules: recursive.
+        # No ?submodules=1 on purpose: this is the ref shape everyone consuming
+        # `github:unisic/unisic` gets, where a submodule is a gitlink and
+        # external/unisic-kit arrives EMPTY. The flake's unisic-kit input has to
+        # fill it, or CMakeLists' add_subdirectory fails - which it did, for a
+        # user on NixOS.
+        run: nix build '.#unisic' -L
+
+      - name: Build again with the submodule content (?submodules=1)
+        # The other half of the contract: when the kit IS there, the copy must
+        # step aside and the real checkout must build.
         run: nix build '.?submodules=1#unisic' -L

@@ -228,11 +228,21 @@ AppContext::AppContext(QObject *parent)
         // would be baked into the output.
         if (m_recorder->sourceType() == GifRecorder::Region && !m_pendingRecordRegion.isEmpty())
             showRecordBorder(m_pendingRecordRegion, m_pendingRecordScreen);
+        // Our own window is in frame exactly like anything else: a recording
+        // started from the Record page otherwise films the page that started it.
+        // Here rather than at the trigger because the countdown renders as a
+        // toast INSIDE that window; endCaptureIsolation() puts it back, and the
+        // converting/failed signals that call it cover every way a recording can
+        // end. Never for the instant-replay ring: that rolls for as long as the
+        // user leaves it armed, and taking the window away for an open-ended
+        // period is not "for the duration of a capture", it is losing the window.
+        if (!m_recorder->instantReplayActive())
+            hideOwnWindowForCapture();
     });
     connect(m_recorder, &GifRecorder::elapsedChanged, this, &AppContext::recordSecondsChanged);
     connect(m_recorder, &GifRecorder::converting, this, [this] {
         m_converting = true;
-        endDoNotDisturb();
+        endCaptureIsolation();
         hideRecordBorder(); // capture is over; the frame must not linger over encoding
         emit recordingChanged();
         showToast(tr("Encoding…"));
@@ -243,7 +253,7 @@ AppContext::AppContext(QObject *parent)
     });
     connect(m_recorder, &GifRecorder::failed, this, [this](const QString &e) {
         m_converting = false;
-        endDoNotDisturb();
+        endCaptureIsolation();
         // A failure can land before arming (portal denied): clear the pending
         // hold so a later recording can't inherit it.
         m_pendingCountdownSecs = 0;
@@ -1028,16 +1038,103 @@ bool AppContext::capScreenshotCursor() const
     return false;
 }
 
-void AppContext::beginDoNotDisturb()
+void AppContext::beginCaptureIsolation()
 {
     if (m_settings->doNotDisturbWhileCapturing() && capDoNotDisturb())
         m_dnd->acquire();
 }
 
-void AppContext::endDoNotDisturb()
+void AppContext::endCaptureIsolation()
 {
     if (m_dnd)
         m_dnd->release();
+    restoreOwnWindowAfterCapture();
+}
+
+// How long the compositor gets to actually take our surface off screen after
+// hide(). There is no Wayland event for "the frame without that window has been
+// presented" - xdg_toplevel destruction is fire-and-forget - so this is a wait,
+// not a handshake. Measured worst case among kwin_wayland, mutter, cosmic-comp
+// and labwc was well under 100 ms; the rest is headroom, and it is only ever
+// paid when a window was actually up.
+static constexpr int kSelfHideSettleMs = 180;
+
+bool AppContext::hideOwnWindowForCapture()
+{
+    if (!m_settings->hideWindowOnCapture())
+        return false;
+    if (m_hiddenForCapture)
+        return true; // already down for this capture - do not stack restores
+    QQuickWindow *win = mainWindow();
+    if (!win || !win->isVisible())
+        return false; // triggered from a hotkey or the tray: nothing to hide
+    win->hide();
+    m_hiddenForCapture = win;
+    return true;
+}
+
+void AppContext::restoreOwnWindowAfterCapture()
+{
+    if (!m_hiddenForCapture)
+        return;
+    QQuickWindow *win = m_hiddenForCapture;
+    m_hiddenForCapture = nullptr;
+    // show(), not showNormal()/requestActivate(): the editor window opens
+    // straight after this on the default settings, and stealing focus back from
+    // it is exactly the wrong end of the capture to be looking at.
+    win->show();
+}
+
+void AppContext::withCaptureDelay(std::function<void()> fn)
+{
+    withDelay([this, fn = std::move(fn)]() mutable {
+        if (!hideOwnWindowForCapture()) {
+            fn();
+            return;
+        }
+        QTimer::singleShot(kSelfHideSettleMs, this, std::move(fn));
+    });
+}
+
+void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
+{
+    QPointer<QQuickWindow> win = mainWindow();
+    if (!win || !win->isVisible()) {
+        done(QStringLiteral("SKIP (main window not open)"));
+        return;
+    }
+    if (!m_settings->hideWindowOnCapture()) {
+        // Deliberately does NOT flip the setting to run anyway: this check runs
+        // from the smoke test on the user's own configuration, and a check that
+        // rewrites config to make itself pass is a worse trade than a SKIP.
+        done(QStringLiteral("SKIP (hide while capturing is off)"));
+        return;
+    }
+    const bool wentDown = hideOwnWindowForCapture() && !win->isVisible();
+    // Restored a whole event-loop turn later, on the same timer a real capture
+    // uses - the failure that matters here is the window not coming BACK, and a
+    // same-turn hide/show would not exercise that at all.
+    QTimer::singleShot(kSelfHideSettleMs, this, [this, win, wentDown, done = std::move(done)] {
+        restoreOwnWindowAfterCapture();
+        const bool cameBack = win && win->isVisible();
+        done(wentDown && cameBack
+                 ? QStringLiteral("PASS")
+                 : QStringLiteral("FAIL (hidden=%1, restored=%2)")
+                       .arg(wentDown ? 1 : 0).arg(cameBack ? 1 : 0));
+    });
+}
+
+QQuickWindow *AppContext::mainWindow() const
+{
+    // rootObjects() lives on QQmlApplicationEngine (what main() passes in).
+    auto *appEngine = qobject_cast<QQmlApplicationEngine *>(m_engine);
+    if (!appEngine)
+        return nullptr;
+    const QList<QObject *> roots = appEngine->rootObjects();
+    for (QObject *o : roots)
+        if (auto *w = qobject_cast<QQuickWindow *>(o))
+            return w;
+    return nullptr;
 }
 
 void AppContext::captureFullScreen()
@@ -1060,20 +1157,20 @@ void AppContext::captureFullScreen()
     }
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this, inhibited] {
+    beginCaptureIsolation();
+    withCaptureDelay([this, inhibited] {
         // Re-check: with a capture delay configured, the region overlay may
         // have opened between the keypress and this deferred fire.
         if (m_overlay->active()) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
         m_capture->captureWorkspace([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!err.isEmpty()) {
                 m_nextCaptureTask = {};
                 clearCliCapture(err);
@@ -1105,18 +1202,18 @@ void AppContext::captureRegionWithTool(int initialTool)
     }
     const bool inhibited = nowInhibited(); // before the fullscreen overlay opens
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this, inhibited, initialTool] {
+    beginCaptureIsolation();
+    withCaptureDelay([this, inhibited, initialTool] {
         if (m_overlay->active()) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
         m_overlay->pickAnnotatedImage([this, inhibited](const QImage &img) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!img.isNull()) {
                 // Persist the rect for re-capture BEFORE finishCapture so a
                 // task preset that uploads/deletes still leaves the region.
@@ -1146,11 +1243,11 @@ void AppContext::captureScreenUnderCursor()
     }
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this, inhibited] {
+    beginCaptureIsolation();
+    withCaptureDelay([this, inhibited] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Another capture is already active"));
             return;
@@ -1163,7 +1260,7 @@ void AppContext::captureScreenUnderCursor()
             screen = QGuiApplication::primaryScreen();
         m_capture->captureActiveScreen(screen, [this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!err.isEmpty() || img.isNull()) {
                 m_nextCaptureTask = {};
                 clearCliCapture(err.isEmpty() ? tr("Empty capture") : err);
@@ -1218,18 +1315,18 @@ void AppContext::recaptureLastRegion()
     }
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this, inhibited, target, rect] {
+    beginCaptureIsolation();
+    withCaptureDelay([this, inhibited, target, rect] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
         m_capture->captureScreen(target, [this, inhibited, target, rect](const QImage &img, const QString &err) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!err.isEmpty() || img.isNull()) {
                 m_nextCaptureTask = {};
                 clearCliCapture(err.isEmpty() ? tr("Empty capture") : err);
@@ -1260,16 +1357,16 @@ void AppContext::captureRegionOcr()
     if (m_captureInFlight || m_overlay->active())
         return;
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this] {
+    beginCaptureIsolation();
+    withCaptureDelay([this] {
         if (m_overlay->active()) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             return;
         }
         m_overlay->pickAnnotatedImage([this](const QImage &img) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!img.isNull())
                 ocrImage(img);   // recognizes (QR first, then text) + copies
         });
@@ -1285,18 +1382,18 @@ void AppContext::captureWindow()
     }
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
-    beginDoNotDisturb();
-    withDelay([this, inhibited] {
+    beginCaptureIsolation();
+    withCaptureDelay([this, inhibited] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
         m_capture->captureActiveWindow([this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
-            endDoNotDisturb();
+            endCaptureIsolation();
             if (!err.isEmpty()) {
                 m_nextCaptureTask = {};
                 clearCliCapture(err);
@@ -1424,14 +1521,14 @@ void AppContext::startRecorderCountdown(std::function<void(bool)> begin)
                              && m_settings->soundVolume() > 0;
     // No countdown AND no start cue: nothing to sequence — record immediately.
     if (secs <= 0 && !hasStartCue) {
-        beginDoNotDisturb();
+        beginCaptureIsolation();
         begin(false);
         return;
     }
     if (m_recordHoldActive)
         return; // a second trigger while a hold is pending must not stack
     m_recordHoldActive = true;
-    beginDoNotDisturb();
+    beginCaptureIsolation();
     m_pendingCountdownSecs = secs;
     // Portal negotiates FIRST (its share dialog). The recorder holds encoding
     // until commit(); armed() drives the countdown/cue below, then commits.
@@ -2299,6 +2396,15 @@ void AppContext::devTestDoNotDisturb()
     });
 }
 
+void AppContext::devTestHideOnCapture()
+{
+    if (!devBuild())
+        return;
+    hideOnCaptureCheck([this](const QString &r) {
+        showToast(tr("Dev: hide while capturing: %1").arg(r));
+    });
+}
+
 void AppContext::devTestExternalAction()
 {
     if (devBuild())
@@ -3130,15 +3236,15 @@ QString AppContext::autoRestartBlockers() const
 
 bool AppContext::mainWindowVisible() const
 {
-    // rootObjects() lives on QQmlApplicationEngine (what main() passes in).
-    auto *appEngine = qobject_cast<QQmlApplicationEngine *>(m_engine);
-    if (!appEngine)
+    // A window we hid for a capture counts as visible: it is coming back the
+    // moment the capture ends, and restarting into an update in that gap would
+    // make it never come back at all.
+    if (m_hiddenForCapture)
+        return true;
+    QQuickWindow *win = mainWindow();
+    if (!win)
         return true; // can't tell — be conservative, block the restart
-    const QList<QObject *> roots = appEngine->rootObjects();
-    for (QObject *o : roots)
-        if (auto *w = qobject_cast<QQuickWindow *>(o))
-            return w->isVisible();
-    return true;
+    return win->isVisible();
 }
 
 bool AppContext::tryUpdateRestart()
@@ -5239,6 +5345,16 @@ void AppContext::runSmokeTest()
             smokeLog(QStringLiteral("capture delay: ")
                      + (elapsed->elapsed() >= 1000 ? QStringLiteral("PASS")
                                                     : QStringLiteral("FAIL (fired early)")));
+            smokeNext();
+        });
+    });
+
+    // 3e3ef) The window we hide so it stays out of the shot has to come back.
+    // Real hide/show against the compositor, not a flag check - the whole point
+    // is the round trip, and a window left down is worse than one in the frame.
+    m_smokeSteps.append([this] {
+        hideOnCaptureCheck([this](const QString &r) {
+            smokeLog(QStringLiteral("hide while capturing: ") + r);
             smokeNext();
         });
     });
@@ -8199,7 +8315,15 @@ bool AppContext::installDesktopShortcuts()
     if (!r.skipped.isEmpty())
         msg += QLatin1Char(' ')
                + tr("(skipped, no mappable key: %1)").arg(r.skipped.join(QStringLiteral(", ")));
-    showToast(msg);
+    // A custom shortcut loses to the desktop's own built-in one without a word
+    // from either side, so this is the only chance to say why a key that was
+    // just "added" does nothing. Important, so it shows even with toasts off.
+    const bool clash = !r.taken.isEmpty();
+    if (clash)
+        msg += QLatin1Char(' ')
+               + tr("%1 already uses these keys - change them in Hotkeys: %2")
+                     .arg(ShortcutBinder::desktopName(b), r.taken.join(QStringLiteral(", ")));
+    showToast(msg, clash);
     return true;
 }
 

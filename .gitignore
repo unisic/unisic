@@ -18,3 +18,6 @@ dist/
 /result
 /result-*
 .direnv/
+
+# Editor extension bundles that wander in from the desktop
+*.vsix

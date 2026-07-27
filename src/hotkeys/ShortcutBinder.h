@@ -40,6 +40,13 @@ struct Result {
     bool ok = false;
     QString error;
     QStringList skipped; // action names with a key we couldn't map to this store
+    // Action names whose accelerator the DESKTOP already uses for one of its own
+    // built-in shortcuts. Written anyway (the user may have rebound the built-in
+    // since), but reported: a custom shortcut loses that fight silently, and a
+    // key that does nothing reads as "Unisic's hotkeys are broken". The case
+    // this exists for is GNOME's Super+Shift+<digit>, which Unisic ships as its
+    // default capture keys and Ubuntu uses to open a new window of dock app N.
+    QStringList taken;
     int written = 0;     // shortcut entries actually written
 };
 

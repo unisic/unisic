@@ -7,6 +7,7 @@
 #include <QSaveFile>
 #include <QDir>
 #include <QRegularExpression>
+#include <QSet>
 
 namespace {
 
@@ -218,6 +219,97 @@ Result cosmicRemove()
 
 // ================================================= gsettings (GNOME/Cinnamon) ===
 
+// The desktop's OWN shortcut schemas, read to answer "is this chord already
+// spoken for". A custom keybinding never wins against a built-in one, so a
+// clash means the key silently does nothing - and the user has no way to tell
+// that apart from Unisic being broken. A schema the install does not have makes
+// the gsettings call fail and is skipped, so listing an optional one is free.
+QStringList gnomeReservedSchemas()
+{
+    return {QStringLiteral("org.gnome.shell.keybindings"),
+            QStringLiteral("org.gnome.desktop.wm.keybindings"),
+            QStringLiteral("org.gnome.mutter.keybindings"),
+            QStringLiteral("org.gnome.mutter.wayland.keybindings"),
+            QStringLiteral("org.gnome.settings-daemon.plugins.media-keys"),
+            // Ubuntu's dock (and plain dash-to-dock): the app-launch keys that
+            // started this whole check.
+            QStringLiteral("org.gnome.shell.extensions.dash-to-dock")};
+}
+
+QStringList cinnamonReservedSchemas()
+{
+    return {QStringLiteral("org.cinnamon.desktop.keybindings.wm"),
+            QStringLiteral("org.cinnamon.desktop.keybindings.media-keys"),
+            QStringLiteral("org.cinnamon.settings-daemon.plugins.media-keys"),
+            QStringLiteral("org.cinnamon.muffin.keybindings")};
+}
+
+// One comparable form for a GTK accelerator: modifiers lowercased, aliases
+// collapsed (<Primary>/<Ctrl> are <Control>) and sorted, so "<Shift><Super>1"
+// and "<Super><Shift>1" are recognized as the same chord.
+QString normalizeAccel(const QString &accel)
+{
+    static const QRegularExpression modRe(QStringLiteral("<([A-Za-z_]+)>"));
+    QStringList mods;
+    auto it = modRe.globalMatch(accel);
+    int end = 0;
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        QString name = m.captured(1).toLower();
+        if (name == QLatin1String("primary") || name == QLatin1String("ctrl"))
+            name = QStringLiteral("control");
+        else if (name == QLatin1String("mod4") || name == QLatin1String("meta"))
+            name = QStringLiteral("super");
+        if (!mods.contains(name))
+            mods << name;
+        end = m.capturedEnd();
+    }
+    mods.sort();
+    return mods.join(QLatin1Char('+')) + QLatin1Char('|') + accel.mid(end).toLower();
+}
+
+// Every accelerator the desktop's own schemas already hold. `appSwitchShift`
+// adds the Shift variant of gnome-shell's switch-to-application-N keys: those
+// are stored as <Super>N, but gnome-shell ALSO answers <Super><Shift>N with
+// "open a new window of app N" from the same binding, and that half is in no
+// schema at all. Unisic's shipped defaults are exactly Super+Shift+1/2/3, so
+// leaving it out would miss the one clash every Ubuntu user hits.
+QSet<QString> reservedAccels(const QStringList &schemas, bool appSwitchShift)
+{
+    QSet<QString> out;
+    static const QRegularExpression lineRe(
+        QStringLiteral("^\\S+\\s+(\\S+)\\s+(.*)$"));
+    for (const QString &schema : schemas) {
+        QString text;
+        if (!run(QStringLiteral("gsettings"),
+                 {QStringLiteral("list-recursively"), schema}, &text))
+            continue; // schema not installed here
+        const QStringList lines = text.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+        for (const QString &line : lines) {
+            const QRegularExpressionMatch m = lineRe.match(line);
+            if (!m.hasMatch())
+                continue;
+            const QString key = m.captured(1);
+            for (const QString &value : parseGsettingsArray(m.captured(2))) {
+                // These schemas also hold non-accelerator strings. Numbers and
+                // booleans never survive parseGsettingsArray (it takes quoted
+                // values only); what is left to reject is dconf paths and
+                // human-readable names, neither of which an accelerator can be.
+                if (value.isEmpty() || value.contains(QLatin1Char('/'))
+                    || value.contains(QLatin1Char(' ')))
+                    continue;
+                out.insert(normalizeAccel(value));
+                if (appSwitchShift
+                    && (key.startsWith(QLatin1String("switch-to-application-"))
+                        || key.startsWith(QLatin1String("app-hotkey-")))) {
+                    out.insert(normalizeAccel(QStringLiteral("<Shift>") + value));
+                }
+            }
+        }
+    }
+    return out;
+}
+
 struct GProfile {
     QString listSchema;
     QString listKey;
@@ -226,6 +318,11 @@ struct GProfile {
     QString pathBase;          // "/org/…/custom-keybindings/"
     bool    bindingIsArray;    // Cinnamon binding is `as`, GNOME is `s`
     QString commandKey;        // "command"
+    // Schemas holding the desktop's own built-in shortcuts, and whether its
+    // shell answers the Shift variant of its app-switch keys. Both feed the
+    // clash report only - see reservedAccels().
+    QStringList reservedSchemas;
+    bool    appSwitchShift;
 };
 
 GProfile gnomeProfile()
@@ -234,7 +331,8 @@ GProfile gnomeProfile()
             QStringLiteral("custom-keybindings"), true,
             QStringLiteral("org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"),
             QStringLiteral("/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/"),
-            false, QStringLiteral("command")};
+            false, QStringLiteral("command"),
+            gnomeReservedSchemas(), true};
 }
 
 GProfile cinnamonProfile()
@@ -243,19 +341,20 @@ GProfile cinnamonProfile()
             QStringLiteral("custom-list"), false,
             QStringLiteral("org.cinnamon.desktop.keybindings.custom-keybinding"),
             QStringLiteral("/org/cinnamon/desktop/keybindings/custom-keybindings/"),
-            true, QStringLiteral("command")};
-}
-
-// A list entry (path or name) is ours iff it carries the "unisic-" segment.
-bool entryIsOurs(const QString &listItem)
-{
-    return listItem.contains(kIdPrefix);
+            true, QStringLiteral("command"),
+            cinnamonReservedSchemas(), false};
 }
 
 bool gsettingsSet(const GProfile &p, const QString &path, const QString &key, const QString &gvariant)
 {
     return run(QStringLiteral("gsettings"),
                {QStringLiteral("set"), p.relocSchema + QLatin1Char(':') + path, key, gvariant});
+}
+
+// A list entry (path or name) is ours iff it carries the "unisic-" segment.
+bool entryIsOurs(const QString &listItem)
+{
+    return listItem.contains(kIdPrefix);
 }
 
 Result gsettingsInstall(const GProfile &p, const QList<Binding> &bindings)
@@ -280,6 +379,10 @@ Result gsettingsInstall(const GProfile &p, const QList<Binding> &bindings)
         }
     }
 
+    // Read once for the whole install: a handful of gsettings calls, against one
+    // per accelerator otherwise.
+    const QSet<QString> reserved = reservedAccels(p.reservedSchemas, p.appSwitchShift);
+
     QStringList added;
     for (const Binding &b : bindings) {
         if (b.portable.trimmed().isEmpty())
@@ -287,8 +390,13 @@ Result gsettingsInstall(const GProfile &p, const QList<Binding> &bindings)
         QStringList accels;
         for (const ShortcutKeyMap::Chord &c : ShortcutKeyMap::parseAll(b.portable)) {
             const QString a = ShortcutKeyMap::toGtkAccel(c);
-            if (!a.isEmpty())
-                accels << a;
+            if (a.isEmpty())
+                continue;
+            accels << a;
+            // Written regardless - the built-in may have been rebound since, and
+            // refusing to write would leave the action with no shortcut at all.
+            if (reserved.contains(normalizeAccel(a)) && !r.taken.contains(b.name))
+                r.taken << b.name;
         }
         if (accels.isEmpty()) { r.skipped << b.name; continue; }
 

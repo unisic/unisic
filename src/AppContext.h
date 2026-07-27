@@ -338,6 +338,7 @@ public:
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
     Q_INVOKABLE void devTestDoNotDisturb();
+    Q_INVOKABLE void devTestHideOnCapture();
     Q_INVOKABLE void devTestExternalAction();
     Q_INVOKABLE void devTestTaskPreset();
     Q_INVOKABLE void devTestCliOutput();
@@ -833,8 +834,34 @@ private:
     // Continuation of openPreview after the worker-thread PNG save.
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
     void afterUploadActions(const QString &url);
-    void beginDoNotDisturb();
-    void endDoNotDisturb();
+    // Everything that has to be kept off the screen while a capture or a
+    // recording is running, and put back afterwards: the desktop's other
+    // notifications (inhibitor) and our own main window. Paired - every capture
+    // and recording path already called the two exactly once each, which is why
+    // the window restore lives in end...() rather than at fourteen call sites.
+    // The window does NOT go down here: see hideOwnWindowForCapture().
+    void beginCaptureIsolation();
+    void endCaptureIsolation();
+    // Take our own main window off screen so it cannot land in the shot. False =
+    // nothing was hidden (setting off, window already down, no window yet), so
+    // the caller need not wait for the compositor. Idempotent per capture.
+    bool hideOwnWindowForCapture();
+    // Put back exactly the window hideOwnWindowForCapture() took away, and only
+    // if it took one away - a capture triggered by a hotkey while Unisic sat in
+    // the tray must not pop the window open as its parting gift.
+    void restoreOwnWindowAfterCapture();
+    // withDelay(), plus the self-hide, in that order: the countdown toast for a
+    // delay of a second or more renders INSIDE our own window, so the window can
+    // only go away once the delay has run out. Every real capture uses this;
+    // withDelay() alone is for the dev/smoke timing checks, which hide nothing.
+    void withCaptureDelay(std::function<void()> fn);
+    // The QML root window, or nullptr before the engine has produced one.
+    QQuickWindow *mainWindow() const;
+    // Hides the main window the way a capture does and puts it back, so the one
+    // thing that must never regress - the window coming BACK - is proven rather
+    // than assumed. Async (the restore is a later event-loop turn); `done` gets
+    // PASS / FAIL(...) / SKIP(...). Shared by the smoke test and the Dev pane.
+    void hideOnCaptureCheck(std::function<void(const QString &)> done);
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();
@@ -896,6 +923,10 @@ private:
     LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    // Set only between hideOwnWindowForCapture() and restoreOwnWindowAfterCapture():
+    // "this window was visible, we took it down, put it back". QPointer because
+    // quitting from the tray mid-capture deletes it underneath us.
+    QPointer<QQuickWindow> m_hiddenForCapture;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

@@ -223,8 +223,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/unisic/unisic.git
-        tag: v0.7.5
-        commit: 8d5ec9621ddb8be076f92bc98b684a8d1df74ba9
+        tag: v0.8
+        commit: 4a0fbddd14f9e70fe6e304987b7c8508ea7a5332
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$

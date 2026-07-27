@@ -888,12 +888,17 @@ void AppContext::setNextCaptureOutput(const QString &path, const QString &format
 void AppContext::clearCliCapture(const QString &error)
 {
     const bool stdoutPending = m_nextCaptureToStdout;
+    const bool filePending = !m_nextCaptureOutputPath.isEmpty();
     m_nextCaptureOutputPath.clear();
     m_nextCaptureOutputFormat.clear();
     m_nextCaptureToStdout = false;
     m_nextCaptureDestination.clear();
     if (stdoutPending && !error.isEmpty())
         emit cliCaptureReady({}, error);
+    // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
+    // or the process that asked for it waits for a capture that is not coming.
+    if (filePending)
+        emit cliCaptureFinished(false);
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -6336,8 +6341,16 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
 // capture lands — the editor no longer swallows the pipeline.
 void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy)
 {
-    if (img.isNull())
+    if (img.isNull()) {
+        // Same reason as the cancel path in clearCliCapture(): a `--output PATH`
+        // run has to hear that its capture failed, not sit and wait.
+        if (!m_nextCaptureOutputPath.isEmpty()) {
+            m_nextCaptureOutputPath.clear();
+            m_nextCaptureOutputFormat.clear();
+            emit cliCaptureFinished(false);
+        }
         return;
+    }
 
     const CaptureTask task = m_nextCaptureTask;
     const QString uploadDestination = m_nextCaptureDestination;
@@ -6491,6 +6504,13 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // so the next filename gets the next number.
     if (!cliMode && m_settings->filenameTemplate().contains(QLatin1String("%i%")))
         m_settings->setFilenameCounter(m_settings->filenameCounter() + 1);
+
+    // `--output PATH` is one-shot: the file was written synchronously above and
+    // setNextCaptureOutput() switched off clipboard, history, editor and upload,
+    // so there is nothing left to wait for. The stdout variant has its own exit,
+    // once the encoded bytes are on the pipe.
+    if (cliMode && !cliStdout)
+        emit cliCaptureFinished(!path.isEmpty());
 
     scheduleMemoryTrim();
 }

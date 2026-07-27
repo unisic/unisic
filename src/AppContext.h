@@ -631,6 +631,11 @@ signals:
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
+    // A `--output PATH` capture reached its end: written (ok), or failed or
+    // cancelled. ONLY the process that parsed --output off argv connects to
+    // this and exits on it - a running instance handed the same command over
+    // the single-instance socket must keep running, it is the user's app.
+    void cliCaptureFinished(bool ok);
     void hotkeysAvailableChanged();
     void recordingAvailableChanged();
     void trayAvailableChanged();

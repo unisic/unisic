@@ -28,7 +28,7 @@
       # nix build '.#unisic'   |   nix run '.#unisic' -- --region
       packages = forAllSystems (pkgs: {
         unisic = pkgs.callPackage ./nix/package.nix { unisicKitSrc = unisic-kit; };
-        default = self.packages.${pkgs.system}.unisic;
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.unisic;
       });
 
       # nix develop   ->   cmake -B build -G Ninja && cmake --build build
@@ -37,7 +37,7 @@
       # --init`) before configuring, the kit input above does not apply here.
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
-          inputsFrom = [ self.packages.${pkgs.system}.unisic ];
+          inputsFrom = [ self.packages.${pkgs.stdenv.hostPlatform.system}.unisic ];
           packages = with pkgs; [ ffmpeg wl-clipboard qt6.qttools ];
         };
       });

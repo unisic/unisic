@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.1" date="2026-07-27">
+      <description>
+        <p>Unisic no longer photographs its own window: a capture or recording started from the window steps it off screen for the duration and brings it back at the end, and a hotkey on GNOME or Cinnamon that the desktop has already claimed is named when the shortcuts are installed instead of silently never firing. Packaging catches up with the 0.8 release: the AUR recipes list the X11 libraries the new capture path links against, so Arch helpers see 0.8 again, and installing straight from the repository on NixOS fetches the shared interface toolkit that a plain repository reference left behind.</p>
+      </description>
+    </release>
     <release version="0.8" date="2026-07-27">
       <description>
         <p>Recording on KDE Plasma goes through KWin itself, so screen, region and window clips start immediately with no screen-picker dialog, and an X11 session now gets both fast screen recording and global hotkeys. The window was rebuilt: one dark backdrop, every page on a shared grid of bordered cards that fits above the fold, and nothing that moves or appears under the pointer. Recording and GIF became one page, three capture controls moved onto the Capture page, and a destination can be test-uploaded before it is saved. Images and recordings can be dropped on the window or pasted from the clipboard. Tab now walks the whole interface and every control announces itself to a screen reader. Adds a French translation, a man page, an activity log and crash report to attach to bug reports, a Flatpak build, AUR packages, and in-app updates for deb/rpm/Arch installs.</p>

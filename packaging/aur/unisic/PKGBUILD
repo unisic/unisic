@@ -17,13 +17,21 @@ license=('GPL-3.0-or-later')
 # tesseract/leptonica/layer-shell-qt are hard deps rather than optdepends:
 # this build links them (HAVE_TESSERACT / HAVE_LAYERSHELL are detected, not
 # switched off), so the binary needs the libraries present at runtime.
+# The libx* four are the X11 capture and hotkey paths added in 0.8 (XShm
+# screen recording and the XGrabKey global shortcuts an X11 session needs,
+# neither of which has a Wayland route), so they are runtime dependencies on
+# every install, not just X11 ones - the binary links them unconditionally.
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard'
          'xdg-desktop-portal' 'tesseract' 'leptonica' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons'
-         'libinput' 'hicolor-icon-theme')
+         'libinput' 'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb')
 # Only the build-time-exclusive tools: everything else this links against is
 # already a runtime dependency above, and Arch's guidelines want each package
-# listed once. `wayland` is here for wayland-scanner.
-makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'wayland')
+# listed once. `wayland` is here for wayland-scanner, and
+# plasma-wayland-protocols carries zkde-screencast-unstable-v1.xml, which
+# HAVE_KWIN_SCREENCAST (KWin-native recording, no portal share dialog) is
+# generated from - without it this recipe silently builds without the fast
+# KDE recording path, and nothing at runtime would say why.
+makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'wayland' 'plasma-wayland-protocols')
 optdepends=('curl: FTP/SFTP upload destinations'
             'xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'

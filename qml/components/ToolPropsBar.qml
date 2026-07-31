@@ -494,7 +494,10 @@ Flow {
             activeFocusOnTab: root.controlsFocusable && enabled
             accessibleName: qsTr("Arrow head")
             visible: root.has("arrowhead")
-            width: 112
+            // 150, not 112: at 112 even English "Double head" elided (84 px of
+            // text into a 72 px slot), and every translation was worse. This is
+            // a Flow, so the extra 38 px only ever costs a wrap.
+            width: 150
             anchors.verticalCenter: parent.verticalCenter
             model: [qsTr("Filled head"), qsTr("Open head"), qsTr("Double head")]
             currentIndex: root.canvas.arrowHeadStyle

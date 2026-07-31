@@ -19,8 +19,8 @@
         <translation>Impossibile spostare %1 nel cestino; il file è ancora sul disco</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6506"/>
-        <location filename="../src/AppContext.cpp" line="7898"/>
+        <location filename="../src/AppContext.cpp" line="6575"/>
+        <location filename="../src/AppContext.cpp" line="7967"/>
         <source>Copied to clipboard</source>
         <translation>Copiato negli appunti</translation>
     </message>
@@ -62,641 +62,598 @@
         <translation>L&apos;OCR non è disponibile in questa build</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="937"/>
+        <location filename="../src/AppContext.cpp" line="942"/>
         <source>Capture failed: %1</source>
         <translation>Cattura non riuscita: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="944"/>
+        <location filename="../src/AppContext.cpp" line="949"/>
         <source>. Install Unisic (sudo cmake --install build) and launch it from the application menu so KDE authorizes it, and check that xdg-desktop-portal-kde is running.</source>
         <translation>. Installa Unisic (sudo cmake --install build) e avvialo dal menu delle applicazioni in modo che KDE lo autorizzi, e verifica che xdg-desktop-portal-kde sia in esecuzione.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="957"/>
+        <location filename="../src/AppContext.cpp" line="962"/>
         <source>. Install &apos;grim&apos; (works on sway/niri/Hyprland-style compositors) or an xdg-desktop-portal backend for your desktop.</source>
         <translation>. Installa &apos;grim&apos; (funziona su compositor in stile sway/niri/Hyprland) o un backend xdg-desktop-portal per il tuo desktop.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1008"/>
+        <location filename="../src/AppContext.cpp" line="1013"/>
         <source>This build has no libinput support, so clicks cannot be detected.</source>
         <translation>Questa build non ha il supporto libinput, quindi i clic non possono essere rilevati.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1012"/>
+        <location filename="../src/AppContext.cpp" line="1017"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Leggere i clic del mouse richiede l&apos;accesso ai dispositivi di input. Esegui «%1», poi esci e rientra.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1155"/>
-        <location filename="../src/AppContext.cpp" line="1168"/>
-        <location filename="../src/AppContext.cpp" line="1200"/>
-        <location filename="../src/AppContext.cpp" line="1211"/>
-        <location filename="../src/AppContext.cpp" line="1241"/>
-        <location filename="../src/AppContext.cpp" line="1252"/>
-        <location filename="../src/AppContext.cpp" line="1280"/>
-        <location filename="../src/AppContext.cpp" line="1324"/>
-        <location filename="../src/AppContext.cpp" line="1380"/>
-        <location filename="../src/AppContext.cpp" line="1391"/>
+        <location filename="../src/AppContext.cpp" line="1191"/>
+        <location filename="../src/AppContext.cpp" line="1204"/>
+        <location filename="../src/AppContext.cpp" line="1236"/>
+        <location filename="../src/AppContext.cpp" line="1247"/>
+        <location filename="../src/AppContext.cpp" line="1277"/>
+        <location filename="../src/AppContext.cpp" line="1288"/>
+        <location filename="../src/AppContext.cpp" line="1316"/>
+        <location filename="../src/AppContext.cpp" line="1360"/>
+        <location filename="../src/AppContext.cpp" line="1416"/>
+        <location filename="../src/AppContext.cpp" line="1427"/>
         <source>Another capture is already active</source>
         <translation>È già attiva un&apos;altra acquisizione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1231"/>
+        <location filename="../src/AppContext.cpp" line="1267"/>
         <source>Capture cancelled</source>
         <translation>Acquisizione annullata</translation>
     </message>
     <message>
-        <source>Scroll the area now, then press Done</source>
-        <translation type="vanished">Ora scorri l&apos;area, poi premi Fatto</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1510"/>
+        <location filename="../src/AppContext.cpp" line="1546"/>
         <source>Start instant replay first</source>
         <translation>Avvia prima la riproduzione istantanea</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1514"/>
+        <location filename="../src/AppContext.cpp" line="1550"/>
         <source>Saving instant replay…</source>
         <translation>Salvataggio della riproduzione istantanea…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2264"/>
+        <location filename="../src/AppContext.cpp" line="2300"/>
         <source>Dev: text render: %1</source>
         <translation>Dev: rendering testo: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2387"/>
+        <location filename="../src/AppContext.cpp" line="2423"/>
         <source>Dev: do not disturb: unsupported on this desktop</source>
         <translation>Dev: non disturbare non supportato su questo desktop</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2394"/>
+        <location filename="../src/AppContext.cpp" line="2430"/>
         <source>Dev: do not disturb: %1</source>
         <translation>Dev: non disturbare: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2411"/>
+        <location filename="../src/AppContext.cpp" line="2447"/>
         <source>Dev: external action: %1</source>
         <translation>Dev: azione esterna: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2421"/>
+        <location filename="../src/AppContext.cpp" line="2455"/>
+        <source>Dev: external action timeout: %1</source>
+        <translation>Dev: timeout dell’azione esterna: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/AppContext.cpp" line="2466"/>
         <source>Dev: task preset: %1</source>
         <translation>Dev: preimpostazione attività: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2438"/>
+        <location filename="../src/AppContext.cpp" line="2483"/>
         <source>Dev: CLI output: %1</source>
         <translation>Dev: output CLI: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2447"/>
+        <location filename="../src/AppContext.cpp" line="2492"/>
         <source>Dev: measure tools: %1</source>
         <translation>Dev: strumenti di misura: %1</translation>
     </message>
     <message>
-        <source>Dev: hardware encoder: %1</source>
-        <translation type="vanished">Dev: codificatore hardware: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="2486"/>
+        <location filename="../src/AppContext.cpp" line="2531"/>
         <source>Dev: per-app audio: %1</source>
         <translation>Dev: audio per applicazione: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2495"/>
+        <location filename="../src/AppContext.cpp" line="2540"/>
         <source>Dev: instant replay: recording unavailable</source>
         <translation>Dev: riproduzione istantanea: registrazione non disponibile</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2528"/>
+        <location filename="../src/AppContext.cpp" line="2573"/>
         <source>Dev: trim recording: ffmpeg unavailable</source>
         <translation>Dev: ritaglio registrazione: ffmpeg non disponibile</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2539"/>
-        <location filename="../src/AppContext.cpp" line="2547"/>
+        <location filename="../src/AppContext.cpp" line="2584"/>
+        <location filename="../src/AppContext.cpp" line="2592"/>
         <source>Dev: trim recording: FAIL</source>
         <translation>Dev: ritaglio registrazione: ERRORE</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2564"/>
+        <location filename="../src/AppContext.cpp" line="2609"/>
         <source>Dev: trim cut: %1</source>
         <translation>Dev: taglio del ritaglio: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2646"/>
+        <location filename="../src/AppContext.cpp" line="2691"/>
         <source>Dev: pause excise: %1</source>
         <translation>Dev: taglio pausa: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2702"/>
+        <location filename="../src/AppContext.cpp" line="2747"/>
         <source>Dev: screenshot cursor: %1</source>
         <translation>Dev: cursore nello screenshot: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2739"/>
+        <location filename="../src/AppContext.cpp" line="2784"/>
         <source>Dev: shape edit: %1</source>
         <translation>Dev: modifica forme: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2782"/>
+        <location filename="../src/AppContext.cpp" line="2827"/>
         <source>Dev: capture on release: %1</source>
         <translation>Dev: cattura al rilascio: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2831"/>
+        <location filename="../src/AppContext.cpp" line="2876"/>
         <source>Dev: magnifier: %1</source>
         <translation>Dev: lente d&apos;ingrandimento: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2866"/>
+        <location filename="../src/AppContext.cpp" line="2911"/>
         <source>Dev: eyedropper: %1</source>
         <translation>Dev: contagocce: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2928"/>
+        <location filename="../src/AppContext.cpp" line="2973"/>
         <source>Dev: pixel loupe: %1</source>
         <translation>Dev: lente pixel: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3150"/>
-        <location filename="../src/AppContext.cpp" line="8858"/>
+        <location filename="../src/AppContext.cpp" line="3195"/>
+        <location filename="../src/AppContext.cpp" line="8927"/>
         <source>Quit</source>
         <translation>Esci</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3165"/>
+        <location filename="../src/AppContext.cpp" line="3210"/>
         <source>Dev: language: %1</source>
         <translation>Dev: lingua: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3174"/>
+        <location filename="../src/AppContext.cpp" line="3219"/>
         <source>Dev: update check: %1</source>
         <translation>Dev: controllo aggiornamenti: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3201"/>
+        <location filename="../src/AppContext.cpp" line="3246"/>
         <source>Dev: auto-restart gate: idle - an installed update would restart now</source>
         <translation>Dev: gate di riavvio automatico: inattivo - un aggiornamento installato si riavvierebbe ora</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3202"/>
+        <location filename="../src/AppContext.cpp" line="3247"/>
         <source>Dev: auto-restart gate: deferred (%1)</source>
         <translation>Dev: gate di riavvio automatico: rinviato (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3225"/>
+        <location filename="../src/AppContext.cpp" line="3270"/>
         <source>recording</source>
         <translation>registrazione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3227"/>
+        <location filename="../src/AppContext.cpp" line="3272"/>
         <source>capture in progress</source>
         <translation>cattura in corso</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3229"/>
+        <location filename="../src/AppContext.cpp" line="3274"/>
         <source>selection overlay open</source>
         <translation>overlay di selezione aperto</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3231"/>
+        <location filename="../src/AppContext.cpp" line="3276"/>
         <source>editor windows open</source>
         <translation>finestre dell’editor aperte</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3233"/>
+        <location filename="../src/AppContext.cpp" line="3278"/>
         <source>main window visible</source>
         <translation>finestra principale visibile</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3272"/>
+        <location filename="../src/AppContext.cpp" line="3317"/>
         <source>Dev: OCR boxes: FAIL (%1)</source>
         <translation>Dev: riquadri OCR: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3274"/>
+        <location filename="../src/AppContext.cpp" line="3319"/>
         <source>Dev: OCR boxes: %1 (%2 glyphs)</source>
         <translation>Dev: riquadri OCR: %1 (%2 glifi)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3279"/>
+        <location filename="../src/AppContext.cpp" line="3324"/>
         <source>Dev: OCR boxes: SKIP (built without tesseract)</source>
         <translation>Dev: riquadri OCR: SKIP (compilato senza tesseract)</translation>
     </message>
     <message>
-        <source>Dev: scrolling capture: %1</source>
-        <translation type="vanished">Dev: cattura con scorrimento: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="3302"/>
+        <location filename="../src/AppContext.cpp" line="3347"/>
         <source>Dev: cursor overlay: %1</source>
         <translation>Dev: sovrapposizione del cursore: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3309"/>
+        <location filename="../src/AppContext.cpp" line="3354"/>
         <source>Dev: style presets: %1</source>
         <translation>Dev: preset di stile: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3318"/>
+        <location filename="../src/AppContext.cpp" line="3363"/>
         <source>Dev: auto-redact pattern: FAIL (%1)</source>
         <translation>Dev: oscuramento automatico per criterio: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3319"/>
+        <location filename="../src/AppContext.cpp" line="3364"/>
         <source>Dev: auto-redact pattern: %1</source>
         <translation>Dev: oscuramento automatico per criterio: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3323"/>
+        <location filename="../src/AppContext.cpp" line="3368"/>
         <source>Dev: auto-redact pattern: SKIP (built without tesseract)</source>
         <translation>Dev: oscuramento automatico per criterio: SKIP (compilato senza tesseract)</translation>
     </message>
     <message>
-        <source>Dev: OCR auto language: %1 (installed: %2; using: %3)</source>
-        <translation type="vanished">Dev: lingua automatica OCR: %1 (installate: %2; in uso: %3)</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="3363"/>
+        <location filename="../src/AppContext.cpp" line="3408"/>
         <source>Dev: OCR auto language: SKIP (built without tesseract)</source>
         <translation>Dev: lingua automatica OCR: SKIP (compilato senza tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3372"/>
+        <location filename="../src/AppContext.cpp" line="3417"/>
         <source>Dev: ZIP export: SKIP (zip not installed)</source>
         <translation>Dev: esportazione ZIP: SKIP (zip non installato)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3386"/>
+        <location filename="../src/AppContext.cpp" line="3431"/>
         <source>Dev: ZIP export: %1</source>
         <translation>Dev: esportazione ZIP: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3387"/>
+        <location filename="../src/AppContext.cpp" line="3432"/>
         <source>PASS (%1)</source>
         <translation>PASS (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3387"/>
+        <location filename="../src/AppContext.cpp" line="3432"/>
         <source>FAIL (%1)</source>
         <translation>FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3400"/>
+        <location filename="../src/AppContext.cpp" line="3445"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev: riprodotto il suono di cattura &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3408"/>
+        <location filename="../src/AppContext.cpp" line="3453"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: riprodotto il suono di registrazione &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3424"/>
+        <location filename="../src/AppContext.cpp" line="3469"/>
         <source>Dev: played the fixed trash sound</source>
         <translation>Dev: riprodotto il suono fisso del cestino</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3480"/>
+        <location filename="../src/AppContext.cpp" line="3525"/>
         <source>Dev: full-screen countdown finished - recording would start now</source>
         <translation>Dev: conto alla rovescia a schermo intero terminato - la registrazione partirebbe ora</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3481"/>
+        <location filename="../src/AppContext.cpp" line="3526"/>
         <source>Dev: full-screen countdown fell back to a toast (no record-border support)</source>
         <translation>Dev: il conto alla rovescia a schermo intero è ripiegato su un avviso (nessun supporto del bordo di registrazione)</translation>
     </message>
     <message>
-        <source>Dev: screen picker cancelled</source>
-        <translation type="vanished">Dev: selettore schermo annullato</translation>
-    </message>
-    <message>
-        <source>Dev: screen picker chose %1</source>
-        <translation type="vanished">Dev: scelto %1</translation>
-    </message>
-    <message>
-        <source>all screens</source>
-        <translation type="vanished">tutti gli schermi</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="3548"/>
+        <location filename="../src/AppContext.cpp" line="3593"/>
         <source>Dev: card preview needs the stylized card enabled (Preferences → Show notifications / capture card)</source>
         <translation>Dev: l&apos;anteprima della scheda richiede la scheda stilizzata attiva (Preferenze → Mostra notifiche / scheda di cattura)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3554"/>
+        <location filename="../src/AppContext.cpp" line="3599"/>
         <source>Dev: card preview FAILED (no card was created)</source>
         <translation>Dev: anteprima della scheda FALLITA (nessuna scheda creata)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3557"/>
+        <location filename="../src/AppContext.cpp" line="3602"/>
         <source>Dev: card preview - withdrawing in 3 s</source>
         <translation>Dev: anteprima della scheda - scomparirà tra 3 s</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3569"/>
+        <location filename="../src/AppContext.cpp" line="3614"/>
         <source>Dev: ALL notifications are disabled in Settings (Preferences → Show notifications)</source>
         <translation>Dev: TUTTE le notifiche sono disattivate nelle Impostazioni (Preferenze → Mostra notifiche)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3574"/>
+        <location filename="../src/AppContext.cpp" line="3619"/>
         <source>Dev: stylized cards are off - falling back to a native desktop notification</source>
         <translation>Dev: le schede stilizzate sono disattivate - si passa a una notifica desktop nativa</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3578"/>
+        <location filename="../src/AppContext.cpp" line="3623"/>
         <source>Dev: cards are currently muted (fullscreen / Do Not Disturb inhibition is active)</source>
         <translation>Dev: le schede sono attualmente silenziate (inibizione schermo intero / Non disturbare attiva)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3615"/>
+        <location filename="../src/AppContext.cpp" line="3660"/>
         <source>Dev: added a test history entry</source>
         <translation>Dev: aggiunta una voce di prova alla cronologia</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3624"/>
+        <location filename="../src/AppContext.cpp" line="3669"/>
         <source>Dev: added a STARRED history entry; try Clear all / delete on it</source>
         <translation>Dev: aggiunta una voce PREFERITA alla cronologia; prova Cancella tutto / elimina su di essa</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3635"/>
-        <location filename="../src/AppContext.cpp" line="3845"/>
+        <location filename="../src/AppContext.cpp" line="3680"/>
+        <location filename="../src/AppContext.cpp" line="3890"/>
         <source>Dev: couldn&apos;t save the test image</source>
         <translation>Dev: impossibile salvare l&apos;immagine di prova</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3652"/>
+        <location filename="../src/AppContext.cpp" line="3697"/>
         <source>Dev: history drag payload: %1</source>
         <translation>Sviluppo: payload di trascinamento cronologia: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3677"/>
+        <location filename="../src/AppContext.cpp" line="3722"/>
         <source>Dev: notification drag payload: %1</source>
         <translation>Sviluppo: payload di trascinamento notifica: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3707"/>
+        <location filename="../src/AppContext.cpp" line="3752"/>
         <source>Dev: Klipper clipboard history: %1</source>
         <translation>Dev: cronologia degli appunti di Klipper: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3778"/>
+        <location filename="../src/AppContext.cpp" line="3823"/>
         <source>Dev: show in folder: check the file is selected in the file manager</source>
         <translation>Dev: mostra nella cartella: verifica che il file sia selezionato nel gestore file</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3817"/>
+        <location filename="../src/AppContext.cpp" line="3862"/>
         <source>Dev: record border: unsupported on this compositor</source>
         <translation>Dev: bordo di registrazione: non supportato su questo compositore</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3830"/>
+        <location filename="../src/AppContext.cpp" line="3875"/>
         <source>Dev: record border shown for 4 s</source>
         <translation>Dev: bordo di registrazione mostrato per 4 s</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3831"/>
+        <location filename="../src/AppContext.cpp" line="3876"/>
         <source>Dev: record border FAILED to show</source>
         <translation>Dev: il bordo di registrazione NON è stato mostrato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4068"/>
+        <location filename="../src/AppContext.cpp" line="4113"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev: ricerca e filtri della cronologia: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4075"/>
+        <location filename="../src/AppContext.cpp" line="4120"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev: protezione del Client-ID di Imgur: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4082"/>
+        <location filename="../src/AppContext.cpp" line="4127"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev: round-trip impostazioni: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4123"/>
+        <location filename="../src/AppContext.cpp" line="4168"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev: caricamento di un&apos;immagine di prova su &apos;%1&apos;…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4126"/>
+        <location filename="../src/AppContext.cpp" line="4171"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev: caricamento OK: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4128"/>
+        <location filename="../src/AppContext.cpp" line="4173"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev: caricamento non riuscito: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4477"/>
+        <location filename="../src/AppContext.cpp" line="4522"/>
         <source>Alternate hotkey test</source>
         <translation>Test scorciatoia alternativa</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4503"/>
+        <location filename="../src/AppContext.cpp" line="4548"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev: scorciatoie alternative - %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4577"/>
+        <location filename="../src/AppContext.cpp" line="4622"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev: KGlobalAccel non disponibile (backend: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4578"/>
+        <location filename="../src/AppContext.cpp" line="4623"/>
         <source>none</source>
         <translation>nessuna</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4586"/>
-        <location filename="../src/AppContext.cpp" line="8597"/>
+        <location filename="../src/AppContext.cpp" line="4631"/>
+        <location filename="../src/AppContext.cpp" line="8666"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Scorciatoia occupata da un&apos;altra applicazione: %1. Scegli un altro tasto in Impostazioni → Scorciatoie oppure liberalo in Impostazioni di sistema → Scorciatoie.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4590"/>
+        <location filename="../src/AppContext.cpp" line="4635"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Scorciatoie: tutte e %1 associate nel demone</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4592"/>
+        <location filename="../src/AppContext.cpp" line="4637"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Scorciatoie: %1 su %2 risultavano non associate e sono state riassegnate (dettagli nel log)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6307"/>
-        <location filename="../src/AppContext.cpp" line="6471"/>
+        <location filename="../src/AppContext.cpp" line="6361"/>
+        <location filename="../src/AppContext.cpp" line="6533"/>
         <source>Saved %1</source>
         <translation>Salvato %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6324"/>
-        <location filename="../src/AppContext.cpp" line="6458"/>
-        <location filename="../src/AppContext.cpp" line="7368"/>
-        <location filename="../src/AppContext.cpp" line="7532"/>
-        <location filename="../src/AppContext.cpp" line="7549"/>
+        <location filename="../src/AppContext.cpp" line="6378"/>
+        <location filename="../src/AppContext.cpp" line="6520"/>
+        <location filename="../src/AppContext.cpp" line="7437"/>
+        <location filename="../src/AppContext.cpp" line="7601"/>
+        <location filename="../src/AppContext.cpp" line="7618"/>
         <source>Upload failed: %1</source>
         <translation>Caricamento non riuscito: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6417"/>
+        <location filename="../src/AppContext.cpp" line="6479"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>Impossibile salvare in %1. Controlla la cartella di salvataggio nelle Impostazioni</translation>
     </message>
     <message>
-        <source>Choose a pointer image</source>
-        <translation type="vanished">Scegli un&apos;immagine per il puntatore</translation>
-    </message>
-    <message>
-        <source>Images (*.png *.svg *.svgz *.webp)</source>
-        <translation type="vanished">Immagini (*.png *.svg *.svgz *.webp)</translation>
-    </message>
-    <message>
-        <source>That image could not be read</source>
-        <translation type="vanished">Impossibile leggere quell&apos;immagine</translation>
-    </message>
-    <message>
-        <source>A pointer image must be at most 512×512</source>
-        <translation type="vanished">Un&apos;immagine del puntatore può essere al massimo 512×512</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="6539"/>
+        <location filename="../src/AppContext.cpp" line="6608"/>
         <source>Choose watermark image</source>
         <translation>Scegli l&apos;immagine della filigrana</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6540"/>
+        <location filename="../src/AppContext.cpp" line="6609"/>
         <source>Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</source>
         <translation>Immagini (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6548"/>
+        <location filename="../src/AppContext.cpp" line="6617"/>
         <source>The watermark image is invalid or too large</source>
         <translation>L&apos;immagine della filigrana non è valida o è troppo grande</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6553"/>
+        <location filename="../src/AppContext.cpp" line="6622"/>
         <source>Could not load the watermark image</source>
         <translation>Impossibile caricare l&apos;immagine della filigrana</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6607"/>
+        <location filename="../src/AppContext.cpp" line="6676"/>
         <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</source>
         <translation>Immagini (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6608"/>
+        <location filename="../src/AppContext.cpp" line="6677"/>
         <source>Recordings (*.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Registrazioni (*.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6609"/>
+        <location filename="../src/AppContext.cpp" line="6678"/>
         <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Immagini e registrazioni (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6611"/>
+        <location filename="../src/AppContext.cpp" line="6680"/>
         <source>All files (*)</source>
         <translation>Tutti i file (*)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6616"/>
+        <location filename="../src/AppContext.cpp" line="6685"/>
         <source>Open an image to edit</source>
         <translation>Apri un&apos;immagine da modificare</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6619"/>
+        <location filename="../src/AppContext.cpp" line="6688"/>
         <source>Open a recording to trim</source>
         <translation>Apri una registrazione da tagliare</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6623"/>
+        <location filename="../src/AppContext.cpp" line="6692"/>
         <source>Open image or recording</source>
         <translation>Apri immagine o registrazione</translation>
     </message>
     <message>
-        <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov);;Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif);;Recordings (*.mp4 *.webm *.gif *.mkv *.mov);;All files (*)</source>
-        <translation type="vanished">Immagini e registrazioni (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov);;Immagini (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif);;Registrazioni (*.mp4 *.webm *.gif *.mkv *.mov);;Tutti i file (*)</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="6657"/>
-        <location filename="../src/AppContext.cpp" line="6700"/>
+        <location filename="../src/AppContext.cpp" line="6726"/>
+        <location filename="../src/AppContext.cpp" line="6769"/>
         <source>Unisic cannot edit this file type</source>
         <translation>Unisic non può modificare questo tipo di file</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6793"/>
+        <location filename="../src/AppContext.cpp" line="6862"/>
         <source>Recording file not found</source>
         <translation>File della registrazione non trovato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6798"/>
-        <location filename="../src/AppContext.cpp" line="6849"/>
+        <location filename="../src/AppContext.cpp" line="6867"/>
+        <location filename="../src/AppContext.cpp" line="6918"/>
         <source>Trimming requires ffprobe from the ffmpeg package</source>
         <translation>Il ritaglio richiede ffprobe dal pacchetto ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6838"/>
+        <location filename="../src/AppContext.cpp" line="6907"/>
         <source>Could not read the recording duration</source>
         <translation>Impossibile leggere la durata della registrazione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6986"/>
+        <location filename="../src/AppContext.cpp" line="7055"/>
         <source>Invalid trim range</source>
         <translation>Intervallo di ritaglio non valido</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6895"/>
-        <location filename="../src/AppContext.cpp" line="6916"/>
-        <location filename="../src/AppContext.cpp" line="6990"/>
+        <location filename="../src/AppContext.cpp" line="6964"/>
+        <location filename="../src/AppContext.cpp" line="6985"/>
+        <location filename="../src/AppContext.cpp" line="7059"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Il ritaglio richiede ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6959"/>
-        <location filename="../src/AppContext.cpp" line="6974"/>
-        <location filename="../src/AppContext.cpp" line="7081"/>
+        <location filename="../src/AppContext.cpp" line="7028"/>
+        <location filename="../src/AppContext.cpp" line="7043"/>
+        <location filename="../src/AppContext.cpp" line="7150"/>
         <source>Trim failed: %1</source>
         <translation>Ritaglio non riuscito: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7000"/>
+        <location filename="../src/AppContext.cpp" line="7069"/>
         <source>Trimming recording…</source>
         <translation>Ritaglio della registrazione…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7097"/>
+        <location filename="../src/AppContext.cpp" line="7166"/>
         <source>External action failed: %1</source>
         <translation>Azione esterna non riuscita: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7103"/>
+        <location filename="../src/AppContext.cpp" line="7172"/>
         <source>External action created %1</source>
         <translation>L&apos;azione esterna ha creato %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7105"/>
+        <location filename="../src/AppContext.cpp" line="7174"/>
         <source>External action finished</source>
         <translation>Azione esterna completata</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7123"/>
+        <location filename="../src/AppContext.cpp" line="7192"/>
         <source>Could not prepare the external action input</source>
         <translation>Impossibile preparare l&apos;input dell&apos;azione esterna</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8256"/>
-        <location filename="../src/AppContext.cpp" line="8552"/>
-        <location filename="../src/AppContext.cpp" line="8837"/>
+        <location filename="../src/AppContext.cpp" line="8325"/>
+        <location filename="../src/AppContext.cpp" line="8621"/>
+        <location filename="../src/AppContext.cpp" line="8906"/>
         <source>Copy last capture</source>
         <translation>Copia ultima cattura</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6514"/>
+        <location filename="../src/AppContext.cpp" line="6583"/>
         <source>Uploaded, link copied</source>
         <translation>Caricato, collegamento copiato</translation>
     </message>
@@ -706,299 +663,295 @@
         <translation>Unisic %1 installato - si avvierà al prossimo avvio</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="915"/>
         <location filename="../src/AppContext.cpp" line="920"/>
+        <location filename="../src/AppContext.cpp" line="925"/>
         <source>Capture in %1…</source>
         <translation>Cattura tra %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="951"/>
+        <location filename="../src/AppContext.cpp" line="956"/>
         <source>. GNOME is blocking silent screenshots for Unisic - run &quot;flatpak permission-reset screenshot&quot; and retry, and check that xdg-desktop-portal-gnome is running.</source>
         <translation>. GNOME sta bloccando gli screenshot silenziosi per Unisic: esegui &quot;flatpak permission-reset screenshot&quot; e riprova; verifica anche che xdg-desktop-portal-gnome sia in esecuzione.</translation>
     </message>
     <message>
-        <source>Screen &quot;%1&quot; is no longer connected</source>
-        <translation type="vanished">Lo schermo &quot;%1&quot; non è più collegato</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1582"/>
-        <location filename="../src/AppContext.cpp" line="1592"/>
+        <location filename="../src/AppContext.cpp" line="1618"/>
+        <location filename="../src/AppContext.cpp" line="1628"/>
         <source>Recording in %1…</source>
         <translation>Registrazione tra %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1839"/>
+        <location filename="../src/AppContext.cpp" line="1875"/>
         <source>No log file was opened for this run</source>
         <translation>Nessun file di log è stato aperto per questa esecuzione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2285"/>
+        <location filename="../src/AppContext.cpp" line="2321"/>
         <source>Dev: clipboard paste: %1</source>
         <translation>Dev: incolla dagli appunti: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2296"/>
+        <location filename="../src/AppContext.cpp" line="2332"/>
         <source>Dev: capture delay: %1</source>
         <translation>Sviluppo: ritardo di cattura: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2315"/>
+        <location filename="../src/AppContext.cpp" line="2351"/>
         <source>Dev: copy as: %1</source>
         <translation>Sviluppo: copia come: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2324"/>
+        <location filename="../src/AppContext.cpp" line="2360"/>
         <source>Dev: watermark: %1</source>
         <translation>Sviluppo: filigrana: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2331"/>
+        <location filename="../src/AppContext.cpp" line="2367"/>
         <source>Dev: callout: %1</source>
         <translation>Sviluppo: fumetto: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2338"/>
+        <location filename="../src/AppContext.cpp" line="2374"/>
         <source>Dev: Shift snap: %1</source>
         <translation>Sviluppo: aggancio Maiusc: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2404"/>
+        <location filename="../src/AppContext.cpp" line="2440"/>
         <source>Dev: hide while capturing: %1</source>
         <translation>Dev: nascondi durante la cattura: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2461"/>
+        <location filename="../src/AppContext.cpp" line="2506"/>
         <source>Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</source>
         <translation>Dev: codificatore hardware: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2478"/>
+        <location filename="../src/AppContext.cpp" line="2523"/>
         <source>Dev: recording encoder frozen (SIGSTOP) - press Stop to exercise the watchdog</source>
         <translation>Dev: codificatore di registrazione congelato (SIGSTOP) - premi Stop per mettere alla prova il watchdog</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2479"/>
+        <location filename="../src/AppContext.cpp" line="2524"/>
         <source>Dev: no live recording encoder to freeze - start a recording first</source>
         <translation>Dev: nessun codificatore di registrazione attivo da congelare - avvia prima una registrazione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3213"/>
+        <location filename="../src/AppContext.cpp" line="3258"/>
         <source>Dev: installer update: checking…</source>
         <translation>Dev: aggiornamento installer: verifica…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3215"/>
+        <location filename="../src/AppContext.cpp" line="3260"/>
         <source>Dev: installer update: PASS (%1)</source>
         <translation>Dev: aggiornamento installer: PASS (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3216"/>
+        <location filename="../src/AppContext.cpp" line="3261"/>
         <source>Dev: installer update: FAIL (%1)</source>
         <translation>Dev: aggiornamento installer: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3289"/>
+        <location filename="../src/AppContext.cpp" line="3334"/>
         <source>Dev: OCR highlight + redact: FAIL (%1)</source>
         <translation>Dev: evidenziazione e oscuramento OCR: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3290"/>
+        <location filename="../src/AppContext.cpp" line="3335"/>
         <source>Dev: OCR highlight + redact: %1</source>
         <translation>Dev: evidenziazione e oscuramento OCR: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3294"/>
+        <location filename="../src/AppContext.cpp" line="3339"/>
         <source>Dev: OCR highlight + redact: SKIP (built without tesseract)</source>
         <translation>Dev: evidenziazione e oscuramento OCR: SKIP (compilato senza tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3416"/>
+        <location filename="../src/AppContext.cpp" line="3461"/>
         <source>Dev: played record-start sound &apos;%1&apos;</source>
         <translation>Dev: riprodotto suono di avvio registrazione &apos;%1&apos;</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3432"/>
-        <location filename="../src/AppContext.cpp" line="3464"/>
+        <location filename="../src/AppContext.cpp" line="3477"/>
+        <location filename="../src/AppContext.cpp" line="3509"/>
         <source>Dev: countdown is 0s (off) - set it in Recording settings</source>
         <translation>Dev: il conto alla rovescia è 0 s (disattivato) - impostalo nelle impostazioni di registrazione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3455"/>
+        <location filename="../src/AppContext.cpp" line="3500"/>
         <source>Dev: countdown finished - recording would start now</source>
         <translation>Dev: conto alla rovescia terminato - la registrazione inizierebbe ora</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3493"/>
+        <location filename="../src/AppContext.cpp" line="3538"/>
         <source>Save capture (dev test)</source>
         <translation>Salva acquisizione (test dev)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3495"/>
-        <location filename="../src/AppContext.cpp" line="6404"/>
+        <location filename="../src/AppContext.cpp" line="3540"/>
+        <location filename="../src/AppContext.cpp" line="6466"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>Immagini (*.png *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3497"/>
+        <location filename="../src/AppContext.cpp" line="3542"/>
         <source>Dev: save dialog cancelled</source>
         <translation>Dev: finestra di salvataggio annullata</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3502"/>
+        <location filename="../src/AppContext.cpp" line="3547"/>
         <source>Dev: save FAILED</source>
         <translation>Dev: salvataggio FALLITO</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3503"/>
+        <location filename="../src/AppContext.cpp" line="3548"/>
         <source>Dev: saved to %1</source>
         <translation>Dev: salvato in %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3515"/>
+        <location filename="../src/AppContext.cpp" line="3560"/>
         <source>Dev: next file = %1/%2 (counter=%3, subfolders=%4, stripMeta=%5)</source>
         <translation>Dev: prossimo file = %1/%2 (counter=%3, subfolders=%4, stripMeta=%5)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3518"/>
-        <location filename="../src/AppContext.cpp" line="3519"/>
+        <location filename="../src/AppContext.cpp" line="3563"/>
+        <location filename="../src/AppContext.cpp" line="3564"/>
         <source>on</source>
         <translation>attivo</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3518"/>
-        <location filename="../src/AppContext.cpp" line="3519"/>
+        <location filename="../src/AppContext.cpp" line="3563"/>
+        <location filename="../src/AppContext.cpp" line="3564"/>
         <source>off</source>
         <translation>disattivo</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3695"/>
+        <location filename="../src/AppContext.cpp" line="3740"/>
         <source>Dev: copy last capture: %1</source>
         <translation>Dev: copia ultima cattura: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6402"/>
+        <location filename="../src/AppContext.cpp" line="6464"/>
         <source>Save capture</source>
         <translation>Salva acquisizione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6391"/>
-        <location filename="../src/AppContext.cpp" line="6409"/>
+        <location filename="../src/AppContext.cpp" line="6453"/>
+        <location filename="../src/AppContext.cpp" line="6471"/>
         <source>Could not save to %1</source>
         <translation>Impossibile salvare in %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6502"/>
+        <location filename="../src/AppContext.cpp" line="6571"/>
         <source>No capture to copy yet</source>
         <translation>Nessuna cattura da copiare per ora</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6516"/>
+        <location filename="../src/AppContext.cpp" line="6585"/>
         <source>Uploaded: %1</source>
         <translation>Caricato: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7137"/>
+        <location filename="../src/AppContext.cpp" line="7206"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>Impossibile aprire %1 per la modifica</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7147"/>
+        <location filename="../src/AppContext.cpp" line="7216"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>Impossibile aprire %1 per l&apos;anteprima</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7308"/>
+        <location filename="../src/AppContext.cpp" line="7377"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Suoni (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7309"/>
+        <location filename="../src/AppContext.cpp" line="7378"/>
         <source>Sounds (*.wav)</source>
         <translation>Suoni (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7311"/>
+        <location filename="../src/AppContext.cpp" line="7380"/>
         <source>Add capture sound</source>
         <translation>Aggiungi suono di cattura</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7318"/>
+        <location filename="../src/AppContext.cpp" line="7387"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Formato audio non supportato (usa WAV o OGG)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7327"/>
+        <location filename="../src/AppContext.cpp" line="7396"/>
         <source>Could not copy the sound file</source>
         <translation>Impossibile copiare il file audio</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7331"/>
+        <location filename="../src/AppContext.cpp" line="7400"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Aggiunto il suono di cattura &quot;%1&quot;</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7339"/>
+        <location filename="../src/AppContext.cpp" line="7408"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>Impossibile aprire %1 per la copia</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7343"/>
+        <location filename="../src/AppContext.cpp" line="7412"/>
         <source>Image copied</source>
         <translation>Immagine copiata</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7350"/>
-        <location filename="../src/AppContext.cpp" line="7910"/>
+        <location filename="../src/AppContext.cpp" line="7419"/>
+        <location filename="../src/AppContext.cpp" line="7979"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Salva prima la cattura per copiarne il percorso del file</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7364"/>
+        <location filename="../src/AppContext.cpp" line="7433"/>
         <source>Uploading %1…</source>
         <translation>Caricamento di %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7373"/>
+        <location filename="../src/AppContext.cpp" line="7442"/>
         <source>Uploaded</source>
         <translation>Caricato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7470"/>
+        <location filename="../src/AppContext.cpp" line="7539"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Impossibile aprire l&apos;anteprima</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7755"/>
+        <location filename="../src/AppContext.cpp" line="7824"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Salvato come PNG per mantenere la trasparenza</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7880"/>
+        <location filename="../src/AppContext.cpp" line="7949"/>
         <source>No valid link to turn into a QR code</source>
         <translation>Nessun collegamento valido da trasformare in codice QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7885"/>
+        <location filename="../src/AppContext.cpp" line="7954"/>
         <source>Could not create QR code</source>
         <translation>Impossibile creare il codice QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7886"/>
+        <location filename="../src/AppContext.cpp" line="7955"/>
         <source>QR codes need zxing-cpp</source>
         <translation>I codici QR richiedono zxing-cpp</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7890"/>
+        <location filename="../src/AppContext.cpp" line="7959"/>
         <source>QR code preview</source>
         <translation>Anteprima del codice QR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7923"/>
+        <location filename="../src/AppContext.cpp" line="7992"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Salva o carica prima la cattura per copiarla come collegamento</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6481"/>
+        <location filename="../src/AppContext.cpp" line="6543"/>
         <source>Could not encode the capture</source>
         <translation>Impossibile codificare la cattura</translation>
     </message>
@@ -1018,412 +971,408 @@
         <translation>Riproduzione istantanea non riuscita: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1022"/>
+        <location filename="../src/AppContext.cpp" line="1027"/>
         <source>This build has no libinput support, so key presses cannot be detected.</source>
         <translation>Questa build non ha il supporto libinput, quindi le pressioni dei tasti non possono essere rilevate.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1026"/>
+        <location filename="../src/AppContext.cpp" line="1031"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Leggere le pressioni dei tasti richiede l&apos;accesso ai dispositivi di input. Esegui «%1», poi esci e rientra.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1266"/>
-        <location filename="../src/AppContext.cpp" line="1268"/>
-        <location filename="../src/AppContext.cpp" line="1332"/>
-        <location filename="../src/AppContext.cpp" line="1334"/>
-        <location filename="../src/AppContext.cpp" line="1344"/>
+        <location filename="../src/AppContext.cpp" line="1302"/>
+        <location filename="../src/AppContext.cpp" line="1304"/>
+        <location filename="../src/AppContext.cpp" line="1368"/>
+        <location filename="../src/AppContext.cpp" line="1370"/>
+        <location filename="../src/AppContext.cpp" line="1380"/>
         <source>Empty capture</source>
         <translation>Cattura vuota</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1302"/>
+        <location filename="../src/AppContext.cpp" line="1338"/>
         <source>No region to re-capture</source>
         <translation>Nessuna regione da ricatturare</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1303"/>
+        <location filename="../src/AppContext.cpp" line="1339"/>
         <source>No region to re-capture yet - take a region screenshot first</source>
         <translation>Non c&apos;è ancora una regione da ricatturare - prima fai uno screenshot di regione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1312"/>
+        <location filename="../src/AppContext.cpp" line="1348"/>
         <source>Region&apos;s screen is no longer connected</source>
         <translation>Lo schermo di quella regione non è più collegato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1313"/>
+        <location filename="../src/AppContext.cpp" line="1349"/>
         <source>The screen that region was on is no longer connected</source>
         <translation>Lo schermo su cui era quella regione non è più collegato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1345"/>
+        <location filename="../src/AppContext.cpp" line="1381"/>
         <source>The stored region no longer fits that screen</source>
         <translation>La regione salvata non rientra più in quello schermo</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1470"/>
+        <location filename="../src/AppContext.cpp" line="1506"/>
         <source>Recording a single window needs a window picker this desktop does not provide - record the screen or a region instead.</source>
         <translation>Registrare una singola finestra richiede un selettore di finestre che questo desktop non fornisce - registra lo schermo o un&apos;area.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1856"/>
+        <location filename="../src/AppContext.cpp" line="1892"/>
         <source>FFmpeg</source>
         <translation>FFmpeg</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1857"/>
+        <location filename="../src/AppContext.cpp" line="1893"/>
         <source>Found - screen recording and GIF export are available.</source>
         <translation>Trovato - la registrazione dello schermo e l&apos;esportazione GIF sono disponibili.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1858"/>
+        <location filename="../src/AppContext.cpp" line="1894"/>
         <source>Missing. Screen recording and GIF export need FFmpeg. Install the &quot;ffmpeg&quot; package.</source>
         <translation>Mancante. La registrazione dello schermo e l&apos;esportazione GIF richiedono FFmpeg. Installa il pacchetto «ffmpeg».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1861"/>
+        <location filename="../src/AppContext.cpp" line="1897"/>
         <source>wl-clipboard</source>
         <translation>wl-clipboard</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1862"/>
+        <location filename="../src/AppContext.cpp" line="1898"/>
         <source>Found - copy to clipboard is at its most reliable.</source>
         <translation>Trovato - la copia negli appunti è alla massima affidabilità.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1863"/>
+        <location filename="../src/AppContext.cpp" line="1899"/>
         <source>Optional. Install &quot;wl-clipboard&quot; for the most reliable copy-to-clipboard on Wayland.</source>
         <translation>Facoltativo. Installa «wl-clipboard» per la copia negli appunti più affidabile su Wayland.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1867"/>
+        <location filename="../src/AppContext.cpp" line="1903"/>
         <source>OCR language pack</source>
         <translation>Pacchetto lingua OCR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1868"/>
+        <location filename="../src/AppContext.cpp" line="1904"/>
         <source>Found - text recognition (OCR) is ready.</source>
         <translation>Trovato - il riconoscimento del testo (OCR) è pronto.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1869"/>
+        <location filename="../src/AppContext.cpp" line="1905"/>
         <source>Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. &quot;tesseract-langpack-eng&quot;.</source>
         <translation>Mancante. L&apos;OCR è integrato ma non è installato alcun pacchetto lingua di Tesseract. Installane uno, ad es. «tesseract-langpack-eng».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1872"/>
+        <location filename="../src/AppContext.cpp" line="1908"/>
         <source>OCR auto-language (osd)</source>
         <translation>Lingua automatica OCR (osd)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1873"/>
+        <location filename="../src/AppContext.cpp" line="1909"/>
         <source>Found - OCR detects the script of each capture automatically.</source>
         <translation>Trovato - l&apos;OCR rileva automaticamente la scrittura di ogni acquisizione.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1874"/>
+        <location filename="../src/AppContext.cpp" line="1910"/>
         <source>Optional. Install the Tesseract &quot;osd&quot; pack so OCR auto-language works across scripts.</source>
         <translation>Facoltativo. Installa il pacchetto «osd» di Tesseract affinché la lingua automatica OCR funzioni con le diverse scritture.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2271"/>
+        <location filename="../src/AppContext.cpp" line="2307"/>
         <source>Dev: keystroke badge: %1</source>
         <translation>Dev: badge dei tasti: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2278"/>
+        <location filename="../src/AppContext.cpp" line="2314"/>
         <source>Dev: custom theme: %1</source>
         <translation>Dev: tema personalizzato: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2354"/>
+        <location filename="../src/AppContext.cpp" line="2390"/>
         <source>Dev: diagnostics copied (%1 chars)</source>
         <translation>Dev: diagnostica copiata (%1 caratteri)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2371"/>
+        <location filename="../src/AppContext.cpp" line="2407"/>
         <source>Dev: system check: %1 checks, %2 missing (%3 core)</source>
         <translation>Dev: controllo del sistema: %1 controlli, %2 mancanti (%3 essenziali)</translation>
     </message>
     <message>
-        <source>Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4)</source>
-        <translation type="vanished">Dev: codificatore hardware: %1 (auto→%2, nvenc=%3, vaapi=%4)</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="3357"/>
+        <location filename="../src/AppContext.cpp" line="3402"/>
         <source>Dev: OCR auto language: %1 (installed: %2; %3; map: %4)</source>
         <translation>Dev: lingua OCR automatica: %1 (installate: %2; %3; mappa: %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3724"/>
+        <location filename="../src/AppContext.cpp" line="3769"/>
         <source>memory only</source>
         <translation>solo in memoria</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3726"/>
+        <location filename="../src/AppContext.cpp" line="3771"/>
         <source>Dev: log FAILED to redact a secret</source>
         <translation>Dev: il log NON ha oscurato un segreto</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3727"/>
+        <location filename="../src/AppContext.cpp" line="3772"/>
         <source>Dev: log OK (%1 lines) - %2</source>
         <translation>Dev: log OK (%1 righe) - %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3743"/>
+        <location filename="../src/AppContext.cpp" line="3788"/>
         <source>Dev: crash report: could not open a temp file</source>
         <translation>Dev: rapporto di arresto anomalo: impossibile aprire un file temporaneo</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3755"/>
+        <location filename="../src/AppContext.cpp" line="3800"/>
         <source>Dev: crash report renders - opened it in the file manager</source>
         <translation>Dev: il rapporto di arresto anomalo viene generato - aperto nel gestore file</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3756"/>
+        <location filename="../src/AppContext.cpp" line="3801"/>
         <source>Dev: crash report is malformed</source>
         <translation>Dev: il rapporto di arresto anomalo non è valido</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3787"/>
+        <location filename="../src/AppContext.cpp" line="3832"/>
         <source>Dev: KWin record: interface not granted (desktop file / not KWin)</source>
         <translation>Dev: registrazione KWin: interfaccia non concessa (file desktop / non è KWin)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3796"/>
+        <location filename="../src/AppContext.cpp" line="3841"/>
         <source>Dev: KWin record: stream request failed</source>
         <translation>Dev: registrazione KWin: richiesta del flusso non riuscita</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3800"/>
+        <location filename="../src/AppContext.cpp" line="3845"/>
         <source>Dev: KWin record OK - PipeWire node %1, no portal dialog</source>
         <translation>Dev: registrazione KWin OK - nodo PipeWire %1, senza finestra del portale</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3804"/>
+        <location filename="../src/AppContext.cpp" line="3849"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev: registrazione KWin non riuscita: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3808"/>
+        <location filename="../src/AppContext.cpp" line="3853"/>
         <source>Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)</source>
         <translation>Dev: registrazione KWin: non compilata (richiede qt6-qtwayland-devel + plasma-wayland-protocols)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4116"/>
+        <location filename="../src/AppContext.cpp" line="4161"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev: canale di installazione: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4237"/>
+        <location filename="../src/AppContext.cpp" line="4282"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev: caricamento di prova sul server: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4355"/>
+        <location filename="../src/AppContext.cpp" line="4400"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev: importazione per trascinamento: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4438"/>
+        <location filename="../src/AppContext.cpp" line="4483"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev: importazione da incolla: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4464"/>
+        <location filename="../src/AppContext.cpp" line="4509"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev: modalità della pagina di registrazione: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4673"/>
+        <location filename="../src/AppContext.cpp" line="4718"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev: cattura registrazione X11: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4681"/>
+        <location filename="../src/AppContext.cpp" line="4726"/>
         <source>Dev: X11 hotkeys: %1</source>
         <translation>Dev: scorciatoie X11: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6639"/>
+        <location filename="../src/AppContext.cpp" line="6708"/>
         <source>Can&apos;t find %1</source>
         <translation>Impossibile trovare %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6646"/>
-        <location filename="../src/AppContext.cpp" line="6699"/>
+        <location filename="../src/AppContext.cpp" line="6715"/>
+        <location filename="../src/AppContext.cpp" line="6768"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic apre file, non cartelle</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6676"/>
+        <location filename="../src/AppContext.cpp" line="6745"/>
         <source>Unisic can only open files from this computer</source>
         <translation>Unisic può aprire solo file di questo computer</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6677"/>
+        <location filename="../src/AppContext.cpp" line="6746"/>
         <source>Nothing to open in that drop</source>
         <translation>Niente da aprire in ciò che hai trascinato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6720"/>
+        <location filename="../src/AppContext.cpp" line="6789"/>
         <source>Opened %1. Drop one file at a time to open the others.</source>
         <translation>Aperto %1. Trascina un file alla volta per aprire gli altri.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6722"/>
+        <location filename="../src/AppContext.cpp" line="6791"/>
         <source>Opened %1. Nothing else in that drop is a file Unisic can open.</source>
         <translation>Aperto %1. Nessuno degli altri file trascinati può essere aperto in Unisic.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6752"/>
+        <location filename="../src/AppContext.cpp" line="6821"/>
         <source>The clipboard is empty</source>
         <translation>Gli appunti sono vuoti</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6787"/>
+        <location filename="../src/AppContext.cpp" line="6856"/>
         <source>The clipboard holds no image to paste</source>
         <translation>Gli appunti non contengono un&apos;immagine da incollare</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="7933"/>
+        <location filename="../src/AppContext.cpp" line="8002"/>
         <source>Unknown copy format</source>
         <translation>Formato di copia sconosciuto</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8019"/>
+        <location filename="../src/AppContext.cpp" line="8088"/>
         <source>Export Unisic settings</source>
         <translation>Esporta impostazioni di Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8021"/>
-        <location filename="../src/AppContext.cpp" line="8032"/>
+        <location filename="../src/AppContext.cpp" line="8090"/>
+        <location filename="../src/AppContext.cpp" line="8101"/>
         <source>Unisic settings (*.json)</source>
         <translation>Impostazioni Unisic (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8025"/>
+        <location filename="../src/AppContext.cpp" line="8094"/>
         <source>Settings exported</source>
         <translation>Impostazioni esportate</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8031"/>
+        <location filename="../src/AppContext.cpp" line="8100"/>
         <source>Import Unisic settings</source>
         <translation>Importa impostazioni di Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8036"/>
-        <location filename="../src/AppContext.cpp" line="8241"/>
+        <location filename="../src/AppContext.cpp" line="8105"/>
+        <location filename="../src/AppContext.cpp" line="8310"/>
         <source>Settings imported</source>
         <translation>Impostazioni importate</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8051"/>
-        <location filename="../src/AppContext.cpp" line="8086"/>
+        <location filename="../src/AppContext.cpp" line="8120"/>
+        <location filename="../src/AppContext.cpp" line="8155"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Nessuna delle catture selezionate è salvata su disco.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8055"/>
+        <location filename="../src/AppContext.cpp" line="8124"/>
         <source>Export captures to ZIP</source>
         <translation>Esporta catture in ZIP</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8057"/>
+        <location filename="../src/AppContext.cpp" line="8126"/>
         <source>ZIP archive (*.zip)</source>
         <translation>Archivio ZIP (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8060"/>
+        <location filename="../src/AppContext.cpp" line="8129"/>
         <source>Exporting %1 captures…</source>
         <translation>Esportazione di %1 catture…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8077"/>
+        <location filename="../src/AppContext.cpp" line="8146"/>
         <source>The “zip” program is not installed - install it and try again.</source>
         <translation>Il programma «zip» non è installato - installalo e riprova.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8103"/>
+        <location filename="../src/AppContext.cpp" line="8172"/>
         <source>Could not create a temporary folder: %1</source>
         <translation>Impossibile creare una cartella temporanea: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8130"/>
+        <location filename="../src/AppContext.cpp" line="8199"/>
         <source>Exported %1 captures to %2</source>
         <translation>Esportate %1 catture in %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8134"/>
+        <location filename="../src/AppContext.cpp" line="8203"/>
         <source>Export failed: %1</source>
         <translation>Esportazione non riuscita: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8135"/>
+        <location filename="../src/AppContext.cpp" line="8204"/>
         <source>zip exited with code %1</source>
         <translation>zip è terminato con codice %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8144"/>
+        <location filename="../src/AppContext.cpp" line="8213"/>
         <source>Could not run the “zip” program.</source>
         <translation>Impossibile eseguire il programma «zip».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8159"/>
+        <location filename="../src/AppContext.cpp" line="8228"/>
         <source>No file selected</source>
         <translation>Nessun file selezionato</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8185"/>
-        <location filename="../src/AppContext.cpp" line="8196"/>
+        <location filename="../src/AppContext.cpp" line="8254"/>
+        <location filename="../src/AppContext.cpp" line="8265"/>
         <source>Cannot write %1</source>
         <translation>Impossibile scrivere %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8199"/>
+        <location filename="../src/AppContext.cpp" line="8268"/>
         <source>Settings exported to %1</source>
         <translation>Impostazioni esportate in %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8208"/>
+        <location filename="../src/AppContext.cpp" line="8277"/>
         <source>Cannot read %1</source>
         <translation>Impossibile leggere %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8211"/>
+        <location filename="../src/AppContext.cpp" line="8280"/>
         <source>Not a Unisic settings file</source>
         <translation>Non è un file di impostazioni di Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8250"/>
-        <location filename="../src/AppContext.cpp" line="8808"/>
+        <location filename="../src/AppContext.cpp" line="8319"/>
+        <location filename="../src/AppContext.cpp" line="8877"/>
         <source>Capture full screen</source>
         <translation>Cattura schermo intero</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8251"/>
-        <location filename="../src/AppContext.cpp" line="8807"/>
+        <location filename="../src/AppContext.cpp" line="8320"/>
+        <location filename="../src/AppContext.cpp" line="8876"/>
         <source>Capture region</source>
         <translation>Cattura regione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8252"/>
+        <location filename="../src/AppContext.cpp" line="8321"/>
         <source>Capture active window</source>
         <translation>Cattura finestra attiva</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8304"/>
+        <location filename="../src/AppContext.cpp" line="8373"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Questo desktop non può essere configurato automaticamente - usa i comandi qui sotto.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8309"/>
+        <location filename="../src/AppContext.cpp" line="8378"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Impossibile aggiungere le scorciatoie: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="8313"/>
+        <location filename="../src/AppContext.cpp" line="8382"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>Aggiunta %n scorciatoia a %1</numerusform>
@@ -1431,225 +1380,221 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8317"/>
+        <location filename="../src/AppContext.cpp" line="8386"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(saltato, nessun tasto mappabile: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8324"/>
+        <location filename="../src/AppContext.cpp" line="8393"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 usa già questi tasti - cambiali in Scorciatoie: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8335"/>
+        <location filename="../src/AppContext.cpp" line="8404"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Impossibile rimuovere le scorciatoie: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8338"/>
+        <location filename="../src/AppContext.cpp" line="8407"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Scorciatoie di Unisic rimosse da %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8444"/>
+        <location filename="../src/AppContext.cpp" line="8513"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: scorciatoie desktop: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8565"/>
-        <location filename="../src/AppContext.cpp" line="8809"/>
+        <location filename="../src/AppContext.cpp" line="8634"/>
+        <location filename="../src/AppContext.cpp" line="8878"/>
         <source>Capture screen under cursor</source>
         <translation>Cattura lo schermo sotto il cursore</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8567"/>
-        <location filename="../src/AppContext.cpp" line="8811"/>
+        <location filename="../src/AppContext.cpp" line="8636"/>
+        <location filename="../src/AppContext.cpp" line="8880"/>
         <source>Re-capture last region</source>
         <translation>Ricattura l&apos;ultima regione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8253"/>
+        <location filename="../src/AppContext.cpp" line="8322"/>
         <source>Record GIF (start/stop)</source>
         <translation>Registra GIF (avvia/ferma)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8254"/>
+        <location filename="../src/AppContext.cpp" line="8323"/>
         <source>Record video (start/stop)</source>
         <translation>Registra video (avvia/ferma)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8255"/>
+        <location filename="../src/AppContext.cpp" line="8324"/>
         <source>OCR region (copy text)</source>
         <translation>OCR su regione (copia testo)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8558"/>
+        <location filename="../src/AppContext.cpp" line="8627"/>
         <source>Open quick task chooser</source>
         <translation>Apri il selettore attività rapida</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8257"/>
+        <location filename="../src/AppContext.cpp" line="8326"/>
         <source>Start/save instant replay</source>
         <translation>Avvia/salva riproduzione istantanea</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8536"/>
-        <location filename="../src/AppContext.cpp" line="8649"/>
+        <location filename="../src/AppContext.cpp" line="8605"/>
+        <location filename="../src/AppContext.cpp" line="8718"/>
         <source>Stop recording (emergency)</source>
         <translation>Ferma registrazione (emergenza)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8540"/>
+        <location filename="../src/AppContext.cpp" line="8609"/>
         <source>Ctrl+Esc emergency stop unavailable: the key is taken by the system (System Settings → Shortcuts to free it)</source>
         <translation>Arresto di emergenza Ctrl+Esc non disponibile: il tasto è occupato dal sistema (Impostazioni di sistema → Scorciatoie per liberarlo)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8546"/>
+        <location filename="../src/AppContext.cpp" line="8615"/>
         <source>Developer smoke test</source>
         <translation>Smoke test sviluppatore</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8671"/>
+        <location filename="../src/AppContext.cpp" line="8740"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys.</source>
         <translation>Scorciatoia occupata da un&apos;altra app: %1. Scegli un altro tasto in Impostazioni → Scorciatoie.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8698"/>
+        <location filename="../src/AppContext.cpp" line="8767"/>
         <source>Could not bind %1; the key is taken by another shortcut</source>
         <translation>Impossibile associare %1; il tasto è occupato da un&apos;altra scorciatoia</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8729"/>
+        <location filename="../src/AppContext.cpp" line="8798"/>
         <source>Some hotkeys could not be bound (keys taken); showing the actual state</source>
         <translation>Alcune scorciatoie non sono state associate (tasti occupati); viene mostrato lo stato effettivo</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8810"/>
+        <location filename="../src/AppContext.cpp" line="8879"/>
         <source>Capture window</source>
         <translation>Cattura finestra</translation>
     </message>
     <message>
-        <source>Scrolling capture</source>
-        <translation type="vanished">Cattura con scorrimento</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="8813"/>
+        <location filename="../src/AppContext.cpp" line="8882"/>
         <source>Measure</source>
         <translation>Misura</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8815"/>
+        <location filename="../src/AppContext.cpp" line="8884"/>
         <source>Select text…</source>
         <translation>Seleziona testo…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8817"/>
+        <location filename="../src/AppContext.cpp" line="8886"/>
         <source>Record video (region)</source>
         <translation>Registra video (regione)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8818"/>
+        <location filename="../src/AppContext.cpp" line="8887"/>
         <source>Record video (full screen)</source>
         <translation>Registra video (schermo intero)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8819"/>
+        <location filename="../src/AppContext.cpp" line="8888"/>
         <source>Record video (window)</source>
         <translation>Registra video (finestra)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8820"/>
+        <location filename="../src/AppContext.cpp" line="8889"/>
         <source>Record GIF (region)</source>
         <translation>Registra GIF (regione)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8821"/>
+        <location filename="../src/AppContext.cpp" line="8890"/>
         <source>Record GIF (full screen)</source>
         <translation>Registra GIF (schermo intero)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8822"/>
+        <location filename="../src/AppContext.cpp" line="8891"/>
         <source>Start instant replay</source>
         <translation>Avvia instant replay</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8824"/>
+        <location filename="../src/AppContext.cpp" line="8893"/>
         <source>Save instant replay</source>
         <translation>Salva instant replay</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8826"/>
+        <location filename="../src/AppContext.cpp" line="8895"/>
         <source>Stop recording</source>
         <translation>Ferma registrazione</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8841"/>
+        <location filename="../src/AppContext.cpp" line="8910"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Riavvia per aggiornare a Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8847"/>
+        <location filename="../src/AppContext.cpp" line="8916"/>
         <source>Install update to Unisic %1</source>
         <translation>Installa l&apos;aggiornamento di Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8853"/>
+        <location filename="../src/AppContext.cpp" line="8922"/>
         <source>Update available - Unisic %1</source>
         <translation>Aggiornamento disponibile - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="8857"/>
+        <location filename="../src/AppContext.cpp" line="8926"/>
         <source>Open Unisic</source>
         <translation>Apri Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9011"/>
+        <location filename="../src/AppContext.cpp" line="9080"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Immagini (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9010"/>
+        <location filename="../src/AppContext.cpp" line="9079"/>
         <source>Add a tray icon</source>
         <translation>Aggiungi un&apos;icona per l&apos;area di notifica</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9016"/>
-        <location filename="../src/AppContext.cpp" line="9055"/>
+        <location filename="../src/AppContext.cpp" line="9085"/>
+        <location filename="../src/AppContext.cpp" line="9124"/>
         <source>Could not load that image as an icon</source>
         <translation>Impossibile caricare quell&apos;immagine come icona</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9036"/>
+        <location filename="../src/AppContext.cpp" line="9105"/>
         <source>Could not copy the icon into %1</source>
         <translation>Impossibile copiare l&apos;icona in %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9042"/>
+        <location filename="../src/AppContext.cpp" line="9111"/>
         <source>Icon added to your tray icons</source>
         <translation>Icona aggiunta alle tue icone dell&apos;area di notifica</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9213"/>
+        <location filename="../src/AppContext.cpp" line="9282"/>
         <source>Unisic starts hidden in the tray so its capture shortcuts work right after you log in.</source>
         <translation>Unisic si avvia nascosto nell&apos;area di notifica, così le sue scorciatoie di cattura funzionano subito dopo l&apos;accesso.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9221"/>
+        <location filename="../src/AppContext.cpp" line="9290"/>
         <source>The desktop refused the autostart request</source>
         <translation>Il desktop ha rifiutato la richiesta di avvio automatico</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9229"/>
+        <location filename="../src/AppContext.cpp" line="9298"/>
         <source>Autostart was not granted</source>
         <translation>Avvio automatico non concesso</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9245"/>
+        <location filename="../src/AppContext.cpp" line="9314"/>
         <source>Could not disable autostart: cannot remove %1</source>
         <translation>Impossibile disattivare l&apos;avvio automatico: impossibile rimuovere %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="9250"/>
+        <location filename="../src/AppContext.cpp" line="9319"/>
         <source>Could not enable autostart: cannot write %1</source>
         <translation>Impossibile attivare l&apos;avvio automatico: impossibile scrivere %1</translation>
     </message>
@@ -1693,29 +1638,6 @@
         <location filename="../qml/pages/CapturePage.qml" line="61"/>
         <source>Screenshots land in the editor, where you can annotate, then save, copy or upload.</source>
         <translation>Le schermate finiscono nell&apos;editor, dove puoi annotarle e poi salvarle, copiarle o caricarle.</translation>
-    </message>
-    <message>
-        <source>Scrolling capture running</source>
-        <translation type="vanished">Cattura con scorrimento in corso</translation>
-    </message>
-    <message numerus="yes">
-        <source>Scroll the selected area. %n frame(s) stitched, %1 px tall so far.</source>
-        <translation type="vanished">
-            <numerusform>Scorri l&apos;area selezionata. %n fotogramma unito, %1 px di altezza finora.</numerusform>
-            <numerusform>Scorri l&apos;area selezionata. %n fotogrammi uniti, %1 px di altezza finora.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Scroll the selected area - scroll slowly enough that each view overlaps the last.</source>
-        <translation type="vanished">Scorri l&apos;area selezionata - piano, così che ogni vista si sovrapponga alla precedente.</translation>
-    </message>
-    <message>
-        <source>Done</source>
-        <translation type="vanished">Fatto</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation type="vanished">Annulla</translation>
     </message>
     <message>
         <location filename="../qml/pages/CapturePage.qml" line="92"/>
@@ -1787,26 +1709,6 @@
         <location filename="../qml/pages/CapturePage.qml" line="281"/>
         <source>Upload server</source>
         <translation>Server di caricamento</translation>
-    </message>
-    <message>
-        <source>Scrolling</source>
-        <translation type="vanished">Con scorrimento</translation>
-    </message>
-    <message>
-        <source>Scroll it yourself</source>
-        <translation type="vanished">Scorri tu</translation>
-    </message>
-    <message>
-        <source>Open a file</source>
-        <translation type="vanished">Apri un file</translation>
-    </message>
-    <message>
-        <source>Edit an image or trim a video</source>
-        <translation type="vanished">Modifica un&apos;immagine o taglia un video</translation>
-    </message>
-    <message>
-        <source>After capture</source>
-        <translation type="vanished">Dopo la cattura</translation>
     </message>
     <message>
         <location filename="../qml/pages/CapturePage.qml" line="293"/>
@@ -2006,10 +1908,6 @@
         <translation>sftp://host/percorso/  oppure  ftp://host/percorso/</translation>
     </message>
     <message>
-        <source>Request URL (https://…)</source>
-        <translation type="vanished">URL della richiesta (https://…)</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="691"/>
         <source>Multipart form-data (upload the file)</source>
         <translation>Multipart form-data (caricamento del file)</translation>
@@ -2018,22 +1916,6 @@
         <location filename="../qml/pages/DestinationsPage.qml" line="691"/>
         <source>Custom JSON body</source>
         <translation>Corpo JSON personalizzato</translation>
-    </message>
-    <message>
-        <source>File form field name (e.g. file)</source>
-        <translation type="vanished">Nome del campo form per il file (es. file)</translation>
-    </message>
-    <message>
-        <source>JSON body. Tokens: $base64$, $filename$, $mime$</source>
-        <translation type="vanished">Corpo JSON. Token: $base64$, $filename$, $mime$</translation>
-    </message>
-    <message>
-        <source>Extra form fields as JSON, e.g. {&quot;reqtype&quot;:&quot;fileupload&quot;}</source>
-        <translation type="vanished">Campi form aggiuntivi in JSON, es. {&quot;reqtype&quot;:&quot;fileupload&quot;}</translation>
-    </message>
-    <message>
-        <source>URL extractor: $text$, $json:files[0].url$ or $regex:…$</source>
-        <translation type="vanished">Estrattore URL: $text$, $json:files[0].url$ o $regex:…$</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="734"/>
@@ -2046,17 +1928,9 @@
         <translation>Unisic non include alcun Client-ID: identifica l&apos;applicazione, quindi uno condiviso metterebbe tutti gli utenti sullo stesso limite giornaliero. Registra un&apos;applicazione gratuita su https://api.imgur.com/oauth2/addclient - scegli “Anonymous usage without user authorisation” - e incolla qui il suo Client-ID. I caricamenti restano anonimi; non compaiono mai nella tua galleria di Imgur.</translation>
     </message>
     <message>
-        <source>Headers as JSON, e.g. {&quot;Authorization&quot;:&quot;Bearer x&quot;}</source>
-        <translation type="vanished">Header in JSON, es. {&quot;Authorization&quot;:&quot;Bearer x&quot;}</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="761"/>
         <source>user:password (curl -u)</source>
         <translation>utente:password (curl -u)</translation>
-    </message>
-    <message>
-        <source>Public URL base (optional, for the copied link)</source>
-        <translation type="vanished">Base URL pubblica (facoltativa, per il link copiato)</translation>
     </message>
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="829"/>
@@ -2562,94 +2436,36 @@
     </message>
 </context>
 <context>
-    <name>GifPage</name>
+    <name>ExternalActionRunner</name>
     <message>
-        <source>GIF recording</source>
-        <translation type="vanished">Registrazione GIF</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="27"/>
+        <source>no command is set.</source>
+        <translation>non è impostato alcun comando.</translation>
     </message>
     <message>
-        <source>Record a region or a whole screen straight to an optimized .gif.</source>
-        <translation type="vanished">Registra una regione o uno schermo intero direttamente in un file .gif ottimizzato.</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="43"/>
+        <source>the program &quot;%1&quot; was not found. Check the spelling, or install it first.</source>
+        <translation>il programma «%1» non è stato trovato. Controlla come è scritto oppure installalo prima.</translation>
     </message>
     <message>
-        <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
-        <translation type="vanished">La registrazione non è disponibile: questo desktop non ha un backend del portale ScreenCast, quindi nulla può consegnare lo schermo a Unisic. Un processo PipeWire in esecuzione non basta - è il portale a chiederti il permesso e ad aprire il flusso. Cinnamon, MATE e XFCE non hanno ancora un backend simile.</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="63"/>
+        <source>%1 of them are already running, so this one was skipped. Wait for those to finish.</source>
+        <translation>ne sono già in esecuzione %1, quindi questa è stata saltata. Attendi che finiscano.</translation>
     </message>
     <message>
-        <source>Recording is unavailable: Unisic was built without PipeWire support.</source>
-        <translation type="vanished">La registrazione non è disponibile: Unisic è stato compilato senza il supporto PipeWire.</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="112"/>
+        <source>it stopped with error code %1.</source>
+        <translation>si è interrotta con il codice di errore %1.</translation>
     </message>
     <message>
-        <source>Region → GIF</source>
-        <translation type="vanished">Regione → GIF</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="122"/>
+        <source>Unisic could not start it (%1).</source>
+        <translation>Unisic non è riuscito ad avviarla (%1).</translation>
     </message>
     <message>
-        <source>Screen → GIF</source>
-        <translation type="vanished">Schermo → GIF</translation>
-    </message>
-    <message>
-        <source>Resume</source>
-        <translation type="vanished">Riprendi</translation>
-    </message>
-    <message>
-        <source>Pause</source>
-        <translation type="vanished">Pausa</translation>
-    </message>
-    <message>
-        <source>Stop</source>
-        <translation type="vanished">Stop</translation>
-    </message>
-    <message>
-        <source>GIF options</source>
-        <translation type="vanished">Opzioni GIF</translation>
-    </message>
-    <message>
-        <source>Frame rate</source>
-        <translation type="vanished">Frequenza fotogrammi</translation>
-    </message>
-    <message>
-        <source>Maximum duration</source>
-        <translation type="vanished">Durata massima</translation>
-    </message>
-    <message>
-        <source>0 = unlimited</source>
-        <translation type="vanished">0 = illimitata</translation>
-    </message>
-    <message>
-        <source>Quality</source>
-        <translation type="vanished">Qualità</translation>
-    </message>
-    <message>
-        <source>Fast / small</source>
-        <translation type="vanished">Veloce / piccolo</translation>
-    </message>
-    <message>
-        <source>Balanced</source>
-        <translation type="vanished">Bilanciato</translation>
-    </message>
-    <message>
-        <source>Best</source>
-        <translation type="vanished">Migliore</translation>
-    </message>
-    <message>
-        <source>Include mouse cursor</source>
-        <translation type="vanished">Includi il cursore del mouse</translation>
-    </message>
-    <message>
-        <source>Good to know</source>
-        <translation type="vanished">Da sapere</translation>
-    </message>
-    <message>
-        <source>GIF has no audio track. For a clip with sound, record an MP4 or WebM from the Record page instead.</source>
-        <translation type="vanished">La GIF non ha traccia audio. Per una clip con il sonoro, registra un MP4 o WebM dalla pagina Registra.</translation>
-    </message>
-    <message>
-        <source>File size grows quickly with area, frame rate and duration. A small region at 15-30 FPS usually looks great and stays easy to share.</source>
-        <translation type="vanished">La dimensione del file cresce in fretta con area, frequenza dei fotogrammi e durata. Una piccola regione a 15-30 FPS di solito rende benissimo e resta facile da condividere.</translation>
-    </message>
-    <message>
-        <source>Every recording is converted in two passes (a color palette first, then the frames), so colors stay crisp - the trade-off is a short encode after you stop.</source>
-        <translation type="vanished">Ogni registrazione è convertita in due passaggi (prima una palette di colori, poi i fotogrammi), così i colori restano nitidi - in cambio di una breve codifica dopo lo stop.</translation>
+        <location filename="../src/actions/ExternalActionRunner.cpp" line="134"/>
+        <source>it did not respond for %1 s, so Unisic stopped it.</source>
+        <translation>non ha risposto per %1 s, quindi Unisic l’ha interrotta.</translation>
     </message>
 </context>
 <context>
@@ -2679,10 +2495,6 @@
         <location filename="../src/record/GifRecorder.cpp" line="602"/>
         <source>The shared screen doesn&apos;t match the one the region was selected on - pick &quot;%1&quot; in the sharing dialog</source>
         <translation>Lo schermo condiviso non corrisponde a quello su cui è stata selezionata la regione - scegli &quot;%1&quot; nella finestra di condivisione</translation>
-    </message>
-    <message>
-        <source>The shared screen isn&apos;t &quot;%1&quot; - pick it in the sharing dialog</source>
-        <translation type="vanished">Lo schermo condiviso non è &quot;%1&quot; - sceglilo nella finestra di condivisione</translation>
     </message>
     <message>
         <location filename="../src/record/GifRecorder.cpp" line="651"/>
@@ -3200,62 +3012,6 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation>Le immagini si aprono nell&apos;editor, le registrazioni nella finestra di ritaglio.</translation>
     </message>
     <message>
-        <source>Quick task</source>
-        <translation type="vanished">Attività rapida</translation>
-    </message>
-    <message>
-        <source>Choose what to capture and what to do with this one result.</source>
-        <translation type="vanished">Scegli cosa acquisire e cosa fare con questo risultato.</translation>
-    </message>
-    <message>
-        <source>Full screen</source>
-        <translation type="vanished">Schermo intero</translation>
-    </message>
-    <message>
-        <source>Region</source>
-        <translation type="vanished">Regione</translation>
-    </message>
-    <message>
-        <source>Window</source>
-        <translation type="vanished">Finestra</translation>
-    </message>
-    <message>
-        <source>Video</source>
-        <translation type="vanished">Video</translation>
-    </message>
-    <message>
-        <source>Screenshot actions</source>
-        <translation type="vanished">Azioni dello screenshot</translation>
-    </message>
-    <message>
-        <source>Use global actions</source>
-        <translation type="vanished">Usa azioni globali</translation>
-    </message>
-    <message>
-        <source>Copy only</source>
-        <translation type="vanished">Solo copia</translation>
-    </message>
-    <message>
-        <source>Edit only</source>
-        <translation type="vanished">Solo modifica</translation>
-    </message>
-    <message>
-        <source>Save only</source>
-        <translation type="vanished">Solo salva</translation>
-    </message>
-    <message>
-        <source>Upload only</source>
-        <translation type="vanished">Solo carica</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation type="vanished">Annulla</translation>
-    </message>
-    <message>
-        <source>Start</source>
-        <translation type="vanished">Avvia</translation>
-    </message>
-    <message>
         <location filename="../qml/Main.qml" line="262"/>
         <source>Minimize</source>
         <translation>Minimizza</translation>
@@ -3269,10 +3025,6 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <location filename="../qml/Main.qml" line="273"/>
         <source>Close</source>
         <translation>Chiudi</translation>
-    </message>
-    <message>
-        <source>Search history</source>
-        <translation type="vanished">Cerca nella cronologia</translation>
     </message>
     <message>
         <location filename="../qml/Main.qml" line="312"/>
@@ -3335,14 +3087,6 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <location filename="../qml/Main.qml" line="562"/>
         <source>See patch notes</source>
         <translation>Vedi le novità</translation>
-    </message>
-    <message>
-        <source>GIF</source>
-        <translation type="vanished">GIF</translation>
-    </message>
-    <message>
-        <source>Jump to a page (Ctrl+1 … Ctrl+7)</source>
-        <translation type="vanished">Vai a una pagina (Ctrl+1 … Ctrl+7)</translation>
     </message>
     <message>
         <location filename="../qml/Main.qml" line="327"/>
@@ -3501,22 +3245,14 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation>Ancora niente da misurare - Ctrl+trascina per misurare</translation>
     </message>
     <message>
-        <source>Ctrl+drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close</source>
-        <translation type="vanished">Ctrl+trascina per misurare · Tab: distanza/dimensione · Ctrl+C copia le misure · Esc chiude</translation>
-    </message>
-    <message>
-        <location filename="../qml/OverlayWindow.qml" line="482"/>
+        <location filename="../qml/OverlayWindow.qml" line="485"/>
         <source>Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close</source>
         <translation>Trascina per misurare · Tab: distanza/dimensione · Ctrl+C copia le misure · Esc chiude</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="483"/>
+        <location filename="../qml/OverlayWindow.qml" line="486"/>
         <source>Drag to select</source>
         <translation>Trascina per selezionare</translation>
-    </message>
-    <message>
-        <source> · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel</source>
-        <translation type="vanished"> · Ctrl+trascina per spostare · annota con la barra degli strumenti · Space/Enter o doppio clic per catturare · Esc per annullare</translation>
     </message>
     <message>
         <location filename="../qml/OverlayWindow.qml" line="316"/>
@@ -3529,82 +3265,82 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation>Trascina per selezionare. Spazio o Invio cattura, Escape annulla, le frecce spostano la selezione.</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="485"/>
+        <location filename="../qml/OverlayWindow.qml" line="488"/>
         <source> · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel</source>
         <translation> · clic per l&apos;intero schermo · Ctrl+trascina per spostare · annota con la barra degli strumenti · Space/Enter o doppio clic per catturare · Esc per annullare</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="486"/>
+        <location filename="../qml/OverlayWindow.qml" line="489"/>
         <source> · Ctrl+drag to move · Space/Enter to start · Esc to cancel</source>
         <translation> · Ctrl+trascina per spostare · Space/Enter per avviare · Esc per annullare</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="515"/>
+        <location filename="../qml/OverlayWindow.qml" line="518"/>
         <source>Capture tools</source>
         <translation>Strumenti di cattura</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="573"/>
+        <location filename="../qml/OverlayWindow.qml" line="576"/>
         <source>%1 tool group</source>
         <translation>%1 (gruppo di strumenti)</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="576"/>
+        <location filename="../qml/OverlayWindow.qml" line="579"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
         <translation>Apre questi strumenti nella barra sottostante: %1. Il gruppo stesso non ha una scorciatoia.</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="587"/>
+        <location filename="../qml/OverlayWindow.qml" line="590"/>
         <source>Undo</source>
         <translation>Annulla</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="588"/>
+        <location filename="../qml/OverlayWindow.qml" line="591"/>
         <source>Redo</source>
         <translation>Ripeti</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="606"/>
+        <location filename="../qml/OverlayWindow.qml" line="609"/>
         <source>Capture</source>
         <translation>Cattura</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="606"/>
+        <location filename="../qml/OverlayWindow.qml" line="609"/>
         <source>Start</source>
         <translation>Avvia</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="607"/>
+        <location filename="../qml/OverlayWindow.qml" line="610"/>
         <source>Space or Enter also confirms</source>
         <translation>Anche Spazio o Invio conferma</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="618"/>
+        <location filename="../qml/OverlayWindow.qml" line="621"/>
         <source>Cancel</source>
         <translation>Annulla</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="619"/>
+        <location filename="../qml/OverlayWindow.qml" line="622"/>
         <source>Escape also cancels</source>
         <translation>Anche Escape annulla</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="666"/>
+        <location filename="../qml/OverlayWindow.qml" line="669"/>
         <source>Delete shape</source>
         <translation>Elimina forma</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="738"/>
+        <location filename="../qml/OverlayWindow.qml" line="741"/>
         <source>Annotation text</source>
         <translation>Testo dell&apos;annotazione</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="739"/>
+        <location filename="../qml/OverlayWindow.qml" line="742"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Enter termina, Escape annulla</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="764"/>
+        <location filename="../qml/OverlayWindow.qml" line="767"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Testo… (Ctrl+Enter termina)</translation>
     </message>
@@ -3660,14 +3396,14 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/ocr/OcrEngine.cpp" line="177"/>
-        <location filename="../src/ocr/OcrEngine.cpp" line="251"/>
+        <location filename="../src/ocr/OcrEngine.cpp" line="179"/>
+        <location filename="../src/ocr/OcrEngine.cpp" line="253"/>
         <source>No image to recognize</source>
         <translation>Nessuna immagine da riconoscere</translation>
     </message>
     <message>
-        <location filename="../src/ocr/OcrEngine.cpp" line="193"/>
-        <location filename="../src/ocr/OcrEngine.cpp" line="290"/>
+        <location filename="../src/ocr/OcrEngine.cpp" line="195"/>
+        <location filename="../src/ocr/OcrEngine.cpp" line="292"/>
         <source>OCR language data for &quot;%1&quot; not found. Install the Tesseract language packs</source>
         <translation>Dati della lingua OCR per &quot;%1&quot; non trovati. Installa i pacchetti lingua di Tesseract</translation>
     </message>
@@ -3942,76 +3678,6 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
     </message>
 </context>
 <context>
-    <name>ScreenPickWindow</name>
-    <message>
-        <source>Select screen to record</source>
-        <translation type="vanished">Seleziona lo schermo da registrare</translation>
-    </message>
-    <message>
-        <source>Record which screen?</source>
-        <translation type="vanished">Quale schermo registrare?</translation>
-    </message>
-    <message>
-        <source>The recording captures only the screen you pick. Press 1-9, 0 for all, Esc to cancel.</source>
-        <translation type="vanished">La registrazione cattura solo lo schermo scelto. Premi 1-9, 0 per tutti, Esc per annullare.</translation>
-    </message>
-    <message>
-        <source>%1 (primary)</source>
-        <translation type="vanished">%1 (principale)</translation>
-    </message>
-    <message>
-        <source>%1 - %2×%3</source>
-        <translation type="vanished">%1 - %2×%3</translation>
-    </message>
-    <message>
-        <source>%1×%2</source>
-        <translation type="vanished">%1×%2</translation>
-    </message>
-    <message>
-        <source>All screens</source>
-        <translation type="vanished">Tutti gli schermi</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation type="vanished">Annulla</translation>
-    </message>
-</context>
-<context>
-    <name>ScrollCaptureController</name>
-    <message>
-        <source>This build has no PipeWire support, so scrolling capture is unavailable.</source>
-        <translation type="vanished">Questa build non ha il supporto PipeWire, quindi la cattura con scorrimento non è disponibile.</translation>
-    </message>
-    <message>
-        <source>Nothing was selected</source>
-        <translation type="vanished">Non è stato selezionato nulla</translation>
-    </message>
-    <message>
-        <source>Screen sharing was not allowed</source>
-        <translation type="vanished">La condivisione dello schermo non è stata consentita</translation>
-    </message>
-    <message>
-        <source>That is a different screen than the selected area is on.</source>
-        <translation type="vanished">Questo è uno schermo diverso da quello su cui si trova l&apos;area selezionata.</translation>
-    </message>
-    <message>
-        <source>The selected area is outside the shared screen.</source>
-        <translation type="vanished">L&apos;area selezionata è fuori dallo schermo condiviso.</translation>
-    </message>
-    <message>
-        <source>Failed to connect to the PipeWire stream</source>
-        <translation type="vanished">Impossibile connettersi al flusso PipeWire</translation>
-    </message>
-    <message>
-        <source>Nothing was captured</source>
-        <translation type="vanished">Non è stato catturato nulla</translation>
-    </message>
-    <message>
-        <source>Nothing scrolled - capture the area as a normal screenshot instead.</source>
-        <translation type="vanished">Non è stato scorso nulla - cattura l&apos;area come una normale schermata.</translation>
-    </message>
-</context>
-<context>
     <name>SettingsPage</name>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="185"/>
@@ -4135,10 +3801,6 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <translation>In basso a destra</translation>
     </message>
     <message>
-        <source>Click for the full explanation</source>
-        <translation type="vanished">Fai clic per la spiegazione completa</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="677"/>
         <source>Settings</source>
         <translation>Impostazioni</translation>
@@ -4172,7 +3834,7 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="914"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3327"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3328"/>
         <source>Language</source>
         <translation>Lingua</translation>
     </message>
@@ -4470,7 +4132,7 @@ Disattivato o non supportato: viene mostrata invece una notifica desktop nativa 
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1285"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3320"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3321"/>
         <source>Capture on release</source>
         <translation>Cattura al rilascio</translation>
     </message>
@@ -4716,22 +4378,6 @@ Disattivato o non supportato: viene mostrata invece una notifica desktop nativa 
         <location filename="../qml/pages/SettingsPage.qml" line="1174"/>
         <source>Show welcome screen</source>
         <translation>Mostra la schermata di benvenuto</translation>
-    </message>
-    <message>
-        <source>Tour</source>
-        <translation type="vanished">Tour</translation>
-    </message>
-    <message>
-        <source>Six cards on the things that are easy to miss.</source>
-        <translation type="vanished">Sei schede sulle cose che è facile non notare.</translation>
-    </message>
-    <message>
-        <source>Tool letters, the keys the selection overlay and the editor use, opening files by dropping or pasting them, retaking a capture, custom upload servers and instant replay. It changes nothing on its own and can be left at any point.</source>
-        <translation type="vanished">Le lettere degli strumenti, i tasti usati dall&apos;overlay di selezione e dall&apos;editor, l&apos;apertura dei file trascinandoli o incollandoli, la ripetizione di una cattura, i server di caricamento personalizzati e la riproduzione istantanea. Non modifica nulla di per sé e puoi uscirne in qualsiasi momento.</translation>
-    </message>
-    <message>
-        <source>Take the tour</source>
-        <translation type="vanished">Fai il tour</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1191"/>
@@ -5166,10 +4812,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Usa destinazione attiva</translation>
     </message>
     <message>
-        <source>Cursor</source>
-        <translation type="vanished">Cursore</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="303"/>
         <source>Center</source>
         <translation>Centro</translation>
@@ -5178,14 +4820,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="931"/>
         <source>Detect languages automatically</source>
         <translation>Rileva le lingue automaticamente</translation>
-    </message>
-    <message>
-        <source>Recognize using every installed Tesseract language pack.</source>
-        <translation type="vanished">Riconosci usando tutti i pacchetti lingua di Tesseract installati.</translation>
-    </message>
-    <message>
-        <source>No need to know Tesseract language codes - Unisic loads every installed langpack. Turn this off to pin a specific, faster set below; recognizing many languages at once is slower.</source>
-        <translation type="vanished">Non serve conoscere i codici lingua di Tesseract - Unisic carica ogni pacchetto lingua installato. Disattivalo per fissare qui sotto un set specifico e più veloce; riconoscere molte lingue insieme è più lento.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1268"/>
@@ -5299,6 +4933,11 @@ Si applica alla prossima cattura.</translation>
         <translation>Azione esterna</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="3305"/>
+        <source>External action timeout</source>
+        <translation>Timeout azione esterna</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1425"/>
         <source>Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.</source>
         <translation>Esegue un programma dopo ogni acquisizione. Usa $input per il file acquisito e $output per un risultato facoltativo. I comandi vengono avviati direttamente, senza shell.</translation>
@@ -5327,6 +4966,21 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="1444"/>
         <source>Run after capture</source>
         <translation>Esegui dopo l&apos;acquisizione</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1443"/>
+        <source>Give up after</source>
+        <translation>Rinuncia dopo</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1443"/>
+        <source>How long the program may run before Unisic stops it.</source>
+        <translation>Per quanto tempo il programma può girare prima che Unisic lo fermi.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1443"/>
+        <source>A program that never finishes would otherwise hold the capture&apos;s temporary file for the rest of the session. Raise this if your command does real work, such as uploading a large file.</source>
+        <translation>Un programma che non termina mai tratterrebbe altrimenti il file temporaneo dell&apos;acquisizione per il resto della sessione. Aumenta questo valore se il tuo comando fa lavoro vero, per esempio caricare un file di grandi dimensioni.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1490"/>
@@ -5461,45 +5115,9 @@ Si applica alla prossima cattura.</translation>
         <translation>Mostra comandi</translation>
     </message>
     <message>
-        <source>Draws a halo around the pointer in recordings, and a ripple where you click.</source>
-        <translation type="vanished">Disegna un alone attorno al puntatore nelle registrazioni e un&apos;onda dove fai clic.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1561"/>
         <source>This desktop&apos;s screen-cast portal cannot deliver the cursor separately, which this needs.</source>
         <translation>Il portale di cattura schermo di questo desktop non può fornire il cursore separatamente, e questo serve.</translation>
-    </message>
-    <message>
-        <source>Needs “Include mouse cursor”. Unisic asks the portal for the cursor as data instead of burnt into the picture, then draws the pointer itself - so the pointer stays sharp and gets a halo. The click ripple additionally needs access to input devices.</source>
-        <translation type="vanished">Richiede «Includi il puntatore del mouse». Unisic chiede al portale il cursore come dati anziché impresso nell&apos;immagine e disegna il puntatore da sé - così il puntatore resta nitido e riceve un alone. L&apos;onda al clic richiede inoltre l&apos;accesso ai dispositivi di input.</translation>
-    </message>
-    <message>
-        <source>Pointer style</source>
-        <translation type="vanished">Stile del puntatore</translation>
-    </message>
-    <message>
-        <source>The real cursor, or Unisic&apos;s own pointer that stays sharp at any size.</source>
-        <translation type="vanished">Il cursore reale, oppure il puntatore di Unisic, che resta nitido a qualsiasi dimensione.</translation>
-    </message>
-    <message>
-        <source>The system cursor is the bitmap your desktop draws; enlarging it past about 150% shows its pixels. The big pointer is drawn as a shape, so it is crisp at every size.</source>
-        <translation type="vanished">Il cursore di sistema è la bitmap disegnata dal desktop; ingrandirlo oltre il 150% circa ne mostra i pixel. Il puntatore grande è disegnato come forma, quindi è nitido a ogni dimensione.</translation>
-    </message>
-    <message>
-        <source>System cursor</source>
-        <translation type="vanished">Cursore di sistema</translation>
-    </message>
-    <message>
-        <source>Big pointer</source>
-        <translation type="vanished">Puntatore grande</translation>
-    </message>
-    <message>
-        <source>Pointer size</source>
-        <translation type="vanished">Dimensione del puntatore</translation>
-    </message>
-    <message>
-        <source>Enlarges the pointer in recordings. The halo grows with it.</source>
-        <translation type="vanished">Ingrandisce il puntatore nelle registrazioni. L&apos;alone cresce con esso.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1580"/>
@@ -5607,14 +5225,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Codificatore MP4</translation>
     </message>
     <message>
-        <source>Use the CPU encoder or an available VAAPI/NVENC hardware encoder.</source>
-        <translation type="vanished">Usa il codificatore CPU o un codificatore hardware VAAPI/NVENC disponibile.</translation>
-    </message>
-    <message>
-        <source>Hardware encoding accelerates the final MP4 conversion. If the selected backend is unavailable, Unisic falls back to software. WebM remains software VP9.</source>
-        <translation type="vanished">La codifica hardware accelera la conversione MP4 finale. Se il backend selezionato non è disponibile, Unisic torna al software. WebM rimane VP9 software.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1693"/>
         <source>Software (portable)</source>
         <translation>Software (portabile)</translation>
@@ -5711,10 +5321,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Si applica alla scheda che Unisic disegna da sé (la scheda layer-shell o la scheda XWayland di GNOME). Le notifiche native del desktop sono posizionate dal server di notifiche di sistema e la ignorano.</translation>
     </message>
     <message>
-        <source>Drag to reorder</source>
-        <translation type="vanished">Trascina per riordinare</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2534"/>
         <source>Custom themes</source>
         <translation>Temi personalizzati</translation>
@@ -5750,25 +5356,9 @@ Si applica alla prossima cattura.</translation>
         <translation>Schermo sotto il cursore</translation>
     </message>
     <message>
-        <source>Hotkey: capture only the monitor the pointer is on.</source>
-        <translation type="vanished">Scorciatoia: cattura solo il monitor su cui si trova il puntatore.</translation>
-    </message>
-    <message>
-        <source>Grabs the single screen under the cursor instead of the whole workspace - the multi-monitor middle ground between Region and Full screen. Runs the full-screen task preset.</source>
-        <translation type="vanished">Cattura il singolo schermo sotto il cursore invece dell&apos;intero spazio di lavoro - la via di mezzo multi-monitor tra Regione e Schermo intero. Esegue la preimpostazione attività dello schermo intero.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3241"/>
         <source>Re-capture last region</source>
         <translation>Ricattura l&apos;ultima regione</translation>
-    </message>
-    <message>
-        <source>Hotkey: repeat the previous region capture, same rectangle.</source>
-        <translation type="vanished">Scorciatoia: ripete la cattura di regione precedente, stesso rettangolo.</translation>
-    </message>
-    <message>
-        <source>Takes the exact rectangle of your most recent region screenshot again, without opening the selection overlay - for documenting something that changes over time. Runs the region task preset.</source>
-        <translation type="vanished">Riprende esattamente lo stesso rettangolo del tuo ultimo screenshot di regione, senza aprire l&apos;overlay di selezione - per documentare qualcosa che cambia nel tempo. Esegue la preimpostazione attività della regione.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3115"/>
@@ -5911,71 +5501,67 @@ Si applica alla prossima cattura.</translation>
         <translation>Nascondi durante la cattura</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3307"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3308"/>
         <source>Measure</source>
         <translation>Misura</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3310"/>
         <source>Freeze recorder (watchdog)</source>
         <translation>Congela registrazione (watchdog)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3313"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3314"/>
         <source>Trim cut (exact + lossless)</source>
         <translation>Taglio del ritaglio (esatto + senza perdita)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3314"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3315"/>
         <source>Recording pause excise</source>
         <translation>Taglio pausa registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3317"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3318"/>
         <source>Magnifier</source>
         <translation>Lente d&apos;ingrandimento</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3318"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3319"/>
         <source>Eyedropper</source>
         <translation>Contagocce</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3319"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3320"/>
         <source>Pixel loupe</source>
         <translation>Lente pixel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3323"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3324"/>
         <source>Auto-redact pattern</source>
         <translation>Oscuramento automatico per criterio</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3324"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3325"/>
         <source>Style presets</source>
         <translation>Preset di stile</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3325"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3326"/>
         <source>Cursor overlay</source>
         <translation>Sovrapposizione del cursore</translation>
     </message>
     <message>
-        <source>Scrolling capture</source>
-        <translation type="vanished">Cattura con scorrimento</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3326"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3327"/>
         <source>OCR auto language</source>
         <translation>Lingua automatica OCR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3328"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3329"/>
         <source>Update check</source>
         <translation>Controllo aggiornamenti</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3329"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3330"/>
         <source>Simulate update</source>
         <translation>Simula aggiornamento</translation>
     </message>
@@ -5993,38 +5579,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="256"/>
         <source>Saving</source>
         <translation>Salvataggio</translation>
-    </message>
-    <message>
-        <source>Edit</source>
-        <translation type="vanished">Modifica</translation>
-    </message>
-    <message>
-        <source>Copy image</source>
-        <translation type="vanished">Copia immagine</translation>
-    </message>
-    <message>
-        <source>Copy link</source>
-        <translation type="vanished">Copia collegamento</translation>
-    </message>
-    <message>
-        <source>Show QR code</source>
-        <translation type="vanished">Mostra codice QR</translation>
-    </message>
-    <message>
-        <source>Show in folder</source>
-        <translation type="vanished">Mostra nella cartella</translation>
-    </message>
-    <message>
-        <source>Upload</source>
-        <translation type="vanished">Carica</translation>
-    </message>
-    <message>
-        <source>Copy text (OCR)</source>
-        <translation type="vanished">Copia testo (OCR)</translation>
-    </message>
-    <message>
-        <source>Delete</source>
-        <translation type="vanished">Elimina</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1051"/>
@@ -6062,45 +5616,9 @@ Si applica alla prossima cattura.</translation>
         <translation>Questa installazione si aggiorna nativamente tramite il gestore di pacchetti (il pacchetto ha configurato il suo repository).</translation>
     </message>
     <message>
-        <source>Cursor in recordings</source>
-        <translation type="vanished">Cursore nelle registrazioni</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1560"/>
         <source>Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.</source>
         <translation>Unisic disegna il puntatore da sé, quindi può essere stilizzato, ingrandito ed evidenziato.</translation>
-    </message>
-    <message>
-        <source>Needs “Include mouse cursor”. Unisic asks the portal for the cursor as data instead of burnt into the picture, then draws the pointer itself. The pointer is hidden whenever the desktop hides it - a game that hides the cursor stays cursor-less.</source>
-        <translation type="vanished">Richiede «Includi il puntatore del mouse». Unisic chiede al portale il cursore come dati anziché impresso nell&apos;immagine, e disegna il puntatore da sé. Il puntatore è nascosto ogni volta che il desktop lo nasconde - un gioco che nasconde il cursore resta senza.</translation>
-    </message>
-    <message>
-        <source>The real cursor, Unisic&apos;s own pointer, or an image of your own.</source>
-        <translation type="vanished">Il cursore reale, il puntatore di Unisic o un&apos;immagine tua.</translation>
-    </message>
-    <message>
-        <source>The system cursor is the bitmap your desktop draws; enlarging it past about 150% shows its pixels. The big pointer is drawn as a shape, so it is crisp at every size. A custom image is used exactly as given - its tip is the top-left corner.</source>
-        <translation type="vanished">Il cursore di sistema è la bitmap disegnata dal desktop; ingrandirlo oltre il 150% circa ne mostra i pixel. Il puntatore grande è disegnato come forma, quindi è nitido a ogni dimensione. Un&apos;immagine personalizzata è usata così com&apos;è - la sua punta è l&apos;angolo in alto a sinistra.</translation>
-    </message>
-    <message>
-        <source>Custom image</source>
-        <translation type="vanished">Immagine personalizzata</translation>
-    </message>
-    <message>
-        <source>Choose…</source>
-        <translation type="vanished">Scegli…</translation>
-    </message>
-    <message>
-        <source>Glide</source>
-        <translation type="vanished">Scorrimento morbido</translation>
-    </message>
-    <message>
-        <source>Smooths the pointer&apos;s path harder, so it slides instead of darting.</source>
-        <translation type="vanished">Ammorbidisce di più il percorso del puntatore, così scivola invece di scattare.</translation>
-    </message>
-    <message>
-        <source>The pointer is always smoothed a little to kill the jitter of the raw positions. Glide smooths much harder: the movement looks calm and deliberate, at the cost of visibly trailing a fast flick.</source>
-        <translation type="vanished">Il puntatore è sempre ammorbidito un po&apos; per togliere il tremolio delle posizioni grezze. Lo scorrimento morbido ammorbidisce molto di più: il movimento appare calmo e deliberato, al costo di un ritardo visibile su un movimento rapido.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1571"/>
@@ -6162,14 +5680,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="1163"/>
         <source>Run system check</source>
         <translation>Esegui controllo del sistema</translation>
-    </message>
-    <message>
-        <source>Seven steps through the window, page by page.</source>
-        <translation type="vanished">Sette passaggi attraverso la finestra, pagina per pagina.</translation>
-    </message>
-    <message>
-        <source>Each step switches to the page it is describing and names what is on it, with the card in the corner so the page stays visible. It ends with the tool letters and the keys the selection overlay uses. It changes nothing on its own and can be left at any point.</source>
-        <translation type="vanished">Ogni passaggio passa alla pagina che sta descrivendo e nomina ciò che vi si trova, con la scheda nell&apos;angolo così la pagina resta visibile. Si chiude con le lettere degli strumenti e i tasti usati dall&apos;overlay di selezione. Non cambia nulla da solo e puoi interromperlo in qualsiasi momento.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1180"/>
@@ -6241,10 +5751,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="1687"/>
         <source>Automatic picks a working hardware encoder; it is much faster than software.</source>
         <translation>Automatico sceglie un codificatore hardware funzionante; è molto più veloce del software.</translation>
-    </message>
-    <message>
-        <source>Automatic uses VAAPI or NVENC when they actually encode on this machine, and falls back to software otherwise - a hardware encoder that is merely listed but broken is skipped. Hardware encoding only accelerates MP4; WebM is always software VP9.</source>
-        <translation type="vanished">Automatico usa VAAPI o NVENC quando codificano davvero su questa macchina, altrimenti ripiega sul software - un codificatore hardware solo elencato ma rotto viene saltato. La codifica hardware accelera solo MP4; WebM è sempre VP9 software.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1692"/>
@@ -6352,21 +5858,9 @@ Si applica alla prossima cattura.</translation>
         <translation>Unisic tiene già la scheda lontana dai pannelli che riservano spazio per sé. Aumenta questo valore quando un dock o un pannello è ancora d&apos;intralcio - Wayland non permette a un&apos;app di vedere dove si trovano, quindi questa è la manopola manuale.</translation>
     </message>
     <message>
-        <source>Notification actions</source>
-        <translation type="vanished">Azioni della notifica</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2224"/>
         <source>Hide the buttons you never press; the rest spread out over the freed room. A button still only appears when the capture can back it - an upload link, OCR support, a saved file.</source>
         <translation>Nascondi i pulsanti che non premi mai; gli altri si distribuiscono nello spazio liberato. Un pulsante compare comunque solo quando la cattura può sostenerlo: un link di caricamento, il supporto OCR, un file salvato.</translation>
-    </message>
-    <message>
-        <source>Move up</source>
-        <translation type="vanished">Sposta su</translation>
-    </message>
-    <message>
-        <source>Move down</source>
-        <translation type="vanished">Sposta giù</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2336"/>
@@ -6429,10 +5923,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Questo desktop non offre né KGlobalAccel né un portale GlobalShortcuts funzionante, quindi Unisic non può registrare le scorciatoie globali da solo. Ogni azione di cattura può invece essere associata a un comando nelle impostazioni delle scorciatoie del desktop; un&apos;istanza di Unisic in esecuzione lo rileva.</translation>
     </message>
     <message>
-        <source>Unisic can add these to %1 for you, using the keys below - they stay editable in %1&apos;s own keyboard settings.</source>
-        <translation type="vanished">Unisic può aggiungerle a %1 per te, usando i tasti qui sotto - restano modificabili nelle impostazioni della tastiera di %1.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2862"/>
         <location filename="../qml/pages/SettingsPage.qml" line="3012"/>
         <source>Add shortcuts to %1</source>
@@ -6442,10 +5932,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="3016"/>
         <source>Remove</source>
         <translation>Rimuovi</translation>
-    </message>
-    <message>
-        <source>Prefer to do it by hand? Bind these commands:</source>
-        <translation type="vanished">Preferisci farlo a mano? Associa questi comandi:</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3042"/>
@@ -6476,10 +5962,6 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="2800"/>
         <source>Hotkey: capture all monitors at once.</source>
         <translation>Scorciatoia: cattura tutti i monitor contemporaneamente.</translation>
-    </message>
-    <message>
-        <source>Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline.</source>
-        <translation type="vanished">Acquisisce silenziosamente l&apos;intero spazio di lavoro (percorso KWin) o tramite il portale altrove, poi esegue la normale pipeline post-cattura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2806"/>
@@ -6578,20 +6060,8 @@ Si applica alla prossima cattura.</translation>
         <translation>Copia l&apos;ultimo screenshot di questa sessione ogni volta che lo premi. Una scorciatoia dedicata non entra mai in conflitto con il normale Ctrl+C - sostituisce il vecchio blocco di Ctrl+C per 2 secondi, che poteva rubare una copia normale subito dopo una cattura.</translation>
     </message>
     <message>
-        <source>Quick task chooser</source>
-        <translation type="vanished">Selettore attività rapida</translation>
-    </message>
-    <message>
-        <source>One hotkey opens a compact capture-mode and action chooser.</source>
-        <translation type="vanished">Una scorciatoia apre un selettore compatto della modalità di acquisizione e dell&apos;azione.</translation>
-    </message>
-    <message>
-        <source>Choose full screen, region, window, GIF or video, and optionally override the screenshot&apos;s normal after-capture actions for this one run.</source>
-        <translation type="vanished">Scegli schermo intero, regione, finestra, GIF o video e, facoltativamente, sostituisci le normali azioni successive allo screenshot solo per questa esecuzione.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2853"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3311"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3312"/>
         <source>Instant replay</source>
         <translation>Riproduzione istantanea</translation>
     </message>
@@ -6801,30 +6271,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Verificato all&apos;avvio leggendo la proprietà version di org.freedesktop.portal.ScreenCast. È il backend a chiedere il permesso e ad aprire il flusso PipeWire; un demone pipewire in esecuzione non ne implica uno. KDE, GNOME, wlroots e COSMIC ce l&apos;hanno - il backend -xapp (Cinnamon, MATE, XFCE) e -lxqt no.</translation>
     </message>
     <message>
-        <source>Idle monitor (GNOME)</source>
-        <translation type="vanished">Monitor di inattività (GNOME)</translation>
-    </message>
-    <message>
-        <source>Whether mutter&apos;s idle monitor is available to the capture card.</source>
-        <translation type="vanished">Se il monitor di inattività di mutter è disponibile per la scheda di cattura.</translation>
-    </message>
-    <message>
-        <source>org.gnome.Mutter.IdleMonitor. On GNOME the card cannot see the pointer leave it - XWayland freezes its view the moment the pointer moves onto a Wayland window. This clock keeps running, so “something was touched just now, and none of it reached the card” means you moved away, and the card lets go at once instead of waiting out the silence. Absent everywhere else, where it is not needed.</source>
-        <translation type="vanished">org.gnome.Mutter.IdleMonitor. Su GNOME la scheda non può vedere il puntatore che la lascia: XWayland congela la propria visione appena il puntatore passa su una finestra Wayland. Questo orologio continua a scorrere, quindi «qualcosa è stato toccato ora e niente di ciò è arrivato alla scheda» significa che te ne sei andato, e la scheda molla subito invece di aspettare il silenzio. Assente altrove, dove non serve.</translation>
-    </message>
-    <message>
-        <source>XWayland pointer check</source>
-        <translation type="vanished">Controllo del puntatore (XWayland)</translation>
-    </message>
-    <message>
-        <source>Whether the GNOME capture card can ask the X server where the pointer is.</source>
-        <translation type="vanished">Se la scheda di cattura su GNOME può chiedere al server X dove si trova il puntatore.</translation>
-    </message>
-    <message>
-        <source>Needs libxcb at build time (HAVE_XCB). The card on GNOME is an XWayland window and mutter can leave it believing the pointer never left, so its auto-hide would never resume; this check asks the X server which window the pointer is really over. Without it the card falls back to capping how long a hover may pause the auto-hide. Irrelevant on KDE and wlroots, where the layer-shell card gets reliable enter/leave.</source>
-        <translation type="vanished">Richiede libxcb in fase di compilazione (HAVE_XCB). La scheda su GNOME è una finestra XWayland e mutter può lasciarla convinta che il puntatore non se ne sia mai andato, quindi la sua scomparsa automatica non riprenderebbe; questo controllo chiede al server X su quale finestra si trovi davvero il puntatore. Senza di esso la scheda si limita a mettere un tetto a quanto a lungo un passaggio del puntatore può sospendere la scomparsa automatica. Irrilevante su KDE e wlroots, dove la scheda layer-shell riceve ingressi e uscite affidabili.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3148"/>
         <source>Video preview</source>
         <translation>Anteprima video</translation>
@@ -6881,42 +6327,6 @@ Si applica alla prossima cattura.</translation>
         <translation>Filigrana</translation>
     </message>
     <message>
-        <source>This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Bind keys in your desktop instead; a running Unisic instance picks the command up:
-
-```
-unisic --region | --fullscreen | --window | --gif | --measure
-unisic --delay 5 --region
-```
-
-GNOME: Settings → Keyboard → Custom Shortcuts, one entry per command above. GNOME 48+ normally supports in-app hotkeys; if this card shows there, update xdg-desktop-portal-gnome or launch Unisic once from its menu entry.
-
-niri (`config.kdl`):
-
-```
-binds {
-    Mod+Shift+S { spawn &quot;unisic&quot; &quot;--region&quot;; }
-    Print { spawn &quot;unisic&quot; &quot;--fullscreen&quot;; }
-}
-```</source>
-        <translation type="vanished">Questo desktop non offre né KGlobalAccel né un portale GlobalShortcuts funzionante, quindi Unisic non può registrare da solo scorciatoie globali. Associa invece i tasti nel desktop; un&apos;istanza di Unisic in esecuzione riceverà il comando:
-
-```
-unisic --region | --fullscreen | --window | --gif | --measure
-unisic --delay 5 --region
-```
-
-GNOME: Impostazioni → Tastiera → Scorciatoie personalizzate, una voce per ciascun comando sopra. GNOME 48+ normalmente supporta le scorciatoie interne all&apos;app; se questa scheda compare lì, aggiorna xdg-desktop-portal-gnome o avvia una volta Unisic dalla sua voce nel menu.
-
-niri (`config.kdl`):
-
-```
-binds {
-    Mod+Shift+S { spawn &quot;unisic&quot; &quot;--region&quot;; }
-    Print { spawn &quot;unisic&quot; &quot;--fullscreen&quot;; }
-}
-```</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2801"/>
         <source>Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.</source>
         <translation>Acquisisce silenziosamente l&apos;intero spazio di lavoro (percorso KWin) o tramite il portale altrove, poi esegue la normale pipeline post-cattura. La preferenza «Cattura a schermo intero» in Cattura può restringerla allo schermo sotto il cursore.</translation>
@@ -6937,37 +6347,37 @@ binds {
         <translation>Anteprima QR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3322"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3323"/>
         <source>OCR highlight + redact</source>
         <translation>Evidenziazione e oscuramento OCR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3331"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3332"/>
         <source>Installer update (dry-run)</source>
         <translation>Aggiornamento installer (simulazione)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3332"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3333"/>
         <source>Filename + save routing</source>
         <translation>Nome file + instradamento salvataggio</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3333"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3334"/>
         <source>Save-as dialog</source>
         <translation>Finestra Salva con nome</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3334"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3335"/>
         <source>Record countdown</source>
         <translation>Conto alla rovescia registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3335"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3336"/>
         <source>Full-screen countdown</source>
         <translation>Conto alla rovescia a schermo intero</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3336"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3337"/>
         <source>Toggle autostart</source>
         <translation>Attiva/disattiva avvio automatico</translation>
     </message>
@@ -6975,14 +6385,6 @@ binds {
         <location filename="../qml/pages/SettingsPage.qml" line="3159"/>
         <source>Running…</source>
         <translation>In esecuzione…</translation>
-    </message>
-    <message>
-        <source>The real cursor, or an image of your own.</source>
-        <translation type="vanished">Il cursore reale, oppure un&apos;immagine tua.</translation>
-    </message>
-    <message>
-        <source>The system cursor is the bitmap your desktop draws - it changes shape with the real pointer (arrow, hand, text). A custom image is used exactly as given for every shape - its tip is the top-left corner.</source>
-        <translation type="vanished">Il cursore di sistema è la bitmap disegnata dal desktop - cambia forma con il puntatore reale (freccia, mano, testo). Un&apos;immagine personalizzata è usata così com&apos;è per ogni forma - la sua punta è l&apos;angolo in alto a sinistra.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3159"/>
@@ -7048,10 +6450,6 @@ binds {
         <location filename="../qml/pages/SettingsPage.qml" line="3248"/>
         <source>Record border (4 s)</source>
         <translation>Bordo di registrazione (4 s)</translation>
-    </message>
-    <message>
-        <source>Screen picker</source>
-        <translation type="vanished">Selettore schermo</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3252"/>
@@ -7144,47 +6542,47 @@ binds {
         <translation>Non disturbare</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3305"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3306"/>
         <source>Task preset</source>
         <translation>Preimpostazione attività</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3306"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3307"/>
         <source>CLI output</source>
         <translation>Output CLI</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3308"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
         <source>Hardware encoder</source>
         <translation>Codificatore hardware</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3310"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3311"/>
         <source>Per-app audio</source>
         <translation>Audio per applicazione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3312"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3313"/>
         <source>Trim recording</source>
         <translation>Ritaglia registrazione</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3315"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3316"/>
         <source>Screenshot cursor</source>
         <translation>Cursore nello screenshot</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3316"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3317"/>
         <source>Shape edit</source>
         <translation>Modifica forma</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3321"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3322"/>
         <source>OCR boxes</source>
         <translation>Riquadri OCR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3330"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3331"/>
         <source>Auto-restart gate</source>
         <translation>Gate di riavvio automatico</translation>
     </message>
@@ -7775,10 +7173,6 @@ binds {
 <context>
     <name>UPatchNotes</name>
     <message>
-        <source>What&apos;s new in v%1</source>
-        <translation type="vanished">Novità nella v%1</translation>
-    </message>
-    <message>
         <location filename="../qml/components/UPatchNotes.qml" line="146"/>
         <source>What&apos;s new in Unisic %1</source>
         <translation>Novità di Unisic %1</translation>
@@ -7837,10 +7231,6 @@ binds {
         <location filename="../qml/components/UPatchNotes.qml" line="462"/>
         <source>Got it</source>
         <translation>Ho capito</translation>
-    </message>
-    <message>
-        <source>Press Esc to close</source>
-        <translation type="vanished">Premi Esc per chiudere</translation>
     </message>
 </context>
 <context>
@@ -7948,545 +7338,6 @@ binds {
     </message>
 </context>
 <context>
-    <name>UTour</name>
-    <message>
-        <source>Every tool has a letter</source>
-        <translation type="vanished">Ogni strumento ha una lettera</translation>
-    </message>
-    <message>
-        <source>The same letters work on the selection overlay and in the editor, so the tool you reach for is one key away in both. These are the current bindings, read from the toolbar itself.</source>
-        <translation type="vanished">Le stesse lettere funzionano nell&apos;overlay di selezione e nell&apos;editor, quindi lo strumento che ti serve è a un tasto di distanza in entrambi. Queste sono le assegnazioni attuali, lette dalla barra degli strumenti stessa.</translation>
-    </message>
-    <message>
-        <source>Hover any tool button to see its letter again.</source>
-        <translation type="vanished">Passa il cursore su un pulsante degli strumenti per rivederne la lettera.</translation>
-    </message>
-    <message>
-        <source>The selection overlay has its own keys</source>
-        <translation type="vanished">L&apos;overlay di selezione ha i suoi tasti</translation>
-    </message>
-    <message>
-        <source>While you are dragging out a region, the overlay owns the keyboard. It is not the main window, so the usual shortcuts do not apply.</source>
-        <translation type="vanished">Mentre trascini per definire una regione, l&apos;overlay possiede la tastiera. Non è la finestra principale, quindi le scorciatoie abituali non valgono.</translation>
-    </message>
-    <message>
-        <source>Space or Enter</source>
-        <translation type="vanished">Spazio o Invio</translation>
-    </message>
-    <message>
-        <source>Take the shot</source>
-        <translation type="vanished">Scatta</translation>
-    </message>
-    <message>
-        <source>Escape</source>
-        <translation type="vanished">Escape</translation>
-    </message>
-    <message>
-        <source>Cancel without capturing</source>
-        <translation type="vanished">Annulla senza catturare</translation>
-    </message>
-    <message>
-        <source>Confirm and copy, even with auto-copy off</source>
-        <translation type="vanished">Conferma e copia, anche con la copia automatica disattivata</translation>
-    </message>
-    <message>
-        <source>Ctrl+scroll</source>
-        <translation type="vanished">Ctrl+scorrimento</translation>
-    </message>
-    <message>
-        <source>Zoom the pixel loupe while you aim</source>
-        <translation type="vanished">Ingrandisce la lente dei pixel mentre miri</translation>
-    </message>
-    <message>
-        <source>A letter</source>
-        <translation type="vanished">Una lettera</translation>
-    </message>
-    <message>
-        <source>Annotate before the shot is taken</source>
-        <translation type="vanished">Annota prima dello scatto</translation>
-    </message>
-    <message>
-        <source>Annotating on the overlay means the shot is finished the moment you press Space.</source>
-        <translation type="vanished">Annotare sull&apos;overlay significa che lo scatto è già finito nel momento in cui premi Spazio.</translation>
-    </message>
-    <message>
-        <source>Bringing a file in</source>
-        <translation type="vanished">Portare dentro un file</translation>
-    </message>
-    <message>
-        <source>Unisic opens what you give it, and what the file IS decides where it goes - not where it came from.</source>
-        <translation type="vanished">Unisic apre ciò che gli dai, ed è ciò che il file È a decidere dove finisce - non da dove arriva.</translation>
-    </message>
-    <message>
-        <source>Drop an image</source>
-        <translation type="vanished">Trascina un&apos;immagine</translation>
-    </message>
-    <message>
-        <source>Opens in the editor, and Ctrl+S writes over the original</source>
-        <translation type="vanished">Si apre nell&apos;editor e Ctrl+S sovrascrive l&apos;originale</translation>
-    </message>
-    <message>
-        <source>Drop a recording</source>
-        <translation type="vanished">Trascina una registrazione</translation>
-    </message>
-    <message>
-        <source>Opens in the trim window</source>
-        <translation type="vanished">Si apre nella finestra di taglio</translation>
-    </message>
-    <message>
-        <source>Opens a copied image as a new capture</source>
-        <translation type="vanished">Apre un&apos;immagine copiata come nuova cattura</translation>
-    </message>
-    <message>
-        <source>Drop a web link</source>
-        <translation type="vanished">Trascina un link web</translation>
-    </message>
-    <message>
-        <source>Refused with a message, never downloaded quietly</source>
-        <translation type="vanished">Rifiutato con un messaggio, mai scaricato di nascosto</translation>
-    </message>
-    <message>
-        <source>A pasted image has no file of its own, so Ctrl+S saves it as a new capture instead of overwriting anything.</source>
-        <translation type="vanished">Un&apos;immagine incollata non ha un file proprio, quindi Ctrl+S la salva come nuova cattura invece di sovrascrivere qualcosa.</translation>
-    </message>
-    <message>
-        <source>Taking the same shot again</source>
-        <translation type="vanished">Rifare lo stesso scatto</translation>
-    </message>
-    <message>
-        <source>Three things exist for the capture you just took, or the one you keep retaking.</source>
-        <translation type="vanished">Ci sono tre cose per la cattura che hai appena fatto, o per quella che continui a rifare.</translation>
-    </message>
-    <message>
-        <source>Repeat last region</source>
-        <translation type="vanished">Ripeti l&apos;ultima regione</translation>
-    </message>
-    <message>
-        <source>Retakes the exact area of your last region shot, from the Capture page or the tray</source>
-        <translation type="vanished">Rifà esattamente l&apos;area del tuo ultimo scatto di regione, dalla pagina Cattura o dalla barra di sistema</translation>
-    </message>
-    <message>
-        <source>Copy last capture</source>
-        <translation type="vanished">Copia l&apos;ultima cattura</translation>
-    </message>
-    <message>
-        <source>A global shortcut that puts the newest shot back on the clipboard</source>
-        <translation type="vanished">Una scorciatoia globale che rimette negli appunti lo scatto più recente</translation>
-    </message>
-    <message>
-        <source>Drag the notification</source>
-        <translation type="vanished">Trascina la notifica</translation>
-    </message>
-    <message>
-        <source>Drag the thumbnail straight into a chat or an editor</source>
-        <translation type="vanished">Trascina la miniatura direttamente in una chat o in un editor</translation>
-    </message>
-    <message>
-        <source>Click the notification</source>
-        <translation type="vanished">Fai clic sulla notifica</translation>
-    </message>
-    <message>
-        <source>Opens a floating preview you can pin on top</source>
-        <translation type="vanished">Apre un&apos;anteprima flottante che puoi fissare in primo piano</translation>
-    </message>
-    <message>
-        <source>The floating preview can be pinned above other windows and faded, for copying something while you work.</source>
-        <translation type="vanished">L&apos;anteprima flottante può essere fissata sopra le altre finestre e resa più trasparente, per copiare qualcosa mentre lavori.</translation>
-    </message>
-    <message>
-        <source>Uploading somewhere of your own</source>
-        <translation type="vanished">Caricare su un server tuo</translation>
-    </message>
-    <message>
-        <source>Servers takes any custom HTTP, FTP or SFTP destination, and imports ShareX .sxcu files as they are.</source>
-        <translation type="vanished">Server accetta qualsiasi destinazione HTTP, FTP o SFTP personalizzata e importa i file .sxcu di ShareX così come sono.</translation>
-    </message>
-    <message>
-        <source>Test upload</source>
-        <translation type="vanished">Prova il caricamento</translation>
-    </message>
-    <message>
-        <source>Sends a tiny generated image through the server you are editing, before you save it</source>
-        <translation type="vanished">Invia una piccola immagine generata attraverso il server che stai modificando, prima di salvarlo</translation>
-    </message>
-    <message>
-        <source>Imgur</source>
-        <translation type="vanished">Imgur</translation>
-    </message>
-    <message>
-        <source>Needs your own Client-ID, pasted in the server editor</source>
-        <translation type="vanished">Richiede il tuo Client-ID, incollato nell&apos;editor del server</translation>
-    </message>
-    <message>
-        <source>After upload</source>
-        <translation type="vanished">Dopo il caricamento</translation>
-    </message>
-    <message>
-        <source>The link can be copied and the page opened for you</source>
-        <translation type="vanished">Il link può essere copiato e la pagina aperta per te</translation>
-    </message>
-    <message>
-        <source>Unisic ships without an Imgur ID on purpose: one shared ID would put every user on one daily limit.</source>
-        <translation type="vanished">Unisic non include un ID Imgur di proposito: un unico ID condiviso metterebbe tutti gli utenti sotto lo stesso limite giornaliero.</translation>
-    </message>
-    <message>
-        <source>Instant replay</source>
-        <translation type="vanished">Riproduzione istantanea</translation>
-    </message>
-    <message>
-        <source>Recording can keep the last few seconds in memory the whole time, so you can save something after it has already happened.</source>
-        <translation type="vanished">La registrazione può tenere in memoria gli ultimi secondi per tutto il tempo, così puoi salvare qualcosa dopo che è già successo.</translation>
-    </message>
-    <message>
-        <source>Turn it on</source>
-        <translation type="vanished">Attivala</translation>
-    </message>
-    <message>
-        <source>Record page, Instant replay</source>
-        <translation type="vanished">Pagina Registra, Riproduzione istantanea</translation>
-    </message>
-    <message>
-        <source>Save the buffer</source>
-        <translation type="vanished">Salva il buffer</translation>
-    </message>
-    <message>
-        <source>A global shortcut writes the last seconds to a file</source>
-        <translation type="vanished">Una scorciatoia globale scrive su file gli ultimi secondi</translation>
-    </message>
-    <message>
-        <source>Find it later</source>
-        <translation type="vanished">Ritrovala dopo</translation>
-    </message>
-    <message>
-        <source>History filters replays separately from recordings</source>
-        <translation type="vanished">La cronologia filtra le riproduzioni separatamente dalle registrazioni</translation>
-    </message>
-    <message>
-        <source>That is the tour. Everything in it is in Settings too, and this card lives in Settings &gt; General.</source>
-        <translation type="vanished">Questo è tutto il tour. Tutto ciò che contiene si trova anche nelle Impostazioni, e questa scheda vive in Impostazioni &gt; Generale.</translation>
-    </message>
-    <message>
-        <source>Tour, step %1 of %2: %3</source>
-        <translation type="vanished">Tour, passaggio %1 di %2: %3</translation>
-    </message>
-    <message>
-        <source>Skip</source>
-        <translation type="vanished">Salta</translation>
-    </message>
-    <message>
-        <source>Capture: this page takes the shot</source>
-        <translation type="vanished">Cattura: questa pagina fa lo scatto</translation>
-    </message>
-    <message>
-        <source>The three tiles at the top are the ways to take one. Everything under them decides what happens to it afterwards.</source>
-        <translation type="vanished">I tre riquadri in alto sono i modi per farne uno. Tutto ciò che sta sotto decide che cosa gli succede dopo.</translation>
-    </message>
-    <message>
-        <source>The three tiles</source>
-        <translation type="vanished">I tre riquadri</translation>
-    </message>
-    <message>
-        <source>The whole screen, a region you drag, or a window you click</source>
-        <translation type="vanished">Lo schermo intero, una regione che trascini o una finestra su cui fai clic</translation>
-    </message>
-    <message>
-        <source>Delay</source>
-        <translation type="vanished">Ritardo</translation>
-    </message>
-    <message>
-        <source>Waits before the shot, so you can open a menu first</source>
-        <translation type="vanished">Aspetta prima dello scatto, così puoi aprire prima un menu</translation>
-    </message>
-    <message>
-        <source>Retakes the exact area of your last region shot</source>
-        <translation type="vanished">Riprende l&apos;area esatta del tuo ultimo scatto di regione</translation>
-    </message>
-    <message>
-        <source>Upload server</source>
-        <translation type="vanished">Server di caricamento</translation>
-    </message>
-    <message>
-        <source>Which destination the Upload switch below sends to</source>
-        <translation type="vanished">La destinazione a cui invia l&apos;interruttore di caricamento qui sotto</translation>
-    </message>
-    <message>
-        <source>The switches</source>
-        <translation type="vanished">Gli interruttori</translation>
-    </message>
-    <message>
-        <source>Copy, save, upload and open the editor - each one fires on its own</source>
-        <translation type="vanished">Copia, salva, carica e apri l&apos;editor - ognuno agisce per conto proprio</translation>
-    </message>
-    <message>
-        <source>Take a region shot now</source>
-        <translation type="vanished">Cattura una regione adesso</translation>
-    </message>
-    <message>
-        <source>Every one of these also has a global shortcut, so you rarely come back to this page.</source>
-        <translation type="vanished">Ognuna di queste ha anche una scorciatoia globale, quindi tornerai raramente su questa pagina.</translation>
-    </message>
-    <message>
-        <source>Record: video and GIF on one page</source>
-        <translation type="vanished">Registra: video e GIF in un&apos;unica pagina</translation>
-    </message>
-    <message>
-        <source>The switch at the top picks what comes out. The three buttons under it stay where they are and only change what they will produce.</source>
-        <translation type="vanished">L&apos;interruttore in alto sceglie che cosa ne esce. I tre pulsanti sotto restano dove sono e cambiano solo ciò che produrranno.</translation>
-    </message>
-    <message>
-        <source>Video or GIF</source>
-        <translation type="vanished">Video o GIF</translation>
-    </message>
-    <message>
-        <source>The same recording, encoded differently. GIF has no window source, so that button greys out</source>
-        <translation type="vanished">La stessa registrazione, codificata in modo diverso. La GIF non ha la sorgente Finestra, quindi quel pulsante si disattiva</translation>
-    </message>
-    <message>
-        <source>Screen, Region, Window</source>
-        <translation type="vanished">Schermo, Regione, Finestra</translation>
-    </message>
-    <message>
-        <source>What gets recorded. A region is cropped by the compositor, not afterwards</source>
-        <translation type="vanished">Che cosa viene registrato. Una regione viene ritagliata dal compositor, non in seguito</translation>
-    </message>
-    <message>
-        <source>Keeps the last seconds in memory the whole time, so you can save something after it has happened</source>
-        <translation type="vanished">Tiene sempre in memoria gli ultimi secondi, così puoi salvare qualcosa dopo che è successo</translation>
-    </message>
-    <message>
-        <source>Cursor and keystrokes</source>
-        <translation type="vanished">Cursore e tasti premuti</translation>
-    </message>
-    <message>
-        <source>Optional overlays drawn into the recording as it is made</source>
-        <translation type="vanished">Sovrapposizioni opzionali disegnate nella registrazione mentre viene fatta</translation>
-    </message>
-    <message>
-        <source>A recording can be trimmed afterwards without re-encoding it, from History.</source>
-        <translation type="vanished">Una registrazione si può ritagliare dopo, senza ricodificarla, dalla Cronologia.</translation>
-    </message>
-    <message>
-        <source>Edit: the editor takes files you already have</source>
-        <translation type="vanished">Modifica: l&apos;editor accetta i file che hai già</translation>
-    </message>
-    <message>
-        <source>It opens by itself after a capture, and this page is how you get an existing file into it.</source>
-        <translation type="vanished">Si apre da solo dopo una cattura, e questa pagina serve a portarci dentro un file che hai già.</translation>
-    </message>
-    <message>
-        <source>Open a file</source>
-        <translation type="vanished">Apri un file</translation>
-    </message>
-    <message>
-        <source>An image goes to the editor, a recording goes to the trim window</source>
-        <translation type="vanished">Un&apos;immagine va nell&apos;editor, una registrazione nella finestra di ritaglio</translation>
-    </message>
-    <message>
-        <source>Drop it on the window</source>
-        <translation type="vanished">Trascinalo sulla finestra</translation>
-    </message>
-    <message>
-        <source>Anywhere in Unisic. The banner names which of the two it will open</source>
-        <translation type="vanished">In qualsiasi punto di Unisic. Il banner dice quale dei due aprirà</translation>
-    </message>
-    <message>
-        <source>Opens whatever image is on the clipboard as a new capture</source>
-        <translation type="vanished">Apre come nuova cattura qualsiasi immagine si trovi negli appunti</translation>
-    </message>
-    <message>
-        <source>Ctrl+S in the editor</source>
-        <translation type="vanished">Ctrl+S nell&apos;editor</translation>
-    </message>
-    <message>
-        <source>Writes over the file you opened. A pasted image has no file, so it is saved as a new one</source>
-        <translation type="vanished">Sovrascrive il file che hai aperto. Un&apos;immagine incollata non ha un file, quindi viene salvata come nuova</translation>
-    </message>
-    <message>
-        <source>A dragged web address is refused with a message rather than downloaded quietly.</source>
-        <translation type="vanished">Un indirizzo web trascinato viene rifiutato con un messaggio, non scaricato di nascosto.</translation>
-    </message>
-    <message>
-        <source>History: everything you have captured</source>
-        <translation type="vanished">Cronologia: tutto quello che hai catturato</translation>
-    </message>
-    <message>
-        <source>Kept with a thumbnail, searchable, and the fastest way back to a file you took an hour ago.</source>
-        <translation type="vanished">Conservata con una miniatura, ricercabile, ed è il modo più rapido per tornare a un file di un&apos;ora fa.</translation>
-    </message>
-    <message>
-        <source>Search and filters</source>
-        <translation type="vanished">Ricerca e filtri</translation>
-    </message>
-    <message>
-        <source>By name, by kind, favourites only, uploaded only</source>
-        <translation type="vanished">Per nome, per tipo, solo con stella, solo caricate</translation>
-    </message>
-    <message>
-        <source>Arrow keys</source>
-        <translation type="vanished">Le frecce</translation>
-    </message>
-    <message>
-        <source>Move between captures. Space selects, Enter opens, Delete removes</source>
-        <translation type="vanished">Si spostano tra le catture. Spazio seleziona, Invio apre, Canc elimina</translation>
-    </message>
-    <message>
-        <source>Drag a thumbnail</source>
-        <translation type="vanished">Trascina una miniatura</translation>
-    </message>
-    <message>
-        <source>Drops the file straight into a chat window or another editor</source>
-        <translation type="vanished">Rilascia il file direttamente in una finestra di chat o in un altro editor</translation>
-    </message>
-    <message>
-        <source>Shift and click</source>
-        <translation type="vanished">Maiusc e clic</translation>
-    </message>
-    <message>
-        <source>Selects a range, for deleting or favouriting many at once</source>
-        <translation type="vanished">Seleziona un intervallo, per eliminare o mettere la stella a molte catture in una volta</translation>
-    </message>
-    <message>
-        <source>Instant replays are filtered separately from ordinary recordings, even though both are .mp4 files.</source>
-        <translation type="vanished">Le riproduzioni istantanee si filtrano separatamente dalle registrazioni normali, anche se entrambe sono file .mp4.</translation>
-    </message>
-    <message>
-        <source>Servers: where Upload sends things</source>
-        <translation type="vanished">Server: dove il caricamento invia le tue catture</translation>
-    </message>
-    <message>
-        <source>Any custom HTTP, FTP or SFTP endpoint works, and the link it answers with is copied for you.</source>
-        <translation type="vanished">Funziona qualsiasi endpoint HTTP, FTP o SFTP personalizzato, e il link che restituisce viene copiato per te.</translation>
-    </message>
-    <message>
-        <source>Add custom server</source>
-        <translation type="vanished">Aggiungi server personalizzato</translation>
-    </message>
-    <message>
-        <source>Your own endpoint, with the response parsed for the link</source>
-        <translation type="vanished">Il tuo endpoint, con la risposta analizzata per estrarne il link</translation>
-    </message>
-    <message>
-        <source>Import .sxcu</source>
-        <translation type="vanished">Importa .sxcu</translation>
-    </message>
-    <message>
-        <source>Takes ShareX destination files as they are</source>
-        <translation type="vanished">Accetta i file di destinazione di ShareX così come sono</translation>
-    </message>
-    <message>
-        <source>Pushes a tiny generated image through the server you are editing, before you save it</source>
-        <translation type="vanished">Invia una piccola immagine generata attraverso il server che stai modificando, prima di salvarlo</translation>
-    </message>
-    <message>
-        <source>Paste your own Client-ID. Unisic ships without one so nobody shares a daily limit</source>
-        <translation type="vanished">Incolla il tuo Client-ID. Unisic non ne include uno, così nessuno condivide un limite giornaliero</translation>
-    </message>
-    <message>
-        <source>A test against an FTP server really does leave the test image behind, and the sheet says so first.</source>
-        <translation type="vanished">Una prova su un server FTP lascia davvero l&apos;immagine di prova sul server, e la scheda lo dice prima.</translation>
-    </message>
-    <message>
-        <source>Settings: the gear at the bottom, or Ctrl+6</source>
-        <translation type="vanished">Impostazioni: l&apos;ingranaggio in basso, oppure Ctrl+6</translation>
-    </message>
-    <message>
-        <source>Everything the pages do not carry, on the same bordered-card grid. The search box at the top jumps straight to a row.</source>
-        <translation type="vanished">Tutto ciò che le pagine non contengono, sulla stessa griglia di schede bordate. Il campo di ricerca in alto porta direttamente alla riga giusta.</translation>
-    </message>
-    <message>
-        <source>Hotkeys</source>
-        <translation type="vanished">Scorciatoie</translation>
-    </message>
-    <message>
-        <source>Global shortcuts that work while Unisic sits in the tray</source>
-        <translation type="vanished">Scorciatoie globali che funzionano mentre Unisic resta nell&apos;area di notifica</translation>
-    </message>
-    <message>
-        <source>Appearance</source>
-        <translation type="vanished">Aspetto</translation>
-    </message>
-    <message>
-        <source>Nine palettes, and a folder you can drop your own theme file into</source>
-        <translation type="vanished">Nove tavolozze, e una cartella in cui mettere il tuo file di tema</translation>
-    </message>
-    <message>
-        <source>After capture</source>
-        <translation type="vanished">Dopo la cattura</translation>
-    </message>
-    <message>
-        <source>Filenames, formats, the sound cue and where files are saved</source>
-        <translation type="vanished">Nomi dei file, formati, il segnale sonoro e dove vengono salvati i file</translation>
-    </message>
-    <message>
-        <source>Diagnostics</source>
-        <translation type="vanished">Diagnostica</translation>
-    </message>
-    <message>
-        <source>Copies a report, with the activity log, for a bug report. Nothing is sent anywhere</source>
-        <translation type="vanished">Copia un rapporto, con il registro delle attività, per una segnalazione di bug. Non viene inviato nulla da nessuna parte</translation>
-    </message>
-    <message>
-        <source>Every row has a &quot;?&quot; that explains what the option actually changes.</source>
-        <translation type="vanished">Ogni riga ha un «?» che spiega che cosa cambia davvero quell&apos;opzione.</translation>
-    </message>
-    <message>
-        <source>The keys worth knowing</source>
-        <translation type="vanished">I tasti che vale la pena conoscere</translation>
-    </message>
-    <message>
-        <source>Two vocabularies. The tool letters are the same on the selection overlay and in the editor, so the tool you want is one key away in both.</source>
-        <translation type="vanished">Due vocabolari. Le lettere degli strumenti sono le stesse sull&apos;overlay di selezione e nell&apos;editor, quindi lo strumento che vuoi è a un tasto di distanza in entrambi.</translation>
-    </message>
-    <message>
-        <source>On the overlay: take the shot</source>
-        <translation type="vanished">Sull&apos;overlay: fa lo scatto</translation>
-    </message>
-    <message>
-        <source>On the overlay: cancel without capturing</source>
-        <translation type="vanished">Sull&apos;overlay: annulla senza catturare</translation>
-    </message>
-    <message>
-        <source>On the overlay: confirm and copy, even with auto-copy off</source>
-        <translation type="vanished">Sull&apos;overlay: conferma e copia, anche con la copia automatica disattivata</translation>
-    </message>
-    <message>
-        <source>On the overlay: zoom the pixel loupe while you aim</source>
-        <translation type="vanished">Sull&apos;overlay: ingrandisce la lente pixel mentre miri</translation>
-    </message>
-    <message>
-        <source>Jump between the pages of this window</source>
-        <translation type="vanished">Salta tra le pagine di questa finestra</translation>
-    </message>
-    <message>
-        <source>Show the shortcut sheet</source>
-        <translation type="vanished">Mostra le scorciatoie da tastiera</translation>
-    </message>
-    <message>
-        <source>That is the tour. It stays in Settings, General, if you want it again.</source>
-        <translation type="vanished">Questo è il tour. Resta in Impostazioni, Generale, se vuoi rivederlo.</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="vanished">Chiudi</translation>
-    </message>
-    <message>
-        <source>Close the tour. It stays available in Settings.</source>
-        <translation type="vanished">Chiude il tour. Resta disponibile nelle Impostazioni.</translation>
-    </message>
-    <message>
-        <source>Back</source>
-        <translation type="vanished">Indietro</translation>
-    </message>
-    <message>
-        <source>Next</source>
-        <translation type="vanished">Avanti</translation>
-    </message>
-    <message>
-        <source>Done</source>
-        <translation type="vanished">Fatto</translation>
-    </message>
-</context>
-<context>
     <name>UUpdatePrompt</name>
     <message>
         <location filename="../qml/components/UUpdatePrompt.qml" line="73"/>
@@ -8543,10 +7394,6 @@ binds {
         <translation>Benvenuto in Unisic</translation>
     </message>
     <message>
-        <source>Setup step %1 of %2</source>
-        <translation type="vanished">Passaggio di configurazione %1 di %2</translation>
-    </message>
-    <message>
         <location filename="../qml/components/UWelcome.qml" line="280"/>
         <source>Screenshots and screen recording, built for Wayland.</source>
         <translation>Screenshot e registrazione dello schermo, pensati per Wayland.</translation>
@@ -8590,10 +7437,6 @@ binds {
         <location filename="../qml/components/UWelcome.qml" line="72"/>
         <source>Light</source>
         <translation>Chiaro</translation>
-    </message>
-    <message>
-        <source>More themes - including ones you write yourself - live in Settings › Interface.</source>
-        <translation type="vanished">Altri temi - compresi quelli che scrivi tu - si trovano in Impostazioni › Interfaccia.</translation>
     </message>
     <message>
         <location filename="../qml/components/UWelcome.qml" line="348"/>
@@ -8666,14 +7509,6 @@ binds {
         <translation>Le poche abitudini su cui conviene decidere subito.</translation>
     </message>
     <message>
-        <source>Show a card after each capture</source>
-        <translation type="vanished">Mostra una scheda dopo ogni cattura</translation>
-    </message>
-    <message>
-        <source>A thumbnail in the corner you can drag straight into another app, with actions like save, upload and edit.</source>
-        <translation type="vanished">Una miniatura nell&apos;angolo che puoi trascinare direttamente in un&apos;altra app, con azioni come salva, carica e modifica.</translation>
-    </message>
-    <message>
         <location filename="../qml/components/UWelcome.qml" line="457"/>
         <source>Ask where to save every capture</source>
         <translation>Chiedi dove salvare ogni cattura</translation>
@@ -8712,10 +7547,6 @@ binds {
         <location filename="../qml/components/UWelcome.qml" line="495"/>
         <source>What pops up after each capture. The preview below is empty - nothing is being captured.</source>
         <translation>Ciò che compare dopo ogni cattura. L&apos;anteprima qui sotto è vuota: non si sta catturando nulla.</translation>
-    </message>
-    <message>
-        <source>Click an action on the card to remove it; click the faded one to put it back. A button still only shows up when the capture can back it.</source>
-        <translation type="vanished">Fai clic su un&apos;azione della scheda per rimuoverla; fai clic su quella sbiadita per rimetterla. Un pulsante compare comunque solo se la cattura lo supporta.</translation>
     </message>
     <message>
         <location filename="../qml/components/UWelcome.qml" line="512"/>
@@ -8883,18 +7714,6 @@ binds {
         <translation>Indietro</translation>
     </message>
     <message>
-        <source>Take the tour</source>
-        <translation type="vanished">Fai il tour</translation>
-    </message>
-    <message>
-        <source>Seven steps that walk you through the window, page by page. Nothing is changed by it.</source>
-        <translation type="vanished">Sette passaggi che ti accompagnano attraverso la finestra, pagina per pagina. Non cambia nulla da solo.</translation>
-    </message>
-    <message>
-        <source>Six cards on the parts of Unisic that are easy to miss. Nothing is changed by it.</source>
-        <translation type="vanished">Sei schede sulle parti di Unisic che è facile non notare. Non cambia nulla.</translation>
-    </message>
-    <message>
         <location filename="../qml/components/UWelcome.qml" line="759"/>
         <source>Start using Unisic</source>
         <translation>Inizia a usare Unisic</translation>
@@ -9037,6 +7856,11 @@ binds {
         <translation>il file scaricato non è l&apos;installer di Unisic</translation>
     </message>
     <message>
+        <location filename="../src/update/UpdateChecker.cpp" line="706"/>
+        <source>the installer does not match the checksum published with the release - nothing was run</source>
+        <translation>l&apos;installer non corrisponde al checksum pubblicato con la release - non è stato eseguito nulla</translation>
+    </message>
+    <message>
         <location filename="../src/update/UpdateChecker.cpp" line="679"/>
         <source>cannot write %1</source>
         <translation>impossibile scrivere %1</translation>
@@ -9086,64 +7910,64 @@ binds {
 <context>
     <name>UploadManager</name>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="441"/>
+        <location filename="../src/upload/UploadManager.cpp" line="462"/>
         <source>Cannot open %1</source>
         <translation>Impossibile aprire %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="447"/>
+        <location filename="../src/upload/UploadManager.cpp" line="468"/>
         <source>Not a valid .sxcu file: %1</source>
         <translation>File .sxcu non valido: %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="455"/>
+        <location filename="../src/upload/UploadManager.cpp" line="476"/>
         <source>The .sxcu file has no RequestURL</source>
         <translation>Il file .sxcu non contiene RequestURL</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="465"/>
+        <location filename="../src/upload/UploadManager.cpp" line="486"/>
         <source>This .sxcu uses ShareX RegexList response parsing, which Unisic can&apos;t import yet. Edit the destination&apos;s URL extractor to a $json:…$ or $text$ token after importing.</source>
         <translation>Questo .sxcu usa l&apos;analisi delle risposte RegexList di ShareX, che Unisic non può ancora importare. Dopo l&apos;importazione, modifica l&apos;estrattore URL della destinazione in un token $json:…$ o $text$.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="502"/>
-        <location filename="../src/upload/UploadManager.cpp" line="760"/>
-        <location filename="../src/upload/UploadManager.cpp" line="813"/>
+        <location filename="../src/upload/UploadManager.cpp" line="523"/>
+        <location filename="../src/upload/UploadManager.cpp" line="781"/>
+        <location filename="../src/upload/UploadManager.cpp" line="834"/>
         <source>Cannot read %1</source>
         <translation>Impossibile leggere %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="535"/>
+        <location filename="../src/upload/UploadManager.cpp" line="556"/>
         <source>No upload server configured</source>
         <translation>Nessun server di caricamento configurato</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="542"/>
+        <location filename="../src/upload/UploadManager.cpp" line="563"/>
         <source>Imgur needs your own Client-ID. Register a free application at https://api.imgur.com/oauth2/addclient (&quot;Anonymous usage without user authorisation&quot;), then paste the Client-ID into Destinations → %1 → Edit.</source>
         <translation>Imgur richiede il tuo Client-ID. Registra un&apos;applicazione gratuita su https://api.imgur.com/oauth2/addclient (&quot;Anonymous usage without user authorisation&quot;), poi incolla il Client-ID in Server → %1 → Modifica.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="591"/>
+        <location filename="../src/upload/UploadManager.cpp" line="612"/>
         <source>Enter a request URL first.</source>
         <translation>Inserisci prima un URL della richiesta.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="597"/>
+        <location filename="../src/upload/UploadManager.cpp" line="618"/>
         <source>Imgur needs your own Client-ID. Paste it into the field above, then test again.</source>
         <translation>Imgur richiede il tuo Client-ID. Incollalo nel campo qui sopra, poi riprova il test.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="860"/>
+        <location filename="../src/upload/UploadManager.cpp" line="881"/>
         <source>Cannot create temp file</source>
         <translation>Impossibile creare il file temporaneo</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="867"/>
+        <location filename="../src/upload/UploadManager.cpp" line="888"/>
         <source>Cannot write temp file</source>
         <translation>Impossibile scrivere il file temporaneo</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="944"/>
+        <location filename="../src/upload/UploadManager.cpp" line="965"/>
         <source>Could not run curl. Is it installed? (needed for FTP/SFTP uploads)</source>
         <translation>Impossibile eseguire curl. È installato? (necessario per i caricamenti FTP/SFTP)</translation>
     </message>

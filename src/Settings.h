@@ -8,6 +8,9 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include "ConfigPath.h"
+// For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
+// to be the same number, and only one of them gets to define it.
+#include "actions/ExternalActionRunner.h"
 // U_SETTING lives in unisic-kit (SettingMacro.h) so Unisic Studio declares its
 // QSettings-backed properties the same way; the Settings class stays app-side.
 #include "SettingMacro.h"
@@ -84,6 +87,12 @@ class Settings : public QObject
     Q_PROPERTY(bool doNotDisturbWhileCapturing READ doNotDisturbWhileCapturing WRITE setDoNotDisturbWhileCapturing NOTIFY doNotDisturbWhileCapturingChanged)
     Q_PROPERTY(bool externalActionEnabled READ externalActionEnabled WRITE setExternalActionEnabled NOTIFY externalActionEnabledChanged)
     Q_PROPERTY(QString externalActionCommand READ externalActionCommand WRITE setExternalActionCommand NOTIFY externalActionCommandChanged)
+    Q_PROPERTY(int externalActionTimeoutSec READ externalActionTimeoutSec WRITE setExternalActionTimeoutSec NOTIFY externalActionTimeoutSecChanged)
+    // The bounds the settings row offers, read from the same constants
+    // AppContext clamps against, so the field can never present a value that
+    // will be silently corrected behind it.
+    Q_PROPERTY(int externalActionTimeoutMinSec READ externalActionTimeoutMinSec CONSTANT)
+    Q_PROPERTY(int externalActionTimeoutMaxSec READ externalActionTimeoutMaxSec CONSTANT)
     Q_PROPERTY(QString editorStrokeColor READ editorStrokeColor WRITE setEditorStrokeColor NOTIFY editorStrokeColorChanged)
     Q_PROPERTY(int editorStrokeWidth READ editorStrokeWidth WRITE setEditorStrokeWidth NOTIFY editorStrokeWidthChanged)
     Q_PROPERTY(int editorHighlightMode READ editorHighlightMode WRITE setEditorHighlightMode NOTIFY editorHighlightModeChanged)
@@ -432,6 +441,15 @@ public:
               "actions/enabled", false)
     U_SETTING(QString, externalActionCommand, setExternalActionCommand,
               "actions/command", QString())
+    // The ceiling ExternalActionRunner arms per child process. A fixed one is a
+    // guess about somebody else's program: 2 minutes kills a script that
+    // legitimately uploads a large file or runs its own OCR pass, and the only
+    // cure for a guess compiled in is a new release. AppContext clamps what it
+    // reads here, so an edited config file cannot disarm the guard.
+    U_SETTING(int, externalActionTimeoutSec, setExternalActionTimeoutSec,
+              "actions/timeoutSec", ExternalActionRunner::kDefaultTimeoutMs / 1000)
+    static int externalActionTimeoutMinSec() { return ExternalActionRunner::kMinTimeoutSec; }
+    static int externalActionTimeoutMaxSec() { return ExternalActionRunner::kMaxTimeoutSec; }
     U_SETTING(QString, editorStrokeColor, setEditorStrokeColor, "editor/strokeColor", QStringLiteral("#FF4757"))
     U_SETTING(int, editorStrokeWidth, setEditorStrokeWidth, "editor/strokeWidth", 4)
     // Highlighter sub-mode: 0 freehand marker, 1 rectangle band, 2 text-snap
@@ -612,6 +630,7 @@ public:
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
+        emit externalActionTimeoutSecChanged();
         emit editorStrokeColorChanged(); emit editorStrokeWidthChanged(); emit editorFontSizeChanged();
         emit editorHighlightModeChanged(); emit lastSeenVersionChanged();
         emit editorStepSizeChanged();
@@ -702,6 +721,7 @@ signals:
     void doNotDisturbWhileCapturingChanged();
     void externalActionEnabledChanged();
     void externalActionCommandChanged();
+    void externalActionTimeoutSecChanged();
     void editorStrokeColorChanged();
     void editorStrokeWidthChanged();
     void editorHighlightModeChanged();

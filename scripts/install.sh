@@ -13,21 +13,29 @@
 # "--self-update" argument is used by the auto-update timer and by Unisic's
 # in-app "Install now" button, never typed by a user).
 #
-# What it installs, auto-detected from /etc/os-release:
-#   *.deb                     Debian / Ubuntu        apt install
-#   *.fedora.x86_64.rpm       Fedora ONLY            dnf install   (the rpm links
-#                             Qt PRIVATE symbols, locked to Fedora's exact Qt minor)
-#   *.pkg.tar.zst             Arch                   pacman -U
+# What it installs, auto-detected from /etc/os-release. Every native route goes
+# through Unisic's OWN repository first, because a native package is welded to
+# the exact Qt it was built against and only the repo has a build per distro
+# release; the GitHub asset is the fallback, and the only way to install an
+# older version on purpose:
+#   OBS apt repo              Debian 13, Ubuntu 25.10/26.04   apt install unisic
+#     *.deb                   other apt distros, or a picked version
+#   COPR dnf repo             Fedora ONLY                     dnf install unisic
+#     *.fedora.x86_64.rpm     a picked version (the rpm links Qt PRIVATE
+#                             symbols, locked to Fedora's exact Qt minor)
+#   *.pkg.tar.zst             Arch                   pacman -U (its own scriptlet
+#                             adds the OBS pacman repo; an AUR helper wins first
+#                             and deliberately does not, see packaging/aur)
 #   OBS zypper repo           openSUSE (no rpm)      zypper install
-#   AppImage / portable .tar.gz  atomic desktops (Silverblue/Bazzite/…) and any
-#                             distro with no native package — installed in $HOME,
+#   AppImage / portable .tar.gz  atomic desktops (Silverblue/Bazzite/...) and any
+#                             distro with no native package, installed in $HOME,
 #                             no password needed, self-updating.
 #   *.flatpak / Flathub       chosen from the menu, or an install that already
 #                             is a Flatpak (the sandbox can never update itself,
 #                             so this script does it from the host side).
-# Native packages self-register Unisic's OBS/COPR update repo, so later versions
-# arrive through the system's normal updates; portable installs re-run this to
-# update (or turn on the daily auto-update timer in "More options").
+# Either way the update repo ends up registered, so later versions arrive
+# through the system's normal updates; portable installs re-run this to update
+# (or turn on the daily auto-update timer in "More options").
 
 set -euo pipefail
 
@@ -632,6 +640,12 @@ do_uninstall() {
     elif have dpkg && dpkg -s unisic 2>/dev/null | grep -q '^Status: install ok installed'; then
         say "Removing Unisic... (this asks for your password)"
         priv apt-get purge -y unisic || die "Couldn't remove Unisic."
+        # The CI .deb's postrm drops the source list on purge, but a package
+        # installed FROM the repo has no such scriptlet (on purpose), and the
+        # key was written by this installer before any package existed to own
+        # it. So both go here, whoever put them there.
+        priv rm -f /etc/apt/sources.list.d/unisic.sources \
+                   /etc/apt/keyrings/unisic.asc /usr/share/keyrings/unisic.asc || true
         did=1
     elif have rpm && rpm -q unisic >/dev/null 2>&1; then
         if have zypper; then
@@ -646,6 +660,10 @@ do_uninstall() {
         else
             say "Removing Unisic... (this asks for your password)"
             priv dnf remove -y unisic || die "Couldn't remove Unisic."
+            # Same reasoning as the apt branch: a COPR-built rpm carries no
+            # %postun to drop the repo file, so it is removed here regardless
+            # of which side wrote it.
+            priv rm -f /etc/yum.repos.d/unisic-copr.repo || true
             did=1
         fi
     fi
@@ -842,18 +860,132 @@ native_fail() {
     open \"More options\", and choose \"Install the portable version\"."
 }
 
+# --- update repositories ------------------------------------------------
+# Every native package Unisic ships is tied to the exact Qt it was built
+# against: the .deb records `qt6-base-private-abi (= <version>)` (any Qt6 QML
+# app does - the QQmlPrivate glue that qt_add_qml_module generates references
+# private symbols) and the Fedora rpm links Qt private symbols too. A package
+# built for one distro release therefore REFUSES to install on another, which
+# is why there is a build per release in Unisic's own repositories, and why
+# installing FROM one is the only route that reliably lands a package matching
+# the Qt already on the machine. The release asset stays as the fallback: for a
+# distro release with no build of its own, and as the only way to install an
+# older version on purpose, since a repository only ever offers the newest.
+#
+# Registering the repo is also what the packages' own scriptlets do
+# (packaging/deb/postinst, packaging/rpm/copr-post.sh,
+# packaging/arch/unisic.install) - but those only run once the package is
+# installed, which is exactly what fails when the package does not fit.
+
+# OBS target for this apt distro, or nothing. Mirrors packaging/deb/postinst:
+# when a target is added there, add it here too.
+obs_deb_target() {
+    case "$ID" in
+        debian) case "${VERSION_ID:-}" in 13|13.*) printf 'Debian_13' ;; esac ;;
+        ubuntu) case "${VERSION_ID:-}" in
+                    26.04) printf 'xUbuntu_26.04' ;;
+                    25.10) printf 'xUbuntu_25.10' ;;
+                esac ;;
+    esac
+}
+
+# Staged in $tmpdir and moved into place with one privileged `install` each:
+# no `sudo tee` fed by a heredoc, and a half-downloaded key never reaches
+# /usr/share/keyrings.
+add_apt_repo() {   # <obs target>
+    # /etc/apt/keyrings, not /usr/share/keyrings: the latter is for keys a
+    # PACKAGE ships, this one is put there by a local admin (this script).
+    # `install -D` creates the directory on a system old enough to lack it.
+    local key="/etc/apt/keyrings/unisic.asc"
+    say "Adding Unisic's software source, so updates arrive with the rest of your system's."
+    fetch "${OBS_BASE}/${1}/Release.key" > "${tmpdir}/unisic.asc" || return 1
+    grep -q 'BEGIN PGP PUBLIC KEY BLOCK' "${tmpdir}/unisic.asc" || return 1
+    printf 'Types: deb\nURIs: %s/%s/\nSuites: ./\nSigned-By: %s\n' \
+        "$OBS_BASE" "$1" "$key" > "${tmpdir}/unisic.sources"
+    priv install -D -m 0644 "${tmpdir}/unisic.asc" "$key" || return 1
+    priv install -D -m 0644 "${tmpdir}/unisic.sources" \
+        /etc/apt/sources.list.d/unisic.sources || return 1
+}
+
+# Byte-for-byte the file the CI rpm's %post writes (packaging/rpm/copr-post.sh)
+# so the two can never disagree about which repo Fedora is on. $releasever and
+# $basearch are dnf's own variables and must stay literal in the file, hence
+# the quoted heredoc.
+add_copr_repo() {
+    say "Adding Unisic's software source, so updates arrive with the rest of your system's."
+    cat > "${tmpdir}/unisic-copr.repo" <<'EOF'
+[copr:copr.fedorainfracloud.org:deandark:Unisic]
+name=Copr repo for Unisic owned by deandark
+baseurl=https://download.copr.fedorainfracloud.org/results/deandark/Unisic/fedora-$releasever-$basearch/
+type=rpm-md
+skip_if_unavailable=True
+gpgcheck=1
+gpgkey=https://download.copr.fedorainfracloud.org/results/deandark/Unisic/pubkey.gpg
+repo_gpgcheck=0
+enabled=1
+enabled_metadata=1
+EOF
+    priv install -D -m 0644 "${tmpdir}/unisic-copr.repo" \
+        /etc/yum.repos.d/unisic-copr.repo || return 1
+}
+
+# A repository is only as current as its last build there. Saying so beats
+# letting someone wonder why what they just installed is not the version the
+# release page advertises.
+repo_lag_note() {
+    local v=""
+    if have dpkg && dpkg -s unisic >/dev/null 2>&1; then
+        v="$(dpkg-query -W -f='${Version}' unisic 2>/dev/null || true)"
+    elif have rpm; then
+        v="$(rpm -q --qf '%{VERSION}' unisic 2>/dev/null || true)"
+    fi
+    v="${v%%-*}"
+    if [ -n "$v" ] && [ -n "${latest_ver:-}" ] && [ "$v" != "$latest_ver" ]; then
+        warn "The newest Unisic is ${latest_ver}, but the package built for ${ID} ${VERSION_ID:-} is ${v} so far.
+    It catches up on its own, and your system will then offer it as an ordinary update."
+    fi
+}
+
 install_deb() {
-    local url file
+    local url file target
+    target="$(obs_deb_target)"
+    # A picked version can only come from the release page - see above.
+    if [ -z "$REQ_VERSION" ] && [ -n "$target" ] && add_apt_repo "$target"; then
+        say "Installing Unisic... (from now on it updates with your system's normal updates)"
+        priv apt-get update || warn "Refreshing the list of available software reported a problem; carrying on."
+        if priv apt-get install -y unisic; then repo_lag_note; return; fi
+        warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
+    elif [ -z "$target" ]; then
+        warn "There is no Unisic built for ${ID} ${VERSION_ID:-} yet, so I'll try the one built for
+    Debian 13. If your system has a different version of Qt it will refuse to install, and
+    I'll put the portable version in your home folder instead - that one needs no password."
+    fi
     url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.deb$')"
     [ -n "$url" ] || die "This release has no Debian package."
     file="${tmpdir}/$(basename "$url")"
     download "$url" "$file"
     say "Installing Unisic... (from now on it updates with your system's normal updates)"
-    priv apt-get install -y "$file" || native_fail
+    if priv apt-get install -y "$file"; then return; fi
+    # apt refuses an unsatisfiable package before unpacking it, so there is
+    # nothing half-installed to clean up here - unlike `dpkg -i`, which is what
+    # leaves people with the "dependency problems" state.
+    # A distro we DO build for reaching this point means something else broke,
+    # so it gets the dead-end message (native_fail dies). Everywhere else the
+    # package was a long shot from the start: land on the portable version
+    # rather than sending someone back to the menu empty-handed.
+    [ -z "$target" ] || native_fail
+    warn "That package doesn't fit ${ID} ${VERSION_ID:-}, so I'll install the portable version instead."
+    install_tarball
+    RESOLVED_CHANNEL="tarball"
 }
 
 install_rpm() {
     local url file
+    if [ -z "$REQ_VERSION" ] && [ "${ID:-}" = fedora ] && add_copr_repo; then
+        say "Installing Unisic... (from now on it updates with your system's normal updates)"
+        if priv dnf install -y unisic; then repo_lag_note; return; fi
+        warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
+    fi
     url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.rpm$')"
     [ -n "$url" ] || die "This release has no Fedora package."
     file="${tmpdir}/$(basename "$url")"

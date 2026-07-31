@@ -59,6 +59,29 @@ private slots:
                  QStringLiteral("a_b_c_d_e_f_g_h_i_j"));
     }
 
+    void hiddenAndTrailingNamesRejected()
+    {
+        // A leading dot would save the capture as a hidden file the user
+        // cannot find; trailing dots and spaces break FAT and Samba shares.
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral(".shot"), 1, now),
+                 QStringLiteral("shot"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("...shot"), 1, now),
+                 QStringLiteral("shot"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("shot."), 1, now),
+                 QStringLiteral("shot"));
+        // Mixed run: trimmed() runs before expansion and cannot see this.
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral(". %date%"), 1, now),
+                 QStringLiteral("2026-07-18"));
+        // Dots inside the name are ordinary characters and stay put.
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("v1.2 shot"), 1, now),
+                 QStringLiteral("v1.2 shot"));
+        // Nothing left over means a name, never an empty one.
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("..."), 1, now),
+                 QStringLiteral("Unisic"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("/"), 1, now),
+                 QStringLiteral("_"));
+    }
+
     void unknownTokensPassThrough()
     {
         QCOMPARE(FilenameTemplate::expand(QStringLiteral("%width%_%height%"), 1, now),

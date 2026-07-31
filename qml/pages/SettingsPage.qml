@@ -626,6 +626,13 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
+                // The rail Flickable clips, so without a width an over-long
+                // label is cut mid-glyph instead of elided: German
+                // "Benachrichtigungen" lands within a pixel of the old 180 px
+                // rail in DemiBold. 14 left margin + 18 icon + 10 spacing, and
+                // 10 px of breathing room before the clip edge.
+                width: Math.max(0, nav.width - 52)
+                elide: Text.ElideRight
                 text: nav.label
                 color: nav.active ? Theme.textPrimary : Theme.textSecondary
                 font.pixelSize: Theme.fontM
@@ -745,7 +752,11 @@ Item {
         anchors.leftMargin: Theme.spacingXL
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
-        width: 180
+        // 200, not 180: the longest category name in the shipped languages is
+        // German "Benachrichtigungen" at 138 px in DemiBold, which left the old
+        // rail exactly zero margin. The panes give the 20 px up without
+        // reflowing - their cards are capped at 694 px anyway.
+        width: 200
         clip: true
         contentWidth: width
         contentHeight: navCol.height
@@ -916,10 +927,10 @@ Item {
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            property var ids: ["system", "en", "pl", "es", "it", "fr"]
+                            property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de"]
                             // Native names on purpose — every user recognises
                             // their own language regardless of the current UI.
-                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français"]
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch"]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                             onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }
@@ -1438,6 +1449,23 @@ Item {
                             text: App.settings.externalActionCommand
                             placeholder: qsTr("program $input $output")
                             onEdited: (t) => App.settings.externalActionCommand = t
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Give up after")
+                        help: qsTr("How long the program may run before Unisic stops it.")
+                        helpDetail: qsTr("A program that never finishes would otherwise hold the capture's temporary file for the rest of the session. Raise this if your command does real work, such as uploading a large file.")
+                        UValueCombo {
+                            width: 130
+                            // Bounds come from ExternalActionRunner via Settings,
+                            // so the field can never offer a value the capture
+                            // path would clamp behind it.
+                            values: [30, 60, 120, 300, 600, 1800]
+                            from: App.settings.externalActionTimeoutMinSec
+                            to: App.settings.externalActionTimeoutMaxSec
+                            suffix: " s"
+                            value: App.settings.externalActionTimeoutSec
+                            onChanged: (v) => App.settings.externalActionTimeoutSec = v
                         }
                     }
                     SettingRow {
@@ -3302,6 +3330,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Do not disturb"); enabled: App.capDoNotDisturb; onClicked: App.devTestDoNotDisturb() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Hide while capturing"); onClicked: App.devTestHideOnCapture() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action"); onClicked: App.devTestExternalAction() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("External action timeout"); onClicked: App.devTestExternalActionTimeout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Measure"); onClicked: App.devTestMeasureTools() }

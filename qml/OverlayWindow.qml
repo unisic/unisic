@@ -441,7 +441,11 @@ Window {
             }
         }
 
-        // Dimension readout — follows the selection
+        // Dimension readout - follows the selection. It sits on top of whatever
+        // the user happens to have on screen, so it borrows the recording
+        // badge's ink instead of a page token: same job, same guarantee that it
+        // stays readable over arbitrary pixels. The badge colour carries its own
+        // alpha, so the numbers themselves are not dimmed with it.
         Rectangle {
             visible: canvas.hasSelection
             x: Math.min(root.selItem().x, parent.width - width - 8)
@@ -449,13 +453,12 @@ Window {
             width: dimText.implicitWidth + 22
             height: 28
             radius: 14
-            color: "#000000"
-            opacity: 0.8
+            color: Theme.recBadgeBg
             Text {
                 id: dimText
                 anchors.centerIn: parent
                 text: Math.round(canvas.selectionRect.width) + " × " + Math.round(canvas.selectionRect.height)
-                color: "#FFFFFF"
+                color: Theme.recBadgeText
                 font.pixelSize: 12
                 font.family: "monospace"
             }

@@ -137,8 +137,9 @@ private:
     // dev/tests, e.g. a file:// path).
     QUrl installerScriptUrl() const;
     QString installerCacheDir() const;
-    // Download install.sh to cacheFile; done(ok, error). Validates it looks like
-    // the real installer (a marker line) before reporting ok.
+    // Download install.sh to cacheFile; done(ok, error). Refuses the file unless
+    // its sha256 matches the digest the release publishes for the asset; where
+    // there is no such asset it falls back to the marker-line check alone.
     void fetchInstallerScript(const QString &cacheFile,
                               std::function<void(bool ok, const QString &error)> done);
     // First installed terminal emulator ("" if none), preferring $TERMINAL then
@@ -165,4 +166,10 @@ private:
     QString m_assetName; // matching AppImage asset of the latest release
     QString m_assetUrl;
     qint64 m_assetSize = 0;
+    // The release's own copy of install.sh and the sha256 GitHub computed for
+    // it. Both empty until a check has run, and for releases made before the
+    // script became an asset - fetchInstallerScript() then has nothing to
+    // verify against and says so.
+    QString m_installerAssetUrl;
+    QString m_installerSha256;
 };

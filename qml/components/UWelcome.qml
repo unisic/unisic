@@ -363,10 +363,10 @@ Item {
                     }
                     UComboBox {
                         width: parent.width
-                        readonly property var ids: ["system", "en", "pl", "es", "it", "fr"]
+                        readonly property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de"]
                         // Native names on purpose — every user recognises their
                         // own language regardless of the current UI.
-                        model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français"]
+                        model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch"]
                         currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                         onActivated: (i) => App.settings.uiLanguage = ids[i]
                         accessibleName: langLabel.text

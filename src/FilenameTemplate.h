@@ -27,6 +27,18 @@ inline QString expand(QString t, int counter, const QDateTime &now)
     t.replace(QLatin1String("%i%"), QString::number(counter));
     static const QRegularExpression illegal(QStringLiteral("[/\\\\:*?\"<>|]"));
     t.replace(illegal, QStringLiteral("_"));
+    // A leading dot makes the capture a hidden file: saved without a word of
+    // warning, then invisible in every file manager the user would look in.
+    // Trailing dots and spaces go too, because they break the round trip
+    // through a Samba or FAT share.
+    while (!t.isEmpty()
+           && (t.startsWith(QLatin1Char('.')) || t.startsWith(QLatin1Char(' '))))
+        t.remove(0, 1);
+    while (!t.isEmpty()
+           && (t.endsWith(QLatin1Char('.')) || t.endsWith(QLatin1Char(' '))))
+        t.chop(1);
+    if (t.isEmpty())
+        t = QStringLiteral("Unisic");
     return t;
 }
 

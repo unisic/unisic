@@ -210,6 +210,9 @@ public:
     }
     bool capNativeNotification() const;
     bool capCustomNotification() const; // layer-shell OR the GNOME XWayland card
+    // Empty when the card IS available; otherwise the one reason it is not,
+    // for the diagnostics report and the smoke log.
+    QString customNotificationReason() const;
     bool capRecordBorder() const;
     bool capVideoPlayback() const;
     // GNOME/mutter (Wayland, no layer-shell, no KWin) with an X socket: the
@@ -340,6 +343,7 @@ public:
     Q_INVOKABLE void devTestDoNotDisturb();
     Q_INVOKABLE void devTestHideOnCapture();
     Q_INVOKABLE void devTestExternalAction();
+    Q_INVOKABLE void devTestExternalActionTimeout();
     Q_INVOKABLE void devTestTaskPreset();
     Q_INVOKABLE void devTestCliOutput();
     Q_INVOKABLE void devTestMeasureTools();
@@ -867,6 +871,10 @@ private:
     // than assumed. Async (the restore is a later event-loop turn); `done` gets
     // PASS / FAIL(...) / SKIP(...). Shared by the smoke test and the Dev pane.
     void hideOnCaptureCheck(std::function<void(const QString &)> done);
+    // Runs a deliberately hanging action against a short ceiling, so the guard
+    // that stops a stuck helper program is proven to fire and to report in
+    // words rather than assumed. Async; `done` gets PASS / FAIL(...) / SKIP(...).
+    void externalActionTimeoutCheck(std::function<void(const QString &)> done);
     void captureRegionWithTool(int initialTool);
     void runExternalAction(const QImage &image, const QString &savedPath);
     void refreshWatermarkImage();

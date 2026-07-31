@@ -113,8 +113,24 @@ QString UploadManager::configPath() const
     return path;
 }
 
+// destinations.json stores FTP/SFTP logins and API keys in clear text, so it
+// must never be group- or world-readable. QSaveFile normalises the committed
+// file to the umask default (0644 on a stock Fedora), which is why this runs
+// after every write, and once more on load to repair a config left behind by
+// an older build. Same reasoning as exportSettings() in AppContext.
+static void lockToOwner(const QString &path)
+{
+    const QFileDevice::Permissions ownerOnly =
+        QFileDevice::ReadOwner | QFileDevice::WriteOwner;
+    if (!QFile::exists(path) || QFile::permissions(path) == ownerOnly)
+        return;
+    if (!QFile::setPermissions(path, ownerOnly))
+        qWarning() << "could not restrict permissions on" << path;
+}
+
 void UploadManager::loadDestinations()
 {
+    lockToOwner(configPath());
     QFile f(configPath());
     if (!f.open(QIODevice::ReadOnly))
         return;
@@ -144,7 +160,12 @@ void UploadManager::persistDestinations()
     QSaveFile f(configPath());
     if (f.open(QIODevice::WriteOnly)) {
         f.write(QJsonDocument(m_destinations).toJson(QJsonDocument::Indented));
-        f.commit();
+        if (f.commit())
+            lockToOwner(configPath());
+        else
+            qWarning() << "could not write" << configPath() << f.errorString();
+    } else {
+        qWarning() << "could not open" << configPath() << f.errorString();
     }
     emit destinationsChanged();
 }

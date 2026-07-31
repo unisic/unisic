@@ -53,6 +53,12 @@ cmake --build build
 - **Optional, compile-time guarded** - the build *succeeds without them* and prints a warning; the feature is disabled at runtime:
   - `pipewire-devel` → `HAVE_PIPEWIRE` → GIF/screen recording. Without it, recording is off.
   - `tesseract-devel leptonica-devel` + a langpack (e.g. `tesseract-langpack-eng`) → `HAVE_TESSERACT` → OCR ("copy text from capture"). Gates `App.ocrAvailable` in QML.
+  - `zxing-cpp-devel` → `HAVE_ZXING` → QR/barcode payload instead of OCR pixels. Nested inside the Tesseract gate: no OCR, no decoding.
+  - `layer-shell-qt-devel wayland-devel` → `HAVE_LAYERSHELL` → the styled capture card. On Plasma this is the ONLY route to it (the XWayland helper is refused while `org.kde.KWin` is on the bus), so a build without it always falls back to the native notification.
+  - `libinput-devel systemd-devel` → `HAVE_LIBINPUT` → click capture. Without it `InputPermission::probe()` returns `NotBuilt`.
+  - `kf6-kguiaddons-devel` → `HAVE_KGUIADDONS` → Klipper clipboard history.
+  - `qt6-qtwayland-devel qt6-qtbase-private-devel plasma-wayland-protocols-devel` (all three) → `HAVE_KWIN_SCREENCAST` in unisic-kit → KWin-native recording with no portal share dialog.
+- **After installing an optional dep into an EXISTING build tree, delete `build/`.** Re-running `cmake -B build` adds the new sources to the target but the AUTOMOC custom command does not depend on `AutogenInfo.json`, so ninja never re-runs it: `mocs_compilation.cpp` keeps the old list and the link dies with `undefined reference to vtable for <NewClass>` / `staticMetaObject` / its signals. Deleting just the stale `<build>/<target>_autogen/timestamp` (e.g. `build/external/unisic-kit/unisic-kit_autogen/timestamp`) forces AUTOMOC to re-run and is enough if a full rebuild is too expensive. A clean configure has never had the problem.
 - **Runtime helpers shelled out, not linked:** `ffmpeg` (GIF/video encode), `curl` (FTP/SFTP uploads), `grim` (wlroots/niri capture), `wl-copy` (clipboard mirror), `kbuildsycoca6` (KDE service-cache rebuild). Treat all as optional-at-runtime: detect with `QStandardPaths::findExecutable`, degrade gracefully, never crash if absent.
 
 **Dependency policy (this is a lightweight app):**
@@ -76,6 +82,7 @@ src/
   AppContext.{h,cpp}    THE facade exposed to QML as context property `App`. Owns every
                         subsystem + the after-capture pipeline (editor/save/clipboard/upload/
                         history), tray icon, hotkey dispatch, filename templating. Largest file.
+                        Its diagnostics half is diag/SmokeTests.cpp - SAME class, second .cpp.
   Settings.{h,cpp}      All persisted settings as Q_PROPERTYs. Metaobject-driven export/import.
   ConfigPath.h          UnisicConfig::filePath() - the ONE config file path.
   FilenameTemplate.h    Save-name template expansion (%date%/%time%/%i%/…) + image
@@ -104,6 +111,10 @@ src/
                         recolored SVGs / QIcon::fromTheme).
   notify/              CaptureNotification.
   ocr/                 OcrEngine (HAVE_TESSERACT only).
+  diag/                DiagLog (500-line ring + rotated file), CrashHandler (async-signal-safe
+                        only), DiagRedact (one choke point, unit-tested), SmokeTests.cpp (every
+                        devTest*/`*Check()`/runSmokeTest - AppContext's second translation unit)
+                        + SmokeSupport.h (the helpers both halves share).
 
 qml/                   APP-SPECIFIC QML only (module `Unisic`). The shared design system lives
                        in the kit (below); files using it carry an explicit `import Unisic.Kit`.
@@ -254,7 +265,7 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 - **Match the surrounding code.** Comment density, naming, and idiom in this repo lean toward *explaining the non-obvious "why"* - the D-Bus flag, the Wayland quirk, the case-collision. Terse where obvious, a paragraph where a future reader would otherwise reintroduce a bug. Mirror that.
 - **C++20, Qt idioms:** `QStringLiteral`/`QLatin1String` for literals in hot paths, signal/slot over polling, RAII for resources, `const` correctness. Follow the existing files.
 - **Keep the diff scoped.** Fix the thing asked; don't opportunistically reformat, rename, or "modernize" unrelated code - it obscures the real change and risks the landmines above. A separate cleanup PR is fine.
-- **Don't grow `AppContext`.** It's already the largest file and the central facade. New behavior usually belongs in a focused subsystem class that `AppContext` wires up, not another 200 lines in `finishCapture`.
+- **Don't grow `AppContext`.** It's already the largest file and the central facade. New behavior usually belongs in a focused subsystem class that `AppContext` wires up, not another 200 lines in `finishCapture`. Its diagnostics already live in a second translation unit, `src/diag/SmokeTests.cpp`: a new `devTest*`/`*Check()` is declared in `AppContext.h` and DEFINED there, never back in `AppContext.cpp`. A helper both files need loses its `static` and gets a declaration in `src/diag/SmokeSupport.h`.
 - **After-capture actions fire independently and immediately** in `AppContext::finishCapture` - copy/save/upload/editor each run on their own; the editor never blocks the others. Preserve that independence.
 - **Version string is single-sourced** from `project(... VERSION x.y.z)` in `CMakeLists.txt` via `UNISIC_VERSION`. Don't hardcode a version elsewhere.
 

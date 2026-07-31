@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.2" date="2026-07-31">
+      <description>
+        <p>Adds Russian and German, both translated in full, bringing the interface to seven languages. Installing on Ubuntu works again: the installer adds Unisic's own software source first and installs the build made for that system, instead of handing every Debian-based system the same Debian 13 package. Saved server passwords are no longer readable by other accounts on the same computer, the installer the app downloads for in-app updates is checked against a published fingerprint before it runs, and a program run after each capture can no longer hang the session forever. A save name beginning with a dot no longer produces an invisible file, the extra colour themes come back when their folder has gone missing, and a history tile keeps its buttons while its own menu is open.</p>
+      </description>
+    </release>
     <release version="0.8.1" date="2026-07-27">
       <description>
         <p>Unisic no longer photographs its own window: a capture or recording started from the window steps it off screen for the duration and brings it back at the end, and a hotkey on GNOME or Cinnamon that the desktop has already claimed is named when the shortcuts are installed instead of silently never firing. Packaging catches up with the 0.8 release: the AUR recipes list the X11 libraries the new capture path links against, so Arch helpers see 0.8 again, and installing straight from the repository on NixOS fetches the shared interface toolkit that a plain repository reference left behind.</p>

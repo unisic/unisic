@@ -39,7 +39,7 @@ Each line is the short form of a rule whose full reasoning is in the linked file
 - **Never a QSettings group named "general"/"General"** - it collides with INI's magic General section and resets settings to defaults every launch (`docs/dev/pipelines.md`).
 - **Never compile an Imgur Client-ID in** - it identifies the application, so one shipped ID caps every user together and makes whoever registered it answerable for strangers' uploads (`docs/dev/architecture.md`).
 - **No Kirigami/Breeze**: the UI is a fully custom design system, QQuickStyle forced to "Basic" (`docs/dev/ui-kit.md`).
-- **Removed on purpose, do not reintroduce without asking**: smart pick + `ObjectDetector`, U-2-Net background removal and the whole `HAVE_ONNX` path (dropped in 0.7.1b), and the guided tour.
+- **Removed on purpose, do not reintroduce without asking**: smart pick + `ObjectDetector`, U-2-Net background removal and the whole `HAVE_ONNX` path (dropped in 0.7.1b), and the guided tour. The tour is closed for good, not parked: a tour worth having points at the real UI from outside it, and Wayland gives no client its own window position or anything else's, so it can never be more than a slideshow inside our own window - `UWelcome` already covers that ground. Do not propose it, and do not re-add `UTour` strings to `i18n/**`.
 
 ## What Unisic Is
 

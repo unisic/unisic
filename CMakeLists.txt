@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.1 LANGUAGES CXX)
+project(unisic VERSION 0.8.2 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.1")
+set(UNISIC_VERSION_STRING "0.8.2")
 
 include(GNUInstallDirs)
 
@@ -83,6 +83,9 @@ qt_add_executable(unisic
     # async-signal-safe-only code; see its header before touching it.
     src/diag/DiagLog.h src/diag/DiagLog.cpp
     src/diag/DiagRedact.h
+    # AppContext's diagnostics half: the devTest* actions, the *Check() helpers
+    # and runSmokeTest(). Same class, second translation unit.
+    src/diag/SmokeSupport.h src/diag/SmokeTests.cpp
     src/diag/CrashHandler.h src/diag/CrashHandler.cpp
     src/update/VersionCompare.h
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
@@ -286,7 +289,9 @@ set(UNISIC_TS_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_pl.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_es.ts
     ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_it.ts
-    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_fr.ts)
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_fr.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_ru.ts
+    ${CMAKE_CURRENT_SOURCE_DIR}/i18n/unisic_de.ts)
 if(Qt6LinguistTools_FOUND)
     qt_add_lrelease(unisic TS_FILES ${UNISIC_TS_FILES}
                     QM_FILES_OUTPUT_VARIABLE UNISIC_QM_FILES)
@@ -494,6 +499,23 @@ if(BUILD_TESTING)
     target_compile_definitions(unisic_theme_json_test
         PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME unisic_theme_json_test COMMAND unisic_theme_json_test)
+
+    qt_add_executable(unisic_theme_seed_test
+        tests/ThemeSeedTest.cpp
+        external/unisic-kit/src/theme/ThemeController.h
+        external/unisic-kit/src/theme/ThemeController.cpp
+    )
+    # The same qrc copy the app seeds from, so the test asserts against what is
+    # actually shipped rather than a list written twice.
+    qt_add_resources(unisic_theme_seed_test "seedthemes" PREFIX "/" FILES ${UNISIC_THEMES})
+    # Qt6::Qml for qqmlregistration.h only (ThemeController is a QML singleton in
+    # the app); the test drives it as a plain QObject.
+    target_link_libraries(unisic_theme_seed_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
+    target_include_directories(unisic_theme_seed_test PRIVATE external/unisic-kit/src)
+    add_test(NAME unisic_theme_seed_test COMMAND unisic_theme_seed_test)
+    # QGuiApplication (styleHints, palette) without a real display.
+    set_tests_properties(unisic_theme_seed_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     qt_add_executable(unisic_keystroke_overlay_test
         tests/KeystrokeOverlayTest.cpp

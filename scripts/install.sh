@@ -975,6 +975,39 @@ channel_offer() {   # <resolved channel>
     esac
 }
 
+# True when the channel cannot deliver the newest release yet.
+channel_behind() {   # <resolved channel>
+    local offer
+    offer="$(channel_offer "$1" 2>/dev/null || true)"
+    ver_lt "${offer%%-*}" "${latest_ver:-}"
+}
+
+# A repository build trails the release by up to a day, and telling someone to
+# wait for it when the package is already published is a worse answer than
+# fetching it. The release asset is the same build the source will publish, and
+# both package managers here reject a package that does not fit BEFORE they
+# unpack anything, so a refusal costs the download and nothing else: what the
+# source installed a moment ago stays in place and keeps working.
+catch_up_from_release() {   # 1 when the newest could not be fetched
+    local url="" file
+    case "$native_pm" in
+        dnf) url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.rpm$')" ;;
+        # Built on Debian 13 and welded to its Qt. Ubuntu's build exists only
+        # in the OBS repo, so for Ubuntu there is nothing here to fetch.
+        apt) [ "${ID:-}" = debian ] \
+                 && url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.deb$')" ;;
+    esac
+    [ -n "$url" ] || return 1
+    say "Your software source hasn't built ${latest_ver} yet, so I'll take it from the releases page."
+    file="${tmpdir}/$(basename "$url")"
+    download "$url" "$file" || return 1
+    case "$native_pm" in
+        dnf) priv dnf install -y "$file" || return 1 ;;
+        apt) priv apt-get install -y "$file" || return 1 ;;
+    esac
+    say "Installed ${latest_ver}. Your software source keeps updating it from here on."
+}
+
 # Three different numbers decide what to say here, and conflating any two of
 # them is how this note lies: what is installed now, what the channel can
 # deliver, and what the newest release is. A source is only as current as its
@@ -997,10 +1030,11 @@ update_note() {   # <resolved channel>
     if [ -n "$have_v" ] && [ "$have_v" = "$latest_ver" ]; then
         say "  You have the newest Unisic (${latest_ver})."
     elif ver_lt "$offer_v" "$latest_ver"; then
+        # Reaching this means the release package was refused or none exists for
+        # this system, so there is nothing left to offer but the wait.
         warn "The newest Unisic is ${latest_ver}, but ${where% } is ${offer_v} so far, and that
     is the one you now have. The build starts by itself when a version is released and
-    usually lands within a day; your system will then offer ${latest_ver} as an ordinary update.
-    To get ${latest_ver} today instead, run this installer again and pick it from the version list."
+    usually lands within a day; your system will then offer ${latest_ver} as an ordinary update."
     elif ver_lt "$have_v" "$latest_ver"; then
         warn "Version ${latest_ver} is already available to you, but ${have_v} is still installed.
     Install your system's pending updates, or run this installer again."
@@ -1014,7 +1048,13 @@ install_deb() {
     if [ -z "$REQ_VERSION" ] && [ -n "$target" ] && add_apt_repo "$target"; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
         priv apt-get update || warn "Refreshing the list of available software reported a problem; carrying on."
-        if priv apt-get install -y unisic; then return; fi
+        if priv apt-get install -y unisic; then
+            # The repo has the build made for THIS distro release, so it goes on
+            # first and stays the update channel; only when it is a version
+            # behind does the release page get a look in.
+            if channel_behind native; then catch_up_from_release || true; fi
+            return
+        fi
         warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
     elif [ -z "$target" ]; then
         warn "There is no Unisic built for ${ID} ${VERSION_ID:-} yet, so I'll try the one built for
@@ -1044,7 +1084,10 @@ install_rpm() {
     local url file
     if [ -z "$REQ_VERSION" ] && [ "${ID:-}" = fedora ] && add_copr_repo; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
-        if priv dnf install -y unisic; then return; fi
+        if priv dnf install -y unisic; then
+            if channel_behind native; then catch_up_from_release || true; fi
+            return
+        fi
         warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
     fi
     url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.rpm$')"

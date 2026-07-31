@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Unisic universal installer — INTERACTIVE (a full-screen terminal menu).
+# Unisic universal installer - INTERACTIVE (a full-screen terminal menu).
 #
 # Run it in a terminal:
 #     bash <(curl -fsSL https://raw.githubusercontent.com/unisic/unisic/main/scripts/install.sh)
@@ -9,7 +9,7 @@
 #
 # It opens a btop-style menu (arrow keys + Enter) that can install, update,
 # uninstall, install an older version, and turn on automatic updates. There is
-# no command-line mode — the menu is the only user interface (the private
+# no command-line mode - the menu is the only user interface (the private
 # "--self-update" argument is used by the auto-update timer and by Unisic's
 # in-app "Install now" button, never typed by a user).
 #
@@ -49,13 +49,15 @@ UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 # --- state --------------------------------------------------------------
 ACTION="install"     # install | uninstall | autoupdate-on | autoupdate-off
 CHANNEL="auto"       # auto | appimage | tarball | native | flatpak
-REQ_VERSION=""       # a tag chosen in the version picker (NOT named VERSION —
+REQ_VERSION=""       # a tag chosen in the version picker (NOT named VERSION -
                      # sourcing /etc/os-release would clobber a var of that name)
 PREFIX="${HOME}/.local"
 ASSUME_YES=0
 PURGE=0
 PRERELEASE=0
 RESOLVED_CHANNEL=""
+INSTALLED_VER=""     # filled by installed_status, read by update_note
+INSTALLED_KIND=""
 IS_ATOMIC=0
 IN_ALT=0             # 1 while the alternate-screen menu owns the terminal
 SELF_UPDATE=0        # 1 in the private timer-driven update mode
@@ -67,7 +69,7 @@ MENU_CHOICE=""
 # (appimage|tarball, and flatpak when it is a --user install). `native` is the
 # in-app "Install now" path: Unisic runs
 # it inside a terminal it spawned, so the sudo password prompt has somewhere to
-# go — it reinstalls the matching .deb/.rpm/.pkg for the running distro.
+# go - it reinstalls the matching .deb/.rpm/.pkg for the running distro.
 # Anything else ignores its arguments and opens the menu.
 if [ "${1:-}" = "--self-update" ]; then
     SELF_UPDATE=1
@@ -76,7 +78,7 @@ if [ "${1:-}" = "--self-update" ]; then
     if [ "${4:-}" = "pre" ]; then PRERELEASE=1; fi
     ASSUME_YES=1
 elif [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    printf 'Unisic installer — an interactive menu. Just run it in a terminal:\n\n    bash %s\n\n' "$0"
+    printf 'Unisic installer - an interactive menu. Just run it in a terminal:\n\n    bash %s\n\n' "$0"
     exit 0
 fi
 
@@ -85,7 +87,7 @@ say()  { printf '\033[1;35m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 
 # Enter/leave the terminal's ALTERNATE screen buffer (like top/less). The whole
-# interactive run — menu AND install output — happens in there; leaving it
+# interactive run - menu AND install output - happens in there; leaving it
 # restores the terminal to the command the user typed, so only the final
 # thank-you remains.
 enter_alt() {
@@ -210,7 +212,7 @@ download() {   # curl or wget, to a file
 }
 
 # Run a command that changes system software. This needs elevated permission,
-# obtained via `sudo`, which asks for the user's login password — explained in
+# obtained via `sudo`, which asks for the user's login password - explained in
 # plain words the first time.
 PRIV_NOTE_SHOWN=0
 priv() {
@@ -221,7 +223,7 @@ priv() {
             printf '\n'
             say "To install the software, your computer needs your permission."
             printf '    It will ask for YOUR login password (the one you use to log in).\n'
-            printf '    Nothing appears as you type it — that is normal. Press Enter when done.\n\n'
+            printf '    Nothing appears as you type it - that is normal. Press Enter when done.\n\n'
             PRIV_NOTE_SHOWN=1
         fi
         sudo "$@"
@@ -301,6 +303,9 @@ installed_status() {
             if [[ "${tgt,,}" =~ unisic[/-]([0-9][a-z0-9._]*)-x86_64 ]]; then v="${BASH_REMATCH[1]}"; fi
         fi
     fi
+    # Published for update_note, which needs the same two answers and must not
+    # probe every package manager a second time to get them.
+    INSTALLED_VER="${v%%-*}"; INSTALLED_KIND="$kind"
     if [ -z "$kind" ]; then printf 'not-installed'
     elif [ -n "$v" ]; then printf 'Unisic %s installed (%s)' "$v" "$kind"
     else printf 'Unisic installed (%s)' "$kind"; fi
@@ -325,7 +330,7 @@ tui_apply() {
 # btop-style bordered menu. ONE window (the alternate screen, entered by the
 # caller) that MORPHS between views (main <-> version list). Every action lives
 # on the main screen (no "More options" submenu) so nothing is hidden; a status
-# line shows what's installed. Full redraw from the top each key — no in-place
+# line shows what's installed. Full redraw from the top each key - no in-place
 # cursor math, robust to changing list length. All output to /dev/tty; content
 # is ASCII so the box borders stay aligned. Sets MENU_CHOICE, and for a chosen
 # version REQ_VERSION/ACTION/CHANNEL plus MENU_CHOICE=__picked.
@@ -606,7 +611,7 @@ if [ "$SELF_UPDATE" -eq 0 ]; then
     # Group so 2>/dev/null also swallows the redirection error when there is no
     # controlling terminal (otherwise bash prints "/dev/tty: No such device").
     if ! { : >/dev/tty; } 2>/dev/null; then
-        die "The Unisic installer is interactive — please run it inside a terminal window."
+        die "The Unisic installer is interactive - please run it inside a terminal window."
     fi
     enter_alt
     tui_run
@@ -631,7 +636,7 @@ uninstall_portable() {   # remove a portable/AppImage install; 1 if nothing ther
 do_uninstall() {
     local did=0
     # Native package (each one's own postrm/postun drops its update repo). NB:
-    # do_uninstall is invoked via `|| ...`, which disables `set -e` inside it —
+    # do_uninstall is invoked via `|| ...`, which disables `set -e` inside it -
     # so every native removal checks its own exit status explicitly.
     if have pacman && pacman -Qq unisic >/dev/null 2>&1; then
         say "Removing Unisic... (this asks for your password)"
@@ -691,7 +696,7 @@ do_uninstall() {
     # Restore the terminal before reporting, so the result is readable.
     leave_alt
     if [ "$did" -eq 0 ]; then
-        warn "Unisic doesn't seem to be installed — nothing to remove."
+        warn "Unisic doesn't seem to be installed - nothing to remove."
         return 1
     fi
     say "✓ Unisic has been removed."
@@ -721,7 +726,7 @@ setup_autoupdate() {
     local ch="$1"
     case "$ch" in
         auto|native|apt|dnf|pacman|zypper)
-            say "This install already updates automatically with your system — nothing to set up."
+            say "This install already updates automatically with your system - nothing to set up."
             return 0 ;;
     esac
     # A Flatpak installed for all users belongs to root, so every update asks
@@ -769,7 +774,7 @@ WantedBy=timers.target
 EOF
     systemctl --user daemon-reload
     systemctl --user enable --now unisic-update.timer
-    say "Automatic updates are now ON — Unisic will check for a newer version once a day."
+    say "Automatic updates are now ON - Unisic will check for a newer version once a day."
     say "  To turn this off later, run this installer and choose \"Automatic updates\" again."
 }
 
@@ -792,7 +797,7 @@ arch="$(uname -m)"
 case "$arch" in
     x86_64|amd64) : ;;
     *) die "Unisic only has ready-made downloads for regular 64-bit PCs (x86_64); your computer is '$arch'.
-    You can still build it yourself — see https://github.com/${REPO}" ;;
+    You can still build it yourself - see https://github.com/${REPO}" ;;
 esac
 
 if [ -n "$REQ_VERSION" ]; then
@@ -809,7 +814,7 @@ else
     RELEASE_JSON="$(fetch "${API}/releases/latest")" \
         || die "Couldn't find a stable release. Turn on \"Test versions\" in More options to try a test build."
 fi
-[ -n "$RELEASE_JSON" ] || die "GitHub returned an empty response — please try again."
+[ -n "$RELEASE_JSON" ] || die "GitHub returned an empty response - please try again."
 
 # Newest tag ("v0.7.5"); used to skip a portable re-install that is up to date.
 latest_tag="$(printf '%s' "$RELEASE_JSON" \
@@ -818,7 +823,7 @@ latest_tag="$(printf '%s' "$RELEASE_JSON" \
 latest_ver="${latest_tag#v}"
 
 # --- detect distro ------------------------------------------------------
-# Sourcing os-release also sets NAME/VERSION/PRETTY_NAME/… — harmless as long as
+# Sourcing os-release also sets NAME/VERSION/PRETTY_NAME/… - harmless as long as
 # no state var shares those names (the release tag lives in REQ_VERSION for
 # exactly this reason).
 ID=""; ID_LIKE=""; VERSION_ID=""; VARIANT_ID=""
@@ -842,7 +847,7 @@ if   have apt-get && { [ "$ID" = debian ] || [ "$ID" = ubuntu ] || case " $ID_LI
 elif have zypper && case "$ID" in opensuse*|sles|sled) true;; *) case " $ID_LIKE " in *"suse"*) true;; *) false;; esac;; esac; then
     native_pm="zypper"
 elif have dnf && [ "$ID" = fedora ]; then
-    native_pm="dnf"     # Fedora ONLY — the rpm is locked to Fedora's Qt minor.
+    native_pm="dnf"     # Fedora ONLY - the rpm is locked to Fedora's Qt minor.
 elif have pacman && { [ "$ID" = arch ] || case " $ID_LIKE " in *" arch "*) true;; *) false;; esac; }; then
     native_pm="pacman"
 fi
@@ -929,20 +934,76 @@ EOF
         /etc/yum.repos.d/unisic-copr.repo || return 1
 }
 
-# A repository is only as current as its last build there. Saying so beats
-# letting someone wonder why what they just installed is not the version the
-# release page advertises.
-repo_lag_note() {
-    local v=""
-    if have dpkg && dpkg -s unisic >/dev/null 2>&1; then
-        v="$(dpkg-query -W -f='${Version}' unisic 2>/dev/null || true)"
-    elif have rpm; then
-        v="$(rpm -q --qf '%{VERSION}' unisic 2>/dev/null || true)"
-    fi
-    v="${v%%-*}"
-    if [ -n "$v" ] && [ -n "${latest_ver:-}" ] && [ "$v" != "$latest_ver" ]; then
-        warn "The newest Unisic is ${latest_ver}, but the package built for ${ID} ${VERSION_ID:-} is ${v} so far.
-    It catches up on its own, and your system will then offer it as an ordinary update."
+# 0 when $1 is an older version than $2. `sort -V` is what orders 0.8 < 0.8.1
+# and 0.7.2b < 0.7.3 correctly; a string compare gets both wrong.
+ver_lt() {   # <a> <b>
+    [ -n "$1" ] && [ -n "$2" ] && [ "$1" != "$2" ] \
+        && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
+}
+
+# The newest version the channel just used can actually deliver right now.
+# Empty means the channel could not be asked, and the caller then says nothing
+# rather than guessing. This is deliberately NOT the installed version: a
+# source that has not rebuilt yet offers the old one, and reading what is on
+# disk instead is how the note ends up naming a build that does not exist.
+channel_offer() {   # <resolved channel>
+    case "$1" in
+        native)
+            case "$native_pm" in
+                dnf) dnf repoquery --quiet --latest-limit 1 --qf '%{version}\n' \
+                         unisic 2>/dev/null | sort -V | tail -n1 ;;
+                apt) apt-cache policy unisic 2>/dev/null \
+                         | awk '/Candidate:/ && $2 != "(none)" { print $2; exit }' ;;
+                zypper) zypper --non-interactive --quiet info unisic 2>/dev/null \
+                         | awk -F': *' '/^Version/ { print $2; exit }' ;;
+                # The AUR package builds the release tarball, so it can never be
+                # newer than the release itself.
+                pacman) printf '%s' "${latest_ver:-}" ;;
+            esac ;;
+        flatpak)
+            if flathub_has_app; then
+                flatpak remote-info "--$(flatpak_scope || printf user)" flathub \
+                    "$FLATPAK_ID" 2>/dev/null \
+                    | awk -F': +' '$1 ~ /^ *Version$/ { print $2; exit }'
+            else
+                # Not on Flathub yet: the release bundle is the only source
+                # there is, and it is never behind the release page.
+                printf '%s' "${latest_ver:-}"
+            fi ;;
+        # Portable installs come straight off the release page.
+        *) printf '%s' "${latest_ver:-}" ;;
+    esac
+}
+
+# Three different numbers decide what to say here, and conflating any two of
+# them is how this note lies: what is installed now, what the channel can
+# deliver, and what the newest release is. A source is only as current as its
+# last build there, so "yours is behind" and "you did not get what your source
+# has" are separate problems with separate fixes.
+update_note() {   # <resolved channel>
+    local have_v offer_v where
+    # A deliberately picked older version is not something to nag about.
+    [ -z "$REQ_VERSION" ] && [ -n "${latest_ver:-}" ] || return 0
+    installed_status >/dev/null
+    have_v="$INSTALLED_VER"
+    offer_v="$(channel_offer "$1" 2>/dev/null || true)"
+    offer_v="${offer_v%%-*}"
+    case "$1" in
+        native)  where="the package built for ${ID:-your system} ${VERSION_ID:-}" ;;
+        flatpak) where="the Flatpak on Flathub" ;;
+        *)       where="the download for your system" ;;
+    esac
+
+    if [ -n "$have_v" ] && [ "$have_v" = "$latest_ver" ]; then
+        say "  You have the newest Unisic (${latest_ver})."
+    elif ver_lt "$offer_v" "$latest_ver"; then
+        warn "The newest Unisic is ${latest_ver}, but ${where% } is ${offer_v} so far, and that
+    is the one you now have. The build starts by itself when a version is released and
+    usually lands within a day; your system will then offer ${latest_ver} as an ordinary update.
+    To get ${latest_ver} today instead, run this installer again and pick it from the version list."
+    elif ver_lt "$have_v" "$latest_ver"; then
+        warn "Version ${latest_ver} is already available to you, but ${have_v} is still installed.
+    Install your system's pending updates, or run this installer again."
     fi
 }
 
@@ -953,7 +1014,7 @@ install_deb() {
     if [ -z "$REQ_VERSION" ] && [ -n "$target" ] && add_apt_repo "$target"; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
         priv apt-get update || warn "Refreshing the list of available software reported a problem; carrying on."
-        if priv apt-get install -y unisic; then repo_lag_note; return; fi
+        if priv apt-get install -y unisic; then return; fi
         warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
     elif [ -z "$target" ]; then
         warn "There is no Unisic built for ${ID} ${VERSION_ID:-} yet, so I'll try the one built for
@@ -983,7 +1044,7 @@ install_rpm() {
     local url file
     if [ -z "$REQ_VERSION" ] && [ "${ID:-}" = fedora ] && add_copr_repo; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
-        if priv dnf install -y unisic; then repo_lag_note; return; fi
+        if priv dnf install -y unisic; then return; fi
         warn "Installing from Unisic's own software source didn't work, so I'll try the direct download."
     fi
     url="$(printf '%s' "$RELEASE_JSON" | asset_url '\.rpm$')"
@@ -1061,7 +1122,7 @@ install_appimage() {
     [ -n "$url" ] || die "This release has no portable download."
     dest="${PREFIX}/lib/unisic/$(basename "$url")"
     if [ -z "$REQ_VERSION" ] && [ -e "$dest" ] && [ "$(readlink -f "${PREFIX}/bin/unisic" 2>/dev/null)" = "$(readlink -f "$dest")" ]; then
-        say "You already have the newest Unisic (${latest_ver:-current}) — nothing to do."
+        say "You already have the newest Unisic (${latest_ver:-current}) - nothing to do."
         return
     fi
     bindir="${PREFIX}/bin"
@@ -1141,7 +1202,7 @@ install_tarball() {
     if [ -z "$REQ_VERSION" ] && [ -n "$latest_ver" ] \
        && [ -d "${PREFIX}/lib/${want}" ] \
        && [ "$(readlink -f "${PREFIX}/bin/unisic" 2>/dev/null)" = "$(readlink -f "${PREFIX}/lib/${want}/AppRun")" ]; then
-        say "You already have the newest Unisic (${latest_ver}) — nothing to do."
+        say "You already have the newest Unisic (${latest_ver}) - nothing to do."
         return
     fi
     tgz="${tmpdir}/$(basename "$url")"
@@ -1192,7 +1253,7 @@ case "$eff" in
             pacman) install_arch ;;
             zypper) install_zypper_repo ;;
             # `native` was forced (e.g. by the app's "Install now") but this
-            # distro has no native package manager we ship for — fall back to the
+            # distro has no native package manager we ship for - fall back to the
             # always-works portable tarball rather than silently doing nothing.
             *)      say "No native package for ${ID:-this system}, installing the portable version instead."
                     install_tarball; RESOLVED_CHANNEL="tarball" ;;
@@ -1230,11 +1291,14 @@ else
     say "  Open it from your applications menu (search \"Unisic\")."
     start_hint
     if [ -f "${UNIT_DIR}/unisic-update.timer" ]; then
-        say "  Automatic updates are on — Unisic checks for a newer version once a day."
+        say "  Automatic updates are on - Unisic checks for a newer version once a day."
     else
         say "  To update later, just run this installer again."
     fi
 fi
+# Every channel, not just the two that go through a repository: whichever route
+# was taken, the last word is which version it actually left behind.
+update_note "$RESOLVED_CHANNEL"
 
-# X11 users: recording won't work here — say so plainly.
+# X11 users: recording won't work here - say so plainly.
 if [ "$(session_kind)" = x11 ]; then x11_notice; fi

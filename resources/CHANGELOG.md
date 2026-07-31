@@ -6,6 +6,16 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.3
+
+### English
+**Fixed**
+- **The installer now tells you which version you can really get, whichever way you install**: after installing it said "the newest Unisic is 0.8.2, but the package built for your system is 0.8.1 so far" - and that second number was read from what sat on your computer, not from the software source it came from. The two match only by accident. A copy the install had not replaced was reported as the source being behind when it was not, and when the source really was behind, nothing said what to do about it. The source itself is asked now: Fedora's COPR, the apt source for Debian and Ubuntu, openSUSE's, Flathub for the Flatpak, the releases page for the portable version. You get one of three plain answers, whichever of them is true: you already have the newest, or your source has not rebuilt this version yet and here is how to get it today anyway, or your source has it and it is your system's pending updates that are holding it. The check also runs for every way of installing now, where before only apt and dnf ever said anything at all.
+
+### Polski
+**Naprawione**
+- **Instalator mówi teraz, którą wersję naprawdę możesz dostać, niezależnie od sposobu instalacji**: po instalacji pisał „najnowszy Unisic to 0.8.2, ale paczka zbudowana dla Twojego systemu to na razie 0.8.1" - a tę drugą liczbę odczytywał z tego, co leżało na Twoim komputerze, a nie ze źródła oprogramowania, z którego to przyszło. Te dwie rzeczy zgadzają się tylko przypadkiem. Kopia, której instalacja nie podmieniła, była zgłaszana jako zaległość źródła, choć źródło zaległości nie miało, a gdy naprawdę je miało, nic nie mówiło, co z tym zrobić. Teraz pytane jest samo źródło: COPR Fedory, źródło apt dla Debiana i Ubuntu, źródło openSUSE, Flathub dla Flatpaka, strona wydań dla wersji przenośnej. Dostajesz jedną z trzech prostych odpowiedzi, tę która jest prawdziwa: masz już najnowszą, albo Twoje źródło jeszcze tej wersji nie zbudowało i oto jak mimo to dostać ją dzisiaj, albo źródło ją ma i trzymają ją zaległe aktualizacje Twojego systemu. Sprawdzenie działa też teraz przy każdym sposobie instalacji, a wcześniej odzywało się wyłącznie przy apt i dnf.
+
 ## 0.8.2
 
 ### English

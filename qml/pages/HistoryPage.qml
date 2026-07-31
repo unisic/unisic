@@ -553,11 +553,11 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 6
                         radius: Theme.radiusL
-                        color: cardHover.hovered || tile.selected ? Theme.surfaceHi : Theme.surface
+                        color: card.hovering || tile.selected ? Theme.surfaceHi : Theme.surface
                         border.width: tile.selected || tile.current ? 2 : 1
                         border.color: tile.selected ? Theme.accent
                                     : tile.current ? Theme.alpha(Theme.accent, 0.6)
-                                    : cardHover.hovered ? Theme.alpha(Theme.accent, 0.45) : Theme.divider
+                                    : card.hovering ? Theme.alpha(Theme.accent, 0.45) : Theme.divider
                         clip: true
                         Behavior on color { ColorAnimation { duration: Theme.animFast } }
                         Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
@@ -566,6 +566,14 @@ Item {
                         // don't steal its hover, so the action strip stays up
                         // while the pointer is over a button.
                         HoverHandler { id: cardHover }
+
+                        // The "More" menu is a Popup, so it renders on the window
+                        // overlay and NOT inside this card: the pointer moving off
+                        // the trigger onto the open menu leaves the card, cardHover
+                        // drops, and the strip used to fade out from under the menu
+                        // - taking its own trigger with it. An open menu counts as
+                        // hover for exactly as long as it is open.
+                        readonly property bool hovering: cardHover.hovered || moreMenu.menuOpen
 
                         Column {
                             anchors.fill: parent
@@ -687,7 +695,7 @@ Item {
                                     anchors.left: parent.left
                                     anchors.margins: 6
                                     width: 22; height: 22; radius: 6
-                                    visible: tile.selected || cardHover.hovered || page.selectionCount > 0
+                                    visible: tile.selected || card.hovering || page.selectionCount > 0
                                     color: tile.selected ? Theme.accent : Qt.rgba(0, 0, 0, 0.5)
                                     border.width: 1
                                     border.color: tile.selected ? Theme.accent : Qt.rgba(1, 1, 1, 0.6)
@@ -728,7 +736,7 @@ Item {
                                     anchors.margins: 6
                                     width: 26; height: 26; radius: 13
                                     color: Qt.rgba(0, 0, 0, 0.5)
-                                    visible: favorite || cardHover.hovered
+                                    visible: favorite || card.hovering
                                     function toggle() { App.history.setFavoriteByIds([entryId], !favorite) }
                                     UIcon {
                                         anchors.centerIn: parent
@@ -756,7 +764,7 @@ Item {
                                 // five controls into the middle of it.
                                 Item {
                                     id: strip
-                                    readonly property bool shown: cardHover.hovered && page.selectionCount === 0
+                                    readonly property bool shown: card.hovering && page.selectionCount === 0
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
@@ -843,6 +851,7 @@ Item {
                                                 onClicked: App.openTrimRecording(filePath)
                                             }
                                             UMenuButton {
+                                                id: moreMenu
                                                 activeFocusOnTab: false
                                                 iconOnly: true; iconName: "view-more"
                                                 tooltip: qsTr("More")

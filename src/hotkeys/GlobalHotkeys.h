@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QHash>
 #include <QSet>
+#include <functional>
 
 class QDBusMessage;
 
@@ -31,6 +32,11 @@ public:
     // component already owns them (e.g. stock Plasma binds Ctrl+Esc).
     bool setShortcut(const QString &actionId, const QString &friendlyName,
                      const QString &keySequence);
+    // Non-blocking production path. The callback runs on `context`'s thread
+    // and is dropped automatically if that context dies before the reply.
+    void setShortcutAsync(const QString &actionId, const QString &friendlyName,
+                          const QString &keySequence, QObject *context,
+                          std::function<void(bool)> done = {});
     // Fire-and-forget async unbind (empty key, SetPresent|NoAutoloading). For
     // callers that never inspect the result — avoids blocking the GUI thread.
     void releaseShortcut(const QString &actionId, const QString &friendlyName);
@@ -53,6 +59,8 @@ public:
     // out" — treating a timeout as unbound once wiped the user's keys via the
     // daemon-authoritative sync.
     QList<int> activeKeys(const QString &actionId, bool *ok = nullptr) const;
+    void activeKeysAsync(const QString &actionId, QObject *context,
+                         std::function<void(bool, const QList<int> &)> done);
 
     // Which action the daemon resolves `key` to, as "component/action" (empty
     // when unowned or on error). Two components can BOTH list the same key in
@@ -60,6 +68,8 @@ public:
     // while our capture-fullscreen binding still listed it) — only this
     // daemon-side lookup tells who actually receives the press.
     QString keyOwner(int key) const;
+    void keyOwnerAsync(int key, QObject *context,
+                       std::function<void(const QString &)> done);
 
     // Shift+digit bindings are pushed with their shifted-symbol variants as
     // alternates (KWin Wayland reports the press with shift consumed — see

@@ -32,6 +32,16 @@ class HistoryStore;
 //   "user":"name:pass", "publicUrlBase":"https://host/dir/" }
 // Optional "insecure": true skips sftp host-key verification (curl builds
 // whose sftp backend cannot read known_hosts). Off by default.
+// A curl destination understands three more things, all optional:
+//   - "%file%" anywhere in "requestUrl" is replaced by the percent-encoded file
+//     name (https://host/upload/%file%?to=inbox). Without the token the name is
+//     appended to the URL, which is what every FTP/SFTP destination wants.
+//   - "headers" works exactly as it does for http (Bearer tokens and the like);
+//     they are handed to curl through its stdin config, never through argv.
+//   - "urlPath"/"deletionUrlPath" resolve against curl's stdout, so a host that
+//     answers with the link (or with an id to build it from) can be used:
+//     "urlPath": "https://host/$json:data.id$". Without it the link is still
+//     "publicUrlBase" + file name.
 //
 // "body" selects the request encoding:
 //   absent / "multipart" -> multipart/form-data with the file part (default),
@@ -96,6 +106,21 @@ public:
     Q_INVOKABLE QString imgurClientIdOf(const QVariantMap &dest) const
     { return imgurClientId(QJsonObject::fromVariantMap(dest)); }
 
+    // What a given form field substitutes, for the editor to offer as chips and
+    // to draw as pills inside the field. Answered HERE and not spelled out in
+    // QML because this class is the only thing that actually performs the
+    // substitutions: a chip offering a token the sender ignores is worse than
+    // no chip at all, since it looks like it worked. `field` is the destination
+    // key ("requestUrl", "data", "urlPath"), `type` its "http"/"curl" kind -
+    // both request URLs take %file%, but only curl's appends the name without it.
+    //
+    // Returns { "pattern": <regex matching every valid token in this field>,
+    //           "vars": [ { "token", "label", "description", "caretBack" } ] }.
+    // caretBack is how many characters back from the end of an inserted token
+    // the caret belongs, so $json:$ leaves it between the colon and the '$'
+    // where the path is typed. An empty "vars" means the field takes none.
+    Q_INVOKABLE QVariantMap templateHelp(const QString &field, const QString &type) const;
+
     // Import a ShareX Custom Uploader (.sxcu) file. Accepts a plain path or a
     // file:// URL. Returns the imported destination's name on success, or an
     // empty string on failure (with errorOut set). Maps the common case:
@@ -107,6 +132,14 @@ public:
     // Settings export/import support.
     QJsonArray destinationsJson() const { return m_destinations; }
     void replaceAllDestinations(const QJsonArray &arr);
+
+    // Pure, server-free helpers - public so the F8 smoke run can check the two
+    // pieces of destination handling that used to need a real upload to see:
+    // where curl PUTs the file, and what a response is turned into.
+    static QString requestUrlWithFileName(const QString &requestUrl, const QString &fileName);
+    static QString curlTargetUrl(const QString &requestUrl, const QString &fileName);
+    static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
+    static QString extractToken(const QString &token, const QByteArray &response);
 
 signals:
     void destinationsChanged();
@@ -151,8 +184,6 @@ private:
     // real captures, testDestination() is the one test.
     void startUploadTo(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                        const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
-    static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
-    static QString extractToken(const QString &token, const QByteArray &response);
     static bool isImgur(const QJsonObject &dest);
     static QString imgurClientId(const QJsonObject &dest);
     void setBusy(bool b);

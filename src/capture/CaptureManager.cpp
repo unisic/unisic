@@ -9,6 +9,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
 #include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
 #include <QDebug>
 #include <memory>
 
@@ -18,11 +19,12 @@
 // app self-assign its id BEFORE the first portal call, so permissions are
 // keyed per-app instead of the anonymous "" bucket. Absent on older portals —
 // the async call just fails, harmlessly.
-static void registerHostAppId()
+#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+static void registerHostAppId(QObject *owner)
 {
     if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
         return; // sandboxed: the identity comes from the sandbox metadata
-    // NOTE: only the INTERFACE name carries the "host" domain — the object
+    // NOTE: only the INTERFACE name carries the "host" domain; the object
     // lives on the main portal path (verified live on xdg-desktop-portal
     // 1.22: the /org/freedesktop/host/... path returns "Object does not
     // exist").
@@ -32,11 +34,30 @@ static void registerHostAppId()
         QStringLiteral("org.freedesktop.host.portal.Registry"),
         QStringLiteral("Register"));
     // desktopFileName() is app.unisic.Unisic / app.unisic.UnisicDev (set in
-    // main before CaptureManager exists) — never the stable id literal, so the
+    // main before CaptureManager exists), never the stable id literal, so the
     // dev build keeps its own portal-side identity/permission bucket.
     msg << QGuiApplication::desktopFileName() << QVariantMap{};
-    QDBusConnection::sessionBus().asyncCall(msg);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg), owner);
+    QObject::connect(watcher, &QDBusPendingCallWatcher::finished, watcher,
+                     [watcher](QDBusPendingCallWatcher *) {
+        if (watcher->isError()) {
+            const QDBusError error = watcher->error();
+            // Qt's platform theme may have used the portal during QApplication
+            // construction. The connection then already has the same resolved
+            // identity and cannot be registered again; this is expected and
+            // the permission fallback covers that identity.
+            const bool alreadyAssociated =
+                error.name() == QLatin1String("org.freedesktop.portal.Error.Failed")
+                && error.message().contains(QLatin1String("already associated"),
+                                            Qt::CaseInsensitive);
+            if (!alreadyAssociated)
+                qInfo() << "Host portal app-id registration:" << error;
+        }
+        watcher->deleteLater();
+    });
 }
+#endif
 
 // The SILENT portal Screenshot path is gated on the permission store's
 // "screenshot" table by BOTH GNOME (43+) and KDE (Plasma 6.4+) — without a
@@ -114,9 +135,13 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_gnome(new GnomeScreenshot(this))
     , m_grim(new GrimScreenshot(this))
 {
-    // Order matters: Register must precede any other portal interaction on
-    // this connection for the id to stick.
-    registerHostAppId();
+    // Qt 6.11+ performs the same Registry.Register from QDesktopUnixServices
+    // once desktopFileName is available. Registering here too makes Qt's call
+    // report "Connection already associated". Older Qt versions need our call,
+    // and its ordering before other portal traffic remains load-bearing.
+#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+    registerHostAppId(this);
+#endif
     PortalScreenshot::ensureSilentPermission(this, [] {});
 }
 

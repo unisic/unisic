@@ -795,6 +795,10 @@ Window {
         // drift from itself.
         readonly property var imageExt: ["png", "jpg", "jpeg", "webp", "bmp", "tif",
                                          "tiff", "avif"]
+        // gif sits under video here even though C++ splits it by frame count (a
+        // one-frame GIF opens in the image editor). The extension is all a drag
+        // gives QML, and the animated one is the likelier drop - so the overlay
+        // guesses "video" and the drop itself still lands correctly.
         readonly property var videoExt: ["mp4", "webm", "gif", "mkv", "mov"]
 
         // Which window the url would open, from the extension of its last path
@@ -1037,4 +1041,5 @@ Window {
             }
         }
     }
+    UWindowResizer { active: !App.settings.useSystemDecoration }
 }

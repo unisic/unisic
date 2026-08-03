@@ -29,7 +29,7 @@ Popup {
 
     onClosed: if (markSeenOnClose) App.settings.systemCheckSeen = true
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.45) }
+    Overlay.modal: Rectangle { color: Theme.modalScrim }
 
     background: Rectangle {
         radius: Theme.radiusL
@@ -57,6 +57,9 @@ Popup {
         clip: true
         interactive: contentHeight > height
         boundsBehavior: Flickable.StopAtBounds
+
+        MiddleScroll { flickable: bodyFlick }
+        WheelBoost { flickable: bodyFlick }
 
         Column {
             id: bodyCol

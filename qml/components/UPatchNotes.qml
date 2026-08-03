@@ -106,22 +106,20 @@ Popup {
         return "other"
     }
 
-    // Deliberately not palette-derived (like the recording-overlay tokens):
-    // these are category hues and must stay distinguishable in every theme,
-    // so only the light/dark variant follows the palette.
+    // Semantic theme tokens keep the categories distinct while allowing a
+    // community JSON theme to tune them for its own contrast.
     function kindColor(kind) {
-        const dark = Theme.isDark
         switch (kind) {
-        case "new":      return dark ? "#3fb950" : "#1a7f37"
-        case "fixed":    return dark ? "#58a6ff" : "#0969da"
-        case "improved": return dark ? "#a371f7" : "#8250df"
-        case "changed":  return dark ? "#d29922" : "#9a6700"
-        case "removed":  return dark ? "#f85149" : "#cf222e"
+        case "new":      return Theme.releaseNew
+        case "fixed":    return Theme.releaseFixed
+        case "improved": return Theme.releaseImproved
+        case "changed":  return Theme.releaseChanged
+        case "removed":  return Theme.releaseRemoved
         }
         return Theme.textSecondary
     }
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.45) }
+    Overlay.modal: Rectangle { color: Theme.modalScrim }
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animFast; easing.type: Easing.OutCubic }
@@ -283,13 +281,31 @@ Popup {
             }
         }
 
-        ScrollView {
+        // A Flickable, not a ScrollView: MiddleScroll and WheelBoost attach to a
+        // Flickable by id, and a ScrollView's own Flickable is implicit with no
+        // id to hand them. Same clip, same bar - plus one wheel notch that moves
+        // a readable distance instead of Flickable's default crawl.
+        Flickable {
+            id: notesFlick
             visible: root.notes !== ""
             width: parent.width
             height: Math.min(notesColumn.implicitHeight, root.maxBodyHeight)
             clip: true
-            contentWidth: availableWidth
-            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            contentWidth: width
+            contentHeight: notesColumn.implicitHeight
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                // Named, and never a tab stop: the same treatment every other
+                // bar in the app gets (see SettingsPage ScrollPane).
+                Accessible.name: qsTr("Release notes")
+                Accessible.focusable: false
+            }
+
+            MiddleScroll { flickable: notesFlick }
+            WheelBoost { flickable: notesFlick }
 
             Column {
                 id: notesColumn

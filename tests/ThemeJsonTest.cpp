@@ -67,14 +67,19 @@ void ThemeJsonTest::optionalOverridesPassThrough()
 {
     QByteArray json = minimalTheme();
     json.replace("{", "{\"danger\": \"#FF0000\", \"surfaceHi\": \"#222244\","
-                      " \"recBadgeBg\": \"#CC000000\", \"keystrokeText\": \"#FFEEEE\",");
+                      " \"mediaBase\": \"#101018\", \"releaseFixed\": \"#55AAFF\","
+                      " \"recBadgeBg\": \"#CC000000\", \"recordFrameContrast\": \"#99000000\","
+                      " \"keystrokeText\": \"#FFEEEE\",");
     QString err;
     const QVariantMap def = ThemeJson::parse(json, QStringLiteral("f"), &err);
     QVERIFY2(!def.isEmpty(), qPrintable(err));
     QCOMPARE(def.value(QStringLiteral("danger")).toString(), QStringLiteral("#FF0000"));
     QCOMPARE(def.value(QStringLiteral("surfaceHi")).toString(), QStringLiteral("#222244"));
+    QCOMPARE(def.value(QStringLiteral("mediaBase")).toString(), QStringLiteral("#101018"));
+    QCOMPARE(def.value(QStringLiteral("releaseFixed")).toString(), QStringLiteral("#55AAFF"));
     // Recording-overlay tokens ride the same optional-override path (alpha kept).
     QCOMPARE(def.value(QStringLiteral("recBadgeBg")).toString(), QStringLiteral("#CC000000"));
+    QCOMPARE(def.value(QStringLiteral("recordFrameContrast")).toString(), QStringLiteral("#99000000"));
     QCOMPARE(def.value(QStringLiteral("keystrokeText")).toString(), QStringLiteral("#FFEEEE"));
 }
 

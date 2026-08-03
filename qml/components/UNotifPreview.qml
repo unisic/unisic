@@ -12,7 +12,7 @@ import Unisic.Kit
 //
 // The card is LIVE, not a picture: the action buttons hover like the real ones
 // and clicking one adds or removes it (hiddenNotifActions), the thumbnail shows
-// the same hover cue, and the image-first style reveals its actions on hover
+// the same persistent cue, and the image-first style keeps its actions visible
 // exactly as the shipped card does.
 //
 // Card size comes from App.notifCardSize() - the same C++ style->size table
@@ -110,8 +110,6 @@ Item {
     }
     // Styles that carry an action row at all (the pill shows only a filename).
     readonly property bool hasActions: style !== "minimal"
-    // The image-first style keeps its actions hidden until the pointer is on it.
-    property bool thumbHovered: false
 
     Rectangle {
         id: screen
@@ -194,20 +192,15 @@ Item {
                         size: Math.max(12, Math.min(26, Math.round(Math.min(thumb.width, thumb.height) * 0.45)))
                         color: Theme.textTertiary
                     }
-                    HoverHandler {
-                        id: thumbHover
-                        cursorShape: Qt.PointingHandCursor
-                        onHoveredChanged: root.thumbHovered = hovered
-                    }
                     Rectangle {
                         anchors.fill: parent
-                        visible: thumb.showCue && thumbHover.hovered
-                        color: Qt.rgba(0, 0, 0, 0.32)
+                        visible: thumb.showCue
+                        color: Theme.alpha(Theme.mediaBase, 0.32)
                         UIcon {
                             anchors.centerIn: parent
                             name: "fullscreen"
                             size: Math.min(22, Math.round(thumb.height * 0.4))
-                            color: "#FFFFFF"
+                            color: Theme.mediaText
                         }
                     }
                 }
@@ -248,7 +241,7 @@ Item {
                     border.width: 1
                     border.color: reorderDrag.active || btnHover.hovered ? Theme.accent
                                 : off ? Theme.alpha(Theme.divider, 0.7) : Theme.divider
-                    opacity: off && !btnHover.hovered && !reorderDrag.active ? 0.5 : 1.0
+                    opacity: off && !reorderDrag.active ? 0.5 : 1.0
                     Behavior on opacity { NumberAnimation { duration: 90 } }
                     // Picked up: lifted above its neighbours while it is held.
                     // The button itself does NOT chase the pointer - it swaps
@@ -451,7 +444,7 @@ Item {
                     }
                 }
 
-                // ---- thumbnail: image first, actions on hover ----
+                // ---- thumbnail: image first, persistent actions ----
                 Item {
                     visible: root.style === "thumbnail"
                     anchors.fill: parent
@@ -460,11 +453,7 @@ Item {
                     Rectangle {
                         anchors.fill: parent
                         radius: Theme.radiusM
-                        color: Qt.rgba(0, 0, 0, 0.55)
-                        opacity: root.thumbHovered || hoverActions.hovered || root.dragging ? 1 : 0
-                        visible: opacity > 0
-                        Behavior on opacity { NumberAnimation { duration: 120 } }
-                        HoverHandler { id: hoverActions }
+                        color: Theme.alpha(Theme.mediaBase, 0.55)
                         Grid {
                             id: thumbGrid
                             anchors.centerIn: parent

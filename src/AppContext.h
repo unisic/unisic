@@ -144,9 +144,19 @@ class AppContext : public QObject
     // the OCR settings surface an install hint on this.
     Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
     Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
+    // ffmpeg is in PATH. Recording already reports its own absence when it
+    // fails; this exists so the GIF actions can grey out with a reason BEFORE
+    // the user picks one, rather than failing afterwards.
+    Q_PROPERTY(bool ffmpegAvailable READ ffmpegAvailable CONSTANT)
+    // Source URL for the Settings watermark preview. It carries a revision
+    // that changes whenever any watermark setting does, because QML caches a
+    // provider image by its URL and would otherwise show the first render for
+    // the rest of the session.
+    Q_PROPERTY(QString watermarkPreviewSource READ watermarkPreviewSource NOTIFY watermarkPreviewChanged)
     Q_PROPERTY(bool vaapiAvailable READ vaapiAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
+    Q_PROPERTY(bool audioInputListAvailable READ audioInputListAvailable CONSTANT)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -282,6 +292,10 @@ public:
     Q_INVOKABLE void devTestNotificationDrag();
     Q_INVOKABLE void devTestHistoryFilter();
     Q_INVOKABLE void devTestImgurSetup();
+    Q_INVOKABLE void devTestCurlDestination();
+    Q_INVOKABLE void devTestTemplateVars();
+    Q_INVOKABLE void devTestStaticGif();
+    Q_INVOKABLE void devTestImageConvert();
     Q_INVOKABLE void devTestCopyLast();
     Q_INVOKABLE void devTestClipboardHistory();
     Q_INVOKABLE void devTestShowInFolder();
@@ -324,6 +338,8 @@ public:
     Q_INVOKABLE void devTestEyedropper();
     Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();
+    Q_INVOKABLE void devTestOverlayMode();
+    Q_INVOKABLE void devTestOverlayPreview();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
     Q_INVOKABLE void devTestOcrRedactPattern();
@@ -334,6 +350,7 @@ public:
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
     Q_INVOKABLE void devTestWatermark();
+    Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
     Q_INVOKABLE void devTestShiftSnap();
     Q_INVOKABLE void devTestQrPreview();
@@ -354,6 +371,10 @@ public:
     Q_INVOKABLE void devTestTrimRecording();
     Q_INVOKABLE void devTestTrimCut();
     Q_INVOKABLE void devTestPauseExcise();
+    Q_INVOKABLE void devTestVideoQuality();
+    Q_INVOKABLE void devTestAudioTracks();
+    Q_INVOKABLE void devTestAudioInputs();
+    Q_INVOKABLE void devTestTrimAudio();
     Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
     Q_INVOKABLE void devTestUpdateCheck();
@@ -371,6 +392,8 @@ public:
     bool ocrAvailable() const;
     bool ocrHasLanguages() const;
     bool qrAvailable() const;
+    bool ffmpegAvailable() const;
+    QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
     bool nvencAvailable() const { return m_nvencAvailable; }
     bool perAppAudioAvailable() const;
@@ -378,6 +401,11 @@ public:
     // Async variant for the UI: enumerates off-thread and emits
     // audioApplicationNodesReady so opening the audio dropdown never blocks.
     Q_INVOKABLE void requestAudioApplicationNodes();
+    // Capture-capable input devices (Audio/Source nodes: mics and virtual
+    // sources), same pw-dump transport and threading as the app nodes above.
+    bool audioInputListAvailable() const;
+    Q_INVOKABLE QVariantList audioInputDevices() const; // synchronous (dev/smoke only)
+    Q_INVOKABLE void requestAudioInputDevices();
     // Install the QTranslators for the current uiLanguage setting (swapping any
     // previously installed ones). Called once before the engine loads and again
     // whenever the language setting changes (live retranslate + tray rebuild).
@@ -429,6 +457,11 @@ public:
     Q_INVOKABLE void captureRegionOcr();
     Q_INVOKABLE void captureWindow();
     Q_INVOKABLE QString pickWatermarkImage();
+    // THE watermark step: the after-capture pipeline and the Settings preview
+    // both go through here, so a preview cannot show something the capture
+    // will not do. Returns the source unchanged (still implicitly shared, no
+    // full-frame copy) when the watermark is off or has nothing to stamp.
+    QImage stampWatermark(const QImage &source) const;
     // Bring a file you already have into the app: an image opens in the editor,
     // a recording in the trim window. One entry point, routed by what the file
     // actually is — the two windows are the same ones a capture would open.
@@ -469,9 +502,18 @@ public:
     // window snaps its in-point onto one first (TrimController::snapStart), so
     // what it showed is still what gets written. GIF ignores the flag: its
     // demuxer cannot seek and stream-copying one produces a file that starts at
-    // 0 and ignores the range, so a GIF is always re-rendered.
+    // 0 and ignores the range, so a GIF is always re-rendered. audioGains is
+    // one value per audio track in stream order (-1 drops the track, 1.0
+    // leaves it, anything else is a volume factor); empty or all-1.0 keeps the
+    // audio untouched (stream copy in lossless mode). Any edit re-encodes the
+    // audio only - the video keeps its lossless/exact behaviour either way.
+    // mixTrack >= 0 names the recording's own mix track (trim window detects
+    // it): on any edit that track is rebuilt by amixing the kept stems at
+    // their gains, so the edit is audible in the track players actually play.
     Q_INVOKABLE void trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
-                                   bool lossless = false);
+                                   bool lossless = false,
+                                   const QVariantList &audioGains = {},
+                                   int mixTrack = -1);
     Q_INVOKABLE void startGifRegion();
     Q_INVOKABLE void startGifFullScreen();
     Q_INVOKABLE void startVideoScreen();
@@ -538,6 +580,11 @@ public:
     void exportFilesToZip(const QStringList &files, const QString &destPath,
                           std::function<void(bool, const QString &)> done = {});
     Q_INVOKABLE QString filenamePreview() const;
+    // The tokens the filename template understands, for the settings field to
+    // offer as chips and draw as pills. Same shape as
+    // UploadManager::templateHelp, and for the same reason: the list comes from
+    // the code that performs the substitution, never from the QML.
+    Q_INVOKABLE QVariantMap filenameHelp() const;
     // Custom tray icon. addTrayIcon = pick a file, COPY it into trayIconsDir;
     // selectTrayIcon = pick a known path (gallery tile; "" reverts to default);
     // clear = default. trayIconsDir = the folder the user drops their icons into.
@@ -552,8 +599,31 @@ public:
 
     // Used by EditorSession / CaptureNotification. fileName: reuse a name
     // computed once per capture (save and upload must agree); empty = generate.
-    QString saveImageAuto(const QImage &img, const QString &fileName = {});
-    QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {});
+    // allowAutoConvert=false turns OFF the over-size re-encode for a save whose
+    // format the user just picked by hand ("Save as GIF", "Convert to WebP"):
+    // silently rewriting that into something else would undo the one decision
+    // the click was.
+    QString saveImageAuto(const QImage &img, const QString &fileName = {},
+                          bool allowAutoConvert = true);
+    QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {},
+                        bool allowAutoConvert = true);
+    // Overwrites an EXISTING image file in place with `img`, encoded for the
+    // extension that file already has (so a .jpg keeps the quality setting and
+    // a .gif goes through ffmpeg instead of failing). Toasts and returns false
+    // when nothing could be written. The editor's overwrite-save calls this.
+    bool overwriteImageFile(const QImage &img, const QString &path);
+    // The format an UPLOAD should be encoded in: the upload-format setting when
+    // it is set, otherwise "" meaning "follow the save format". One place, so
+    // the capture, the notification card and the editor cannot disagree.
+    QString uploadImageFormat() const;
+    // template + extension. formatOverride is for a one-off save in something
+    // other than the format Settings picked (the editor's "Save as GIF");
+    // empty means follow the setting.
+    QString makeFileName(const QString &formatOverride = {}) const;
+    // Rewrites an existing capture into `format` (png/jpg/webp/gif) beside
+    // itself, keeping the original. Returns the new path, or "" after a toast.
+    // The history tile's one-off "Save as GIF" calls this.
+    Q_INVOKABLE QString convertFileTo(const QString &path, const QString &format);
     void copyImageToClipboard(const QImage &img);
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
@@ -594,8 +664,10 @@ public:
     // only ever handed bundled cues or files from that dir — never an
     // arbitrary config-supplied path). Returns the new id, "" on cancel/fail.
     Q_INVOKABLE QString addCustomSound();
-    void uploadImage(const QImage &img, UploadDone done);
-    void openEditor(const QImage &img, const QString &overwritePath = {});
+    // historyId: the entry this capture already owns, so the upload URL updates
+    // it instead of adding a second tile (0 = no entry yet).
+    void uploadImage(const QImage &img, UploadDone done, quint64 historyId = 0);
+    void openEditor(const QImage &img, const QString &overwritePath = {}, quint64 historyId = 0);
     // Floating, pinnable, translucent preview of a capture. Returns false when
     // the window could not be created.
     bool openPreview(const QImage &img);
@@ -625,6 +697,7 @@ public:
 
 signals:
     void audioApplicationNodesReady(const QVariantList &nodes);
+    void audioInputDevicesReady(const QVariantList &devices);
     void recordingChanged();
     void recordSecondsChanged();
     void toastChanged();
@@ -641,6 +714,7 @@ signals:
     // the single-instance socket must keep running, it is the user's app.
     void cliCaptureFinished(bool ok);
     void hotkeysAvailableChanged();
+    void watermarkPreviewChanged();
     void recordingAvailableChanged();
     void trayAvailableChanged();
     void shortcutRecordingChanged();
@@ -697,6 +771,11 @@ private:
     // to ANOTHER component daemon-side (e.g. a KWin script) — those actions
     // look bound but never fire, and healing cannot win the key back.
     QStringList hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts = nullptr);
+    // Production counterpart: same daemon-authoritative audit without blocking
+    // the GUI thread between actions, owner lookups or healing writes.
+    void hotkeyBindStatusAsync(
+        bool heal,
+        std::function<void(int, const QStringList &, const QStringList &)> done);
     // Windows (editor/preview) opened while the smoke test runs — the final
     // step closes them so F8 leaves no manual cleanup behind.
     QVector<QPointer<QQuickWindow>> m_smokeWindows;
@@ -721,6 +800,10 @@ private:
     // Loads the QML singleton and verifies the complete editor/overlay letter
     // mapping from the same ToolCatalog table the keyboard handlers consume.
     QString toolShortcutsCheck() const;
+    // Builds the real UOverlayPreview and asserts it agrees with the overlay it
+    // stands in for: one entry per OverlayController purpose, and a toolbar that
+    // stays on the mock screen in every configured position.
+    QString overlayPreviewCheck();
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
@@ -729,6 +812,30 @@ private:
     // destination without an ID fails fast with a message that says what to do
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
+    // The two pieces of a curl destination that used to need a real server to
+    // see: where the file is PUT (the %file% token, and the legacy append when
+    // it is absent, with a file name that must not be able to climb out of the
+    // target directory), and what curl's stdout is turned into. Pure string
+    // work, so it runs offline.
+    QString curlDestinationCheck() const;
+    // Puts every template variable the destination editor offers as a chip
+    // through the code that has to consume it. Guards the one way this feature
+    // fails silently: a chip for a token nothing substitutes uploads the literal
+    // "%file%" and looks fine until the link is dead.
+    QString templateVarsCheck() const;
+    // Encodes a small image to a still GIF and reads the result back: header,
+    // frame count and size. Needs ffmpeg, so it reports SKIP without one -
+    // which is also the state where saving a GIF falls back to PNG.
+    QString staticGifCheck() const;
+    // The conversion policy every re-encode goes through (ImageEncode::encode):
+    // the three formats Qt writes come back with their own magic numbers, a
+    // transparent JPEG comes back a PNG with the reason attached, and the
+    // renaming that has to follow it lands on the right dot. Ends with what the
+    // upload / incoming / over-size settings are set to do right now.
+    QString imageConvertCheck() const;
+    // Renders the Settings watermark preview through the real pipeline step
+    // and reports whether the mark landed on the mock capture.
+    QString watermarkPreviewCheck() const;
     // The server editor's "Test upload" path (UploadManager::testDestination):
     // an unusable form must be refused before any request goes out, a usable
     // one must really travel the curl transport (scratch file:// target, so the
@@ -833,13 +940,18 @@ private:
     // "Quick copy" grace window: when auto-copy-to-clipboard is off, the last
     // capture is held for a couple of seconds and Ctrl+C (grabbed globally via
     // KGlobalAccel for exactly that window) copies it, then the grab is released.
-    QString makeFileName() const;                    // template + extension
     // Encode off the GUI thread (a 4K PNG encode is 100+ ms): settings are
     // snapshotted here, the encode runs on a worker, and `done(data, mime)` is
     // delivered back on the GUI thread (dropped if AppContext died meanwhile).
     void encodeImageAsync(const QImage &img,
                           std::function<void(const QByteArray &, const QString &)> done,
                           const QString &formatOverride = {});
+    // The over-size rule, applied to a file that was just written. Returns the
+    // path the caller should go on using: the converted one when the re-encode
+    // really came out smaller, the original one in every other case (rule off,
+    // under the limit, already that format, no ffmpeg, or a "smaller" format
+    // that turned out bigger). Never leaves both files behind.
+    QString autoConvertIfLarge(const QString &path, const QImage &img);
     // Continuation of openPreview after the worker-thread PNG save.
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
     void afterUploadActions(const QString &url);
@@ -892,6 +1004,14 @@ private:
     // Excise a known pause span from a generated clip and confirm the output
     // duration drops by that span (the recorder's real filtergraph).
     void pauseExciseCheck(std::function<void(const QString &)> done);
+    // Multi-track audio, end to end: fixture with two named tracks ->
+    // pause excise -> final MP4 conversion, asserting both survive with
+    // their names.
+    void audioTracksCheck(std::function<void(const QString &)> done);
+    // Trimmer per-track audio edit: fixture with two tracks -> trim-style
+    // ffmpeg run with one track dropped and one attenuated, asserting the
+    // output keeps exactly the surviving track.
+    void trimAudioCheck(std::function<void(const QString &)> done);
     struct CaptureTask {
         bool active = false;
         bool save = false;
@@ -968,6 +1088,9 @@ private:
     // Decoded once when the setting changes, never in the per-capture fan-out.
     // Capped in refreshWatermarkImage() so a logo cannot pin an enormous source.
     QImage m_watermarkImage;
+    // Bumped by every watermark setting; the only thing it does is change the
+    // preview's URL so QML re-requests it instead of reusing its cached pixmap.
+    int m_watermarkPreviewRev = 0;
     // Monotonic copy-request id: the deferred wl-copy mirror only fires when
     // its request is still the newest (GUI-thread only, no atomics).
     quint64 m_clipboardSeq = 0;

@@ -12,6 +12,17 @@ Item {
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
 
+    // { pattern, vars } for the filename template, from the code that expands
+    // it. Here rather than at the field because the pane is rebuilt by a Loader
+    // and this answer does not change with it.
+    readonly property var filenameHelp: {
+        // Read for its dependency only: engine.retranslate() re-evaluates qsTr
+        // in QML, but these labels come from C++ translate(), so without this a
+        // live language switch would leave the chips in the old language.
+        void App.settings.uiLanguage
+        return App.filenameHelp()
+    }
+
     // Why the whole Updates pane is inert. Two packaging channels own their own
     // updates, for different reasons, and the row hints must say WHICH one is
     // in charge - "updates are managed externally" tells nobody what to run.
@@ -230,20 +241,27 @@ Item {
         return best
     }
     property var appAudioNodes: []
+    property var micDevices: []
     // Async: pw-dump runs off the GUI thread and returns via onAudioApplicationNodesReady.
     function refreshAppAudioNodes() { App.requestAudioApplicationNodes() }
+    function refreshMicDevices() { App.requestAudioInputDevices() }
     Connections {
         target: App
         function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
+        function onAudioInputDevicesReady(devices) { page.micDevices = devices }
     }
     // Load once on open so persisted, non-reactive helper models are ready
     // before their panes are visited.
     Component.onCompleted: {
         if (App.perAppAudioAvailable)
             page.refreshAppAudioNodes()
+        if (App.audioInputListAvailable)
+            page.refreshMicDevices()
     }
     readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
     readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
+    readonly property var micDeviceIds: [""].concat(micDevices.map(function(d) { return d.id }))
+    readonly property var micDeviceLabels: [qsTr("Default input")].concat(micDevices.map(function(d) { return d.label }))
     readonly property var taskDestinationIds: [""].concat(App.uploads.destinations.map(function(d) { return d.name }))
     readonly property var taskDestinationLabels: [qsTr("Use active destination")].concat(App.uploads.destinations.map(function(d) { return d.name }))
 
@@ -764,6 +782,12 @@ Item {
         // Every rail row is a Tab stop, and at the 560 px minimum window height
         // the last categories are below the rail's fold.
         FocusScroll { flickable: navRail }
+        MiddleScroll { flickable: navRail }
+        // The rail scrolls like every other pane instead of falling back to
+        // Flickable's own wheel physics, which needed a spin per row here.
+        // 120, not the 220 default: a rail row is 40 px with its spacing, so a
+        // notch is three rows - a pane-sized step would jump most of the list.
+        WheelBoost { flickable: navRail; stepPx: 120 }
         Column {
             id: navCol
             width: parent.width
@@ -809,6 +833,10 @@ Item {
             // Result rows are Tab stops and a broad query lists far more of
             // them than the viewport holds.
             FocusScroll { flickable: resultsFlick }
+            // Search results are setting rows, so they scroll like the panes
+            // they came from - the same wheel step, the same middle-drag.
+            MiddleScroll { flickable: resultsFlick }
+            WheelBoost { flickable: resultsFlick }
             Column {
                 id: resultsCol
                 width: parent.width
@@ -1316,15 +1344,6 @@ Item {
                             onActivated: (i) => App.settings.fullscreenScope = ids[i]
                         }
                     }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Capture overlay") }
                     SettingRow {
                         label: qsTr("Measurement copy format")
                         help: qsTr("How the ruler's sizes are written when you press Ctrl+C.")
@@ -1336,29 +1355,6 @@ Item {
                             currentIndex: Math.max(0, ids.indexOf(App.settings.measureCopyFormat))
                             onActivated: (i) => App.settings.measureCopyFormat = ids[i]
                         }
-                    }
-                    SettingRow {
-                        label: qsTr("Toolbar position")
-                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
-                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
-                        UComboBox {
-                            width: 200
-                            model: page.toolbarPosNames
-                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
-                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
-                        }
-                    }
-                    SettingRow {
-                        label: qsTr("Show alignment guides while selecting")
-                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
-                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
-                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
-                    }
-                    SettingRow {
-                        label: qsTr("Show a pixel loupe while selecting")
-                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
-                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
-                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }
             }
@@ -1551,6 +1547,19 @@ Item {
                         UComboBox { width: 130; model: ["15 FPS", "30 FPS", "45 FPS", "60 FPS"]; readonly property var opts: [15,30,45,60]; currentIndex: page.nearestFps(App.settings.videoFps); onActivated: (i) => App.settings.videoFps = opts[i] }
                     }
                     SettingRow {
+                        label: qsTr("Video quality")
+                        help: qsTr("How much detail the encoder keeps, from 0% to 100%.")
+                        helpDetail: qsTr("100% is mathematically lossless and very large, 50% is the balanced default, and below 25% small text starts to smear. The percent is turned into an encoder CRF, so the same number means the same picture on every codec here.")
+                        UValueCombo {
+                            width: 120
+                            values: [25, 40, 50, 60, 75, 90, 100]
+                            from: 0; to: 100
+                            suffix: "%"
+                            value: App.settings.videoQualityPercent
+                            onChanged: (v) => App.settings.videoQualityPercent = v
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Countdown before recording")
                         help: qsTr("Waits this many seconds before recording starts, showing a 3-2-1 cue.")
                         helpDetail: qsTr("Gives you a moment to switch windows or get ready. 0 starts immediately. Applies to GIF and video, region and full screen.")
@@ -1610,7 +1619,7 @@ Item {
                         Row {
                             spacing: 6
                             Repeater {
-                                model: ["#FFD600", "#00E5FF", "#FF4757", "#7CFF6B", "#FFFFFF"]
+                                model: Theme.swatches.slice(0, 5)
                                 delegate: ColorDot {
                                     required property var modelData
                                     dotColor: modelData
@@ -1673,8 +1682,26 @@ Item {
                     SettingRow {
                         label: qsTr("Record microphone")
                         help: qsTr("Captures your microphone into video recordings.")
-                        helpDetail: qsTr("Uses the default input device. Mixed with system audio when both are enabled. GIFs have no audio.")
+                        helpDetail: qsTr("Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordMicrophone; onToggled: (c) => App.settings.recordMicrophone = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Microphone input")
+                        help: App.audioInputListAvailable
+                              ? qsTr("Which input device the microphone track records from.")
+                              : qsTr("Requires the pw-dump helper to list input devices.")
+                        helpDetail: qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UComboBox {
+                                width: 170
+                                enabled: App.audioInputListAvailable
+                                model: page.micDeviceLabels
+                                currentIndex: Math.max(0, page.micDeviceIds.indexOf(App.settings.microphoneSource))
+                                onActivated: (i) => App.settings.microphoneSource = page.micDeviceIds[i]
+                            }
+                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.audioInputListAvailable; onClicked: page.refreshMicDevices() }
+                        }
                     }
                     SettingRow {
                         label: qsTr("Application audio only")
@@ -1693,6 +1720,12 @@ Item {
                             }
                             UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
                         }
+                    }
+                    SettingRow {
+                        label: qsTr("Separate audio tracks")
+                        help: qsTr("Writes every source as its own named track instead of mixing them together.")
+                        helpDetail: qsTr("For editing: the microphone stays separate from system audio, so you can duck one against the other later. Needs at least two sources - with one there is nothing to separate and the recording keeps its single track. The first track is a ready-made mix of everything, so the file still plays with full sound everywhere; the separate source tracks follow it.")
+                        USwitch { checked: App.settings.separateAudioTracks; onToggled: (c) => App.settings.separateAudioTracks = c }
                     }
                     Text {
                         width: parent.width
@@ -1777,11 +1810,15 @@ Item {
                         helpDetail: qsTr("Used by pen, shapes, arrows and text until you pick another color in the editor. Recent colors are remembered.")
                         Row {
                             spacing: 6
-                            ColorDot { dotColor: "#FF4757"; active: App.settings.editorStrokeColor.toLowerCase() === "#ff4757"; onClicked: App.settings.editorStrokeColor = "#FF4757" }
-                            ColorDot { dotColor: "#FFD84D"; active: App.settings.editorStrokeColor.toLowerCase() === "#ffd84d"; onClicked: App.settings.editorStrokeColor = "#FFD84D" }
-                            ColorDot { dotColor: "#2ED573"; active: App.settings.editorStrokeColor.toLowerCase() === "#2ed573"; onClicked: App.settings.editorStrokeColor = "#2ED573" }
-                            ColorDot { dotColor: "#1E90FF"; active: App.settings.editorStrokeColor.toLowerCase() === "#1e90ff"; onClicked: App.settings.editorStrokeColor = "#1E90FF" }
-                            ColorDot { dotColor: "#C8ACD6"; active: App.settings.editorStrokeColor.toLowerCase() === "#c8acd6"; onClicked: App.settings.editorStrokeColor = "#C8ACD6" }
+                            Repeater {
+                                model: Theme.swatches.slice(0, 5)
+                                delegate: ColorDot {
+                                    required property var modelData
+                                    dotColor: modelData
+                                    active: Qt.colorEqual(App.settings.editorStrokeColor, modelData)
+                                    onClicked: App.settings.editorStrokeColor = modelData
+                                }
+                            }
                         }
                     }
                     SettingRow {
@@ -1973,6 +2010,9 @@ Item {
                     Qt.callLater(page.rebuildSearch)
             }
             sourceComponent: ScrollPane {
+            // Named so the filename field can hand the floating variable bar
+            // the area it has to stay inside and follow when scrolled.
+            id: imagePane
             SettingsGroup {
                 width: page.cardWidth
                 Column {
@@ -2032,19 +2072,19 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Image format")
-                        help: qsTr("File format for saved captures: PNG, JPEG or WebP.")
-                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. The format also applies to uploads and to the clipboard-encoded image where relevant.")
+                        help: qsTr("File format for saved captures: PNG, JPEG, WebP or GIF.")
+                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colours - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
                         UComboBox {
                             width: 150
-                            model: ["png", "jpg", "webp"]
+                            model: ["png", "jpg", "webp", "gif"]
                             currentIndex: Math.max(0, model.indexOf(App.settings.imageFormat))
                             onActivated: (i) => App.settings.imageFormat = model[i]
                         }
                     }
                     SettingRow {
-                        label: qsTr("Quality (JPEG/WebP): %1").arg(App.settings.imageQuality)
+                        label: qsTr("Quality (JPEG/WebP/GIF): %1").arg(App.settings.imageQuality)
                         help: qsTr("Compression quality for lossy formats.")
-                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colours below 40, 128 below 75, the full 256 above.")
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -2074,6 +2114,29 @@ Item {
                             accessibleDescription: templateCaption.text
                             text: App.settings.filenameTemplate
                             onEdited: (t) => App.settings.filenameTemplate = t
+                            // Draws %date% and friends as pills, so a token
+                            // reads as one thing and a typo in one is visible
+                            // as the pill that never appeared.
+                            tokenPattern: page.filenameHelp.pattern || ""
+                            // Pushed rather than pulled: the bar lives out in
+                            // paneArea (below), which cannot see an id declared
+                            // inside a pane's Component.
+                            onInputActiveFocusChanged: {
+                                if (templateField.inputActiveFocus) {
+                                    varBar.viewport = imagePane
+                                    varBar.vars = page.filenameHelp.vars || []
+                                    varBar.field = templateField
+                                } else if (varBar.field === templateField) {
+                                    varBar.field = null
+                                }
+                            }
+                            // The pane is a Loader's content and can go away
+                            // under the bar; a stale field here would be a
+                            // dangling pointer, not merely a wrong one.
+                            Component.onDestruction: {
+                                if (varBar.field === templateField)
+                                    varBar.field = null
+                            }
                         }
                         Text {
                             // filenamePreview() is a plain Q_INVOKABLE with no
@@ -2121,6 +2184,70 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Image conversion") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Re-encodes pictures into another format on the way in, on the way out, or when one turns out too big. The quality slider above applies to every conversion.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    SettingRow {
+                        label: qsTr("Convert files I bring in")
+                        help: qsTr("A picture dropped, pasted or opened here is saved in the format above instead of the one it arrived in.")
+                        helpDetail: qsTr("The converted picture is a new file beside the original, which stays untouched: an in-place rewrite would leave the name disagreeing with the bytes, and a lossy re-encode over someone's only copy is not something a Save button should do quietly. Files already in the chosen format are saved normally.")
+                        USwitch { checked: App.settings.convertIncoming; onToggled: (c) => App.settings.convertIncoming = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Convert files over a size")
+                        help: qsTr("A saved capture larger than the limit below is re-encoded into a lighter format.")
+                        helpDetail: qsTr("Runs right after the save, so history, the notification and the clipboard all point at the converted file. If the re-encode does not actually come out smaller, the original is kept and nothing is said - the rule can never make a file worse. It leaves manual choices alone: Save as GIF and the history Convert to entries are never overridden.")
+                        USwitch { checked: App.settings.autoConvertLarge; onToggled: (c) => App.settings.autoConvertLarge = c }
+                    }
+                    SettingRow {
+                        available: App.settings.autoConvertLarge
+                        label: qsTr("Convert over: %1 MB").arg(App.settings.autoConvertOverMb)
+                        help: qsTr("Size at which a saved capture is converted.")
+                        USlider {
+                            width: 200
+                            from: 1; to: 50; stepSize: 1
+                            value: App.settings.autoConvertOverMb
+                            onMoved: (v) => App.settings.autoConvertOverMb = Math.round(v)
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.autoConvertLarge
+                        label: qsTr("Convert into")
+                        help: qsTr("Format for the over-size conversion.")
+                        helpDetail: qsTr("WebP is the usual answer: it keeps transparency and is far smaller than PNG. JPEG is smaller still but drops transparency, so a capture with any goes to PNG instead and says so.")
+                        UComboBox {
+                            width: 150
+                            model: ["png", "jpg", "webp", "gif"]
+                            currentIndex: Math.max(0, model.indexOf(App.settings.autoConvertFormat))
+                            onActivated: (i) => App.settings.autoConvertFormat = model[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Upload format")
+                        help: qsTr("Format for uploaded pictures, independent of what lands on disk.")
+                        helpDetail: qsTr("Lets you keep lossless PNG files locally while sending something lighter, or the other way round. The file on disk and the one in history are never touched - the conversion happens on the bytes being sent. Recordings and animated GIFs upload as they are.")
+                        UComboBox {
+                            width: 180
+                            // The setting stores an extension, or "" for "leave
+                            // it alone" - the labels are shown, never stored.
+                            property var codes: ["", "png", "jpg", "webp", "gif"]
+                            model: [qsTr("Same as the saved file"), "PNG", "JPEG", "WebP", "GIF"]
+                            currentIndex: Math.max(0, codes.indexOf(App.settings.uploadFormat))
+                            onActivated: (i) => App.settings.uploadFormat = codes[i]
+                        }
+                    }
+                }
+            }
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Watermark") }
                     Text {
                         width: parent.width
@@ -2134,6 +2261,58 @@ Item {
                         help: qsTr("Applies the selected stamp to every new screenshot.")
                         helpDetail: qsTr("The stamp is baked into the final capture once, before the independent save, clipboard, upload, history and editor actions. It does not alter recordings or existing files.")
                         USwitch { checked: App.settings.watermarkEnabled; onToggled: (c) => App.settings.watermarkEnabled = c }
+                    }
+                    // The stamp on a mock capture, rendered by the same code the
+                    // after-capture pipeline runs, so what is shown here is what
+                    // a screenshot gets. The mock has a light half and a dark
+                    // one on purpose: a mark that reads over one can vanish over
+                    // the other, and opacity and size are what decide it.
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingXS
+                        visible: App.settings.watermarkEnabled
+                        Rectangle {
+                            width: parent.width
+                            height: Math.round(width * 0.56)
+                            radius: Theme.radiusM
+                            color: Theme.surface
+                            border.width: 1
+                            border.color: Theme.divider
+                            clip: true
+                            Image {
+                                anchors.fill: parent
+                                anchors.margins: 1
+                                // Asked for in device pixels so the preview is
+                                // sharp on a scaled display; the provider paints
+                                // exactly what is requested.
+                                sourceSize: Qt.size(
+                                    Math.max(1, Math.round(width * (Screen.devicePixelRatio || 1))),
+                                    Math.max(1, Math.round(height * (Screen.devicePixelRatio || 1))))
+                                source: App.watermarkPreviewSource
+                                // Synchronous ON PURPOSE: `true` here moves the
+                                // provider onto a worker thread, where it reads
+                                // AppContext's settings unlocked. It refuses and
+                                // warns rather than racing, so this is a blank
+                                // box, not a crash - but make the provider
+                                // thread-safe before flipping it.
+                                asynchronous: false
+                                // Every setting change mints a new URL; caching
+                                // them would grow the pixmap cache for the whole
+                                // session over one drag of the opacity slider.
+                                cache: false
+                                fillMode: Image.PreserveAspectFit
+                                Accessible.role: Accessible.Graphic
+                                Accessible.name: qsTr("Watermark preview")
+                                Accessible.description: qsTr("A sample capture with the current watermark settings applied.")
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("A sample capture, stamped by the same code your screenshots go through.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
                     }
                     SettingRow {
                         available: App.settings.watermarkEnabled
@@ -2172,6 +2351,25 @@ Item {
                     }
                     SettingRow {
                         available: App.settings.watermarkEnabled
+                        label: qsTr("Pattern")
+                        help: qsTr("One stamp, or a ready-made layout that covers the whole capture.")
+                        helpDetail: qsTr("One stamp sits where Position says. Tiled and Diagonal repeat a small stamp across the picture, staggered row by row, which is what makes a screenshot awkward to crop the mark out of. Four corners puts one in each corner. Diagonal band is a single large stamp running across the middle. Everything except One stamp covers the whole capture and ignores Position.")
+                        UComboBox {
+                            width: 180
+                            // The setting stores the id; the labels are shown
+                            // and translated, never written to the config.
+                            property var ids: ["single", "tile", "diagonal", "corners", "band"]
+                            model: [qsTr("One stamp"), qsTr("Tiled"), qsTr("Diagonal tiled"),
+                                    qsTr("Four corners"), qsTr("Diagonal band")]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.watermarkPattern))
+                            onActivated: (i) => App.settings.watermarkPattern = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        // One stamp is the only preset that leaves a choice of
+                        // where it goes; the rest cover the whole capture.
+                        available: App.settings.watermarkEnabled
+                                   && App.settings.watermarkPattern === "single"
                         label: qsTr("Position")
                         help: qsTr("Corner, centre edge, or middle of the image for the watermark.")
                         UComboBox {
@@ -2179,6 +2377,22 @@ Item {
                             model: page.watermarkPosNames
                             currentIndex: Math.max(0, page.watermarkPosIds.indexOf(App.settings.watermarkPosition))
                             onActivated: (i) => App.settings.watermarkPosition = page.watermarkPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        available: App.settings.watermarkEnabled
+                        label: qsTr("Size")
+                        help: qsTr("How big the stamp is, against the size the pattern picks itself.")
+                        helpDetail: qsTr("100% is the pattern's own size, which is a fraction of the capture's shorter side - so one setting looks the same on a 720p window and a 4K screen. Below 100% the stamp shrinks and a tiled pattern packs tighter; above it the stamp grows and the tiles spread out. A logo is scaled from the file you chose, so pushing a small logo far past 100% will look soft.")
+                        UValueCombo {
+                            width: 120
+                            values: [25, 50, 75, 100, 125, 150, 200, 250, 300, 400]
+                            // The same bounds ImageEffects clamps to, so a typed
+                            // number can never mean something else than shown.
+                            from: 10; to: 400
+                            suffix: "%"
+                            value: App.settings.watermarkScale
+                            onChanged: (v) => App.settings.watermarkScale = v
                         }
                     }
                     SettingRow {
@@ -2287,7 +2501,7 @@ Item {
                               : qsTr("The style only applies to the card Unisic draws itself; a native notification is drawn by the system server.")
                         label: qsTr("Notification style")
                         help: qsTr("How the capture card looks, from full card to tiny pill.")
-                        helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions appear on hover.\n\nApplies to the next capture.")
+                        helpDetail: qsTr("Casual: the full card with a large thumbnail, title and a row of action buttons.\nCompact: a tighter card with a medium thumbnail, filename and the same actions.\nSmall: one slim row with tiny inline action icons.\nMinimal: a pill with just the filename; clicking it opens the floating preview.\nThumbnail: image-first, the capture fills the card and actions stay visible over it.\n\nApplies to the next capture.")
                         UComboBox {
                             id: popupStyleCombo
                             width: 180
@@ -2575,6 +2789,101 @@ Item {
                         text: ThemeController.customThemeErrors.join("\n")
                         color: Theme.danger
                         font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Capture overlay") }
+                    // The overlay can only be seen by starting a capture, over
+                    // whatever happens to be on screen and holding an exclusive
+                    // keyboard grab - so the options below were invisible until
+                    // you committed to a shot, and the toolbar drop-down and the
+                    // mode badge went unnoticed entirely (user-reported). The
+                    // mock draws them all instead, live. The mode picker drives
+                    // only the picture; it saves nothing.
+                    Column {
+                        width: parent.width
+                        spacing: Theme.spacingS
+                        UOverlayPreview {
+                            id: overlayPreview
+                            width: parent.width
+                            // The picked mode lives here, not in the combo:
+                            // UComboBox only EMITS activated and leaves
+                            // currentIndex to its consumer, so a plain
+                            // currentIndex binding never moves.
+                            property int modeIndex: 0
+                            purpose: overlayPreview.modes[modeIndex].id
+                        }
+                        Row {
+                            spacing: Theme.spacingS
+                            Text {
+                                text: qsTr("Preview mode")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontM
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            UComboBox {
+                                width: 200
+                                model: overlayPreview.modes.map((m) => m.label)
+                                currentIndex: overlayPreview.modeIndex
+                                onActivated: (i) => overlayPreview.modeIndex = i
+                                Accessible.name: qsTr("Preview mode")
+                            }
+                        }
+                        Text {
+                            width: parent.width
+                            wrapMode: Text.WordWrap
+                            text: qsTr("A mock screen, not a capture: every setting in this card is drawn here as you change it. Switch the mode to see what the overlay looks like when a hotkey starts a measurement or a recording instead of a screenshot.")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Toolbar position")
+                        help: qsTr("Where the annotation toolbar sits on the selection overlay.")
+                        helpDetail: qsTr("“Follow selection” keeps it glued to the selected region; the fixed positions pin it to a screen edge, which helps when it keeps covering what you select.")
+                        UComboBox {
+                            width: 200
+                            model: page.toolbarPosNames
+                            currentIndex: Math.max(0, page.toolbarPosIds.indexOf(App.settings.overlayToolbarPosition))
+                            onActivated: (i) => App.settings.overlayToolbarPosition = page.toolbarPosIds[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show which capture mode is running")
+                        help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
+                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
+                        USwitch { checked: App.settings.overlayModeBadge; onToggled: (c) => App.settings.overlayModeBadge = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Mode indicator style")
+                        available: App.settings.overlayModeBadge
+                        help: qsTr("Name the mode in a badge at the top, or draw its icon faded in the middle.")
+                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the centre of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The coloured screen frame and selection handles stay in both.")
+                        UComboBox {
+                            width: 200
+                            model: [qsTr("Badge at the top"), qsTr("Icon in the middle")]
+                            readonly property var ids: ["badge", "icon"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.overlayModeStyle))
+                            onActivated: (i) => App.settings.overlayModeStyle = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Show alignment guides while selecting")
+                        help: qsTr("Crosshair lines from the cursor to the screen edges.")
+                        helpDetail: qsTr("Shown while picking a region (screenshots and recordings alike) to help align the selection with on-screen elements. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.selectionGuides; onToggled: (c) => App.settings.selectionGuides = c }
+                    }
+                    SettingRow {
+                        label: qsTr("Show a pixel loupe while selecting")
+                        help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
+                        USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }
             }
@@ -3306,6 +3615,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("curl destination"); onClicked: App.devTestCurlDestination() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Template variables"); onClicked: App.devTestTemplateVars() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Still GIF"); onClicked: App.devTestStaticGif() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Image conversion"); onClicked: App.devTestImageConvert() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification drag payload"); onClicked: App.devTestNotificationDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
@@ -3319,6 +3632,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture delay"); onClicked: App.devTestCaptureDelay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy as"); onClicked: App.devTestCopyAs() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watermark"); onClicked: App.devTestWatermark() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Watermark preview"); onClicked: App.devTestWatermarkPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
@@ -3341,12 +3655,18 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim recording"); onClicked: App.devTestTrimRecording() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim cut (exact + lossless)"); onClicked: App.devTestTrimCut() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Recording pause excise"); onClicked: App.devTestPauseExcise() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Video quality scale"); onClicked: App.devTestVideoQuality() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Separate audio tracks"); onClicked: App.devTestAudioTracks() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Audio input devices"); onClicked: App.devTestAudioInputs() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trim audio edit"); onClicked: App.devTestTrimAudio() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Eyedropper"); onClicked: App.devTestEyedropper() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Overlay mode badge"); onClicked: App.devTestOverlayMode() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Overlay preview"); onClicked: App.devTestOverlayPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); enabled: App.ocrAvailable; onClicked: App.devTestOcrRedactPattern() }
@@ -3368,5 +3688,14 @@ Item {
             }
         }
         }
+
+        // The variables of the filename template, floating over the pane rather
+        // than sitting in it. Last child of paneArea so it draws over the panes,
+        // and outside them so the row appearing on focus cannot push the preview
+        // and every setting below the field down the moment the field is
+        // clicked. Fields push themselves in (see templateField): a pane is a
+        // Loader's content, and an id inside one is not visible out here.
+        UVarBar { id: varBar }
+
     }
 }

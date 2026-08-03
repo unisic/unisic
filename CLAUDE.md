@@ -31,7 +31,7 @@ Each line is the short form of a rule whose full reasoning is in the linked file
 
 - **Mandatory UI palette**: Primary `#17153B` (main window/panel backgrounds), Secondary `#2E236C` and Tertiary `#433D8B` (secondary elements, hover/active), Accent `#C8ACD6` (action buttons, attention). All colors come from the `Theme.qml` singleton's tokens - never a hardcoded hex.
 - **Wayland-legit capture paths only**: xdg-desktop-portal Screenshot/ScreenCast, KWin `org.kde.KWin.ScreenShot2` as a KDE-specific enhancement, PipeWire as the video backend, KGlobalAccel over D-Bus for global shortcuts, `QDBusInterface`/`QDBusConnection` for D-Bus. No X11-only capture hacks.
-- **Every user-facing string** is `qsTr()`/`tr()` AND translated in all five `i18n/unisic_{en,pl,es,it,fr}.ts` files, with no `unfinished` markers left behind (`docs/dev/i18n.md`).
+- **Every user-facing string** is `qsTr()`/`tr()` AND translated in all seven `i18n/unisic_{en,pl,es,it,fr,ru,de}.ts` files, with no `unfinished` markers left behind (`docs/dev/i18n.md`).
 - **Every new user-facing feature/path is wired into BOTH** the F8 smoke test (`AppContext::runSmokeTest`) and its own per-action button in the Settings Developer pane (`docs/dev/pipelines.md`).
 - **Every user-facing change is documented** in `resources/CHANGELOG.md`, bilingual EN/PL, under the current beta heading (never a new heading mid-beta).
 - **No em dashes** anywhere in text written here - UI strings, comments, docs, commits. Plain `-` only.

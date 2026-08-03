@@ -3,6 +3,7 @@
 
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSignalSpy>
@@ -38,6 +39,9 @@ private slots:
     void pasteClipboardCreatesTextAndImage();
     void shiftSnapsLineAngleAndRectangleRatio();
     void watermarkStampsAndPreservesBaseDimensions();
+    void watermarkPatternsCoverTheirOwnArea();
+    void watermarkSizeScalesTheStamp();
+    void mockCaptureCarriesLightAndDarkAreas();
     void calloutRendersTailAndCanBeSelected();
     void arrowAndMeasureRenderAndCanBeSelected();
     void smartEraseRebuildsFlatBackground();
@@ -45,6 +49,7 @@ private slots:
     void smartEraseOverlappingStrokesStayOnBackground();
     void magnifyPlacesCentredTwoXLoupe();
     void pixelLoupeFollowsHoverAndZooms();
+    void partialRepaintMatchesFullRender();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -588,11 +593,12 @@ void AnnotationCanvasTest::watermarkStampsAndPreservesBaseDimensions()
     QImage base(300, 180, QImage::Format_ARGB32_Premultiplied);
     base.fill(Qt::black);
     const QImage stamped = UnisicImageEffects::watermarkText(
-        base, QStringLiteral("Unisic"), 100, QStringLiteral("bottom-right"));
+        base, QStringLiteral("Unisic"), 100, QStringLiteral("bottom-right"),
+        QStringLiteral("single"));
     QCOMPARE(stamped.size(), base.size());
     QVERIFY(stamped != base);
-    QCOMPARE(UnisicImageEffects::watermarkText(base, {}, 80,
-                                               QStringLiteral("bottom-right")), base);
+    QCOMPARE(UnisicImageEffects::watermarkText(base, {}, 80, QStringLiteral("bottom-right"),
+                                               QStringLiteral("single")), base);
 
     QImage logo(80, 40, QImage::Format_ARGB32_Premultiplied);
     logo.fill(Qt::transparent);
@@ -601,11 +607,183 @@ void AnnotationCanvasTest::watermarkStampsAndPreservesBaseDimensions()
         painter.fillRect(QRect(5, 5, 70, 30), Qt::white);
     }
     const QImage logoStamped = UnisicImageEffects::watermarkImage(
-        base, logo, 65, QStringLiteral("top-left"));
+        base, logo, 65, QStringLiteral("top-left"), QStringLiteral("single"));
     QCOMPARE(logoStamped.size(), base.size());
     QVERIFY(logoStamped != base);
-    QCOMPARE(UnisicImageEffects::watermarkImage(base, {}, 65,
-                                                QStringLiteral("top-left")), base);
+    QCOMPARE(UnisicImageEffects::watermarkImage(base, {}, 65, QStringLiteral("top-left"),
+                                                QStringLiteral("single")), base);
+}
+
+// Counts opaque pixels: the only way to tell "covers the whole capture" from
+// "put one mark in a corner" without pinning an exact rendering.
+static int markedPixels(const QImage &stamped, const QImage &base)
+{
+    int n = 0;
+    for (int y = 0; y < base.height(); ++y)
+        for (int x = 0; x < base.width(); ++x)
+            if (stamped.pixel(x, y) != base.pixel(x, y))
+                ++n;
+    return n;
+}
+
+void AnnotationCanvasTest::watermarkSizeScalesTheStamp()
+{
+    QImage base(400, 260, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::black);
+    const QString text = QStringLiteral("Unisic");
+
+    auto stamped = [&](const QString &pattern, int scale) {
+        return UnisicImageEffects::watermarkText(base, text, 100,
+                                                 QStringLiteral("bottom-right"),
+                                                 pattern, scale);
+    };
+
+    for (const QString &pattern : { QStringLiteral("single"), QStringLiteral("tile"),
+                                    QStringLiteral("diagonal"), QStringLiteral("corners"),
+                                    QStringLiteral("band") }) {
+        const QImage small = stamped(pattern, 50);
+        const QImage normal = stamped(pattern, 100);
+        const QImage large = stamped(pattern, 200);
+        QCOMPARE(small.size(), base.size());
+        QCOMPARE(large.size(), base.size());
+        const int a = markedPixels(small, base);
+        const int b = markedPixels(normal, base);
+        const int c = markedPixels(large, base);
+        if (pattern == QLatin1String("diagonal")) {
+            // Measured, not assumed: the diagonal tiling is the one pattern
+            // whose covered AREA does not follow the size setting. Spacing is a
+            // multiple of the stamp, so the density is scale-invariant, and the
+            // rotation then decides how much of each edge stamp falls outside
+            // the picture - which moves the count either way (8888/9471/8061
+            // here). What must hold is that the size setting reaches it at all.
+            QVERIFY(a > 0 && b > 0 && c > 0);
+            QVERIFY(small != normal && normal != large);
+            continue;
+        }
+        QVERIFY2(a < b && b < c,
+                 qPrintable(QStringLiteral("%1: %2 / %3 / %4").arg(pattern)
+                                .arg(a).arg(b).arg(c)));
+    }
+
+    // 100 must be bit-for-bit the pattern's own size: the setting was added
+    // after the fact and must not move any existing user's watermark.
+    QCOMPARE(stamped(QStringLiteral("tile"), 100),
+             UnisicImageEffects::watermarkText(base, text, 100,
+                                               QStringLiteral("bottom-right"),
+                                               QStringLiteral("tile")));
+
+    // A hand-edited config cannot ask for a stamp that is not an image: absurd
+    // values clamp instead of allocating, and the capture keeps its size.
+    for (int scale : { -500, 0, 1, 100000 }) {
+        const QImage out = stamped(QStringLiteral("band"), scale);
+        QCOMPARE(out.size(), base.size());
+        QVERIFY2(markedPixels(out, base) > 0, qPrintable(QString::number(scale)));
+    }
+
+    // The same for a logo, which is scaled from a file rather than laid out.
+    QImage logo(40, 20, QImage::Format_ARGB32_Premultiplied);
+    logo.fill(Qt::white);
+    const QImage smallLogo = UnisicImageEffects::watermarkImage(
+        base, logo, 100, QStringLiteral("top-left"), QStringLiteral("single"), 50);
+    const QImage bigLogo = UnisicImageEffects::watermarkImage(
+        base, logo, 100, QStringLiteral("top-left"), QStringLiteral("single"), 200);
+    QCOMPARE(bigLogo.size(), base.size());
+    QVERIFY(markedPixels(bigLogo, base) > markedPixels(smallLogo, base));
+}
+
+void AnnotationCanvasTest::mockCaptureCarriesLightAndDarkAreas()
+{
+    const QSize want(440, 260);
+    const QImage mock = UnisicImageEffects::mockCapture(want);
+    QCOMPARE(mock.size(), want);
+
+    // A degenerate or absurd request from a QML binding must still produce a
+    // picture: the preview element would otherwise show a broken-image icon.
+    QVERIFY(!UnisicImageEffects::mockCapture(QSize(0, 0)).isNull());
+    QVERIFY(!UnisicImageEffects::mockCapture(QSize(-5, 100000)).isNull());
+
+    // The whole reason this is not a flat fill: opacity and size decide whether
+    // a mark survives over light content or over dark, so both have to be here
+    // in quantity. A tenth of the frame each is a floor, not a target.
+    int light = 0;
+    int dark = 0;
+    for (int y = 0; y < mock.height(); ++y) {
+        for (int x = 0; x < mock.width(); ++x) {
+            const int l = QColor(mock.pixel(x, y)).lightness();
+            if (l > 200)
+                ++light;
+            else if (l < 60)
+                ++dark;
+        }
+    }
+    const int total = mock.width() * mock.height();
+    QVERIFY2(light > total / 10 && dark > total / 10,
+             qPrintable(QStringLiteral("light %1 dark %2 of %3").arg(light).arg(dark).arg(total)));
+
+    // And a tiled mark has to land on both halves, not just the light one.
+    const QImage stamped = UnisicImageEffects::watermarkText(
+        mock, QStringLiteral("Unisic"), 100, QStringLiteral("center"),
+        QStringLiteral("tile"));
+    const QRect top(0, 0, mock.width(), mock.height() / 2);
+    const QRect bottom(0, mock.height() / 2, mock.width(), mock.height() - mock.height() / 2);
+    QVERIFY(markedPixels(stamped.copy(top), mock.copy(top)) > 0);
+    QVERIFY(markedPixels(stamped.copy(bottom), mock.copy(bottom)) > 0);
+}
+
+void AnnotationCanvasTest::watermarkPatternsCoverTheirOwnArea()
+{
+    QImage base(400, 260, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::black);
+    const QString text = QStringLiteral("Unisic");
+
+    // Every preset must actually mark the picture and must not resize it - a
+    // watermark that silently changed the capture's dimensions would break the
+    // editor, the thumbnail and every consumer downstream of it.
+    QMap<QString, int> painted;
+    for (const QString &pattern : { QStringLiteral("single"), QStringLiteral("tile"),
+                                    QStringLiteral("diagonal"), QStringLiteral("corners"),
+                                    QStringLiteral("band") }) {
+        const QImage out = UnisicImageEffects::watermarkText(base, text, 100,
+                                                             QStringLiteral("bottom-right"),
+                                                             pattern);
+        QCOMPARE(out.size(), base.size());
+        const int n = markedPixels(out, base);
+        QVERIFY2(n > 0, qPrintable(pattern));
+        painted.insert(pattern, n);
+    }
+    // The whole point of the tiled presets: far more of the picture is covered
+    // than one stamp covers, so cropping the mark out is not a corner snip.
+    QVERIFY2(painted[QStringLiteral("tile")] > 3 * painted[QStringLiteral("single")],
+             qPrintable(QStringLiteral("tile %1 vs single %2")
+                            .arg(painted[QStringLiteral("tile")])
+                            .arg(painted[QStringLiteral("single")])));
+    QVERIFY(painted[QStringLiteral("diagonal")] > 3 * painted[QStringLiteral("single")]);
+    // Four corners is four of the same stamp, so it lands near four times one -
+    // generous bounds, since the corner stamp is sized differently on purpose.
+    QVERIFY(painted[QStringLiteral("corners")] > painted[QStringLiteral("single")]);
+    // An unknown pattern (a hand-edited config) must fall back to one stamp
+    // rather than to nothing at all.
+    const QImage odd = UnisicImageEffects::watermarkText(base, text, 100,
+                                                         QStringLiteral("bottom-right"),
+                                                         QStringLiteral("nonsense"));
+    QCOMPARE(markedPixels(odd, base), painted[QStringLiteral("single")]);
+
+    // Opacity 0 stays a no-op for every pattern, and so does empty text.
+    for (const QString &pattern : { QStringLiteral("tile"), QStringLiteral("band") }) {
+        QCOMPARE(UnisicImageEffects::watermarkText(base, text, 0,
+                                                   QStringLiteral("center"), pattern), base);
+        QCOMPARE(UnisicImageEffects::watermarkText(base, QStringLiteral("   "), 100,
+                                                   QStringLiteral("center"), pattern), base);
+    }
+
+    // A logo tiles the same way, and a tiny logo must not turn into an
+    // unbounded number of blits.
+    QImage logo(24, 12, QImage::Format_ARGB32_Premultiplied);
+    logo.fill(Qt::white);
+    const QImage tiledLogo = UnisicImageEffects::watermarkImage(
+        base, logo, 100, QStringLiteral("center"), QStringLiteral("diagonal"));
+    QCOMPARE(tiledLogo.size(), base.size());
+    QVERIFY(markedPixels(tiledLogo, base) > 0);
 }
 
 void AnnotationCanvasTest::calloutRendersTailAndCanBeSelected()
@@ -814,6 +992,102 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     canvas.mouseReleaseEvent(&release);
 
     QVERIFY2(canvas.rendered() == image, "the loupe is UI chrome, never exported");
+}
+
+// Every drag repaints only its own dirty rect (AnnotationCanvas::update +
+// drawAll's clip culling). Whatever lands inside that rect must be what a full
+// repaint would have drawn there: a tool whose annotBoundsImg is smaller than
+// the pixels it actually paints gets culled on a neighbouring repaint, and the
+// base image wipes those pixels out mid-drag: annotations that "disappear
+// while drawing and come back on release".
+void AnnotationCanvasTest::partialRepaintMatchesFullRender()
+{
+    const auto render = [](TestAnnotationCanvas &c, const QRect &clip) {
+        QImage out(int(c.width()), int(c.height()), QImage::Format_ARGB32_Premultiplied);
+        out.fill(Qt::transparent);
+        QPainter p(&out);
+        if (!clip.isNull())
+            p.setClipRect(clip);
+        c.paint(&p);
+        p.end();
+        return out;
+    };
+
+    struct Case { const char *name; int tool; };
+    const QVector<Case> cases{
+        {"pen", AnnotationCanvas::Pen},
+        {"line", AnnotationCanvas::Line},
+        {"arrow", AnnotationCanvas::Arrow},
+        {"rect", AnnotationCanvas::Rect},
+        {"ellipse", AnnotationCanvas::Ellipse},
+        {"callout", AnnotationCanvas::Callout},
+        {"measure", AnnotationCanvas::Measure},
+        {"magnify", AnnotationCanvas::Magnify},
+        {"highlight", AnnotationCanvas::Highlight},
+        {"blur", AnnotationCanvas::Blur},
+        {"pixelate", AnnotationCanvas::Pixelate},
+        {"step", AnnotationCanvas::Step},
+        {"text", AnnotationCanvas::Text},
+        {"text-bg", AnnotationCanvas::Text},
+    };
+
+    for (const Case &c : cases) {
+        TestAnnotationCanvas canvas;
+        canvas.setWidth(200);
+        canvas.setHeight(200);
+        QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+        {   // A textured base: a flat fill hides a blur/pixelate patch going missing.
+            base.fill(Qt::white);
+            QPainter p(&base);
+            for (int y = 0; y < 200; y += 8)
+                p.fillRect(0, y, 200, 4, QColor(40, 90, 160));
+        }
+        canvas.setImage(base);
+        canvas.setStrokeColor(Qt::black);
+        canvas.setStrokeWidth(6);
+        canvas.setStepSize(24);
+        canvas.setFontSize(28);
+        canvas.setTool(c.tool);
+        if (c.tool == AnnotationCanvas::Text) {
+            canvas.setTextBackground(qstrcmp(c.name, "text-bg") == 0);
+            canvas.commitText(40, 60, QStringLiteral("Unisic"));
+        } else if (c.tool == AnnotationCanvas::Step) {
+            click(canvas, {90, 90});
+        } else {
+            drag(canvas, {40, 45}, {150, 130});
+        }
+        QCOMPARE(canvas.annotCount(), 1);
+        canvas.clearAnnotSelection();
+
+        const QImage full = render(canvas, QRect());
+        int worst = 0;
+        QPoint worstAt;
+        QColor worstGot, worstWant;
+        for (int ty = 0; ty < 200; ty += 20) {
+            for (int tx = 0; tx < 200; tx += 20) {
+                const QRect tile(tx, ty, 20, 20);
+                const QImage part = render(canvas, tile);
+                for (int y = tile.top(); y <= tile.bottom(); ++y) {
+                    for (int x = tile.left(); x <= tile.right(); ++x) {
+                        const QColor got = part.pixelColor(x, y);
+                        const QColor want = full.pixelColor(x, y);
+                        const int d = qMax(qMax(qAbs(got.red() - want.red()),
+                                                qAbs(got.green() - want.green())),
+                                           qAbs(got.blue() - want.blue()));
+                        if (d > worst) { worst = d; worstAt = QPoint(x, y);
+                                         worstGot = got; worstWant = want; }
+                    }
+                }
+            }
+        }
+        QVERIFY2(worst <= 4,
+                 qPrintable(QStringLiteral("%1: a clipped repaint differs from the full render by "
+                                           "%2/255 at %3,%4 (clipped %5, full %6) - the tool paints "
+                                           "outside the bounds drawAll culls it by")
+                                .arg(QLatin1String(c.name)).arg(worst)
+                                .arg(worstAt.x()).arg(worstAt.y())
+                                .arg(worstGot.name(QColor::HexArgb), worstWant.name(QColor::HexArgb))));
+    }
 }
 
 int main(int argc, char *argv[])

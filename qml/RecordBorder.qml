@@ -51,14 +51,13 @@ Window {
     component BadgeButton: Rectangle {
         id: bb
         property string iconName
+        property string accessibleName
         signal clicked()
+        function _activate() { if (bb.enabled) bb.clicked() }
         width: 22; height: 22; radius: 11
         color: bbMouse.pressed ? Theme.alpha(Theme.recBadgeText, 0.32)
              : bbMouse.containsMouse ? Theme.alpha(Theme.recBadgeText, 0.18) : "transparent"
         Behavior on color { ColorAnimation { duration: 90 } }
-        // Same springy press feedback as UIconButton.
-        scale: bbMouse.pressed ? 0.92 : 1.0
-        Behavior on scale { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutBack } }
         UIcon {
             anchors.centerIn: parent
             name: bb.iconName
@@ -70,14 +69,23 @@ Window {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: bb.clicked()
+            onClicked: bb._activate()
         }
+
+        // This fullscreen marker must never steal focus from the application
+        // being recorded, so WindowDoesNotAcceptFocus intentionally keeps it
+        // outside Tab. AT-SPI can still enumerate and press both controls.
+        activeFocusOnTab: false
+        Accessible.role: Accessible.Button
+        Accessible.name: bb.accessibleName
+        Accessible.focusable: false
+        Accessible.onPressAction: bb._activate()
     }
 
     // Accent frame thickness (drawn outside the region), with a 1px dark line on
     // each side so it reads over both light and dark content underneath.
     readonly property int bw: 3
-    readonly property color contrast: Qt.rgba(0, 0, 0, 0.55)
+    readonly property color contrast: Theme.recordFrameContrast
 
     // Pre-recording countdown value, driven from C++ (0 = not counting). While
     // >0 the frame is up but recording has not begun: a big number ticks inside
@@ -250,11 +258,14 @@ Window {
             BadgeButton {
                 anchors.verticalCenter: parent.verticalCenter
                 iconName: App.recordingPaused ? "play" : "pause"
+                accessibleName: App.recordingPaused ? qsTr("Resume recording")
+                                                    : qsTr("Pause recording")
                 onClicked: App.togglePauseRecording()
             }
             BadgeButton {
                 anchors.verticalCenter: parent.verticalCenter
                 iconName: "stop"
+                accessibleName: qsTr("Stop recording")
                 onClicked: App.stopRecording()
             }
         }

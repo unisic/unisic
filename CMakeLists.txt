@@ -52,12 +52,16 @@ qt_add_executable(unisic
     src/AppContext.h src/AppContext.cpp
     src/PreviewController.h src/PreviewController.cpp
     src/Settings.h src/Settings.cpp
+    # The one place that turns a QImage into bytes: format policy (JPEG has no
+    # alpha, GIF needs ffmpeg, PNG catches both) lives there and nowhere else.
+    src/ImageEncode.h src/ImageEncode.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
     src/record/ClickCapture.h src/record/ClickCapture.cpp
@@ -70,6 +74,7 @@ qt_add_executable(unisic
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
     src/editor/ImageEffects.h src/editor/ImageEffects.cpp
+    src/editor/WatermarkPreview.h src/editor/WatermarkPreview.cpp
     src/overlay/OverlayController.h src/overlay/OverlayController.cpp
     src/upload/UploadManager.h src/upload/UploadManager.cpp
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
@@ -236,6 +241,8 @@ qt_add_qml_module(unisic
         qml/components/USystemCheck.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
+        qml/components/UOverlayPreview.qml
+        qml/components/UModeGlyph.qml
         qml/components/UPatchNotes.qml
         qml/components/UUpdatePrompt.qml
         qml/components/ToolPropsBar.qml
@@ -517,6 +524,19 @@ if(BUILD_TESTING)
     # QGuiApplication (styleHints, palette) without a real display.
     set_tests_properties(unisic_theme_seed_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    # The kit's wheel scroller, driven through a real QQuickView: synthetic
+    # wheel + click, so "a click during a scroll reaches the control it is
+    # over" is a checked property and not a hope. WheelBoost.qml imports plain
+    # QtQuick, so the file is loaded straight from the kit checkout.
+    qt_add_executable(unisic_wheel_boost_test tests/WheelBoostTest.cpp)
+    target_link_libraries(unisic_wheel_boost_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Test)
+    target_compile_definitions(unisic_wheel_boost_test PRIVATE
+        UNISIC_KIT_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/external/unisic-kit/qml/components")
+    add_test(NAME unisic_wheel_boost_test COMMAND unisic_wheel_boost_test)
+    # A window, without a display.
+    set_tests_properties(unisic_wheel_boost_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
     qt_add_executable(unisic_keystroke_overlay_test
         tests/KeystrokeOverlayTest.cpp
         src/record/KeystrokeOverlayPainter.h src/record/KeystrokeOverlayPainter.cpp
@@ -543,6 +563,15 @@ if(BUILD_TESTING)
     target_include_directories(unisic_stream_geometry_test PRIVATE src)
     add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
 
+    # The percent <-> CRF scale the recorder's quality setting is stored in.
+    qt_add_executable(unisic_video_quality_test
+        tests/VideoQualityTest.cpp
+        src/record/VideoQuality.h
+    )
+    target_link_libraries(unisic_video_quality_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_video_quality_test PRIVATE src)
+    add_test(NAME unisic_video_quality_test COMMAND unisic_video_quality_test)
+
     qt_add_executable(unisic_settings_persistence_test
         tests/SettingsPersistenceTest.cpp
         src/Settings.h
@@ -556,6 +585,46 @@ if(BUILD_TESTING)
     add_test(NAME unisic_settings_persistence_test COMMAND unisic_settings_persistence_test)
     # The test re-execs itself (--verify-child) for a fresh-process read-back.
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # Where a curl destination puts the file and what it makes of the answer -
+    # pure string work, so it needs neither a server nor a compositor. The rest
+    # of UploadManager is network transport and stays with the smoke test.
+    qt_add_executable(unisic_upload_url_test
+        tests/UploadUrlTest.cpp
+        src/upload/UploadManager.h src/upload/UploadManager.cpp
+        src/Settings.h src/Settings.cpp
+        src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
+    )
+    target_link_libraries(unisic_upload_url_test PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml Qt6::Test)
+    target_include_directories(unisic_upload_url_test PRIVATE src external/unisic-kit/src)
+    add_test(NAME unisic_upload_url_test COMMAND unisic_upload_url_test)
+    set_tests_properties(unisic_upload_url_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_still_gif_test
+        tests/StillGifTest.cpp
+        src/FilenameTemplate.h
+        external/unisic-kit/src/media/FfmpegUtil.h external/unisic-kit/src/media/FfmpegUtil.cpp
+    )
+    target_link_libraries(unisic_still_gif_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_still_gif_test PRIVATE src external/unisic-kit/src)
+    add_test(NAME unisic_still_gif_test COMMAND unisic_still_gif_test)
+    set_tests_properties(unisic_still_gif_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The conversion policy on real bytes: which format actually comes out, and
+    # which substitutions (JPEG with alpha, GIF with no ffmpeg) are allowed to
+    # happen silently. No AppContext, so it needs no compositor.
+    qt_add_executable(unisic_image_convert_test
+        tests/ImageConvertTest.cpp
+        src/ImageEncode.h src/ImageEncode.cpp
+        src/FilenameTemplate.h
+        external/unisic-kit/src/media/FfmpegUtil.h external/unisic-kit/src/media/FfmpegUtil.cpp
+    )
+    target_link_libraries(unisic_image_convert_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_image_convert_test PRIVATE src external/unisic-kit/src)
+    add_test(NAME unisic_image_convert_test COMMAND unisic_image_convert_test)
+    # QPainter needs a platform plugin.
+    set_tests_properties(unisic_image_convert_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     qt_add_executable(unisic_diag_redact_test
         tests/DiagRedactTest.cpp

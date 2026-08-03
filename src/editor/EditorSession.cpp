@@ -1,13 +1,16 @@
 #include "EditorSession.h"
 #include "AnnotationCanvas.h"
 #include "AppContext.h"
+#include "FilenameTemplate.h"
+#include "Settings.h"
 #include <QPointer>
 #include <QFileInfo>
 #include <QVector>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image,
-                             const QString &overwritePath, QObject *parent)
-    : QObject(parent), m_app(app), m_image(image), m_overwritePath(overwritePath)
+                             const QString &overwritePath, quint64 historyId, QObject *parent)
+    : QObject(parent), m_app(app), m_image(image), m_overwritePath(overwritePath),
+      m_historyId(historyId)
 {
 }
 
@@ -55,9 +58,33 @@ QString EditorSession::save()
     // Editing an existing capture from history: overwrite the original file in
     // place and refresh its history thumbnail, rather than making a new file.
     if (!m_overwritePath.isEmpty()) {
-        if (img.save(m_overwritePath)) {
+        const QFileInfo fi(m_overwritePath);
+        const QString want =
+            FilenameTemplate::extensionFor(m_app->settings()->imageFormat());
+        // "Convert opened images to my format": a file that arrived in some
+        // other format leaves as a NEW file in the chosen one, beside the
+        // original. Never in place - the extension would then disagree with the
+        // bytes, and a lossy re-encode over someone's only copy of the source
+        // is not something a Save button should be able to do silently.
+        if (m_app->settings()->convertIncoming()
+            && !FilenameTemplate::sameFormat(fi.suffix(), want)) {
+            const QString path = m_app->saveImageTo(img, fi.absolutePath(),
+                                                    fi.completeBaseName() + QLatin1Char('.') + want);
+            if (path.isEmpty()) {
+                setStatus(tr("Save failed"));
+                return {};
+            }
+            // Its own file, so its own tile - the original keeps the one it has.
+            m_app->history()->addEntry(path, img, QStringLiteral("image"));
+            setStatus(tr("Saved as %1").arg(QFileInfo(path).fileName()));
+            return path;
+        }
+        // Encoded for the extension the file already has, so a .jpg keeps the
+        // quality setting instead of Qt's default and a .gif goes through
+        // ffmpeg instead of failing silently.
+        if (m_app->overwriteImageFile(img, m_overwritePath)) {
             m_app->history()->refreshEntry(m_overwritePath, img);
-            setStatus(tr("Saved (overwrote %1)").arg(QFileInfo(m_overwritePath).fileName()));
+            setStatus(tr("Saved (overwrote %1)").arg(fi.fileName()));
             return m_overwritePath;
         }
         setStatus(tr("Save failed"));
@@ -65,11 +92,47 @@ QString EditorSession::save()
     }
     const QString path = m_app->saveImageAuto(img);
     if (!path.isEmpty()) {
-        m_app->history()->addEntry(path, img, QStringLiteral("image"));
+        // The capture that opened this editor already has a history entry. If it
+        // is still file-less (auto-save off), this save belongs to THAT entry -
+        // adding another would leave the same capture on two tiles. An entry
+        // that already points at a file gets a genuinely new one instead, since
+        // this save produced a second file on disk.
+        if (m_historyId != 0
+            && m_app->history()->entryById(m_historyId)
+                   .value(QStringLiteral("filePath")).toString().isEmpty()
+            && m_app->history()->setFilePathById(m_historyId, path))
+            m_app->history()->refreshEntry(path, img); // thumbnail of the EDITED image
+        else
+            m_app->history()->addEntry(path, img, QStringLiteral("image"));
         setStatus(tr("Saved to %1").arg(path));
     } else {
         setStatus(tr("Save failed"));
     }
+    return path;
+}
+
+QString EditorSession::saveAs(const QString &format)
+{
+    const QImage img = composited();
+    // The format is the point of the click, so the over-size auto-conversion
+    // stays out of it.
+    const QString path = m_app->saveImageAuto(img, m_app->makeFileName(format),
+                                              /*allowAutoConvert=*/false);
+    if (path.isEmpty()) {
+        setStatus(tr("Save failed"));
+        return {};
+    }
+    // Same one-capture-one-tile rule as save(): a capture whose entry has no
+    // file yet claims this one; an entry that already points at a file gets a
+    // second tile, because this really is a second file.
+    if (m_historyId != 0
+        && m_app->history()->entryById(m_historyId)
+               .value(QStringLiteral("filePath")).toString().isEmpty()
+        && m_app->history()->setFilePathById(m_historyId, path))
+        m_app->history()->refreshEntry(path, img);
+    else
+        m_app->history()->addEntry(path, img, QStringLiteral("image"));
+    setStatus(tr("Saved to %1").arg(path));
     return path;
 }
 
@@ -89,7 +152,7 @@ void EditorSession::upload()
             return;
         self->setStatus(error.isEmpty() ? tr("Uploaded, link copied: %1").arg(url)
                                         : tr("Upload failed: %1").arg(error));
-    });
+    }, m_historyId); // one capture, one tile: the link lands on its own entry
 }
 
 void EditorSession::ocrCopyText()

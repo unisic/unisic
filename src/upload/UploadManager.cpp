@@ -291,6 +291,22 @@ void UploadManager::ensureBuiltins()
         });
         changed = true;
     }
+    // The one builtin that goes out over curl, and the reason the curl path
+    // learned the %file% token and response parsing: buzzheavier takes an
+    // anonymous PUT whose URL ends in the file name (no account, no key, no
+    // form field) and answers with the id its download page is built from -
+    // {"code":201,"data":{"id":"…","name":"…",…}}. Verified against the
+    // published API and one real upload.
+    if (!has(QStringLiteral("buzzheavier.com"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("buzzheavier.com")},
+            {QStringLiteral("type"), QStringLiteral("curl")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://w.buzzheavier.com/%file%")},
+            {QStringLiteral("urlPath"), QStringLiteral("https://buzzheavier.com/$json:data.id$")},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
     if (changed)
         persistDestinations();
 }
@@ -448,6 +464,59 @@ static QJsonObject sxcuToDestination(const QJsonObject &sx, const QString &fallb
                  || dest.value(QStringLiteral("urlPath")).toString().contains(QLatin1String("$json:")))
                     ? QStringLiteral("json") : QStringLiteral("text"));
     return dest;
+}
+
+// One entry of templateHelp()'s "vars". Free function so the table below reads
+// as a table.
+static QVariantMap tplVar(const QString &token, const QString &label,
+                          const QString &description, int caretBack = 0)
+{
+    return {{QStringLiteral("token"), token},
+            {QStringLiteral("label"), label},
+            {QStringLiteral("description"), description},
+            {QStringLiteral("caretBack"), caretBack}};
+}
+
+QVariantMap UploadManager::templateHelp(const QString &field, const QString &type) const
+{
+    const bool curl = type.compare(QLatin1String("curl"), Qt::CaseInsensitive) == 0;
+    QVariantList vars;
+    QString pattern;
+
+    if (field == QLatin1String("requestUrl")) {
+        // Both senders substitute it (requestUrlWithFileName); only curl also
+        // appends the name when the token is absent, so only curl's chip can
+        // promise the field works without it.
+        pattern = QStringLiteral("%file%");
+        vars = {tplVar(QStringLiteral("%file%"), tr("File name"),
+                       curl ? tr("The name of the uploaded file. Without it the name is added at "
+                                 "the end of the address, which is what FTP and SFTP folders want.")
+                            : tr("The name of the uploaded file, put right into the address."))};
+    } else if (field == QLatin1String("data")) {
+        // The three tokens sendHttp() substitutes into a custom JSON body.
+        pattern = QStringLiteral("\\$(?:base64|filename|mime)\\$");
+        vars = {tplVar(QStringLiteral("$base64$"), tr("File as base64"),
+                       tr("The whole file, base64-encoded, inline in the body.")),
+                tplVar(QStringLiteral("$filename$"), tr("File name"),
+                       tr("The name of the uploaded file.")),
+                tplVar(QStringLiteral("$mime$"), tr("File type"),
+                       tr("The file's MIME type, for example image/png."))};
+    } else if (field == QLatin1String("urlPath")) {
+        // Kept character for character in step with extractUrl()'s tokenRe: the
+        // pill has to appear exactly when the token is one that resolves.
+        pattern = QStringLiteral("\\$(?:text|json:[^$]+|regex:[^$]+)\\$");
+        vars = {tplVar(QStringLiteral("$text$"), tr("Whole answer"),
+                       tr("Everything the server answered, used as the link.")),
+                tplVar(QStringLiteral("$json:$"), tr("Value from JSON"),
+                       tr("A field of a JSON answer, by path: $json:data.link$ or "
+                          "$json:files[0].url$."),
+                       /*caretBack=*/1),
+                tplVar(QStringLiteral("$regex:$"), tr("Match by pattern"),
+                       tr("The first group a regular expression matches in the answer."),
+                       /*caretBack=*/1)};
+    }
+
+    return {{QStringLiteral("pattern"), pattern}, {QStringLiteral("vars"), vars}};
 }
 
 QString UploadManager::importSxcu(const QString &pathOrUrl)
@@ -735,7 +804,8 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &srcPath, const QString &fileName,
                                const QString &mime, Purpose purpose, Callback cb)
 {
-    QNetworkRequest req{QUrl(dest.value(QStringLiteral("requestUrl")).toString())};
+    QNetworkRequest req{QUrl(requestUrlWithFileName(
+        dest.value(QStringLiteral("requestUrl")).toString(), fileName))};
     // Stall protection, the http twin of curlUpload's --speed-time 60: a server
     // that accepts the connection and then goes quiet would otherwise hold the
     // QNetworkReply, the busy state and (for the server editor's Test upload)
@@ -866,6 +936,50 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
     });
 }
 
+// %file% in a request URL, replaced by the percent-encoded name. Shared by both
+// senders: it is the same field with the same job whichever way the destination
+// uploads, so it takes the same token, and a destination switched from curl to
+// http does not quietly stop substituting. Absent the token the URL is returned
+// untouched - the append below is curl's own rule, not this one, and appending
+// a name to an http endpoint would post to a path that does not exist.
+QString UploadManager::requestUrlWithFileName(const QString &requestUrl, const QString &fileName)
+{
+    if (!requestUrl.contains(QLatin1String("%file%")))
+        return requestUrl;
+    const QString encoded =
+        QString::fromUtf8(QUrl::toPercentEncoding(sanitizeFileName(fileName)));
+    return QString(requestUrl).replace(QLatin1String("%file%"), encoded);
+}
+
+// Where curl puts the file. %file% anywhere in the request URL is replaced by
+// the percent-encoded name: hosts that take the name as a path segment of their
+// own ("/upload/%file%?to=inbox") or as a query value could not be addressed at
+// all while the name was only ever appended. Without the token the old append
+// stands, which is what every stored FTP/SFTP destination relies on.
+QString UploadManager::curlTargetUrl(const QString &requestUrl, const QString &fileName)
+{
+    const QString encoded =
+        QString::fromUtf8(QUrl::toPercentEncoding(sanitizeFileName(fileName)));
+    if (requestUrl.contains(QLatin1String("%file%")))
+        return requestUrlWithFileName(requestUrl, fileName);
+    QString target = requestUrl;
+    if (!target.endsWith(QLatin1Char('/')))
+        target += QLatin1Char('/');
+    return target + encoded;
+}
+
+// One line of a curl -K config file. curl parses it line by line, so an embedded
+// newline in a value would inject arbitrary options ("insecure", "output
+// <file>"); quotes and backslashes have to survive as themselves.
+static QByteArray curlConfigLine(const QString &option, const QString &value)
+{
+    QString v = value;
+    v.remove(QLatin1Char('\r')).remove(QLatin1Char('\n'));
+    v.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
+     .replace(QLatin1Char('"'), QLatin1String("\\\""));
+    return QStringLiteral("%1 = \"%2\"\n").arg(option, v).toUtf8();
+}
+
 void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &srcPath, const QString &fileName,
                                Purpose purpose, Callback cb)
@@ -892,10 +1006,8 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     }
 
     const QString safeName = sanitizeFileName(fileName);
-    QString target = dest.value(QStringLiteral("requestUrl")).toString();
-    if (!target.endsWith(QLatin1Char('/')))
-        target += QLatin1Char('/');
-    target += QString::fromUtf8(QUrl::toPercentEncoding(safeName));
+    const QString target =
+        curlTargetUrl(dest.value(QStringLiteral("requestUrl")).toString(), fileName);
 
     // Stall protection: without it a server that accepts the connection and
     // then hangs leaks the curl process, temp file and busy state forever.
@@ -909,19 +1021,19 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
                      QStringLiteral("-T"), uploadPath};
     // Credentials must never be on the command line — argv is world-readable
     // in /proc/<pid>/cmdline for the whole transfer. Feed them as a config
-    // file on stdin instead (curl -K -).
-    const QString user = dest.value(QStringLiteral("user")).toString();
+    // file on stdin instead (curl -K -). Custom headers ride the same channel
+    // for the same reason: an API key in an Authorization header is every bit
+    // as much a secret as a password.
     QByteArray curlConfig;
-    if (!user.isEmpty()) {
-        QString escaped = user;
-        // curl parses the config line-by-line: an embedded newline would
-        // inject arbitrary options (e.g. "insecure", "output <file>").
-        escaped.remove(QLatin1Char('\r')).remove(QLatin1Char('\n'));
-        escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
-               .replace(QLatin1Char('"'), QLatin1String("\\\""));
-        curlConfig = QStringLiteral("user = \"%1\"\n").arg(escaped).toUtf8();
+    const QString user = dest.value(QStringLiteral("user")).toString();
+    if (!user.isEmpty())
+        curlConfig += curlConfigLine(QStringLiteral("user"), user);
+    const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+        curlConfig += curlConfigLine(QStringLiteral("header"),
+                                     it.key() + QStringLiteral(": ") + it.value().toString());
+    if (!curlConfig.isEmpty())
         args << QStringLiteral("-K") << QStringLiteral("-");
-    }
     // Skipping host-key verification enables silent MITM; only on explicit
     // per-destination opt-in ("insecure": true) for curl builds whose sftp
     // backend can't read known_hosts.
@@ -937,11 +1049,28 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     connect(proc, &QProcess::finished, this,
             [proc, tmp, dest, safeName, cb](int code, QProcess::ExitStatus) {
         const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
+        // curl's stdout is the server's answer. It used to be dropped on the
+        // floor, which pinned every curl destination to publicUrlBase + name:
+        // a host that replies with the link, or with an id to build one from,
+        // could not be used at all.
+        const QByteArray body = proc->readAllStandardOutput();
         proc->deleteLater();
         if (tmp)
             tmp->deleteLater();
         if (code != 0) {
             cb({}, {}, errOut.isEmpty() ? QStringLiteral("curl exited with code %1").arg(code) : errOut);
+            return;
+        }
+        // An explicit extractor wins: it is the one the user typed.
+        if (!dest.value(QStringLiteral("urlPath")).toString().isEmpty()) {
+            const QString url = extractUrl(dest, QStringLiteral("urlPath"), body);
+            const QString del = extractUrl(dest, QStringLiteral("deletionUrlPath"), body);
+            if (url.isEmpty()) {
+                cb({}, {}, QStringLiteral("Upload succeeded but no URL found in response: %1")
+                               .arg(QString::fromUtf8(body.left(300))));
+                return;
+            }
+            cb(url, del, {});
             return;
         }
         QString publicUrl = dest.value(QStringLiteral("publicUrlBase")).toString();

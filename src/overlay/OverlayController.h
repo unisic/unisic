@@ -38,8 +38,21 @@ public:
         emit textEditingChanged();
     }
 
-    void pickAnnotatedImage(ImageCallback cb, int initialTool = 0); // full capture flow
-    void pickRegion(RegionCallback cb);          // GIF region flow (no annotation tools)
+    // What the overlay was opened FOR. The two funnels below each serve several
+    // purposes - pickAnnotatedImage covers a screenshot, a measurement and an
+    // OCR read, pickRegion covers GIF and video - so the window could not tell
+    // them apart and showed the same chrome and the same "Start" button for all
+    // of them (issue #98: you cannot see which capture mode is active). Only
+    // the caller knows, so the caller says.
+    enum class Purpose { Shot, Measure, Ocr, Gif, Video };
+    // The QML-side name of a purpose. A plain string and not a Q_ENUM because
+    // OverlayController reaches QML as a context property, not as a registered
+    // type, so QML could not spell the enumerators anyway - and this value is
+    // only ever compared and displayed.
+    static QString purposeName(Purpose p);
+
+    void pickAnnotatedImage(ImageCallback cb, Purpose purpose, int initialTool = 0);
+    void pickRegion(RegionCallback cb, Purpose purpose); // no annotation tools
 
     // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
     // Consumed by the capture callback to force a clipboard copy even when
@@ -67,7 +80,7 @@ public slots:
     void cancel();                               // Esc
 
 private:
-    void begin(bool annotationTools);
+    void begin(bool annotationTools, Purpose purpose);
     void createWindows();
     void closeAll();
 
@@ -83,6 +96,7 @@ private:
     ImageCallback m_imageCb;
     RegionCallback m_regionCb;
     bool m_annotationTools = true;
+    Purpose m_purpose = Purpose::Shot;
     bool m_starting = false;
     bool m_textEditing = false;
     bool m_copyRequested = false;

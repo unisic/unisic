@@ -13,7 +13,7 @@
     # copy below only fills the directory when the submodule is absent.
     # KEEP THE REV IN SYNC with `git submodule status external/unisic-kit`.
     unisic-kit = {
-      url = "github:unisic/unisic-kit/e52a2f59f6b25df902f1ad36793c68c777c776a6";
+      url = "github:unisic/unisic-kit/64c4d63d04025c186af63c2850f67371adac5af2";
       flake = false;
     };
   };

@@ -401,6 +401,16 @@ bool HistoryStore::setFilePathById(quint64 id, const QString &filePath)
     return false;
 }
 
+quint64 HistoryStore::idForFile(const QString &filePath) const
+{
+    if (filePath.isEmpty())
+        return 0;
+    for (const Entry &e : m_entries)
+        if (e.filePath == filePath)
+            return e.id;
+    return 0;
+}
+
 bool HistoryStore::fileIsFavorite(const QString &filePath) const
 {
     if (filePath.isEmpty())

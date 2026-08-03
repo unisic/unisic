@@ -567,12 +567,9 @@ Item {
                         // while the pointer is over a button.
                         HoverHandler { id: cardHover }
 
-                        // The "More" menu is a Popup, so it renders on the window
-                        // overlay and NOT inside this card: the pointer moving off
-                        // the trigger onto the open menu leaves the card, cardHover
-                        // drops, and the strip used to fade out from under the menu
-                        // - taking its own trigger with it. An open menu counts as
-                        // hover for exactly as long as it is open.
+                        // The More menu renders outside the card. Count an open
+                        // menu as hover so the card's colour feedback does not
+                        // flicker while the pointer moves onto the popup.
                         readonly property bool hovering: cardHover.hovered || moreMenu.menuOpen
 
                         Column {
@@ -661,14 +658,14 @@ Item {
                                     }
                                 }
 
-                                // Kind badge: bottom-left, clear of the checkbox and
-                                // the star, and hidden while the action strip owns
-                                // that edge.
+                                // Kind badge: bottom-left, clear of the persistent
+                                // action strip as well as the checkbox and star.
                                 Rectangle {
-                                    visible: kind !== "image" && !strip.shown
+                                    visible: kind !== "image"
                                     anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: strip.height + 4
                                     anchors.left: parent.left
-                                    anchors.margins: 6
+                                    anchors.leftMargin: 6
                                     width: kindText.implicitWidth + 14
                                     height: 20
                                     radius: 10
@@ -685,9 +682,8 @@ Item {
                                     }
                                 }
 
-                                // Selection checkbox: top-left. Shown on hover, and
-                                // pinned while a batch is staged so the selection
-                                // stays readable without the pointer.
+                                // Selection checkbox: top-left and always present,
+                                // so touch and pointer users see the same affordance.
                                 Rectangle {
                                     id: selectBox
                                     z: 2
@@ -695,10 +691,11 @@ Item {
                                     anchors.left: parent.left
                                     anchors.margins: 6
                                     width: 22; height: 22; radius: 6
-                                    visible: tile.selected || card.hovering || page.selectionCount > 0
-                                    color: tile.selected ? Theme.accent : Qt.rgba(0, 0, 0, 0.5)
+                                    color: tile.selected ? Theme.accent
+                                                         : Theme.alpha(Theme.mediaBase, 0.5)
                                     border.width: 1
-                                    border.color: tile.selected ? Theme.accent : Qt.rgba(1, 1, 1, 0.6)
+                                    border.color: tile.selected ? Theme.accent
+                                                                : Theme.alpha(Theme.mediaText, 0.6)
                                     UIcon {
                                         anchors.centerIn: parent
                                         visible: tile.selected
@@ -735,14 +732,13 @@ Item {
                                     anchors.right: parent.right
                                     anchors.margins: 6
                                     width: 26; height: 26; radius: 13
-                                    color: Qt.rgba(0, 0, 0, 0.5)
-                                    visible: favorite || card.hovering
+                                    color: Theme.alpha(Theme.mediaBase, 0.5)
                                     function toggle() { App.history.setFavoriteByIds([entryId], !favorite) }
                                     UIcon {
                                         anchors.centerIn: parent
                                         name: favorite ? "star-filled" : "star"
                                         size: 15
-                                        color: favorite ? Theme.accent : "#FFFFFF"
+                                        color: favorite ? Theme.accent : Theme.mediaText
                                     }
                                     MouseArea {
                                         anchors.fill: parent
@@ -758,42 +754,33 @@ Item {
                                     Accessible.onPressAction: starBox.toggle()
                                 }
 
-                                // Action strip: slides up along the bottom edge on
-                                // hover. The old full-tile scrim blacked out the
-                                // very thumbnail you were aiming at and squeezed
-                                // five controls into the middle of it.
+                                // Action strip: permanently occupies the bottom
+                                // edge. Batch-selection mode disables it in place
+                                // rather than hiding controls under the pointer.
                                 Item {
                                     id: strip
-                                    readonly property bool shown: card.hovering && page.selectionCount === 0
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     height: 38
                                     clip: true
-                                    visible: opacity > 0
-                                    opacity: strip.shown ? 1 : 0
+                                    enabled: page.selectionCount === 0
+                                    opacity: enabled ? 1 : 0.42
                                     Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
 
                                     Rectangle {
                                         width: parent.width
                                         height: parent.height
-                                        y: strip.shown ? 0 : parent.height
-                                        Behavior on y { NumberAnimation { duration: Theme.animFast; easing.type: Easing.OutCubic } }
                                         gradient: Gradient {
-                                            GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.0) }
-                                            GradientStop { position: 0.45; color: Qt.rgba(0, 0, 0, 0.65) }
-                                            GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.85) }
+                                            GradientStop { position: 0.0; color: Theme.alpha(Theme.mediaBase, 0.0) }
+                                            GradientStop { position: 0.45; color: Theme.alpha(Theme.mediaBase, 0.65) }
+                                            GradientStop { position: 1.0; color: Theme.alpha(Theme.mediaBase, 0.85) }
                                         }
 
                                         // NOTHING in this strip is a tab stop.
-                                        // It exists only while the pointer is
-                                        // on the tile, so a keyboard user can
-                                        // never land on it anyway - but as a
-                                        // tab stop it still rewrote the
-                                        // window's tab ORDER as the mouse moved
-                                        // across the grid, splicing six
-                                        // controls per hovered tile in between
-                                        // the grid and whatever follows it.
+                                        // The GridView deliberately owns keyboard
+                                        // navigation, so per-tile controls must not
+                                        // splice dozens of stops into the tab order.
                                         // (Measured: a VISIBLE control with
                                         // activeFocusOnTab true takes the Tab;
                                         // with false the Tab skips straight
@@ -878,6 +865,33 @@ Item {
                                                     if (App.ocrAvailable && kind === "image" && filePath !== "")
                                                         a.push({ label: qsTr("Copy text (OCR)"), iconName: "ocr",
                                                                  trigger: function() { App.ocrFile(filePath) } })
+                                                    // Each conversion writes a second file beside the
+                                                    // original, so the tile it makes is its own. The
+                                                    // format the file already is stays out of the list
+                                                    // (it would be a copy under another name), and GIF
+                                                    // is greyed with the reason when ffmpeg is absent,
+                                                    // because Qt writes no GIF.
+                                                    if (kind === "image" && filePath !== "") {
+                                                        let own = filePath.substring(filePath.lastIndexOf(".") + 1).toLowerCase()
+                                                        if (own === "jpeg")
+                                                            own = "jpg"
+                                                        const targets = [["png", "PNG"], ["jpg", "JPEG"],
+                                                                         ["webp", "WebP"], ["gif", "GIF"]]
+                                                        let first = true
+                                                        for (let t = 0; t < targets.length; ++t) {
+                                                            const code = targets[t][0]
+                                                            if (code === own)
+                                                                continue
+                                                            const needsFfmpeg = code === "gif"
+                                                            a.push({ label: qsTr("Convert to %1").arg(targets[t][1]),
+                                                                     iconName: "document-save",
+                                                                     separatorBefore: first && a.length > 0,
+                                                                     enabled: !needsFfmpeg || App.ffmpegAvailable,
+                                                                     hint: (needsFfmpeg && !App.ffmpegAvailable) ? qsTr("Needs ffmpeg") : "",
+                                                                     trigger: function() { App.convertFileTo(filePath, code) } })
+                                                            first = false
+                                                        }
+                                                    }
                                                     a.push({ label: favorite ? qsTr("Starred. Unstar to allow deleting")
                                                                              : qsTr("Delete (moves file to trash)"),
                                                              iconName: "edit-delete", enabled: !favorite, separatorBefore: true,

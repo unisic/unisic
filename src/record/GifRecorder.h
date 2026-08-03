@@ -65,6 +65,24 @@ public:
     // ffmpeg args that excise the given paused wall-clock spans (ms) from `input`
     // into `output`, cutting the SAME ranges from video and audio so they stay
     // synced. Public so the dev/smoke harness exercises the exact filtergraph.
+    // Audio args for the shareable container (MP4/WebM), shared by the
+    // recorder's own conversion, the instant-replay export and the trimmer:
+    // every recorded track is mapped, and optional per-track names are written
+    // in the two forms MP4 needs. Public so the dev/smoke harness runs the
+    // exact same arguments.
+    static QStringList finalAudioArgs(bool webm, const QStringList &trackTitles = {});
+    // Trimmer variant of the audio args: one gain per input audio stream, in
+    // stream order. Negative = drop the track, 1.0 = unchanged, anything else
+    // becomes a volume filter (which forces the audio re-encode either way).
+    // Public for the same dev/smoke reason as finalAudioArgs.
+    static QStringList audioEditArgs(bool webm, const QList<double> &gains);
+    // Same, for a recording whose track `mixTrack` is the recorder's own mix
+    // of the others: the original mix is dropped and REBUILT by amixing the
+    // kept stems at their edited gains, so a stem edit is audible in the one
+    // track players actually play. The rebuilt mix is output track 1 (named
+    // mixTitle), the edited stems follow.
+    static QStringList audioRemixArgs(bool webm, const QList<double> &gains, int mixTrack,
+                                      const QString &mixTitle);
     static QStringList pauseExciseArgs(const QString &input, const QString &output,
                                        const QList<QPair<qint64, qint64>> &intervalsMs,
                                        bool hasAudio);
@@ -199,6 +217,9 @@ private:
     Output m_output = Gif;
     SourceType m_source = Screen;
     bool m_hasAudio = false; // pulse audio captured into the temp (video only)
+    // One name per recorded audio track, in stream order; empty when the
+    // sources were mixed into one stream (which no single name describes).
+    QStringList m_audioTrackTitles;
     bool m_paused = false;
     qint64 m_pauseStartMs = 0;   // m_elapsed.elapsed() when the current pause began
     qint64 m_pausedTotalMs = 0;  // accumulated paused wall-clock (excluded from the readout)

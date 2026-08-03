@@ -1407,6 +1407,26 @@ void AnnotationCanvas::applyCrop()
 
 static qreal arrowHeadLen(qreal w) { return qMax(12.0, w * 4.5); }
 
+// Bounding box of a point list. NOT QRectF::united() of zero-size rects: a
+// 0x0 QRectF is null, and united()/operator| returns the OTHER rect whenever
+// one side is null, so a fold over zero-size rects collapses to the LAST
+// point. That silently shrank every Pen/Highlight bound to its final point,
+// which made the cull in drawAll() drop the stroke on any partial repaint
+// (the whole stroke vanished until something forced a full repaint).
+static QRectF pointsBoundsImg(const QVector<QPointF> &pts)
+{
+    if (pts.isEmpty())
+        return {};
+    qreal x1 = pts.first().x(), y1 = pts.first().y(), x2 = x1, y2 = y1;
+    for (const QPointF &p : pts) {
+        x1 = qMin(x1, p.x());
+        y1 = qMin(y1, p.y());
+        x2 = qMax(x2, p.x());
+        y2 = qMax(y2, p.y());
+    }
+    return QRectF(QPointF(x1, y1), QPointF(x2, y2));
+}
+
 // Font for a Text annotation. Kept in sync with the QML input overlays'
 // WYSIWYG preview (EditorWindow/OverlayWindow text editors).
 QFont AnnotationCanvas::annotFontFor(const Annot &a) const
@@ -1824,9 +1844,7 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
         return r.adjusted(-pad, -pad, pad, pad);
     }
     if (!a.points.isEmpty()) {
-        r = QRectF(a.points.first(), QSizeF(0, 0));
-        for (const QPointF &pt : a.points)
-            r |= QRectF(pt, QSizeF(0, 0));
+        r = pointsBoundsImg(a.points);
     } else if (a.type == Text) {
         // rect is a zero-size origin for text — measure the laid-out lines
         // (plus the background box padding, covered by the slack below).
@@ -1923,10 +1941,8 @@ void AnnotationCanvas::paint(QPainter *painter)
         // Dashed bounds around the shape (a light guide; the handles are the
         // real affordance). Pen/Text/Step have no scale handles → just bounds.
         QRectF bounds = (a.type == Text) ? textBoundsImg(a) : a.rect.normalized();
-        if (a.type == Pen && !a.points.isEmpty()) {
-            bounds = QRectF(a.points.first(), QSizeF(0, 0));
-            for (const QPointF &pt : a.points) bounds |= QRectF(pt, QSizeF(0, 0));
-        }
+        if (a.type == Pen && !a.points.isEmpty())
+            bounds = pointsBoundsImg(a.points);
         if (a.type == Step) {
             const qreal r = qMax(14.0, a.stepSize * 0.9);
             bounds = QRectF(a.rect.topLeft() - QPointF(r, r), QSizeF(2 * r, 2 * r));

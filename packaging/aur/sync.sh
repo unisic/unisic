@@ -200,8 +200,12 @@ if [ "$do_push" -eq 1 ]; then
     for pkg in unisic unisic-bin; do
         say "Pushing ${pkg} to the AUR"
         work="${tmp}/aur-${pkg}"
-        git clone "ssh://aur@aur.archlinux.org/${pkg}.git" "$work" 2>/dev/null \
-            || die "Could not clone ${pkg}.git - is your SSH key registered on your AUR account?"
+        # git's own stderr is kept: a rejected key, a changed host key and the
+        # AUR being down all end here, and they need different fixes. Swallowing
+        # it left the CI log with nothing but the guess below.
+        if ! git clone "ssh://aur@aur.archlinux.org/${pkg}.git" "$work"; then
+            die "Could not clone ${pkg}.git - see git's error above. If it is 'Permission denied (publickey)', the key in AUR_SSH_KEY is not the one on the AUR account (https://aur.archlinux.org/account/)."
+        fi
         cp "${here}/${pkg}/PKGBUILD" "${here}/${pkg}/.SRCINFO" "$work/"
         git -C "$work" add PKGBUILD .SRCINFO
         if git -C "$work" diff --cached --quiet; then

@@ -60,6 +60,14 @@ jobs:
           fi
           install -d -m 700 -o builder -g builder /home/builder/.ssh
           printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
+          # A key ssh cannot parse fails five minutes later as a plain
+          # "Permission denied (publickey)", which reads as a wrong account
+          # rather than a wrong file. The public half - the one the AUR account
+          # page shows - lands here every time somebody copies from the website.
+          if ! ssh-keygen -y -f /home/builder/.ssh/aur >/dev/null 2>&1; then
+            echo "::error::AUR_SSH_KEY is not a usable OpenSSH private key. The AUR account page shows the PUBLIC half; the secret needs the private one (the file without .pub)."
+            exit 1
+          fi
           # The host key is PINNED rather than ssh-keyscan'd: a keyscan trusts
           # whatever answers on the day, which is exactly the thing a known
           # hosts file exists to prevent.

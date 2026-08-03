@@ -649,13 +649,17 @@ void AnnotationCanvasTest::watermarkSizeScalesTheStamp()
         const int a = markedPixels(small, base);
         const int b = markedPixels(normal, base);
         const int c = markedPixels(large, base);
-        if (pattern == QLatin1String("diagonal")) {
-            // Measured, not assumed: the diagonal tiling is the one pattern
-            // whose covered AREA does not follow the size setting. Spacing is a
-            // multiple of the stamp, so the density is scale-invariant, and the
-            // rotation then decides how much of each edge stamp falls outside
-            // the picture - which moves the count either way (8888/9471/8061
-            // here). What must hold is that the size setting reaches it at all.
+        if (pattern == QLatin1String("tile") || pattern == QLatin1String("diagonal")) {
+            // Measured, not assumed: the two tiling patterns are the ones whose
+            // covered AREA does not follow the size setting. tile() steps by a
+            // fixed multiple of the stamp, so a stamp twice as wide is laid down
+            // a quarter as often and the ink cancels out; what is left is
+            // clipping at the edges (and, for the diagonal one, the rotation
+            // deciding how much of each edge stamp falls off the picture), which
+            // moves the count either way and by however much the font in use
+            // makes it. It went up here and down on a build image with different
+            // fonts (7987/6430/5823), so the direction is not a property of the
+            // code. What must hold is that the size setting reaches it at all.
             QVERIFY(a > 0 && b > 0 && c > 0);
             QVERIFY(small != normal && normal != large);
             continue;

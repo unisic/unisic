@@ -2,6 +2,7 @@
 #include <QBuffer>
 #include <QImage>
 #include <QImageReader>
+#include <QImageWriter>
 #include <QPainter>
 #include <QStandardPaths>
 #include "FilenameTemplate.h"
@@ -32,6 +33,13 @@ private:
     {
         return !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
     }
+    // Qt's image plugins are a packaging decision, not a given: the Ubuntu and
+    // Nix build images ship no WebP writer, so asking for one there really does
+    // land in the encoder's fallback rather than in a broken build.
+    static bool canWrite(const char *plugin)
+    {
+        return QImageWriter::supportedImageFormats().contains(QByteArray(plugin));
+    }
     static QImage opaque(int w = 64, int h = 48)
     {
         QImage img(w, h, QImage::Format_ARGB32_Premultiplied);
@@ -48,16 +56,33 @@ private:
 void ImageConvertTest::writesRealFormats()
 {
     const QImage src = opaque();
-    struct { const char *fmt; const char *mime; QByteArray magic; int at; } cases[] = {
-        { "png",  "image/png",  QByteArray("\x89PNG", 4), 0 },
-        { "jpg",  "image/jpeg", QByteArray("\xFF\xD8\xFF", 3), 0 },
-        { "jpeg", "image/jpeg", QByteArray("\xFF\xD8\xFF", 3), 0 },
-        { "webp", "image/webp", QByteArray("WEBP", 4), 8 }, // RIFF<4-byte size>WEBP
+    struct {
+        const char *fmt;
+        const char *plugin;
+        const char *mime;
+        QByteArray magic;
+        int at;
+    } cases[] = {
+        { "png",  "png",  "image/png",  QByteArray("\x89PNG", 4), 0 },
+        { "jpg",  "jpeg", "image/jpeg", QByteArray("\xFF\xD8\xFF", 3), 0 },
+        { "jpeg", "jpeg", "image/jpeg", QByteArray("\xFF\xD8\xFF", 3), 0 },
+        { "webp", "webp", "image/webp", QByteArray("WEBP", 4), 8 }, // RIFF<4-byte size>WEBP
     };
     for (const auto &c : cases) {
         const ImageEncode::Result r =
             ImageEncode::encode(src, QString::fromLatin1(c.fmt), 80);
         QVERIFY2(r.ok(), c.fmt);
+        if (!canWrite(c.plugin)) {
+            // No plugin for it: PNG bytes come out, and the result says PNG
+            // rather than naming a format it did not write. That honesty is the
+            // whole point of the fallback, so it is asserted here and not
+            // skipped over.
+            QCOMPARE(r.format, QStringLiteral("png"));
+            QCOMPARE(r.mime, QStringLiteral("image/png"));
+            QCOMPARE(r.fallbackReason, QStringLiteral("encoder"));
+            QVERIFY2(r.bytes.startsWith(QByteArray("\x89PNG", 4)), c.fmt);
+            continue;
+        }
         // The header, not the extension: this is what a browser, a file manager
         // and every upload target read to decide what the file is.
         QVERIFY2(r.bytes.mid(c.at).startsWith(c.magic),

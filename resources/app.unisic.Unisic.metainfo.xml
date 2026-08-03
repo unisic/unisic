@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.3" date="2026-08-04">
+      <description>
+        <p>A screenshot can be a GIF now, and pictures can change format on their own: when you bring one in, when a capture comes out too large, when it is uploaded, or on demand from History. The watermark can cover the whole picture instead of one croppable corner, with five layouts, a size setting and a live preview. Recording quality reads as a percent rather than an encoder number, each sound source can keep its own named track, the microphone can record from an input you pick, and the trim window mutes and balances those tracks with the preview playing your edits live. The capture overlay says which capture is running, as a badge or a faded icon with your selection cut out of it, and Settings shows a live picture of it without taking a capture. The variables a server or filename field understands are clickable chips now. Windows resize by their edges again, the wheel scrolls everywhere it used to crawl, an upload adds its link to the capture's own history tile instead of a second one, drawing no longer erases strokes underneath, and the installer fetches the newest version instead of explaining why you cannot have it.</p>
+      </description>
+    </release>
     <release version="0.8.2" date="2026-07-31">
       <description>
         <p>Adds Russian and German, both translated in full, bringing the interface to seven languages. Installing on Ubuntu works again: the installer adds Unisic's own software source first and installs the build made for that system, instead of handing every Debian-based system the same Debian 13 package. Saved server passwords are no longer readable by other accounts on the same computer, the installer the app downloads for in-app updates is checked against a published fingerprint before it runs, and a program run after each capture can no longer hang the session forever. A save name beginning with a dot no longer produces an invisible file, the extra colour themes come back when their folder has gone missing, and a history tile keeps its buttons while its own menu is open.</p>

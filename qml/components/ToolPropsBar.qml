@@ -722,7 +722,8 @@ Flow {
                     accessibleDescription: qsTr("Middle-click to delete this preset")
                     required property var modelData
                     required property int index
-                    dotColor: modelData.stroke !== undefined ? modelData.stroke : "#FF4757"
+                    dotColor: modelData.stroke !== undefined ? modelData.stroke
+                                                               : (Theme.swatches.length > 0 ? Theme.swatches[0] : Theme.accent)
                     // A preset is "active" only when the WHOLE style matches, not just
                     // the colour - two presets can share a colour and differ in width.
                     active: root.presetMatchesCanvas(modelData)

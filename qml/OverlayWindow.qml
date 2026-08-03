@@ -8,7 +8,7 @@ import "components"
 Window {
     id: overlayWindow
     flags: Qt.FramelessWindowHint | Qt.Window
-    color: "black"
+    color: Theme.mediaBase
     visible: false
 
     Item {
@@ -24,6 +24,51 @@ Window {
         readonly property bool guidesUseful:
             App.settings.selectionGuides
             && canvas.tool === AnnotationCanvas.None
+
+        // Which capture mode opened this overlay (issue #98). All five freeze
+        // the screen and draw the same chrome, so a mis-fired hotkey used to
+        // announce itself only once the shot was already taken - or, worse, once
+        // the recording had started. The WORD is the answer; the colour only
+        // reinforces it, because colour alone says nothing on a greyscale screen
+        // or to a colour-blind user.
+        readonly property string modeLabel: {
+            switch (overlayPurpose) {
+            case "measure": return qsTr("Measure")
+            case "ocr":     return qsTr("Read text")
+            case "gif":     return qsTr("Record GIF")
+            case "video":   return qsTr("Record video")
+            }
+            return qsTr("Screenshot")
+        }
+        readonly property string modeIcon: {
+            switch (overlayPurpose) {
+            case "measure": return "measure"
+            case "ocr":     return "ocr"
+            case "gif":     return "gif"
+            case "video":   return "media-record"
+            }
+            return "region"
+        }
+        readonly property color modeColor: Theme.modeColor(overlayPurpose)
+        // What confirming actually does, on the button AND in the hint: "Start"
+        // on a screen that could equally be a GIF, a video or a text read
+        // answers nothing. Measuring still exports an image, so it captures.
+        readonly property string confirmLabel: {
+            switch (overlayPurpose) {
+            case "ocr":   return qsTr("Read text")
+            case "gif":   return qsTr("Record GIF")
+            case "video": return qsTr("Record video")
+            }
+            return qsTr("Capture")
+        }
+        // Preference: the badge and the coloured frame are the part that can be
+        // turned off. The button, the hint and the spoken name are not - a label
+        // that names the wrong action is a bug, not a matter of taste.
+        readonly property bool showMode: App.settings.overlayModeBadge
+        // "badge" (named pill at the top) or "icon" (one big translucent glyph
+        // in the middle). The coloured frame is drawn for both - it is the
+        // mode's colour, not one of the two ways of naming it.
+        readonly property string modeStyle: App.settings.overlayModeStyle
 
         // Non-KDE compositors (Mutter, sway) routinely deny requestActivate()
         // issued from a hotkey with no focused window — keyboard (Esc/Enter/
@@ -313,7 +358,7 @@ Window {
             // of its own, so assistive tech gets a name and the key vocabulary
             // rather than an anonymous unlabelled surface.
             Accessible.role: Accessible.Canvas
-            Accessible.name: qsTr("Capture region")
+            Accessible.name: qsTr("Capture region, %1").arg(root.modeLabel)
             Accessible.description: qsTr("Drag to select. Space or Enter captures, Escape cancels, arrow keys nudge the selection.")
             selectionMode: true
             tool: AnnotationCanvas.None
@@ -331,8 +376,10 @@ Window {
             // Bare click = full-screen capture: screenshot flow only too — a
             // stray click must not start a recording.
             clickSelectsAll: annotationToolsEnabled
-            // Selection chrome follows the selected app theme (was fixed purple).
-            uiAccent: Theme.accent
+            // Selection chrome follows the selected app theme (was fixed purple),
+            // and takes the mode colour when the mode badge is on, so the
+            // handles the user is dragging carry the same answer as the frame.
+            uiAccent: root.showMode ? root.modeColor : Theme.accent
             uiScrim: Theme.primary
             // Pixel loupe while picking the region. The zoom is
             // seeded once and written back (scroll edits it live) — a
@@ -403,11 +450,10 @@ Window {
                 textField.selectAll()
             }
 
-            // Crosshair guides from the cursor to the screen edges. The handler
-            // lives INSIDE the canvas: the canvas item receives the pointer, so a
-            // sibling handler on root would report hovered only where the canvas
-            // isn't (e.g. over the toolbar) — the exact "only shows over toolbar"
-            // bug. As a child it tracks the pointer across the whole overlay.
+            // This is cursor feedback rather than an action control: gate it to
+            // the canvas on the monitor that actually owns the pointer, or every
+            // other monitor would retain a stale crosshair. The C++ hover point
+            // below keeps tracking during drags, when hover events pause.
             HoverHandler {
                 id: guideHover
                 enabled: root.guidesUseful
@@ -422,7 +468,7 @@ Window {
             visible: root.guidesUseful && guideHover.hovered
             x: Math.round(canvas.hoverPoint.x) - 1
             y: 0; width: 3; height: parent.height
-            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle { anchors.fill: parent; color: Theme.alpha(Theme.mediaBase, 0.35) }
             Rectangle {
                 width: 1; height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -433,7 +479,7 @@ Window {
             visible: root.guidesUseful && guideHover.hovered
             x: 0; y: Math.round(canvas.hoverPoint.y) - 1
             width: parent.width; height: 3
-            Rectangle { anchors.fill: parent; color: "#000000"; opacity: 0.35 }
+            Rectangle { anchors.fill: parent; color: Theme.alpha(Theme.mediaBase, 0.35) }
             Rectangle {
                 width: parent.width; height: 1
                 anchors.verticalCenter: parent.verticalCenter
@@ -484,6 +530,15 @@ Window {
                     if (canvas.tool === AnnotationCanvas.Measure)
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
+                    // The verb has to match the mode: the same sentence used to
+                    // promise a capture whether it took a screenshot, read text
+                    // or started recording.
+                    if (overlayPurpose === "ocr")
+                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter reads the text · Esc to cancel")
+                    if (overlayPurpose === "gif")
+                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter starts the GIF · Esc to cancel")
+                    if (overlayPurpose === "video")
+                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter starts the video · Esc to cancel")
                     return annotationToolsEnabled
                            ? drag + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
                            : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
@@ -491,6 +546,90 @@ Window {
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1
             }
+        }
+
+        // Mode frame: the screen edge in the mode colour. Peripheral vision
+        // answers "which capture is this" wherever the pointer happens to be,
+        // and it survives the first drag, which the hint bar above does not.
+        // Built like RecordBorder's region frame - a contrast hairline on each
+        // side of the coloured stroke - so a light mode colour stays visible
+        // over a light desktop and a dark one over a dark desktop.
+        Rectangle {
+            visible: root.showMode
+            anchors.fill: parent
+            color: "transparent"
+            border.width: 1
+            border.color: Theme.recordFrameContrast
+        }
+        Rectangle {
+            visible: root.showMode
+            anchors.fill: parent
+            anchors.margins: 1
+            color: "transparent"
+            border.width: 3
+            border.color: root.modeColor
+        }
+        Rectangle {
+            visible: root.showMode
+            anchors.fill: parent
+            anchors.margins: 4
+            color: "transparent"
+            border.width: 1
+            border.color: Theme.recordFrameContrast
+        }
+
+        // Mode badge. It borrows the recording badge's ink for the same reason
+        // the dimension readout does: it sits over arbitrary frozen pixels.
+        // Never a tab stop and never spoken - the canvas already carries the
+        // mode in its accessible name, and the overlay's keyboard grab means a
+        // focusable chip here would swallow the Space that finishes the shot.
+        Rectangle {
+            visible: root.showMode && root.modeStyle !== "icon"
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 8
+            width: modeRow.implicitWidth + 24
+            height: 28
+            radius: 14
+            color: Theme.recBadgeBg
+            border.width: 1
+            border.color: root.modeColor
+            Accessible.ignored: true
+            Row {
+                id: modeRow
+                anchors.centerIn: parent
+                spacing: 6
+                UIcon {
+                    name: root.modeIcon
+                    size: 13
+                    color: root.modeColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: root.modeLabel
+                    color: Theme.recBadgeText
+                    font.pixelSize: 12
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        // Mode glyph: the second way of naming the mode. One big translucent
+        // mark in the middle of the screen instead of a pill at the top - it
+        // reads at a glance without a strip of chrome across the desktop. The
+        // selection is cut out of it, so the part of it you are framing over is
+        // not drawn while the rest keeps naming the capture. (Nothing here is
+        // captured either way - the image comes from the frozen screen, not
+        // from this window.)
+        UModeGlyph {
+            anchors.fill: parent
+            name: root.modeIcon
+            tint: root.modeColor
+            hole: root.selItem()
+            opacity: 0.35
+            visible: root.showMode && root.modeStyle === "icon"
+            Accessible.ignored: true
         }
 
         // Floating toolbar (position configurable; default follows the selection).
@@ -606,7 +745,7 @@ Window {
                         activeFocusOnTab: false
                         compact: true
                         iconName: "checkmark"
-                        text: annotationToolsEnabled ? qsTr("Capture") : qsTr("Start")
+                        text: root.confirmLabel
                         accessibleDescription: qsTr("Space or Enter also confirms")
                         anchors.verticalCenter: parent.verticalCenter
                         onClicked: overlayController.confirmFromWindow(overlayWindow)
@@ -721,7 +860,7 @@ Window {
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.radiusS
-                color: Qt.rgba(0, 0, 0, 0.6)
+                color: Theme.alpha(Theme.mediaBase, 0.6)
                 border.width: 1
                 border.color: Theme.accent
             }

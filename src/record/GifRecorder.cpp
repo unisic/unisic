@@ -6,6 +6,7 @@
 #include <ctime>
 #include "Settings.h"
 #include "StreamGeometry.h"
+#include "VideoQuality.h"
 #include "capture/ScreenCastSession.h"
 #include <QGuiApplication>
 #include "record/IScreenGrabber.h"
@@ -837,13 +838,26 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // followed by an optional PipeWire application node captured through a
     // bounded kernel FIFO (pw-record writes raw PCM; no audio accumulates in RAM).
     m_hasAudio = false;
+    m_audioTrackTitles.clear();
     QStringList audioSources;
+    // The names travel INTO the file (Matroska title, MP4 handler_name), so an
+    // editor shows "Microphone" rather than "Track 2". Indexed together with
+    // audioSources/audioInputs everywhere below.
+    QStringList audioLabels;
     QVector<int> audioInputs;
     if (m_output != Gif) {
-        if (m_settings->recordSystemAudio())
+        if (m_settings->recordSystemAudio()) {
             audioSources << QStringLiteral("@DEFAULT_MONITOR@");
-        if (m_settings->recordMicrophone())
-            audioSources << QStringLiteral("default");
+            audioLabels << tr("System audio");
+        }
+        if (m_settings->recordMicrophone()) {
+            // A chosen source is its pipewire-pulse node.name; empty means the
+            // system default input. A stale name (unplugged mic) makes ffmpeg
+            // fail with a visible error rather than silently recording nothing.
+            const QString micSource = m_settings->microphoneSource().trimmed();
+            audioSources << (micSource.isEmpty() ? QStringLiteral("default") : micSource);
+            audioLabels << tr("Microphone");
+        }
     }
     for (const QString &dev : audioSources) {
         args << QStringLiteral("-f") << QStringLiteral("pulse")
@@ -851,6 +865,9 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
              << QStringLiteral("-i") << dev;
         audioInputs << nextInput++;
     }
+    // ffmpeg input index of the app-audio FIFO, -1 when there is none. The one
+    // audio input that can end before the recording does.
+    int fifoInput = -1;
     const QString appNode = m_output == Gif ? QString()
                                              : m_settings->recordAppAudioNode().trimmed();
     if (!appNode.isEmpty()
@@ -864,6 +881,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                  << QStringLiteral("-ac") << QStringLiteral("2")
                  << QStringLiteral("-i") << m_audioFifoPath;
             audioInputs << nextInput++;
+            fifoInput = audioInputs.last();
+            audioLabels << tr("Application audio");
         } else {
             m_audioFifoPath.clear();
         }
@@ -877,7 +896,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
             args << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("ultrafast")
-                 << QStringLiteral("-crf") << QString::number(qBound(0, m_settings->videoQuality(), 40));
+                 << QStringLiteral("-crf")
+                 << QString::number(UnisicVideo::crfFromPercent(m_settings->videoQualityPercent()));
         } else if (encoders.contains(QStringLiteral("libopenh264"))) {
             args << QStringLiteral("-c:v") << QStringLiteral("libopenh264")
                  << QStringLiteral("-b:v") << QStringLiteral("6M");
@@ -899,8 +919,41 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     QStringList filters;
     QString videoMap = QStringLiteral("0:v");
 
+    // Separate tracks keep each source as its own stream, so the microphone can
+    // be moved in an editor without the system audio following it. Mixing (the
+    // default) is what a player expects, and one source is one stream either way.
+    // Separate mode STILL leads with a full mix as track 1: players play only
+    // the first audio track, so a stems-only file sounded like "no microphone"
+    // to anyone who just watched it. Editors read the stems behind it.
+    const bool separateTracks = m_settings->separateAudioTracks() && audioInputs.size() >= 2;
     QString audioMap;
-    if (audioInputs.size() == 1) {
+    QStringList trackMaps;
+    if (separateTracks) {
+        QString mixInputs;
+        for (const int input : std::as_const(audioInputs)) {
+            // The app-audio FIFO can end before the recording does (pw-record
+            // dies, the node goes away). As its own stream under -shortest that
+            // truncates the WHOLE file to however long it lived - measured: a
+            // FIFO closing after 1 s ended a 3 s capture at 1 s. apad keeps the
+            // stream alive with silence so the video pipe stays the shortest
+            // input; asplit feeds the same padded signal to the mix and to the
+            // stem. amix's duration=longest does the same job for mixed audio,
+            // which is why this only shows up with separate tracks.
+            if (input == fifoInput) {
+                filters << QStringLiteral("[%1:a]apad,asplit=2[fifomix][fifostem]").arg(input);
+                mixInputs += QStringLiteral("[fifomix]");
+                trackMaps << QStringLiteral("[fifostem]");
+            } else {
+                mixInputs += QStringLiteral("[%1:a]").arg(input);
+                trackMaps << QStringLiteral("%1:a").arg(input);
+            }
+        }
+        filters << mixInputs
+                       + QStringLiteral("amix=inputs=%1:duration=longest:normalize=0[mix]")
+                             .arg(audioInputs.size());
+        trackMaps.prepend(QStringLiteral("[mix]"));
+        audioLabels.prepend(tr("Mix"));
+    } else if (audioInputs.size() == 1) {
         audioMap = QStringLiteral("%1:a").arg(audioInputs.first());
     } else if (audioInputs.size() >= 2) {
         QString labels;
@@ -915,29 +968,37 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
 
     args << QStringLiteral("-map") << videoMap;
 
-    // Audio mux: one source maps straight through, two or more are mixed. Stored as
-    // lossless FLAC in the intermediate (convertVideo re-encodes to AAC/Opus).
-    // -shortest ends the file when the video (pipe) stops so the live pulse
-    // captures — which never EOF on their own — don't hang the encoder.
-    if (audioInputs.size() == 1) {
-        args << QStringLiteral("-map") << audioMap
-             << QStringLiteral("-c:a") << QStringLiteral("flac");
+    // Audio mux: one source maps straight through, two or more are mixed unless
+    // the user asked for separate tracks. Stored as lossless FLAC in the
+    // intermediate (convertVideo re-encodes to AAC/Opus).
+    if (!audioInputs.isEmpty()) {
+        if (separateTracks) {
+            for (int i = 0; i < trackMaps.size(); ++i)
+                args << QStringLiteral("-map") << trackMaps.at(i)
+                     << QStringLiteral("-metadata:s:a:%1").arg(i)
+                     << QStringLiteral("title=%1").arg(audioLabels.value(i));
+        } else {
+            args << QStringLiteral("-map") << audioMap;
+            if (audioInputs.size() == 1 && !audioLabels.isEmpty())
+                args << QStringLiteral("-metadata:s:a:0")
+                     << QStringLiteral("title=%1").arg(audioLabels.first());
+        }
+        args << QStringLiteral("-c:a") << QStringLiteral("flac");
         // -shortest lets a never-EOF pulse capture end together with the video
         // pipe. But an app-audio FIFO CAN EOF early (pw-record dies / the target
         // node vanishes); with -shortest that truncates the WHOLE recording to a
         // fraction of a second. When app audio is the SOLE source, drop it: our
         // explicit stop closes the video pipe and kills pw-record so ffmpeg still
         // ends, and a mid-recording pw-record death just ends the audio stream
-        // instead of the file. (m_audioFifoPath non-empty ⟺ the sole input is
-        // the FIFO, since any pulse source would add a second input.)
-        if (m_audioFifoPath.isEmpty())
+        // instead of the file. (a sole input + a FIFO ⟺ app audio is that sole
+        // source, since any pulse source would add a second input.)
+        if (audioInputs.size() > 1 || m_audioFifoPath.isEmpty())
             args << QStringLiteral("-shortest");
         m_hasAudio = true;
-    } else if (audioInputs.size() >= 2) {
-        args << QStringLiteral("-map") << audioMap
-             << QStringLiteral("-c:a") << QStringLiteral("flac")
-             << QStringLiteral("-shortest");
-        m_hasAudio = true;
+        // Mixed sources have no name to carry - the one stream is all of them.
+        if (separateTracks || audioInputs.size() == 1)
+            m_audioTrackTitles = separateTracks ? audioLabels
+                                                : QStringList{audioLabels.value(0)};
     }
     if (m_output == Replay) {
         const int segments = replaySegmentCount(m_settings->instantReplaySeconds());
@@ -1426,19 +1487,129 @@ void GifRecorder::saveInstantReplay()
         m_replayExportPath.clear();
         emit replayExportFailed(tr("Instant replay export failed"));
     });
-    process->start(QStringLiteral("ffmpeg"),
-                   {QStringLiteral("-y"), QStringLiteral("-nostats"),
-                    QStringLiteral("-loglevel"), QStringLiteral("error"),
-                    QStringLiteral("-f"), QStringLiteral("concat"),
-                    QStringLiteral("-safe"), QStringLiteral("0"),
-                    QStringLiteral("-i"), concatPath,
-                    QStringLiteral("-c:v"), QStringLiteral("copy"),
-                    // Ring segments keep optional live audio as FLAC. MP4 does
-                    // not support FLAC portably, so only audio is converted;
-                    // the already-encoded video remains a zero-copy concat.
-                    QStringLiteral("-c:a"), QStringLiteral("aac"),
-                    QStringLiteral("-b:a"), QStringLiteral("192k"),
-                    QStringLiteral("-movflags"), QStringLiteral("+faststart"), out});
+    QStringList exportArgs{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                           QStringLiteral("-loglevel"), QStringLiteral("error"),
+                           QStringLiteral("-f"), QStringLiteral("concat"),
+                           QStringLiteral("-safe"), QStringLiteral("0"),
+                           QStringLiteral("-i"), concatPath,
+                           QStringLiteral("-c:v"), QStringLiteral("copy"),
+                           QStringLiteral("-map"), QStringLiteral("0:v:0")};
+    // Ring segments keep optional live audio as FLAC. MP4 does not support
+    // FLAC portably, so only audio is converted; the already-encoded video
+    // remains a zero-copy concat. Explicit maps: ffmpeg's default stream
+    // selection would pick ONE audio stream and drop the rest.
+    exportArgs << finalAudioArgs(/*webm=*/false, m_audioTrackTitles)
+               << QStringLiteral("-movflags") << QStringLiteral("+faststart") << out;
+    process->start(QStringLiteral("ffmpeg"), exportArgs);
+}
+
+QStringList GifRecorder::finalAudioArgs(bool webm, const QStringList &trackTitles)
+{
+    // EVERY audio stream travels into the shareable container, not just the
+    // first: with separate tracks on, a `0:a:0` here would hand the user back a
+    // file with the microphone missing. '?' keeps the map a no-op on a
+    // recording made without sound.
+    QStringList args{QStringLiteral("-map"), QStringLiteral("0:a?")};
+    if (webm)
+        args << QStringLiteral("-c:a") << QStringLiteral("libopus")
+             << QStringLiteral("-b:a") << QStringLiteral("128k");
+    else
+        args << QStringLiteral("-c:a") << QStringLiteral("aac")
+             << QStringLiteral("-b:a") << QStringLiteral("192k");
+    // MP4 does not carry the Matroska stream title, so the names are written
+    // again on the way out. Verified with ffprobe: `title` lands as a `name`
+    // tag and `handler_name` as the track handler, which is the one editors
+    // read back - so both are set. A caller that has no names (the trimmer,
+    // working on a finished file) passes none and ffmpeg's own metadata copy
+    // carries whatever the input had.
+    for (int i = 0; i < trackTitles.size(); ++i) {
+        if (trackTitles.at(i).isEmpty())
+            continue;
+        args << QStringLiteral("-metadata:s:a:%1").arg(i)
+             << QStringLiteral("title=%1").arg(trackTitles.at(i))
+             << QStringLiteral("-metadata:s:a:%1").arg(i)
+             << QStringLiteral("handler_name=%1").arg(trackTitles.at(i));
+    }
+    return args;
+}
+
+QStringList GifRecorder::audioEditArgs(bool webm, const QList<double> &gains)
+{
+    // Explicit per-track maps replace the blanket `0:a?`: a muted track is
+    // simply not mapped, and `-filter:a:N` addresses OUTPUT audio streams, so
+    // the filter index counts the kept tracks, not the source ones. Stream
+    // metadata (the track titles) rides along on ffmpeg's default per-stream
+    // metadata copy.
+    QStringList args;
+    int kept = 0;
+    for (int i = 0; i < gains.size(); ++i) {
+        const double gain = gains.at(i);
+        if (gain < 0)
+            continue;
+        args << QStringLiteral("-map") << QStringLiteral("0:a:%1").arg(i);
+        if (!qFuzzyCompare(gain, 1.0))
+            args << QStringLiteral("-filter:a:%1").arg(kept)
+                 << QStringLiteral("volume=%1").arg(QString::number(gain, 'f', 3));
+        ++kept;
+    }
+    if (kept == 0)
+        return args;    // every track muted: the file goes out video-only
+    if (webm)
+        args << QStringLiteral("-c:a") << QStringLiteral("libopus")
+             << QStringLiteral("-b:a") << QStringLiteral("128k");
+    else
+        args << QStringLiteral("-c:a") << QStringLiteral("aac")
+             << QStringLiteral("-b:a") << QStringLiteral("192k");
+    return args;
+}
+
+QStringList GifRecorder::audioRemixArgs(bool webm, const QList<double> &gains, int mixTrack,
+                                        const QString &mixTitle)
+{
+    // The gains are per input stream like audioEditArgs, but the mix track's
+    // own entry is ignored: its replacement is amix of the kept stems, each
+    // attenuated INSIDE the graph. The same source streams are also mapped
+    // directly as the stems (legal: an input stream may feed -filter_complex
+    // and be -map'ped in one command), with -filter:a:N carrying the same
+    // gain - N counts OUTPUT audio streams, and stream 0 is the rebuilt mix.
+    QStringList filters, legs;
+    for (int i = 0; i < gains.size(); ++i) {
+        if (i == mixTrack || gains.at(i) < 0)
+            continue;
+        filters << QStringLiteral("[0:a:%1]volume=%2[s%3]")
+                       .arg(i).arg(QString::number(gains.at(i), 'f', 3)).arg(legs.size());
+        legs << QStringLiteral("[s%1]").arg(legs.size());
+    }
+    if (legs.isEmpty())
+        return {};      // every stem muted: the file goes out video-only
+    filters << legs.join(QString())
+                   + QStringLiteral("amix=inputs=%1:duration=longest:normalize=0[remix]")
+                         .arg(legs.size());
+    QStringList args{QStringLiteral("-filter_complex"), filters.join(QLatin1Char(';')),
+                     QStringLiteral("-map"), QStringLiteral("[remix]"),
+                     // Filtered streams inherit no source metadata; both title
+                     // forms for the same reason finalAudioArgs writes both.
+                     QStringLiteral("-metadata:s:a:0"),
+                     QStringLiteral("title=%1").arg(mixTitle),
+                     QStringLiteral("-metadata:s:a:0"),
+                     QStringLiteral("handler_name=%1").arg(mixTitle)};
+    int out = 1;
+    for (int i = 0; i < gains.size(); ++i) {
+        if (i == mixTrack || gains.at(i) < 0)
+            continue;
+        args << QStringLiteral("-map") << QStringLiteral("0:a:%1").arg(i);
+        if (!qFuzzyCompare(gains.at(i), 1.0))
+            args << QStringLiteral("-filter:a:%1").arg(out)
+                 << QStringLiteral("volume=%1").arg(QString::number(gains.at(i), 'f', 3));
+        ++out;
+    }
+    if (webm)
+        args << QStringLiteral("-c:a") << QStringLiteral("libopus")
+             << QStringLiteral("-b:a") << QStringLiteral("128k");
+    else
+        args << QStringLiteral("-c:a") << QStringLiteral("aac")
+             << QStringLiteral("-b:a") << QStringLiteral("192k");
+    return args;
 }
 
 QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &output,
@@ -1477,8 +1648,10 @@ QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &ou
         args << QStringLiteral("-c:v") << QStringLiteral("utvideo");
     else
         args << QStringLiteral("-c:v") << QStringLiteral("ffv1");
+    // 0:a? = EVERY audio stream: with separate tracks a `0:a:0` here would
+    // silently drop the microphone from any recording that was paused.
     if (hasAudio)
-        args << QStringLiteral("-map") << QStringLiteral("0:a:0?")
+        args << QStringLiteral("-map") << QStringLiteral("0:a?")
              << QStringLiteral("-af") << af
              << QStringLiteral("-c:a") << QStringLiteral("flac");
     args << output;
@@ -1672,7 +1845,7 @@ void GifRecorder::convertVideo()
 void GifRecorder::convertVideoWith(const QString &encoder)
 {
     // Re-encode the lossless temp into a shareable MP4 (H.264) or WebM (VP9).
-    const int crf = qBound(0, m_settings->videoQuality(), 51);
+    const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-i"), m_tempPath};
@@ -1739,18 +1912,9 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
              << QStringLiteral("-movflags") << QStringLiteral("+faststart");
     }
-    // Carry the FLAC intermediate audio into the shareable container: Opus for
-    // WebM, AAC for MP4. The '?' keeps it a no-op if no audio was recorded.
-    if (m_hasAudio) {
+    if (m_hasAudio)
         args << QStringLiteral("-map") << QStringLiteral("0:v:0")
-             << QStringLiteral("-map") << QStringLiteral("0:a:0?");
-        if (m_output == WebM)
-            args << QStringLiteral("-c:a") << QStringLiteral("libopus")
-                 << QStringLiteral("-b:a") << QStringLiteral("128k");
-        else
-            args << QStringLiteral("-c:a") << QStringLiteral("aac")
-                 << QStringLiteral("-b:a") << QStringLiteral("192k");
-    }
+             << finalAudioArgs(m_output == WebM, m_audioTrackTitles);
     args << m_outPath;
 
     auto *conv = new QProcess(this);
@@ -1870,6 +2034,7 @@ void GifRecorder::cleanup()
     m_encodeSize = {};
     m_targetScreen = nullptr;
     m_hasAudio = false;
+    m_audioTrackTitles.clear();
     m_lastFrame.clear();
     m_elapsed.invalidate();
     emit elapsedChanged();

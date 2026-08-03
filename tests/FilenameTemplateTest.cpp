@@ -88,6 +88,47 @@ private slots:
                  QStringLiteral("%width%_%height%"));
     }
 
+    // The settings field offers help()'s list as clickable chips and paints its
+    // pattern as pills. Both are a promise that the token does something, so
+    // every entry has to be one expand() actually replaces, and one the pattern
+    // matches whole - a token the chip types and the pattern misses goes in and
+    // then refuses to be drawn as a variable.
+    void offeredTokensExpand()
+    {
+        const QVariantMap help = FilenameTemplate::help();
+        const QRegularExpression re(help.value(QStringLiteral("pattern")).toString());
+        QVERIFY(re.isValid());
+        const QVariantList vars = help.value(QStringLiteral("vars")).toList();
+        QVERIFY(!vars.isEmpty());
+        for (const QVariant &v : vars) {
+            const QVariantMap var = v.toMap();
+            const QString token = var.value(QStringLiteral("token")).toString();
+            QVERIFY2(!var.value(QStringLiteral("label")).toString().isEmpty(),
+                     qPrintable(token + " has no label"));
+            const QRegularExpressionMatch m = re.match(token);
+            QVERIFY2(m.hasMatch() && m.captured(0) == token,
+                     qPrintable("pattern misses " + token));
+            // Wrapped in a prefix expand() cannot strip: %i% expands to "0" at
+            // counter 0, and a bare token expanding to nothing would fall back
+            // to the default name instead of failing here.
+            QVERIFY2(!FilenameTemplate::expand(QStringLiteral("shot_") + token, 7, now)
+                          .contains(token),
+                     qPrintable(token + " is offered but not substituted"));
+        }
+    }
+
+    // The pills come from that pattern too, so it must not claim a half-typed
+    // or invented token is one - that is what unknownTokensPassThrough leaves
+    // in the file name verbatim.
+    void patternRejectsNonTokens()
+    {
+        const QRegularExpression re(FilenameTemplate::help()
+                                        .value(QStringLiteral("pattern")).toString());
+        for (const QString &s : {QStringLiteral("%dat"), QStringLiteral("%width%"),
+                                 QStringLiteral("date"), QStringLiteral("%%")})
+            QVERIFY2(!re.match(s).hasMatch(), qPrintable(s + " matched as a token"));
+    }
+
     void extensionMapping()
     {
         QCOMPARE(FilenameTemplate::extensionFor(QStringLiteral("png")), QStringLiteral("png"));

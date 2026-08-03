@@ -248,16 +248,19 @@ Item {
                                 onActivated: (i) => App.settings.videoFps = opts[i]
                             }
                         }
-                        // Label on the head row, slider full-width in the footer:
-                        // the long CRF label and a wide slider would collide on one
-                        // row in a half-width column.
+                        // Percent, not the raw CRF: higher reads as better here,
+                        // which is the way round everyone expects, and the
+                        // recorder derives the CRF from it.
                         USettingRow {
-                            label: qsTr("Quality (CRF %1, lower is better)").arg(App.settings.videoQuality)
-                            footer: USlider {
-                                width: parent ? parent.width : 0
-                                from: 0; to: 40
-                                value: App.settings.videoQuality
-                                onMoved: (v) => App.settings.videoQuality = Math.round(v)
+                            label: qsTr("Quality")
+                            sub: qsTr("Higher is sharper and bigger. 50% is the balanced default.")
+                            UValueCombo {
+                                width: 130
+                                values: [25, 40, 50, 60, 75, 90, 100]
+                                from: 0; to: 100
+                                suffix: "%"
+                                value: App.settings.videoQualityPercent
+                                onChanged: (v) => App.settings.videoQualityPercent = v
                             }
                         }
                         USettingRow {
@@ -371,6 +374,14 @@ Item {
                                     onActivated: (i) => App.settings.recordAppAudioNode = page.appAudioIds[i]
                                 }
                                 UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
+                            }
+                        }
+                        USettingRow {
+                            label: qsTr("Separate audio tracks")
+                            sub: qsTr("Keeps every source on its own named track for editing, behind a first track with the full mix. Needs two sources or more, otherwise the recording has one track anyway.")
+                            USwitch {
+                                checked: App.settings.separateAudioTracks
+                                onToggled: (c) => App.settings.separateAudioTracks = c
                             }
                         }
                         USettingRow {

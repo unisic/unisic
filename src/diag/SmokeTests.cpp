@@ -37,6 +37,7 @@
 #include <QThread>
 #endif
 #include "record/GifRecorder.h"
+#include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
 #include "record/CursorOverlayPainter.h"
@@ -51,6 +52,7 @@
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
+#include "editor/WatermarkPreview.h"
 #include "PreviewController.h"
 #include "notify/NotifCard.h"
 #include "notify/CaptureNotification.h"
@@ -66,6 +68,7 @@
 #include "editor/AnnotationCanvas.h"
 #include "ConfigPath.h"
 #include "FilenameTemplate.h"
+#include "ImageEncode.h"
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
 #endif
@@ -380,24 +383,80 @@ static QString clipboardPasteCheck()
 }
 
 // Watermarking is deliberately export-only: it must change the one image that
-// reaches every after-capture action, while leaving its dimensions intact.
-static QString watermarkCheck()
+// reaches every after-capture action, while leaving its dimensions intact. Every
+// pattern preset is exercised here, because a preset that silently paints
+// nothing looks exactly like a watermark that was switched off.
+static QString watermarkCheck(const Settings *settings)
 {
     QImage base(240, 140, QImage::Format_ARGB32_Premultiplied);
     base.fill(Qt::black);
-    const QImage stamped = UnisicImageEffects::watermarkText(
-        base, QStringLiteral("Unisic"), 75, QStringLiteral("bottom-right"));
     QImage logo(80, 40, QImage::Format_ARGB32_Premultiplied);
     logo.fill(Qt::transparent);
     QPainter painter(&logo);
     painter.fillRect(QRect(5, 5, 70, 30), Qt::white);
     painter.end();
-    const QImage logoStamped = UnisicImageEffects::watermarkImage(
-        base, logo, 75, QStringLiteral("top-left"));
-    return stamped.size() == base.size() && stamped != base
-               && logoStamped.size() == base.size() && logoStamped != base
-               ? QStringLiteral("PASS (text + logo in image pixels)")
-               : QStringLiteral("FAIL (stamp missing or resized image)");
+
+    const QStringList patterns{ QStringLiteral("single"), QStringLiteral("tile"),
+                                QStringLiteral("diagonal"), QStringLiteral("corners"),
+                                QStringLiteral("band") };
+    int singlePixels = 0;
+    int tilePixels = 0;
+    for (const QString &pattern : patterns) {
+        const QImage stamped = UnisicImageEffects::watermarkText(
+            base, QStringLiteral("Unisic"), 75, QStringLiteral("bottom-right"), pattern);
+        const QImage logoStamped = UnisicImageEffects::watermarkImage(
+            base, logo, 75, QStringLiteral("top-left"), pattern);
+        if (stamped.size() != base.size() || logoStamped.size() != base.size())
+            return QStringLiteral("FAIL (%1 resized the image)").arg(pattern);
+        if (stamped == base || logoStamped == base)
+            return QStringLiteral("FAIL (%1 painted nothing)").arg(pattern);
+        int marked = 0;
+        for (int y = 0; y < base.height(); ++y)
+            for (int x = 0; x < base.width(); ++x)
+                if (stamped.pixel(x, y) != base.pixel(x, y))
+                    ++marked;
+        if (pattern == QLatin1String("single"))
+            singlePixels = marked;
+        else if (pattern == QLatin1String("tile"))
+            tilePixels = marked;
+    }
+    // The tiled presets exist to make the mark awkward to crop out, so covering
+    // no more than one stamp does means the tiling never ran.
+    if (tilePixels <= singlePixels)
+        return QStringLiteral("FAIL (tiled covers no more than one stamp)");
+
+    // Size is a pure multiplier on whatever the pattern picked, and an absurd
+    // value from a hand-edited config still has to produce a usable capture
+    // rather than a stamp bigger than the picture.
+    const auto marked = [&base](int scale) {
+        const QImage out = UnisicImageEffects::watermarkText(
+            base, QStringLiteral("Unisic"), 100, QStringLiteral("bottom-right"),
+            QStringLiteral("single"), scale);
+        if (out.size() != base.size())
+            return -1;
+        int n = 0;
+        for (int y = 0; y < base.height(); ++y)
+            for (int x = 0; x < base.width(); ++x)
+                if (out.pixel(x, y) != base.pixel(x, y))
+                    ++n;
+        return n;
+    };
+    const int small = marked(50);
+    const int normal = marked(100);
+    const int large = marked(200);
+    if (small < 0 || normal < 0 || large < 0 || marked(100000) < 0)
+        return QStringLiteral("FAIL (size resized the image)");
+    if (!(small < normal && normal < large))
+        return QStringLiteral("FAIL (size %1/%2/%3 is not monotonic)")
+            .arg(small).arg(normal).arg(large);
+    const QString live = settings
+        ? QStringLiteral(", live: %1/%2 at %3%")
+              .arg(settings->watermarkEnabled() ? settings->watermarkPattern()
+                                                : QStringLiteral("off"),
+                   settings->watermarkPosition())
+              .arg(settings->watermarkScale())
+        : QString();
+    return QStringLiteral("PASS (5 patterns x 3 sizes, text + logo in image pixels%1)").arg(live);
 }
 
 static QString calloutCheck()
@@ -594,7 +653,51 @@ void AppContext::devTestWatermark()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: watermark: %1").arg(watermarkCheck()));
+    showToast(tr("Dev: watermark: %1").arg(watermarkCheck(m_settings)));
+}
+
+// The Settings preview is not a second renderer: it paints a mock capture and
+// hands it to the SAME stampWatermark the after-capture pipeline calls, so this
+// verifies the mock exists, keeps its size, and actually carries the mark when
+// the watermark is on (and is left untouched when it is off).
+QString AppContext::watermarkPreviewCheck() const
+{
+    const QSize want(440, 260);
+    const QImage mock = UnisicImageEffects::mockCapture(want);
+    if (mock.isNull() || mock.size() != want)
+        return QStringLiteral("FAIL (mock capture missing)");
+    // Through the provider itself, not just the pipeline step behind it: the
+    // Settings page reaches this only as image://watermark/<rev>, so the id and
+    // size handling are part of what has to work.
+    WatermarkPreviewProvider provider(this);
+    QSize reported;
+    const QImage shown = provider.requestImage(QStringLiteral("7"), &reported, want);
+    if (shown.size() != want || reported != want)
+        return QStringLiteral("FAIL (preview resized the mock)");
+    // A QML Image with no sourceSize must still get a picture, not a null one.
+    if (provider.requestImage(QString(), nullptr, QSize()).size() != want)
+        return QStringLiteral("FAIL (preview has no default size)");
+    const bool on = m_settings->watermarkEnabled();
+    if (on && shown == mock)
+        return QStringLiteral("FAIL (watermark on, preview unmarked)");
+    if (!on && shown != mock)
+        return QStringLiteral("FAIL (watermark off, preview marked)");
+    return QStringLiteral("PASS (%1x%2, watermark %3)")
+        .arg(want.width()).arg(want.height())
+        .arg(on ? m_settings->watermarkPattern() : QStringLiteral("off"));
+}
+
+void AppContext::devTestWatermarkPreview()
+{
+    if (!devBuild())
+        return;
+    const QString result = watermarkPreviewCheck();
+    // Opened at twice the Settings size so the stamp can actually be judged,
+    // which is the whole point of a preview check being clickable.
+    const QImage shown = stampWatermark(UnisicImageEffects::mockCapture(QSize(880, 520)));
+    if (!shown.isNull())
+        openPreview(shown);
+    showToast(tr("Dev: watermark preview: %1").arg(result));
 }
 
 void AppContext::devTestCallout()
@@ -977,6 +1080,246 @@ void AppContext::pauseExciseCheck(std::function<void(const QString &)> done)
              .arg(dur, 0, 'f', 2));
 }
 
+// The quality percent the user sets and the CRF ffmpeg gets are two units for
+// one number. This pins the anchors and the round trip an upgraded config
+// takes, so a config written before 0.8.3 keeps encoding exactly as it did.
+static QString videoQualityCheck()
+{
+    if (UnisicVideo::crfFromPercent(0) != UnisicVideo::kCrfWorst
+        || UnisicVideo::crfFromPercent(50) != 20
+        || UnisicVideo::crfFromPercent(100) != 0)
+        return QStringLiteral("FAIL (anchors moved)");
+    for (int crf = 0; crf <= UnisicVideo::kCrfWorst; ++crf)
+        if (UnisicVideo::crfFromPercent(UnisicVideo::percentFromCrf(crf)) != crf)
+            return QStringLiteral("FAIL (crf %1 does not survive the migration)").arg(crf);
+    int previous = UnisicVideo::crfFromPercent(0);
+    for (int p = 1; p <= 100; ++p) {
+        const int crf = UnisicVideo::crfFromPercent(p);
+        if (crf > previous)
+            return QStringLiteral("FAIL (%1%% is worse than %2%%)").arg(p).arg(p - 1);
+        previous = crf;
+    }
+    return QStringLiteral("PASS (0%%=CRF%1, 50%%=CRF20, 100%%=CRF0, round trip exact)")
+        .arg(UnisicVideo::kCrfWorst);
+}
+
+void AppContext::devTestVideoQuality()
+{
+    if (devBuild())
+        showToast(tr("Dev: video quality scale: %1").arg(videoQualityCheck()));
+}
+
+void AppContext::devTestAudioTracks()
+{
+    if (!devBuild()) return;
+    audioTracksCheck([this](const QString &result) {
+        showToast(tr("Dev: separate audio tracks: %1").arg(result),
+                  result.contains(QLatin1String("FAIL")));
+    });
+}
+
+void AppContext::audioTracksCheck(std::function<void(const QString &)> done)
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffmpeg.isEmpty() || ffprobe.isEmpty()) {
+        done(QStringLiteral("SKIP (ffmpeg/ffprobe missing)"));
+        return;
+    }
+    const QStringList titles{tr("Mix"), tr("System audio"), tr("Microphone")};
+    const QString source = QDir::temp().filePath(QStringLiteral("unisic-tracks-src.mkv"));
+    const QString excised = QDir::temp().filePath(QStringLiteral("unisic-tracks-cut.mkv"));
+    const QString out = QDir::temp().filePath(QStringLiteral("unisic-tracks-out.mp4"));
+    for (const QString &f : {source, excised, out})
+        QFile::remove(f);
+
+    // Two sine tones stand in for the two capture sources, named and muxed the
+    // way GifRecorder::start() names and muxes them with separate tracks on:
+    // a full amix as track 1 (what a player plays), the stems behind it.
+    QStringList fixture{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                        QStringLiteral("-loglevel"), QStringLiteral("error"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("testsrc=size=160x120:rate=15:duration=2"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=440:sample_rate=48000:duration=2"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=880:sample_rate=48000:duration=2")};
+    fixture << trimFixtureEncoderArgs()
+            << QStringLiteral("-filter_complex")
+            << QStringLiteral("[1:a][2:a]amix=inputs=2:duration=longest:normalize=0[mix]")
+            << QStringLiteral("-map") << QStringLiteral("0:v:0")
+            << QStringLiteral("-map") << QStringLiteral("[mix]")
+            << QStringLiteral("-map") << QStringLiteral("1:a")
+            << QStringLiteral("-map") << QStringLiteral("2:a");
+    for (int i = 0; i < titles.size(); ++i)
+        fixture << QStringLiteral("-metadata:s:a:%1").arg(i)
+                << QStringLiteral("title=%1").arg(titles.at(i));
+    fixture << QStringLiteral("-c:a") << QStringLiteral("flac")
+            << QStringLiteral("-shortest") << source;
+    QProcess::execute(ffmpeg, fixture);
+    if (!QFileInfo::exists(source)) {
+        done(QStringLiteral("FAIL (test clip)"));
+        return;
+    }
+
+    // Matroska keeps a stream title; MP4 has no such field and stores the same
+    // text as handler_name, so each container is probed for its own tag.
+    const auto probe = [&ffprobe](const QString &file, const QString &tag) {
+        QProcess p;
+        p.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                          QStringLiteral("-select_streams"), QStringLiteral("a"),
+                          QStringLiteral("-show_entries"),
+                          QStringLiteral("stream_tags=%1").arg(tag),
+                          QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), file});
+        p.waitForFinished(4000);
+        return QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'),
+                                                                 Qt::SkipEmptyParts);
+    };
+
+    QProcess::execute(ffmpeg, GifRecorder::pauseExciseArgs(source, excised, {{500, 1000}}, true));
+    const QStringList afterExcise = QFileInfo::exists(excised)
+                                        ? probe(excised, QStringLiteral("title"))
+                                        : QStringList();
+
+    QStringList convert{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                        QStringLiteral("-loglevel"), QStringLiteral("error"),
+                        QStringLiteral("-i"), QFileInfo::exists(excised) ? excised : source,
+                        QStringLiteral("-c:v"), QStringLiteral("copy"),
+                        QStringLiteral("-map"), QStringLiteral("0:v:0")};
+    convert << GifRecorder::finalAudioArgs(/*webm=*/false, titles) << out;
+    QProcess::execute(ffmpeg, convert);
+    const QStringList afterConvert = QFileInfo::exists(out)
+                                         ? probe(out, QStringLiteral("handler_name"))
+                                         : QStringList();
+
+    for (const QString &f : {source, excised, out})
+        QFile::remove(f);
+    const bool exciseOk = afterExcise == titles;
+    const bool convertOk = afterConvert == titles;
+    done(QStringLiteral("excise %1 (%2), MP4 %3 (%4)")
+             .arg(exciseOk ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
+                  afterExcise.isEmpty() ? QStringLiteral("no tracks") : afterExcise.join(QStringLiteral(" + ")),
+                  convertOk ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
+                  afterConvert.isEmpty() ? QStringLiteral("no tracks") : afterConvert.join(QStringLiteral(" + "))));
+}
+
+void AppContext::devTestAudioInputs()
+{
+    if (!devBuild()) return;
+    if (!audioInputListAvailable()) {
+        showToast(tr("Dev: audio inputs: %1").arg(QStringLiteral("SKIP (pw-dump missing)")));
+        return;
+    }
+    const QVariantList devices = audioInputDevices();
+    QStringList labels;
+    for (const QVariant &device : devices)
+        labels << device.toMap().value(QStringLiteral("label")).toString();
+    showToast(tr("Dev: audio inputs: %1")
+                  .arg(QStringLiteral("PASS (%1: %2)")
+                           .arg(devices.size())
+                           .arg(labels.join(QStringLiteral(", ")))));
+}
+
+void AppContext::devTestTrimAudio()
+{
+    if (!devBuild()) return;
+    trimAudioCheck([this](const QString &result) {
+        showToast(tr("Dev: trim audio edit: %1").arg(result),
+                  result.contains(QLatin1String("FAIL")));
+    });
+}
+
+void AppContext::trimAudioCheck(std::function<void(const QString &)> done)
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffmpeg.isEmpty() || ffprobe.isEmpty()) {
+        done(QStringLiteral("SKIP (ffmpeg/ffprobe missing)"));
+        return;
+    }
+    const QString source = QDir::temp().filePath(QStringLiteral("unisic-trimaudio-src.mkv"));
+    const QString out = QDir::temp().filePath(QStringLiteral("unisic-trimaudio-out.mp4"));
+    for (const QString &f : {source, out})
+        QFile::remove(f);
+
+    QStringList fixture{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                        QStringLiteral("-loglevel"), QStringLiteral("error"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("testsrc=size=160x120:rate=15:duration=2"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=440:sample_rate=48000:duration=2"),
+                        QStringLiteral("-f"), QStringLiteral("lavfi"),
+                        QStringLiteral("-i"), QStringLiteral("sine=frequency=880:sample_rate=48000:duration=2")};
+    fixture << trimFixtureEncoderArgs()
+            << QStringLiteral("-map") << QStringLiteral("0:v:0")
+            << QStringLiteral("-map") << QStringLiteral("1:a")
+            << QStringLiteral("-map") << QStringLiteral("2:a")
+            << QStringLiteral("-c:a") << QStringLiteral("flac")
+            << QStringLiteral("-shortest") << source;
+    QProcess::execute(ffmpeg, fixture);
+    if (!QFileInfo::exists(source)) {
+        done(QStringLiteral("FAIL (test clip)"));
+        return;
+    }
+
+    // The exact shape trimRecording builds for an edited lossless cut: video
+    // stream copy, first track dropped, second attenuated to 50%.
+    QStringList cut{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                    QStringLiteral("-loglevel"), QStringLiteral("error"),
+                    QStringLiteral("-ss"), QStringLiteral("0.000"),
+                    QStringLiteral("-i"), source,
+                    QStringLiteral("-t"), QStringLiteral("1.000"),
+                    QStringLiteral("-avoid_negative_ts"), QStringLiteral("make_zero"),
+                    QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                    QStringLiteral("-c:v"), QStringLiteral("copy")};
+    cut << GifRecorder::audioEditArgs(/*webm=*/false, {-1.0, 0.5}) << out;
+    QProcess::execute(ffmpeg, cut);
+
+    const auto countAudio = [&ffprobe](const QString &file) {
+        if (!QFileInfo::exists(file))
+            return -1;
+        QProcess probe;
+        probe.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                              QStringLiteral("-select_streams"), QStringLiteral("a"),
+                              QStringLiteral("-show_entries"), QStringLiteral("stream=index"),
+                              QStringLiteral("-of"), QStringLiteral("csv=p=0"), file});
+        probe.waitForFinished(4000);
+        return int(QString::fromUtf8(probe.readAllStandardOutput())
+                       .split(QLatin1Char('\n'), Qt::SkipEmptyParts).size());
+    };
+    const int editStreams = countAudio(out);
+
+    // Remix variant: the same cut on a mix+stems recording - the mix (track 0)
+    // must come back rebuilt, the muted stem gone: 2 streams survive of 3.
+    const QString remixOut = QDir::temp().filePath(QStringLiteral("unisic-trimaudio-remix.mkv"));
+    QFile::remove(remixOut);
+    QStringList remixCut{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                         QStringLiteral("-loglevel"), QStringLiteral("error"),
+                         QStringLiteral("-ss"), QStringLiteral("0.000"),
+                         QStringLiteral("-i"), source,
+                         QStringLiteral("-t"), QStringLiteral("1.000"),
+                         QStringLiteral("-avoid_negative_ts"), QStringLiteral("make_zero"),
+                         QStringLiteral("-map"), QStringLiteral("0:v:0"),
+                         QStringLiteral("-c:v"), QStringLiteral("copy")};
+    // The 2-track fixture stands in for mix+stem: track 0 as "mix", track 1
+    // kept at 50% - remix output = rebuilt mix + that stem.
+    remixCut << GifRecorder::audioRemixArgs(/*webm=*/false, {1.0, 0.5}, 0,
+                                            QStringLiteral("Mix"))
+             << remixOut;
+    QProcess::execute(ffmpeg, remixCut);
+    const int remixStreams = countAudio(remixOut);
+
+    for (const QString &f : {source, out, remixOut})
+        QFile::remove(f);
+    const bool editOk = editStreams == 1;
+    const bool remixOk = remixStreams == 2;
+    done(QStringLiteral("edit %1 (%2 streams), remix %3 (%4 streams)")
+             .arg(editOk ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+             .arg(editStreams)
+             .arg(remixOk ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+             .arg(remixStreams));
+}
+
 void AppContext::devTestCursorCapability()
 {
     if (devBuild())
@@ -1061,6 +1404,187 @@ void AppContext::devTestCaptureOnRelease()
     if (!devBuild())
         return;
     showToast(tr("Dev: capture on release: %1").arg(captureOnReleaseCheck()));
+}
+
+// Overlay mode identity (issue #98): the overlay must be able to say which
+// capture opened it. The name is what crosses into QML as the `overlayPurpose`
+// context property, so every purpose needs its own, and every one of them has
+// to be a string OverlayWindow.qml actually switches on - a typo on either side
+// silently falls back to "screenshot" over a running recording, which is
+// exactly the confusion the badge exists to end (dev button + smoke step).
+static QString overlayModeCheck(Settings *settings)
+{
+    using P = OverlayController::Purpose;
+    const struct { P purpose; const char *name; } expected[] = {
+        {P::Shot, "shot"}, {P::Measure, "measure"}, {P::Ocr, "ocr"},
+        {P::Gif, "gif"}, {P::Video, "video"},
+    };
+    QStringList seen;
+    for (const auto &e : expected) {
+        const QString got = OverlayController::purposeName(e.purpose);
+        if (got != QLatin1String(e.name))
+            return QStringLiteral("FAIL (%1 named '%2', expected '%3')")
+                .arg(QLatin1String(e.name), got, QLatin1String(e.name));
+        if (seen.contains(got))
+            return QStringLiteral("FAIL ('%1' used by two modes)").arg(got);
+        seen.append(got);
+    }
+    if (!settings)
+        return QStringLiteral("FAIL (no settings)");
+    const bool was = settings->overlayModeBadge();
+    settings->setOverlayModeBadge(!was);
+    const bool flipped = settings->overlayModeBadge() != was;
+    settings->setOverlayModeBadge(was);
+    if (!flipped || settings->overlayModeBadge() != was)
+        return QStringLiteral("FAIL (the preference does not round-trip)");
+    return QStringLiteral("PASS (%1; preference round-trips, left %2)")
+        .arg(seen.join(QLatin1Char('/')), was ? QStringLiteral("on") : QStringLiteral("off"));
+}
+
+void AppContext::devTestOverlayMode()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: overlay mode badge: %1").arg(overlayModeCheck(settings())));
+}
+
+// The overlay-settings preview is the only place those options can be SEEN
+// without starting a capture, so a preview that has drifted from the overlay is
+// worse than none: it teaches the wrong thing. Two ways it can drift, both
+// checked here against the real component - a capture purpose it has no entry
+// for (the badge would read "Screenshot" over a recording), and a toolbar
+// position whose clamp lets the bar leave the mock screen (the drop-down would
+// look broken for a position that works).
+QString AppContext::overlayPreviewCheck()
+{
+    if (!m_engine)
+        return QStringLiteral("FAIL (no QML engine)");
+    Settings *s = settings();
+    if (!s)
+        return QStringLiteral("FAIL (no settings)");
+
+    QQmlComponent component(m_engine,
+                            QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/components/UOverlayPreview.qml")));
+    if (component.status() != QQmlComponent::Ready)
+        return QStringLiteral("FAIL (preview %1: %2)")
+            .arg(component.status() == QQmlComponent::Loading ? QStringLiteral("still loading")
+                                                              : QStringLiteral("not ready"),
+                 component.errorString().simplified());
+    std::unique_ptr<QObject> obj(component.create());
+    auto *item = qobject_cast<QQuickItem *>(obj.get());
+    if (!item)
+        return QStringLiteral("FAIL (preview create: %1)").arg(component.errorString().simplified());
+
+    // A size the mock scene can be laid out in; nothing is shown on screen.
+    constexpr qreal kW = 400;
+    constexpr qreal kH = 200;
+    item->setWidth(kW);
+    item->setHeight(kH);
+
+    const QVariantList modes = item->property("modes").toList();
+    for (const auto purpose : {OverlayController::Purpose::Shot, OverlayController::Purpose::Measure,
+                               OverlayController::Purpose::Ocr, OverlayController::Purpose::Gif,
+                               OverlayController::Purpose::Video}) {
+        const QString name = OverlayController::purposeName(purpose);
+        bool found = false;
+        for (const QVariant &m : modes) {
+            const QVariantMap entry = m.toMap();
+            if (entry.value(QStringLiteral("id")).toString() != name)
+                continue;
+            found = true;
+            if (entry.value(QStringLiteral("label")).toString().isEmpty()
+                || entry.value(QStringLiteral("iconName")).toString().isEmpty())
+                return QStringLiteral("FAIL ('%1' has no label or icon)").arg(name);
+            break;
+        }
+        if (!found)
+            return QStringLiteral("FAIL (no preview entry for '%1')").arg(name);
+        item->setProperty("purpose", name);
+        if (!item->property("modeColor").value<QColor>().isValid())
+            return QStringLiteral("FAIL ('%1' has no mode colour)").arg(name);
+    }
+    if (modes.size() != 5)
+        return QStringLiteral("FAIL (%1 preview entries, expected 5)").arg(modes.size());
+
+    auto *bar = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewToolbar"));
+    if (!bar)
+        return QStringLiteral("FAIL (no toolbar in the preview)");
+    const QString wasPos = s->overlayToolbarPosition();
+    const QStringList positions = {QStringLiteral("follow"),        QStringLiteral("top-left"),
+                                   QStringLiteral("top-center"),    QStringLiteral("top-right"),
+                                   QStringLiteral("middle-left"),   QStringLiteral("middle-center"),
+                                   QStringLiteral("middle-right"),  QStringLiteral("bottom-left"),
+                                   QStringLiteral("bottom-center"), QStringLiteral("bottom-right")};
+    for (const QString &pos : positions) {
+        s->setOverlayToolbarPosition(pos);
+        if (bar->x() < 0 || bar->y() < 0 || bar->x() + bar->width() > kW
+            || bar->y() + bar->height() > kH) {
+            s->setOverlayToolbarPosition(wasPos);
+            return QStringLiteral("FAIL ('%1' puts the toolbar at %2,%3 outside the screen)")
+                .arg(pos)
+                .arg(qRound(bar->x()))
+                .arg(qRound(bar->y()));
+        }
+    }
+    s->setOverlayToolbarPosition(wasPos);
+
+    // The two mode-indicator styles: exactly one indicator is drawn for each,
+    // and the glyph one has to be BOTH cut and still standing - the selection
+    // is a hole in it, so a mock selection that missed it entirely would show
+    // an uncut glyph and one that swallowed it whole would show nothing.
+    auto *badge = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewBadge"));
+    auto *glyph = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewModeIcon"));
+    auto *scene = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewScene"));
+    if (!badge || !glyph || !scene)
+        return QStringLiteral("FAIL (no mode indicator in the preview)");
+    const bool wasBadge = s->overlayModeBadge();
+    const QString wasStyle = s->overlayModeStyle();
+    const auto restore = [&] {
+        s->setOverlayModeBadge(wasBadge);
+        s->setOverlayModeStyle(wasStyle);
+    };
+    s->setOverlayModeBadge(true);
+    for (const QString &style : {QStringLiteral("badge"), QStringLiteral("icon")}) {
+        s->setOverlayModeStyle(style);
+        const bool wantIcon = style == QStringLiteral("icon");
+        if (badge->isVisible() == wantIcon || glyph->isVisible() != wantIcon) {
+            restore();
+            return QStringLiteral("FAIL ('%1' draws badge=%2 icon=%3)")
+                .arg(style)
+                .arg(badge->isVisible())
+                .arg(glyph->isVisible());
+        }
+        if (!wantIcon)
+            continue;
+        const QRectF sel = scene->property("sel").toRectF();
+        if (glyph->property("hole").toRectF() != sel) {
+            restore();
+            return QStringLiteral("FAIL (the glyph is not cut by the selection)");
+        }
+        const qreal side = glyph->property("box").toReal();
+        const QRectF box(glyph->property("glyphX").toReal(), glyph->property("glyphY").toReal(),
+                         side, side);
+        if (!sel.intersects(box) || sel.contains(box)) {
+            restore();
+            return QStringLiteral("FAIL (the mock selection %1 the glyph instead of cutting it)")
+                .arg(sel.intersects(box) ? QStringLiteral("swallows") : QStringLiteral("misses"));
+        }
+    }
+    s->setOverlayModeBadge(false);
+    if (badge->isVisible() || glyph->isVisible()) {
+        restore();
+        return QStringLiteral("FAIL (the mode indicator survives its own switch)");
+    }
+    restore();
+    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 2 indicator styles)")
+        .arg(positions.size());
+}
+
+void AppContext::devTestOverlayPreview()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: overlay preview: %1").arg(overlayPreviewCheck()));
 }
 
 // Magnifier round-trip: a synthetic drag over a marked source region must place
@@ -2261,6 +2785,298 @@ QString AppContext::imgurSetupCheck()
     return QStringLiteral("PASS (placeholder purged, missing Client-ID refused early)");
 }
 
+QString AppContext::curlDestinationCheck() const
+{
+    QStringList fails;
+    auto target = [&](const QString &url, const QString &name, const QString &want) {
+        const QString got = UploadManager::curlTargetUrl(url, name);
+        if (got != want)
+            fails << QStringLiteral("target '%1' + '%2' -> %3 (want %4)").arg(url, name, got, want);
+    };
+    // No token: the name is appended, with or without the trailing slash, which
+    // is every FTP/SFTP destination written before the token existed.
+    target(QStringLiteral("sftp://host/dir"), QStringLiteral("a b.png"),
+           QStringLiteral("sftp://host/dir/a%20b.png"));
+    target(QStringLiteral("sftp://host/dir/"), QStringLiteral("a b.png"),
+           QStringLiteral("sftp://host/dir/a%20b.png"));
+    // Token: the name lands where it was put, and the query survives it.
+    target(QStringLiteral("https://host/up/%file%?to=inbox"), QStringLiteral("a b.png"),
+           QStringLiteral("https://host/up/a%20b.png?to=inbox"));
+    // A name can never climb out of the target directory, in either form.
+    target(QStringLiteral("https://host/up/%file%"), QStringLiteral("../../etc/x.png"),
+           QStringLiteral("https://host/up/.._.._etc_x.png"));
+    target(QStringLiteral("sftp://host/dir/"), QStringLiteral("../../etc/x.png"),
+           QStringLiteral("sftp://host/dir/.._.._etc_x.png"));
+
+    // curl's stdout, resolved the same way an http response is.
+    const QJsonObject dest{{QStringLiteral("urlPath"),
+                            QStringLiteral("https://host/$json:data.id$")}};
+    const QString url = UploadManager::extractUrl(dest, QStringLiteral("urlPath"),
+                                                  QByteArray(R"({"data":{"id":"abc123"}})"));
+    if (url != QStringLiteral("https://host/abc123"))
+        fails << QStringLiteral("response '%1' (want https://host/abc123)").arg(url);
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (%file% token, append fallback, name cannot escape, response parsed)")
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+void AppContext::devTestCurlDestination()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: curl destination: %1").arg(curlDestinationCheck()));
+}
+
+QString AppContext::templateVarsCheck() const
+{
+    QStringList fails;
+    // A chip is a promise: click it and the server gets your file name, not the
+    // six characters "%file%". So every token the editor offers is put through
+    // the code that has to consume it, and the answer has to differ from the
+    // token. Advertising one the sender leaves alone would be worse than no
+    // chip, because it looks like it worked right up until the upload lands.
+    auto check = [&](const QString &field, const QString &type,
+                     const std::function<QString(const QString &)> &substitute) {
+        const QVariantMap help = m_uploads->templateHelp(field, type);
+        const QVariantList vars = help.value(QStringLiteral("vars")).toList();
+        const QString pattern = help.value(QStringLiteral("pattern")).toString();
+        if (vars.isEmpty())
+            return; // legitimately token-free (the http request URL)
+        const QRegularExpression re(pattern);
+        if (!re.isValid()) {
+            fails << QStringLiteral("%1/%2: pattern does not compile").arg(field, type);
+            return;
+        }
+        for (const QVariant &v : vars) {
+            const QString token = v.toMap().value(QStringLiteral("token")).toString();
+            // The pills are painted from `pattern`, so a token the chip inserts
+            // and the pattern does not match would go in and then refuse to be
+            // drawn as a variable. Filled in first: a chip with caretBack > 0
+            // types a token the user still has to finish ($json:$ needs its
+            // path), and an unfinished one is MEANT to stay unpilled, since it
+            // is not yet something extractUrl resolves.
+            const int caretBack = v.toMap().value(QStringLiteral("caretBack")).toInt();
+            QString filled = token;
+            if (caretBack > 0)
+                filled.insert(filled.size() - caretBack, QLatin1Char('x'));
+            const QRegularExpressionMatch m = re.match(filled);
+            if (!m.hasMatch() || m.captured(0) != filled)
+                fails << QStringLiteral("%1/%2: pattern misses %3").arg(field, type, filled);
+            const QString got = substitute(filled);
+            if (got.contains(filled))
+                fails << QStringLiteral("%1/%2: %3 not substituted").arg(field, type, filled);
+        }
+    };
+
+    check(QStringLiteral("requestUrl"), QStringLiteral("curl"), [](const QString &token) {
+        return UploadManager::curlTargetUrl(QStringLiteral("https://host/up/") + token,
+                                            QStringLiteral("shot.png"));
+    });
+    check(QStringLiteral("requestUrl"), QStringLiteral("http"), [](const QString &token) {
+        return UploadManager::requestUrlWithFileName(QStringLiteral("https://host/up/") + token,
+                                                     QStringLiteral("shot.png"));
+    });
+    // And the http URL must still be sent as typed when the token is NOT there:
+    // appending the name (curl's rule for FTP folders) would post every capture
+    // to a path the API does not have.
+    if (UploadManager::requestUrlWithFileName(QStringLiteral("https://api.host/v1/upload"),
+                                              QStringLiteral("shot.png"))
+        != QLatin1String("https://api.host/v1/upload"))
+        fails << QStringLiteral("requestUrl/http: a URL without the token was rewritten");
+    // The answer is shaped so that the filled-in "x" resolves as a JSON key and
+    // as a pattern alike; extractToken() hands back an unrecognised token
+    // unchanged, which is exactly the drift this is looking for.
+    check(QStringLiteral("urlPath"), QStringLiteral("http"), [](const QString &token) {
+        const QJsonObject dest{{QStringLiteral("urlPath"), token}};
+        return UploadManager::extractUrl(dest, QStringLiteral("urlPath"),
+                                         QByteArray(R"({"x":"https://host/shot.png"})"));
+    });
+    // The JSON body's three tokens are substituted inside sendHttp(), which needs
+    // a network stack, so they are checked against the one destination the whole
+    // path is driven from instead: what matters is that the editor and the sender
+    // agree on the spelling.
+    const QVariantList bodyVars = m_uploads->templateHelp(QStringLiteral("data"),
+                                                          QStringLiteral("http"))
+                                      .value(QStringLiteral("vars")).toList();
+    QStringList bodyTokens;
+    for (const QVariant &v : bodyVars)
+        bodyTokens << v.toMap().value(QStringLiteral("token")).toString();
+    bodyTokens.sort();
+    const QStringList wantBody{QStringLiteral("$base64$"), QStringLiteral("$filename$"),
+                               QStringLiteral("$mime$")};
+    if (bodyTokens != wantBody)
+        fails << QStringLiteral("data: offers %1 (sendHttp substitutes %2)")
+                     .arg(bodyTokens.join(QLatin1Char(',')), wantBody.join(QLatin1Char(',')));
+
+    // Same promise on the other field that takes variables: the filename
+    // template. An unexpanded token here does not fail an upload, it names the
+    // file "Unisic_%date%" and every capture after it collides on that name.
+    const QVariantMap fileHelp = FilenameTemplate::help();
+    const QRegularExpression fileRe(fileHelp.value(QStringLiteral("pattern")).toString());
+    if (!fileRe.isValid())
+        fails << QStringLiteral("filename: pattern does not compile");
+    const QDateTime when = QDateTime::fromSecsSinceEpoch(1754236417);
+    const QVariantList fileVars = fileHelp.value(QStringLiteral("vars")).toList();
+    if (fileVars.isEmpty())
+        fails << QStringLiteral("filename: offers no variables at all");
+    for (const QVariant &v : fileVars) {
+        const QString token = v.toMap().value(QStringLiteral("token")).toString();
+        const QRegularExpressionMatch m = fileRe.match(token);
+        if (!m.hasMatch() || m.captured(0) != token)
+            fails << QStringLiteral("filename: pattern misses %1").arg(token);
+        // Wrapped in a name expand() cannot strip, so an empty expansion still
+        // leaves something to compare - and %i% legitimately expands to "0".
+        if (FilenameTemplate::expand(QStringLiteral("shot_") + token, 7, when).contains(token))
+            fails << QStringLiteral("filename: %1 not substituted").arg(token);
+    }
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (every offered variable is one the sender resolves)")
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+void AppContext::devTestTemplateVars()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: template variables: %1").arg(templateVarsCheck()));
+}
+
+QString AppContext::staticGifCheck() const
+{
+    QStringList fails;
+    // The name has to be able to say gif at all, or the format setting can
+    // never reach saveImageTo's encoder pick.
+    if (FilenameTemplate::extensionFor(QStringLiteral("gif")) != QLatin1String("gif"))
+        fails << QStringLiteral("extensionFor(gif) is not gif");
+
+    if (!ffmpegAvailable())
+        return QStringLiteral("SKIP (no ffmpeg: GIF saves fall back to PNG with a toast)");
+
+    // A real encode of a tiny image, checked down to the bytes: GIF89a in the
+    // header is what a file manager, a browser and every upload target read to
+    // decide what this file is.
+    QImage src(64, 48, QImage::Format_ARGB32_Premultiplied);
+    src.fill(Qt::transparent);
+    QPainter p(&src);
+    p.fillRect(0, 0, 32, 48, QColor(0xC8, 0xAC, 0xD6));
+    p.fillRect(32, 0, 32, 48, QColor(0x17, 0x15, 0x3B));
+    p.end();
+    const QByteArray gif = FfmpegUtil::encodeStillGif(src, 90);
+    if (gif.isEmpty())
+        return QStringLiteral("FAIL (ffmpeg is present but the encode produced nothing)");
+    if (!gif.startsWith("GIF89a") && !gif.startsWith("GIF87a"))
+        fails << QStringLiteral("no GIF header (first bytes: %1)")
+                     .arg(QString::fromLatin1(gif.left(6).toHex()));
+    // And it has to come back as ONE frame the image editor can open, not as
+    // something the trim window would claim.
+    QBuffer buf;
+    buf.setData(gif);
+    buf.open(QIODevice::ReadOnly);
+    QImageReader reader(&buf, "gif");
+    if (reader.imageCount() != 1)
+        fails << QStringLiteral("frame count is %1, not 1").arg(reader.imageCount());
+    if (reader.size() != src.size())
+        fails << QStringLiteral("size came back %1x%2")
+                     .arg(reader.size().width()).arg(reader.size().height());
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (%1 bytes, GIF89a, one frame, %2x%3)")
+              .arg(gif.size()).arg(src.width()).arg(src.height())
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+void AppContext::devTestStaticGif()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: still GIF: %1").arg(staticGifCheck()));
+}
+
+QString AppContext::imageConvertCheck() const
+{
+    QStringList fails;
+
+    // Every conversion in the app - incoming files, the over-size rule, the
+    // history entries, the upload format - ends in this one call, so the check
+    // is on the bytes it produces, not on the callers. Magic numbers, because
+    // that is what the receiving end reads: a name is not evidence.
+    QImage opaque(32, 24, QImage::Format_ARGB32_Premultiplied);
+    opaque.fill(QColor(0x43, 0x3D, 0x8B));
+    struct { const char *fmt; const char *magic; int at; } kinds[] = {
+        { "png",  "\x89PNG", 0 },
+        { "jpg",  "\xFF\xD8\xFF", 0 },
+        { "webp", "WEBP", 8 }, // RIFF<4-byte size>WEBP
+    };
+    for (const auto &k : kinds) {
+        const ImageEncode::Result r =
+            ImageEncode::encode(opaque, QString::fromLatin1(k.fmt), 80);
+        if (!r.ok()) {
+            fails << QStringLiteral("%1 produced nothing").arg(QLatin1String(k.fmt));
+            continue;
+        }
+        if (r.format != QLatin1String(k.fmt))
+            fails << QStringLiteral("%1 came back as %2").arg(QLatin1String(k.fmt), r.format);
+        if (!r.bytes.mid(k.at).startsWith(QByteArray(k.magic)))
+            fails << QStringLiteral("%1 header is %2").arg(QLatin1String(k.fmt),
+                        QString::fromLatin1(r.bytes.left(12).toHex()));
+    }
+
+    // The one substitution a user can actually be surprised by: JPEG has no
+    // alpha channel, so a transparent capture must come back a PNG and SAY why,
+    // rather than a .jpg with a black background where the transparency was.
+    QImage alpha(16, 16, QImage::Format_ARGB32_Premultiplied);
+    alpha.fill(Qt::transparent);
+    const ImageEncode::Result a = ImageEncode::encode(alpha, QStringLiteral("jpg"), 80);
+    if (a.format != QLatin1String("png") || a.fallbackReason != QLatin1String("alpha"))
+        fails << QStringLiteral("transparent JPEG gave %1/%2, not png/alpha")
+                     .arg(a.format, a.fallbackReason);
+    if (ImageEncode::hasTransparency(opaque))
+        fails << QStringLiteral("an opaque image reads as transparent");
+
+    // Renaming is the other half of the same rule: whatever the encoder decided
+    // has to reach the file name, or the extension lies about the bytes.
+    if (FilenameTemplate::withExtension(QStringLiteral("shot.png"), QStringLiteral("webp"))
+        != QLatin1String("shot.webp"))
+        fails << QStringLiteral("withExtension did not replace the extension");
+    if (FilenameTemplate::withExtension(QStringLiteral("shot"), QStringLiteral("gif"))
+        != QLatin1String("shot.gif"))
+        fails << QStringLiteral("withExtension did not add a missing extension");
+    if (FilenameTemplate::withExtension(QStringLiteral("2026-01-30_12.30.11"),
+                                        QStringLiteral("png"))
+        != QLatin1String("2026-01-30_12.30.png"))
+        fails << QStringLiteral("withExtension took the wrong dot");
+    // An upload names its file after the encode, from the mime that came back.
+    if (FilenameTemplate::extensionForMime(QStringLiteral("image/jpeg")) != QLatin1String("jpg")
+        || FilenameTemplate::extensionForMime(QStringLiteral("image/webp")) != QLatin1String("webp")
+        || FilenameTemplate::extensionForMime(QString()) != QLatin1String("png"))
+        fails << QStringLiteral("extensionForMime does not map the encoder's answer");
+
+    // Settings side: what the upload path will actually do right now.
+    const QString up = uploadImageFormat();
+    const QString upSays = up.isEmpty() ? QStringLiteral("as saved") : up;
+    const QString large = m_settings->autoConvertLarge()
+        ? QStringLiteral("over %1 MB to %2").arg(m_settings->autoConvertOverMb())
+              .arg(FilenameTemplate::extensionFor(m_settings->autoConvertFormat()))
+        : QStringLiteral("off");
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (upload %1, incoming %2, size rule %3)")
+              .arg(upSays,
+                   m_settings->convertIncoming() ? QStringLiteral("converted")
+                                                 : QStringLiteral("kept"),
+                   large)
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+void AppContext::devTestImageConvert()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: image conversion: %1").arg(imageConvertCheck()));
+}
+
 void AppContext::devTestHistoryFilter()
 {
     if (!devBuild())
@@ -2867,6 +3683,10 @@ void AppContext::runSmokeTest()
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
+        smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
+        smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
+        smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());
+        smokeLog(QStringLiteral("image conversion: ") + imageConvertCheck());
         {
             // Notification thumbnail drag: an unsaved image must materialize a
             // real temp file for the drop target (the new dragUri() branch).
@@ -2980,6 +3800,11 @@ void AppContext::runSmokeTest()
         else
             smokeLog(QStringLiteral("per-app audio: PASS (%1 active nodes)")
                          .arg(audioApplicationNodes().size()));
+        if (!audioInputListAvailable())
+            smokeLog(QStringLiteral("audio input devices: SKIP (pw-dump missing)"));
+        else
+            smokeLog(QStringLiteral("audio input devices: PASS (%1 sources)")
+                         .arg(audioInputDevices().size()));
         const int segments = GifRecorder::replaySegmentCount(m_settings->instantReplaySeconds());
         smokeLog(QStringLiteral("instant replay ring: ")
                  + (segments >= 3 && segments <= 302
@@ -3009,6 +3834,26 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         pauseExciseCheck([this](const QString &result) {
             smokeLog(QStringLiteral("recording pause excise: ") + result);
+            smokeNext();
+        });
+    });
+
+    // 1a4) recording quality + separate audio tracks: the percent the user sets
+    // must reach ffmpeg as the same CRF an old config encoded at, and both named
+    // audio tracks must survive the excise and the final MP4 conversion.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("video quality scale: ") + videoQualityCheck());
+        audioTracksCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("separate audio tracks: ") + result);
+            smokeNext();
+        });
+    });
+
+    // 1a5) trimmer audio edit: a per-track mute/volume export must keep exactly
+    // the surviving track next to the stream-copied video.
+    m_smokeSteps.append([this] {
+        trimAudioCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("trim audio edit: ") + result);
             smokeNext();
         });
     });
@@ -3298,7 +4143,8 @@ void AppContext::runSmokeTest()
     // 3e3ga) Text watermark is a one-shot image-pixel export pass; it must
     // retain dimensions so every independent after-capture consumer agrees.
     m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("watermark: ") + watermarkCheck());
+        smokeLog(QStringLiteral("watermark: ") + watermarkCheck(m_settings));
+        smokeLog(QStringLiteral("watermark preview: ") + watermarkPreviewCheck());
         smokeNext();
     });
 
@@ -3461,6 +4307,20 @@ void AppContext::runSmokeTest()
     // 3e6) capture-on-release: synthetic drag confirms once; toggle off = never.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("capture on release: ") + captureOnReleaseCheck());
+        smokeNext();
+    });
+
+    // 3e7) overlay mode identity: every capture purpose has its own name for
+    // the overlay to show, and the badge preference round-trips.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("overlay mode badge: ") + overlayModeCheck(settings()));
+        smokeNext();
+    });
+
+    // 3e8) the overlay preview in Settings: an entry per capture purpose and a
+    // toolbar that survives the clamp in every configured position.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("overlay preview: ") + overlayPreviewCheck());
         smokeNext();
     });
 

@@ -79,6 +79,62 @@ Item {
         }
     }
 
+    // A text field for a value that can carry template variables. It draws the
+    // variables already in the text as pills; the chips that type new ones are
+    // NOT here, they are one floating UVarBar in the sheet that follows
+    // whichever of these has focus. Both halves read the same answer from
+    // UploadManager, the only thing that performs the substitutions - a chip
+    // for a token the sender ignores would look like it worked.
+    //
+    // Why chips at all: %file% and $json:data.link$ were discoverable only from
+    // a placeholder that vanishes the moment anything is typed, so the syntax
+    // had to be remembered or re-derived. Clicking a chip types it correctly,
+    // and a pill around it afterwards is the proof it IS a variable and not six
+    // characters of punctuation that happen to look like one.
+    component VarField: Item {
+        id: varField
+        // { pattern: <regex for the pills>, vars: [{token,label,description,caretBack}] }
+        property var help: null
+        property alias text: varInput.text
+        property alias placeholder: varInput.placeholder
+        // Both halves of the identity are forwarded, so UNameBridge treats this
+        // whole unit as the row's one control and the caption lands on the
+        // field. The chips are a pointer shortcut that sits outside this
+        // field's place in the tab chain, so what each variable does is spelled
+        // out in the row's visible hint as well, where a keyboard or
+        // screen-reader user meets it.
+        property alias accessibleName: varInput.accessibleName
+        property alias accessibleDescription: varInput.accessibleDescription
+        // Read by the sheet to decide whose variables the bar is showing.
+        readonly property alias focused: varInput.inputActiveFocus
+        readonly property var vars: help && help.vars ? help.vars : []
+
+        width: parent ? parent.width : 0
+        height: varInput.height
+
+        // Forwarded rather than aliased: UVarBar drives the focused field
+        // through this name whether it is a UTextField or a wrapper like this.
+        function insertToken(token, caretBack) { varInput.insertToken(token, caretBack) }
+
+        UTextField {
+            id: varInput
+            width: parent.width
+            tokenPattern: varField.help ? (varField.help.pattern || "") : ""
+        }
+    }
+
+    // The variables a field understands, asked of the thing that substitutes
+    // them. `type` is the destination kind: the two senders do not substitute
+    // the same set, and the request URL's one token means something slightly
+    // different in each.
+    function templateHelp(field, curl) {
+        // Read for its dependency only: engine.retranslate() re-evaluates qsTr
+        // in QML, but these labels are tr()'d in C++, so without this a live
+        // language switch would leave the chips in the old language.
+        void App.settings.uiLanguage
+        return App.uploads.templateHelp(field, curl ? "curl" : "http")
+    }
+
     // Carried by BOTH halves of the page below (the pinned header and the
     // scrolling list): `enabled` propagates to children, so this is what takes
     // the page out of the tab chain while the modal edit sheet is up. Without
@@ -444,6 +500,21 @@ Item {
                 else delete d.user
                 if (fPublicBase.text.trim() !== "") d.publicUrlBase = fPublicBase.text.trim()
                 else delete d.publicUrlBase
+                // An empty extractor MEANS something here, so it is not
+                // defaulted to $text$ the way the http branch does it: no
+                // extractor is how a plain FTP or SFTP folder works, and the
+                // link comes from the public URL base instead.
+                if (fUrlPath.text.trim() !== "") d.urlPath = fUrlPath.text.trim()
+                else delete d.urlPath
+                if (fHeaders.text.trim() !== "") {
+                    try { d.headers = JSON.parse(fHeaders.text) }
+                    catch (e) {
+                        App.showToast(qsTr("Headers are not valid JSON. Fix or clear the field"))
+                        return null
+                    }
+                } else {
+                    delete d.headers
+                }
             }
             return d
         }
@@ -460,7 +531,7 @@ Item {
         property string testError: ""
         visible: false
         anchors.fill: parent
-        color: Qt.rgba(0, 0, 0, 0.55)
+        color: Theme.alpha(Theme.mediaBase, 0.55)
         z: 200
 
         Connections {
@@ -676,11 +747,15 @@ Item {
                     }
                     Labeled {
                         label: qsTr("Request URL")
-                        UTextField {
-                            id: fUrl; width: parent.width
+                        hint: fType.currentIndex === 1
+                              ? qsTr("%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.")
+                              : qsTr("%file% is replaced by the file name. Without it the address is sent exactly as typed.")
+                        VarField {
+                            id: fUrl
+                            help: page.templateHelp("requestUrl", fType.currentIndex === 1)
                             placeholder: fType.currentIndex === 1
-                                         ? qsTr("sftp://host/path/  or  ftp://host/path/")
-                                         : qsTr("https://…")
+                                         ? qsTr("sftp://host/path/  or  https://host/upload/%file%")
+                                         : qsTr("https://host/api/upload  or  https://host/put/%file%")
                         }
                     }
                     Labeled {
@@ -703,9 +778,11 @@ Item {
                     Labeled {
                         visible: fType.currentIndex === 0 && fBody.currentIndex === 1
                         label: qsTr("JSON body")
-                        UTextField {
-                            id: fData; width: parent.width
-                            placeholder: qsTr("Tokens: $base64$, $filename$, $mime$")
+                        hint: qsTr("$base64$ is the file itself, $filename$ its name, $mime$ its type.")
+                        VarField {
+                            id: fData
+                            help: page.templateHelp("data", false)
+                            placeholder: qsTr("e.g. {\"image\":\"$base64$\",\"name\":\"$filename$\"}")
                         }
                     }
                     Labeled {
@@ -717,10 +794,13 @@ Item {
                         }
                     }
                     Labeled {
-                        visible: fType.currentIndex === 0
                         label: qsTr("URL extractor")
-                        UTextField {
-                            id: fUrlPath; width: parent.width
+                        hint: fType.currentIndex === 1
+                              ? qsTr("Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.")
+                              : ""
+                        VarField {
+                            id: fUrlPath
+                            help: page.templateHelp("urlPath", fType.currentIndex === 1)
                             placeholder: qsTr("$text$, $json:files[0].url$ or $regex:…$")
                         }
                     }
@@ -746,7 +826,10 @@ Item {
                         font.pixelSize: Theme.fontS
                     }
                     Labeled {
-                        visible: fType.currentIndex === 0 && !editSheet.imgurMode
+                        // The Client-ID field replaces this one for Imgur, which
+                        // is an http destination; a curl destination always gets
+                        // the raw header field.
+                        visible: fType.currentIndex === 1 || !editSheet.imgurMode
                         label: qsTr("Headers (JSON)")
                         UTextField {
                             id: fHeaders; width: parent.width
@@ -764,13 +847,33 @@ Item {
                     Labeled {
                         visible: fType.currentIndex === 1
                         label: qsTr("Public URL base (optional)")
-                        hint: qsTr("Where the uploaded file is reachable from. Without it a curl upload succeeds but no link can be copied.")
+                        hint: qsTr("Where the uploaded file is reachable from. With neither this nor a URL extractor, a curl upload succeeds but no link can be copied.")
                         UTextField {
                             id: fPublicBase; width: parent.width
                             placeholder: qsTr("https://host/dir/")
                         }
                     }
                 }
+            }
+
+            // The variables of whichever field is being edited, floating
+            // over the form right under that field.
+            //
+            // ONE bar for the sheet, parented to the card rather than to the
+            // fields, and that is the whole point: a chip row that appeared and
+            // disappeared inside the scrolled Column would shove every field
+            // below it down and back up each time focus moved, which is the
+            // form rearranging itself under the pointer that is trying to use
+            // it. Out here it costs the layout nothing and covers what is
+            // behind it instead.
+            UVarBar {
+                // Not wired up at each field: which one is focused is asked of
+                // the fields themselves.
+                field: fUrl.focused ? fUrl
+                     : (fData.focused ? fData
+                     : (fUrlPath.focused ? fUrlPath : null))
+                vars: field ? field.vars : []
+                viewport: sheetFlick
             }
 
             Column {

@@ -22,13 +22,18 @@ class EditorSession : public QObject
 
 public:
     explicit EditorSession(AppContext *app, const QImage &image,
-                           const QString &overwritePath = {}, QObject *parent = nullptr);
+                           const QString &overwritePath = {}, quint64 historyId = 0,
+                           QObject *parent = nullptr);
 
     QString statusText() const { return m_status; }
     bool overwriteMode() const { return !m_overwritePath.isEmpty(); }
 
     Q_INVOKABLE void bindCanvas(AnnotationCanvas *canvas);
     Q_INVOKABLE QString save();               // returns saved path ("" on failure)
+    // One-off save in `format` (png/jpg/webp/gif) whatever Settings says, and
+    // always into a NEW file: a different format means a different extension,
+    // so overwriting is not on the table even in overwrite mode.
+    Q_INVOKABLE QString saveAs(const QString &format);
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
@@ -52,6 +57,10 @@ private:
     AppContext *m_app;
     QImage m_image;
     QString m_overwritePath;       // non-empty when editing an existing file
+    // The history entry this capture already owns (0 = none, e.g. a pasted or
+    // dropped image). Save and Upload update THAT entry instead of adding a
+    // second one, so one capture stays one tile.
+    quint64 m_historyId = 0;
     AnnotationCanvas *m_canvas = nullptr;
     QString m_status;
 };

@@ -28,28 +28,41 @@ OverlayController::OverlayController(AppContext *app, QObject *parent)
     });
 }
 
-void OverlayController::pickAnnotatedImage(ImageCallback cb, int initialTool)
+QString OverlayController::purposeName(Purpose p)
+{
+    switch (p) {
+    case Purpose::Measure: return QStringLiteral("measure");
+    case Purpose::Ocr:     return QStringLiteral("ocr");
+    case Purpose::Gif:     return QStringLiteral("gif");
+    case Purpose::Video:   return QStringLiteral("video");
+    case Purpose::Shot:    break;
+    }
+    return QStringLiteral("shot");
+}
+
+void OverlayController::pickAnnotatedImage(ImageCallback cb, Purpose purpose, int initialTool)
 {
     if (active()) return;
     m_imageCb = std::move(cb);
     m_regionCb = nullptr;
     m_initialTool = initialTool;
-    begin(true);
+    begin(true, purpose);
 }
 
-void OverlayController::pickRegion(RegionCallback cb)
+void OverlayController::pickRegion(RegionCallback cb, Purpose purpose)
 {
     if (active()) return;
     m_regionCb = std::move(cb);
     m_imageCb = nullptr;
     m_initialTool = AnnotationCanvas::None;
-    begin(false);
+    begin(false, purpose);
 }
 
-void OverlayController::begin(bool annotationTools)
+void OverlayController::begin(bool annotationTools, Purpose purpose)
 {
     m_starting = true;
     m_annotationTools = annotationTools;
+    m_purpose = purpose;
     m_copyRequested = false; // never inherit a Ctrl+C from a previous session
     m_screens = QGuiApplication::screens().toVector();
     m_frozen.clear();
@@ -103,6 +116,7 @@ void OverlayController::createWindows()
         auto *ctx = new QQmlContext(engine->rootContext(), this);
         ctx->setContextProperty(QStringLiteral("overlayController"), this);
         ctx->setContextProperty(QStringLiteral("annotationToolsEnabled"), m_annotationTools);
+        ctx->setContextProperty(QStringLiteral("overlayPurpose"), purposeName(m_purpose));
 
         QObject *obj = component.create(ctx);
         auto *win = qobject_cast<QQuickWindow *>(obj);

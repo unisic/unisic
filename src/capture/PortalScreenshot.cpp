@@ -8,7 +8,7 @@
 #include <QUrl>
 #include <QFile>
 #include <QGuiApplication>
-#include <QPointer>
+#include <QFutureWatcher>
 #include <QtConcurrentRun>
 #include <QDebug>
 
@@ -122,7 +122,7 @@ void PortalScreenshot::sendRequest(bool interactive, Callback cb)
     };
     msg << QString() << options; // parent_window: empty (no exported handle on Wayland)
 
-    PortalRequest::send(msg, token, [cb](uint code, const QVariantMap &results) {
+    PortalRequest::send(msg, token, [this, cb](uint code, const QVariantMap &results) {
         if (code != 0) {
             QString err = code == 1 ? QStringLiteral("cancelled")
                                     : results.value(QStringLiteral("error")).toString();
@@ -136,18 +136,21 @@ void PortalScreenshot::sendRequest(bool interactive, Callback cb)
         // Decode off-thread: a 4K/multi-monitor PNG takes 50-200 ms — too long
         // for the GUI thread. Remove the portal's file (dropped in ~/Pictures)
         // on every path, or failures leave orphans behind.
-        QPointer<QCoreApplication> application(qApp);
-        (void)QtConcurrent::run([file, uriStr = uri.toString(), cb, application] {
-            QImage img(file);
-            QFile::remove(file);
-            if (!application)
-                return;
-            QMetaObject::invokeMethod(application.data(), [img, uriStr, cb] {
-                if (img.isNull())
-                    cb({}, QStringLiteral("Could not load screenshot from %1").arg(uriStr));
-                else
-                    cb(img, {});
-            }, Qt::QueuedConnection);
+        auto *watcher = new QFutureWatcher<QImage>(this);
+        const QString uriString = uri.toString();
+        connect(watcher, &QFutureWatcher<QImage>::finished, this,
+                [watcher, uriString, cb] {
+            const QImage image = watcher->result();
+            watcher->deleteLater();
+            if (image.isNull())
+                cb({}, QStringLiteral("Could not load screenshot from %1").arg(uriString));
+            else
+                cb(image, {});
         });
+        watcher->setFuture(QtConcurrent::run([file] {
+            const QImage image(file);
+            QFile::remove(file);
+            return image;
+        }));
     }, this, interactive ? 0 : 30000); // silent request: 30 s watchdog; interactive dialog: untimed
 }

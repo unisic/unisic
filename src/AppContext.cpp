@@ -28,6 +28,7 @@
 #include <QThread>
 #endif
 #include "record/GifRecorder.h"
+#include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
 #include "record/CursorOverlayPainter.h"
@@ -57,6 +58,8 @@
 #include "editor/AnnotationCanvas.h"
 #include "ConfigPath.h"
 #include "FilenameTemplate.h"
+#include "ImageEncode.h"
+#include <QSaveFile>
 #ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
 #endif
@@ -94,6 +97,7 @@
 #include <QImageReader>
 #include <QStyleHints>
 #include <QFileSystemWatcher>
+#include <QFutureWatcher>
 #include <QFileDialog>
 #include <QKeySequence>
 #include <QDesktopServices>
@@ -156,6 +160,18 @@ AppContext::AppContext(QObject *parent)
     refreshWatermarkImage();
     connect(m_settings, &Settings::watermarkImagePathChanged,
             this, &AppContext::refreshWatermarkImage);
+    // The Settings preview has to re-render on every knob the watermark has,
+    // including the master switch (it shows the bare mock when off) and the
+    // logo path (whose own handler above decodes the file first - connecting
+    // after it means the preview never renders a stale logo).
+    for (auto sig : { &Settings::watermarkEnabledChanged, &Settings::watermarkTextChanged,
+                      &Settings::watermarkOpacityChanged, &Settings::watermarkPositionChanged,
+                      &Settings::watermarkTypeChanged, &Settings::watermarkImagePathChanged,
+                      &Settings::watermarkPatternChanged, &Settings::watermarkScaleChanged })
+        connect(m_settings, sig, this, [this] {
+            ++m_watermarkPreviewRev;
+            emit watermarkPreviewChanged();
+        });
 
     m_updater = new UpdateChecker(m_settings, this);
     // Tray entry follows availability flips only — stateChanged also fires per
@@ -351,10 +367,9 @@ void AppContext::initialize(QQmlEngine *engine)
         // now re-validates to the bundled default — refresh the live tray too.
         applyTrayIcon();
     });
-    // Deferred to the first event-loop pass: hotkey registration is a burst of
-    // blocking D-Bus round-trips (2 s timeout each) — after the QML engine has
-    // loaded the window instead of before it, and late enough that startup
-    // toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
+    // Deferred to the first event-loop pass so the asynchronous registration
+    // burst starts after the QML engine has loaded the window, and late enough
+    // that startup toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
     QTimer::singleShot(0, this, &AppContext::defineHotkeys);
     // Singularity rewrites labwc's rc.xml (our custom-shortcut store there) on
     // every login and shortcut edit, silently dropping Unisic's keybinds —
@@ -366,22 +381,23 @@ void AppContext::initialize(QQmlEngine *engine)
     m_updater->startAutoCheck();
 
     // ffmpeg's encoder list probe can take seconds on a cold filesystem. Run it
-    // once off-thread; the recording UI updates when the result arrives.
-    QPointer<AppContext> self(this);
-    (void)QtConcurrent::run([self] {
-        const bool vaapi = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi"));
-        const bool nvenc = FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc"));
-        // Post to the always-alive application object and test the QPointer on
-        // the GUI thread. Reading `self` HERE (worker thread) would race with
-        // AppContext's destruction on the main thread — QPointer is not
-        // thread-safe against concurrent clearing of its control block.
-        QMetaObject::invokeMethod(qApp, [self, vaapi, nvenc] {
-            if (!self) return;
-            self->m_vaapiAvailable = vaapi;
-            self->m_nvencAvailable = nvenc;
-            emit self->recordingCapabilitiesChanged();
-        }, Qt::QueuedConnection);
+    // once off-thread; the watcher delivers its value on this object's thread.
+    // The worker captures no QObject/QPointer, so teardown cannot race a weak
+    // pointer's control block.
+    auto *encoderProbe = new QFutureWatcher<QPair<bool, bool>>(this);
+    connect(encoderProbe, &QFutureWatcher<QPair<bool, bool>>::finished, this,
+            [this, encoderProbe] {
+        const auto available = encoderProbe->result();
+        encoderProbe->deleteLater();
+        m_vaapiAvailable = available.first;
+        m_nvencAvailable = available.second;
+        emit recordingCapabilitiesChanged();
     });
+    encoderProbe->setFuture(QtConcurrent::run([] {
+        return qMakePair(
+            FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("vaapi")),
+            FfmpegUtil::hardwareEncoderAvailable(QStringLiteral("nvenc")));
+    }));
 
 #ifdef HAVE_PIPEWIRE
     // Async probe: is a ScreenCast portal backend actually present? (-xapp and
@@ -559,30 +575,44 @@ bool AppContext::qrAvailable() const
 #endif
 }
 
+bool AppContext::ffmpegAvailable() const
+{
+    // Resolved once: the property is read from QML bindings (menu entries that
+    // re-evaluate on every open), and a PATH walk per binding pass is a
+    // filesystem hit nobody asked for. CONSTANT for the same reason - ffmpeg
+    // appearing mid-session is not a case worth a file watcher.
+    static const bool found =
+        !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
+    return found;
+}
+
 bool AppContext::perAppAudioAvailable() const
 {
     return !QStandardPaths::findExecutable(QStringLiteral("pw-record")).isEmpty()
            && !QStandardPaths::findExecutable(QStringLiteral("pw-dump")).isEmpty();
 }
 
-// Pure: runs pw-dump + parses its JSON with no AppContext/GUI state, so it is
-// safe to call from a worker thread (see requestAudioApplicationNodes).
-static QVariantList queryAudioApplicationNodesImpl()
+// Pure: runs pw-dump + parses its JSON with no AppContext/GUI state, so both
+// query fronts below are safe to call from a worker thread.
+static QJsonArray pwDumpNodes()
 {
-    QVariantList result;
     const QString helper = QStandardPaths::findExecutable(QStringLiteral("pw-dump"));
     if (helper.isEmpty())
-        return result;
+        return {};
     QProcess process;
     process.start(helper, {});
     if (!process.waitForFinished(2500)) {
         process.kill();
-        return result;
+        return {};
     }
     const QJsonDocument doc = QJsonDocument::fromJson(process.readAllStandardOutput());
-    if (!doc.isArray())
-        return result;
-    for (const QJsonValue &value : doc.array()) {
+    return doc.isArray() ? doc.array() : QJsonArray();
+}
+
+static QVariantList queryAudioApplicationNodesImpl()
+{
+    QVariantList result;
+    for (const QJsonValue &value : pwDumpNodes()) {
         const QJsonObject object = value.toObject();
         if (object.value(QStringLiteral("type")).toString()
             != QLatin1String("PipeWire:Interface:Node"))
@@ -606,6 +636,39 @@ static QVariantList queryAudioApplicationNodesImpl()
     return result;
 }
 
+// Capture-capable inputs: real mics (Audio/Source) and virtual sources such as
+// an EasyEffects processed mic (Audio/Source/Virtual). Monitors never appear -
+// PipeWire models them as sink ports, not nodes. The id is node.name, which is
+// also the source's pipewire-pulse name, i.e. exactly what ffmpeg's pulse
+// input takes - and unlike object.serial it survives a reboot in the setting.
+static QVariantList queryAudioInputDevicesImpl()
+{
+    QVariantList result;
+    for (const QJsonValue &value : pwDumpNodes()) {
+        const QJsonObject object = value.toObject();
+        if (object.value(QStringLiteral("type")).toString()
+            != QLatin1String("PipeWire:Interface:Node"))
+            continue;
+        const QJsonObject props = object.value(QStringLiteral("info")).toObject()
+                                      .value(QStringLiteral("props")).toObject();
+        const QString mediaClass = props.value(QStringLiteral("media.class")).toString();
+        if (mediaClass != QLatin1String("Audio/Source")
+            && mediaClass != QLatin1String("Audio/Source/Virtual"))
+            continue;
+        const QString id = props.value(QStringLiteral("node.name")).toString();
+        if (id.isEmpty())
+            continue;
+        QString label = props.value(QStringLiteral("node.description")).toString();
+        if (label.isEmpty())
+            label = props.value(QStringLiteral("node.nick")).toString();
+        if (label.isEmpty())
+            label = id;
+        result.append(QVariantMap{{QStringLiteral("id"), id},
+                                  {QStringLiteral("label"), label}});
+    }
+    return result;
+}
+
 QVariantList AppContext::audioApplicationNodes() const
 {
     return queryAudioApplicationNodesImpl();
@@ -614,15 +677,36 @@ QVariantList AppContext::audioApplicationNodes() const
 void AppContext::requestAudioApplicationNodes()
 {
     // pw-dump can stall for up to 2.5s on a cold/heavy PipeWire graph; running
-    // it synchronously froze the whole UI when the audio dropdown opened. Do it
-    // off the GUI thread and deliver via a queued signal.
-    QPointer<AppContext> self(this);
-    (void)QtConcurrent::run([self] {
-        const QVariantList nodes = queryAudioApplicationNodesImpl();
-        QMetaObject::invokeMethod(qApp, [self, nodes] {
-            if (self) emit self->audioApplicationNodesReady(nodes);
-        }, Qt::QueuedConnection);
+    // it synchronously froze the whole UI when the audio dropdown opened.
+    auto *watcher = new QFutureWatcher<QVariantList>(this);
+    connect(watcher, &QFutureWatcher<QVariantList>::finished, this, [this, watcher] {
+        const QVariantList nodes = watcher->result();
+        watcher->deleteLater();
+        emit audioApplicationNodesReady(nodes);
     });
+    watcher->setFuture(QtConcurrent::run(queryAudioApplicationNodesImpl));
+}
+
+bool AppContext::audioInputListAvailable() const
+{
+    return !QStandardPaths::findExecutable(QStringLiteral("pw-dump")).isEmpty();
+}
+
+QVariantList AppContext::audioInputDevices() const
+{
+    return queryAudioInputDevicesImpl();
+}
+
+void AppContext::requestAudioInputDevices()
+{
+    // Same off-thread rule as requestAudioApplicationNodes.
+    auto *watcher = new QFutureWatcher<QVariantList>(this);
+    connect(watcher, &QFutureWatcher<QVariantList>::finished, this, [this, watcher] {
+        const QVariantList devices = watcher->result();
+        watcher->deleteLater();
+        emit audioInputDevicesReady(devices);
+    });
+    watcher->setFuture(QtConcurrent::run(queryAudioInputDevicesImpl));
 }
 
 QImage qrPreviewImage(const QString &url)
@@ -1194,7 +1278,9 @@ void AppContext::captureRegionWithTool(int initialTool)
                 m_nextCaptureTask = {};
                 clearCliCapture(tr("Capture cancelled"));
             }
-        }, initialTool);
+        }, initialTool == AnnotationCanvas::Measure ? OverlayController::Purpose::Measure
+                                                  : OverlayController::Purpose::Shot,
+           initialTool);
     });
 }
 
@@ -1333,7 +1419,7 @@ void AppContext::captureRegionOcr()
             endCaptureIsolation();
             if (!img.isNull())
                 ocrImage(img);   // recognizes (QR first, then text) + copies
-        });
+        }, OverlayController::Purpose::Ocr);
     });
 }
 
@@ -1382,7 +1468,7 @@ void AppContext::startGifRegion()
         startRecorderCountdown([this, phys, screen](bool hold) {
             m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold);
         });
-    });
+    }, OverlayController::Purpose::Gif);
 }
 
 void AppContext::startGifFullScreen()
@@ -1421,7 +1507,7 @@ void AppContext::startVideoRegion()
         startRecorderCountdown([this, phys, screen](bool hold) {
             m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold);
         });
-    });
+    }, OverlayController::Purpose::Video);
 }
 
 void AppContext::startVideoWindow()
@@ -2135,6 +2221,132 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *c
     return lines;
 }
 
+void AppContext::hotkeyBindStatusAsync(
+    bool heal,
+    std::function<void(int, const QStringList &, const QStringList &)> done)
+{
+    struct State {
+        QVector<HotkeyAction> actions;
+        int index = 0;
+        int bad = 0;
+        bool heal = false;
+        QStringList lines;
+        QStringList conflicts;
+        std::function<void(int, const QStringList &, const QStringList &)> done;
+        std::function<void()> advance;
+    };
+
+    auto state = std::make_shared<State>();
+    state->actions = hotkeyActions();
+    state->heal = heal;
+    state->done = std::move(done);
+    const std::weak_ptr<State> weak = state;
+
+    state->advance = [this, weak] {
+        const auto state = weak.lock();
+        if (!state)
+            return;
+        if (state->index >= state->actions.size()) {
+            auto done = std::move(state->done);
+            state->advance = {}; // release the recursive closure before callback
+            if (done)
+                done(state->bad, state->lines, state->conflicts);
+            return;
+        }
+
+        const HotkeyAction action = state->actions.at(state->index++);
+        m_hotkeys->activeKeysAsync(
+            action.id, this,
+            [this, state, action](bool ok, const QList<int> &raw) {
+                const QString actual = GlobalHotkeys::portableFromKeys(raw);
+
+                const auto process = [this, state, action, ok, raw, actual] {
+                    if (!ok) {
+                        state->lines << action.id + QStringLiteral(": query failed");
+                        ++state->bad;
+                        state->advance();
+                        return;
+                    }
+                    if (actual.isEmpty() && !action.keys.isEmpty()) {
+                        ++state->bad;
+                        if (!state->heal) {
+                            state->lines << action.id + QStringLiteral(": UNBOUND (stored ")
+                                             + action.keys + QLatin1Char(')');
+                            state->advance();
+                            return;
+                        }
+                        m_hotkeys->setShortcutAsync(
+                            action.id, action.name, action.keys, this,
+                            [state, action](bool accepted) {
+                                state->lines
+                                    << (accepted
+                                            ? action.id + QStringLiteral(": was unbound, re-asserted ")
+                                                  + action.keys
+                                            : action.id + QStringLiteral(": UNBOUND (stored ")
+                                                  + action.keys + QLatin1Char(')'));
+                                state->advance();
+                            });
+                        return;
+                    }
+                    if (state->heal && GlobalHotkeys::sameBinding(actual, action.keys)
+                        && GlobalHotkeys::expandShiftDigitVariants(raw) != raw) {
+                        m_hotkeys->setShortcutAsync(
+                            action.id, action.name, action.keys, this,
+                            [state, action, actual](bool) {
+                                state->lines << action.id + QStringLiteral(": ") + actual
+                                     + QStringLiteral(" (upgraded with Shift+digit variants)");
+                                state->advance();
+                            });
+                        return;
+                    }
+
+                    const bool same = GlobalHotkeys::sameBinding(actual, action.keys);
+                    if (!same)
+                        syncHotkeyFromDaemon(action.id, actual);
+                    const QString line = action.id + QStringLiteral(": ")
+                        + (actual.isEmpty() ? QStringLiteral("(none)") : actual);
+                    if (state->heal && same) {
+                        // Refresh the compositor grab exactly as the synchronous
+                        // path did, but continue only when the reply has landed.
+                        m_hotkeys->setShortcutAsync(
+                            action.id, action.name, action.keys, this,
+                            [state, line](bool) {
+                                state->lines << line;
+                                state->advance();
+                            });
+                        return;
+                    }
+                    state->lines << line;
+                    state->advance();
+                };
+
+                if (!ok || raw.isEmpty()) {
+                    process();
+                    return;
+                }
+                auto remaining = std::make_shared<int>(raw.size());
+                for (int key : raw) {
+                    m_hotkeys->keyOwnerAsync(
+                        key, this,
+                        [state, action, key, remaining, process](const QString &owner) {
+                            if (!owner.isEmpty()
+                                && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                                const QString conflict = QKeySequence(key).toString()
+                                    + QStringLiteral(" (") + action.name
+                                    + QStringLiteral(") → ") + owner;
+                                state->conflicts << conflict;
+                                state->lines << action.id + QStringLiteral(": CONFLICT ")
+                                                 + conflict;
+                            }
+                            if (--*remaining == 0)
+                                process();
+                        });
+                }
+            });
+    };
+    state->advance();
+}
+
 // F8 overwrites the clipboard several times over on purpose: "copy last
 // capture" seeds it with a known image, the Klipper history-hint step copies
 // another, and the canvas paste check writes text and an image straight through
@@ -2487,7 +2699,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         // fallbacks are the stock tokens. Alpha matters (pill/disc) → HexArgb.
         QColor accent(QStringLiteral("#C8ACD6"));
         QColor badgeBg(0, 0, 0, 200), badgeText(Qt::white), dot(QStringLiteral("#FF4D4D"));
-        QColor cdBg(0, 0, 0, 140), cdNumber;
+        QColor cdBg(0, 0, 0, 140), cdNumber, frameContrast(0, 0, 0, 140);
         if (QObject *theme = m_engine->singletonInstance<QObject *>(
                 QStringLiteral("Unisic"), QStringLiteral("Theme"))) {
             accent = theme->property("accent").value<QColor>();
@@ -2496,6 +2708,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
             dot = theme->property("recDot").value<QColor>();
             cdBg = theme->property("countdownBg").value<QColor>();
             cdNumber = theme->property("countdownNumber").value<QColor>();
+            frameContrast = theme->property("recordFrameContrast").value<QColor>();
         }
         if (!cdNumber.isValid())
             cdNumber = accent;
@@ -2525,7 +2738,8 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
                             badgeText.name(QColor::HexArgb),
                             dot.name(QColor::HexArgb),
                             cdBg.name(QColor::HexArgb),
-                            cdNumber.name(QColor::HexArgb)});
+                            cdNumber.name(QColor::HexArgb),
+                            frameContrast.name(QColor::HexArgb)});
         // The helper's badge carries clickable stop/pause controls; a click there
         // arrives as a "stop"/"pause" line on the helper's stdout. Dispatch it
         // like the in-process border's buttons (the resulting paused state is
@@ -2818,19 +3032,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // remains an implicitly shared QImage (no extra full-frame allocation);
     // when enabled the helper makes one writable output frame, rather than a
     // save/copy/upload-specific copy for each branch.
-    QImage output = img;
-    if (m_settings->watermarkEnabled()) {
-        if (m_settings->watermarkType() == QLatin1String("image")
-            && !m_watermarkImage.isNull()) {
-            output = UnisicImageEffects::watermarkImage(
-                img, m_watermarkImage, m_settings->watermarkOpacity(),
-                m_settings->watermarkPosition());
-        } else {
-            output = UnisicImageEffects::watermarkText(
-                img, m_settings->watermarkText(), m_settings->watermarkOpacity(),
-                m_settings->watermarkPosition());
-        }
-    }
+    const QImage output = stampWatermark(img);
 
     // Audible cue: a fullscreen capture is otherwise invisible (no overlay
     // flash), so play the shutter/selected sound the moment it lands.
@@ -2906,9 +3108,19 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
         // continuation. The full image is released once encoding finishes — the
         // history entry created above already carries its thumbnail, so nothing
         // needs the pixels for the duration of the transfer.
-        encodeImageAsync(output, [this, path, np, historyId, fileName,
+        // The uploaded copy may be a different format than the saved one, and
+        // then it needs its own name: `fileName` is the SAVE name, extension
+        // included. Same bytes-and-name rule as uploadImage.
+        const QString upFmt = uploadImageFormat();
+        encodeImageAsync(output, [this, path, np, historyId, fileName, upFmt,
                                   uploadDestination](const QByteArray &data, const QString &mime) {
-            m_uploads->uploadDataTo(uploadDestination, data, fileName, mime,
+            // Named from the mime the encoder answered with, not from upFmt:
+            // the format asked for is not always the one that came back.
+            const QString upName =
+                upFmt.isEmpty() ? fileName
+                                : FilenameTemplate::withExtension(
+                                      fileName, FilenameTemplate::extensionForMime(mime));
+            m_uploads->uploadDataTo(uploadDestination, data, upName, mime,
                 [this, path, historyId, np](const QString &url, const QString &del, const QString &err) {
                     if (!err.isEmpty()) {
                         // The capture already lives in history (added before the
@@ -2924,13 +3136,13 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
                 });
-        });
+        }, upFmt);
     } else if (!path.isEmpty() && !cliMode) {
         showToast(tr("Saved %1").arg(path));
     }
 
     if (editEnabled)
-        openEditor(output, {});
+        openEditor(output, {}, historyId);
 
     // Keep the newest screenshot for the "Copy last capture" hotkey — encoded
     // off-thread so the retained buffer is megabytes, not a pinned 4K QImage.
@@ -2995,6 +3207,31 @@ void AppContext::afterUploadActions(const QString &url)
     finish(url);
 }
 
+// The one place the watermark settings are read. The Settings preview renders
+// through here too, so a preview that shows a mark the capture would not get
+// (or the reverse) is not expressible.
+QImage AppContext::stampWatermark(const QImage &source) const
+{
+    if (!m_settings->watermarkEnabled())
+        return source;
+    const int opacity = m_settings->watermarkOpacity();
+    const QString position = m_settings->watermarkPosition();
+    const QString pattern = m_settings->watermarkPattern();
+    const int scale = m_settings->watermarkScale();
+    // A logo type with no file loaded falls back to the text stamp rather than
+    // to nothing: "watermark on" must never silently mean "watermark off".
+    if (m_settings->watermarkType() == QLatin1String("image") && !m_watermarkImage.isNull())
+        return UnisicImageEffects::watermarkImage(source, m_watermarkImage, opacity,
+                                                  position, pattern, scale);
+    return UnisicImageEffects::watermarkText(source, m_settings->watermarkText(), opacity,
+                                             position, pattern, scale);
+}
+
+QString AppContext::watermarkPreviewSource() const
+{
+    return QStringLiteral("image://watermark/%1").arg(m_watermarkPreviewRev);
+}
+
 QString AppContext::pickWatermarkImage()
 {
     const QString start = m_settings->watermarkImagePath().isEmpty()
@@ -3054,6 +3291,15 @@ QString AppContext::editableKindFor(const QString &path)
     const QString ext = QFileInfo(path).suffix().toLower();
     if (imageExt.contains(ext))
         return QStringLiteral("image");
+    // A .gif is two different things wearing one extension, and since captures
+    // can be saved as GIF the still one is no longer hypothetical: it belongs
+    // in the image editor, the recorded one in the trim window. Only the frame
+    // count can tell them apart. imageCount() reads the header, not the frames
+    // (measured at 0 ms for both a 4K still and a 20-frame animation), and
+    // returns -1 for a file that is not there - which keeps the old answer.
+    if (ext == QLatin1String("gif"))
+        return QImageReader(path).imageCount() == 1 ? QStringLiteral("image")
+                                                    : QStringLiteral("video");
     if (videoExt.contains(ext))
         return QStringLiteral("video");
     return {};
@@ -3444,7 +3690,7 @@ void AppContext::trimGif(const QString &path, const QString &output, qreal start
 }
 
 void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal endSeconds,
-                               bool lossless)
+                               bool lossless, const QVariantList &audioGains, int mixTrack)
 {
     if (!QFileInfo::exists(path) || startSeconds < 0 || endSeconds <= startSeconds) {
         showToast(tr("Invalid trim range"), true);
@@ -3470,6 +3716,22 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
 
     const QString ss = QString::number(startSeconds, 'f', 3);
     const QString dur = QString::number(endSeconds - startSeconds, 'f', 3);
+    // The trim window sends one gain per audio track; all-1.0 (or none) means
+    // the audio is untouched and can stay a stream copy.
+    QList<double> gains;
+    bool audioEdited = false;
+    for (const QVariant &value : audioGains) {
+        const double gain = value.toDouble();
+        gains << gain;
+        if (gain < 0 || !qFuzzyCompare(gain, 1.0))
+            audioEdited = true;
+    }
+    const bool webm = suffix == QLatin1String("webm");
+    const auto editArgs = [&] {
+        return mixTrack >= 0 && mixTrack < gains.size()
+                   ? GifRecorder::audioRemixArgs(webm, gains, mixTrack, tr("Mix"))
+                   : GifRecorder::audioEditArgs(webm, gains);
+    };
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),
                      QStringLiteral("-ss"), ss,
@@ -3479,12 +3741,23 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
         // The caller has already snapped `startSeconds` onto a keyframe, so the
         // copy starts exactly there. make_zero rebases the timestamps instead of
         // leaning on a container edit list (which not every player honours).
-        args << QStringLiteral("-c") << QStringLiteral("copy")
-             << QStringLiteral("-avoid_negative_ts") << QStringLiteral("make_zero");
+        // Explicit maps, not `-c copy` alone: ffmpeg's default stream selection
+        // keeps ONE audio stream, which silently dropped the stems of a
+        // separate-tracks recording. A volume/mute edit re-encodes the audio
+        // (a filter cannot run on a copied stream); the video is copied either
+        // way, so the cut stays instant.
+        args << QStringLiteral("-avoid_negative_ts") << QStringLiteral("make_zero")
+             << QStringLiteral("-map") << QStringLiteral("0:v:0")
+             << QStringLiteral("-c:v") << QStringLiteral("copy");
+        if (audioEdited)
+            args << editArgs();
+        else
+            args << QStringLiteral("-map") << QStringLiteral("0:a?")
+                 << QStringLiteral("-c:a") << QStringLiteral("copy");
     } else {
         // Re-encode: with -ss in front of -i ffmpeg seeks to the preceding
         // keyframe and decodes forward, so the output starts on the exact frame.
-        const int crf = qBound(0, m_settings->videoQuality(), 51);
+        const int crf = UnisicVideo::crfFromPercent(m_settings->videoQualityPercent());
         // yuv420p needs even dimensions (same rule the recorder enforces on its
         // crop): an imported MP4/MOV/MKV can be odd-sized, and libx264 & friends
         // abort with "width not divisible by 2". Trim at most one edge pixel.
@@ -3528,15 +3801,15 @@ void AppContext::trimRecording(const QString &path, qreal startSeconds, qreal en
                  << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p")
                  << QStringLiteral("-movflags") << QStringLiteral("+faststart");
         }
-        // '?' keeps the audio map a no-op on a recording made without sound.
-        args << QStringLiteral("-map") << QStringLiteral("0:v:0")
-             << QStringLiteral("-map") << QStringLiteral("0:a:0?");
-        if (suffix == QLatin1String("webm"))
-            args << QStringLiteral("-c:a") << QStringLiteral("libopus")
-                 << QStringLiteral("-b:a") << QStringLiteral("128k");
+        // Same audio args the recorder's own conversion uses, so a trim keeps
+        // every track of a multi-track recording instead of the first one.
+        // No names passed: this file is finished, and ffmpeg's metadata copy
+        // carries the ones it already has.
+        args << QStringLiteral("-map") << QStringLiteral("0:v:0");
+        if (audioEdited)
+            args << editArgs();
         else
-            args << QStringLiteral("-c:a") << QStringLiteral("aac")
-                 << QStringLiteral("-b:a") << QStringLiteral("192k");
+            args << GifRecorder::finalAudioArgs(webm);
     }
     args << output;
     runTrimStep(args, [this, output](bool ok, const QString &diagnostic) {
@@ -3606,7 +3879,7 @@ void AppContext::editFromHistory(const QString &filePath)
         showToast(tr("Can't open %1 for editing").arg(QFileInfo(filePath).fileName()), true);
         return;
     }
-    openEditor(img, filePath);
+    openEditor(img, filePath, m_history->idForFile(filePath));
 }
 
 void AppContext::previewFromHistory(const QString &filePath)
@@ -3831,6 +4104,47 @@ void AppContext::uploadFromHistory(const QString &filePath)
     // light up. afterUploadActions honours the copy-link / open-in-browser
     // settings, matching a capture-time upload.
     showToast(tr("Uploading %1…").arg(QFileInfo(filePath).fileName()));
+    // Unless an upload format is set and this file is not already in it - then
+    // the SAME rule as a capture-time upload applies, and the bytes on the wire
+    // are a re-encode of this file. Only for a still image: a recording, or an
+    // animated GIF, has more frames than a re-encode could carry, and
+    // editableKindFor already tells those apart by frame count. The file on
+    // disk is never touched.
+    const QString upFmt = uploadImageFormat();
+    if (!upFmt.isEmpty() && !FilenameTemplate::sameFormat(QFileInfo(filePath).suffix(), upFmt)
+        && editableKindFor(filePath) == QLatin1String("image")) {
+        QImageReader reader(filePath);
+        reader.setAutoTransform(true);
+        const QImage img = reader.read();
+        if (!img.isNull()) {
+            encodeImageAsync(img, [this, filePath](const QByteArray &data, const QString &mime) {
+                if (data.isEmpty()) {
+                    showToast(tr("Could not encode %1 for upload")
+                                  .arg(QFileInfo(filePath).fileName()), true);
+                    return;
+                }
+                const QString name = FilenameTemplate::withExtension(
+                    QFileInfo(filePath).fileName(), FilenameTemplate::extensionForMime(mime));
+                m_uploads->uploadData(data, name, mime,
+                    [this, filePath](const QString &url, const QString &del, const QString &err) {
+                        if (!err.isEmpty()) {
+                            showToast(tr("Upload failed: %1").arg(err), true);
+                            return;
+                        }
+                        // The link belongs to the tile of the file it came
+                        // from: the re-encode exists only on the server.
+                        m_history->setUrl(filePath, url, del);
+                        if (url.isEmpty())
+                            showToast(tr("Uploaded"));
+                        else
+                            afterUploadActions(url);
+                    });
+            }, upFmt);
+            return;
+        }
+        // Unreadable as an image (a format Qt has no reader for): fall through
+        // and send the file as it is rather than refusing the upload outright.
+    }
     m_uploads->uploadFile(filePath, [this, filePath](const QString &url, const QString &del,
                                                      const QString &err) {
         if (!err.isEmpty()) {
@@ -3845,7 +4159,7 @@ void AppContext::uploadFromHistory(const QString &filePath)
     });
 }
 
-void AppContext::openEditor(const QImage &img, const QString &overwritePath)
+void AppContext::openEditor(const QImage &img, const QString &overwritePath, quint64 historyId)
 {
     if (!m_engine)
         return;
@@ -3854,7 +4168,7 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath)
         qWarning() << component.errorString();
         return;
     }
-    auto *session = new EditorSession(this, img, overwritePath, this);
+    auto *session = new EditorSession(this, img, overwritePath, historyId, this);
     auto *ctx = new QQmlContext(m_engine->rootContext(), session);
     ctx->setContextProperty(QStringLiteral("editorSession"), session);
     QObject *obj = component.create(ctx);
@@ -3909,26 +4223,38 @@ bool AppContext::openPreview(const QImage &img)
                             .filePath(previewPrefix +
                                       QUuid::createUuid().toString(QUuid::WithoutBraces) +
                                       QStringLiteral(".png"));
-    QPointer<AppContext> self(this);
-    QPointer<QCoreApplication> application(qApp);
-    (void)QtConcurrent::run([self, application, img, tmp] {
-        const bool ok = img.save(tmp);
+    // Parent the watcher to qApp, not this: if AppContext disappears while the
+    // encode is finishing, the GUI-thread QPointer branch still removes the
+    // private temp file. The shared guard also covers qApp shutting down before
+    // the completion event; no QObject pointer crosses into the worker.
+    struct PreviewTempCleanup {
+        QString path;
+        bool handedOff = false;
+        ~PreviewTempCleanup() { if (!handedOff) QFile::remove(path); }
+    };
+    auto cleanup = std::make_shared<PreviewTempCleanup>();
+    cleanup->path = tmp;
+    auto *watcher = new QFutureWatcher<QPair<bool, QSize>>(qApp);
+    QPointer<AppContext> self(this); // created, read and destroyed on the GUI thread
+    connect(watcher, &QFutureWatcher<QPair<bool, QSize>>::finished, qApp,
+            [watcher, self, cleanup] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+        if (self) {
+            cleanup->handedOff = result.first;
+            self->finishOpenPreview(result.first, cleanup->path, result.second);
+        }
+    });
+    watcher->setFuture(QtConcurrent::run([img, cleanup] {
+        const bool ok = img.save(cleanup->path);
         // The capture can contain a password/bank page/private chat; /tmp is
         // world-listable, so lock the file to the owner (a UUID name is no
         // protection once the directory is listable).
         if (ok)
-            QFile::setPermissions(tmp, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-        if (!application) {
-            QFile::remove(tmp);
-            return;
-        }
-        QMetaObject::invokeMethod(application.data(), [self, tmp, ok, size = img.size()] {
-            if (self)
-                self->finishOpenPreview(ok, tmp, size);
-            else
-                QFile::remove(tmp);
-        }, Qt::QueuedConnection);
-    });
+            QFile::setPermissions(cleanup->path,
+                                  QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        return qMakePair(ok, img.size());
+    }));
     return true;
 }
 
@@ -4008,10 +4334,15 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
         });
         return;
     }
-    const QString fileName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
+    const QString upFmt = uploadImageFormat();
+    const QString baseName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
     // Same off-thread encode + conditional image retention as finishCapture.
-    encodeImageAsync(img, [this, path, np, fileName,
+    encodeImageAsync(img, [this, path, np, baseName, upFmt,
                            img = path.isEmpty() ? img : QImage()](const QByteArray &data, const QString &mime) {
+        const QString fileName =
+            upFmt.isEmpty() ? baseName
+                            : FilenameTemplate::withExtension(
+                                  baseName, FilenameTemplate::extensionForMime(mime));
         m_uploads->uploadData(data, fileName, mime,
             [this, img, path, np](const QString &url, const QString &del, const QString &err) {
                 if (!err.isEmpty()) {
@@ -4029,7 +4360,7 @@ void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &im
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
             });
-    });
+    }, upFmt);
 }
 
 CaptureNotification *AppContext::showCaptureNotification(const QImage &img, const QString &path,
@@ -4115,7 +4446,8 @@ void AppContext::scheduleMemoryTrim()
 #endif
 }
 
-QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
+QString AppContext::saveImageAuto(const QImage &img, const QString &fileName,
+                                  bool allowAutoConvert)
 {
     QString dir = m_settings->saveDirectory();
     // Optional per-month subfolders (yyyy-MM) keep a busy screenshots folder
@@ -4123,15 +4455,64 @@ QString AppContext::saveImageAuto(const QImage &img, const QString &fileName)
     if (m_settings->dateSubfolders())
         dir += QLatin1Char('/')
              + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
-    return saveImageTo(img, dir, fileName);
+    return saveImageTo(img, dir, fileName, allowAutoConvert);
 }
 
-QString AppContext::makeFileName() const
+QString AppContext::makeFileName(const QString &formatOverride) const
 {
     return FilenameTemplate::expand(m_settings->filenameTemplate(),
                                     m_settings->filenameCounter(),
                                     QDateTime::currentDateTime())
-           + QLatin1Char('.') + FilenameTemplate::extensionFor(m_settings->imageFormat());
+           + QLatin1Char('.')
+           + FilenameTemplate::extensionFor(formatOverride.isEmpty()
+                                                ? m_settings->imageFormat()
+                                                : formatOverride);
+}
+
+QString AppContext::convertFileTo(const QString &path, const QString &format)
+{
+    const QString target = FilenameTemplate::extensionFor(format);
+    const QFileInfo fi(path);
+    if (!fi.exists()) {
+        showToast(tr("Can't find %1").arg(fi.fileName()), true);
+        return {};
+    }
+    if (FilenameTemplate::sameFormat(fi.suffix(), target)) {
+        showToast(tr("Already a %1 file").arg(target.toUpper()));
+        return {};
+    }
+    QImageReader reader(path);
+    reader.setAutoTransform(true);
+    // An animated source has more frames than any of these formats can hold,
+    // and read() would quietly hand back frame one. Say no instead of throwing
+    // the rest of the animation away on the user's behalf.
+    if (reader.imageCount() > 1) {
+        showToast(tr("%1 is animated. Trim it instead").arg(fi.fileName()), true);
+        return {};
+    }
+    const QImage img = reader.read();
+    if (img.isNull()) {
+        showToast(tr("Can't read %1").arg(fi.fileName()), true);
+        return {};
+    }
+    // Beside the original and under its own name, not the capture template's:
+    // a converted file that answers to a different date than the shot it came
+    // from is a file nobody can pair back up. saveImageTo picks the encoder off
+    // the extension, de-duplicates the name, and turns a GIF with no ffmpeg
+    // into a PNG with a toast - all of which is wanted here unchanged. The
+    // over-size rule is NOT: this format is the one the user just clicked.
+    const QString out = saveImageTo(img, fi.absolutePath(),
+                                    fi.completeBaseName() + QLatin1Char('.') + target,
+                                    /*allowAutoConvert=*/false);
+    if (out.isEmpty()) {
+        showToast(tr("Couldn't convert %1").arg(fi.fileName()), true);
+        return {};
+    }
+    // A genuinely new file on disk earns its own tile - unlike an upload, which
+    // is the same file gaining a link.
+    m_history->addEntry(out, img, QStringLiteral("image"));
+    showToast(tr("Saved %1").arg(QFileInfo(out).fileName()));
+    return out;
 }
 
 QString AppContext::filenamePreview() const
@@ -4139,7 +4520,10 @@ QString AppContext::filenamePreview() const
     return makeFileName();
 }
 
-static bool imageHasTransparency(const QImage &img);
+QVariantMap AppContext::filenameHelp() const
+{
+    return FilenameTemplate::help();
+}
 
 void AppContext::encodeImageAsync(const QImage &img,
                                   std::function<void(const QByteArray &, const QString &)> done,
@@ -4149,56 +4533,116 @@ void AppContext::encodeImageAsync(const QImage &img,
     const QString fmt = formatOverride.isEmpty() ? m_settings->imageFormat().toLower()
                                                   : formatOverride.toLower();
     const int q = qBound(1, m_settings->imageQuality(), 100);
-    QPointer<AppContext> self(this);
-    QPointer<QCoreApplication> application(qApp);
-    (void)QtConcurrent::run([self, application, img, fmt, q, done = std::move(done)] {
-        QByteArray out;
-        QString mime;
-        QBuffer buf(&out);
-        buf.open(QIODevice::WriteOnly);
-        // JPEG has no alpha: a source image carrying transparency would flatten
-        // to solid black. Mirror saveImageTo's auto-switch and encode PNG
-        // instead, so the uploaded bytes match the saved file. WEBP keeps
-        // alpha, so it needs no such guard.
-        const bool wantJpg = (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"));
-        if (wantJpg && !imageHasTransparency(img) && img.save(&buf, "JPG", q)) {
-            mime = QStringLiteral("image/jpeg");
-        } else if (fmt == QLatin1String("webp") && img.save(&buf, "WEBP", q)) {
-            mime = QStringLiteral("image/webp");
-        } else {
-            out.clear();
-            buf.seek(0);
-            img.save(&buf, "PNG");
-            mime = QStringLiteral("image/png");
-        }
-        if (!application)
-            return;
-        QMetaObject::invokeMethod(application.data(), [self, out, mime, done] {
-            if (self)
-                done(out, mime);
-        }, Qt::QueuedConnection);
+    auto *watcher = new QFutureWatcher<ImageEncode::Result>(this);
+    connect(watcher, &QFutureWatcher<ImageEncode::Result>::finished, this,
+            [watcher, done = std::move(done)] {
+        const ImageEncode::Result encoded = watcher->result();
+        watcher->deleteLater();
+        done(encoded.bytes, encoded.mime);
     });
+    watcher->setFuture(QtConcurrent::run([img, fmt, q] {
+        // Same encoder the save path uses, so the uploaded bytes and the file on
+        // disk can never be two different pictures. Its GIF branch blocks on
+        // ffmpeg, which is exactly why this runs on a pool thread.
+        return ImageEncode::encode(img, fmt, q);
+    }));
 }
 
-// True when the image actually contains transparent pixels (not merely an
-// alpha-capable format). Sampled — a save-time scan of every pixel of a 4K
-// frame is wasteful and transparency comes in contiguous regions. pixelColor()
-// reads alpha correctly for any format (incl. ARGB32_Premultiplied), so no
-// full-frame convertToFormat() copy is needed — the sampling stays ~free.
-static bool imageHasTransparency(const QImage &img)
+QString AppContext::uploadImageFormat() const
 {
-    if (!img.hasAlphaChannel())
-        return false;
-    const int stepY = qMax(1, img.height() / 256);
-    const int stepX = qMax(1, img.width() / 256);
-    for (int y = 0; y < img.height(); y += stepY)
-        for (int x = 0; x < img.width(); x += stepX)
-            if (img.pixelColor(x, y).alpha() < 255)
-                return true;
-    return false;
+    const QString fmt = m_settings->uploadFormat().trimmed().toLower();
+    // "" and "same" both mean "whatever the save format is" - the combo stores
+    // the empty string, the second spelling only guards a hand-edited config.
+    if (fmt.isEmpty() || fmt == QLatin1String("same"))
+        return {};
+    return FilenameTemplate::extensionFor(fmt);
 }
 
-QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName)
+QString AppContext::autoConvertIfLarge(const QString &path, const QImage &img)
+{
+    if (!m_settings->autoConvertLarge() || path.isEmpty())
+        return path;
+    const QString target = FilenameTemplate::extensionFor(m_settings->autoConvertFormat());
+    if (FilenameTemplate::sameFormat(QFileInfo(path).suffix(), target))
+        return path;
+    // MB as the user means it on a file listing: 1 MB = 1024 KB.
+    const qint64 limit = qint64(qMax(1, m_settings->autoConvertOverMb())) * 1024 * 1024;
+    const qint64 size = QFileInfo(path).size();
+    if (size <= limit)
+        return path;
+
+    const ImageEncode::Result enc = ImageEncode::encode(img, target, m_settings->imageQuality());
+    // Two ways to end up not converting, and both keep the file that already
+    // exists: nothing came back (no ffmpeg for a GIF target, a refused encoder),
+    // or the "smaller" format came out bigger, which a lossless-to-PNG target or
+    // a screenshot of flat UI colours can absolutely do. A rule whose whole
+    // purpose is a smaller file must never be allowed to produce a larger one.
+    if (!enc.ok() || enc.format != target || enc.bytes.size() >= size)
+        return path;
+
+    const QFileInfo fi(path);
+    QString out = fi.absolutePath() + QLatin1Char('/')
+                  + FilenameTemplate::withExtension(fi.fileName(), target);
+    for (int n = 1; QFile::exists(out); ++n)
+        out = fi.absolutePath() + QLatin1Char('/') + fi.completeBaseName()
+              + QStringLiteral("-%1.").arg(n) + target;
+    QFile f(out);
+    bool ok = f.open(QIODevice::WriteOnly) && f.write(enc.bytes) == enc.bytes.size();
+    ok = f.flush() && ok; // a short write on a full disk must not read as saved
+    f.close();
+    if (!ok) {
+        QFile::remove(out);
+        return path; // the original is still there and still correct
+    }
+    // Only now is the original expendable. Removing it first would risk having
+    // neither file if the write above failed.
+    QFile::remove(path);
+    // formattedDataSize, not a raw byte count: this sentence is the only proof
+    // the user gets that the rule earned its keep, and "8,1 MiB instead of
+    // 26,4 MiB" says that where "8493021" does not.
+    showToast(tr("Over %1 MB, so it was converted to %2 (%3 instead of %4)")
+                  .arg(m_settings->autoConvertOverMb())
+                  .arg(target.toUpper(),
+                       QLocale().formattedDataSize(enc.bytes.size(), 1),
+                       QLocale().formattedDataSize(size, 1)));
+    return out;
+}
+
+bool AppContext::overwriteImageFile(const QImage &img, const QString &path)
+{
+    if (path.isEmpty() || img.isNull())
+        return false;
+    const QString ext = QFileInfo(path).suffix();
+    const ImageEncode::Result enc = ImageEncode::encode(img, ext, m_settings->imageQuality());
+    // The file keeps its name, so a format the encoder had to swap out cannot
+    // be written here at all - the bytes would not match the extension. Say so
+    // instead: "Save as" is the way to change format, and it makes a new file.
+    if (!enc.ok() || enc.format != FilenameTemplate::extensionFor(ext)) {
+        showToast(enc.fallbackReason == QLatin1String("gif")
+                      ? tr("GIF needs ffmpeg. Use Save as to write another format")
+                      : tr("Can't write %1 back as %2. Use Save as")
+                            .arg(QFileInfo(path).fileName(), ext.toUpper()),
+                  true);
+        return false;
+    }
+    // Written whole and only then swapped in: an interrupted write must not
+    // leave the user's original file half-overwritten. QSaveFile is exactly
+    // that, and it keeps the original's permissions.
+    QSaveFile f(path);
+    if (!f.open(QIODevice::WriteOnly)) {
+        showToast(tr("Can't write %1").arg(QFileInfo(path).fileName()), true);
+        return false;
+    }
+    f.write(enc.bytes);
+    if (!f.commit()) {
+        showToast(tr("Can't write %1").arg(QFileInfo(path).fileName()), true);
+        return false;
+    }
+    return true;
+}
+
+QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName,
+                                bool allowAutoConvert)
 {
     if (dir.isEmpty() || img.isNull())
         return {};
@@ -4207,34 +4651,16 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
 
     QString fmt = QFileInfo(name).suffix().toLower();
     if (fmt != QLatin1String("png") && fmt != QLatin1String("jpg")
-        && fmt != QLatin1String("jpeg") && fmt != QLatin1String("webp"))
+        && fmt != QLatin1String("jpeg") && fmt != QLatin1String("webp")
+        && fmt != QLatin1String("gif"))
         fmt = m_settings->imageFormat().toLower();
-    // JPEG can't hold an alpha channel — a source image carrying transparency
-    // would flatten to black. Auto-switch such saves to PNG
-    // (and fix the extension) BEFORE the collision-dedup loop below, so the
-    // switched name is what the loop de-duplicates against — otherwise two
-    // transparent saves in the same second (or a pre-existing same-named .png)
-    // both pass the .jpg existence check and silently overwrite one another.
-    if ((fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
-        && imageHasTransparency(img)) {
-        fmt = QStringLiteral("png");
-        if (name.endsWith(QLatin1String(".jpg"), Qt::CaseInsensitive)
-            || name.endsWith(QLatin1String(".jpeg"), Qt::CaseInsensitive))
-            name = name.left(name.lastIndexOf(QLatin1Char('.'))) + QStringLiteral(".png");
-        showToast(tr("Saved as PNG to keep transparency"));
-    }
-
-    QString path = dir + QLatin1Char('/') + name;
-    const QFileInfo fi(name);
-    for (int n = 1; QFile::exists(path); ++n)
-        path = dir + QLatin1Char('/') + fi.completeBaseName()
-               + QStringLiteral("-%1.").arg(n) + fi.suffix();
 
     // Metadata strip: rebuild from raw pixels so the written file carries no
     // text chunks, description or DPI. Captures normally have NONE (built from
     // raw screen pixels), so skip the full-frame copy unless there is actually
     // something to strip — the editor or a loaded source can add text/DPI. Only
     // ≥24bpp (the capture formats); a rebuild would drop an indexed palette.
+    // Before the encode, so what is stripped is what gets encoded.
     QImage stripped;
     if (m_settings->stripMetadata() && img.depth() >= 24
         && (!img.textKeys().isEmpty() || img.dotsPerMeterX() != 0 || img.dotsPerMeterY() != 0))
@@ -4242,15 +4668,46 @@ QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QSt
                           img.bytesPerLine(), img.format()).copy();
     const QImage &toSave = stripped.isNull() ? img : stripped;
 
-    bool ok;
-    if (fmt == QLatin1String("jpg") || fmt == QLatin1String("jpeg"))
-        ok = toSave.save(path, "JPG", qBound(1, m_settings->imageQuality(), 100));
-    else if (fmt == QLatin1String("webp"))
-        ok = toSave.save(path, "WEBP", qBound(1, m_settings->imageQuality(), 100));
-    else
-        ok = toSave.save(path, "PNG");
-    if (!ok)
+    // Encode FIRST, name second, and that order is the whole correctness rule
+    // here. Two of the four formats can refuse: JPEG cannot hold the alpha a
+    // transparent capture has, and GIF needs an ffmpeg that may not be
+    // installed. Both fall back to PNG, so the extension is only known after
+    // the encode - and it has to be known before the collision-dedup loop, or
+    // two transparent saves in the same second (or a pre-existing same-named
+    // .png) both pass the .jpg existence check and silently overwrite one
+    // another. Cost: the bytes are a second copy of the picture (~5-10 MB for a
+    // 4K PNG next to its 33 MB of pixels), freed as soon as they are written.
+    const ImageEncode::Result enc =
+        ImageEncode::encode(toSave, fmt, m_settings->imageQuality());
+    if (!enc.ok())
         return {};
+    if (enc.fallbackReason == QLatin1String("alpha"))
+        showToast(tr("Saved as PNG to keep transparency"));
+    else if (enc.fallbackReason == QLatin1String("gif"))
+        showToast(tr("GIF needs ffmpeg. Saved as PNG"));
+    else if (enc.fallbackReason == QLatin1String("encoder"))
+        showToast(tr("%1 could not hold this image. Saved as PNG").arg(fmt.toUpper()));
+    name = FilenameTemplate::withExtension(name, enc.format);
+
+    QString path = dir + QLatin1Char('/') + name;
+    const QFileInfo fi(name);
+    for (int n = 1; QFile::exists(path); ++n)
+        path = dir + QLatin1Char('/') + fi.completeBaseName()
+               + QStringLiteral("-%1.").arg(n) + fi.suffix();
+
+    QFile out(path);
+    bool ok = out.open(QIODevice::WriteOnly) && out.write(enc.bytes) == enc.bytes.size();
+    ok = out.flush() && ok; // a short write on a full disk must not read as saved
+    out.close();
+    if (!ok) {
+        QFile::remove(path);
+        return {};
+    }
+    // After the write, so the rule sees the real file size rather than an
+    // estimate - and before openAfterSave, so what opens is the file that
+    // survived.
+    if (allowAutoConvert)
+        path = autoConvertIfLarge(path, toSave);
     if (m_settings->openAfterSave())
         openFile(path);
     return path;
@@ -4308,21 +4765,24 @@ void AppContext::copyImageToClipboard(const QImage &img)
     // encode — only the newest copy request may take the Wayland selection
     // (all m_clipboardSeq writers run on the GUI thread; no atomics needed).
     const quint64 seq = ++m_clipboardSeq;
-    QPointer<AppContext> self(this);
-    QPointer<QCoreApplication> application(qApp);
-    (void)QtConcurrent::run([self, application, img, wlCopy, seq] {
+    auto *watcher = new QFutureWatcher<QByteArray>(this);
+    connect(watcher, &QFutureWatcher<QByteArray>::finished, this,
+            [this, watcher, wlCopy, seq] {
+        const QByteArray png = watcher->result();
+        watcher->deleteLater();
+        // QProcess stays on the GUI thread, and only the newest copy request
+        // may take the Wayland selection.
+        if (m_clipboardSeq == seq)
+            spawnWlCopy(this, wlCopy,
+                        {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
+    });
+    watcher->setFuture(QtConcurrent::run([img] {
         QByteArray png;
         QBuffer buf(&png);
         buf.open(QIODevice::WriteOnly);
         img.save(&buf, "PNG");
-        // QProcess must live on the GUI thread.
-        if (!application)
-            return;
-        QMetaObject::invokeMethod(application.data(), [self, png, wlCopy, seq] {
-            if (self && self->m_clipboardSeq == seq)
-                spawnWlCopy(self, wlCopy, {QStringLiteral("--type"), QStringLiteral("image/png")}, png);
-        }, Qt::QueuedConnection);
-    });
+        return png;
+    }));
 }
 
 void AppContext::copyText(const QString &text)
@@ -4403,20 +4863,34 @@ void AppContext::copyImageAs(const QImage &img, const QString &filePath, const Q
 }
 
 // Editor flow: upload the composited image only (saving is a separate action).
-void AppContext::uploadImage(const QImage &img, UploadDone done)
+// `historyId` is the entry this capture already owns (the editor knows it): the
+// URL lands on THAT entry, so an uploaded capture stays one tile instead of
+// splitting into "local file" + "uploaded link". 0 (a pasted/dropped image, the
+// dev check) still makes a fresh entry, as does an entry evicted mid-transfer.
+void AppContext::uploadImage(const QImage &img, UploadDone done, quint64 historyId)
 {
-    const QString fileName = makeFileName();
-    encodeImageAsync(img, [this, img, fileName, done](const QByteArray &data, const QString &mime) {
+    // The upload format is allowed to differ from the save format, so the name
+    // is built from IT - a .png name on JPEG bytes is what an "unsupported
+    // file type" from the server looks like an hour later.
+    const QString upFmt = uploadImageFormat();
+    const QString baseName = makeFileName(upFmt);
+    encodeImageAsync(img, [this, img, baseName, done, historyId](const QByteArray &data, const QString &mime) {
+        // The extension follows the bytes: the encoder can answer with a
+        // different format than it was asked for, and the server is told the
+        // truth either way.
+        const QString fileName =
+            FilenameTemplate::withExtension(baseName, FilenameTemplate::extensionForMime(mime));
         m_uploads->uploadData(data, fileName, mime,
-            [this, img, done](const QString &url, const QString &del, const QString &err) {
+            [this, img, done, historyId](const QString &url, const QString &del, const QString &err) {
                 if (err.isEmpty()) {
-                    m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+                    if (!m_history->setUrlById(historyId, url, del))
+                        m_history->addEntry({}, img, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                 }
                 if (done)
                     done(url, err);
             });
-    });
+    }, upFmt);
 }
 
 void AppContext::openFile(const QString &path)
@@ -4923,14 +5397,17 @@ void AppContext::syncAllHotkeysFromDaemon()
 {
     if (!m_hotkeys->available())
         return;
-    const auto acts = hotkeyActions();
-    for (const HotkeyAction &a : acts) {
-        bool ok = false;
-        const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
-        // A failed/timed-out query must NOT be mistaken for "unbound" — that
-        // would wipe the stored key (and the sync() below persists the wipe).
-        if (ok && !GlobalHotkeys::sameBinding(actual, a.keys))
-            syncHotkeyFromDaemon(a.id, actual);
+    const auto actions = hotkeyActions();
+    for (const HotkeyAction &action : actions) {
+        m_hotkeys->activeKeysAsync(
+            action.id, this,
+            [this, action](bool ok, const QList<int> &keys) {
+                // A failed/timed-out query must not be mistaken for unbound;
+                // that would wipe and persist the stored key.
+                const QString actual = GlobalHotkeys::portableFromKeys(keys);
+                if (ok && !GlobalHotkeys::sameBinding(actual, action.keys))
+                    syncHotkeyFromDaemon(action.id, actual);
+            });
     }
 }
 
@@ -4979,18 +5456,20 @@ void AppContext::defineHotkeys()
         // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
         // bound to "Show System Activity" — the daemon then refuses the grab,
         // so tell the user instead of failing silently.
-        if (!m_hotkeys->setShortcut(QStringLiteral("stop-recording"),
-                                    tr("Stop recording (emergency)"),
-                                    QStringLiteral("Ctrl+Escape"))) {
-            qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
-                          " component - on stock Plasma: Show System Activity)";
-            showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
-                         "(System Settings → Shortcuts to free it)"));
-        }
+        m_hotkeys->setShortcutAsync(
+            QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
+            QStringLiteral("Ctrl+Escape"), this, [this](bool accepted) {
+                if (accepted)
+                    return;
+                qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
+                              " component - on stock Plasma: Show System Activity)";
+                showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
+                             "(System Settings → Shortcuts to free it)"));
+            });
 #ifdef UNISIC_DEV_BUILD
         // Dev-only: F8 runs the smoke test. Fixed key (not user-configurable).
-        m_hotkeys->setShortcut(QStringLiteral("smoke-test"),
-                               tr("Developer smoke test"), QStringLiteral("F8"));
+        m_hotkeys->setShortcutAsync(QStringLiteral("smoke-test"),
+                                    tr("Developer smoke test"), QStringLiteral("F8"), this);
 #endif
         // Upgrade path: older versions grabbed Ctrl+C for a 2s "quick-copy"
         // window (NoAutoloading), and a crash inside it left the grab bound
@@ -5026,26 +5505,31 @@ void AppContext::defineHotkeys()
         // keys even when it stored them into the default column only and the
         // ACTIVE binding stayed "none". That left every hotkey shown as
         // assigned in the UI yet silently dead until the user re-assigned
-        // each one by hand. hotkeyBindStatus asserts the stored key on any
+        // each one by hand. hotkeyBindStatusAsync asserts the stored key on any
         // action the daemon reports unbound, and syncs a KCM-edited key back
         // into the UI. A deliberate KCM unbind made while the app runs still
         // sticks: it arrives via yourShortcutsChanged and empties the stored
         // string, so there is nothing to assert on the next launch.
-        int unbound = 0;
-        QStringList conflicts;
-        const QStringList report = hotkeyBindStatus(&unbound, true, &conflicts);
-        if (unbound > 0)
-            qWarning().noquote() << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
-        // A key another component owns daemon-side never reaches us even
-        // though it shows as bound — silent-dead without this toast (observed
-        // live: a KWin tiling script holding Meta+Shift+F).
-        if (!conflicts.isEmpty()) {
-            qWarning().noquote() << "Hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
-            showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                         "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
-                          .arg(conflicts.join(QStringLiteral("; "))), true);
-        }
+        // The backend is usable immediately. Verification continues as an
+        // ordered asynchronous state machine, so a slow daemon cannot freeze
+        // the already-visible window.
         emit hotkeysAvailableChanged();
+        hotkeyBindStatusAsync(
+            true, [this](int unbound, const QStringList &report,
+                         const QStringList &conflicts) {
+                if (unbound > 0)
+                    qWarning().noquote()
+                        << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
+                // A key another component owns daemon-side never reaches us
+                // even though it shows as bound.
+                if (!conflicts.isEmpty()) {
+                    qWarning().noquote()
+                        << "Hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
+                    showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
+                                 "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
+                                  .arg(conflicts.join(QStringLiteral("; "))), true);
+                }
+            });
         return;
     }
 
@@ -5138,18 +5622,25 @@ void AppContext::applyHotkey(const QString &actionId)
     if (!m_hotkeys->available())
         return;
     const auto acts = hotkeyActions();
-    for (const HotkeyAction &a : acts) {
-        if (a.id != actionId)
+    for (const HotkeyAction &action : acts) {
+        if (action.id != actionId)
             continue;
-        if (!m_hotkeys->setShortcut(a.id, a.name, a.keys)) {
-            showToast(tr("Could not bind %1; the key is taken by another shortcut").arg(a.keys),
-                      true);
-            // Show what is actually bound instead of the refused wish.
-            bool ok = false;
-            const QString actual = m_hotkeys->activeKeysPortable(a.id, &ok);
-            if (ok)
-                syncHotkeyFromDaemon(a.id, actual);
-        }
+        m_hotkeys->setShortcutAsync(
+            action.id, action.name, action.keys, this,
+            [this, action](bool accepted) {
+                if (accepted)
+                    return;
+                showToast(tr("Could not bind %1; the key is taken by another shortcut")
+                              .arg(action.keys), true);
+                // Show what is actually bound instead of the refused wish.
+                m_hotkeys->activeKeysAsync(
+                    action.id, this,
+                    [this, action](bool ok, const QList<int> &keys) {
+                        if (ok)
+                            syncHotkeyFromDaemon(
+                                action.id, GlobalHotkeys::portableFromKeys(keys));
+                    });
+            });
         return;
     }
 }
@@ -5169,13 +5660,21 @@ void AppContext::applyHotkeys()
     if (!m_hotkeys->available())
         return;
     const auto acts = hotkeyActions();
-    bool allOk = true;
-    for (const HotkeyAction &a : acts)
-        allOk &= m_hotkeys->setShortcut(a.id, a.name, a.keys);
-    if (!allOk) {
-        showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
-                  true);
-        syncAllHotkeysFromDaemon();
+    if (acts.isEmpty())
+        return;
+    auto remaining = std::make_shared<int>(acts.size());
+    auto allOk = std::make_shared<bool>(true);
+    for (const HotkeyAction &action : acts) {
+        m_hotkeys->setShortcutAsync(
+            action.id, action.name, action.keys, this,
+            [this, remaining, allOk](bool accepted) {
+                *allOk &= accepted;
+                if (--*remaining != 0 || *allOk)
+                    return;
+                showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
+                          true);
+                syncAllHotkeysFromDaemon();
+            });
     }
 }
 

@@ -37,7 +37,6 @@ namespace {
 
 const int kBw = 3;            // accent frame base thickness
 const int kFramePad = kBw + 1; // the ring reaches this many px outside the region
-const QColor kContrast(0, 0, 0, 140);
 
 const Qt::WindowFlags kFrameFlags = Qt::BypassWindowManagerHint
                                     | Qt::FramelessWindowHint
@@ -55,7 +54,8 @@ QSurfaceFormat argbFormat(const QSurfaceFormat &base)
 // Concentric rings around `r` (window-local): from the region edge outward,
 // [0..1) contrast, [1..3) accent, [3..4) contrast. Drawn strictly OUTSIDE r so
 // the ffmpeg crop (= the region) never contains a frame pixel.
-void paintRing(QPainter &p, const QRect &r, const QColor &accent)
+void paintRing(QPainter &p, const QRect &r, const QColor &accent,
+               const QColor &contrast)
 {
     const auto ring = [&p, &r](int outPad, int inPad, const QColor &c) {
         QRegion reg(r.adjusted(-outPad, -outPad, outPad, outPad));
@@ -63,9 +63,9 @@ void paintRing(QPainter &p, const QRect &r, const QColor &accent)
         for (const QRect &part : reg)
             p.fillRect(part, c);
     };
-    ring(kBw + 1, kBw, kContrast); // outer contrast line
-    ring(kBw, 1, accent);          // accent frame
-    ring(1, 0, kContrast);         // inner contrast line
+    ring(kBw + 1, kBw, contrast); // outer contrast line
+    ring(kBw, 1, accent);         // accent frame
+    ring(1, 0, contrast);         // inner contrast line
 }
 
 // One side of the frame. Its geometry is that side's ring segment; it paints the
@@ -75,8 +75,10 @@ void paintRing(QPainter &p, const QRect &r, const QColor &accent)
 class BarWindow : public QRasterWindow
 {
 public:
-    BarWindow(const QRect &absRegion, const QRect &absGeom, const QColor &accent)
-        : m_localRegion(absRegion.translated(-absGeom.topLeft())), m_accent(accent)
+    BarWindow(const QRect &absRegion, const QRect &absGeom, const QColor &accent,
+              const QColor &contrast)
+        : m_localRegion(absRegion.translated(-absGeom.topLeft())), m_accent(accent),
+          m_contrast(contrast)
     {
         setFlags(kFrameFlags);
         setFormat(argbFormat(format()));
@@ -90,12 +92,13 @@ protected:
         p.setCompositionMode(QPainter::CompositionMode_Source);
         p.fillRect(QRect(QPoint(0, 0), size()), Qt::transparent);
         p.setCompositionMode(QPainter::CompositionMode_SourceOver);
-        paintRing(p, m_localRegion, m_accent);
+        paintRing(p, m_localRegion, m_accent, m_contrast);
     }
 
 private:
     QRect m_localRegion;
     QColor m_accent;
+    QColor m_contrast;
 };
 
 // The pulsing "REC h:mm:ss" badge, a small window just outside the region. Its
@@ -400,8 +403,9 @@ int runRecordBorderHelper(int argc, char *argv[])
     // --record-border-helper <name> <lx> <ly> <lw> <lh> <pw> <ph>
     //                        <fx> <fy> <fw> <fh> <#accent> [countdown] [countdownOnly]
     //                        [#badgeBg] [#badgeText] [#dot] [#cdBg] [#cdNumber]
-    // The trailing five are the theme's recording-overlay tokens (#aarrggbb —
-    // alpha matters for the pill/disc); absent or invalid → stock defaults.
+    //                        [#frameContrast]
+    // The trailing six are the theme's recording-overlay tokens (#aarrggbb;
+    // alpha matters for the pill/disc/frame); absent or invalid -> defaults.
     // name/l*/p*: the Wayland screen's name, logical geometry and physical size,
     // used only to pick the matching X screen. f*: region as fractions of the
     // monitor — XWayland's coordinate space (logical vs physical layout mode)
@@ -436,6 +440,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     const QColor badgeDot = colorArg(17, QColor(0xff, 0x4d, 0x4d));
     const QColor cdBg = colorArg(18, QColor(0, 0, 0, 140));
     const QColor cdNumber = colorArg(19, accent);
+    const QColor frameContrast = colorArg(20, QColor(0, 0, 0, 140));
 
     // Match the Wayland screen to an X screen. XWayland's RandR outputs often
     // carry synthetic names (XWAYLAND0…) under mutter, so fall through name →
@@ -484,7 +489,7 @@ int runRecordBorderHelper(int argc, char *argv[])
     std::vector<std::unique_ptr<BarWindow>> bars;
     if (!countdownOnly) {
         const auto addBar = [&](const QRect &g) {
-            auto w = std::make_unique<BarWindow>(region, g, accent);
+            auto w = std::make_unique<BarWindow>(region, g, accent, frameContrast);
             w->show();
             bars.push_back(std::move(w));
         };

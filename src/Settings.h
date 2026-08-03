@@ -11,6 +11,9 @@
 // For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
 // to be the same number, and only one of them gets to define it.
 #include "actions/ExternalActionRunner.h"
+// For percentFromCrf(): the one-time migration of the old raw-CRF key below
+// has to use the same scale every encode derives its CRF from.
+#include "record/VideoQuality.h"
 // U_SETTING lives in unisic-kit (SettingMacro.h) so Unisic Studio declares its
 // QSettings-backed properties the same way; the Settings class stays app-side.
 #include "SettingMacro.h"
@@ -59,6 +62,11 @@ class Settings : public QObject
     Q_PROPERTY(QString windowTaskDestination READ windowTaskDestination WRITE setWindowTaskDestination NOTIFY windowTaskDestinationChanged)
     Q_PROPERTY(QString imageFormat READ imageFormat WRITE setImageFormat NOTIFY imageFormatChanged)
     Q_PROPERTY(int imageQuality READ imageQuality WRITE setImageQuality NOTIFY imageQualityChanged)
+    Q_PROPERTY(bool convertIncoming READ convertIncoming WRITE setConvertIncoming NOTIFY convertIncomingChanged)
+    Q_PROPERTY(bool autoConvertLarge READ autoConvertLarge WRITE setAutoConvertLarge NOTIFY autoConvertLargeChanged)
+    Q_PROPERTY(int autoConvertOverMb READ autoConvertOverMb WRITE setAutoConvertOverMb NOTIFY autoConvertOverMbChanged)
+    Q_PROPERTY(QString autoConvertFormat READ autoConvertFormat WRITE setAutoConvertFormat NOTIFY autoConvertFormatChanged)
+    Q_PROPERTY(QString uploadFormat READ uploadFormat WRITE setUploadFormat NOTIFY uploadFormatChanged)
     Q_PROPERTY(QString filenameTemplate READ filenameTemplate WRITE setFilenameTemplate NOTIFY filenameTemplateChanged)
     Q_PROPERTY(bool watermarkEnabled READ watermarkEnabled WRITE setWatermarkEnabled NOTIFY watermarkEnabledChanged)
     Q_PROPERTY(QString watermarkText READ watermarkText WRITE setWatermarkText NOTIFY watermarkTextChanged)
@@ -66,6 +74,8 @@ class Settings : public QObject
     Q_PROPERTY(QString watermarkPosition READ watermarkPosition WRITE setWatermarkPosition NOTIFY watermarkPositionChanged)
     Q_PROPERTY(QString watermarkType READ watermarkType WRITE setWatermarkType NOTIFY watermarkTypeChanged)
     Q_PROPERTY(QString watermarkImagePath READ watermarkImagePath WRITE setWatermarkImagePath NOTIFY watermarkImagePathChanged)
+    Q_PROPERTY(QString watermarkPattern READ watermarkPattern WRITE setWatermarkPattern NOTIFY watermarkPatternChanged)
+    Q_PROPERTY(int watermarkScale READ watermarkScale WRITE setWatermarkScale NOTIFY watermarkScaleChanged)
     Q_PROPERTY(bool showNotifications READ showNotifications WRITE setShowNotifications NOTIFY showNotificationsChanged)
     // One-shot latch: the first-run system/dependency check pops at most once,
     // then this stays true. The "Run system check" button in Settings reopens it
@@ -119,14 +129,18 @@ class Settings : public QObject
     Q_PROPERTY(bool pixelLoupe READ pixelLoupe WRITE setPixelLoupe NOTIFY pixelLoupeChanged)
     Q_PROPERTY(int pixelLoupeZoom READ pixelLoupeZoom WRITE setPixelLoupeZoom NOTIFY pixelLoupeZoomChanged)
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
+    Q_PROPERTY(bool overlayModeBadge READ overlayModeBadge WRITE setOverlayModeBadge NOTIFY overlayModeBadgeChanged)
+    Q_PROPERTY(QString overlayModeStyle READ overlayModeStyle WRITE setOverlayModeStyle NOTIFY overlayModeStyleChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
-    Q_PROPERTY(int videoQuality READ videoQuality WRITE setVideoQuality NOTIFY videoQualityChanged)
+    Q_PROPERTY(int videoQualityPercent READ videoQualityPercent WRITE setVideoQualityPercent NOTIFY videoQualityPercentChanged)
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
     Q_PROPERTY(QString recordAppAudioNode READ recordAppAudioNode WRITE setRecordAppAudioNode NOTIFY recordAppAudioNodeChanged)
+    Q_PROPERTY(QString microphoneSource READ microphoneSource WRITE setMicrophoneSource NOTIFY microphoneSourceChanged)
+    Q_PROPERTY(bool separateAudioTracks READ separateAudioTracks WRITE setSeparateAudioTracks NOTIFY separateAudioTracksChanged)
     Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
     Q_PROPERTY(int instantReplaySeconds READ instantReplaySeconds WRITE setInstantReplaySeconds NOTIFY instantReplaySecondsChanged)
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
@@ -265,6 +279,19 @@ public:
         }
         if (migratedGeneral)
             m_s.sync();
+        // Up to 0.8.2 the recorder's quality was a raw x264 CRF ("video/quality",
+        // lower = better); it is a percent now. Carry the stored number over
+        // ONCE rather than dropping it: the scale is an exact inverse, so a
+        // deliberately chosen quality survives instead of silently resetting to
+        // the default. The old key is removed so this cannot run twice.
+        if (!m_s.contains(QStringLiteral("video/qualityPercent"))
+            && m_s.contains(QStringLiteral("video/quality"))) {
+            m_s.setValue(QStringLiteral("video/qualityPercent"),
+                         UnisicVideo::percentFromCrf(
+                             m_s.value(QStringLiteral("video/quality")).toInt()));
+            m_s.remove(QStringLiteral("video/quality"));
+            m_s.sync();
+        }
         // The first-run setup flow is for people who have never used Unisic.
         // Its key is phrased the way a human editing this file by hand would
         // read it: showWelcome=true means "show it". On an UPGRADE the key is
@@ -414,6 +441,24 @@ public:
               "tasks/windowDestination", QString())
     U_SETTING(QString, imageFormat, setImageFormat, "image/format", QStringLiteral("png"))
     U_SETTING(int, imageQuality, setImageQuality, "image/quality", 90)
+    // Saving an image that came from somewhere else (dropped, pasted as a file,
+    // opened from disk, edited from history) writes it back in the format
+    // ABOVE instead of overwriting the original in its own format. Off by
+    // default: overwriting in place is what "Edit" has always promised, and a
+    // silent second file is not what everyone wants from a quick fix-up.
+    U_SETTING(bool, convertIncoming, setConvertIncoming, "image/convertIncoming", false)
+    // Re-encode a saved capture that came out bigger than `autoConvertOverMb`
+    // into `autoConvertFormat`. Only ever applied when the result is actually
+    // smaller, so it can never make a file worse.
+    U_SETTING(bool, autoConvertLarge, setAutoConvertLarge, "image/autoConvertLarge", false)
+    U_SETTING(int, autoConvertOverMb, setAutoConvertOverMb, "image/autoConvertOverMb", 5)
+    U_SETTING(QString, autoConvertFormat, setAutoConvertFormat, "image/autoConvertFormat",
+              QStringLiteral("webp"))
+    // Format for the UPLOADED copy, independent of what lands on disk: a host
+    // that only takes JPEG, or a shared link that should not be a 12 MB PNG,
+    // without giving up the lossless file locally. Empty = whatever
+    // `imageFormat` says, which is the old behaviour.
+    U_SETTING(QString, uploadFormat, setUploadFormat, "upload/format", QString())
     U_SETTING(QString, filenameTemplate, setFilenameTemplate, "image/filenameTemplate", QStringLiteral("Unisic_%date%_%time%"))
     // A small text stamp applied once to the captured image before the
     // independent save/copy/upload/history/editor fan-out. The settings stay
@@ -424,6 +469,14 @@ public:
     U_SETTING(QString, watermarkPosition, setWatermarkPosition, "image/watermarkPosition", QStringLiteral("bottom-right"))
     U_SETTING(QString, watermarkType, setWatermarkType, "image/watermarkType", QStringLiteral("text"))
     U_SETTING(QString, watermarkImagePath, setWatermarkImagePath, "image/watermarkImagePath", QString())
+    // How the stamp is laid out: "single" (the Position setting), "tile",
+    // "diagonal", "corners" or "band". Anything else reads as "single".
+    U_SETTING(QString, watermarkPattern, setWatermarkPattern, "image/watermarkPattern", QStringLiteral("single"))
+
+    // Percent of the size the chosen pattern picks for itself, so 100 is
+    // exactly the pattern default and the number means the same thing on a
+    // 720p and a 4K capture (the base size is a fraction of the short side).
+    U_SETTING(int, watermarkScale, setWatermarkScale, "image/watermarkScale", 100)
     U_SETTING(bool, showNotifications, setShowNotifications, "showNotifications", true)
     U_SETTING(bool, systemCheckSeen, setSystemCheckSeen, "systemCheckSeen", false)
     // Content key of the last crash report the user was told about. A string,
@@ -502,18 +555,43 @@ public:
     // Region screenshot: releasing the selection drag captures immediately
     // (skips the annotate/confirm stage). GIF region picking is unaffected.
     U_SETTING(bool, captureOnRelease, setCaptureOnRelease, "capture/captureOnRelease", false)
+    // The overlay looks the same whichever capture mode opened it, so a
+    // misfired hotkey only announces itself once the shot is already taken
+    // (issue #98). On: a named badge plus a screen-edge frame in that mode's
+    // colour. Off: the bare frozen screen, for anyone who wants nothing between
+    // them and the pixels they are framing. The mode-correct button and hint
+    // wording is not part of this - a wrong label is a bug, not a preference.
+    U_SETTING(bool, overlayModeBadge, setOverlayModeBadge, "capture/overlayModeBadge", true)
+    // How that identity is drawn, once it is on. "badge": the named pill at the
+    // top of the screen. "icon": one big translucent mode glyph in the middle
+    // of the screen, which names the mode without a strip of chrome over the
+    // desktop - and which gets out of the way the moment the selection reaches
+    // it, so it never sits over the region being framed. The coloured screen
+    // frame belongs to neither: it is the mode's colour and stays in both.
+    U_SETTING(QString, overlayModeStyle, setOverlayModeStyle, "capture/overlayModeStyle", QStringLiteral("badge"))
     // Replaces the old 2s Ctrl+C grab (it stole ordinary copies right after a
     // capture): a dedicated always-on hotkey that never collides with Ctrl+C.
     U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral("Meta+Shift+C"))
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
-    U_SETTING(int, videoQuality, setVideoQuality, "video/quality", 20)
+    // Quality as a percent, 0 (CRF 40) to 100 (CRF 0); the ffmpeg CRF is
+    // derived per encode by UnisicVideo::crfFromPercent. 50 is the CRF 20
+    // this replaced, so an untouched config encodes exactly as before.
+    U_SETTING(int, videoQualityPercent, setVideoQualityPercent, "video/qualityPercent", 50)
     U_SETTING(int, videoMaxDurationSec, setVideoMaxDurationSec, "video/maxDurationSec", 0)
     // Video recording audio (never GIF). Both OFF by default.
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     U_SETTING(QString, recordAppAudioNode, setRecordAppAudioNode,
               "audio/recordAppAudioNode", QString())
+    // Pulse/PipeWire source NAME for the microphone; empty means the default
+    // input. Stored by node.name, not serial: names survive a reboot.
+    U_SETTING(QString, microphoneSource, setMicrophoneSource,
+              "audio/microphoneSource", QString())
+    // Keep each enabled source as its own audio track instead of mixing them
+    // into one. Off by default: a single mixed track is what a player expects,
+    // and two tracks are only useful to someone who will edit the recording.
+    U_SETTING(bool, separateAudioTracks, setSeparateAudioTracks, "audio/separateTracks", false)
     U_SETTING(QString, videoEncoder, setVideoEncoder, "video/encoder", QStringLiteral("auto"))
     U_SETTING(int, instantReplaySeconds, setInstantReplaySeconds,
               "video/instantReplaySeconds", 30)
@@ -621,8 +699,12 @@ public:
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
         emit imageFormatChanged(); emit imageQualityChanged(); emit filenameTemplateChanged();
+        emit convertIncomingChanged(); emit autoConvertLargeChanged();
+        emit autoConvertOverMbChanged(); emit autoConvertFormatChanged();
+        emit uploadFormatChanged();
         emit watermarkEnabledChanged(); emit watermarkTextChanged(); emit watermarkOpacityChanged(); emit watermarkPositionChanged();
-        emit watermarkTypeChanged(); emit watermarkImagePathChanged();
+        emit watermarkTypeChanged(); emit watermarkImagePathChanged(); emit watermarkPatternChanged();
+        emit watermarkScaleChanged();
         emit showNotificationsChanged(); emit systemCheckSeenChanged(); emit showWelcomeChanged();
         emit crashNoticeSeenChanged();
         emit portalAutostartGrantedChanged();
@@ -642,13 +724,16 @@ public:
         emit editorResetColorsChanged(); emit editorResetToolsChanged();
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
         emit pixelLoupeChanged(); emit pixelLoupeZoomChanged();
-        emit captureOnReleaseChanged();
+        emit captureOnReleaseChanged(); emit overlayModeBadgeChanged();
+        emit overlayModeStyleChanged();
         emit hotkeyCopyLastChanged();
-        emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityChanged();
+        emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityPercentChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
-        emit recordAppAudioNodeChanged(); emit videoEncoderChanged();
+        emit recordAppAudioNodeChanged(); emit microphoneSourceChanged();
+        emit videoEncoderChanged();
+        emit separateAudioTracksChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
         emit showCapturePopupChanged(); emit capturePopupPositionChanged();
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
@@ -702,6 +787,11 @@ signals:
     void windowTaskDestinationChanged();
     void imageFormatChanged();
     void imageQualityChanged();
+    void convertIncomingChanged();
+    void autoConvertLargeChanged();
+    void autoConvertOverMbChanged();
+    void autoConvertFormatChanged();
+    void uploadFormatChanged();
     void filenameTemplateChanged();
     void watermarkEnabledChanged();
     void watermarkTextChanged();
@@ -709,6 +799,8 @@ signals:
     void watermarkPositionChanged();
     void watermarkTypeChanged();
     void watermarkImagePathChanged();
+    void watermarkPatternChanged();
+    void watermarkScaleChanged();
     void showNotificationsChanged();
     void systemCheckSeenChanged();
     void crashNoticeSeenChanged();
@@ -748,15 +840,19 @@ signals:
     void pixelLoupeChanged();
     void pixelLoupeZoomChanged();
     void captureOnReleaseChanged();
+    void overlayModeBadgeChanged();
+    void overlayModeStyleChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();
     void videoFormatChanged();
-    void videoQualityChanged();
+    void videoQualityPercentChanged();
     void videoMaxDurationSecChanged();
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
     void recordAppAudioNodeChanged();
+    void microphoneSourceChanged();
     void videoEncoderChanged();
+    void separateAudioTracksChanged();
     void instantReplaySecondsChanged();
     void hotkeyInstantReplayChanged();
     void hotkeyRecordChanged();

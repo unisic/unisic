@@ -14,7 +14,7 @@ import "components"
 //   compact   380x96   tighter card: medium thumb, filename, action row
 //   small     380x52   one slim row: tiny thumb, filename, inline actions
 //   minimal   300x36   pill: filename only — click previews, nothing else
-//   thumbnail 240x150  image-first: full-bleed thumb, actions on hover
+//   thumbnail 240x150  image-first: full-bleed thumb, persistent actions
 Window {
     id: popup
     // Card-sized window placed on the wlr-layer-shell OVERLAY layer by C++
@@ -248,20 +248,18 @@ Window {
         drag.target: dragProxy
         drag.threshold: 8
         property string uri: ""
-        // Hover cue: the thumbnail is interactive — click = preview, drag = pull
-        // the file out. Suppressed in the image-first "thumbnail" style, which
-        // shows its own hover action overlay. A menu/tooltip would be clipped by
-        // the tiny card surface, so the affordance lives INSIDE the thumbnail.
+        // Persistent cue: the thumbnail is interactive - click = preview, drag
+        // = pull the file out. It must not appear only after the pointer arrives.
+        // The image-first style has its persistent action layer instead.
         Rectangle {
             anchors.fill: parent
-            visible: parent.containsMouse && !parent.pressed
-                     && notif.kind === "image" && popup.style !== "thumbnail"
-            color: Qt.rgba(0, 0, 0, 0.32)
+            visible: notif.kind === "image" && popup.style !== "thumbnail"
+            color: Theme.alpha(Theme.mediaBase, 0.32)
             UIcon {
                 anchors.centerIn: parent
                 name: "fullscreen"
                 size: Math.min(22, Math.round(parent.height * 0.4))
-                color: "#FFFFFF"
+                color: Theme.mediaText
             }
         }
         // Resolve the payload once, at press: dragUri() may write a temp PNG for
@@ -562,20 +560,20 @@ Window {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     height: 26
-                    color: Qt.rgba(0, 0, 0, 0.55)
+                    color: Theme.alpha(Theme.mediaBase, 0.55)
                     StatusText {
                         anchors.fill: parent
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
                         verticalAlignment: Text.AlignVCenter
-                        color: "#FFFFFF"
+                        color: Theme.mediaText
                     }
                 }
-                // Actions fade in over the image on hover.
+                // Actions stay present for pointer, touch and accessibility;
+                // hover changes only the scrim colour, never the available UI.
                 Rectangle {
                     anchors.fill: parent
-                    color: Qt.rgba(0, 0, 0, 0.45)
-                    visible: hover.hovered
+                    color: Theme.alpha(Theme.mediaBase, hover.hovered ? 0.45 : 0.36)
                     ActionRow {
                         anchors.centerIn: parent
                         btn: 30; icon: 16
@@ -585,10 +583,10 @@ Window {
         }
 
         // Corner close for the card-shaped styles (small/minimal have inline
-        // ones; thumbnail shows it only while hovered, over the image).
+        // ones). It remains present over the image-first style too.
         UIconButton {
             visible: popup.style === "casual" || popup.style === "compact"
-                     || (popup.style === "thumbnail" && hover.hovered)
+                     || popup.style === "thumbnail"
             anchors.top: parent.top; anchors.right: parent.right; anchors.margins: 4
             iconName: "close"; iconSize: 12; width: 24; height: 24
             accessibleName: qsTr("Dismiss")

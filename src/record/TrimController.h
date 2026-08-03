@@ -37,6 +37,10 @@ class TrimController : public QObject
     Q_PROPERTY(int filmstripState READ filmstripState NOTIFY filmstripChanged)
     Q_PROPERTY(QVariantList keyframes READ keyframes NOTIFY keyframesChanged)
     Q_PROPERTY(int keyframeState READ keyframeState NOTIFY keyframesChanged)
+    // Audio tracks of the source ({index, label} per stream, in stream order),
+    // so the window can offer per-track volume/mute on export. Empty for GIF
+    // and for a soundless recording.
+    Q_PROPERTY(QVariantList audioTracks READ audioTracks NOTIFY audioTracksChanged)
 
 public:
     enum ProbeState { Idle, Busy, Ready, Failed };
@@ -55,6 +59,7 @@ public:
     int filmstripState() const { return m_stripState; }
     QVariantList keyframes() const { return m_keyframes; }
     int keyframeState() const { return m_keyframeState; }
+    QVariantList audioTracks() const { return m_audioTracks; }
 
     // Render the tiled strip. No-op once one exists or while one is rendering.
     Q_INVOKABLE void buildFilmstrip(int tiles, int tileHeight);
@@ -64,10 +69,14 @@ public:
     // Snapping backwards (never forwards) can only keep frames the user asked
     // for; falls back to t when the table is empty or still loading.
     Q_INVOKABLE qreal snapStart(qreal t) const;
+    // Probe the audio streams (index + display label). No-op for GIF or once
+    // a probe ran.
+    Q_INVOKABLE void loadAudioTracks();
 
 signals:
     void filmstripChanged();
     void keyframesChanged();
+    void audioTracksChanged();
 
 private:
     void setFilmstripState(int state);
@@ -87,4 +96,8 @@ private:
     QVariantList m_keyframes; // seconds, ascending
     int m_keyframeState = Idle;
     QPointer<QProcess> m_keyframeProc;
+
+    QVariantList m_audioTracks;
+    bool m_audioProbed = false;
+    QPointer<QProcess> m_audioProc;
 };

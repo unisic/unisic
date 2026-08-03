@@ -3,6 +3,7 @@
 #include "notify/NotificationHelper.h"
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
+#include "editor/WatermarkPreview.h"
 #include "update/VersionCompare.h"
 #include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
 // The kit's own ConfigPath.h shares the basename, so it needs the explicit
@@ -670,8 +671,9 @@ int main(int argc, char *argv[])
     }
     const QString outputFormat = cliFormat(args);
     if (!outputArg.isEmpty() && outputFormat != QLatin1String("png")
-        && outputFormat != QLatin1String("jpg") && outputFormat != QLatin1String("webp")) {
-        qWarning() << "--format expects png, jpg, or webp";
+        && outputFormat != QLatin1String("jpg") && outputFormat != QLatin1String("webp")
+        && outputFormat != QLatin1String("gif")) {
+        qWarning() << "--format expects png, jpg, webp, or gif";
         return 2;
     }
 
@@ -762,6 +764,10 @@ int main(int argc, char *argv[])
     context.applyLanguage();
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new IconImageProvider(nullptr));
+    // Settings-only: renders the live watermark onto a mock capture. The
+    // engine takes ownership, and it outlives every QML request by construction.
+    engine.addImageProvider(QStringLiteral("watermark"),
+                            new WatermarkPreviewProvider(&context));
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);
     // Autostart path: `unisic --tray-only` boots straight into the tray with no
     // main window (Main.qml binds `visible: !startHidden`). A manual `unisic`

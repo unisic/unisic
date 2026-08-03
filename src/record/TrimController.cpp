@@ -3,6 +3,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QUrl>
@@ -28,6 +31,11 @@ TrimController::~TrimController()
         m_keyframeProc->disconnect(this);
         m_keyframeProc->kill();
         m_keyframeProc->waitForFinished(1000);
+    }
+    if (m_audioProc) {
+        m_audioProc->disconnect(this);
+        m_audioProc->kill();
+        m_audioProc->waitForFinished(1000);
     }
     if (!m_stripPath.isEmpty())
         QFile::remove(m_stripPath);
@@ -178,6 +186,76 @@ void TrimController::loadKeyframes()
                           QStringLiteral("packet=pts_time,flags:format=start_time"),
                           QStringLiteral("-of"), QStringLiteral("csv=p=1"),
                           m_path});
+}
+
+void TrimController::loadAudioTracks()
+{
+    if (m_gif || m_audioProbed || m_audioProc)
+        return;
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffprobe.isEmpty()) {
+        m_audioProbed = true;
+        return;
+    }
+    auto *proc = new QProcess(this);
+    m_audioProc = proc;
+    connect(proc, &QProcess::finished, this, [this, proc](int code, QProcess::ExitStatus status) {
+        if (m_audioProc != proc)
+            return;
+        m_audioProc = nullptr;
+        const QByteArray out = proc->readAllStandardOutput();
+        proc->deleteLater();
+        m_audioProbed = true;
+        if (code != 0 || status != QProcess::NormalExit)
+            return;
+        // Label preference: Matroska `title`, then the MP4 `handler_name` the
+        // recorder writes (skipping ffmpeg's own "SoundHandler" default, which
+        // names the muxer and not the track), then a plain number.
+        const QJsonArray streams = QJsonDocument::fromJson(out).object()
+                                       .value(QStringLiteral("streams")).toArray();
+        // The recorder's separate-tracks mode leads with a full mix as track 1
+        // so players (which play only the first track) hear everything. In the
+        // trimmer that track must not be edited directly - muting a stem would
+        // change nothing audible, the mix still carries it. It is recognized by
+        // the title the recorder wrote (every language Unisic ships) and the
+        // window rebuilds it from the edited stems instead. First track only:
+        // a foreign file whose later track happens to be called "Mix" is not
+        // ours to rebuild.
+        static const QSet<QString> kMixTitles{
+            QStringLiteral("Mix"), QStringLiteral("Miks"),
+            QStringLiteral("Mezcla"), QStringLiteral("Микс")};
+        int n = 0;
+        for (const QJsonValue &value : streams) {
+            const QJsonObject tags = value.toObject().value(QStringLiteral("tags")).toObject();
+            QString label = tags.value(QStringLiteral("title")).toString();
+            if (label.isEmpty()) {
+                const QString handler = tags.value(QStringLiteral("handler_name")).toString();
+                if (handler != QLatin1String("SoundHandler"))
+                    label = handler;
+            }
+            const bool mix = n == 0 && kMixTitles.contains(label);
+            if (label.isEmpty())
+                label = tr("Track %1").arg(n + 1);
+            m_audioTracks.append(QVariantMap{{QStringLiteral("index"), n},
+                                             {QStringLiteral("label"), label},
+                                             {QStringLiteral("mix"), mix}});
+            ++n;
+        }
+        if (n > 0)
+            emit audioTracksChanged();
+    });
+    connect(proc, &QProcess::errorOccurred, this, [this, proc](QProcess::ProcessError error) {
+        if (m_audioProc != proc || error != QProcess::FailedToStart)
+            return;
+        m_audioProc = nullptr;
+        proc->deleteLater();
+        m_audioProbed = true;
+    });
+    proc->start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                          QStringLiteral("-select_streams"), QStringLiteral("a"),
+                          QStringLiteral("-show_entries"),
+                          QStringLiteral("stream=index:stream_tags=title,handler_name"),
+                          QStringLiteral("-of"), QStringLiteral("json"), m_path});
 }
 
 qreal TrimController::snapStart(qreal t) const

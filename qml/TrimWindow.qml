@@ -100,10 +100,45 @@ Window {
         item.play()
     }
 
+    // Per-track export state, aligned with trimController.audioTracks: volume
+    // factor (1 = untouched) and whether the track is kept at all. Sent to
+    // trimRecording as one gain per track (-1 = dropped).
+    property var trackGains: []
+    property var trackMuted: []
+    // The recording's own mix track (first track, so players hear everything).
+    // Hidden from the list - editing it directly would be pointless, the stems
+    // are still in it - and rebuilt from the edited stems on export instead.
+    readonly property int mixTrackIndex: {
+        const tracks = trimController.audioTracks
+        for (let i = 0; i < tracks.length; ++i)
+            if (tracks[i].mix)
+                return i
+        return -1
+    }
+    function setTrackGain(i, v) {
+        const gains = trackGains.slice()
+        gains[i] = Math.round(v * 100) / 100
+        trackGains = gains
+    }
+    function setTrackMuted(i, muted) {
+        const flags = trackMuted.slice()
+        flags[i] = muted
+        trackMuted = flags
+    }
+    // One gain per audio track, -1 = dropped. Drives BOTH the live preview
+    // (VideoPreview voices the stems at these gains) and the export.
+    readonly property var liveGains: {
+        const gains = []
+        for (let i = 0; i < trackGains.length; ++i)
+            gains.push(trackMuted[i] ? -1 : trackGains[i])
+        return gains
+    }
+
     Component.onCompleted: {
         // 48 tiles is a deliberate over-sample: the timeline shows however many
         // fit and never re-renders the strip on resize.
         trimController.buildFilmstrip(48, 72)
+        trimController.loadAudioTracks()
     }
     onLosslessChanged: {
         if (lossless) {
@@ -116,6 +151,15 @@ Window {
         function onKeyframesChanged() {
             if (trimWindow.snapping)
                 trimWindow.setStart(trimWindow.trimStart)
+        }
+        function onAudioTracksChanged() {
+            const gains = [], flags = []
+            for (let i = 0; i < trimController.audioTracks.length; ++i) {
+                gains.push(1)
+                flags.push(false)
+            }
+            trimWindow.trackGains = gains
+            trimWindow.trackMuted = flags
         }
     }
     // Keep the preview on the cut: stop (or loop) at the out-point. The seek is
@@ -370,13 +414,13 @@ Window {
                         Rectangle {
                             x: 0; width: Math.max(0, timeline.xOf(trimWindow.trimStart))
                             height: parent.height
-                            color: Qt.rgba(0, 0, 0, 0.66)
+                            color: Theme.alpha(Theme.mediaBase, 0.66)
                         }
                         Rectangle {
                             x: timeline.xOf(trimWindow.trimEnd)
                             width: Math.max(0, track.width - x)
                             height: parent.height
-                            color: Qt.rgba(0, 0, 0, 0.66)
+                            color: Theme.alpha(Theme.mediaBase, 0.66)
                         }
                         Rectangle {
                             x: timeline.xOf(trimWindow.trimStart)
@@ -591,6 +635,76 @@ Window {
                     }
                 }
 
+                // Audio tracks: keep/drop and volume per track. Only shown when
+                // the file actually has audio; the preview keeps playing the
+                // file's own first track - the edits apply to the saved copy.
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingXS
+                    visible: trimController.audioTracks.length > 0
+                    Row {
+                        spacing: Theme.spacingS
+                        Text {
+                            text: qsTr("Audio tracks")
+                            color: Theme.textPrimary
+                            font.pixelSize: Theme.fontS
+                            font.weight: Font.DemiBold
+                        }
+                        Text {
+                            visible: trimWindow.mixTrackIndex >= 0
+                            text: qsTr("(the mix track is rebuilt from the tracks below)")
+                            color: Theme.textTertiary
+                            font.pixelSize: Theme.fontS
+                        }
+                    }
+                    Repeater {
+                        model: trimController.audioTracks
+                        Row {
+                            id: trackRow
+                            required property int index
+                            required property var modelData
+                            visible: !modelData.mix
+                            readonly property bool kept: !(trimWindow.trackMuted[index] === true)
+                            readonly property real gain: trimWindow.trackGains[index] !== undefined
+                                                         ? trimWindow.trackGains[index] : 1
+                            width: parent.width
+                            spacing: Theme.spacingS
+                            USwitch {
+                                anchors.verticalCenter: parent.verticalCenter
+                                checked: trackRow.kept
+                                accessibleName: qsTr("Keep track %1").arg(trackRow.modelData.label)
+                                onToggled: (c) => trimWindow.setTrackMuted(trackRow.index, !c)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 160
+                                elide: Text.ElideRight
+                                text: trackRow.modelData.label
+                                color: trackRow.kept ? Theme.textPrimary : Theme.textTertiary
+                                font.pixelSize: Theme.fontS
+                            }
+                            USlider {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 160 - 45 - trackRow.spacing * 3 - 50
+                                from: 0; to: 2; stepSize: 0.05
+                                value: trackRow.gain
+                                enabled: trackRow.kept
+                                accessibleName: qsTr("Volume of %1").arg(trackRow.modelData.label)
+                                onMoved: (v) => trimWindow.setTrackGain(trackRow.index, v)
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 45
+                                horizontalAlignment: Text.AlignRight
+                                text: trackRow.kept ? Math.round(trackRow.gain * 100) + "%"
+                                                    : qsTr("off")
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
+                        }
+                    }
+                }
+
                 // Actions.
                 Item {
                     width: parent.width
@@ -661,7 +775,8 @@ Window {
                             enabled: trimWindow.trimEnd - trimWindow.trimStart >= 0.1
                             onClicked: {
                                 App.trimRecording(trimSourcePath, trimWindow.trimStart, trimWindow.trimEnd,
-                                                  trimWindow.snapping)
+                                                  trimWindow.snapping, trimWindow.liveGains,
+                                                  trimWindow.mixTrackIndex)
                                 trimWindow.close()
                             }
                         }
@@ -678,7 +793,7 @@ Window {
                 anchors.topMargin: Theme.spacingM
                 anchors.bottomMargin: Theme.spacingM
                 radius: Theme.radiusM
-                color: hasPreview ? "#000000" : Theme.surface
+                color: hasPreview ? Theme.mediaBase : Theme.surface
                 clip: true
 
                 Loader {
@@ -689,7 +804,11 @@ Window {
                 }
                 Component {
                     id: previewComp
-                    VideoPreview { fileUrl: App.fileDragUri(trimSourcePath) }
+                    VideoPreview {
+                        fileUrl: App.fileDragUri(trimSourcePath)
+                        trackGains: trimWindow.liveGains
+                        mixTrack: trimWindow.mixTrackIndex
+                    }
                 }
 
                 // While a handle is being dragged the frame on screen IS the cut
@@ -702,7 +821,7 @@ Window {
                     width: edgeLabel.implicitWidth + 2 * Theme.spacingM
                     height: edgeLabel.implicitHeight + Theme.spacingS
                     radius: height / 2
-                    color: Qt.rgba(0, 0, 0, 0.72)
+                    color: Theme.alpha(Theme.mediaBase, 0.72)
                     Text {
                         id: edgeLabel
                         anchors.centerIn: parent
@@ -725,4 +844,5 @@ Window {
             }
         }
     }
+    UWindowResizer { active: !App.settings.useSystemDecoration }
 }

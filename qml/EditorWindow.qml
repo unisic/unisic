@@ -773,7 +773,7 @@ Window {
                     Rectangle {
                         anchors.fill: parent
                         radius: Theme.radiusS
-                        color: Qt.rgba(0, 0, 0, 0.6)
+                        color: Theme.alpha(Theme.mediaBase, 0.6)
                         border.width: 1
                         border.color: Theme.accent
                     }
@@ -947,7 +947,19 @@ Window {
                           trigger: function () { editorSession.ocrCopyText() } },
                         { label: qsTr("Select text…"), iconName: "select",
                           enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
-                          trigger: function () { editorSession.startOcrPick() } }
+                          trigger: function () { editorSession.startOcrPick() } },
+                        // Always a new file, never the overwrite Save does -
+                        // the extension changes, so there is nothing to
+                        // overwrite. Greyed with a reason when ffmpeg is
+                        // missing, since Qt cannot write a GIF on its own.
+                        { label: qsTr("Save as GIF"), iconName: "document-save",
+                          separatorBefore: true,
+                          enabled: App.ffmpegAvailable,
+                          hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("gif")
+                          } }
                     ]
                 }
                 UIconButton {
@@ -1021,4 +1033,5 @@ Window {
             }
         }
     }
+    UWindowResizer { active: !App.settings.useSystemDecoration }
 }

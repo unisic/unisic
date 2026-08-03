@@ -29,7 +29,7 @@ Popup {
     width: Math.min(440, parent ? parent.width - 2 * Theme.spacingXL : 440)
     padding: Theme.spacingXL
 
-    Overlay.modal: Rectangle { color: Qt.rgba(0, 0, 0, 0.45) }
+    Overlay.modal: Rectangle { color: Theme.modalScrim }
 
     enter: Transition {
         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: Theme.animFast; easing.type: Easing.OutCubic }
@@ -61,6 +61,9 @@ Popup {
         clip: true
         interactive: contentHeight > height
         boundsBehavior: Flickable.StopAtBounds
+
+        MiddleScroll { flickable: bodyFlick }
+        WheelBoost { flickable: bodyFlick }
 
         Column {
             id: bodyCol

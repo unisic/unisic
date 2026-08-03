@@ -5,6 +5,7 @@
 #include <QDBusMessage>
 #include <QDBusMetaType>
 #include <QDBusArgument>
+#include <QDBusPendingCallWatcher>
 #include <QKeySequence>
 #include <QCoreApplication>
 #include <QDebug>
@@ -12,6 +13,51 @@
 static const auto KGA_SERVICE = QStringLiteral("org.kde.kglobalaccel");
 static const auto KGA_PATH = QStringLiteral("/kglobalaccel");
 static const auto KGA_IFACE = QStringLiteral("org.kde.KGlobalAccel");
+
+namespace {
+
+QList<int> activeKeysFromReply(const QDBusMessage &reply, bool *ok)
+{
+    if (ok)
+        *ok = false;
+    QList<int> keys;
+    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
+        return keys;
+    if (ok)
+        *ok = true;
+    const QDBusArgument arg = reply.arguments().first().value<QDBusArgument>();
+    arg.beginArray();
+    while (!arg.atEnd()) {
+        arg.beginStructure();
+        QList<int> seq;
+        arg >> seq;
+        arg.endStructure();
+        for (int key : std::as_const(seq))
+            if (key != 0)
+                keys.append(key);
+    }
+    arg.endArray();
+    return keys;
+}
+
+bool shortcutReplyAccepted(const QDBusMessage &reply, const QList<int> &wanted,
+                           const QString &actionId)
+{
+    if (reply.type() == QDBusMessage::ErrorMessage) {
+        qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();
+        return false;
+    }
+    if (reply.arguments().isEmpty())
+        return true;
+    const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
+    if (QSet<int>(actual.begin(), actual.end()) == QSet<int>(wanted.begin(), wanted.end()))
+        return true;
+    qWarning() << "setShortcut for" << actionId << "requested" << wanted
+               << "but daemon kept" << actual << "(key owned elsewhere?)";
+    return false;
+}
+
+} // namespace
 
 GlobalHotkeys::GlobalHotkeys(QObject *parent) : QObject(parent)
 {
@@ -207,7 +253,10 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("doRegister"));
     reg << id;
-    QDBusConnection::sessionBus().call(reg, QDBus::Block, 800);
+    // Replies are not consumed here, and messages on one D-Bus connection stay
+    // ordered, so registration and the following default write can be sent
+    // without blocking the GUI thread.
+    QDBusConnection::sessionBus().asyncCall(reg, 800);
     m_registered.insert(actionId);
 
     // KGlobalAccel SetShortcutFlag: SetPresent=2, NoAutoloading=4, IsDefault=8.
@@ -226,9 +275,16 @@ void GlobalHotkeys::defineAction(const QString &actionId, const QString &friendl
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(defKeys) << uint(0x8);
-    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 800);
-    if (reply.type() == QDBusMessage::ErrorMessage)
-        qWarning() << "defineAction setShortcut failed for" << actionId << reply.errorMessage();
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(set, 800), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, watcher,
+            [watcher, actionId](QDBusPendingCallWatcher *) {
+        const QDBusMessage reply = watcher->reply();
+        if (reply.type() == QDBusMessage::ErrorMessage)
+            qWarning() << "defineAction setShortcut failed for" << actionId
+                       << reply.errorMessage();
+        watcher->deleteLater();
+    });
 
     ensureSignalConnected();
 }
@@ -281,29 +337,49 @@ bool GlobalHotkeys::setShortcut(const QString &actionId, const QString &friendly
     QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("setShortcut"));
     set << id << QVariant::fromValue(wanted) << uint(0x2 | 0x4);
-    QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 800);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(set, QDBus::Block, 800);
     ensureSignalConnected();
+    return shortcutReplyAccepted(reply, wanted, actionId);
+}
 
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        qWarning() << "setShortcut failed for" << actionId << reply.errorMessage();
-        return false;
+void GlobalHotkeys::setShortcutAsync(const QString &actionId, const QString &friendlyName,
+                                     const QString &keySequence, QObject *context,
+                                     std::function<void(bool)> done)
+{
+    QObject *receiver = context ? context : this;
+    if (!m_available) {
+        if (done)
+            QMetaObject::invokeMethod(receiver, [done = std::move(done)] { done(false); },
+                                      Qt::QueuedConnection);
+        return;
     }
-    // The daemon answers with the keys actually in effect: when another
-    // component owns the requested combination it keeps/returns something
-    // else — surface that instead of pretending the bind worked. Compare the
-    // COLLAPSED portable forms: the daemon may legitimately grant only part
-    // of the auto-generated variant set.
-    if (!reply.arguments().isEmpty()) {
-        const QList<int> actual = qdbus_cast<QList<int>>(reply.arguments().first());
-        // ORDER-INSENSITIVE: the daemon reorders alternate keys in replies.
-        if (QSet<int>(actual.begin(), actual.end())
-            != QSet<int>(wanted.begin(), wanted.end())) {
-            qWarning() << "setShortcut for" << actionId << "requested" << wanted
-                       << "but daemon kept" << actual << "(key owned elsewhere?)";
-            return false;
-        }
+
+    const QStringList id = fullActionId(actionId, friendlyName);
+    if (!m_registered.contains(actionId)) {
+        QDBusMessage reg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                          QStringLiteral("doRegister"));
+        reg << id;
+        QDBusConnection::sessionBus().asyncCall(reg, 800);
+        m_registered.insert(actionId);
     }
-    return true;
+
+    // Same load-bearing flags and reply validation as setShortcut(), without a
+    // nested event wait on the GUI thread. Registration and set are ordered on
+    // the shared connection.
+    const QList<int> wanted = expandShiftDigitVariants(keysFor(keySequence));
+    QDBusMessage set = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("setShortcut"));
+    set << id << QVariant::fromValue(wanted) << uint(0x2 | 0x4);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(set, 800), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, watcher, &QObject::deleteLater);
+    connect(watcher, &QDBusPendingCallWatcher::finished, receiver,
+            [watcher, wanted, actionId, done = std::move(done)](QDBusPendingCallWatcher *) {
+        const bool accepted = shortcutReplyAccepted(watcher->reply(), wanted, actionId);
+        if (done)
+            done(accepted);
+    });
+    ensureSignalConnected();
 }
 
 QString GlobalHotkeys::keyOwner(int key) const
@@ -322,38 +398,73 @@ QString GlobalHotkeys::keyOwner(int key) const
     return id.at(0) + QLatin1Char('/') + id.at(1);
 }
 
+void GlobalHotkeys::keyOwnerAsync(int key, QObject *context,
+                                  std::function<void(const QString &)> done)
+{
+    QObject *receiver = context ? context : this;
+    if (!m_available) {
+        QMetaObject::invokeMethod(receiver, [done = std::move(done)] { done({}); },
+                                  Qt::QueuedConnection);
+        return;
+    }
+    QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("action"));
+    msg << key;
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg, 800), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, watcher, &QObject::deleteLater);
+    connect(watcher, &QDBusPendingCallWatcher::finished, receiver,
+            [watcher, done = std::move(done)](QDBusPendingCallWatcher *) {
+        const QDBusMessage reply = watcher->reply();
+        QString owner;
+        if (reply.type() == QDBusMessage::ReplyMessage && !reply.arguments().isEmpty()) {
+            const QStringList id = reply.arguments().first().toStringList();
+            if (id.size() >= 2 && !id.at(0).isEmpty())
+                owner = id.at(0) + QLatin1Char('/') + id.at(1);
+        }
+        done(owner);
+    });
+}
+
 QList<int> GlobalHotkeys::activeKeys(const QString &actionId, bool *ok) const
 {
-    if (ok)
-        *ok = false;
-    QList<int> keys;
-    if (!m_available)
-        return keys;
+    if (!m_available) {
+        if (ok)
+            *ok = false;
+        return {};
+    }
     QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("shortcutKeys"));
-    // shortcutKeys matches on [componentUnique, actionUnique] — friendly names
+    // shortcutKeys matches on [componentUnique, actionUnique]; friendly names
     // are ignored for the lookup.
     msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
-    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg, QDBus::Block, 800);
-    if (reply.type() != QDBusMessage::ReplyMessage || reply.arguments().isEmpty())
-        return keys;
-    if (ok)
-        *ok = true;
-    // Reply is a(ai): a list of key sequences, each packed as 4 ints
-    // (QKeySequence slots); zeros are empty slots.
-    const QDBusArgument arg = reply.arguments().first().value<QDBusArgument>();
-    arg.beginArray();
-    while (!arg.atEnd()) {
-        arg.beginStructure();
-        QList<int> seq;
-        arg >> seq;
-        arg.endStructure();
-        for (int k : std::as_const(seq))
-            if (k != 0)
-                keys.append(k);
+    return activeKeysFromReply(
+        QDBusConnection::sessionBus().call(msg, QDBus::Block, 800), ok);
+}
+
+void GlobalHotkeys::activeKeysAsync(
+    const QString &actionId, QObject *context,
+    std::function<void(bool, const QList<int> &)> done)
+{
+    QObject *receiver = context ? context : this;
+    if (!m_available) {
+        QMetaObject::invokeMethod(receiver,
+                                  [done = std::move(done)] { done(false, {}); },
+                                  Qt::QueuedConnection);
+        return;
     }
-    arg.endArray();
-    return keys;
+    QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
+                                                      QStringLiteral("shortcutKeys"));
+    msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(msg, 800), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, watcher, &QObject::deleteLater);
+    connect(watcher, &QDBusPendingCallWatcher::finished, receiver,
+            [watcher, done = std::move(done)](QDBusPendingCallWatcher *) {
+        bool ok = false;
+        const QList<int> keys = activeKeysFromReply(watcher->reply(), &ok);
+        done(ok, keys);
+    });
 }
 
 void GlobalHotkeys::cleanUpComponent(const QString &componentUnique)

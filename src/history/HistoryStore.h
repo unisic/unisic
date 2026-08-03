@@ -59,6 +59,10 @@ public:
     // Point the entry at a just-saved file (capture-card Save) so path-keyed
     // lookups (Delete, upload URL) find it. False if the entry is gone.
     bool setFilePathById(quint64 id, const QString &filePath);
+    // Runtime id of the entry holding this capture file, 0 when untracked.
+    // Lets a caller that only knows the path (editing from history) address the
+    // entry by id afterwards, instead of adding a second one for the same file.
+    quint64 idForFile(const QString &filePath) const;
     // True when the entry holding this capture file is starred (the capture
     // card uses it to refuse Delete with feedback instead of silently).
     bool fileIsFavorite(const QString &filePath) const;

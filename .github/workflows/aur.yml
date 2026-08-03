@@ -69,6 +69,10 @@ jobs:
           else
             printf '%s' "$AUR_SSH_KEY" | base64 -d > /home/builder/.ssh/aur
           fi
+          # Before the check below, not with the rest at the end: ssh refuses a
+          # key file the world can read, and would report that as the format
+          # being wrong.
+          chmod 600 /home/builder/.ssh/aur
           # A key ssh cannot parse fails five minutes later as a plain
           # "Permission denied (publickey)", which reads as a wrong account
           # rather than a wrong file. The public half - the one the AUR account

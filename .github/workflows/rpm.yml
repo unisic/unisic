@@ -36,6 +36,12 @@ jobs:
         run: |
           # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
           # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) - see the deb job comment.
+          # libinput-devel + systemd-devel are the pair behind HAVE_LIBINPUT
+          # (pressed-key badge, click ripple): CMake needs BOTH pkg-config
+          # modules, and on Fedora libudev.pc ships in systemd-devel, not in a
+          # package called libudev-*. Miss either one and the feature is
+          # compiled out silently - the switch then stays dead on every user's
+          # machine no matter how their input group is set up.
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
@@ -44,7 +50,8 @@ jobs:
             pipewire-devel \
             tesseract-devel leptonica-devel zxing-cpp-devel \
             layer-shell-qt-devel wayland-devel \
-            libX11-devel libXext-devel libXfixes-devel libxcb-devel
+            libX11-devel libXext-devel libXfixes-devel libxcb-devel \
+            libinput-devel systemd-devel
 
       - uses: actions/checkout@v4
         with:

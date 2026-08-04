@@ -53,7 +53,8 @@ jobs:
             libpipewire-0.3-dev \
             libtesseract-dev libleptonica-dev libzxing-dev \
             liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev \
-            libx11-dev libxext-dev libxfixes-dev libxcb1-dev
+            libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
+            libinput-dev libudev-dev
 
       - uses: actions/checkout@v4
         with:

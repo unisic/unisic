@@ -56,7 +56,7 @@ jobs:
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
             libwayland-client0 libwayland-cursor0 libwayland-egl1 \
-            libtesseract-dev libleptonica-dev \
+            libtesseract-dev libleptonica-dev libinput-dev libudev-dev \
             libwayland-dev extra-cmake-modules wayland-protocols
 
       - name: Install Qt

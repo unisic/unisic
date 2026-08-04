@@ -38,6 +38,13 @@ Role role();
 // still works and nothing else changes.
 QString openLogFile();
 
+// Which code path asked the app to quit, recorded in the clean-exit marker.
+// Call it right before QCoreApplication::quit(). An EMPTY reason in a finished
+// log means nothing inside the app asked: the process was ended from outside
+// (session manager, systemd stopping the unit, a kill), which is the one thing
+// a "clean exit" marker alone could never distinguish from a normal quit.
+void setQuitReason(const QString &reason);
+
 // Written from aboutToQuit. Its ABSENCE in the previous run's file is what
 // lets the next start tell a crash (or an OOM kill, or a power cut) from a
 // normal exit.

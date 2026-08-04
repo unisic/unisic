@@ -57,6 +57,7 @@ qt_add_executable(unisic
     src/ImageEncode.h src/ImageEncode.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
+    src/capture/KWinWindowGeometry.h src/capture/KWinWindowGeometry.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp

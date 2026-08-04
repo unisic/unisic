@@ -1,6 +1,7 @@
 #include "OverlayController.h"
 #include "AppContext.h"
 #include "capture/CaptureManager.h"
+#include "capture/KWinWindowGeometry.h"
 #include "editor/AnnotationCanvas.h"
 #include <QGuiApplication>
 #include <QScreen>
@@ -71,6 +72,26 @@ void OverlayController::begin(bool annotationTools, Purpose purpose)
     // Stale-callback guard: a cancel()+retrigger must not let the previous
     // freeze capture overwrite state and spawn a second set of windows.
     const int gen = ++m_generation;
+
+    // Ask NOW, in parallel with the freeze: the overlay takes the focus as
+    // soon as it maps, so a query fired any later would report the overlay
+    // itself. The answer usually lands after the windows are up, which is why
+    // the QML side binds a property instead of reading a value once.
+    if (!m_activeWindowLogical.isNull()) {
+        m_activeWindowLogical = QRect();
+        emit activeWindowKnownChanged();
+    }
+    if (KWinWindowGeometry::isAvailable()) {
+        auto *geom = new KWinWindowGeometry(this);
+        geom->queryActiveWindow([this, geom, gen](const QRect &rect, const QString &err) {
+            geom->deleteLater();
+            if (gen != m_generation || !err.isEmpty() || rect.isEmpty())
+                return;
+            m_activeWindowLogical = rect;
+            emit activeWindowKnownChanged();
+        });
+    }
+
     m_app->captureManager()->captureAllScreens(m_screens,
         [this, gen](const QVector<QImage> &imgs, const QString &err) {
             if (gen != m_generation)
@@ -197,6 +218,59 @@ void OverlayController::createWindows()
     } else {
         cancel();
     }
+}
+
+QRectF OverlayController::selectionForScreen(const QRect &globalLogical, const QScreen *screen,
+                                             const QSize &imageSize)
+{
+    if (!screen || globalLogical.isEmpty() || imageSize.isEmpty())
+        return {};
+    const QRect g = screen->geometry();
+    if (g.width() <= 0 || g.height() <= 0)
+        return {};
+    // Clip first, THEN drop the screen origin: a window half off this monitor
+    // would otherwise map to negative coordinates in the frozen image.
+    const QRect local = globalLogical.intersected(g).translated(-g.topLeft());
+    if (local.width() <= 2 || local.height() <= 2)
+        return {};
+    // The frozen image can be scaled against the logical geometry (portal
+    // path), so the factor comes from the image, never from the DPR.
+    const double sx = double(imageSize.width()) / g.width();
+    const double sy = double(imageSize.height()) / g.height();
+    return QRectF(local.x() * sx, local.y() * sy, local.width() * sx, local.height() * sy);
+}
+
+void OverlayController::selectActiveWindow()
+{
+    if (m_activeWindowLogical.isEmpty())
+        return;
+    // A window straddling two monitors gets selected on the one holding most
+    // of it, and that overlay is activated: Enter must confirm the screen the
+    // rectangle is actually on, not the one the pointer happened to be over.
+    int best = -1;
+    qint64 bestArea = 0;
+    for (int i = 0; i < m_windows.size(); ++i) {
+        QScreen *screen = m_windowScreens.value(i);
+        if (!screen)
+            continue;
+        const QRect part = m_activeWindowLogical.intersected(screen->geometry());
+        const qint64 area = qint64(part.width()) * part.height();
+        if (area > bestArea) {
+            bestArea = area;
+            best = i;
+        }
+    }
+    if (best < 0)
+        return;
+    auto *canvas = m_windows[best]->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas"));
+    if (!canvas)
+        return;
+    const QRectF sel = selectionForScreen(m_activeWindowLogical, m_windowScreens[best],
+                                          canvas->image().size());
+    if (sel.isEmpty())
+        return;
+    canvas->setSelectionRect(sel);
+    m_windows[best]->requestActivate();
 }
 
 // Spectacle CaptureWindow parity: Ctrl+C on the overlay accepts the selection

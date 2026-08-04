@@ -238,6 +238,12 @@ public:
     // Same probe for the keystroke badge (it reads the same /dev/input
     // devices), with key-specific wording.
     Q_INVOKABLE QString keystrokeCaptureBlockedReason() const;
+    // The shell command that would unblock the two rows above, or "" when
+    // nothing the user can type would help (already allowed, or a build with
+    // no libinput at all). Reading /dev/input is a GROUP membership, not a
+    // portal permission: no dialog can ask for it, so the UI has to hand the
+    // command over itself.
+    Q_INVOKABLE QString inputAccessFixCommand() const;
     // A copy-pasteable plain-text dump of everything a bug report needs: app
     // version/build, Qt, desktop/session, compiled-in features, runtime caps,
     // and which optional external tools (ffmpeg, wl-clipboard, Tesseract packs)
@@ -283,6 +289,7 @@ public:
     Q_INVOKABLE void devTestNotificationOrder();
     // Drives the settings hover preview without a pointer: show, then withdraw
     // after 3 s exactly as leaving the row does.
+    Q_INVOKABLE void devTestActiveWindowGeometry();
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestHistory();
@@ -546,6 +553,10 @@ public:
     // important: shown even when the user disabled notifications (errors
     // must not vanish silently).
     Q_INVOKABLE void showToast(const QString &text, bool important = false);
+    // Every quit that starts in the UI goes through here instead of Qt.quit(),
+    // purely so the log names the path that ended the process. `reason` is a
+    // fixed English tag for the log, never shown to the user.
+    Q_INVOKABLE void quitApp(const QString &reason);
     Q_INVOKABLE void ocrFile(const QString &path);   // OCR an image file, copy text
     Q_INVOKABLE QString formatShortcut(int key, int modifiers, int nativeScanCode = 0) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);

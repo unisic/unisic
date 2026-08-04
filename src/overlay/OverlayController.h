@@ -21,6 +21,10 @@ class OverlayController : public QObject
     // focus-follows-hover activation must not steal keyboard focus mid-typing
     // (Escape would then cancel the whole session instead of the text box).
     Q_PROPERTY(bool textEditing READ textEditing WRITE setTextEditing NOTIFY textEditingChanged)
+    // Whether KWin answered where the active window was when this session
+    // opened. Drives the W hint, so it is a property and not a plain getter:
+    // the answer arrives asynchronously, usually after the windows are up.
+    Q_PROPERTY(bool activeWindowKnown READ activeWindowKnown NOTIFY activeWindowKnownChanged)
 public:
     // Result: annotated cropped image (image mode).
     using ImageCallback = std::function<void(const QImage &img)>;
@@ -71,13 +75,26 @@ public:
     QRect lastRegionLogical() const { return m_lastRegionLogical; }
     QString lastRegionScreen() const { return m_lastRegionScreen; }
 
+    bool activeWindowKnown() const { return !m_activeWindowLogical.isEmpty(); }
+
+    // Where the active window lands inside one screen's frozen image. Global
+    // LOGICAL px in, image px out; empty when the window barely touches this
+    // screen. Static so the smoke test can check the arithmetic that decides
+    // what the W key selects without opening an overlay.
+    static QRectF selectionForScreen(const QRect &globalLogical, const QScreen *screen,
+                                     const QSize &imageSize);
+
 signals:
     void textEditingChanged();
+    void activeWindowKnownChanged();
 
 public slots:
     void confirmFromWindow(QQuickWindow *win);   // Enter / double-click
     void confirmAndCopy(QQuickWindow *win);      // Ctrl+C: confirm + force copy
     void cancel();                               // Esc
+    // W: selects the rectangle of the window that was active when the overlay
+    // opened (KWin only). Does nothing when nobody could tell us where it was.
+    void selectActiveWindow();
 
 private:
     void begin(bool annotationTools, Purpose purpose);
@@ -104,4 +121,8 @@ private:
     int m_generation = 0; // invalidates in-flight freeze callbacks
     QRect m_lastRegionLogical;
     QString m_lastRegionScreen;
+    // Active window at the moment this session started, in KWin's global
+    // logical px. Asked for in begin(), because by the time the overlay is up
+    // the ACTIVE window is the overlay itself.
+    QRect m_activeWindowLogical;
 };

@@ -500,9 +500,16 @@ void GlobalHotkeys::unregisterAction(const QString &actionId)
     // releaseShortcut() only unbinds the keys, which — with NoAutoloading —
     // leaves the action PERSISTED as an unbound row; a scratch/test action must
     // not linger there.
+    // The list MUST have all four elements. kglobalacceld matches an action id
+    // by LENGTH first: handed a 2-element list it returns success and does
+    // nothing at all (measured live - every legacy action this was supposed to
+    // purge was still registered, and every alt-hotkey-test scratch row was
+    // still in kglobalshortcutsrc). The two friendly names are not compared,
+    // so they stay empty rather than being translated back into whatever
+    // locale registered the action.
     QDBusMessage msg = QDBusMessage::createMethodCall(KGA_SERVICE, KGA_PATH, KGA_IFACE,
                                                       QStringLiteral("unRegister"));
-    msg << QStringList{QString::fromLatin1(COMPONENT), actionId};
+    msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
     QDBusConnection::sessionBus().asyncCall(msg);
 }
 

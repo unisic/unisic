@@ -148,6 +148,8 @@ Item {
         // (search already built the Loader), so without this the visited pane
         // is torn down on the next tab switch, losing its scroll position.
         latchPane(result.tab)
+        if (result.row && result.row.discloser)
+            result.row.discloser.expanded = true
         searchQuery = ""
         // Scroll the row's pane so the highlighted match is actually on
         // screen — panes keep their last scroll position, so without this
@@ -374,6 +376,12 @@ Item {
         // a one-line reason, so a release build still shows what it can't do.
         property bool available: true
         property string hint: ""
+        // The DisclosureRow this row hides behind, when it has one. Search
+        // jumps open it: collectRows only sees the row because the pane
+        // renders every group while searching, and without this the jump would
+        // land on a row that collapses back out of sight the moment the query
+        // is cleared.
+        property var discloser: null
         default property alias control: slot.data
         property alias footer: footerSlot.data
         // The one-line detail shown under the label: the greyed reason when the
@@ -403,7 +411,10 @@ Item {
         border.color: searchHit ? Theme.accent : Theme.divider
         Behavior on border.color { ColorAnimation { duration: Theme.animMed } }
         Behavior on color { ColorAnimation { duration: Theme.animMed } }
-        opacity: available ? 1.0 : 0.5
+        // The greying is per-part, not on the whole row: an unavailable row still
+        // has to SHOUT its reason and offer its fix, so only the label and the
+        // dead control fade (below). Half-opacity over the danger-coloured reason
+        // and over the button that fixes it would hide exactly what matters.
 
         Column {
             id: inner
@@ -440,6 +451,7 @@ Item {
                             // Briefly tinted when this row was just jumped to from search.
                             color: settingRow.searchHit ? Theme.accent : Theme.textPrimary
                             font.pixelSize: Theme.fontM
+                            opacity: settingRow.available ? 1.0 : 0.5
                         }
                         Rectangle {
                             id: helpBadge
@@ -500,6 +512,7 @@ Item {
                     // Only the CONTROL is disabled on an unavailable row — the "?"
                     // badge must stay clickable so the dialog can explain why.
                     enabled: settingRow.available
+                    opacity: settingRow.available ? 1.0 : 0.5
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     // The slot HUGS its control, and is itself centred in the
@@ -517,7 +530,10 @@ Item {
                 id: footerSlot
                 width: parent.width
                 height: childrenRect.height
-                enabled: settingRow.available
+                // NOT greyed out with the row, for the same reason the "?" badge
+                // is not: an unavailable row is exactly where a footer offering
+                // the FIX has to stay clickable. A footer that must follow the
+                // row disables itself - HotkeyRow's chip editor does.
                 onChildrenChanged: settingRow.nameBridge.refresh()
             }
         }
@@ -542,6 +558,101 @@ Item {
             formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
             onCaptureStateChanged: (active) => App.setShortcutRecording(active)
         }
+    }
+
+    // Footer for a row blocked by /dev/input access. Reading input devices is a
+    // GROUP membership, not a portal permission: nothing can prompt for it, so a
+    // greyed switch with a line of text is all the user ever sees, and "you are
+    // not in the input group" reads like the app's fault. Hand over the exact
+    // command instead. A Loader, so a row that is fine carries no footer at all
+    // (an invisible child would still pad footerSlot's childrenRect).
+    component InputFixFooter: Loader {
+        id: inputFix
+        property string command: ""
+        active: command !== ""
+        UButton {
+            compact: true
+            variant: "tonal"
+            iconName: "edit-copy"
+            text: qsTr("Copy the command")
+            onClicked: {
+                App.copyText(inputFix.command)
+                App.showToast(qsTr("Copied “%1”. Run it in a terminal, then log out and back in.")
+                              .arg(inputFix.command))
+            }
+        }
+    }
+
+    // One clickable row that reveals the rows placed under it. Local to this
+    // page and not a kit component: a single pane wanting a disclosure is not
+    // a design-system control yet, and the rows it hides stay ordinary
+    // SettingRows (they only gain `discloser`), so search still reaches them.
+    component DisclosureRow: Rectangle {
+        id: disc
+        property string label: ""
+        property string summary: ""
+        property bool expanded: false
+        function toggle() { disc.expanded = !disc.expanded }
+
+        width: parent ? parent.width : 0
+        implicitHeight: discCol.implicitHeight + 2 * Theme.spacingM
+        radius: Theme.radiusM
+        color: discMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+        border.width: 1
+        border.color: Theme.divider
+        Behavior on color { ColorAnimation { duration: Theme.animMed } }
+
+        Column {
+            id: discCol
+            x: Theme.spacingM
+            y: Theme.spacingM
+            // Leaves the chevron its own lane, so a long summary wraps instead
+            // of running under it.
+            width: parent.width - 2 * Theme.spacingM - 24
+            spacing: 3
+            Text {
+                width: parent.width
+                text: disc.label
+                elide: Text.ElideRight
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontM
+            }
+            Text {
+                width: parent.width
+                visible: disc.summary !== ""
+                text: disc.summary
+                wrapMode: Text.WordWrap
+                color: Theme.textTertiary
+                font.pixelSize: Theme.fontS
+            }
+        }
+        UIcon {
+            anchors.right: parent.right
+            anchors.rightMargin: Theme.spacingM
+            anchors.verticalCenter: parent.verticalCenter
+            name: "chevron-down"
+            size: 16
+            color: Theme.textSecondary
+            rotation: disc.expanded ? 180 : 0
+            Behavior on rotation { NumberAnimation { duration: Theme.animFast } }
+        }
+        MouseArea {
+            id: discMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: disc.toggle()
+        }
+        activeFocusOnTab: true
+        Keys.onSpacePressed: (e) => UKeys.activate(e, disc.toggle)
+        Keys.onReturnPressed: (e) => UKeys.activate(e, disc.toggle)
+        Keys.onEnterPressed: (e) => UKeys.activate(e, disc.toggle)
+        Accessible.role: Accessible.Button
+        Accessible.name: disc.label
+        Accessible.description: disc.summary
+        Accessible.focusable: true
+        Accessible.onPressAction: disc.toggle()
+        UFocusRing { inset: 1 }
     }
 
     component SectionTitle: Text {
@@ -1645,22 +1756,31 @@ Item {
                         // The reason is computed once per shown row rather than bound:
                         // probing libinput opens a udev context, too heavy for a binding.
                         readonly property string blocked: App.clickCaptureBlockedReason()
-                        help: blocked === "" ? qsTr("Draws an expanding ring wherever you click.") : blocked
+                        // `available`, not a bare disabled switch: that is what paints
+                        // the reason in the danger colour and puts it behind the "?"
+                        // badge too. A greyed switch under grey help text was read as
+                        // "this option is broken", never as "your account cannot do it".
+                        available: blocked === "" || App.devBuild
+                        hint: blocked
+                        help: qsTr("Draws an expanding ring wherever you click.")
+                        footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
                             checked: App.settings.cursorClickRipple
-                            enabled: parent.blocked === "" || App.devBuild
                             onToggled: (c) => App.settings.cursorClickRipple = c
                         }
                     }
                     SettingRow {
                         label: qsTr("Show pressed keys")
-                        // Same one-shot probe rule as the ripple row above.
+                        // Same one-shot probe and same `available` rule as the ripple
+                        // row above.
                         readonly property string blocked: App.keystrokeCaptureBlockedReason()
-                        help: blocked === "" ? qsTr("Draws a badge with each key press (“Ctrl+Shift+T”) into recordings.") : blocked
+                        available: blocked === "" || App.devBuild
+                        hint: blocked
+                        help: qsTr("Draws a badge with each key press (“Ctrl+Shift+T”) into recordings.")
                         helpDetail: qsTr("A screenkey-style pill at the bottom of the recording shows shortcuts and typed keys, with held modifiers and a ×N repeat counter. Works in GIF and video recordings. Key labels use the physical (US) key legend.")
+                        footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
                             checked: App.settings.recordKeystrokes
-                            enabled: parent.blocked === "" || App.devBuild
                             onToggled: (c) => App.settings.recordKeystrokes = c
                         }
                     }
@@ -3167,7 +3287,18 @@ Item {
                         shortcuts: App.settings.hotkeyGif
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
+                    // Everything above is a capture everyone takes. What
+                    // follows needs a build option or a habit not everyone has,
+                    // and those rows in a row buried the ones that matter.
+                    DisclosureRow {
+                        id: advancedHotkeys
+                        label: expanded ? qsTr("Hide advanced shortcuts")
+                                        : qsTr("Show advanced shortcuts")
+                        summary: qsTr("OCR region, Copy last capture, Instant replay")
+                    }
                     HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive
+                        discloser: advancedHotkeys
                         label: qsTr("OCR region (copy text)")
                         available: App.ocrAvailable
                         hint: App.ocrAvailable ? ""
@@ -3180,6 +3311,8 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
                     HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive
+                        discloser: advancedHotkeys
                         label: qsTr("Copy last capture")
                         help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
                         helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
@@ -3187,6 +3320,8 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
                     HotkeyRow {
+                        visible: advancedHotkeys.expanded || page.searchActive
+                        discloser: advancedHotkeys
                         label: qsTr("Instant replay")
                         help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
                         helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
@@ -3680,6 +3815,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Installer update (dry-run)"); onClicked: App.devTestInstallerUpdate() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Active window geometry"); onClicked: App.devTestActiveWindowGeometry() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record countdown"); onClicked: App.devTestCountdown() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Full-screen countdown"); onClicked: App.devTestFullscreenCountdown() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Toggle autostart"); onClicked: App.autostartEnabled = !App.autostartEnabled }

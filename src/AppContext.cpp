@@ -925,6 +925,12 @@ void AppContext::applyLanguage()
         setupTray();
 }
 
+void AppContext::quitApp(const QString &reason)
+{
+    DiagLog::setQuitReason(reason);
+    QCoreApplication::quit();
+}
+
 void AppContext::showToast(const QString &text, bool important)
 {
     if (!important && !m_settings->showNotifications())
@@ -1083,13 +1089,25 @@ bool AppContext::capKWinRecord() const
 #endif
 }
 
+// The probe opens a udev context and enumerates the seat, so it runs ONCE per
+// process: three callers ask (both Settings rows and the fix-command hint), and
+// neither answer can change while the app runs - group membership only takes
+// effect in a new login session anyway.
+static InputPermission::Status inputStatus()
+{
+    static const InputPermission::Status s = InputPermission::probe();
+    return s;
+}
+
 QString AppContext::clickCaptureBlockedReason() const
 {
-    switch (InputPermission::probe()) {
+    switch (inputStatus()) {
     case InputPermission::Available:
         return {};
     case InputPermission::NotBuilt:
-        return tr("This build has no libinput support, so clicks cannot be detected.");
+        // Names the PACKAGE, not the machine: the first reading of "no libinput
+        // support" is "install libinput", which changes nothing here.
+        return tr("This package was built without libinput support, so clicks cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.");
     case InputPermission::NoPermission:
         break;
     }
@@ -1099,16 +1117,21 @@ QString AppContext::clickCaptureBlockedReason() const
 
 QString AppContext::keystrokeCaptureBlockedReason() const
 {
-    switch (InputPermission::probe()) {
+    switch (inputStatus()) {
     case InputPermission::Available:
         return {};
     case InputPermission::NotBuilt:
-        return tr("This build has no libinput support, so key presses cannot be detected.");
+        return tr("This package was built without libinput support, so key presses cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.");
     case InputPermission::NoPermission:
         break;
     }
     return tr("Reading key presses needs access to input devices. Run “%1”, then log out and back in.")
         .arg(InputPermission::fixHint());
+}
+
+QString AppContext::inputAccessFixCommand() const
+{
+    return inputStatus() == InputPermission::NoPermission ? InputPermission::fixHint() : QString();
 }
 
 bool AppContext::capScreenshotCursor() const
@@ -5801,7 +5824,8 @@ void AppContext::setupTray()
         menu->addSeparator();
     }
     menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
-    menu->addAction(trayMenuIcon(QStringLiteral("close")), tr("Quit"), qApp, &QCoreApplication::quit);
+    menu->addAction(trayMenuIcon(QStringLiteral("close")), tr("Quit"), this,
+                    [this] { quitApp(QStringLiteral("tray menu Quit")); });
     m_tray->setContextMenu(menu);
     m_tray->setToolTip(QGuiApplication::applicationDisplayName());
     connect(m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason r) {

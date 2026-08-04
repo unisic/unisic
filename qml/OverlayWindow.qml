@@ -306,6 +306,13 @@ Window {
                 else canvas.undo()
             } else if (e.key === Qt.Key_Y && (e.modifiers & Qt.ControlModifier)) {
                 canvas.redo()
+            } else if (e.key === Qt.Key_W && UKeys.unmodified(e)
+                       && overlayController.activeWindowKnown) {
+                // Selects the window that was active when the overlay opened.
+                // Above the tool letters on purpose: W is not one of them, but
+                // this must work BEFORE a selection exists, which is exactly
+                // what the tool branch below refuses to do.
+                overlayController.selectActiveWindow()
             } else if (annotationToolsEnabled && canvas.hasSelection
                        && UKeys.unmodified(e)
                        && root.activateToolShortcut(e.key)) {
@@ -530,18 +537,22 @@ Window {
                     if (canvas.tool === AnnotationCanvas.Measure)
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
                     const drag = qsTr("Drag to select")
+                    // Only offered where KWin answered where the active window
+                    // is; nowhere else can an app learn that.
+                    const win = overlayController.activeWindowKnown
+                              ? qsTr(" · W selects the active window") : ""
                     // The verb has to match the mode: the same sentence used to
                     // promise a capture whether it took a screenshot, read text
                     // or started recording.
                     if (overlayPurpose === "ocr")
-                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter reads the text · Esc to cancel")
+                        return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter reads the text · Esc to cancel")
                     if (overlayPurpose === "gif")
-                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter starts the GIF · Esc to cancel")
+                        return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter starts the GIF · Esc to cancel")
                     if (overlayPurpose === "video")
-                        return drag + qsTr(" · Ctrl+drag to move · Space/Enter starts the video · Esc to cancel")
+                        return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter starts the video · Esc to cancel")
                     return annotationToolsEnabled
-                           ? drag + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
-                           : drag + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
+                           ? drag + win + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
+                           : drag + win + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
                 }
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontS + 1

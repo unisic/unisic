@@ -9,6 +9,7 @@
 // stays a file-static in this file.
 
 #include "AppContext.h"
+#include "capture/KWinWindowGeometry.h"
 #include "unisic_build_date.h" // generated into the build dir (cmake/BuildDate.cmake)
 #include "Settings.h"
 #include "capture/CaptureManager.h"
@@ -600,7 +601,15 @@ void AppContext::devTestKeystrokeBadge()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: keystroke badge: %1").arg(keystrokeBadgeCheck()));
+    // Says the access state next to the render check: the badge rendering fine
+    // while the row stays greyed is the exact confusion this pane exists to end.
+    const QString fix = inputAccessFixCommand();
+    showToast(tr("Dev: keystroke badge: %1; input access: %2")
+                  .arg(keystrokeBadgeCheck(),
+                       keystrokeCaptureBlockedReason().isEmpty()
+                           ? QStringLiteral("OK")
+                           : (fix.isEmpty() ? QStringLiteral("not built")
+                                            : QStringLiteral("blocked, fix: %1").arg(fix))));
 }
 
 void AppContext::devTestCustomTheme()
@@ -2262,6 +2271,40 @@ void AppContext::devTestFilename()
                   .arg(m_settings->filenameCounter())
                   .arg(m_settings->dateSubfolders() ? tr("on") : tr("off"),
                        m_settings->stripMetadata() ? tr("on") : tr("off")));
+}
+
+void AppContext::devTestActiveWindowGeometry()
+{
+    if (!devBuild())
+        return;
+    if (!KWinWindowGeometry::isAvailable()) {
+        showToast(tr("Dev: active-window geometry needs KWin on the session bus"), true);
+        return;
+    }
+    // Deliberately reports the raw KWin answer, not the converted crop: when the
+    // selected area is off, the first question is always whether KWin's rect or
+    // our screen conversion is the wrong one.
+    auto *geom = new KWinWindowGeometry(this);
+    geom->queryActiveWindow([this, geom](const QRect &r, const QString &err) {
+        geom->deleteLater();
+        if (!err.isEmpty()) {
+            showToast(tr("Dev: active-window geometry FAILED - %1").arg(err), true);
+            return;
+        }
+        QScreen *s = QGuiApplication::screenAt(r.center());
+        // Second half: what the overlay's W key would select on that screen,
+        // at 1:1 freeze scale. Same answer as the rect above when the window
+        // is fully on one monitor - a difference means the clip or the origin
+        // shift is off, which is the only arithmetic between the two.
+        const QRectF sel = OverlayController::selectionForScreen(
+            r, s, s ? s->geometry().size() : QSize());
+        showToast(tr("Dev: active window %1x%2 at %3,%4 (logical) on %5, DPR %6; overlay selects %7x%8 at %9,%10")
+                      .arg(r.width()).arg(r.height()).arg(r.x()).arg(r.y())
+                      .arg(s ? s->name() : tr("no screen"))
+                      .arg(s ? s->devicePixelRatio() : 0.0)
+                      .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                      .arg(qRound(sel.x())).arg(qRound(sel.y())));
+    });
 }
 
 void AppContext::devTestCardPreview()
@@ -4003,6 +4046,20 @@ void AppContext::runSmokeTest()
                  + (keystrokeCaptureBlockedReason().isEmpty()
                         ? QStringLiteral("PASS (/dev/input readable)")
                         : QStringLiteral("SKIP (%1)").arg(keystrokeCaptureBlockedReason())));
+        // The Settings row offers its fix button off this string, and it must be
+        // offered ONLY where a command would help: a package built without
+        // libinput cannot be fixed by joining a group, and a working setup has
+        // nothing to fix. Getting this wrong sends the user to run a pointless
+        // sudo command, which is exactly the kind of advice a tool must not give.
+        const bool fixOffered = !inputAccessFixCommand().isEmpty();
+        const bool fixWanted = InputPermission::probe() == InputPermission::NoPermission;
+        smokeLog(QStringLiteral("input access fix hint: ")
+                 + (fixOffered == fixWanted
+                        ? QStringLiteral("PASS (%1)").arg(fixOffered
+                                                              ? inputAccessFixCommand()
+                                                              : QStringLiteral("nothing to fix"))
+                        : QStringLiteral("FAIL (offered=%1, wanted=%2)")
+                              .arg(fixOffered).arg(fixWanted)));
         smokeNext();
     });
 
@@ -4516,6 +4573,50 @@ void AppContext::runSmokeTest()
             QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
         });
         startVideoScreen();
+    });
+
+    // 4c) active-window geometry - the input of the overlay's W key. Both the
+    // query and the mapping are exercised, since the rect (KWin script API
+    // renames, unloaded scripting module, D-Bus name clash) and the map into
+    // one screen's frozen image are what can break.
+    m_smokeSteps.append([this] {
+        if (!KWinWindowGeometry::isAvailable()) {
+            smokeLog(QStringLiteral("active window geometry: SKIP (no KWin scripting)"));
+            smokeNext();
+            return;
+        }
+        auto *geom = new KWinWindowGeometry(this);
+        geom->queryActiveWindow([this, geom](const QRect &r, const QString &err) {
+            geom->deleteLater();
+            if (!err.isEmpty()) {
+                smokeLog(QStringLiteral("active window geometry: FAIL (%1)").arg(err));
+            } else if (r.isEmpty()) {
+                smokeLog(QStringLiteral("active window geometry: FAIL (empty rect)"));
+            } else {
+                smokeLog(QStringLiteral("active window geometry: PASS (%1x%2 at %3,%4)")
+                             .arg(r.width()).arg(r.height()).arg(r.x()).arg(r.y()));
+                // What the overlay's W key selects. A doubled image size stands
+                // in for a scaled freeze, so a mapping that silently used the
+                // logical geometry would come back at half the size.
+                QScreen *screen = QGuiApplication::screenAt(r.center());
+                const QSize imgSize = screen ? screen->geometry().size() * 2 : QSize();
+                const QRectF sel = OverlayController::selectionForScreen(r, screen, imgSize);
+                const QRect want = r.intersected(screen ? screen->geometry() : QRect());
+                if (!screen)
+                    smokeLog(QStringLiteral("active window mapping: FAIL (no screen at %1,%2)")
+                                 .arg(r.center().x()).arg(r.center().y()));
+                else if (qRound(sel.width()) != want.width() * 2
+                         || qRound(sel.height()) != want.height() * 2)
+                    smokeLog(QStringLiteral("active window mapping: FAIL (%1x%2, expected %3x%4)")
+                                 .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                                 .arg(want.width() * 2).arg(want.height() * 2));
+                else
+                    smokeLog(QStringLiteral("active window mapping: PASS (%1x%2 in image px on %3)")
+                                 .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                                 .arg(screen->name()));
+            }
+            smokeNext();
+        });
     });
 
     // 5) capture notification

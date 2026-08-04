@@ -21,7 +21,7 @@ cmake --build build
 ./build/unisic
 ```
 
-Requires `qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel pipewire-devel` (Fedora) plus runtime `ffmpeg` and `wl-clipboard`. `pipewire-devel` is optional - without it the build succeeds but recording is disabled (`HAVE_PIPEWIRE` guard). Same pattern for OCR: `tesseract-devel leptonica-devel` + a langpack like `tesseract-langpack-pol` enable it (`HAVE_TESSERACT`); `zxing-cpp-devel` additionally enables QR/barcode decoding inside the OCR path (`HAVE_ZXING` - a code in the region copies its payload instead of OCR-ing its pixels). The capture popup positions itself by filling the screen and masking input to the card (no layer-shell dependency). `ctest --test-dir build` runs the QtTest targets in `tests/` (pure-logic units - version compare, shortcut format, annotation canvas, history filter); everything compositor-bound is covered by the in-app smoke test instead.
+Requires `qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel pipewire-devel` (Fedora) plus runtime `ffmpeg` and `wl-clipboard`. `pipewire-devel` is optional - without it the build succeeds but recording is disabled (`HAVE_PIPEWIRE` guard). Same pattern for OCR: `tesseract-devel leptonica-devel` + a langpack like `tesseract-langpack-pol` enable it (`HAVE_TESSERACT`); `zxing-cpp-devel` additionally enables QR/barcode decoding inside the OCR path (`HAVE_ZXING` - a code in the region copies its payload instead of OCR-ing its pixels). Two more of the same shape live in the kit and gate the X11 session paths: `libX11-devel libXext-devel libXfixes-devel` (`HAVE_X11`, XShm recording) and `libX11-devel libxcb-devel` (`HAVE_X11_HOTKEYS`, `XGrabKey`). The capture popup positions itself by filling the screen and masking input to the card (no layer-shell dependency). `ctest --test-dir build` runs the QtTest targets in `tests/` (pure-logic units - version compare, shortcut format, annotation canvas, history filter); everything compositor-bound is covered by the in-app smoke test instead.
 
 The shared design system is a git submodule: `external/unisic-kit` (QML module `Unisic.Kit`). Shared code belongs THERE, never copied back into this tree; clone/build with `--recurse-submodules`.
 
@@ -30,7 +30,8 @@ The shared design system is a git submodule: `external/unisic-kit` (QML module `
 Each line is the short form of a rule whose full reasoning is in the linked file. When a change touches one, read the reasoning before deciding it does not apply.
 
 - **Mandatory UI palette**: Primary `#17153B` (main window/panel backgrounds), Secondary `#2E236C` and Tertiary `#433D8B` (secondary elements, hover/active), Accent `#C8ACD6` (action buttons, attention). All colors come from the `Theme.qml` singleton's tokens - never a hardcoded hex.
-- **Wayland-legit capture paths only**: xdg-desktop-portal Screenshot/ScreenCast, KWin `org.kde.KWin.ScreenShot2` as a KDE-specific enhancement, PipeWire as the video backend, KGlobalAccel over D-Bus for global shortcuts, `QDBusInterface`/`QDBusConnection` for D-Bus. No X11-only capture hacks.
+- **Wayland-legit capture paths only on a Wayland session**: xdg-desktop-portal Screenshot/ScreenCast, KWin `org.kde.KWin.ScreenShot2` as a KDE-specific enhancement, PipeWire as the video backend, KGlobalAccel over D-Bus for global shortcuts, `QDBusInterface`/`QDBusConnection` for D-Bus. Never route a Wayland session through an X11 path, screen-scraping, or a hack around the security model.
+- **X11 is a supported second target (since 0.8), not a hack**: on an `xcb` session recording grabs frames with `X11ShmGrabber` (XShm + XFixes, in the kit, `HAVE_X11` **and** `HAVE_PIPEWIRE` - it feeds the same sampler/encoder), and global hotkeys use `X11Hotkeys` (`XGrabKey`, `HAVE_X11_HOTKEYS`) where KGlobalAccel is absent. Screenshots/overlay/editor/OCR/history/upload were always session-agnostic. Recording a single **window** stays Wayland-only (no picker without the portal). Best effort: Wayland is the daily-driven target, X11 is verified by a pass over the features (README "X11 support"; `AGENTS.md` §1, §3).
 - **Every user-facing string** is `qsTr()`/`tr()` AND translated in all seven `i18n/unisic_{en,pl,es,it,fr,ru,de}.ts` files, with no `unfinished` markers left behind (`docs/dev/i18n.md`).
 - **Every new user-facing feature/path is wired into BOTH** the F8 smoke test (`AppContext::runSmokeTest`) and its own per-action button in the Settings Developer pane (`docs/dev/pipelines.md`).
 - **Every user-facing change is documented** in `resources/CHANGELOG.md`, bilingual EN/PL, under the current beta heading (never a new heading mid-beta).
@@ -43,7 +44,7 @@ Each line is the short form of a rule whose full reasoning is in the linked file
 
 ## What Unisic Is
 
-Unisic is a screenshot and screen-recording tool for **Linux Wayland**, prioritizing KDE Plasma/KWin but portable via xdg-desktop-portal. Tech stack: **C++17+ with Qt 6, Qt Quick/QML UI**.
+Unisic is a screenshot and screen-recording tool for **Linux Wayland**, prioritizing KDE Plasma/KWin but portable via xdg-desktop-portal, and running on an **X11 session** as a best-effort second target (see Non-negotiables). Tech stack: **C++17+ with Qt 6, Qt Quick/QML UI**.
 
 Core features (in rough build-priority order):
 

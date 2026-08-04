@@ -8,7 +8,7 @@
 
 Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Zero telemetry · GPLv3
 
-**[unisic.app](https://unisic.app)** · **[Documentation](https://unisic.app/docs)**
+**[unisic.app](https://unisic.app)** · **[Documentation](https://unisic.app/docs)** · **[Discord](https://discord.gg/U2Eyw6xQBz)**
 
 [![Download latest release](https://img.shields.io/badge/Download_Latest_Release-C8ACD6?style=for-the-badge&logo=linux&logoColor=17153B)](https://github.com/unisic/unisic/releases/latest)
 
@@ -17,6 +17,7 @@ Silent capture · Annotate · Smart eraser · Record GIF/MP4/WebM · Upload · Z
   <a href="https://github.com/unisic/unisic/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/unisic/unisic?include_prereleases&style=for-the-badge&label=release&color=433D8B"></a>
   <a href="https://github.com/unisic/unisic/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/unisic/unisic/total?style=for-the-badge&color=433D8B"></a>
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
+  <a href="https://discord.gg/U2Eyw6xQBz"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-000?style=for-the-badge&logo=discord&logoColor=C8ACD6&color=433D8B"></a>
 </p>
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/deandark)

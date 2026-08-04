@@ -1,6 +1,8 @@
 # AGENTS.md
 
-Contributor guide for **any** AI coding agent working on Unisic - Cursor, Aider, Zed, Codex, Continue, Cline, Windsurf, GitHub Copilot Agent, Claude Code, and humans reading over their shoulder. This is the canonical, tool-agnostic contract. If your tool also reads `CLAUDE.md`, that file carries the same rules plus Claude-specific per-subsystem deep notes - read both; where they overlap they agree, and if they ever disagree, **this file and the actual code win.**
+Contributor guide for **any** AI coding agent working on Unisic - Cursor, Aider, Zed, Codex, Continue, Cline, Windsurf, GitHub Copilot Agent, Claude Code, and humans reading over their shoulder. This is the canonical, tool-agnostic contract.
+
+**Read `CLAUDE.md` beside it, whatever tool you use.** It is not Claude-only trivia: it is the short list of non-negotiables plus an **index into `docs/dev/`**, where the per-subsystem deep notes live (`architecture.md` for `src/**`, `ui-kit.md` for `qml/**` and the kit, `pipelines.md` for recording/hotkeys/clipboard/CLI/developer mode, `packaging.md` for `install.sh` and releases, `i18n.md` for strings). Those notes are hard-won fixes, not background reading - open the matching file **before** changing that area, or you will re-break something already solved. This file and `CLAUDE.md` agree; where they ever disagree, **this file and the actual code win** - and fix the drift in the same PR.
 
 > **Read this whole file before your first edit.** Unisic is small on purpose. Most of the hard problems here are *invisible* - Wayland capture authorization, D-Bus signal ownership, QSettings persistence quirks, Qt object lifetimes. A change that "looks obviously correct" has repeatedly been the wrong one. The gotchas below were each paid for in hours of debugging; treat them as landmines, not trivia.
 
@@ -8,15 +10,21 @@ Contributor guide for **any** AI coding agent working on Unisic - Cursor, Aider,
 
 ## 1. What Unisic is (and is not)
 
-Unisic is a **screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`. Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
+Unisic is a **screenshot + screen-recording tool for Linux Wayland**, prioritizing KDE Plasma/KWin but portable via `xdg-desktop-portal`, and running on an **X11 session** as a best-effort second target since 0.8 (see below). Stack: **C++20, Qt 6 (6.5+), Qt Quick / QML**, fully custom UI. GPLv3. Zero telemetry.
 
 Core workflow it owns end-to-end: press hotkey → annotate *on the selection overlay before the shot is taken* → post-capture editor (arrows, shapes, text, blur/pixelate, crop, numbered steps, smart eraser) → route the result to clipboard / disk / a custom upload destination with the link auto-copied → or record the same region as GIF/MP4/WebM.
 
-**It is NOT:** a general image editor, a cloud service, a cross-platform app, an X11 tool, or a kitchen-sink utility. Every feature request is measured against "does a screenshot/record/share workflow genuinely need this?" The answer is usually no.
+**It is NOT:** a general image editor, a cloud service, a cross-platform app, an X11-first tool, or a kitchen-sink utility. Every feature request is measured against "does a screenshot/record/share workflow genuinely need this?" The answer is usually no.
 
 ### Non-negotiable product constraints
 
-- **Wayland-legit capture paths ONLY.** `xdg-desktop-portal` Screenshot/ScreenCast, KWin `org.kde.KWin.ScreenShot2` D-Bus (KDE enhancement), `wlr-screencopy` via `grim` (wlroots), `org.gnome.Shell.Screenshot` (niri/GNOME direct), PipeWire for video, KGlobalAccel / portal GlobalShortcuts for hotkeys. **No X11-only capture hacks. No screen-scraping. No compositor-specific hacks that bypass the security model.**
+- **Wayland-legit capture paths ONLY on a Wayland session.** `xdg-desktop-portal` Screenshot/ScreenCast, KWin `org.kde.KWin.ScreenShot2` D-Bus (KDE enhancement), `wlr-screencopy` via `grim` (wlroots), `org.gnome.Shell.Screenshot` (niri/GNOME direct), PipeWire for video, KGlobalAccel / portal GlobalShortcuts for hotkeys. **No X11 path on a Wayland session. No screen-scraping. No compositor-specific hacks that bypass the security model.**
+- **X11 sessions ARE supported, as a deliberate second target (since 0.8) - not as a hack.** Everything session-agnostic (screenshots through the portal, overlay, editor, OCR, history, upload) always worked there; two paths were added for `xcb` sessions only:
+  - **Recording** uses `X11ShmGrabber` (XShm + XFixes, in the kit) instead of the ScreenCast portal, so it also works on desktops with no portal backend (Cinnamon, MATE, Xfce on Xorg). Cursor halo, click ripples and the keystroke badge come along; the record-region frame and the styled notification card are XWayland/X11 override-redirect windows (the same helper the GNOME path uses).
+  - **Global hotkeys** use `X11Hotkeys` (`XGrabKey`) where KGlobalAccel is absent; the backend id is `"x11"`.
+  - **Recording a single WINDOW stays Wayland-only** - the window picker is the portal's. `capRecordWindow()` disables the Window source, and the UI says why. Do not fake a picker with X11 window enumeration.
+  - Both are compile-time gated in the kit (`HAVE_X11`, `HAVE_X11_HOTKEYS` - see §3) and runtime-gated on `QGuiApplication::platformName() == "xcb"`. **Additive only:** an X11 branch must never change what a Wayland session does. `CaptureManager::isX11Session()` exists for the reverse case (a stale `WAYLAND_DISPLAY` must not route an X11 session's capture into a dead or foreign compositor).
+  - **X11 is best effort.** Development and daily use are Wayland; X11 was verified by one pass over the features, on one desktop. Say so when you touch it, and don't trade a Wayland behavior for an X11 one.
 - **Mandatory UI palette** - do not introduce off-palette colors:
   - Primary `#17153B` (window/panel backgrounds)
   - Secondary `#2E236C`, Tertiary `#433D8B` (secondary elements, hover/active)
@@ -58,6 +66,9 @@ cmake --build build
   - `libinput-devel systemd-devel` → `HAVE_LIBINPUT` → click capture. Without it `InputPermission::probe()` returns `NotBuilt`.
   - `kf6-kguiaddons-devel` → `HAVE_KGUIADDONS` → Klipper clipboard history.
   - `qt6-qtwayland-devel qt6-qtbase-private-devel plasma-wayland-protocols-devel` (all three) → `HAVE_KWIN_SCREENCAST` in unisic-kit → KWin-native recording with no portal share dialog.
+  - `libX11-devel libXext-devel libXfixes-devel` (pkg-config `x11 xext xfixes`) → `HAVE_X11` in unisic-kit → `X11ShmGrabber`, the frame source on an X11 session. **The app-side use is `#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)`** - the sampler/encoder it feeds is itself compiled under `HAVE_PIPEWIRE`, so a PipeWire-less build has no X11 recording either.
+  - `libX11-devel libxcb-devel` (pkg-config `x11 xcb`) → `HAVE_X11_HOTKEYS` in unisic-kit → `X11Hotkeys` (`XGrabKey` + the xcb `KeyPress` native event filter). A **separate** gate from `HAVE_X11` on purpose: a build can end up with X11 hotkeys and no X11 recording, or the reverse. Without it, non-KDE X11 falls back to the portal / compositor binds.
+  - Packaging carries these: `libx11 libxext libxfixes libxcb` are in `packaging/arch/PKGBUILD` (both `depends` and `makedepends`) and the equivalent lists elsewhere. A missing X11 lib there ships a binary that will not start - that is what stalled the 0.8 AUR publish.
 - **After installing an optional dep into an EXISTING build tree, delete `build/`.** Re-running `cmake -B build` adds the new sources to the target but the AUTOMOC custom command does not depend on `AutogenInfo.json`, so ninja never re-runs it: `mocs_compilation.cpp` keeps the old list and the link dies with `undefined reference to vtable for <NewClass>` / `staticMetaObject` / its signals. Deleting just the stale `<build>/<target>_autogen/timestamp` (e.g. `build/external/unisic-kit/unisic-kit_autogen/timestamp`) forces AUTOMOC to re-run and is enough if a full rebuild is too expensive. A clean configure has never had the problem.
 - **Runtime helpers shelled out, not linked:** `ffmpeg` (GIF/video encode), `curl` (FTP/SFTP uploads), `grim` (wlroots/niri capture), `wl-copy` (clipboard mirror), `kbuildsycoca6` (KDE service-cache rebuild). Treat all as optional-at-runtime: detect with `QStandardPaths::findExecutable`, degrade gracefully, never crash if absent.
 
@@ -101,10 +112,14 @@ src/
                         (samples to ffmpeg; also drives MP4/WebM), ClickCapture/KeyCapture
                         (libinput observers, HAVE_LIBINPUT), CursorOverlayPainter (halo/ripples),
                         KeystrokeOverlayPainter (screenkey-style badge; pure logic, unit-tested).
+                        GifRecorder picks the frame source at runtime: PipeWire on Wayland, the
+                        kit's X11ShmGrabber on an xcb session (openX11Session, no window source).
   upload/              UploadManager (.sxcu-like destinations.json; $text$/$json:$/$regex:$;
                         type:"curl" shells to curl for FTP/SFTP).
   history/             HistoryStore (capture history + thumbnails).
-  hotkeys/             GlobalHotkeys (KGlobalAccel/DBus), PortalGlobalShortcuts (non-KDE).
+  hotkeys/             GlobalHotkeys (KGlobalAccel/DBus), PortalGlobalShortcuts (non-KDE), and
+                       on X11 the kit's X11Hotkeys (XGrabKey). AppContext::m_hotkeyBackend
+                       ("kglobalaccel" | "portal" | "x11") names which one won.
   theme/               ThemeController (module QML singleton; system-palette bridge; community
                         themes: <config>/themes/*.json, hot-reloaded), ThemeJson.h (theme-file
                         schema, header-only + unit-tested), IconImageProvider (image://icon/...
@@ -130,7 +145,7 @@ qml/                   APP-SPECIFIC QML only (module `Unisic`). The shared desig
 
 external/unisic-kit/   GIT SUBMODULE, module `Unisic.Kit` - the shared design system + a few
                        shared C++ pieces (ThemeController, IconImageProvider, ConfigPath,
-                       FfmpegUtil, X11Hotkeys). Edit here for anything reusable; the app must
+                       FfmpegUtil, X11Hotkeys, X11ShmGrabber). Edit here for anything reusable; the app must
                        not grow a private copy of a kit control.
   qml/Theme.qml        SINGLETON. 9 palettes computed from tokens. Property names are load-
                         bearing - ~19 files depend on them. Keep names stable.
@@ -215,6 +230,7 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 - **KWin `ScreenShot2` requires the installed `.desktop` file to declare `X-KDE-DBUS-Restricted-Interfaces` AND for `/proc/<pid>/exe` to match its quoted `Exec`.** A stale/unquoted Exec path silently breaks authorization. `main.cpp::ensureDesktopFile()` handles this - including a `kbuildsycoca6` rebuild so it works in the same session - and deliberately **skips it for AppImage runs** (transient FUSE mount path goes stale every run). Don't "simplify" this away.
 - **niri: any multi-monitor setup deterministically fails both the GNOME-direct and portal Screenshot paths** (niri's `ensure!(outputs.len() == 1)`), and niri implements no window/area/interactive screenshot over D-Bus. The working path is `grim` (`wlr-screencopy`). `CaptureManager::workspaceFallback` encodes the per-desktop chain - don't flatten it.
 - **`allowInteractive` must stay `true` for single-capture** (fresh-install safety net) **and `false` for the overlay freeze.**
+- **X11: never decide "X11" from `WAYLAND_DISPLAY`/`DISPLAY` presence.** Capture routing uses `XDG_SESSION_TYPE == "x11"` (`CaptureManager::isX11Session()`) because a stale `WAYLAND_DISPLAY` survives a Wayland→X11 relogin in the systemd user environment and would send the capture to a dead or *foreign* compositor; that same guard is why `grim` is skipped there. The runtime code paths (recorder, hotkeys) key on `QGuiApplication::platformName() == "xcb"` instead - what Qt actually connected to. Two different questions, two different tests; don't unify them.
 
 ### Overlay / editor (Qt Quick)
 
@@ -286,6 +302,7 @@ Before you claim a change works:
    - Recording change → record, confirm the output plays and no `ffmpeg` process is left behind.
 4. **Watch for leaks and stragglers:** no orphaned `ffmpeg`/`curl`/`grim`, no runaway CPU at idle, no growing RSS after repeated captures.
 5. **If you touched capture/hotkeys and can only test one compositor, say so explicitly** in the PR - the fallback chains differ per desktop and an untested branch is a likely regression.
+6. **If the change touches recording, hotkeys or the record border, name the session type too** (Wayland or X11). The X11 halves have their own dev buttons and F8 lines - `devTestX11Record` / `devTestX11Hotkeys`, both defined in `src/diag/SmokeTests.cpp` - and they report `SKIP (not an X11 session)` off X11, so a green F8 on Wayland proves nothing about them.
 
 Never report "done" for an untested runtime change. If you couldn't run it, state that plainly and describe what still needs verification.
 
@@ -324,7 +341,7 @@ Before opening a PR, confirm:
 
 ## 13. Quick "do NOT" list
 
-- ❌ Add X11 capture paths, screen-scraping, or security-model bypasses.
+- ❌ Route a **Wayland** session through X11, screen-scrape, or bypass the security model. (An X11-*session* path, gated on `xcb` and compile-guarded, is supported - §1.)
 - ❌ Introduce a QSettings group named `general`/`General`.
 - ❌ Verify persistence by reading from the writing process.
 - ❌ `qmlRegisterSingletonInstance(ThemeController)` into the `Unisic` URI.

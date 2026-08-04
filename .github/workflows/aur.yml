@@ -59,7 +59,32 @@ jobs:
             exit 1
           fi
           install -d -m 700 -o builder -g builder /home/builder/.ssh
-          printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
+          # base64, because this job runs in a container: the runner hands the
+          # step's environment to the container through a KEY=value file, where
+          # a value spanning lines stops at the first newline. A PEM key pasted
+          # in raw arrives as its BEGIN line and nothing else. A raw one is
+          # still accepted so an existing secret keeps working.
+          if [[ "$AUR_SSH_KEY" == *"PRIVATE KEY"* ]]; then
+            printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
+          else
+            printf '%s' "$AUR_SSH_KEY" | base64 -d > /home/builder/.ssh/aur
+          fi
+          # Before the check below, not with the rest at the end: ssh refuses a
+          # key file the world can read, and would report that as the format
+          # being wrong.
+          chmod 600 /home/builder/.ssh/aur
+          # A key ssh cannot parse fails five minutes later as a plain
+          # "Permission denied (publickey)", which reads as a wrong account
+          # rather than a wrong file. The public half - the one the AUR account
+          # page shows - lands here every time somebody copies from the website.
+          if ! ssh-keygen -y -f /home/builder/.ssh/aur >/dev/null 2>&1; then
+            # Lengths and a hash prefix, never the bytes: enough to tell a
+            # truncated secret from a wrong one without printing either.
+            echo "secret ${#AUR_SSH_KEY} bytes, key file $(wc -c < /home/builder/.ssh/aur) bytes, sha256 $(sha256sum < /home/builder/.ssh/aur | cut -c1-16)"
+            ssh-keygen -y -f /home/builder/.ssh/aur || true
+            echo "::error::AUR_SSH_KEY is not a usable OpenSSH private key. The AUR account page shows the PUBLIC half; the secret needs the private one (the file without .pub)."
+            exit 1
+          fi
           # The host key is PINNED rather than ssh-keyscan'd: a keyscan trusts
           # whatever answers on the day, which is exactly the thing a known
           # hosts file exists to prevent.

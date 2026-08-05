@@ -122,7 +122,7 @@ Window {
             App.showToast(qsTr("Close the editor first (unsaved annotations)"), true)
             return
         }
-        Qt.quit()
+        App.quitApp("Ctrl+Q / quit action")
     }
 
     // `enabled: !App.shortcutRecording` is REQUIRED: with the default
@@ -179,7 +179,7 @@ Window {
                 window.hide()
                 close.accepted = false
             } else {
-                Qt.quit()
+                App.quitApp("main window closed, hide-to-tray off or no tray")
             }
         }
     }
@@ -194,7 +194,7 @@ Window {
             if (App.editorWindowsOpen === 0 && !window.visible
                     && !(App.settings.minimizeToTrayOnClose && App.trayAvailable)
                     && !App.recording && !App.converting)
-                Qt.quit()
+                App.quitApp("last editor closed with no window and no tray")
         }
     }
 

@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.4" date="2026-08-05">
+      <description>
+        <p>The active window's area is one key away while you select: press W in the region selector and the window's rectangle is selected for you, ready to nudge, resize or confirm, in a screenshot, a text read, a GIF and a recording alike (needs KWin). A shape you drew keeps its handles on screen and can now be turned by a rotation grip, with Shift snapping to 15 degrees and the hit test following the rotation. A callout holds the words you type into it and sizes itself around them, so the bubble and its text move, resize and turn as one thing. The hotkey list leads with the five captures and keeps the rest behind one Show advanced shortcuts row. Shortcuts Unisic stopped using are removed from the KDE shortcut list for real now, the app no longer vanishes when it restarts itself after an update, and the pressed-key badge and click ripple work in the packages rather than only in a build you compiled yourself.</p>
+      </description>
+    </release>
     <release version="0.8.3" date="2026-08-04">
       <description>
         <p>A screenshot can be a GIF now, and pictures can change format on their own: when you bring one in, when a capture comes out too large, when it is uploaded, or on demand from History. The watermark can cover the whole picture instead of one croppable corner, with five layouts, a size setting and a live preview. Recording quality reads as a percent rather than an encoder number, each sound source can keep its own named track, the microphone can record from an input you pick, and the trim window mutes and balances those tracks with the preview playing your edits live. The capture overlay says which capture is running, as a badge or a faded icon with your selection cut out of it, and Settings shows a live picture of it without taking a capture. The variables a server or filename field understands are clickable chips now. Windows resize by their edges again, the wheel scrolls everywhere it used to crawl, an upload adds its link to the capture's own history tile instead of a second one, drawing no longer erases strokes underneath, and the installer fetches the newest version instead of explaining why you cannot have it.</p>

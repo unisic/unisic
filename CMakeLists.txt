@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.3 LANGUAGES CXX)
+project(unisic VERSION 0.8.4 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.3")
+set(UNISIC_VERSION_STRING "0.8.4")
 
 include(GNUInstallDirs)
 
@@ -57,6 +57,7 @@ qt_add_executable(unisic
     src/ImageEncode.h src/ImageEncode.cpp
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
+    src/capture/KWinWindowGeometry.h src/capture/KWinWindowGeometry.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp

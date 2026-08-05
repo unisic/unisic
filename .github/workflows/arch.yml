@@ -32,7 +32,7 @@ jobs:
             plasma-wayland-protocols \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kguiaddons libx11 libxext libxfixes libxcb
+            kguiaddons libx11 libxext libxfixes libxcb libinput
 
       - uses: actions/checkout@v4
         with:

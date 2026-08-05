@@ -1,6 +1,7 @@
 #include "UpdateChecker.h"
 #include "VersionCompare.h"
 #include "Settings.h"
+#include "diag/DiagLog.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -605,20 +606,45 @@ void UpdateChecker::restartNow(bool trayOnly)
     // The 1 s shim lets this instance's single-instance socket disappear
     // first — a fresh process that still finds it would hand off "show" to
     // the exiting old version and quit itself.
-    auto *proc = new QProcess;
-    proc->setProgram(QStringLiteral("/bin/sh"));
-    proc->setArguments({QStringLiteral("-c"),
-                        trayOnly ? QStringLiteral("sleep 1; exec \"$0\" --tray-only")
-                                 : QStringLiteral("sleep 1; exec \"$0\""),
-                        exe});
+    const QString shim = trayOnly ? QStringLiteral("sleep 1; exec \"$0\" --tray-only")
+                                  : QStringLiteral("sleep 1; exec \"$0\"");
     // The child must NOT inherit the staged-copy markers, or the fresh
     // bootstrap would skip its redirect and run the old packaged version.
     QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
     env.remove(QStringLiteral("UNISIC_STAGED"));
     env.remove(QStringLiteral("UNISIC_BOOTSTRAP_EXE"));
-    proc->setProcessEnvironment(env);
-    proc->startDetached();
-    delete proc;
+    const auto spawn = [&env](const QString &program, const QStringList &arguments) {
+        QProcess proc;
+        proc.setProgram(program);
+        proc.setArguments(arguments);
+        proc.setProcessEnvironment(env);
+        return proc.startDetached();
+    };
+
+    // startDetached does NOT escape the cgroup, and every desktop launch on a
+    // systemd session runs the app inside a unit (app-app.unisic.Unisic@*.service
+    // for the autostart entry and for a menu click alike). Units default to
+    // KillMode=control-group, so the moment this process quits systemd SIGTERMs
+    // everything left in the cgroup - including the sleeping shim, which is
+    // killed a second before it can exec. Measured: the replacement never
+    // started, and the app simply disappeared from the tray until launched by
+    // hand. systemd-run puts the relaunch in a unit of its own, outside the
+    // dying one. Fall back to the bare shim where there is no systemd-run
+    // (non-systemd session): there the old behaviour was already correct.
+    bool started = false;
+    const QString systemdRun = QStandardPaths::findExecutable(QStringLiteral("systemd-run"));
+    if (!systemdRun.isEmpty())
+        started = spawn(systemdRun, {QStringLiteral("--user"), QStringLiteral("--collect"),
+                                     QStringLiteral("--quiet"), QStringLiteral("--"),
+                                     QStringLiteral("/bin/sh"), QStringLiteral("-c"), shim, exe});
+    if (!started)
+        started = spawn(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), shim, exe});
+    if (!started) {
+        // Staying up beats vanishing: the tray still offers "Restart to update".
+        qWarning() << "Update restart aborted - could not spawn the replacement process";
+        return;
+    }
+    DiagLog::setQuitReason(QStringLiteral("update restart"));
     QCoreApplication::quit();
 }
 

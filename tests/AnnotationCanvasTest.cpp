@@ -732,7 +732,10 @@ void AnnotationCanvasTest::watermarkSizeScalesTheStamp()
                                                QStringLiteral("tile")));
 
     // A hand-edited config cannot ask for a stamp that is not an image: absurd
-    // values clamp instead of allocating, and the capture keeps its size.
+    // values clamp instead of allocating, and the capture keeps its size. The
+    // ink assertion is what caught the clamp floor being 4 px: that renders as
+    // literally nothing on a font set with no real font (an Arch build chroot,
+    // where this test failed while passing on a desktop), so the floor is 8.
     for (int scale : { -500, 0, 1, 100000 }) {
         const QImage out = stamped(QStringLiteral("band"), scale);
         QCOMPARE(out.size(), base.size());

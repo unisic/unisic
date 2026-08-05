@@ -222,11 +222,16 @@ Window {
                 canvas.commitText(textEditor.imgX, textEditor.imgY, textField.text)
             textEditor.visible = false
             textEditor.editingExisting = false
+            textEditor.inShape = false
             root.forceActiveFocus()
         }
         function closeTextBox() {
+            // Puts a live-previewed bubble back to the text it had before this
+            // edit, undo entry included.
+            canvas.cancelTextEdit()
             textEditor.visible = false
             textEditor.editingExisting = false
+            textEditor.inShape = false
             root.forceActiveFocus()
         }
 
@@ -441,14 +446,19 @@ Window {
             }
             onTextRequested: (x, y) => {
                 textEditor.editingExisting = false
+                textEditor.inShape = false
                 textEditor.imgX = x
                 textEditor.imgY = y
                 textEditor.visible = true
                 textField.text = ""
                 textField.forceActiveFocus()
             }
+            // A non-empty canvas.textEditRect means the string belongs INSIDE a
+            // shape (a callout): the box then tracks the bubble's writable area
+            // instead of floating at its corner, so typing is what you get.
             onTextEditRequested: (x, y, t) => {
                 textEditor.editingExisting = true
+                textEditor.inShape = canvas.textEditRect.width > 0
                 textEditor.imgX = x
                 textEditor.imgY = y
                 textEditor.visible = true
@@ -855,6 +865,11 @@ Window {
             id: textEditor
             property real imgX: 0
             property real imgY: 0
+            // True for a callout: the box IS the bubble's writable area, tracking
+            // it live as the typing grows the bubble. The glyphs are then the
+            // canvas's own (the annotation is repainted on every keystroke), so
+            // this box contributes only the caret.
+            property bool inShape: false
             property bool editingExisting: false
             property alias text: textField.text
             visible: false
@@ -862,26 +877,50 @@ Window {
                 overlayController.textEditing = visible
                 if (visible) textField.forceActiveFocus()
             }
-            x: Math.min(imgX * canvas.renderScale, root.width - width - 8)
-            y: Math.min(imgY * canvas.renderScale, root.height - height - 8)
-            width: 360
-            height: Math.max(40, textField.implicitHeight + 16)
+            // A bubble sits inside the image by construction, so its box is
+            // placed on it, never nudged back inside the overlay.
+            x: inShape ? canvas.textEditRect.x * canvas.renderScale
+                       : Math.min(imgX * canvas.renderScale, root.width - width - 8)
+            y: inShape ? canvas.textEditRect.y * canvas.renderScale
+                       : Math.min(imgY * canvas.renderScale, root.height - height - 8)
+            width: inShape ? canvas.textEditRect.width * canvas.renderScale : 360
+            height: inShape ? canvas.textEditRect.height * canvas.renderScale
+                            : Math.max(40, textField.implicitHeight + 16)
             z: 300
 
             Rectangle {
                 anchors.fill: parent
                 radius: Theme.radiusS
-                color: Theme.alpha(Theme.mediaBase, 0.6)
+                // Inside a bubble the panel would only dim the text it is sitting
+                // on: the border alone marks the edited area.
+                color: textEditor.inShape ? "transparent" : Theme.alpha(Theme.mediaBase, 0.6)
                 border.width: 1
-                border.color: Theme.accent
+                border.color: Theme.alpha(Theme.accent, textEditor.inShape ? 0.5 : 1.0)
             }
             // TextEdit (multi-line): Enter types a new line, Ctrl+Enter commits.
             TextEdit {
                 id: textField
                 anchors.fill: parent
-                anchors.margins: 8
+                anchors.margins: textEditor.inShape ? 0 : 8
+                // Inside a bubble the preview matches the painter: centred both
+                // ways and wrapped. A Text annotation breaks only where you
+                // type a newline, so it must not wrap.
+                horizontalAlignment: textEditor.inShape ? TextEdit.AlignHCenter
+                                                        : TextEdit.AlignLeft
+                verticalAlignment: textEditor.inShape ? TextEdit.AlignVCenter
+                                                      : TextEdit.AlignTop
+                wrapMode: textEditor.inShape ? TextEdit.Wrap : TextEdit.NoWrap
                 focus: true
-                color: canvas.strokeColor
+                // In a bubble the canvas paints the real glyphs under this box on
+                // every keystroke, so drawing them again here would only double
+                // them, half a pixel off.
+                color: textEditor.inShape ? "transparent" : canvas.strokeColor
+                selectionColor: Theme.alpha(Theme.accent, 0.45)
+                selectedTextColor: color
+                // Its height comes from the line, its width from here.
+                cursorDelegate: Rectangle { width: 2; color: Theme.accent }
+                // Grow the bubble as the words are typed, not at commit.
+                onTextChanged: if (textEditor.inShape) canvas.previewCalloutText(text)
                 font.family: canvas.fontFamily === "" ? Qt.application.font.family : canvas.fontFamily
                 font.pixelSize: canvas.fontSize * canvas.renderScale
                 font.bold: canvas.fontBold
@@ -911,9 +950,11 @@ Window {
             }
             Text {
                 visible: textField.text === ""
-                anchors.left: parent.left
-                anchors.top: parent.top
-                anchors.margins: 8
+                anchors.fill: parent
+                anchors.margins: textEditor.inShape ? 0 : 8
+                horizontalAlignment: textEditor.inShape ? Text.AlignHCenter : Text.AlignLeft
+                verticalAlignment: textEditor.inShape ? Text.AlignVCenter : Text.AlignTop
+                elide: Text.ElideRight
                 text: qsTr("Text… (Ctrl+Enter finishes)")
                 color: Theme.textTertiary
                 font.pixelSize: canvas.fontSize * canvas.renderScale

@@ -32,7 +32,7 @@ sha256sums=('SKIP')
 
 build() {
     # Without an explicit build number CMake defaults UNISIC_BUILD to "dev",
-    # which also flips UNISIC_DEV_BUILD to ON — a packaged build must be a
+    # which also flips UNISIC_DEV_BUILD to ON - a packaged build must be a
     # release build with a real number in the sidebar footer.
     export UNISIC_BUILD_NUMBER="${UNISIC_BUILD_NUMBER:-${pkgver}-${pkgrel}}"
     cmake -S "${srcdir}/${pkgname}-${pkgver}" -B build -G Ninja \
@@ -40,6 +40,16 @@ build() {
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DUNISIC_DEV_BUILD=OFF
     cmake --build build
+}
+
+check() {
+    # This job is the pipeline's only run of the suite in a container with NO
+    # fonts installed, and that is why it exists: a watermark stamp clamped to
+    # 4 px rendered blank there while passing on every fonted machine, and the
+    # AUR source recipe (which does run check()) was the first place anyone saw
+    # it - two releases after it shipped. BUILD_TESTING defaults on, so the
+    # targets are already built; the suite is pure logic, hence offscreen.
+    QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
 }
 
 package() {

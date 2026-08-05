@@ -6,6 +6,16 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.5
+
+### English
+**Fixed**
+- **A watermark set to the smallest size is still a mark you can see**: the lowest step of the Size setting scaled the stamp down to 4 pixels, which is not merely too small to read - on a system carrying only a minimal set of fonts it drew nothing at all, so the watermark silently went missing. The smallest stamp is 8 pixels now, and a watermark left at any normal size is unchanged, down to the pixel.
+
+### Polski
+**Naprawione**
+- **Znak wodny ustawiony na najmniejszy rozmiar nadal jest znakiem, który widać**: najniższy krok ustawienia Rozmiar skalował stempel do 4 pikseli, co nie tylko jest zbyt małe, żeby przeczytać - na systemie z samym minimalnym zestawem fontów nie rysowało zupełnie nic, więc znak wodny po cichu znikał. Najmniejszy stempel ma teraz 8 pikseli, a znak wodny zostawiony w dowolnym normalnym rozmiarze jest niezmieniony, co do piksela.
+
 ## 0.8.4
 
 ### English

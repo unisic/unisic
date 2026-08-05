@@ -37,10 +37,19 @@ bool isTiled(const QString &pattern)
 // the pattern would have chosen and the sliders below are pure multipliers; the
 // outer bound is only a backstop against a hand-edited config asking for a
 // 100000 px font, which would allocate a stamp larger than the capture.
+//
+// The lower bound is 8 px, not 4: a 4 px stamp is not merely illegible, on a
+// minimal font set it paints NOTHING. Measured in an Arch build chroot, where
+// fc-list is empty and Qt falls back to its three generic families - "Unisic"
+// bold at 4 px covered 0 pixels, at 8 px it covered 132. Every pattern's own
+// floor is 12 px or more, so this only bites when the Size setting scales one
+// down, and it never moves a stamp at 100.
+constexpr int kMinStampPx = 8;
+
 int applyScale(int px, int scale, int hardMax)
 {
     const qint64 scaled = qint64(px) * qBound(10, scale, 400) / 100;
-    return int(qBound(qint64(4), scaled, qint64(hardMax)));
+    return int(qBound(qint64(kMinStampPx), scaled, qint64(hardMax)));
 }
 
 // How big one stamp is, as a fraction of the capture's short side. A tiled

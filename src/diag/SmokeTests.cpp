@@ -9,6 +9,7 @@
 // stays a file-static in this file.
 
 #include "AppContext.h"
+#include "capture/KWinWindowGeometry.h"
 #include "unisic_build_date.h" // generated into the build dir (cmake/BuildDate.cmake)
 #include "Settings.h"
 #include "capture/CaptureManager.h"
@@ -488,9 +489,65 @@ static QString calloutCheck()
     canvas.mouseMoveEvent(&move);
     canvas.mouseReleaseEvent(&release);
     const QImage out = canvas.rendered();
-    return canvas.annotCount() == 1 && out.pixelColor(38, 110).lightness() < 80
-               ? QStringLiteral("PASS (bubble + tail)")
-               : QStringLiteral("FAIL (bubble did not render)");
+    if (canvas.annotCount() != 1 || out.pixelColor(38, 110).lightness() >= 80)
+        return QStringLiteral("FAIL (bubble did not render)");
+    // The bubble carries its own text: the drag leaves it selected and raises
+    // the in-place editor, and commitTextEdit writes into that selection.
+    if (!canvas.hasAnnotSelection())
+        return QStringLiteral("FAIL (drawn callout lost its selection)");
+    // The text is drawn in the stroke colour, which is still the black of the
+    // fill above: black on black changes no pixel, and this step would then be
+    // checking nothing. Restyle the selected bubble first (its own check: a
+    // style change must reach a shape a drag just placed).
+    canvas.setStrokeColor(Qt::white);
+    const QImage bubble = canvas.rendered();
+    if (bubble == out)
+        return QStringLiteral("FAIL (restyling the drawn callout did nothing)");
+    canvas.commitTextEdit(QStringLiteral("Unisic"));
+    if (canvas.rendered() == bubble || canvas.annotCount() != 1)
+        return QStringLiteral("FAIL (callout text did not render)");
+    canvas.commitTextEdit(QString());
+    if (canvas.annotCount() != 1 || canvas.rendered() != bubble)
+        return QStringLiteral("FAIL (empty text must keep the bubble)");
+
+    // A click, with no drag at all, places a bubble that then sizes itself
+    // around what is typed into it instead of being stretched by hand.
+    InputCanvas clicked;
+    clicked.setWidth(300);
+    clicked.setHeight(220);
+    QImage plain(300, 220, QImage::Format_ARGB32_Premultiplied);
+    plain.fill(Qt::white);
+    clicked.setImage(plain);
+    clicked.setTool(AnnotationCanvas::Callout);
+    clicked.setStrokeColor(Qt::black);
+    const QPointF at(60, 200);
+    QMouseEvent tapDown(QEvent::MouseButtonPress, at, at, Qt::LeftButton,
+                        Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent tapUp(QEvent::MouseButtonRelease, at, at, Qt::LeftButton,
+                      Qt::NoButton, Qt::NoModifier);
+    clicked.mousePressEvent(&tapDown);
+    clicked.mouseReleaseEvent(&tapUp);
+    if (clicked.annotCount() != 1 || !clicked.hasAnnotSelection())
+        return QStringLiteral("FAIL (a click placed no callout)");
+    clicked.selectAnnotAt(150, 60);
+    if (clicked.hasAnnotSelection())
+        return QStringLiteral("FAIL (the click-placed bubble is already too tall)");
+    clicked.selectAnnotAt(100, 150);
+    // Typed live, the way the QML editor feeds it: the bubble grows under the
+    // caret, before anything is committed.
+    const QString note = QStringLiteral(
+        "A note long enough that the bubble has to grow around it instead of "
+        "shrinking its own letters");
+    for (int i = 1; i < note.size(); i += 9)
+        clicked.previewCalloutText(note.left(i));
+    clicked.previewCalloutText(note);
+    clicked.selectAnnotAt(150, 60);
+    if (!clicked.hasAnnotSelection())
+        return QStringLiteral("FAIL (the bubble did not grow around its text)");
+    clicked.commitTextEdit(note);
+    return clicked.annotCount() == 1
+               ? QStringLiteral("PASS (bubble + tail + live text + click to place)")
+               : QStringLiteral("FAIL (committing the typed text lost the bubble)");
 }
 
 static QString shiftSnapCheck()
@@ -600,7 +657,15 @@ void AppContext::devTestKeystrokeBadge()
 {
     if (!devBuild())
         return;
-    showToast(tr("Dev: keystroke badge: %1").arg(keystrokeBadgeCheck()));
+    // Says the access state next to the render check: the badge rendering fine
+    // while the row stays greyed is the exact confusion this pane exists to end.
+    const QString fix = inputAccessFixCommand();
+    showToast(tr("Dev: keystroke badge: %1; input access: %2")
+                  .arg(keystrokeBadgeCheck(),
+                       keystrokeCaptureBlockedReason().isEmpty()
+                           ? QStringLiteral("OK")
+                           : (fix.isEmpty() ? QStringLiteral("not built")
+                                            : QStringLiteral("blocked, fix: %1").arg(fix))));
 }
 
 void AppContext::devTestCustomTheme()
@@ -1353,7 +1418,39 @@ static QString shapeEditCheck()
     c.undo(); // ...and the color change (coalesced separately)
     if (c.annotCount() != 1)
         return QStringLiteral("FAIL (undo lost the shape)");
-    return QStringLiteral("PASS (select, restyle, move, undo)");
+
+    // Rotation: a drawn rectangle keeps its handles and grip, and turning it has
+    // to move the render AND the hit test together (a rotated shape that still
+    // selects at its old, axis-aligned place is the failure mode).
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } r;
+    r.setWidth(200);
+    r.setHeight(120);
+    r.setImage(base);
+    r.setTool(AnnotationCanvas::Rect);
+    r.setShapeFillEnabled(true);
+    {
+        const QPointF from(40, 50), to(160, 70); // 120x20 about (100,60)
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        r.mousePressEvent(&p);
+        QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        r.mouseMoveEvent(&m);
+        QMouseEvent rel(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        r.mouseReleaseEvent(&rel);
+    }
+    if (r.annotCount() != 1 || !r.hasAnnotSelection())
+        return QStringLiteral("FAIL (drawn rectangle did not stay selected)");
+    const QImage flat = r.rendered();
+    r.rotateSelectedAnnot(90);
+    if (r.rendered() == flat)
+        return QStringLiteral("FAIL (rotation did not change the render)");
+    r.selectAnnotAt(100, 20); // inside only once turned (20x120 about (100,60))
+    if (!r.hasAnnotSelection())
+        return QStringLiteral("FAIL (hit-test did not follow the rotation)");
+    return QStringLiteral("PASS (select, restyle, move, rotate, undo)");
 }
 
 void AppContext::devTestShapeEdit()
@@ -2262,6 +2359,40 @@ void AppContext::devTestFilename()
                   .arg(m_settings->filenameCounter())
                   .arg(m_settings->dateSubfolders() ? tr("on") : tr("off"),
                        m_settings->stripMetadata() ? tr("on") : tr("off")));
+}
+
+void AppContext::devTestActiveWindowGeometry()
+{
+    if (!devBuild())
+        return;
+    if (!KWinWindowGeometry::isAvailable()) {
+        showToast(tr("Dev: active-window geometry needs KWin on the session bus"), true);
+        return;
+    }
+    // Deliberately reports the raw KWin answer, not the converted crop: when the
+    // selected area is off, the first question is always whether KWin's rect or
+    // our screen conversion is the wrong one.
+    auto *geom = new KWinWindowGeometry(this);
+    geom->queryActiveWindow([this, geom](const QRect &r, const QString &err) {
+        geom->deleteLater();
+        if (!err.isEmpty()) {
+            showToast(tr("Dev: active-window geometry FAILED - %1").arg(err), true);
+            return;
+        }
+        QScreen *s = QGuiApplication::screenAt(r.center());
+        // Second half: what the overlay's W key would select on that screen,
+        // at 1:1 freeze scale. Same answer as the rect above when the window
+        // is fully on one monitor - a difference means the clip or the origin
+        // shift is off, which is the only arithmetic between the two.
+        const QRectF sel = OverlayController::selectionForScreen(
+            r, s, s ? s->geometry().size() : QSize());
+        showToast(tr("Dev: active window %1x%2 at %3,%4 (logical) on %5, DPR %6; overlay selects %7x%8 at %9,%10")
+                      .arg(r.width()).arg(r.height()).arg(r.x()).arg(r.y())
+                      .arg(s ? s->name() : tr("no screen"))
+                      .arg(s ? s->devicePixelRatio() : 0.0)
+                      .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                      .arg(qRound(sel.x())).arg(qRound(sel.y())));
+    });
 }
 
 void AppContext::devTestCardPreview()
@@ -4003,6 +4134,20 @@ void AppContext::runSmokeTest()
                  + (keystrokeCaptureBlockedReason().isEmpty()
                         ? QStringLiteral("PASS (/dev/input readable)")
                         : QStringLiteral("SKIP (%1)").arg(keystrokeCaptureBlockedReason())));
+        // The Settings row offers its fix button off this string, and it must be
+        // offered ONLY where a command would help: a package built without
+        // libinput cannot be fixed by joining a group, and a working setup has
+        // nothing to fix. Getting this wrong sends the user to run a pointless
+        // sudo command, which is exactly the kind of advice a tool must not give.
+        const bool fixOffered = !inputAccessFixCommand().isEmpty();
+        const bool fixWanted = InputPermission::probe() == InputPermission::NoPermission;
+        smokeLog(QStringLiteral("input access fix hint: ")
+                 + (fixOffered == fixWanted
+                        ? QStringLiteral("PASS (%1)").arg(fixOffered
+                                                              ? inputAccessFixCommand()
+                                                              : QStringLiteral("nothing to fix"))
+                        : QStringLiteral("FAIL (offered=%1, wanted=%2)")
+                              .arg(fixOffered).arg(fixWanted)));
         smokeNext();
     });
 
@@ -4149,7 +4294,9 @@ void AppContext::runSmokeTest()
     });
 
     // 3e3gb) Callout stays an ordinary vector annotation: no extra canvas
-    // buffer and its tail must survive the image-space composite.
+    // buffer, its tail must survive the image-space composite, and it holds
+    // its own text (typed in place, growing the bubble on every keystroke, not
+    // a Text annotation laid on top).
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("callout: ") + calloutCheck());
         smokeNext();
@@ -4516,6 +4663,50 @@ void AppContext::runSmokeTest()
             QTimer::singleShot(3000, this, [this, live] { if (*live && recording()) stopRecording(); });
         });
         startVideoScreen();
+    });
+
+    // 4c) active-window geometry - the input of the overlay's W key. Both the
+    // query and the mapping are exercised, since the rect (KWin script API
+    // renames, unloaded scripting module, D-Bus name clash) and the map into
+    // one screen's frozen image are what can break.
+    m_smokeSteps.append([this] {
+        if (!KWinWindowGeometry::isAvailable()) {
+            smokeLog(QStringLiteral("active window geometry: SKIP (no KWin scripting)"));
+            smokeNext();
+            return;
+        }
+        auto *geom = new KWinWindowGeometry(this);
+        geom->queryActiveWindow([this, geom](const QRect &r, const QString &err) {
+            geom->deleteLater();
+            if (!err.isEmpty()) {
+                smokeLog(QStringLiteral("active window geometry: FAIL (%1)").arg(err));
+            } else if (r.isEmpty()) {
+                smokeLog(QStringLiteral("active window geometry: FAIL (empty rect)"));
+            } else {
+                smokeLog(QStringLiteral("active window geometry: PASS (%1x%2 at %3,%4)")
+                             .arg(r.width()).arg(r.height()).arg(r.x()).arg(r.y()));
+                // What the overlay's W key selects. A doubled image size stands
+                // in for a scaled freeze, so a mapping that silently used the
+                // logical geometry would come back at half the size.
+                QScreen *screen = QGuiApplication::screenAt(r.center());
+                const QSize imgSize = screen ? screen->geometry().size() * 2 : QSize();
+                const QRectF sel = OverlayController::selectionForScreen(r, screen, imgSize);
+                const QRect want = r.intersected(screen ? screen->geometry() : QRect());
+                if (!screen)
+                    smokeLog(QStringLiteral("active window mapping: FAIL (no screen at %1,%2)")
+                                 .arg(r.center().x()).arg(r.center().y()));
+                else if (qRound(sel.width()) != want.width() * 2
+                         || qRound(sel.height()) != want.height() * 2)
+                    smokeLog(QStringLiteral("active window mapping: FAIL (%1x%2, expected %3x%4)")
+                                 .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                                 .arg(want.width() * 2).arg(want.height() * 2));
+                else
+                    smokeLog(QStringLiteral("active window mapping: PASS (%1x%2 in image px on %3)")
+                                 .arg(qRound(sel.width())).arg(qRound(sel.height()))
+                                 .arg(screen->name()));
+            }
+            smokeNext();
+        });
     });
 
     // 5) capture notification

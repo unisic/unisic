@@ -45,10 +45,13 @@
 // every settings change since launch is lost. Self-pipe pattern: the handler
 // only write()s (async-signal-safe); the notifier quits the event loop.
 static int sigQuitFd[2] = {-1, -1};
-static void unixSignalHandler(int)
+static void unixSignalHandler(int sig)
 {
-    const char one = 1;
-    (void)::write(sigQuitFd[1], &one, sizeof(one));
+    // Carry the signal NUMBER, not a bare token: "the app vanished" reports
+    // hinge on whether the quit came from a SIGTERM (systemd stopping the unit,
+    // a session manager) or from inside the app, and the log has to say which.
+    const char num = static_cast<char>(sig);
+    (void)::write(sigQuitFd[1], &num, sizeof(num));
 }
 static void installSignalHandlers(QCoreApplication *app)
 {
@@ -56,8 +59,15 @@ static void installSignalHandlers(QCoreApplication *app)
         return; // CLOEXEC: ffmpeg/curl/grim children must not inherit the quit pipe
     auto *notifier = new QSocketNotifier(sigQuitFd[0], QSocketNotifier::Read, app);
     QObject::connect(notifier, &QSocketNotifier::activated, app, [] {
-        char tmp;
-        (void)::read(sigQuitFd[0], &tmp, sizeof(tmp));
+        char sig = 0;
+        (void)::read(sigQuitFd[0], &sig, sizeof(sig));
+        const int number = int(sig);
+        DiagLog::setQuitReason(QStringLiteral("signal %1 (%2)")
+                                   .arg(number)
+                                   .arg(QLatin1String(number == SIGTERM ? "SIGTERM"
+                                                      : number == SIGINT ? "SIGINT"
+                                                      : number == SIGHUP ? "SIGHUP"
+                                                                         : "other")));
         QCoreApplication::quit();
     });
     struct sigaction sa{};
@@ -800,7 +810,10 @@ int main(int argc, char *argv[])
     }
 
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
-                     [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
+                     [] {
+                         DiagLog::setQuitReason(QStringLiteral("QML root object failed to load"));
+                         QCoreApplication::exit(1);
+                     }, Qt::QueuedConnection);
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Unisic/qml/Main.qml")));
 
     // Tray app: the main window spends most of its life hidden. Qt Quick's

@@ -89,6 +89,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // saved "next shape" defaults).
     Q_PROPERTY(bool hasAnnotSelection READ hasAnnotSelection NOTIFY selectedAnnotChanged)
     Q_PROPERTY(int selectedAnnotTool READ selectedAnnotTool NOTIFY selectedAnnotChanged)
+    // Image-space area the selected Callout writes its text into, empty for
+    // anything else. The floating text editor tracks it, so the caret sits on
+    // the painted glyphs and follows the bubble as previewCalloutText grows it.
+    Q_PROPERTY(QRectF textEditRect READ textEditRect NOTIFY textEditRectChanged)
     // OCR text-pick mode (editor): recognized words are highlighted and the
     // user clicks / rubber-bands to select them, then copies. ocrBusy is true
     // while recognition runs; hasOcrSelection gates the "Copy selection" button.
@@ -113,7 +117,7 @@ public:
         ObjectPick,   // 13 — reserved (removed: was smart-pick overlay tool)
         EditShapes,  // 14 — select a placed annotation to move/resize/restyle/delete it
         PastedImage, // 15 — editor-only image inserted from the system clipboard
-        Callout,     // 16 — speech-bubble shape; text is added with the text tool
+        Callout,     // 16 - speech bubble; carries its own text (a.text), typed in place
         Measure,     // 17 — distance/angle ruler retained in the export
         Magnify,     // 18 — loupe: enlarged copy of a dragged source region
         Eyedropper   // 19 — click a pixel to adopt its colour as the stroke colour
@@ -223,8 +227,19 @@ public:
     // re-edit). No-ops when nothing / a non-Text shape is selected.
     Q_INVOKABLE void removeSelectedAnnot();
     Q_INVOKABLE void nudgeSelectedAnnot(qreal dx, qreal dy);
+    // Turn the selected annotation by `degrees` (clockwise, about its centre).
+    // No-op for a shape that cannot carry an angle (see canRotate).
+    Q_INVOKABLE void rotateSelectedAnnot(qreal degrees);
     Q_INVOKABLE void clearAnnotSelection();
     Q_INVOKABLE void commitTextEdit(const QString &text);
+    QRectF textEditRect() const;
+    // Live text while the user is still typing into a Callout: the bubble
+    // re-wraps and grows on every keystroke instead of jumping at commit time.
+    // Costs one undo entry for the whole edit (taken on the first keystroke,
+    // so Ctrl+Z lands on the bubble as it was before the typing), and
+    // cancelTextEdit takes that entry back out when the edit is abandoned.
+    Q_INVOKABLE void previewCalloutText(const QString &text);
+    Q_INVOKABLE void cancelTextEdit();
     // Select the topmost annotation at the given image-space point (-1 → none).
     Q_INVOKABLE void selectAnnotAt(qreal imgX, qreal imgY);
     Q_INVOKABLE int annotCount() const { return int(m_items.size()); }
@@ -312,10 +327,13 @@ signals:
     void imageChanged();
     void renderScaleChanged();
     void textRequested(qreal imgX, qreal imgY);
-    // EditShapes: a Text annotation was double-clicked — QML reopens the
-    // floating editor at (imgX,imgY) prefilled with `text`; commitTextEdit
-    // writes the result back into the selected annotation.
+    // A placed annotation wants its string edited - QML reopens the floating
+    // editor at (imgX,imgY) prefilled with `text`; commitTextEdit writes the
+    // result back into the selected annotation. For a Callout the editor is a
+    // caret over the bubble instead of a box beside it: `textEditRect` is
+    // non-empty then, and QML tracks it (see previewCalloutText).
     void textEditRequested(qreal imgX, qreal imgY, const QString &text);
+    void textEditRectChanged();
     void selectionConfirmed();
     // Right click is deliberately a context-free quick copy. The editor copies
     // its composite; the screenshot overlay confirms + forces a copy.
@@ -355,6 +373,12 @@ private:
         // Magnify: the source region whose pixels the loupe shows; `rect` is
         // the destination. Empty while the source is still being dragged out.
         QRectF srcRect;
+        // Rotation in degrees, clockwise, about rect.normalized().center().
+        // Only the shapes canRotate() accepts ever hold a non-zero angle: the
+        // effect tools (Blur/Pixelate/SmartErase/Magnify) sample the base image
+        // through their AXIS-ALIGNED rect, so a rotated one would paint pixels
+        // that were never under it.
+        qreal angle = 0;
         int fontSize = 18;
         QString fontFamily;         // empty = default UI font
         bool bold = true;
@@ -387,15 +411,28 @@ private:
     // drag promotes it to DrawDrag (beginDraw), a bare click instead
     // selects/deselects the shape under the cursor (direct shape editing
     // without switching to the Edit tool).
+    // RotateAnnot: the grip above the selected shape's top edge is being dragged.
     enum DragMode { NoDrag, DrawDrag, PendingDraw, NewSelection, MoveSelection, ResizeSelection,
-                    PendingMoveAnnot, MoveAnnot, ResizeAnnot };
+                    PendingMoveAnnot, MoveAnnot, ResizeAnnot, RotateAnnot };
 
     // Start a fresh in-progress annotation for the active tool at `at`
     // (shared by the immediate Pen path and the PendingDraw promotion).
     void beginDraw(const QPointF &at);
 
+    // Start the drag a press on handle `h` of the selected annotation means
+    // (index 8 = rotate, anything else = resize).
+    void beginHandleDrag(int h, const QPointF &at);
+
     void pushUndo();
     void drawAnnot(QPainter &p, const Annot &a) const;
+    void drawCalloutText(QPainter &p, const Annot &a) const;
+    // The bubble grown (never shrunk) to hold its own text, anchored on its
+    // bottom-left so the tail keeps pointing at what it was aimed at.
+    QRectF calloutFittedRect(const Annot &a) const;
+    void requestCalloutTextEdit(int index);
+    // Click (no drag) with the Callout tool: a default bubble whose tail points
+    // at the click, sized by its text from then on.
+    void placeCalloutAt(const QPointF &at);
     void drawAll(QPainter &p) const;
     // A stroke drawn as a freehand path (accumulated points) rather than a
     // dragged rect: the Pen, or the Highlight tool in freehand marker mode.
@@ -404,6 +441,10 @@ private:
     // Image-space bounds of an annotation incl. stroke/arrow-head slack; used
     // to repaint only the dirty region while drag-drawing.
     QRectF annotBoundsImg(const Annot &a) const;
+    // annotBoundsImg plus the room the SELECTION chrome takes (the rotation
+    // grip stands well above the shape) - the dirty rect while dragging the
+    // selected shape, or the grip's stalk is left behind as a trail.
+    QRectF annotChromeBoundsImg(const Annot &a) const;
     // Repaint only the given image-space rect (converted to item coords with a
     // small slack for borders/handles) instead of the whole ~MP base — used by
     // the move/resize/selection drags so a 4K capture doesn't get resampled in
@@ -422,13 +463,33 @@ private:
     // index under imgPos (-1 none). selectAnnot copies the shape's style into
     // the canvas "current" props so the props bar reflects it, then emits.
     int annotAt(const QPointF &imgPos) const;
-    int handlesForSelected(QPointF out[8]) const;
+    // Fills the handle points and returns the count: 8 resize handles for the
+    // rect-like shapes, 2 endpoints for line/arrow/measure, 0 for the move-only
+    // ones (pen/text/step). A rotatable shape gets ONE more, index 8, the
+    // rotation grip sitting above its top edge - so index 8 is always the grip
+    // and never a resize handle.
+    int handlesForSelected(QPointF out[9]) const;
     int hitAnnotHandle(const QPointF &imgPos) const;
+    // Which shapes may carry a non-zero Annot::angle (see the field's comment).
+    static bool canRotate(Tool t)
+    { return t == Rect || t == Ellipse || t == Callout || t == PastedImage; }
+    // Grip distance above the top edge, in image px - constant on SCREEN like
+    // the handles themselves, so it does not drift with zoom.
+    qreal rotateGripDistImg() const;
+    // World point mapped into the annotation's un-rotated space, so every
+    // hit-test keeps working on the axis-aligned rect it was written for.
+    static QPointF unrotated(const Annot &a, const QPointF &imgPos);
     // Cursor for direct shape editing (resize handle → directional, body →
     // pointing hand, none → arrow). Shared by the Edit tool and the drawing-
     // tool direct-manipulation path so both give the same handle feedback.
     Qt::CursorShape annotEditCursor(const QPointF &imgPos) const;
     void selectAnnot(int index);
+    // Select the shape a drag has just placed. Not the same thing as clicking a
+    // shape: the props bar already matches it (it was drawn with the live
+    // style), so no style backup is taken, and its BODY does not take a press -
+    // only its handles do. Overlapping strokes must keep working: a pen stroke
+    // started inside the previous one has to draw, not move it.
+    void selectDrawn(int index);
     // Restore the user's pre-selection style captured in m_styleBackup. Called
     // from every deselect path so a clicked shape's style can't leak into the
     // drawing defaults. Caller must have already cleared m_selectedAnnot.
@@ -484,6 +545,9 @@ private:
     // must hand the user their own defaults back — not the shape's style.
     Annot m_styleBackup;
     bool m_styleBackupValid = false;
+    // The current selection came from selectDrawn(), not from a click: handles
+    // live, body inert (see selectDrawn). Cleared by any other selection change.
+    bool m_drawnSelection = false;
 
     bool m_selectionMode = false;
     bool m_confirmOnRelease = false;
@@ -535,8 +599,19 @@ private:
     int m_selectedAnnot = -1;
     QRectF m_annotStartRect;               // rect at the start of a move/resize
     QVector<QPointF> m_annotStartPoints;   // pen points at the start of a move
+    // Angle between the press point and the shape's own angle, so the grip does
+    // not jump to the cursor when the drag starts off-grip.
+    qreal m_rotateGrab = 0;
     bool m_suppressStyleToSelected = false;// true while selectAnnot seeds props
     bool m_resizeUndoPending = false;      // push one undo on the resize's first move
+
+    // A Callout's text being typed live (previewCalloutText). The backup is what
+    // Escape restores; the index is kept separately because a preview must never
+    // rewrite a different shape if the selection moved under it.
+    bool m_textEditLive = false;
+    int m_textEditIndex = -1;
+    QString m_textEditBackup;
+    QRectF m_textEditBackupRect;
 
     // OCR text-pick mode. Glyphs are in reading order; the selection is two
     // CARET positions in [0..N] (a caret at k sits before glyph k), dragged like

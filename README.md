@@ -42,13 +42,13 @@ Built for **Linux Wayland** on legitimate APIs only (xdg-desktop-portal, KWin Sc
 
 - **Capture** - full screen (all monitors), an interactive region with live dimensions, or the active window; configurable delay, optional cursor.
 - **Annotate before the shot** - the selection overlay is a canvas: arrows, shapes, text, blur and numbered steps on the frozen screen; Enter burns them into the crop.
-- **Post-capture editor** - opens automatically if you want it: 12 tools including highlight, pixelate, smart eraser and crop, with undo/redo and zoom.
+- **Post-capture editor** - opens automatically if you want it: 17 tools including highlight, pixelate, smart eraser, magnifier, callout and crop, with undo/redo and zoom.
 - **Record GIF & video** - region, full screen or window → GIF, MP4 or WebM, with optional system and microphone audio. <kbd>Ctrl</kbd>+<kbd>Esc</kbd> always stops.
 - **Extract text & codes** - OCR any region to copy its text, or point it at a QR/barcode to copy the payload.
 - **Upload anywhere** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, built-in hosts (catbox, Imgur…); the link auto-copies.
 - **History** - every capture in a thumbnail grid; deleting moves the file to the trash.
 - **Tray, hotkeys & 9 themes** - quick-menu tray icon, fully rebindable global hotkeys, nine palettes including one that follows your system light/dark scheme and accent color.
-- **Languages** - English, Polish, Spanish, Italian and French; follows your system locale or pick one in Settings.
+- **Languages** - English, Polish, Spanish, Italian, French, Russian and German; follows your system locale or pick one in Settings.
 
 ## X11 support
 

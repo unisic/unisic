@@ -30,6 +30,7 @@ private slots:
     void selectionAnnouncedBeforeStyleSeeding();
     void editShapesSelectMoveDelete();
     void drawToolClickSelectsAndMoves();
+    void rotateGripTurnsShapeAndHitTest();
     void captureOnReleaseConfirms();
     void ocrSelectionCreatesLineBatchedAnnotations();
     void ocrCaretSelectionIsCharacterPrecise();
@@ -43,6 +44,9 @@ private slots:
     void watermarkSizeScalesTheStamp();
     void mockCaptureCarriesLightAndDarkAreas();
     void calloutRendersTailAndCanBeSelected();
+    void calloutCarriesItsOwnText();
+    void calloutClickPlacesAndFitsItsText();
+    void calloutGrowsWhileTyping();
     void arrowAndMeasureRenderAndCanBeSelected();
     void smartEraseRebuildsFlatBackground();
     void smartEraseFollowsGradientBackground();
@@ -137,6 +141,10 @@ void AnnotationCanvasTest::deselectRestoresStrokeStyle()
     canvas.setShapeFillEnabled(true);
     canvas.setStrokeColor(Qt::red);
     drag(canvas, QPointF(50, 50), QPointF(150, 150)); // a red shape
+    // A drawn rectangle stays selected (its rotation grip is the point), and a
+    // style change with a selection restyles it. Deselect first: this test is
+    // about what a later CLICK-selection does to the props bar.
+    canvas.clearAnnotSelection();
 
     canvas.setStrokeColor(Qt::blue); // the user's own current pick
     click(canvas, QPointF(100, 100)); // select the red shape
@@ -175,6 +183,7 @@ void AnnotationCanvasTest::selectionAnnouncedBeforeStyleSeeding()
     canvas.setStrokeColor(Qt::red);
     canvas.setStrokeWidth(4);
     drag(canvas, QPointF(50, 50), QPointF(150, 150));
+    canvas.clearAnnotSelection(); // a drawn rect stays selected; style edits would hit it
     canvas.setStrokeColor(Qt::blue);
     canvas.setStrokeWidth(12);
 
@@ -299,6 +308,52 @@ void AnnotationCanvasTest::drawToolClickSelectsAndMoves()
              "clicking the interior of an unfilled rect must select it");
     drag(canvas, QPointF(100, 100), QPointF(130, 100));
     QCOMPARE(canvas.annotCount(), 1); // moved, not drawn over
+}
+
+// A rectangle a drag just placed stays selected and carries a rotation grip on a
+// stalk above its top edge. Dragging that grip turns the shape, and everything
+// downstream must follow: the render, the hit test, and rotateSelectedAnnot()
+// (the Developer-pane / smoke-test entry point). Falsified by hit-testing in
+// un-rotated space - the shape would paint turned but only select where it used
+// to be.
+void AnnotationCanvasTest::rotateGripTurnsShapeAndHitTest()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    canvas.setShapeFillColor(Qt::black);
+    canvas.setStrokeColor(Qt::black);
+
+    drag(canvas, QPointF(60, 120), QPointF(240, 180)); // 180x60 about (150,150)
+    QCOMPARE(canvas.annotCount(), 1);
+    QVERIFY2(canvas.hasAnnotSelection(),
+             "a drawn rectangle must stay selected, so its grip is usable at once");
+
+    // The grip sits 32 image px above the top-centre handle (renderScale is 1
+    // here); dragging it level with the centre is a quarter turn.
+    drag(canvas, QPointF(150, 88), QPointF(240, 150));
+    QCOMPARE(canvas.annotCount(), 1); // the grip drag must not draw a new shape
+
+    QVERIFY2(canvas.rendered().pixelColor(150, 220).lightness() < 80,
+             "the turned rectangle must paint over its new, rotated area");
+    QVERIFY2(canvas.rendered().pixelColor(230, 150).lightness() > 200,
+             "and must no longer paint the area it turned out of");
+
+    canvas.selectAnnotAt(150, 220);
+    QVERIFY2(canvas.hasAnnotSelection(), "the hit test must follow the rotation");
+    canvas.selectAnnotAt(230, 150);
+    QVERIFY2(!canvas.hasAnnotSelection(), "and must miss where the shape no longer is");
+
+    canvas.selectAnnotAt(150, 220);
+    canvas.rotateSelectedAnnot(-90);
+    canvas.selectAnnotAt(230, 150);
+    QVERIFY2(canvas.hasAnnotSelection(), "rotateSelectedAnnot must turn the shape back");
 }
 
 void AnnotationCanvasTest::captureOnReleaseConfirms()
@@ -815,6 +870,120 @@ void AnnotationCanvasTest::calloutRendersTailAndCanBeSelected()
     QVERIFY2(canvas.hasAnnotSelection(), "the callout tail must be selectable");
 }
 
+void AnnotationCanvasTest::calloutCarriesItsOwnText()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(220);
+    canvas.setHeight(160);
+    QImage base(220, 160, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Callout);
+    canvas.setStrokeColor(Qt::black);
+
+    QSignalSpy editRequested(&canvas, &AnnotationCanvas::textEditRequested);
+    drag(canvas, QPointF(20, 20), QPointF(200, 110));
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(editRequested.count(), 1);
+    QVERIFY2(canvas.hasAnnotSelection(),
+             "commitTextEdit writes into the SELECTED annotation - drawing a "
+             "callout must leave it selected or the typed text goes nowhere");
+
+    const QImage empty = canvas.rendered();
+    canvas.commitTextEdit(QStringLiteral("Hello"));
+    const QImage typed = canvas.rendered();
+    QVERIFY2(typed != empty, "the callout must render its own text");
+    QCOMPARE(canvas.annotCount(), 1);
+
+    // Escaping out of the editor (empty string) leaves the bubble standing -
+    // unlike a Text annotation, which is nothing without its string.
+    canvas.commitTextEdit(QString());
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(canvas.rendered(), empty);
+}
+
+void AnnotationCanvasTest::calloutClickPlacesAndFitsItsText()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(400);
+    canvas.setHeight(300);
+    QImage base(400, 300, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Callout);
+    canvas.setStrokeColor(Qt::black);
+
+    // A CLICK, not a drag: no rectangle to size by hand.
+    QSignalSpy editRequested(&canvas, &AnnotationCanvas::textEditRequested);
+    click(canvas, QPointF(120, 220));
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(editRequested.count(), 1);
+    QVERIFY(canvas.hasAnnotSelection());
+    // The editor is asked to open over the bubble's writable area, not at its
+    // corner, so what is typed appears where it will be painted.
+    const QList<QVariant> args = editRequested.takeFirst();
+    QVERIFY2(!canvas.textEditRect().isEmpty(),
+             "a callout must hand QML the area its text will occupy");
+    QVERIFY(args.at(1).toReal() < 220.0); // the bubble sits above the click
+
+    // The bubble the click put down is small; the text is what gives it a size.
+    canvas.selectAnnotAt(200, 60);
+    QVERIFY2(!canvas.hasAnnotSelection(),
+             "the default bubble must not already reach this high");
+    canvas.selectAnnotAt(200, 170); // back onto the bubble itself
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.commitTextEdit(QStringLiteral(
+        "This note is long enough that the bubble has to grow around it "
+        "instead of grinding its own letters down to nothing."));
+    QCOMPARE(canvas.annotCount(), 1);
+    canvas.selectAnnotAt(200, 60);
+    QVERIFY2(canvas.hasAnnotSelection(),
+             "the bubble must grow upwards around its text, keeping its tail "
+             "on what it was aimed at");
+}
+
+void AnnotationCanvasTest::calloutGrowsWhileTyping()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(400);
+    canvas.setHeight(300);
+    QImage base(400, 300, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Callout);
+    canvas.setStrokeColor(Qt::black);
+
+    click(canvas, QPointF(120, 220));
+    QCOMPARE(canvas.annotCount(), 1);
+    const QRectF box = canvas.textEditRect();
+    QVERIFY(!box.isEmpty());
+    const QImage placed = canvas.rendered();
+
+    // Keystroke by keystroke, the way QML feeds it: the bubble has to be its
+    // final size by the last letter, not by the commit.
+    const QString line = QStringLiteral(
+        "This note is long enough that the bubble has to grow around it "
+        "instead of grinding its own letters down to nothing.");
+    for (int i = 1; i < line.size(); i += 7)
+        canvas.previewCalloutText(line.left(i));
+    canvas.previewCalloutText(line);
+    QVERIFY2(canvas.textEditRect().height() > box.height(),
+             "the bubble must grow while typing, not at commit");
+    canvas.selectAnnotAt(200, 60);
+    QVERIFY2(canvas.hasAnnotSelection(),
+             "the grown bubble must be on the canvas before anything is committed");
+
+    // Escape: the words go, the bubble stays as it was placed - and the whole
+    // typing run costs exactly one undo entry, which the cancel takes back.
+    canvas.cancelTextEdit();
+    QCOMPARE(canvas.rendered(), placed);
+    QVERIFY(canvas.canUndo());
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 0);
+    QVERIFY2(!canvas.canUndo(),
+             "typing must leave one undo entry at most, and cancelling none");
+}
+
 void AnnotationCanvasTest::arrowAndMeasureRenderAndCanBeSelected()
 {
     QImage base(240, 160, QImage::Format_ARGB32_Premultiplied);
@@ -1019,6 +1188,9 @@ void AnnotationCanvasTest::partialRepaintMatchesFullRender()
 
     struct Case { const char *name; int tool; };
     const QVector<Case> cases{
+        {"rect-rotated", AnnotationCanvas::Rect},
+        {"ellipse-rotated", AnnotationCanvas::Ellipse},
+        {"callout-rotated", AnnotationCanvas::Callout},
         {"pen", AnnotationCanvas::Pen},
         {"line", AnnotationCanvas::Line},
         {"arrow", AnnotationCanvas::Arrow},
@@ -1061,6 +1233,11 @@ void AnnotationCanvasTest::partialRepaintMatchesFullRender()
             drag(canvas, {40, 45}, {150, 130});
         }
         QCOMPARE(canvas.annotCount(), 1);
+        // A turned shape reaches outside its own rect: if the rotated bounding
+        // box is wrong, drawAll culls the shape out of the repaints around it
+        // and the base image wipes it off mid-rotation.
+        if (QLatin1String(c.name).endsWith(QLatin1String("-rotated")))
+            canvas.rotateSelectedAnnot(35);
         canvas.clearAnnotSelection();
 
         const QImage full = render(canvas, QRect());

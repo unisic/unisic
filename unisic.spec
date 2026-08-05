@@ -77,6 +77,19 @@ BuildRequires:  cmake(LayerShellQt)
 BuildRequires:  cmake(KF6GuiAddons)
 BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-protocols)
+# HAVE_LIBINPUT: the pressed-key badge and the click ripple read /dev/input
+# through libinput's udev backend. CMake needs BOTH modules (libinput.pc and
+# libudev.pc); with either missing the feature compiles out and the switches
+# in Settings stay dead on every install, whatever the user's input group is.
+BuildRequires:  pkgconfig(libinput)
+BuildRequires:  pkgconfig(libudev)
+# HAVE_X11 (XShm recording) and HAVE_X11_HOTKEYS (XGrabKey) in the kit: the
+# X11 session support shipped in 0.8. Missing here, an rpm built from this
+# spec records nothing and grabs no shortcut on an xcb session.
+BuildRequires:  pkgconfig(x11)
+BuildRequires:  pkgconfig(xext)
+BuildRequires:  pkgconfig(xfixes)
+BuildRequires:  pkgconfig(xcb)
 BuildRequires:  desktop-file-utils
 
 # Runtime helpers are optional — the app degrades gracefully without them, so

@@ -19,14 +19,36 @@
 #include <algorithm>
 #include <cmath>
 
-// A callout is intentionally just a shape: the established Text tool remains
-// responsible for multilingual/font-aware content and can be placed inside the
-// bubble. This keeps a placed annotation compact (one rect, no text editor
-// state) while still making directions and notes stand out in a capture.
+// A callout carries its own text (Annot::text): drawing one raises the same
+// in-place editor the Text tool uses, and the string is laid out INSIDE the
+// bubble. It stays one annotation - move, resize or turn the bubble and the
+// words follow, which a separate Text annotation dropped on top never did.
 static qreal calloutTailHeight(const QRectF &rect)
 {
     return qBound(10.0, rect.normalized().height() * 0.25, 42.0);
 }
+
+// The writable area of a bubble: its body inset by the stroke and a little
+// breathing room, so glyphs never touch the rounded border or the tail.
+static qreal calloutPad(qreal strokeWidth)
+{
+    return 10.0 + strokeWidth / 2.0;
+}
+
+static QRectF calloutTextRect(const QRectF &rect, qreal strokeWidth)
+{
+    const QRectF r = rect.normalized();
+    const qreal pad = qMin(calloutPad(strokeWidth), qMin(r.width(), r.height()) / 3.0);
+    return r.adjusted(pad, pad, -pad, -pad);
+}
+
+// Layout flags shared by the bubble's painter and its fit-to-text measurement:
+// they must agree, or the bubble is sized for a wrap the painter never makes.
+static constexpr int kCalloutTextFlags = Qt::AlignCenter | Qt::TextWordWrap;
+// A click-placed bubble starts empty, so there is no width to wrap into yet;
+// without a floor every word would land on its own line and the bubble would
+// grow into a tall column.
+static constexpr qreal kCalloutMinTextWidth = 150.0;
 
 static QPainterPath calloutPath(const QRectF &rect)
 {
@@ -49,6 +71,21 @@ static QPainterPath calloutPath(const QRectF &rect)
     tail.lineTo(baseRight, r.bottom() - 1.0);
     tail.closeSubpath();
     return path.united(tail);
+}
+
+// Rotation, in the same sense QPainter::rotate() uses (degrees, clockwise on
+// screen because y grows downwards) - the painter and the hit-tests must agree
+// on the direction or a rotated shape stops being clickable where it is drawn.
+static QPointF rotateVec(const QPointF &v, qreal degrees)
+{
+    const qreal r = qDegreesToRadians(degrees);
+    const qreal cs = std::cos(r), sn = std::sin(r);
+    return {v.x() * cs - v.y() * sn, v.x() * sn + v.y() * cs};
+}
+
+static QPointF rotateAbout(const QPointF &p, const QPointF &centre, qreal degrees)
+{
+    return centre + rotateVec(p - centre, degrees);
 }
 
 AnnotationCanvas::AnnotationCanvas(QQuickItem *parent)
@@ -531,11 +568,17 @@ void AnnotationCanvas::routeToSelected(int propId)
 void AnnotationCanvas::selectAnnot(int index)
 {
     if (index == m_selectedAnnot) {
-        if (index >= 0) update();
+        if (index >= 0) {
+            // Clicking the shape a drag just placed promotes it from a drawn
+            // selection to a real one: from here its body drags it (selectDrawn).
+            m_drawnSelection = false;
+            update();
+        }
         return;
     }
     const bool hadSelection = m_selectedAnnot >= 0;
     m_selectedAnnot = index;
+    m_drawnSelection = false;
     // Reset the coalesce run so the next style edit starts fresh.
     m_lastCoalesceProp = -1;
     m_lastCoalesceIndex = -1;
@@ -546,6 +589,7 @@ void AnnotationCanvas::selectAnnot(int index)
     // clicked shape would leak into the saved drawing defaults. Emitting first also
     // lets restoreStyleBackup() re-persist the real defaults on deselect.
     emit selectedAnnotChanged();
+    emit textEditRectChanged();
     if (index >= 0 && index < m_items.size()) {
         // Entering a selection from none: remember the user's own style so
         // deselecting restores it (the seeding below overwrites it with the
@@ -591,6 +635,24 @@ void AnnotationCanvas::selectAnnot(int index)
         restoreStyleBackup();
     }
     update();
+}
+
+void AnnotationCanvas::selectDrawn(int index)
+{
+    // Only the turnable shapes keep their chrome after being drawn: their grip
+    // is the whole point. A freehand stroke or a measurement would just leave 8
+    // live handles sitting where the next stroke starts, and a press near one
+    // would scale the previous stroke instead of drawing.
+    if (index < 0 || index >= m_items.size() || !canRotate(m_items[index].type))
+        return;
+    selectAnnot(index);
+    if (m_selectedAnnot != index)
+        return;
+    // No backup to restore on deselect: the shape carries the live style, so
+    // the seeding above was a no-op. Keeping one would undo the user's NEXT
+    // colour pick (which lands on this shape) the moment they deselect.
+    m_styleBackupValid = false;
+    m_drawnSelection = true;
 }
 
 // Hand the user their own pre-selection style back after a shape selection
@@ -1143,18 +1205,51 @@ void AnnotationCanvas::nudgeSelectedAnnot(qreal dx, qreal dy)
     if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return;
     pushUndoCoalesced(PGeometry);
     Annot &a = m_items[m_selectedAnnot];
-    const QRectF oldB = annotBoundsImg(a);
+    const QRectF oldB = annotChromeBoundsImg(a);
     a.rect.translate(dx, dy);
     for (QPointF &p : a.points)
         p += QPointF(dx, dy);
     // Dirty-rect repaint (old ∪ new) like the MoveAnnot drag path — a full
     // update() re-rasterized the whole scaled base per arrow-key autorepeat.
-    updateImgRect(oldB.united(annotBoundsImg(a)));
+    updateImgRect(oldB.united(annotChromeBoundsImg(a)));
+}
+
+void AnnotationCanvas::rotateSelectedAnnot(qreal degrees)
+{
+    if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return;
+    Annot &a = m_items[m_selectedAnnot];
+    if (!canRotate(a.type) || qFuzzyIsNull(degrees)) return;
+    pushUndoCoalesced(PGeometry);
+    const QRectF oldB = annotChromeBoundsImg(a);
+    a.angle = std::fmod(a.angle + degrees, 360.0);
+    updateImgRect(oldB.united(annotChromeBoundsImg(a)));
 }
 
 void AnnotationCanvas::commitTextEdit(const QString &text)
 {
     if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return;
+    if (m_items[m_selectedAnnot].type == Callout) {
+        // A callout is a SHAPE that carries text: an empty string leaves the
+        // bubble standing (a Text annotation is nothing without its string and
+        // is removed below). Escaping out of the editor of a just-drawn bubble
+        // must not delete the bubble.
+        Annot &a = m_items[m_selectedAnnot];
+        if (a.text != text) {
+            // Live typing already took the one undo entry for this edit; only a
+            // commit that never previewed (a test, a paste-and-confirm) needs one.
+            if (!m_textEditLive) pushUndo();
+            const QRectF oldB = annotChromeBoundsImg(a);
+            a.text = text;
+            // The bubble fits itself around what was typed instead of leaving the
+            // words to shrink into whatever rectangle happened to be dragged.
+            a.rect = calloutFittedRect(a);
+            updateImgRect(oldB.united(annotChromeBoundsImg(a)));
+        }
+        m_textEditLive = false;
+        m_textEditIndex = -1;
+        emit textEditRectChanged();
+        return;
+    }
     if (m_items[m_selectedAnnot].type != Text) return;
     pushUndo();
     if (text.trimmed().isEmpty()) {
@@ -1169,10 +1264,19 @@ void AnnotationCanvas::commitTextEdit(const QString &text)
 }
 
 // Reverse z-order (topmost first) hit-test over placed annotations.
-int AnnotationCanvas::annotAt(const QPointF &pos) const
+QPointF AnnotationCanvas::unrotated(const Annot &a, const QPointF &imgPos)
+{
+    if (qFuzzyIsNull(a.angle))
+        return imgPos;
+    return rotateAbout(imgPos, a.rect.normalized().center(), -a.angle);
+}
+
+int AnnotationCanvas::annotAt(const QPointF &at) const
 {
     for (int i = m_items.size() - 1; i >= 0; --i) {
         const Annot &a = m_items[i];
+        // Hit-test in the shape's own space - it is drawn there too.
+        const QPointF pos = unrotated(a, at);
         const qreal tol = qMax(a.width / 2.0 + 3.0, 6.0 / qMax(0.05, renderScale()));
         switch (a.type) {
         case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage:
@@ -1264,6 +1368,7 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
         const Annot &a = m_items[i];
         if (a.filled)
             continue;
+        const QPointF pos = unrotated(a, at);
         if (a.type == Rect) {
             if (a.rect.normalized().contains(pos))
                 return i;
@@ -1283,10 +1388,18 @@ int AnnotationCanvas::annotAt(const QPointF &pos) const
     return -1;
 }
 
+qreal AnnotationCanvas::rotateGripDistImg() const
+{
+    // Far enough from the top-centre handle that the 12 px hit tolerances of
+    // the two cannot overlap.
+    return 32.0 / qMax(0.05, renderScale());
+}
+
 // Handle points for the selected annotation. Rect-like shapes get 8 handles
 // (same order as the crop-rect handles), line tools get 2 endpoints.
-// Pen/Text/Step are move-only → 0 handles.
-int AnnotationCanvas::handlesForSelected(QPointF out[8]) const
+// Pen/Text/Step are move-only → 0 handles. A rotatable shape gets the grip as
+// index 8, and every point comes back already turned by the shape's angle.
+int AnnotationCanvas::handlesForSelected(QPointF out[9]) const
 {
     if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return 0;
     const Annot &a = m_items[m_selectedAnnot];
@@ -1300,7 +1413,17 @@ int AnnotationCanvas::handlesForSelected(QPointF out[8]) const
         out[0] = r.topLeft();  out[1] = {r.center().x(), r.top()};    out[2] = r.topRight();
         out[3] = {r.left(), r.center().y()}; out[4] = {r.right(), r.center().y()};
         out[5] = r.bottomLeft(); out[6] = {r.center().x(), r.bottom()}; out[7] = r.bottomRight();
-        return 8;
+        int n = 8;
+        if (canRotate(a.type)) {
+            out[8] = {r.center().x(), r.top() - rotateGripDistImg()};
+            n = 9;
+        }
+        if (!qFuzzyIsNull(a.angle)) {
+            const QPointF c = r.center();
+            for (int i = 0; i < n; ++i)
+                out[i] = rotateAbout(out[i], c, a.angle);
+        }
+        return n;
     }
     case Line: case Arrow: case Measure:
         out[0] = a.rect.topLeft();
@@ -1313,7 +1436,7 @@ int AnnotationCanvas::handlesForSelected(QPointF out[8]) const
 
 int AnnotationCanvas::hitAnnotHandle(const QPointF &pos) const
 {
-    QPointF pts[8];
+    QPointF pts[9];
     const int n = handlesForSelected(pts);
     const qreal tol = 12.0 / qMax(0.05, renderScale());
     for (int i = 0; i < n; ++i)
@@ -1329,8 +1452,9 @@ Qt::CursorShape AnnotationCanvas::annotEditCursor(const QPointF &pos) const
 {
     const int h = (m_selectedAnnot >= 0) ? hitAnnotHandle(pos) : -1;
     if (h >= 0) {
-        QPointF pts[8];
+        QPointF pts[9];
         const int n = handlesForSelected(pts);
+        if (h == 8) return Qt::OpenHandCursor; // the rotation grip
         if (n == 2 || n == 3) return Qt::SizeAllCursor;
         if (h == 0 || h == 7) return Qt::SizeFDiagCursor;
         if (h == 2 || h == 5) return Qt::SizeBDiagCursor;
@@ -1489,6 +1613,14 @@ static void drawArrowHead(QPainter &p, const QPointF &from, const QPointF &to,
 void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
 {
     p.save();
+    // A turned shape is drawn in its own un-rotated space: every case below (and
+    // the export, which shares this function) keeps working on the plain rect.
+    if (!qFuzzyIsNull(a.angle)) {
+        const QPointF c = a.rect.normalized().center();
+        p.translate(c);
+        p.rotate(a.angle);
+        p.translate(-c);
+    }
     QPen pen(a.color, a.width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
     p.setPen(pen);
     p.setBrush(Qt::NoBrush);
@@ -1597,6 +1729,7 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
     case Callout:
         if (a.filled) p.setBrush(a.fillColor);
         p.drawPath(calloutPath(a.rect));
+        drawCalloutText(p, a);
         break;
     case SmartErase: {
         const QRect r = a.rect.normalized().toAlignedRect().intersected(m_base.rect());
@@ -1791,6 +1924,185 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
     p.restore();
 }
 
+// The callout's own string, wrapped and centred in the bubble. Called from
+// inside drawAnnot's save/restore, so a turned bubble carries its text along.
+void AnnotationCanvas::drawCalloutText(QPainter &p, const Annot &a) const
+{
+    if (a.text.trimmed().isEmpty())
+        return;
+    const QRectF box = calloutTextRect(a.rect, a.width);
+    if (box.width() < 8 || box.height() < 8)
+        return;
+    constexpr int flags = kCalloutTextFlags;
+
+    // Last-resort shrink: commitTextEdit already grew the bubble around this
+    // string, so this only bites when the user then dragged the bubble smaller
+    // than its own words. Ratio steps converge in two or three passes;
+    // ponytail: capped at 6 so a pathological word cannot stall a repaint.
+    QFont f = annotFontFor(a);
+    qreal px = qMax<qreal>(8.0, f.pixelSize());
+    for (int i = 0; i < 6; ++i) {
+        f.setPixelSize(qMax(8, int(px)));
+        const QRectF need = QFontMetricsF(f).boundingRect(box, flags, a.text);
+        const qreal fit = qMin(box.width() / qMax(1.0, need.width()),
+                               box.height() / qMax(1.0, need.height()));
+        if (fit >= 1.0 || px <= 8.0)
+            break;
+        px = qMax(8.0, px * qMax(0.5, fit));
+    }
+    p.setFont(f);
+    p.setBrush(Qt::NoBrush);
+    // Without a fill the bubble is transparent and the words sit straight on
+    // the capture - same contrast shadow the Text tool uses when it has no
+    // background box.
+    if (!a.filled) {
+        p.setPen(QColor(0, 0, 0, 160));
+        p.drawText(box.translated(1.5, 1.5), flags, a.text);
+    }
+    p.setPen(a.color);
+    p.drawText(box, flags, a.text);
+}
+
+QRectF AnnotationCanvas::calloutFittedRect(const Annot &a) const
+{
+    QRectF r = a.rect.normalized();
+    if (a.type != Callout || a.text.trimmed().isEmpty())
+        return r;
+    const qreal pad = calloutPad(a.width);
+    const QFontMetricsF fm(annotFontFor(a));
+    const QRectF box = calloutTextRect(r, a.width);
+    QRectF need = fm.boundingRect(QRectF(0, 0, qMax(1.0, box.width()), 1e6),
+                                  kCalloutTextFlags, a.text);
+    // It already fits: the rectangle is the user's and stays untouched.
+    if (need.width() <= box.width() && need.height() <= box.height())
+        return r;
+    // It does not. Wrap into a block that reads like one (~2.5:1) instead of
+    // the one-word column a narrow bubble would otherwise grow into: wrapping
+    // a string of total length L at width w gives a block w by L*lineHeight/w,
+    // so w = sqrt(2.5 * L * lineHeight) hits that shape. Never narrower than
+    // the bubble already is, and never wider than most of the picture.
+    qreal wrapW = qMax(box.width(), std::sqrt(qMax(1.0, 2.5 * fm.horizontalAdvance(a.text)
+                                                       * fm.lineSpacing())));
+    if (!m_base.isNull())
+        wrapW = qMin(wrapW, qMax(box.width(), m_base.width() * 0.7));
+    need = fm.boundingRect(QRectF(0, 0, wrapW, 1e6), kCalloutTextFlags, a.text);
+    // Grow only. Shrinking would fight the user: a bubble deliberately dragged
+    // large around two words is a valid drawing, an unreadable one is not.
+    qreal w = qMax(r.width(), need.width() + 2 * pad);
+    qreal h = qMax(r.height(), need.height() + 2 * pad);
+    // A bubble bigger than the picture helps nobody: cap it there and let
+    // drawCalloutText's shrink take the last few points off the font.
+    if (!m_base.isNull()) {
+        w = qMin(w, qreal(m_base.width()));
+        h = qMin(h, qreal(m_base.height()));
+    }
+    // Bottom-left anchored: the tail points at whatever the callout is about,
+    // so the bubble may only grow up and to the right, never off its target.
+    r = QRectF(r.left(), r.bottom() - h, w, h);
+    if (!m_base.isNull()) {
+        if (r.right() > m_base.width() && r.width() <= m_base.width())
+            r.moveRight(m_base.width());
+        if (r.top() < 0)
+            r.moveTop(0);
+    }
+    return r;
+}
+
+QRectF AnnotationCanvas::textEditRect() const
+{
+    if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size())
+        return {};
+    const Annot &a = m_items[m_selectedAnnot];
+    if (a.type != Callout)
+        return {};
+    return calloutTextRect(a.rect, a.width);
+}
+
+void AnnotationCanvas::previewCalloutText(const QString &text)
+{
+    if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size()) return;
+    Annot &a = m_items[m_selectedAnnot];
+    if (a.type != Callout || a.text == text) return;
+    if (!m_textEditLive || m_textEditIndex != m_selectedAnnot) {
+        // First keystroke of this edit: one undo entry for the whole typing run,
+        // taken before the string changes.
+        m_textEditLive = true;
+        m_textEditIndex = m_selectedAnnot;
+        m_textEditBackup = a.text;
+        m_textEditBackupRect = a.rect;
+        pushUndo();
+    }
+    const QRectF oldB = annotChromeBoundsImg(a);
+    a.text = text;
+    a.rect = calloutFittedRect(a);
+    updateImgRect(oldB.united(annotChromeBoundsImg(a)));
+    emit textEditRectChanged();
+}
+
+void AnnotationCanvas::cancelTextEdit()
+{
+    if (!m_textEditLive) return;
+    m_textEditLive = false;
+    if (m_textEditIndex >= 0 && m_textEditIndex < m_items.size()
+        && m_items[m_textEditIndex].type == Callout) {
+        Annot &a = m_items[m_textEditIndex];
+        const QRectF oldB = annotChromeBoundsImg(a);
+        a.text = m_textEditBackup;
+        a.rect = m_textEditBackupRect;
+        updateImgRect(oldB.united(annotChromeBoundsImg(a)));
+    }
+    m_textEditIndex = -1;
+    // The abandoned edit's undo entry goes back out, or Ctrl+Z would step
+    // through typing that was thrown away. The editor holds focus for the whole
+    // edit, so nothing else can have pushed on top of it.
+    if (!m_undo.isEmpty()) {
+        m_undo.removeLast();
+        emit historyChanged();
+    }
+    emit textEditRectChanged();
+}
+
+void AnnotationCanvas::requestCalloutTextEdit(int index)
+{
+    if (index < 0 || index >= m_items.size() || m_items[index].type != Callout)
+        return;
+    m_textEditLive = false;
+    m_textEditIndex = -1;
+    // The editor opens over the bubble's writable area, not at its corner: what
+    // is typed has to appear where it will be painted. QML reads the live area
+    // off textEditRect from here on (the bubble grows under the caret).
+    const QRectF box = calloutTextRect(m_items[index].rect, m_items[index].width);
+    emit textEditRectChanged();
+    emit textEditRequested(box.left(), box.top(), m_items[index].text);
+}
+
+void AnnotationCanvas::placeCalloutAt(const QPointF &at)
+{
+    Annot a;
+    a.type = Callout;
+    a.color = m_color;
+    a.fillColor = m_fillColor;
+    a.filled = m_fillEnabled;
+    a.width = m_strokeWidth;
+    a.fontSize = m_fontSize;
+    const qreal w = kCalloutMinTextWidth + 2 * calloutPad(a.width);
+    const qreal h = qMax(64.0, a.fontSize * 2.6);
+    // Sit the bubble above the click: the tail hangs off the bottom-left, so
+    // this puts its tip roughly on the point the user aimed at.
+    QRectF r(at.x(), at.y() - calloutTailHeight(QRectF(0, 0, w, h)) - h, w, h);
+    if (!m_base.isNull()) {
+        if (r.width() <= m_base.width())
+            r.moveLeft(qBound(0.0, r.left(), m_base.width() - r.width()));
+        if (r.height() <= m_base.height())
+            r.moveTop(qBound(0.0, r.top(), m_base.height() - r.height()));
+    }
+    a.rect = r;
+    pushUndo();
+    m_items.append(a);
+    selectDrawn(m_items.size() - 1);
+    requestCalloutTextEdit(m_items.size() - 1);
+}
+
 void AnnotationCanvas::drawAll(QPainter &p) const
 {
     // Cull annotations outside the current clip. On a partial repaint the
@@ -1862,6 +2174,28 @@ QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
     // width-based pad, which otherwise left drag trails at large sizes / zoom.
     if (a.type == Step)
         pad = qMax(pad, qMax(14.0, a.stepSize * 0.9) + 4.0);
+    r = r.adjusted(-pad, -pad, pad, pad);
+    if (!qFuzzyIsNull(a.angle)) {
+        // The turned shape reaches past its own rect - repaint the bounding box
+        // of the rotated one, or a drag leaves the corners behind as trails.
+        // Through pointsBoundsImg, never a fold of zero-size QRectFs: that fold
+        // collapses to the last point (see its comment), which culled the turned
+        // shape out of every partial repaint and let the base wipe it away.
+        const QPointF c = a.rect.normalized().center();
+        r = pointsBoundsImg({rotateAbout(r.topLeft(), c, a.angle),
+                             rotateAbout(r.topRight(), c, a.angle),
+                             rotateAbout(r.bottomLeft(), c, a.angle),
+                             rotateAbout(r.bottomRight(), c, a.angle)});
+    }
+    return r;
+}
+
+QRectF AnnotationCanvas::annotChromeBoundsImg(const Annot &a) const
+{
+    const QRectF r = annotBoundsImg(a);
+    if (!canRotate(a.type))
+        return r;
+    const qreal pad = rotateGripDistImg() + 8.0 / qMax(0.05, renderScale());
     return r.adjusted(-pad, -pad, pad, pad);
 }
 
@@ -1936,7 +2270,7 @@ void AnnotationCanvas::paint(QPainter *painter)
     // click-select), so direct editing is always visible.
     if (m_selectedAnnot >= 0 && m_selectedAnnot < m_items.size()) {
         const Annot &a = m_items[m_selectedAnnot];
-        QPointF pts[8];
+        QPointF pts[9];
         const int n = handlesForSelected(pts);
         // Dashed bounds around the shape (a light guide; the handles are the
         // real affordance). Pen/Text/Step have no scale handles → just bounds.
@@ -1950,13 +2284,30 @@ void AnnotationCanvas::paint(QPainter *painter)
         painter->setBrush(Qt::NoBrush);
         QPen halo(QColor(255, 255, 255, 150), 3.0 / s);
         halo.setStyle(Qt::SolidLine);
-        painter->setPen(halo);
-        painter->drawRect(bounds.adjusted(-2, -2, 2, 2));
         QPen dash(m_uiAccent, 1.5 / s);
         dash.setStyle(Qt::DashLine);
+        // The bounds follow the shape's own space, so a turned shape gets a
+        // turned frame instead of a box that no longer touches it.
+        painter->save();
+        if (!qFuzzyIsNull(a.angle)) {
+            const QPointF c = a.rect.normalized().center();
+            painter->translate(c);
+            painter->rotate(a.angle);
+            painter->translate(-c);
+        }
+        painter->setPen(halo);
+        painter->drawRect(bounds.adjusted(-2, -2, 2, 2));
         painter->setPen(dash);
         painter->drawRect(bounds.adjusted(-2, -2, 2, 2));
-        // Handles (rect-like / endpoints).
+        painter->restore();
+        // The rotation grip's stalk, drawn in world space like the handles.
+        if (n == 9) {
+            painter->setPen(halo);
+            painter->drawLine(pts[1], pts[8]);
+            painter->setPen(dash);
+            painter->drawLine(pts[1], pts[8]);
+        }
+        // Handles (rect-like / endpoints / the grip).
         painter->setBrush(m_uiAccent);
         painter->setPen(QPen(m_uiScrim, 1.0 / s));
         const qreal hs = 5.0 / s;
@@ -2208,13 +2559,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         // the shapes and (re)select, arming a possible move.
         const int h = (m_selectedAnnot >= 0) ? hitAnnotHandle(img) : -1;
         if (h >= 0) {
-            m_drag = ResizeAnnot;
-            m_resizeHandle = h;
-            m_annotStartRect = m_items[m_selectedAnnot].rect;
-            m_annotStartPoints = m_items[m_selectedAnnot].points;
-            // Defer the undo snapshot to the first real move, so clicking a
-            // handle without dragging leaves no empty undo entry.
-            m_resizeUndoPending = true;
+            beginHandleDrag(h, img);
         } else {
             const int hit = annotAt(img);
             selectAnnot(hit);
@@ -2274,16 +2619,12 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         if (m_selectedAnnot >= 0) {
             const int h = hitAnnotHandle(img);
             if (h >= 0) {
-                m_drag = ResizeAnnot;
-                m_resizeHandle = h;
-                m_annotStartRect = m_items[m_selectedAnnot].rect;
-                m_annotStartPoints = m_items[m_selectedAnnot].points;
-                m_resizeUndoPending = true;
+                beginHandleDrag(h, img);
                 update();
                 e->accept();
                 return;
             }
-            if (annotAt(img) == m_selectedAnnot) {
+            if (!m_drawnSelection && annotAt(img) == m_selectedAnnot) {
                 m_drag = PendingMoveAnnot;
                 m_annotStartRect = m_items[m_selectedAnnot].rect;
                 m_annotStartPoints = m_items[m_selectedAnnot].points;
@@ -2304,6 +2645,31 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         update();
     }
     e->accept();
+}
+
+// A press landed on handle `h` of the selected annotation: the grip (index 8)
+// turns the shape, everything else resizes it. Shared by the Edit tool and the
+// direct-manipulation path so both behave identically.
+void AnnotationCanvas::beginHandleDrag(int h, const QPointF &at)
+{
+    if (m_selectedAnnot < 0 || m_selectedAnnot >= m_items.size())
+        return;
+    const Annot &a = m_items[m_selectedAnnot];
+    m_resizeHandle = h;
+    m_annotStartRect = a.rect;
+    m_annotStartPoints = a.points;
+    // Defer the undo snapshot to the first real move, so clicking a handle
+    // without dragging leaves no empty undo entry.
+    m_resizeUndoPending = true;
+    if (h == 8) {
+        m_drag = RotateAnnot;
+        // Keep the shape where it is until the pointer actually turns: the grip
+        // sits above the edge, so adopting the raw pointer angle would snap the
+        // shape by that offset on the first move.
+        m_rotateGrab = -QLineF(a.rect.normalized().center(), at).angle() - a.angle;
+    } else {
+        m_drag = ResizeAnnot;
+    }
 }
 
 void AnnotationCanvas::beginDraw(const QPointF &at)
@@ -2729,13 +3095,27 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         if (m_selectedAnnot < 0) break;
         Annot &a = m_items[m_selectedAnnot];
         if (a.type == Blur) m_fxFast = true; // fast preview while moving (drawAnnot)
-        const QRectF oldB = annotBoundsImg(a);
+        const QRectF oldB = annotChromeBoundsImg(a);
         const QPointF d = img - m_dragStart;
         a.rect = m_annotStartRect.translated(d);
         a.points = m_annotStartPoints;
         for (QPointF &p : a.points)
             p += d;
-        updateImgRect(oldB.united(annotBoundsImg(a)));
+        updateImgRect(oldB.united(annotChromeBoundsImg(a)));
+        break;
+    }
+    case RotateAnnot: {
+        if (m_selectedAnnot < 0) break;
+        if (m_resizeUndoPending) { pushUndo(); m_resizeUndoPending = false; }
+        Annot &a = m_items[m_selectedAnnot];
+        const QRectF oldB = annotChromeBoundsImg(a);
+        // QLineF::angle() counts counter-clockwise in maths coordinates; the
+        // painter turns clockwise on a y-down image, hence the negation.
+        qreal deg = -QLineF(m_annotStartRect.normalized().center(), img).angle() - m_rotateGrab;
+        if (e->modifiers() & Qt::ShiftModifier)
+            deg = qRound(deg / 15.0) * 15.0;
+        a.angle = std::fmod(deg, 360.0);
+        updateImgRect(oldB.united(annotChromeBoundsImg(a)));
         break;
     }
     case ResizeAnnot: {
@@ -2743,9 +3123,15 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         if (m_resizeUndoPending) { pushUndo(); m_resizeUndoPending = false; }
         Annot &a = m_items[m_selectedAnnot];
         if (a.type == Blur) m_fxFast = true; // fast preview while resizing (drawAnnot)
-        const QRectF oldB = annotBoundsImg(a);
+        const QRectF oldB = annotChromeBoundsImg(a);
         QRectF r = m_annotStartRect;
-        const QPointF d = img - m_dragStart;
+        // A turned shape resizes along ITS OWN axes: the cursor delta is mapped
+        // into the shape's space, and afterwards the rect is shifted so the edge
+        // opposite the dragged handle stays where it is on screen (rotation is
+        // about the centre, and the centre moves as the rect grows).
+        QPointF d = img - m_dragStart;
+        if (!qFuzzyIsNull(a.angle))
+            d = rotateVec(d, -a.angle);
         if (a.type == Line || a.type == Arrow || a.type == Measure) {
             // 2 endpoint handles map to the raw rect corners (p1→p2), so a
             // dragged endpoint follows the cursor without normalization.
@@ -2763,9 +3149,14 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
             case 6: r.setBottom(r.bottom() + d.y()); break;
             case 7: r.setBottomRight(r.bottomRight() + d); break;
             }
+            if (!qFuzzyIsNull(a.angle)) {
+                const QPointF c0 = m_annotStartRect.normalized().center();
+                const QPointF c1 = r.normalized().center();
+                r.translate(rotateAbout(c1, c0, a.angle) - c1);
+            }
             a.rect = r; // normalized on release
         }
-        updateImgRect(oldB.united(annotBoundsImg(a)));
+        updateImgRect(oldB.united(annotChromeBoundsImg(a)));
         break;
     }
     default:
@@ -2798,7 +3189,15 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
     // A drawing-tool press that never moved: a plain CLICK — select (or
     // deselect, on empty space) the shape under the cursor, Edit-tool style.
     if (m_drag == PendingDraw) {
-        selectAnnot(annotAt(toImage(e->position().x(), e->position().y())));
+        const QPointF img = toImage(e->position().x(), e->position().y());
+        const int hit = annotAt(img);
+        if (hit < 0 && m_tool == Callout)
+            // Nothing to select and the Callout tool is active: a click places
+            // a bubble that sizes itself to what gets typed, so a note does not
+            // need a rectangle dragged to the right size first.
+            placeCalloutAt(img);
+        else
+            selectAnnot(hit);
         update();
     }
     if (m_drag == DrawDrag && m_drawing) {
@@ -2839,13 +3238,26 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
                     m_current.rect = dest;
                     pushUndo();
                     m_items.append(m_current);
+                    selectDrawn(m_items.size() - 1);
                 }
             } else if (m_current.type == Highlight && m_highlightMode == HlText
                 && applyTextAwareHighlight(m_current)) {
-                // snapped to text — nothing else to append
+                // snapped to text - a batch of line annotations, nothing single
+                // to hand back to the user
             } else {
                 pushUndo();
                 m_items.append(m_current);
+                // The shape a drag just placed stays SELECTED: its handles (and
+                // the rotation grip) are right there, so a rectangle that came
+                // out a few pixels off is fixed in place instead of undone and
+                // drawn again. The next drag deselects it (see PendingDraw).
+                selectDrawn(m_items.size() - 1);
+                // A bubble is drawn to hold words: raise the in-place editor
+                // straight away, on the selection selectDrawn just made, so the
+                // text lands IN the callout instead of being a second
+                // annotation the user has to align over it.
+                if (m_items.last().type == Callout && m_selectedAnnot == m_items.size() - 1)
+                    requestCalloutTextEdit(m_items.size() - 1);
             }
         }
         update();
@@ -2923,16 +3335,21 @@ void AnnotationCanvas::mouseDoubleClickEvent(QMouseEvent *e)
         return;
     }
     if (m_tool == EditShapes) {
-        // Double-click a Text annotation to re-edit its string. The preceding
-        // press already selected the shape under the cursor.
+        // Double-click a Text annotation or a Callout to re-edit its string.
+        // The preceding press already selected the shape under the cursor.
         const QPointF img = toImage(e->position().x(), e->position().y());
         int idx = annotAt(img);
         if (idx < 0) idx = m_selectedAnnot;
-        if (idx >= 0 && idx < m_items.size() && m_items[idx].type == Text) {
+        if (idx >= 0 && idx < m_items.size()
+            && (m_items[idx].type == Text || m_items[idx].type == Callout)) {
             selectAnnot(idx);
             m_drag = NoDrag; // the pending move from the double-click's press
-            const Annot &a = m_items[idx];
-            emit textEditRequested(a.rect.left(), a.rect.top(), a.text);
+            if (m_items[idx].type == Callout) {
+                requestCalloutTextEdit(idx);
+            } else {
+                const Annot &a = m_items[idx];
+                emit textEditRequested(a.rect.left(), a.rect.top(), a.text);
+            }
         }
         e->accept();
         return;
@@ -3115,7 +3532,8 @@ void AnnotationCanvas::hoverMoveEvent(QHoverEvent *e)
         else if (hasSelection() && m_selection.contains(img)) setCursor(Qt::SizeAllCursor);
         else setCursor(Qt::CrossCursor);
     } else if (m_selectedAnnot >= 0
-               && (hitAnnotHandle(img) >= 0 || annotAt(img) == m_selectedAnnot)) {
+               && (hitAnnotHandle(img) >= 0
+                   || (!m_drawnSelection && annotAt(img) == m_selectedAnnot))) {
         // Drawing-tool direct-manip: the selected shape can be resized/moved in
         // place (see mousePressEvent), so its handles/body get the same cursors
         // the Edit tool shows; empty space keeps the draw crosshair below.

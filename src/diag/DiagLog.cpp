@@ -45,6 +45,7 @@ int g_fd = -1;
 QString g_path;
 qint64 g_written = 0;
 bool g_installed = false;
+QString g_quitReason;  // empty = the quit came from outside the app
 
 const char *levelOf(QtMsgType t)
 {
@@ -194,10 +195,14 @@ QString openLogFile()
 
     const QString path = dir + QStringLiteral("/unisic.log");
     const QString prev = path + QStringLiteral(".1");
-    // Rotation is startup-only and keeps exactly the two runs that matter for
-    // a crash report: this one and the one before it. Two renames and an open,
-    // no directory scan, on a path that must stay fast.
-    QFile::remove(prev);
+    const QString prev2 = path + QStringLiteral(".2");
+    // Rotation is startup-only and keeps three runs. Two were not enough for
+    // the case this exists for: an instance that dies seconds after start is
+    // usually followed by a relaunch (and often a second one), and with a
+    // single backup the dead run's log was already gone by the time anyone
+    // looked. Three renames and an open, no directory scan.
+    QFile::remove(prev2);
+    QFile::rename(prev, prev2);
     QFile::rename(path, prev);
 
     const int fd = ::open(path.toLocal8Bit().constData(),
@@ -236,6 +241,12 @@ QString openLogFile()
     return path;
 }
 
+void setQuitReason(const QString &reason)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_quitReason = reason;
+}
+
 void markCleanExit()
 {
     std::lock_guard<std::mutex> lock(g_mutex);
@@ -243,6 +254,10 @@ void markCleanExit()
         return;
     const QByteArray marker = "=== clean exit "
                               + QDateTime::currentDateTime().toString(Qt::ISODate).toUtf8()
+                              + " reason="
+                              + (g_quitReason.isEmpty() ? QByteArray("external (nothing in the "
+                                                                    "app asked to quit)")
+                                                        : g_quitReason.toUtf8())
                               + " ===\n";
     writeToFileLocked(marker);
     ::fsync(g_fd);

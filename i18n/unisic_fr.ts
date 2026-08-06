@@ -72,53 +72,53 @@
         <translation>. Installez &apos;grim&apos; (fonctionne sur les compositeurs de type sway/niri/Hyprland) ou un backend xdg-desktop-portal pour votre bureau.</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="597"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="653"/>
         <source>Dev: text render: %1</source>
         <translation>Dev : rendu du texte : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="607"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="663"/>
         <source>Dev: keystroke badge: %1; input access: %2</source>
-        <translation>Dev : badge des touches : %1 ; accès aux périphériques d'entrée : %2</translation>
+        <translation>Dev : badge des touches : %1 ; accès aux périphériques d&apos;entrée : %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1372"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1460"/>
         <source>Dev: shape edit: %1</source>
         <translation>Dev : édition de forme : %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5827"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1948"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2036"/>
         <source>Quit</source>
         <translation>Quitter</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1963"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2051"/>
         <source>Dev: language: %1</source>
         <translation>Dev : langue : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2026"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2114"/>
         <source>Dev: OCR boxes: FAIL (%1)</source>
         <translation>Dev : boîtes OCR : ÉCHEC (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2028"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2116"/>
         <source>Dev: OCR boxes: %1 (%2 glyphs)</source>
         <translation>Dev : boîtes OCR : %1 (%2 glyphes)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2033"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2121"/>
         <source>Dev: OCR boxes: SKIP (built without tesseract)</source>
         <translation>Dev : boîtes OCR : IGNORÉ (compilé sans tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2154"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2242"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev : son de capture &apos;%1&apos; joué</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1415"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1503"/>
         <source>Dev: capture on release: %1</source>
         <translation>Dev : capture au relâchement : %1</translation>
     </message>
@@ -193,7 +193,7 @@
         <translation type="vanished">aucune fenêtre n&apos;a le focus</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2303"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2391"/>
         <source>no screen</source>
         <translation>aucun écran</translation>
     </message>
@@ -271,47 +271,47 @@
         <translation type="vanished">Dev : badge des frappes : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="619"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="675"/>
         <source>Dev: custom theme: %1</source>
         <translation>Dev : thème personnalisé : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="739"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="795"/>
         <source>Dev: diagnostics copied (%1 chars)</source>
         <translation>Dev : diagnostics copiés (%1 caractères)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="756"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="812"/>
         <source>Dev: system check: %1 checks, %2 missing (%3 core)</source>
         <translation>Dev : vérification système : %1 vérifications, %2 manquants (%3 essentiels)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2111"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2199"/>
         <source>Dev: OCR auto language: %1 (installed: %2; %3; map: %4)</source>
         <translation>Dev : langue automatique OCR : %1 (installées : %2 ; %3 ; correspondance : %4)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2162"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2250"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev : son d’enregistrement &apos;%1&apos; joué</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2234"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2322"/>
         <source>Dev: full-screen countdown finished - recording would start now</source>
         <translation>Dev : compte à rebours plein écran terminé - l’enregistrement démarrerait maintenant</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2235"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2323"/>
         <source>Dev: full-screen countdown fell back to a toast (no record-border support)</source>
         <translation>Dev : le compte à rebours plein écran s’est rabattu sur un toast (pas de prise en charge de la bordure d’enregistrement)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2281"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2369"/>
         <source>Dev: active-window geometry needs KWin on the session bus</source>
         <translation>Dev : la géométrie de la fenêtre active nécessite KWin sur le bus de session</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2291"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2379"/>
         <source>Dev: active-window geometry FAILED - %1</source>
         <translation>Dev : géométrie de la fenêtre active ÉCHOUÉE - %1</translation>
     </message>
@@ -320,94 +320,94 @@
         <translation type="vanished">Dev : fenêtre active %1x%2 à %3,%4 (logique) sur %5, DPR %6</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2336"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2424"/>
         <source>Dev: ALL notifications are disabled in Settings (Preferences → Show notifications)</source>
         <translation>Dev : TOUTES les notifications sont désactivées dans les Réglages (Préférences → Afficher les notifications)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2341"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2429"/>
         <source>Dev: stylized cards are off - falling back to a native desktop notification</source>
         <translation>Dev : les cartes stylisées sont désactivées - repli sur une notification native du bureau</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2345"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2433"/>
         <source>Dev: cards are currently muted (fullscreen / Do Not Disturb inhibition is active)</source>
         <translation>Dev : les cartes sont actuellement coupées (inhibition plein écran / Ne pas déranger active)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2382"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2470"/>
         <source>Dev: added a test history entry</source>
         <translation>Dev : entrée d’historique de test ajoutée</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2391"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2479"/>
         <source>Dev: added a STARRED history entry; try Clear all / delete on it</source>
         <translation>Dev : entrée d’historique FAVORITE ajoutée ; essayez Tout effacer / supprimer dessus</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2402"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2612"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2490"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2700"/>
         <source>Dev: couldn&apos;t save the test image</source>
         <translation>Dev : impossible d’enregistrer l’image de test</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2986"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3074"/>
         <source>Dev: template variables: %1</source>
         <translation>Dev : variables de modèle : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3141"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3229"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev : aller-retour des réglages : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3182"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3270"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev : téléversement d’une image de test vers &apos;%1&apos;…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3185"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3273"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev : téléversement OK : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3187"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3275"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev : échec du téléversement : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3459"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3547"/>
         <source>Alternate hotkey test</source>
         <translation>Test de raccourci alternatif</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3485"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3573"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev : raccourcis alternatifs - %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3493"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3581"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev : KGlobalAccel non disponible (backend : %1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3494"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3582"/>
         <source>none</source>
         <translation>aucun</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5551"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3502"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3590"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Raccourci pris par une autre application : %1. Choisissez une autre touche dans Réglages → Raccourcis, ou libérez-la dans Paramètres système → Raccourcis.</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3506"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3594"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Raccourcis : les %1 sont tous liés dans le démon</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3508"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3596"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Raccourcis : %1 sur %2 étaient déliés et ont été rétablis (détails dans le journal)</translation>
     </message>
@@ -597,148 +597,148 @@
         <translation>Enregistrement dans %1…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="626"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="682"/>
         <source>Dev: clipboard paste: %1</source>
         <translation>Dev : collage du presse-papiers : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="637"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="693"/>
         <source>Dev: capture delay: %1</source>
         <translation>Dev : délai de capture : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="656"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="712"/>
         <source>Dev: copy as: %1</source>
         <translation>Dev : copier comme : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="665"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="721"/>
         <source>Dev: watermark: %1</source>
         <translation>Dev : filigrane : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="709"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="765"/>
         <source>Dev: watermark preview: %1</source>
         <translation>Dev : aperçu du filigrane : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="716"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="772"/>
         <source>Dev: callout: %1</source>
         <translation>Dev : légende : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="723"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="779"/>
         <source>Dev: Shift snap: %1</source>
         <translation>Dev : magnétisme Maj : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="772"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="828"/>
         <source>Dev: do not disturb: unsupported on this desktop</source>
         <translation>Dev : ne pas déranger : non pris en charge sur ce bureau</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="779"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="835"/>
         <source>Dev: do not disturb: %1</source>
         <translation>Dev : ne pas déranger : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="796"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="852"/>
         <source>Dev: external action: %1</source>
         <translation>Dev : action externe : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="804"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="860"/>
         <source>Dev: external action timeout: %1</source>
         <translation>Dev : délai de l’action externe : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="815"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="871"/>
         <source>Dev: task preset: %1</source>
         <translation>Dev : préréglage de tâche : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="832"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="888"/>
         <source>Dev: CLI output: %1</source>
         <translation>Dev : sortie CLI : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="840"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="896"/>
         <source>Dev: measure tools: %1</source>
         <translation>Dev : outils de mesure : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="879"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="935"/>
         <source>Dev: per-app audio: %1</source>
         <translation>Dev : audio par application : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="888"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="944"/>
         <source>Dev: instant replay: recording unavailable</source>
         <translation>Dev : relecture instantanée : enregistrement indisponible</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="921"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="977"/>
         <source>Dev: trim recording: ffmpeg unavailable</source>
         <translation>Dev : découpe d’enregistrement : ffmpeg indisponible</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="932"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="940"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="988"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="996"/>
         <source>Dev: trim recording: FAIL</source>
         <translation>Dev : découpe d’enregistrement : ÉCHEC</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="957"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1013"/>
         <source>Dev: trim cut: %1</source>
         <translation>Dev : coupe de découpe : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1039"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1095"/>
         <source>Dev: pause excise: %1</source>
         <translation>Dev : suppression des pauses : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1335"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1391"/>
         <source>Dev: screenshot cursor: %1</source>
         <translation>Dev : curseur de capture : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1457"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1545"/>
         <source>Dev: overlay mode badge: %1</source>
         <translation>Dev : badge de mode de la surcouche : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1596"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1684"/>
         <source>Dev: overlay preview: %1</source>
         <translation>Dev : aperçu de la surcouche : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1645"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1733"/>
         <source>Dev: magnifier: %1</source>
         <translation>Dev : loupe : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1680"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1768"/>
         <source>Dev: eyedropper: %1</source>
         <translation>Dev : pipette : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1742"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1830"/>
         <source>Dev: pixel loupe: %1</source>
         <translation>Dev : loupe pixel : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1972"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2060"/>
         <source>Dev: update check: %1</source>
         <translation>Dev : vérification de mise à jour : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1999"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2087"/>
         <source>Dev: auto-restart gate: idle - an installed update would restart now</source>
         <translation>Dev : garde-fou de redémarrage auto : inactif - une mise à jour installée redémarrerait maintenant</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2000"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2088"/>
         <source>Dev: auto-restart gate: deferred (%1)</source>
         <translation>Dev : garde-fou de redémarrage auto : différé (%1)</translation>
     </message>
@@ -768,196 +768,196 @@
         <translation>fenêtre principale visible</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2043"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2131"/>
         <source>Dev: OCR highlight + redact: FAIL (%1)</source>
         <translation>Dev : surlignage + caviardage OCR : ÉCHEC (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2044"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2132"/>
         <source>Dev: OCR highlight + redact: %1</source>
         <translation>Dev : surlignage + caviardage OCR : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2048"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2136"/>
         <source>Dev: OCR highlight + redact: SKIP (built without tesseract)</source>
         <translation>Dev : surlignage + caviardage OCR : IGNORÉ (compilé sans tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2056"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2144"/>
         <source>Dev: cursor overlay: %1</source>
         <translation>Dev : surcouche de curseur : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2063"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2151"/>
         <source>Dev: style presets: %1</source>
         <translation>Dev : préréglages de style : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2072"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2160"/>
         <source>Dev: auto-redact pattern: FAIL (%1)</source>
         <translation>Dev : motif de caviardage auto : ÉCHEC (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2073"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2161"/>
         <source>Dev: auto-redact pattern: %1</source>
         <translation>Dev : motif de caviardage auto : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2077"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2165"/>
         <source>Dev: auto-redact pattern: SKIP (built without tesseract)</source>
         <translation>Dev : motif de caviardage auto : IGNORÉ (compilé sans tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2117"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2205"/>
         <source>Dev: OCR auto language: SKIP (built without tesseract)</source>
         <translation>Dev : langue automatique OCR : IGNORÉ (compilé sans tesseract)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2126"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2214"/>
         <source>Dev: ZIP export: SKIP (zip not installed)</source>
         <translation>Dev : export ZIP : IGNORÉ (zip non installé)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2140"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2228"/>
         <source>Dev: ZIP export: %1</source>
         <translation>Dev : export ZIP : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2141"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2229"/>
         <source>PASS (%1)</source>
         <translation>RÉUSSI (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2141"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2229"/>
         <source>FAIL (%1)</source>
         <translation>ÉCHEC (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2170"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2258"/>
         <source>Dev: played record-start sound &apos;%1&apos;</source>
         <translation>Dev : son de début d’enregistrement &apos;%1&apos; joué</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2178"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2266"/>
         <source>Dev: played the fixed trash sound</source>
         <translation>Dev : son fixe de corbeille joué</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2186"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2218"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2274"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2306"/>
         <source>Dev: countdown is 0s (off) - set it in Recording settings</source>
         <translation>Dev : le compte à rebours est à 0 s (désactivé) - réglez-le dans les réglages d’enregistrement</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2209"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2297"/>
         <source>Dev: countdown finished - recording would start now</source>
         <translation>Dev : compte à rebours terminé - l’enregistrement démarrerait maintenant</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2247"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2335"/>
         <source>Save capture (dev test)</source>
         <translation>Enregistrer la capture (test dev)</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="3087"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2249"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2337"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>Images (*.png *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2251"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2339"/>
         <source>Dev: save dialog cancelled</source>
         <translation>Dev : boîte de dialogue d’enregistrement annulée</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2256"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2344"/>
         <source>Dev: save FAILED</source>
         <translation>Dev : enregistrement ÉCHOUÉ</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2257"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2345"/>
         <source>Dev: saved to %1</source>
         <translation>Dev : enregistré dans %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2269"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2357"/>
         <source>Dev: next file = %1/%2 (counter=%3, subfolders=%4, stripMeta=%5)</source>
         <translation>Dev : prochain fichier = %1/%2 (compteur=%3, sous-dossiers=%4, stripMeta=%5)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2272"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2273"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2360"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2361"/>
         <source>on</source>
         <translation>activé</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2272"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2273"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2360"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2361"/>
         <source>off</source>
         <translation>désactivé</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2301"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2389"/>
         <source>Dev: active window %1x%2 at %3,%4 (logical) on %5, DPR %6; overlay selects %7x%8 at %9,%10</source>
         <translation>Dev : fenêtre active %1x%2 à %3,%4 (logique) sur %5, DPR %6; la surcouche sélectionne %7x%8 à %9,%10</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2315"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2403"/>
         <source>Dev: card preview needs the stylized card enabled (Preferences → Show notifications / capture card)</source>
         <translation>Dev : l’aperçu de carte nécessite la carte stylisée activée (Préférences → Afficher les notifications / carte de capture)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2321"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2409"/>
         <source>Dev: card preview FAILED (no card was created)</source>
         <translation>Dev : aperçu de carte ÉCHOUÉ (aucune carte n’a été créée)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2324"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2412"/>
         <source>Dev: card preview - withdrawing in 3 s</source>
         <translation>Dev : aperçu de carte - retrait dans 3 s</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2419"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2507"/>
         <source>Dev: history drag payload: %1</source>
         <translation>Dev : charge du glisser d’historique : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2444"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2532"/>
         <source>Dev: notification drag payload: %1</source>
         <translation>Dev : charge du glisser de notification : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2462"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2550"/>
         <source>Dev: copy last capture: %1</source>
         <translation>Dev : copie de la dernière capture : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2474"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2562"/>
         <source>Dev: Klipper clipboard history: %1</source>
         <translation>Dev : historique du presse-papiers Klipper : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2584"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2672"/>
         <source>Dev: record border: unsupported on this compositor</source>
         <translation>Dev : bordure d’enregistrement : non prise en charge sur ce compositeur</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2597"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2685"/>
         <source>Dev: record border shown for 4 s</source>
         <translation>Dev : bordure d’enregistrement affichée pendant 4 s</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2598"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2686"/>
         <source>Dev: record border FAILED to show</source>
         <translation>Dev : la bordure d’enregistrement n’a PAS pu s’afficher</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3127"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3215"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev : recherche + filtres d’historique : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3134"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3222"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev : garde-fou Client-ID Imgur : %1</translation>
     </message>
@@ -973,7 +973,7 @@
         <translation>Impossible d’enregistrer dans %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="789"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="845"/>
         <source>Dev: hide while capturing: %1</source>
         <translation>Dev : masquer pendant la capture : %1</translation>
     </message>
@@ -1154,134 +1154,134 @@
         <translation>La découpe nécessite ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="854"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="910"/>
         <source>Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</source>
         <translation>Dev : encodeur matériel : %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="871"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="927"/>
         <source>Dev: recording encoder frozen (SIGSTOP) - press Stop to exercise the watchdog</source>
         <translation>Dev : encodeur d’enregistrement gelé (SIGSTOP) - appuyez sur Arrêter pour exercer le chien de garde</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="872"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="928"/>
         <source>Dev: no live recording encoder to freeze - start a recording first</source>
         <translation>Dev : aucun encodeur d’enregistrement actif à geler - démarrez d’abord un enregistrement</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1118"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1174"/>
         <source>Dev: video quality scale: %1</source>
         <translation>Dev : échelle de qualité vidéo : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1125"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1181"/>
         <source>Dev: separate audio tracks: %1</source>
         <translation>Dev : pistes audio séparées : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1194"/>
         <source>System audio</source>
         <translation>Audio système</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1194"/>
         <source>Microphone</source>
         <translation>Microphone</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="3755"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1194"/>
         <source>Mix</source>
         <translation>Mix</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1219"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1226"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1275"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1282"/>
         <source>Dev: audio inputs: %1</source>
         <translation>Dev : entrées audio : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1236"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1292"/>
         <source>Dev: trim audio edit: %1</source>
         <translation>Dev : édition audio du rognage : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2011"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2099"/>
         <source>Dev: installer update: checking…</source>
         <translation>Dev : mise à jour de l&apos;installateur : vérification…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2013"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2101"/>
         <source>Dev: installer update: PASS (%1)</source>
         <translation>Dev : mise à jour de l&apos;installateur : PASS (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2014"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2102"/>
         <source>Dev: installer update: FAIL (%1)</source>
         <translation>Dev : mise à jour de l&apos;installateur : FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2491"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2579"/>
         <source>memory only</source>
         <translation>en mémoire uniquement</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2493"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2581"/>
         <source>Dev: log FAILED to redact a secret</source>
         <translation>Dev : le journal N&apos;A PAS masqué un secret</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2494"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2582"/>
         <source>Dev: log OK (%1 lines) - %2</source>
         <translation>Dev : journal OK (%1 lignes) - %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2510"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2598"/>
         <source>Dev: crash report: could not open a temp file</source>
         <translation>Dev : rapport de plantage : impossible d&apos;ouvrir un fichier temporaire</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2522"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2610"/>
         <source>Dev: crash report renders - opened it in the file manager</source>
         <translation>Dev : le rapport de plantage s&apos;affiche - ouvert dans le gestionnaire de fichiers</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2523"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2611"/>
         <source>Dev: crash report is malformed</source>
         <translation>Dev : le rapport de plantage est mal formé</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2545"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2633"/>
         <source>Dev: show in folder: check the file is selected in the file manager</source>
         <translation>Dev : afficher dans le dossier : vérifiez que le fichier est sélectionné dans le gestionnaire de fichiers</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2554"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2642"/>
         <source>Dev: KWin record: interface not granted (desktop file / not KWin)</source>
         <translation>Dev : enregistrement KWin : interface non accordée (fichier desktop / pas KWin)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2563"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2651"/>
         <source>Dev: KWin record: stream request failed</source>
         <translation>Dev : enregistrement KWin : échec de la demande de flux</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2567"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2655"/>
         <source>Dev: KWin record OK - PipeWire node %1, no portal dialog</source>
         <translation>Dev : enregistrement KWin OK - nœud PipeWire %1, aucune boîte de dialogue du portail</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2571"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2659"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev : échec de l’enregistrement KWin : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2575"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2663"/>
         <source>Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)</source>
         <translation>Dev : enregistrement KWin : non compilé (nécessite qt6-qtwayland-devel + plasma-wayland-protocols)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2871"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2959"/>
         <source>Dev: curl destination: %1</source>
         <translation>Dev : destination curl : %1</translation>
     </message>
@@ -1290,47 +1290,47 @@
         <translation type="vanished">Dev : variables d&apos;envoi : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3037"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3125"/>
         <source>Dev: still GIF: %1</source>
         <translation>Dev : GIF statique : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3120"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3208"/>
         <source>Dev: image conversion: %1</source>
         <translation>Dev : conversion d’image : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3175"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3263"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev : canal d&apos;installation : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3239"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3327"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev : téléversement de test vers le serveur : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3337"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3425"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev : import par glisser-déposer : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3420"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3508"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev : import par collage : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3446"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3534"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev : mode de la page Enregistrement : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3589"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3677"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev : capture d&apos;enregistrement X11 : %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3597"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3685"/>
         <source>Dev: X11 hotkeys: %1</source>
         <translation>Dev : raccourcis X11 : %1</translation>
     </message>
@@ -1582,7 +1582,7 @@
         <translation>Raccourcis Unisic supprimés de %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4764"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4854"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev : raccourcis du bureau : %1</translation>
     </message>
@@ -2456,228 +2456,228 @@
         <translation>Éditeur Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="96"/>
+        <location filename="../qml/EditorWindow.qml" line="111"/>
         <source>Overwrite file?</source>
         <translation>Écraser le fichier ?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="97"/>
+        <location filename="../qml/EditorWindow.qml" line="112"/>
         <source>This replaces the original saved image with your edited version. This can&apos;t be undone.</source>
         <translation>Ceci remplace l’image enregistrée d’origine par votre version modifiée. Cette action est irréversible.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="203"/>
+        <location filename="../qml/EditorWindow.qml" line="218"/>
         <source>Discard annotations?</source>
         <translation>Abandonner les annotations ?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="204"/>
+        <location filename="../qml/EditorWindow.qml" line="219"/>
         <source>You have unsaved annotations. Close the editor and discard them?</source>
         <translation>Vous avez des annotations non enregistrées. Fermer l’éditeur et les abandonner ?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="205"/>
+        <location filename="../qml/EditorWindow.qml" line="220"/>
         <source>Discard</source>
         <translation>Abandonner</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="324"/>
+        <location filename="../qml/EditorWindow.qml" line="339"/>
         <source>Minimize</source>
         <translation>Réduire</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="329"/>
+        <location filename="../qml/EditorWindow.qml" line="344"/>
         <source>Maximize</source>
         <translation>Agrandir</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="335"/>
+        <location filename="../qml/EditorWindow.qml" line="350"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="363"/>
+        <location filename="../qml/EditorWindow.qml" line="378"/>
         <source>Annotation tools</source>
         <translation>Outils d’annotation</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="423"/>
+        <location filename="../qml/EditorWindow.qml" line="438"/>
         <source>%1 tool group</source>
         <translation>%1 (groupe d’outils)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="426"/>
+        <location filename="../qml/EditorWindow.qml" line="441"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
         <translation>Ouvre ces outils dans la barre ci-dessous : %1. Le groupe lui-même n’a pas de raccourci.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="440"/>
+        <location filename="../qml/EditorWindow.qml" line="455"/>
         <source>Undo</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="441"/>
+        <location filename="../qml/EditorWindow.qml" line="456"/>
         <source>Redo</source>
         <translation>Rétablir</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="446"/>
+        <location filename="../qml/EditorWindow.qml" line="461"/>
         <source>Apply crop</source>
         <translation>Appliquer le recadrage</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="512"/>
+        <location filename="../qml/EditorWindow.qml" line="527"/>
         <source>Delete shape</source>
         <translation>Supprimer la forme</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="671"/>
+        <location filename="../qml/EditorWindow.qml" line="686"/>
         <source>Annotation canvas</source>
         <translation>Zone d’annotation</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="672"/>
+        <location filename="../qml/EditorWindow.qml" line="687"/>
         <source>%1 by %2 pixels</source>
         <translation>%1 sur %2 pixels</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="793"/>
+        <location filename="../qml/EditorWindow.qml" line="840"/>
         <source>Annotation text</source>
         <translation>Texte de l’annotation</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="794"/>
+        <location filename="../qml/EditorWindow.qml" line="841"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Entrée termine, Échap abandonne</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="843"/>
+        <location filename="../qml/EditorWindow.qml" line="898"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Texte… (Ctrl+Entrée pour terminer)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="858"/>
+        <location filename="../qml/EditorWindow.qml" line="913"/>
         <source>Click a line · double-click a word · drag for letters</source>
         <translation>Cliquez sur une ligne · double-cliquez sur un mot · glissez pour des lettres</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="880"/>
+        <location filename="../qml/EditorWindow.qml" line="935"/>
         <source>Editor actions</source>
         <translation>Actions de l’éditeur</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="897"/>
+        <location filename="../qml/EditorWindow.qml" line="952"/>
         <source> (fit)</source>
         <translation> (ajusté)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="918"/>
+        <location filename="../qml/EditorWindow.qml" line="973"/>
         <source>Copy</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="924"/>
+        <location filename="../qml/EditorWindow.qml" line="979"/>
         <source>Overwrite</source>
         <translation>Écraser</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="924"/>
+        <location filename="../qml/EditorWindow.qml" line="979"/>
         <source>Save</source>
         <translation>Enregistrer</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="929"/>
+        <location filename="../qml/EditorWindow.qml" line="984"/>
         <source>Uploading…</source>
         <translation>Téléversement…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="929"/>
+        <location filename="../qml/EditorWindow.qml" line="984"/>
         <source>Upload</source>
         <translation>Téléverser</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="943"/>
+        <location filename="../qml/EditorWindow.qml" line="998"/>
         <source>More</source>
         <translation>Plus</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="945"/>
+        <location filename="../qml/EditorWindow.qml" line="1000"/>
         <source>Copy all text</source>
         <translation>Copier tout le texte</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="946"/>
-        <location filename="../qml/EditorWindow.qml" line="949"/>
+        <location filename="../qml/EditorWindow.qml" line="1001"/>
+        <location filename="../qml/EditorWindow.qml" line="1004"/>
         <source>Needs OCR</source>
         <translation>Nécessite l’OCR</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="948"/>
+        <location filename="../qml/EditorWindow.qml" line="1003"/>
         <source>Select text…</source>
         <translation>Sélectionner du texte…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="955"/>
+        <location filename="../qml/EditorWindow.qml" line="1010"/>
         <source>Save as GIF</source>
         <translation>Enregistrer en GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="958"/>
+        <location filename="../qml/EditorWindow.qml" line="1013"/>
         <source>Needs ffmpeg</source>
         <translation>Nécessite ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="968"/>
+        <location filename="../qml/EditorWindow.qml" line="1023"/>
         <source>Close (Esc)</source>
         <translation>Fermer (Échap)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="977"/>
+        <location filename="../qml/EditorWindow.qml" line="1032"/>
         <source>Recognizing…</source>
         <translation>Reconnaissance…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="977"/>
+        <location filename="../qml/EditorWindow.qml" line="1032"/>
         <source>Copy selection</source>
         <translation>Copier la sélection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="984"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Highlight selection</source>
         <translation>Surligner la sélection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="994"/>
+        <location filename="../qml/EditorWindow.qml" line="1049"/>
         <source>Redact selection</source>
         <translation>Caviarder la sélection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1005"/>
+        <location filename="../qml/EditorWindow.qml" line="1060"/>
         <source>Auto-redact</source>
         <translation>Caviardage auto</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1008"/>
+        <location filename="../qml/EditorWindow.qml" line="1063"/>
         <source>E-mail addresses</source>
         <translation>Adresses e-mail</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1012"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>IP addresses</source>
         <translation>Adresses IP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1016"/>
+        <location filename="../qml/EditorWindow.qml" line="1071"/>
         <source>Long numbers</source>
         <translation>Nombres longs</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1024"/>
+        <location filename="../qml/EditorWindow.qml" line="1079"/>
         <source>Select all</source>
         <translation>Tout sélectionner</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1030"/>
+        <location filename="../qml/EditorWindow.qml" line="1085"/>
         <source>Done</source>
         <translation>Terminé</translation>
     </message>
@@ -3578,23 +3578,23 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
 <context>
     <name>OverlayWindow</name>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="291"/>
-        <location filename="../qml/OverlayWindow.qml" line="375"/>
+        <location filename="../qml/OverlayWindow.qml" line="296"/>
+        <location filename="../qml/OverlayWindow.qml" line="380"/>
         <source>Measurements copied</source>
         <translation>Mesures copiées</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="292"/>
+        <location filename="../qml/OverlayWindow.qml" line="297"/>
         <source>Nothing measured yet - Ctrl+drag to measure</source>
         <translation>Rien de mesuré pour l’instant - Ctrl+glisser pour mesurer</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="538"/>
+        <location filename="../qml/OverlayWindow.qml" line="548"/>
         <source>Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close</source>
         <translation>Glissez pour mesurer · Tab : distance/taille · Ctrl+C copie les tailles · Échap pour fermer</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="539"/>
+        <location filename="../qml/OverlayWindow.qml" line="549"/>
         <source>Drag to select</source>
         <translation>Glissez pour sélectionner</translation>
     </message>
@@ -3631,67 +3631,67 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
         <translation>Capture d&apos;écran</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="368"/>
+        <location filename="../qml/OverlayWindow.qml" line="373"/>
         <source>Capture region, %1</source>
         <translation>Région de capture, %1</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="369"/>
+        <location filename="../qml/OverlayWindow.qml" line="374"/>
         <source>Drag to select. Space or Enter captures, Escape cancels, arrow keys nudge the selection.</source>
         <translation>Glissez pour sélectionner. Espace ou Entrée capture, Échap annule, les flèches déplacent la sélection.</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="543"/>
+        <location filename="../qml/OverlayWindow.qml" line="553"/>
         <source> · W selects the active window</source>
         <translation> · W sélectionne la fenêtre active</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="548"/>
+        <location filename="../qml/OverlayWindow.qml" line="558"/>
         <source> · Ctrl+drag to move · Space/Enter reads the text · Esc to cancel</source>
         <translation> · Ctrl+glisser pour déplacer · Espace/Entrée lit le texte · Échap pour annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="550"/>
+        <location filename="../qml/OverlayWindow.qml" line="560"/>
         <source> · Ctrl+drag to move · Space/Enter starts the GIF · Esc to cancel</source>
         <translation> · Ctrl+glisser pour déplacer · Espace/Entrée démarre le GIF · Échap pour annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="552"/>
+        <location filename="../qml/OverlayWindow.qml" line="562"/>
         <source> · Ctrl+drag to move · Space/Enter starts the video · Esc to cancel</source>
         <translation> · Ctrl+glisser pour déplacer · Espace/Entrée démarre la vidéo · Échap pour annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="554"/>
+        <location filename="../qml/OverlayWindow.qml" line="564"/>
         <source> · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel</source>
         <translation> · cliquez pour l’écran entier · Ctrl+glisser pour déplacer · annotez avec la barre d’outils · Espace/Entrée ou double-clic pour capturer · Échap pour annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="555"/>
+        <location filename="../qml/OverlayWindow.qml" line="565"/>
         <source> · Ctrl+drag to move · Space/Enter to start · Esc to cancel</source>
         <translation> · Ctrl+glisser pour déplacer · Espace/Entrée pour démarrer · Échap pour annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="668"/>
+        <location filename="../qml/OverlayWindow.qml" line="678"/>
         <source>Capture tools</source>
         <translation>Outils de capture</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="726"/>
+        <location filename="../qml/OverlayWindow.qml" line="736"/>
         <source>%1 tool group</source>
         <translation>%1 (groupe d’outils)</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="729"/>
+        <location filename="../qml/OverlayWindow.qml" line="739"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
         <translation>Ouvre ces outils dans la barre ci-dessous : %1. Le groupe lui-même n’a pas de raccourci.</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="740"/>
+        <location filename="../qml/OverlayWindow.qml" line="750"/>
         <source>Undo</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="741"/>
+        <location filename="../qml/OverlayWindow.qml" line="751"/>
         <source>Redo</source>
         <translation>Rétablir</translation>
     </message>
@@ -3705,37 +3705,37 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
         <translation type="vanished">Démarrer</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="760"/>
+        <location filename="../qml/OverlayWindow.qml" line="770"/>
         <source>Space or Enter also confirms</source>
         <translation>Espace ou Entrée confirme aussi</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="771"/>
+        <location filename="../qml/OverlayWindow.qml" line="781"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="772"/>
+        <location filename="../qml/OverlayWindow.qml" line="782"/>
         <source>Escape also cancels</source>
         <translation>Échap annule aussi</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="819"/>
+        <location filename="../qml/OverlayWindow.qml" line="829"/>
         <source>Delete shape</source>
         <translation>Supprimer la forme</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="891"/>
+        <location filename="../qml/OverlayWindow.qml" line="930"/>
         <source>Annotation text</source>
         <translation>Texte de l’annotation</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="892"/>
+        <location filename="../qml/OverlayWindow.qml" line="931"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Entrée termine, Échap abandonne</translation>
     </message>
     <message>
-        <location filename="../qml/OverlayWindow.qml" line="917"/>
+        <location filename="../qml/OverlayWindow.qml" line="958"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Texte… (Ctrl+Entrée pour terminer)</translation>
     </message>
@@ -8655,182 +8655,187 @@ S’applique à la prochaine capture.</translation>
 <context>
     <name>UpdateChecker</name>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="260"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="268"/>
         <source>a check is already running</source>
         <translation>une vérification est déjà en cours</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="264"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="272"/>
         <source>Checking for updates…</source>
         <translation>Recherche de mises à jour…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="294"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="321"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="380"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="302"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="329"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="393"/>
         <source>Checked at %1 - up to date</source>
         <translation>Vérifié à %1 - à jour</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="302"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="310"/>
         <source>GitHub rate limit reached - try again later</source>
         <translation>Limite de requêtes GitHub atteinte - réessayez plus tard</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="307"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="332"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="315"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="340"/>
         <source>Update check failed: %1</source>
         <translation>Échec de la vérification de mise à jour : %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="330"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="338"/>
         <source>malformed release feed</source>
         <translation>flux de version mal formé</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="379"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="392"/>
         <source>Checked at %1 - version %2 is available</source>
         <translation>Vérifié à %1 - la version %2 est disponible</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="409"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="422"/>
         <source>This release has no AppImage - it can&apos;t be installed in place</source>
         <translation>Cette version n’a pas d’AppImage - elle ne peut pas être installée sur place</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="410"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="423"/>
         <source>This install can&apos;t update itself</source>
         <translation>Cette installation ne peut pas se mettre à jour elle-même</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="421"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="521"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="434"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="562"/>
         <source>Update failed: cannot create %1</source>
         <translation>Échec de la mise à jour : impossible de créer %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="428"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="825"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="847"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="441"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="872"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="894"/>
         <source>Update failed: cannot write %1</source>
         <translation>Échec de la mise à jour : impossible d’écrire %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="435"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="448"/>
         <source>Downloading version %1…</source>
         <translation>Téléchargement de la version %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="461"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="881"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="480"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="928"/>
         <source>Update failed: %1</source>
         <translation>Échec de la mise à jour : %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="470"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="491"/>
         <source>cannot write the file</source>
         <translation>impossible d’écrire le fichier</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="477"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="498"/>
         <source>download looks truncated</source>
         <translation>le téléchargement semble tronqué</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="492"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="513"/>
+        <source>the download does not match the checksum published with the release - nothing was installed</source>
+        <translation>le fichier téléchargé ne correspond pas à la somme de contrôle publiée avec la version - rien n&apos;a été installé</translation>
+    </message>
+    <message>
+        <location filename="../src/update/UpdateChecker.cpp" line="533"/>
         <source>cannot replace %1</source>
         <translation>impossible de remplacer %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="498"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="579"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="539"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="620"/>
         <source>Update installed - restart to run version %1</source>
         <translation>Mise à jour installée - redémarrez pour exécuter la version %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="508"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="549"/>
         <source>cannot move the download into place</source>
         <translation>impossible de déplacer le téléchargement en place</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="525"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="566"/>
         <source>Installing version %1…</source>
         <translation>Installation de la version %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="546"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="587"/>
         <source>Update failed: could not unpack the new version</source>
         <translation>Échec de la mise à jour : impossible d’extraire la nouvelle version</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="561"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="571"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="602"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="612"/>
         <source>Update failed: could not write the update pointer</source>
         <translation>Échec de la mise à jour : impossible d’écrire le pointeur de mise à jour</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="655"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="696"/>
         <source>Simulated: version %1 is available</source>
         <translation>Simulé : la version %1 est disponible</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="693"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="740"/>
         <source>cannot create the cache folder</source>
         <translation>impossible de créer le dossier de cache</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="716"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="763"/>
         <source>the downloaded file is not the Unisic installer</source>
         <translation>le fichier téléchargé n&apos;est pas l&apos;installateur d&apos;Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="732"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="779"/>
         <source>the installer does not match the checksum published with the release - nothing was run</source>
         <translation>l&apos;installateur ne correspond pas à la somme de contrôle publiée avec la version - rien n&apos;a été exécuté</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="745"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="792"/>
         <source>cannot write %1</source>
         <translation>impossible d&apos;écrire %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="808"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="855"/>
         <source>No terminal program was found to run the installer.</source>
         <translation>Aucun programme de terminal n&apos;a été trouvé pour lancer l&apos;installateur.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="810"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="857"/>
         <source>no terminal found</source>
         <translation>aucun terminal trouvé</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="827"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="849"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="874"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="896"/>
         <source>cannot write the helper script</source>
         <translation>impossible d&apos;écrire le script d&apos;assistance</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="856"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="903"/>
         <source>A terminal opened to install the update - restart Unisic when it finishes.</source>
         <translation>Un terminal a été ouvert pour installer la mise à jour - redémarrez Unisic une fois terminé.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="860"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="907"/>
         <source>Could not open a terminal to run the installer.</source>
         <translation>Impossible d&apos;ouvrir un terminal pour lancer l&apos;installateur.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="862"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="909"/>
         <source>the terminal failed to start</source>
         <translation>le terminal n&apos;a pas pu démarrer</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="869"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="916"/>
         <source>this install can&apos;t be updated this way</source>
         <translation>cette installation ne peut pas être mise à jour de cette façon</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="875"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="922"/>
         <source>Fetching the installer…</source>
         <translation>Téléchargement de l&apos;installateur…</translation>
     </message>

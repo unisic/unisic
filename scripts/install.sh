@@ -3,9 +3,14 @@
 # Unisic universal installer - INTERACTIVE (a full-screen terminal menu).
 #
 # Run it in a terminal:
-#     bash <(curl -fsSL https://raw.githubusercontent.com/unisic/unisic/main/scripts/install.sh)
+#     bash <(curl -fsSL https://github.com/unisic/unisic/releases/latest/download/install.sh)
 # or, once downloaded:
 #     bash scripts/install.sh
+#
+# That URL is the copy attached to the newest release - frozen at what CI built
+# for that tag, and with a sha256 published for it in the API. The branch head
+# (RAW_URL below) is the fallback only: it moves under the release it is meant
+# to belong to, so nothing can be pinned to it.
 #
 # It opens a btop-style menu (arrow keys + Enter) that can install, update,
 # uninstall, install an older version, and turn on automatic updates. There is
@@ -43,7 +48,8 @@ REPO="unisic/unisic"
 API="https://api.github.com/repos/${REPO}"
 OBS_BASE="https://download.opensuse.org/repositories/home:/unisic"
 RAW_URL="https://raw.githubusercontent.com/${REPO}/main/scripts/install.sh"
-DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/unisic"
+SHARE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}"
+DATA_DIR="${SHARE_DIR}/unisic"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 
 # --- state --------------------------------------------------------------
@@ -209,6 +215,36 @@ download() {   # curl or wget, to a file
     elif have wget; then wget -q --show-progress -O "$2" "$1"
     else die "This installer needs the 'curl' or 'wget' download tool, but neither is installed.
     Install one with your software manager (for example: sudo apt install curl) and try again."; fi
+    verify_digest "$1" "$2"
+}
+
+# Every file this script hands to a package manager, unpacks, or installs as the
+# app itself is checked against the sha256 GitHub published for that asset when
+# it was uploaded - the digest travels in the same release JSON the download URL
+# came from, so no second request and no jq. Both ends are GitHub, so this is no
+# defence against GitHub itself; it does catch a truncated or resumed-wrong
+# transfer, a caching proxy serving something else, and a file swapped at one
+# endpoint but not the other. A URL with no digest in the feed (an old release,
+# a raw.githubusercontent copy) has nothing to check against and stands on TLS
+# alone, which is what it did before this existed.
+verify_digest() {   # <url> <file>
+    local want got
+    [ -n "${RELEASE_JSON:-}" ] || return 0
+    have sha256sum || { warn "The 'sha256sum' tool isn't installed here, so I can't check the
+    download against its published checksum. Carrying on."; return 0; }
+    # "digest" and "browser_download_url" sit in the same asset object with no
+    # nested object between them, so [^{}]* cannot cross into the next asset.
+    want="$(printf '%s' "$RELEASE_JSON" | tr -d '\n' \
+        | grep -oE '"digest": *"sha256:[0-9a-f]{64}"[^{}]*"browser_download_url": *"[^"]+"' \
+        | sed -E 's/.*"sha256:([0-9a-f]{64})".*"(https[^"]+)"/\1 \2/' \
+        | awk -v u="$1" '$2 == u { print $1; exit }' || true)"
+    [ -n "$want" ] || return 0
+    got="$(sha256sum "$2" | cut -d' ' -f1)"
+    [ "$got" = "$want" ] && return 0
+    rm -f "$2"
+    die "The file that arrived isn't the one this release published (its checksum doesn't match),
+    so I stopped and deleted it - nothing was installed. This is usually a download that broke
+    halfway or a proxy on your network serving an old copy. Please try again."
 }
 
 # Run a command that changes system software. This needs elevated permission,
@@ -314,8 +350,8 @@ installed_status() {
 # Map a chosen menu id to the variables the rest of the script reads.
 tui_apply() {
     case "$1" in
-        native)         ACTION="install";   CHANNEL="auto" ;;
-        appimage)       ACTION="install";   CHANNEL="appimage" ;;
+        auto)           ACTION="install";   CHANNEL="auto" ;;
+        native)         ACTION="install";   CHANNEL="native" ;;
         flatpak)        ACTION="install";   CHANNEL="flatpak" ;;
         uninstall)      ACTION="uninstall" ;;
         purge)          ACTION="uninstall"; PURGE=1 ;;
@@ -436,14 +472,14 @@ tui_run() {
         qhint=back
         status_line="Install or update"
         status_style=dim
-        ids=(native appimage)
+        ids=(auto native)
         labels=(
             "Install or update Unisic          (recommended)"
-            "Install the portable version      (no password)"
+            "Install the system package        (asks for password)"
         )
         helps=(
-            "Installs Unisic (or updates it). Asks for your password."
-            "Puts Unisic in your home folder. No password needed."
+            "No password needed, unless Unisic is already installed system-wide."
+            "Installs Unisic with your system's package manager."
         )
         hdr=("" "")
         # Only offered where Flatpak exists: there is nothing this installer
@@ -630,6 +666,13 @@ uninstall_portable() {   # remove a portable/AppImage install; 1 if nothing ther
     for d in "${PREFIX}"/lib/unisic-*-x86_64; do
         if [ -d "$d" ]; then rm -rf "$d"; removed=1; fi
     done
+    # Only together with the copy they point at: a leftover entry aiming at a
+    # deleted binary is worse than none, but the entry alone (from a native or
+    # Flatpak install) is not ours to delete.
+    if [ "$removed" -eq 1 ]; then
+        rm -f "${SHARE_DIR}/applications/app.unisic.Unisic.desktop" \
+              "${SHARE_DIR}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg"
+    fi
     return $(( removed == 0 ))
 }
 
@@ -746,7 +789,20 @@ setup_autoupdate() {
     if [ -f "$0" ] && grep -q 'Unisic universal installer' "$0" 2>/dev/null; then
         cp "$0" "${DATA_DIR}/install.sh"
     else
-        download "$RAW_URL" "${DATA_DIR}/install.sh"
+        # Piped `curl | bash`: there is no on-disk $0 to copy, so this timer's
+        # script has to be fetched. Take the release's own copy, which
+        # verify_digest can check, and keep the branch head only for a release
+        # that predates it. Either way it is run daily with the user's rights
+        # from then on, so a wrong file cannot be allowed to install itself.
+        local url=""
+        : "${RELEASE_JSON:="$(fetch "${API}/releases/latest" 2>/dev/null || true)"}"
+        url="$(printf '%s' "$RELEASE_JSON" | asset_url '/install\.sh$')"
+        download "${url:-$RAW_URL}" "${DATA_DIR}/install.sh"
+        grep -q 'Unisic universal installer' "${DATA_DIR}/install.sh" 2>/dev/null || {
+            rm -f "${DATA_DIR}/install.sh"
+            die "What came back from GitHub isn't the Unisic installer, so I didn't set up
+    automatic updates. Please try again in a moment."
+        }
     fi
     chmod +x "${DATA_DIR}/install.sh"
     local pre=""; if [ "$PRERELEASE" -eq 1 ]; then pre=" pre"; fi
@@ -1159,6 +1215,54 @@ install_zypper_repo() {
     priv zypper --non-interactive install unisic || native_fail
 }
 
+# Menu entry + icon for the portable copy. The app writes its own on every other
+# channel but deliberately not when $APPIMAGE is set (main.cpp): only the
+# installer knows the stable path the entry has to point at. Never fatal - a
+# missing menu entry is worth a shrug, not a failed install.
+install_appimage_desktop() {   # <appimage file>
+    local app="$1" ex="${tmpdir}/appdir" src
+    local apps="${SHARE_DIR}/applications" icons="${SHARE_DIR}/icons/hicolor/scalable/apps"
+    local icon="usr/share/icons/hicolor/scalable/apps/app.unisic.Unisic.svg"
+    rm -rf "$ex"; mkdir -p "$ex"
+    # Two calls: --appimage-extract takes one pattern, and the icon at the AppDir
+    # root is a symlink into usr/ that arrives dangling unless its target is
+    # extracted too. Filtered extraction, so neither call unpacks the 60 MB app.
+    ( cd "$ex" && "$app" --appimage-extract 'app.unisic.Unisic.desktop' ) >/dev/null 2>&1 || return 0
+    ( cd "$ex" && "$app" --appimage-extract "$icon" ) >/dev/null 2>&1 || true
+    src="${ex}/squashfs-root/app.unisic.Unisic.desktop"
+    [ -f "$src" ] || return 0
+    mkdir -p "$apps" "$icons"
+    # Absolute Exec, per the rule that applies to every installed .desktop. It
+    # does NOT buy the KWin ScreenShot2 fast path here: an AppImage's
+    # /proc/<pid>/exe is the transient FUSE mount, never this symlink, so that
+    # authorization keeps failing and capture keeps going through the portal
+    # (AGENTS.md §3). What this file is for is the applications menu, its icon,
+    # and giving the portal a stable app id to remember the permission under.
+    sed -E "s|^(Try)?Exec=.*|\\1Exec=${PREFIX}/bin/unisic|" "$src" \
+        > "${apps}/app.unisic.Unisic.desktop"
+    if [ -f "${ex}/squashfs-root/${icon}" ]; then
+        cp -f "${ex}/squashfs-root/${icon}" "${icons}/app.unisic.Unisic.svg"
+    fi
+    rm -rf "$ex"
+}
+
+# The version is part of every portable install's name, so a new one lands BESIDE
+# the old one instead of over it: without this, each update quietly left another
+# ~62 MB AppImage (or ~185 MB unpacked tarball, measured on 0.7.5) in
+# ~/.local/lib. Runs after the
+# new copy is in place and the symlink points at it, so a failed install never
+# takes the working version with it. Deleting a file that is currently running is
+# safe on Linux - the inode stays until that process exits.
+prune_portable() {   # <path the current install uses>
+    local keep="$1" p
+    for p in "${PREFIX}"/lib/unisic/*.AppImage "${PREFIX}"/lib/unisic-*-x86_64; do
+        if [ ! -e "$p" ] || [ "$p" = "$keep" ]; then continue; fi
+        rm -rf "$p"
+    done
+    # Left behind when the last AppImage in it was the one just pruned.
+    rmdir "${PREFIX}/lib/unisic" 2>/dev/null || true
+}
+
 install_appimage() {
     local url dest bindir
     url="$(printf '%s' "$RELEASE_JSON" | asset_url 'x86_64\.AppImage$')"
@@ -1166,13 +1270,28 @@ install_appimage() {
     dest="${PREFIX}/lib/unisic/$(basename "$url")"
     if [ -z "$REQ_VERSION" ] && [ -e "$dest" ] && [ "$(readlink -f "${PREFIX}/bin/unisic" 2>/dev/null)" = "$(readlink -f "$dest")" ]; then
         say "You already have the newest Unisic (${latest_ver:-current}) - nothing to do."
+        install_appimage_desktop "$dest"
+        prune_portable "$dest"
         return
     fi
     bindir="${PREFIX}/bin"
     mkdir -p "$(dirname "$dest")" "$bindir"
     download "$url" "$dest"
     chmod +x "$dest"
+    # An AppImage needs /dev/fuse and a fusermount binary. Where the system has
+    # neither (containers, some hardened kernels) the tarball is the same build
+    # already unpacked, so fall back to it instead of leaving behind a copy that
+    # cannot start.
+    if ! "$dest" --appimage-version >/dev/null 2>&1; then
+        rm -f "$dest"
+        say "This system can't run the portable app directly, so I'll install the unpacked version instead."
+        install_tarball
+        RESOLVED_CHANNEL="tarball"
+        return
+    fi
     ln -sf "$dest" "${bindir}/unisic"
+    install_appimage_desktop "$dest"
+    prune_portable "$dest"
 }
 
 install_flatpak() {
@@ -1246,6 +1365,7 @@ install_tarball() {
        && [ -d "${PREFIX}/lib/${want}" ] \
        && [ "$(readlink -f "${PREFIX}/bin/unisic" 2>/dev/null)" = "$(readlink -f "${PREFIX}/lib/${want}/AppRun")" ]; then
         say "You already have the newest Unisic (${latest_ver}) - nothing to do."
+        prune_portable "${PREFIX}/lib/${want}"
         return
     fi
     tgz="${tmpdir}/$(basename "$url")"
@@ -1262,6 +1382,7 @@ install_tarball() {
     rm -rf "${PREFIX}/lib/${top}"
     tar xzf "$tgz" -C "${PREFIX}/lib"
     ln -sf "${PREFIX}/lib/${top}/AppRun" "${PREFIX}/bin/unisic"
+    prune_portable "${PREFIX}/lib/${top}"
 }
 
 # How to start Unisic, in plain terms (portable installs).
@@ -1276,15 +1397,16 @@ start_hint() {
 # --- dispatch -----------------------------------------------------------
 eff="$CHANNEL"
 if [ "$eff" = auto ]; then
-    # An existing install decides before the distro does: a machine that already
-    # runs the Flatpak must get THAT one updated, not a second copy of Unisic
-    # installed beside it. A native package still wins over it, because that is
-    # the one the system's own updates keep current.
-    if   [ -n "$native_pm" ] && native_installed;  then eff="native"
-    elif flatpak_scope >/dev/null 2>&1;            then eff="flatpak"
-    elif [ -n "$native_pm" ];                      then eff="native"
-    elif [ "$IS_ATOMIC" -eq 1 ];                   then eff="appimage"
-    else                                                eff="tarball"; fi
+    # An existing install decides before anything else: a machine that already
+    # runs the Flatpak (or a native package, or the extracted portable copy) must
+    # get THAT one updated, not a second copy of Unisic installed beside it.
+    # With nothing installed the AppImage wins over the native package: it needs
+    # no password, and from then on Unisic updates itself in place instead of
+    # waiting for this installer to be run again.
+    if   [ -n "$native_pm" ] && native_installed;               then eff="native"
+    elif flatpak_scope >/dev/null 2>&1;                         then eff="flatpak"
+    elif ls -d "${PREFIX}"/lib/unisic-*-x86_64 >/dev/null 2>&1; then eff="tarball"
+    else                                                             eff="appimage"; fi
 fi
 RESOLVED_CHANNEL="$eff"
 
@@ -1302,8 +1424,12 @@ case "$eff" in
                     install_tarball; RESOLVED_CHANNEL="tarball" ;;
         esac ;;
     appimage)
-        if [ "$CHANNEL" = auto ] && [ "$IS_ATOMIC" -eq 1 ]; then
-            say "Your Linux keeps its system files locked, so I'll install the portable version (no password)."
+        if [ "$CHANNEL" = auto ]; then
+            if [ "$IS_ATOMIC" -eq 1 ]; then
+                say "Your Linux keeps its system files locked, so I'll install the portable version (no password)."
+            else
+                say "Installing the portable version - no password needed, and it updates itself from then on."
+            fi
         fi
         install_appimage ;;
     tarball)

@@ -28,6 +28,14 @@
 
 static const char *kFeedUrl = "https://api.github.com/repos/unisic/unisic/releases/latest";
 
+// The sha256 GitHub computed for a release asset when it was uploaded, as bare
+// lowercase hex ("" for an asset uploaded before the API published digests).
+static QString assetSha256(const QJsonObject &asset)
+{
+    const QString digest = asset.value(QLatin1String("digest")).toString();
+    return digest.startsWith(QLatin1String("sha256:")) ? digest.mid(7).toLower() : QString();
+}
+
 // Single-quote a string for safe inclusion in a /bin/bash command line.
 static QString shQuote(const QString &s)
 {
@@ -346,8 +354,14 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     m_assetName.clear();
     m_assetUrl.clear();
     m_assetSize = 0;
+    m_assetSha256.clear();
     m_installerAssetUrl.clear();
     m_installerSha256.clear();
+    // The tag pins the installer fallback below to one tree instead of the
+    // branch head. Anything that is not a plain tag name is dropped rather than
+    // pasted into a URL.
+    static const QRegularExpression tagRe(QStringLiteral("^[0-9A-Za-z._-]+$"));
+    m_tag = tagRe.match(tag).hasMatch() ? tag : QString();
     static const QRegularExpression assetRe(QStringLiteral("^Unisic-.*x86_64\\.AppImage$"));
     const QJsonArray assets = obj.value(QLatin1String("assets")).toArray();
     for (const QJsonValue &v : assets) {
@@ -357,6 +371,7 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
             m_assetName = name;
             m_assetUrl = a.value(QLatin1String("browser_download_url")).toString();
             m_assetSize = static_cast<qint64>(a.value(QLatin1String("size")).toDouble());
+            m_assetSha256 = assetSha256(a);
             continue;
         }
         // The release's own install.sh, plus the checksum GitHub computed when
@@ -365,9 +380,7 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
         // branch head that moves under it.
         if (name == QLatin1String("install.sh")) {
             m_installerAssetUrl = a.value(QLatin1String("browser_download_url")).toString();
-            const QString digest = a.value(QLatin1String("digest")).toString();
-            if (digest.startsWith(QLatin1String("sha256:")))
-                m_installerSha256 = digest.mid(7).toLower();
+            m_installerSha256 = assetSha256(a);
         }
     }
 
@@ -442,17 +455,23 @@ void UpdateChecker::downloadAndInstall()
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     req.setTransferTimeout(600000);
     QNetworkReply *reply = nam()->get(req);
+    // Hashed as it streams past: the file is ~100 MB and this costs one pass
+    // over bytes already in hand, where re-reading it afterwards costs a second
+    // 100 MB of IO.
+    auto hash = std::make_shared<QCryptographicHash>(QCryptographicHash::Sha256);
     // Stream to disk — the asset is ~100 MB, never readAll() it in one piece.
-    connect(reply, &QNetworkReply::readyRead, this, [reply, file] {
+    connect(reply, &QNetworkReply::readyRead, this, [reply, file, hash] {
+        const QByteArray chunk = reply->readAll();
+        hash->addData(chunk);
         if (file->isOpen())
-            file->write(reply->readAll());
+            file->write(chunk);
     });
     connect(reply, &QNetworkReply::downloadProgress, this, [this](qint64 got, qint64 total) {
         const qint64 expected = total > 0 ? total : m_assetSize;
         m_progress = expected > 0 ? qreal(got) / qreal(expected) : 0.0;
         emit stateChanged();
     });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, file, part, target, inPlace] {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, file, hash, part, target, inPlace] {
         reply->deleteLater();
         const auto fail = [this, file, part](const QString &why) {
             file->close();
@@ -465,7 +484,9 @@ void UpdateChecker::downloadAndInstall()
             fail(reply->errorString());
             return;
         }
-        file->write(reply->readAll()); // tail bytes after the last readyRead
+        const QByteArray tail = reply->readAll(); // bytes after the last readyRead
+        hash->addData(tail);
+        file->write(tail);
         if (!file->flush()) {
             fail(tr("cannot write the file"));
             return;
@@ -476,6 +497,26 @@ void UpdateChecker::downloadAndInstall()
         if (m_assetSize > 0 && QFileInfo(part).size() != m_assetSize) {
             fail(tr("download looks truncated"));
             return;
+        }
+        // And the sha256 the release published for it. This file replaces the
+        // running application with no further confirmation, so "the right
+        // number of bytes" is not a standard to install by: a size match says
+        // nothing about a mirror, proxy or resumed transfer handing back
+        // different bytes. Both ends are GitHub, so this is no defence against
+        // GitHub itself. Releases made before the API published digests have
+        // nothing to check against and fall back to the size alone.
+        if (!m_assetSha256.isEmpty()) {
+            const QString got = QString::fromLatin1(hash->result().toHex());
+            if (got != m_assetSha256) {
+                qWarning() << "Update checksum mismatch for" << m_assetName
+                           << "- expected" << m_assetSha256 << "got" << got;
+                fail(tr("the download does not match the checksum published with "
+                        "the release - nothing was installed"));
+                return;
+            }
+        } else {
+            qWarning() << "Update downloaded with no published checksum to check it against:"
+                       << m_assetUrl;
         }
         // Exec bits (keep the target's mode on the in-place path).
         QFile::setPermissions(part, (inPlace ? QFile::permissions(target)
@@ -670,13 +711,18 @@ QUrl UpdateChecker::installerScriptUrl() const
     if (!env.isEmpty())
         return QUrl(env);
     // The release's own asset once a check has seen one: that is the copy the
-    // published sha256 belongs to. The branch head is the fallback, and it is
-    // all a release made before install.sh became an asset can offer - it moves
-    // with main, so no checksum can be pinned to it.
+    // published sha256 belongs to, and the only route with a checksum at all.
     if (!m_installerAssetUrl.isEmpty())
         return QUrl(m_installerAssetUrl);
-    return QUrl(QStringLiteral(
-        "https://raw.githubusercontent.com/unisic/unisic/main/scripts/install.sh"));
+    // Fallback for a release made before install.sh became an asset: the same
+    // script at that release's TAG, whose tree is frozen at what was released,
+    // rather than the branch head, which is whatever was pushed a minute ago.
+    // Neither carries a published checksum, so the marker-line check is all
+    // that is left either way - but a tag does not move under us.
+    const QString ref = m_tag.isEmpty() ? QStringLiteral("main") : m_tag;
+    return QUrl(QStringLiteral("https://raw.githubusercontent.com/unisic/unisic/%1"
+                               "/scripts/install.sh")
+                    .arg(ref));
 }
 
 QString UpdateChecker::installerCacheDir() const

@@ -66,8 +66,19 @@ jobs:
           # still accepted so an existing secret keeps working.
           if [[ "$AUR_SSH_KEY" == *"PRIVATE KEY"* ]]; then
             printf '%s\n' "$AUR_SSH_KEY" > /home/builder/.ssh/aur
-          else
-            printf '%s' "$AUR_SSH_KEY" | base64 -d > /home/builder/.ssh/aur
+          elif ! printf '%s' "$AUR_SSH_KEY" | base64 -d > /home/builder/.ssh/aur 2>/dev/null; then
+            # base64's own "invalid input" names neither the secret nor what is
+            # wrong with it, and it fires before the check below ever runs. The
+            # shape, the length and a hash prefix say enough without printing a
+            # byte of the value.
+            echo "secret ${#AUR_SSH_KEY} bytes, sha256 $(printf '%s' "$AUR_SSH_KEY" | sha256sum | cut -c1-16)"
+            case "$AUR_SSH_KEY" in
+              ssh-*|ecdsa-*)
+                echo "::error::AUR_SSH_KEY holds a PUBLIC key. The secret needs the private half - the file without .pub: base64 -w0 < ~/.ssh/aur | gh secret set AUR_SSH_KEY" ;;
+              *)
+                echo "::error::AUR_SSH_KEY is neither a PEM private key nor base64. Set it to one unbroken line: base64 -w0 < ~/.ssh/aur | gh secret set AUR_SSH_KEY" ;;
+            esac
+            exit 1
           fi
           # Before the check below, not with the rest at the end: ssh refuses a
           # key file the world can read, and would report that as the format

@@ -140,9 +140,20 @@ One-time setup:
 
 2. Add `~/.ssh/aur-ci.pub` as a **second** key on your AUR account (the SSH
    Public Key field takes one key per line - keep your own on its own line).
-3. Put the **private** key in the repository's secrets as `AUR_SSH_KEY`
-   (*Settings -> Secrets and variables -> Actions -> New repository secret*),
-   pasted whole, including the `-----BEGIN`/`-----END` lines.
+3. Put the **private** key in the repository's secrets as `AUR_SSH_KEY`,
+   base64-encoded onto a single line. The job runs in a container, and the
+   runner hands a container step its environment through a `KEY=value` file,
+   where a value stops at the first newline: a PEM pasted whole arrives as its
+   `-----BEGIN` line and nothing else.
+
+   ```sh
+   base64 -w0 < ~/.ssh/aur-ci | gh secret set AUR_SSH_KEY --repo unisic/unisic
+   ```
+
+   The AUR account page shows the key as its full `ssh-ed25519 AAAA...` text,
+   never as the `SHA256:` fingerprint `ssh-keygen -lf` prints, and browsers do
+   not find-in-page inside the textarea it sits in. To check the secret matches
+   the account, compare the tail of `cut -d' ' -f2 ~/.ssh/aur-ci.pub` by eye.
 
 The job pins `aur.archlinux.org`'s host key rather than running `ssh-keyscan`,
 which would trust whatever answers on the day - the exact thing a known_hosts

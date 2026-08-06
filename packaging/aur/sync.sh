@@ -196,6 +196,34 @@ if [ "$do_check" -eq 1 ]; then
 fi
 
 # -------------------------------------------------------------------- push ---
+# The AUR takes its git service down for maintenance without notice, and while
+# it is down every clone and push fails with git's generic "Could not read from
+# remote repository" - indistinguishable from a bad key. That is what took the
+# 0.8.3 and 0.8.4 releases out: the recipes were correct, the window was not.
+# Retrying costs nothing when the service is up (first attempt wins) and a real
+# key problem still fails on every attempt, so nothing is masked.
+# The locals carry a prefix because bash scopes them dynamically: the command
+# retry runs sees them, and a plain `n` or `delay` would be shared with it.
+retry() {
+    local _retry_max="$1" _retry_delay=15 _retry_n=1
+    shift
+    while :; do
+        "$@" && return 0
+        [ "$_retry_n" -ge "$_retry_max" ] && return 1
+        say "Attempt ${_retry_n}/${_retry_max} failed - retrying in ${_retry_delay}s"
+        sleep "$_retry_delay"
+        _retry_n=$((_retry_n + 1))
+        _retry_delay=$((_retry_delay * 2))
+    done
+}
+
+# git clone refuses a destination that a failed attempt left behind, so clear
+# it first rather than turning attempt 2 into a different error.
+clone_aur() {
+    rm -rf "$2"
+    git clone "ssh://aur@aur.archlinux.org/${1}.git" "$2"
+}
+
 if [ "$do_push" -eq 1 ]; then
     for pkg in unisic unisic-bin; do
         say "Pushing ${pkg} to the AUR"
@@ -203,8 +231,8 @@ if [ "$do_push" -eq 1 ]; then
         # git's own stderr is kept: a rejected key, a changed host key and the
         # AUR being down all end here, and they need different fixes. Swallowing
         # it left the CI log with nothing but the guess below.
-        if ! git clone "ssh://aur@aur.archlinux.org/${pkg}.git" "$work"; then
-            die "Could not clone ${pkg}.git - see git's error above. If it is 'Permission denied (publickey)', the key in AUR_SSH_KEY is not the one on the AUR account (https://aur.archlinux.org/account/)."
+        if ! retry 4 clone_aur "$pkg" "$work"; then
+            die "Could not clone ${pkg}.git after 4 attempts - see git's error above. 'The AUR is down due to maintenance' means exactly that, and re-running this workflow later is the whole fix; 'Permission denied (publickey)' means the key in AUR_SSH_KEY is not the one on the AUR account (https://aur.archlinux.org/account/)."
         fi
         cp "${here}/${pkg}/PKGBUILD" "${here}/${pkg}/.SRCINFO" "$work/"
         git -C "$work" add PKGBUILD .SRCINFO
@@ -213,7 +241,8 @@ if [ "$do_push" -eq 1 ]; then
             continue
         fi
         git -C "$work" commit -m "Update to ${version}"
-        git -C "$work" push origin HEAD:master
+        retry 3 git -C "$work" push origin HEAD:master \
+            || die "Could not push ${pkg} after 3 attempts - see git's error above."
     done
 fi
 

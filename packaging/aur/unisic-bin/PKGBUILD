@@ -17,7 +17,7 @@
 # `unisic` source package instead.
 
 pkgname=unisic-bin
-pkgver=0.7.5
+pkgver=0.8.4
 pkgrel=1
 # pkgrel of the upstream release asset - part of its file name, and it moves
 # independently of this package's own pkgrel.
@@ -47,7 +47,7 @@ provides=("unisic=${pkgver}")
 conflicts=('unisic')
 options=('!strip' '!debug')
 source=("unisic-${pkgver}-${_pkgrel}-${arch}.pkg.tar.zst::${url}/releases/download/v${pkgver}/unisic-${pkgver}-${_pkgrel}-x86_64.pkg.tar.zst")
-sha256sums=('33cc6e123cfbb4de5ef7468338d977a9d40a102f6c3ce9dafec3b23854dc7029')
+sha256sums=('122d2e00917ac4261674be398f9ba551522252bd2d92b8da7bef8a44fa5ec7b9')
 # makepkg would auto-extract a pacman package into $srcdir alongside its
 # metadata; unpack it explicitly instead so only usr/ can ever reach $pkgdir.
 noextract=("unisic-${pkgver}-${_pkgrel}-${arch}.pkg.tar.zst")

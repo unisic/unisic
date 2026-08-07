@@ -2,7 +2,7 @@
 
 Auto-updating signed repos for **Debian 13, Ubuntu 25.10/26.04, Arch, openSUSE
 Tumbleweed + Leap 16.0**, built on the [openSUSE Build Service](https://build.opensuse.org)
-project `home:unisic`. Fedora is NOT built here — it stays on COPR
+project `home:unisic`. Fedora is NOT built here - it stays on COPR
 `deandark/Unisic` (Packit, see `.packit.yaml`).
 
 ## Data flow
@@ -11,7 +11,7 @@ project `home:unisic`. Fedora is NOT built here — it stays on COPR
 push to main with version bump
   → release.yml builds assets, `release` job creates tag v<ver> + GitHub release
   → `obs` job POSTs the runservice trigger token to api.opensuse.org
-  → OBS re-runs source services (ALL server-side — buildtime services can't
+  → OBS re-runs source services (ALL server-side - buildtime services can't
     resolve obs-service-* packages in the foreign-distro build roots):
       tar_scm       clones main into unisic-<ver>.tar, version = newest v* tag (v stripped)
       extract_file  pulls unisic.spec / PKGBUILD / unisic.install / unisic.dsc / debian.* out of the tar
@@ -21,19 +21,27 @@ push to main with version bump
   → users get the update via apt upgrade / zypper up / pacman -Syu
 ```
 
-Hard-won details (each cost a broken round — don't regress them):
-- `DEBTRANSFORM-TAR` is a LITERAL filename, not a glob — the dsc has no such
+Hard-won details (each cost a broken round - don't regress them):
+- `DEBTRANSFORM-TAR` is a LITERAL filename, not a glob - the dsc has no such
   line on purpose; debtransform auto-discovers the single tarball at any version.
 - Package builds pass `-DBUILD_TESTING=OFF` (spec + debian.rules) and
   debian.rules has an empty `override_dh_auto_test:`.
 - openSUSE needs `pkgconfig(libcurl)` (tesseract link interface) and builds
-  with make (no `-G Ninja` — its %cmake_build drives make); Fedora keeps Ninja.
+  with make (no `-G Ninja` - its %cmake_build drives make); Fedora keeps Ninja.
+- Unisic has NO optional dependencies. All 11 compile-time gates are hard
+  requirements: CMake stops at configure time naming the package to install, so
+  `unisic.spec` BuildRequires and the `debian.control`/`unisic.dsc`
+  Build-Depends must carry every one of them. A build root short one -dev
+  package now fails the build loudly instead of publishing a package with a
+  feature silently missing. The runtime helpers (ffmpeg, portal, wl-clipboard,
+  pipewire + its CLI tools, curl, zip, the tesseract eng/pol/osd data) are hard
+  Requires/Depends for the same reason; only the portal BACKEND stays weak.
 - Installed binaries carry no RPATH (CMakeLists sets INSTALL_RPATH "") or
   openSUSE's rpmlint hard-fails the build.
 
-**Invariant: the OBS package contains exactly ONE committed file — `_service`.**
+**Invariant: the OBS package contains exactly ONE committed file - `_service`.**
 Every other file (spec, PKGBUILD, debian.*, dsc) is owned by git and re-extracted
-from the release tarball on every trigger. Never edit files in the OBS web UI —
+from the release tarball on every trigger. Never edit files in the OBS web UI -
 the next service run overwrites them.
 
 ## File map
@@ -45,19 +53,20 @@ the next service run overwrites them.
 | `packaging/obs/unisic.dsc` + `debian.control/rules/changelog` | Debian 13, Ubuntu (via debtransform) |
 | `packaging/obs/_service` | source-of-truth copy of the one file living in OBS |
 | `packaging/obs/home_unisic.key` | project signing key (armored), installed as `/usr/share/unisic/obs-signing-key.asc` by CMake |
-| `packaging/arch/unisic.install` | shared by the OBS build AND the CI asset: post_install auto-registers the OBS pacman repo on direct-download installs (skipped when pacman.conf already references the repo — i.e. repo installs), post_remove deletes only its own marker block |
+| `packaging/arch/unisic.install` | shared by the OBS build AND the CI asset: post_install auto-registers the OBS pacman repo on direct-download installs (skipped when pacman.conf already references the repo - i.e. repo installs), post_remove deletes only its own marker block |
 | `packaging/deb/postinst`+`postrm`, `packaging/rpm/copr-post*.sh` | CI (CPack) packages ONLY: self-register the OBS apt repo / COPR dnf repo so direct downloads update natively; repo-built packages skip them on purpose |
 
-Sync rules: `debian.control` Depends mirrors the CPack DEB block in
-`CMakeLists.txt`; `unisic.dsc` Build-Depends mirrors `debian.control`;
-both mirror the debian:trixie CI job in `deb.yml`. If the OBS project
+Sync rules: `debian.control` Depends is character-identical to
+`UNISIC_DEBIAN_RUNTIME_DEPENDS` in `CMakeLists.txt` (which feeds the CPack DEB
+block); `unisic.dsc` Build-Depends is the same set as `debian.control`; both
+mirror the debian:trixie CI job in `deb.yml`. If the OBS project
 key is ever rotated, re-download it into `packaging/obs/home_unisic.key`
 (`https://build.opensuse.org/projects/home:unisic/signing_keys/download?kind=gpg`)
 and update the fingerprint in `packaging/arch/unisic.install`.
 
 ## One-time setup
 
-Requires the OBS account `unisic` (project `home:unisic` — already created,
+Requires the OBS account `unisic` (project `home:unisic` - already created,
 signing key committed as `packaging/obs/home_unisic.key`) and `osc`
 configured (`osc whois` to test).
 
@@ -146,9 +155,12 @@ configured (`osc whois` to test).
 
    openSUSE spec knowledge already encoded (verified in TW/Leap containers,
    2026-07): there is NO qt6-svg-imageformat package (the SVG plugin ships in
-   libQt6Svg6 via soname autodeps); Leap 15.x needs gcc13 (%if suse<1600) and
-   has only the Qt5 LayerShellQt; zxing-cpp 1.x returns std::wstring from
-   Result::text().
+   libQt6Svg6 via soname autodeps), so only the dlopened QML imports and the
+   wayland platform plugin need explicit Requires. Leap 15.x is not a target
+   and the spec carries no guard for it any more: it has no KF6, its
+   cmake(LayerShellQt) comes from the Qt5 build, and its Qt 6.6 ships no
+   Qt6GuiPrivate CMake config, so three of the 11 hard gates are unsatisfiable
+   there (its PlasmaWaylandProtocols 1.10.0 was never the problem).
 
 6. Create the trigger token and GitHub secret:
 
@@ -184,7 +196,7 @@ configured (`osc whois` to test).
   `https://api.opensuse.org/public/distributions`).
 - **Manual retrigger**: `osc service remoterun home:unisic unisic`.
 - **Publish lag**: download.opensuse.org can lag the build by minutes up to
-  ~1h (mirror sync) — "repo still has the old version" right after a release
+  ~1h (mirror sync) - "repo still has the old version" right after a release
   is usually just that.
 - **Known race**: `obs_scm` checks out `main` HEAD, not the tag. A push
   landing between the release tag and the trigger ships HEAD content under
@@ -194,6 +206,6 @@ configured (`osc whois` to test).
 ## Don'ts
 
 - Don't edit package files in the OBS web UI (overwritten by the next run).
-- Don't add Fedora targets here — Fedora is COPR's job (`.packit.yaml`).
-- Don't rename `packaging/obs/debian.*` files — `extract_file` globs and the
+- Don't add Fedora targets here - Fedora is COPR's job (`.packit.yaml`).
+- Don't rename `packaging/obs/debian.*` files - `extract_file` globs and the
   debtransform `debian.<x>` → `debian/<x>` convention both depend on the names.

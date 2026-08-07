@@ -51,12 +51,6 @@
         <translation>Текст скопирован</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="847"/>
-        <location filename="../src/AppContext.cpp" line="867"/>
-        <source>OCR is not available in this build</source>
-        <translation>OCR недоступен в этой сборке</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="1030"/>
         <source>Capture failed: %1</source>
         <translation>Не удалось сделать снимок: %1</translation>
@@ -108,11 +102,6 @@
         <translation>Dev: рамки OCR: %1 (глифов: %2)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2033"/>
-        <source>Dev: OCR boxes: SKIP (built without tesseract)</source>
-        <translation>Dev: рамки OCR: SKIP (собрано без tesseract)</translation>
-    </message>
-    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2154"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev: воспроизведён звук снимка «%1»</translation>
@@ -131,10 +120,6 @@
         <location filename="../src/AppContext.cpp" line="196"/>
         <source>Couldn&apos;t start the update: %1</source>
         <translation>Не удалось запустить обновление: %1</translation>
-    </message>
-    <message>
-        <source>This build has no libinput support, so key presses cannot be detected.</source>
-        <translation type="vanished">В этой сборке нет поддержки libinput, поэтому нажатия клавиш определить нельзя.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="1128"/>
@@ -553,10 +538,6 @@
         <translation>. GNOME блокирует тихие снимки экрана для Unisic - выполните «flatpak permission-reset screenshot», повторите попытку и проверьте, что xdg-desktop-portal-gnome работает.</translation>
     </message>
     <message>
-        <source>This build has no libinput support, so clicks cannot be detected.</source>
-        <translation type="vanished">В этой сборке нет поддержки libinput, поэтому щелчки мышью определить нельзя.</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="1114"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Для чтения щелчков мыши нужен доступ к устройствам ввода. Выполните «%1», затем выйдите из системы и войдите снова.</translation>
@@ -778,11 +759,6 @@
         <translation>Dev: подсветка и скрытие через OCR: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2048"/>
-        <source>Dev: OCR highlight + redact: SKIP (built without tesseract)</source>
-        <translation>Dev: подсветка и скрытие через OCR: SKIP (собрано без tesseract)</translation>
-    </message>
-    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2056"/>
         <source>Dev: cursor overlay: %1</source>
         <translation>Dev: слой курсора: %1</translation>
@@ -801,16 +777,6 @@
         <location filename="../src/diag/SmokeTests.cpp" line="2073"/>
         <source>Dev: auto-redact pattern: %1</source>
         <translation>Dev: шаблон автоскрытия: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2077"/>
-        <source>Dev: auto-redact pattern: SKIP (built without tesseract)</source>
-        <translation>Dev: шаблон автоскрытия: SKIP (собрано без tesseract)</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2117"/>
-        <source>Dev: OCR auto language: SKIP (built without tesseract)</source>
-        <translation>Dev: автоязык OCR: SKIP (собрано без tesseract)</translation>
     </message>
     <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2126"/>
@@ -1075,11 +1041,6 @@
         <translation>Не удалось создать QR-код</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4838"/>
-        <source>QR codes need zxing-cpp</source>
-        <translation>Для QR-кодов нужен zxing-cpp</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="4842"/>
         <source>QR code preview</source>
         <translation>Предпросмотр QR-кода</translation>
@@ -1274,11 +1235,6 @@
         <location filename="../src/diag/SmokeTests.cpp" line="2571"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev: запись через KWin не удалась: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2575"/>
-        <source>Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)</source>
-        <translation>Dev: запись через KWin: не собрана (нужны qt6-qtwayland-devel и plasma-wayland-protocols)</translation>
     </message>
     <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2871"/>
@@ -1623,16 +1579,6 @@
         <location filename="../src/AppContext.cpp" line="5228"/>
         <source>Start/save instant replay</source>
         <translation>Запустить/сохранить мгновенный повтор</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1110"/>
-        <source>This package was built without libinput support, so clicks cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.</source>
-        <translation>Этот пакет собран без поддержки libinput, поэтому щелчки мыши не отслеживаются. Установка libinput в системе этого не изменит - поддержку нужно включать при сборке.</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1124"/>
-        <source>This package was built without libinput support, so key presses cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.</source>
-        <translation>Этот пакет собран без поддержки libinput, поэтому нажатия клавиш не отслеживаются. Установка libinput в системе этого не изменит - поддержку нужно включать при сборке.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5483"/>
@@ -2608,12 +2554,6 @@
         <translation>Копировать весь текст</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="946"/>
-        <location filename="../qml/EditorWindow.qml" line="949"/>
-        <source>Needs OCR</source>
-        <translation>Нужен OCR</translation>
-    </message>
-    <message>
         <location filename="../qml/EditorWindow.qml" line="948"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
@@ -2782,11 +2722,6 @@
 </context>
 <context>
     <name>GifRecorder</name>
-    <message>
-        <location filename="../src/record/GifRecorder.cpp" line="154"/>
-        <source>Unisic was built without PipeWire support, so recording is unavailable</source>
-        <translation>Unisic собран без поддержки PipeWire, поэтому запись недоступна</translation>
-    </message>
     <message>
         <location filename="../src/record/GifRecorder.cpp" line="478"/>
         <location filename="../src/record/GifRecorder.cpp" line="533"/>
@@ -3886,11 +3821,6 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>Запись недоступна: у этого рабочего стола нет бэкенда портала ScreenCast, поэтому передать Unisic экран некому. Запущенного процесса PipeWire мало - именно портал спрашивает разрешение и открывает поток. В Cinnamon, MATE и XFCE такого бэкенда пока нет.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="128"/>
-        <source>Recording is unavailable: Unisic was built without PipeWire support.</source>
-        <translation>Запись недоступна: Unisic собран без поддержки PipeWire.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/RecordPage.qml" line="148"/>
         <source>Screen</source>
         <translation>Экран</translation>
@@ -4331,12 +4261,6 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>Использует состояние запрета от сервера уведомлений (полноэкранное приложение, «Не беспокоить», демонстрация экрана). Запреты, уже висевшие на момент запуска Unisic, игнорируются, поэтому сбойное стороннее приложение не сможет навсегда заглушить отклик о снимках.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1080"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3305"/>
-        <source>OCR is not built in. Install tesseract and a language pack, then rebuild.</source>
-        <translation>OCR не встроен. Установите tesseract и языковой пакет, затем пересоберите.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
         <source>OCR languages</source>
         <translation>Языки OCR</translation>
@@ -4350,11 +4274,6 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <location filename="../qml/pages/SettingsPage.qml" line="1091"/>
         <source>Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.</source>
         <translation>Объединяйте языки через «+», например «pol+eng»; для каждого нужен свой языковой пакет Tesseract. OCR также ищет QR- и штрихкоды: найденный в области код копирует своё содержимое вместо окружающего текста.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1092"/>
-        <source>Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed.</source>
-        <translation>Объединяйте языки через «+», например «pol+eng»; для каждого нужен свой языковой пакет Tesseract.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1120"/>
@@ -5083,8 +5002,8 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3615"/>
-        <source>Needs an X11 session (xcb platform) and a build with libX11/libXext/libXfixes. On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal&apos;s window picker and stays unavailable there.</source>
-        <translation>Нужны сеанс X11 (платформа xcb) и сборка с libX11/libXext/libXfixes. В X11 кадры берутся из XShm, а не из портала ScreenCast, поэтому запись работает и на рабочих столах, где бэкенда портала нет совсем - Cinnamon, MATE и XFCE на Xorg. Записи отдельного окна по-прежнему нужен выбор окна из портала, и там она недоступна.</translation>
+        <source>Needs an X11 session (xcb platform). On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal&apos;s window picker and stays unavailable there.</source>
+        <translation>Нужен сеанс X11 (платформа xcb). В X11 кадры берутся из XShm, а не из портала ScreenCast, поэтому запись работает и на рабочих столах, где бэкенда портала нет совсем - Cinnamon, MATE и XFCE на Xorg. Записи отдельного окна по-прежнему нужен выбор окна из портала, и там она недоступна.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3721"/>
@@ -6545,11 +6464,6 @@ Applies to the next capture.</source>
         <translation>Открывает выбор области и выполняет OCR по вырезанному фрагменту. Ничего не сохраняется и уведомление не показывается; распознанный текст просто копируется. QR- и штрихкоды тоже читаются: код в области копирует вместо текста своё содержимое.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
-        <source>Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied.</source>
-        <translation>Открывает выбор области и выполняет OCR по вырезанному фрагменту. Ничего не сохраняется и уведомление не показывается; распознанный текст просто копируется.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3316"/>
         <location filename="../qml/pages/SettingsPage.qml" line="3742"/>
         <source>Copy last capture</source>
@@ -6747,21 +6661,6 @@ Applies to the next capture.</source>
         <location filename="../qml/pages/SettingsPage.qml" line="3586"/>
         <source>Whether a border can be drawn around the recorded region.</source>
         <translation>Можно ли нарисовать рамку вокруг записываемой области.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3592"/>
-        <source>PipeWire (build)</source>
-        <translation>PipeWire (сборка)</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3593"/>
-        <source>Whether this build was compiled against PipeWire.</source>
-        <translation>Собрана ли эта версия с PipeWire.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3594"/>
-        <source>Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.</source>
-        <translation>Задаётся при сборке пакетом pipewire-devel (защита HAVE_PIPEWIRE). Без него все пути записи вырезаются из сборки, что бы ни поддерживал рабочий стол.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3599"/>

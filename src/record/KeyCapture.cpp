@@ -1,6 +1,5 @@
 #include "KeyCapture.h"
 
-#ifdef HAVE_LIBINPUT
 #include <QThread>
 #include <libinput.h>
 #include <libudev.h>
@@ -20,7 +19,6 @@ int keyOpen(const char *path, int flags, void *)
 void keyClose(int fd, void *) { ::close(fd); }
 const libinput_interface kKeyInterface = {keyOpen, keyClose};
 } // namespace
-#endif
 
 KeyCapture::KeyCapture(QObject *parent) : QObject(parent) {}
 
@@ -28,22 +26,19 @@ KeyCapture::~KeyCapture() { stop(); }
 
 void KeyCapture::start()
 {
-#ifdef HAVE_LIBINPUT
     if (m_running)
         return;
     m_stopFd = ::eventfd(0, EFD_CLOEXEC);
     if (m_stopFd < 0)
-        return;   // cannot arm the stop channel — refuse rather than leak a thread
+        return;   // cannot arm the stop channel - refuse rather than leak a thread
     m_running = true;
     m_thread = QThread::create([this] { run(); });
     m_thread->setObjectName(QStringLiteral("KeyCapture"));
     m_thread->start();
-#endif
 }
 
 void KeyCapture::stop()
 {
-#ifdef HAVE_LIBINPUT
     if (!m_running)
         return;
     m_running = false;
@@ -60,10 +55,8 @@ void KeyCapture::stop()
         ::close(m_stopFd);
         m_stopFd = -1;
     }
-#endif
 }
 
-#ifdef HAVE_LIBINPUT
 void KeyCapture::run()
 {
     // The libinput context lives entirely on THIS thread; every libinput call is
@@ -106,7 +99,7 @@ void KeyCapture::run()
         if (rc < 0) {
             if (errno == EINTR)
                 continue;
-            break;   // unexpected poll failure — bail rather than spin
+            break;   // unexpected poll failure - bail rather than spin
         }
         if (fds[1].revents & POLLIN)
             break;   // stop() signalled us
@@ -116,4 +109,3 @@ void KeyCapture::run()
     libinput_unref(li);
     udev_unref(ud);
 }
-#endif

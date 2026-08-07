@@ -26,13 +26,22 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -Sy --noconfirm archlinux-keyring
+          # Two lists in one. Everything up to `libinput` is what makepkg needs
+          # to BUILD (makedepends in the PKGBUILD, every one of them a hard
+          # gate now). curl, zip and the three tesseract-data packages are
+          # RUNTIME depends the PKGBUILD gained with the no-optional-deps rule,
+          # pre-synced here so the `pacman -U` install gate at the end resolves
+          # them from the local cache instead of a mid-job mirror fetch - and
+          # so a package renamed upstream fails at the top of the job with a
+          # plain pacman error rather than three steps later inside the gate.
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
             plasma-wayland-protocols \
             pipewire ffmpeg wl-clipboard xdg-desktop-portal \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
-            kguiaddons libx11 libxext libxfixes libxcb libinput
+            kguiaddons libx11 libxext libxfixes libxcb libinput \
+            curl zip tesseract-data-eng tesseract-data-pol tesseract-data-osd
 
       - uses: actions/checkout@v4
         with:
@@ -64,7 +73,13 @@ jobs:
           sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
           useradd -m builder
           chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --clean --cleanbuild"
+          # --cleanbuild wipes src/ BEFORE building, which is what keeps a
+          # rerun honest. --clean (wipe AFTER a successful build) is
+          # deliberately NOT passed: it would delete packaging/arch/src/build
+          # together with the unisic-features.txt the next step reads, and this
+          # is the one channel where the build directory is the only place that
+          # manifest ever exists.
+          runuser -u builder -- bash -lc "cd '$GITHUB_WORKSPACE/packaging/arch' && makepkg --noconfirm --cleanbuild"
           mkdir -p dist
           cp packaging/arch/*.pkg.tar.zst dist/
           # The complete source tarball ships as a release asset too: it is the
@@ -73,11 +88,22 @@ jobs:
           # fetches. The portable bundle is unisic-<version>-x86_64.tar.gz, so
           # the two names never collide.
           cp "packaging/arch/unisic-${version}.tar.gz" dist/
-          # Install gate: runs unisic.install's post_install in the container.
-          # Either outcome is valid - repo added (container keyring is
-          # populated, so the key import should succeed) or the printed
-          # fallback (uninitialized keyring). INVALID is the half-state:
-          # repo entry present without the trusted key.
+
+      - name: Check every build gate is on
+        # makepkg's build() runs from $srcdir and configures with -B build, so
+        # the manifest lands at packaging/arch/src/build/unisic-features.txt
+        # regardless of the version in the directory name above it.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: packaging/arch/src/build
+
+      - name: Install gate
+        # Runs unisic.install's post_install in the container. Either outcome
+        # is valid - repo added (container keyring is populated, so the key
+        # import should succeed) or the printed fallback (uninitialized
+        # keyring). INVALID is the half-state: repo entry present without the
+        # trusted key.
+        run: |
           pacman -U --noconfirm dist/*.pkg.tar.zst
           if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
             pacman-key --list-keys E5057FCB0F3DF876 >/dev/null

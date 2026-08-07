@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Build & test Unisic on a VM (GNOME Wayland or any other desktop).
 #
-# Package flow (easiest — installable artifact, no toolchain on the VM):
+# Package flow (easiest - installable artifact, no toolchain on the VM):
 #   ./scripts/vm-test.sh deploy user@gnome-vm   # build matching .rpm/.deb, scp,
 #                                               # install, flash record border
 #   ./scripts/vm-test.sh rpm                    # just build dist/*.rpm
 #   ./scripts/vm-test.sh deb                    # just build dist/*.deb
 #   ./scripts/vm-test.sh appimage               # portable dist/*.AppImage (built
-#                                               # in an ubuntu:22.04 container so
-#                                               # it runs on old-glibc distros)
+#                                               # in an ubuntu:24.04 container so
+#                                               # its glibc floor matches the
+#                                               # released AppImage)
 #
 # Source flow (dev build on the VM: F8 smoke test + Developer pane):
 #   ./scripts/vm-test.sh setup user@gnome-vm    # push sources + deps + build
@@ -16,9 +17,9 @@
 #   ./scripts/vm-test.sh remote user@gnome-vm run
 #
 # Packages are RELEASE builds (same flavor as CI: UNISIC_BUILD_NUMBER set, so
-# no Developer pane) — the record border, --gif, --region etc. all work there.
+# no Developer pane) - the record border, --gif, --region etc. all work there.
 # The `appimage` command produces the same portable AppImage CI does, locally,
-# by driving scripts/build-appimage.sh inside an ubuntu:22.04 container (needs
+# by driving scripts/build-appimage.sh inside an ubuntu:24.04 container (needs
 # podman or docker); build once on the host, run on any VM without a toolchain.
 set -euo pipefail
 
@@ -38,14 +39,15 @@ Usage: scripts/vm-test.sh <command> [args]
 Package commands:
   rpm                Build dist/*.rpm (CPack; release flavor)
   deb                Build dist/*.deb (CPack; release flavor)
-  appimage           Build a portable dist/*.AppImage inside an ubuntu:22.04
-                     container (podman/docker) so it runs on old-glibc distros;
+  appimage           Build a portable dist/*.AppImage inside an ubuntu:24.04
+                     container (podman/docker), the same base CI uses, so its glibc
+                     floor (2.39) matches the released AppImage;
                      Qt/tools/build cache in ~/.cache → later runs are fast
   deploy HOST        Detect the VM's package manager over ssh, build the
                      matching package, scp + install it, then flash the record
                      border on the VM screen and print the checklist
 
-Source commands (run on the machine that should build/test — host or VM):
+Source commands (run on the machine that should build/test - host or VM):
   deps            Install Fedora build+packaging dependencies (sudo dnf)
   build           Configure (cmake -G Ninja, Release, DEV flavor) into ./build
   run             Launch ./build/unisic inside the current graphical session
@@ -60,12 +62,12 @@ Remote source commands (HOST = ssh target, e.g. user@gnome-vm):
   test  HOST            push + build + flash the record border in the VM session
   remote HOST <cmd...>  Run any source command above on the VM with session env
 
-Env: UNISIC_VM_DIR — source-flow dir on the VM (default: unisic-src)
-     UNISIC_BIN    — binary for run/gif/border (default: ./build/unisic)
+Env: UNISIC_VM_DIR - source-flow dir on the VM (default: unisic-src)
+     UNISIC_BIN    - binary for run/gif/border (default: ./build/unisic)
 EOF
 }
 
-# Over ssh there is no WAYLAND_DISPLAY/DISPLAY/DBus address — find the logged-in
+# Over ssh there is no WAYLAND_DISPLAY/DISPLAY/DBus address - find the logged-in
 # session's sockets so GUI commands land on the VM's screen.
 ensure_session_env() {
     export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
@@ -87,13 +89,13 @@ ensure_session_env() {
     fi
     export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
     if [[ -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
-        echo "No Wayland/X session found — log into the VM's desktop first." >&2
+        echo "No Wayland/X session found - log into the VM's desktop first." >&2
         exit 1
     fi
 }
 
 need_bin() {
-    [[ -x "$BIN" ]] || { echo "Missing $BIN — run: scripts/vm-test.sh build" >&2; exit 1; }
+    [[ -x "$BIN" ]] || { echo "Missing $BIN - run: scripts/vm-test.sh build" >&2; exit 1; }
 }
 
 # Release-flavor configure shared by rpm/deb: UNISIC_BUILD_NUMBER set makes
@@ -123,25 +125,34 @@ if [ -z "${DISPLAY:-}" ] && [ -d /tmp/.X11-unix ]; then
   done
 fi
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
-echo "Record-border frame for 8 s on the VM screen — check: on top, click-through."
+echo "Record-border frame for 8 s on the VM screen - check: on top, click-through."
 sleep 8 | unisic --record-border-helper "" 0 0 0 0 0 0 0.30 0.30 0.40 0.40 "#C8ACD6"
-echo "Helper exited on stdin EOF — OK"
+echo "Helper exited on stdin EOF - OK"
 EOS
 }
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
 deps)
-    sudo dnf install -y cmake ninja-build gcc-c++ \
-        qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-linguist \
-        pipewire-devel wl-clipboard rsync \
-        libX11-devel libXext-devel libXfixes-devel \
-        rpm-build dpkg
+    # The FULL set, not a useful subset: Unisic has no optional dependencies, so
+    # a missing one is a configure failure rather than a quieter build. Keep this
+    # list equal to the Fedora one in .github/workflows/rpm.yml and CLAUDE.md.
+    sudo dnf install -y cmake ninja-build gcc-c++ pkgconf-pkg-config \
+        qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
+        qt6-qtwayland-devel qt6-qtbase-private-devel qt6-qttools-devel \
+        plasma-wayland-protocols-devel \
+        pipewire-devel \
+        tesseract-devel leptonica-devel zxing-cpp-devel \
+        layer-shell-qt-devel wayland-devel kf6-kguiaddons-devel \
+        libinput-devel systemd-devel \
+        libX11-devel libXext-devel libXfixes-devel libxcb-devel \
+        wl-clipboard rsync rpm-build dpkg \
+        tesseract-langpack-eng tesseract-langpack-pol tesseract-osd
     # ffmpeg: plain Fedora ships ffmpeg-free; RPM Fusion systems have ffmpeg.
     sudo dnf install -y ffmpeg-free || sudo dnf install -y ffmpeg
     ;;
 rpm)
-    command -v rpmbuild >/dev/null || { echo "rpmbuild missing — run: scripts/vm-test.sh deps" >&2; exit 1; }
+    command -v rpmbuild >/dev/null || { echo "rpmbuild missing - run: scripts/vm-test.sh deps" >&2; exit 1; }
     configure_pkg
     cpack --config "$PKG_BUILD_DIR/CPackConfig.cmake" -G RPM -B "$CPACK_WORK"
     mkdir -p "$DIST_DIR"
@@ -149,9 +160,9 @@ rpm)
     echo "Built: $(newest "$DIST_DIR"/*.rpm)"
     ;;
 deb)
-    command -v dpkg-deb >/dev/null || { echo "dpkg-deb missing — run: scripts/vm-test.sh deps" >&2; exit 1; }
+    command -v dpkg-deb >/dev/null || { echo "dpkg-deb missing - run: scripts/vm-test.sh deps" >&2; exit 1; }
     configure_pkg
-    # dpkg-shlibdeps resolves library deps against a Debian package database —
+    # dpkg-shlibdeps resolves library deps against a Debian package database -
     # on a non-Debian build host there is none, so rely on the explicit
     # Depends list from CMakeLists (enough for VM testing).
     shlibdeps=ON
@@ -166,23 +177,26 @@ deb)
     echo "Built: $(newest "$DIST_DIR"/*.deb)"
     ;;
 appimage)
-    # Portable AppImage, built in an ubuntu:22.04 container so its glibc floor
-    # (2.35) is low enough to run on Debian/older Ubuntu — building on this
-    # Fedora host would bake in a glibc too new for the VM. The heavy artifacts
+    # Portable AppImage, built in an ubuntu:24.04 container so its glibc floor
+    # (2.39) matches the one .github/workflows/appimage.yml produces - building
+    # on this Fedora host would bake in a glibc too new for the VM, and building
+    # on jammy no longer works at all: noble is where the apt packages behind
+    # zxing, tesseract osd data and libfuse2t64 exist under those names, and
+    # every gate is a hard requirement now. The heavy artifacts
     # (Qt via aqt, layer-shell-qt/zxing, the build tree) live in $cache on a
     # REAL fs, never on the exFAT repo (no symlinks there), and persist across
     # runs so only changed sources recompile.
     engine="$(command -v podman || command -v docker || true)"
     [ -n "$engine" ] || {
-        echo "Need podman or docker for a portable AppImage (old-glibc base)." >&2
+        echo "Need podman or docker for a portable AppImage (ubuntu:24.04 base)." >&2
         echo "Install one, e.g.: sudo dnf install -y podman" >&2
         exit 1
     }
     cache="${UNISIC_APPIMAGE_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/unisic-appimage}"
     mkdir -p "$cache" "$DIST_DIR"
-    echo "Building portable AppImage in ubuntu:22.04 via $(basename "$engine")…"
+    echo "Building portable AppImage in ubuntu:24.04 via $(basename "$engine")…"
     echo "  (first run downloads Qt ~1.5 GB into $cache; later runs are incremental)"
-    # label=disable, not :Z — the repo is on exFAT, which cannot store the
+    # label=disable, not :Z - the repo is on exFAT, which cannot store the
     # SELinux xattr a :Z relabel writes (the relabel fails / access is denied).
     "$engine" run --rm \
         --security-opt label=disable \
@@ -192,10 +206,10 @@ appimage)
         -e QT_VERSION="${QT_VERSION:-6.8.3}" \
         -e UNISIC_BUILD_NUMBER="${UNISIC_BUILD_NUMBER:-vm}" \
         -w /cache \
-        docker.io/library/ubuntu:22.04 \
+        docker.io/library/ubuntu:24.04 \
         bash /src/scripts/build-appimage.sh
     art="$(newest "$cache"/dist/*.AppImage)"
-    [ -n "$art" ] || { echo "No AppImage produced — see the container output above." >&2; exit 1; }
+    [ -n "$art" ] || { echo "No AppImage produced - see the container output above." >&2; exit 1; }
     cp -f "$art" "$DIST_DIR"/
     out="$DIST_DIR/$(basename "$art")"
     chmod +x "$out" 2>/dev/null || true
@@ -229,7 +243,7 @@ deploy)
         exit 1
         ;;
     esac
-    echo "Installed on $host — flashing the record border there…"
+    echo "Installed on $host - flashing the record border there…"
     remote_border_snippet | ssh "$host" sh -s
     echo
     "$0" checklist
@@ -257,9 +271,9 @@ border)
     # frame covers 30%..70% of it. stdin EOF after N seconds ends it.
     need_bin; ensure_session_env
     secs="${1:-8}"
-    echo "Record-border frame for ${secs}s — check: visible, stays ABOVE windows you click, clicks pass through."
+    echo "Record-border frame for ${secs}s - check: visible, stays ABOVE windows you click, clicks pass through."
     sleep "$secs" | "$BIN" --record-border-helper "" 0 0 0 0 0 0 0.30 0.30 0.40 0.40 "#C8ACD6"
-    echo "Helper exited on stdin EOF — OK"
+    echo "Helper exited on stdin EOF - OK"
     ;;
 smoke)
     cat <<'EOF'
@@ -269,7 +283,7 @@ Built-in smoke test (dev build only, i.e. the source flow's ./build/unisic):
      smoke test"). Expect in the log:
        record border (xwayland helper): PASS      <- the GNOME path
   3. Settings -> Developer also has a "Record border (4 s)" button.
-Packages installed via deploy are RELEASE builds — no F8; use "border"/"gif".
+Packages installed via deploy are RELEASE builds - no F8; use "border"/"gif".
 EOF
     ;;
 checklist)
@@ -281,7 +295,7 @@ GNOME Wayland manual checklist:
                                             frame surrounds it; stop from the app
   [ ] open the recorded GIF              -> NO frame pixels inside the output
   [ ] Settings -> capabilities           -> "Recording border" available
-Notes: GNOME Overview temporarily hides the frame (override-redirect windows) —
+Notes: GNOME Overview temporarily hides the frame (override-redirect windows) -
 it returns after leaving the Overview. Sessions without XWayland have no frame.
 EOF
     ;;

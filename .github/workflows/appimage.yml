@@ -3,12 +3,12 @@ name: AppImage build
 # Reusable single source of truth for the AppImage. Builds it ONCE and uploads
 # it as the `unisic-appimage` artifact (.AppImage + .zsync + the portable
 # .tar.gz of the same AppDir). Called by:
-#   - build.yml   → PR / push smoke check: does the AppImage still build?
-#   - release.yml → produces the published release assets.
-#   - tarball-backfill.yml → rebuilds an old tag to attach the .tar.gz
+#   - build.yml   -> PR / push smoke check: does the AppImage still build?
+#   - release.yml -> produces the published release assets.
+#   - tarball-backfill.yml -> rebuilds an old tag to attach the .tar.gz
 #     retroactively (the `ref` input).
 # Keeping it here (not duplicated) means the PR check tests the exact build the
-# release uses — they can never drift.
+# release uses - they can never drift.
 on:
   workflow_call:
     inputs:
@@ -30,7 +30,16 @@ env:
 jobs:
   appimage:
     name: AppImage
-    runs-on: ubuntu-22.04
+    # An AppImage bundles Qt and libraries but NOT glibc, so it only runs where
+    # glibc is >= the BUILD host's. That is the one reason this job pinned the
+    # oldest image GitHub offered. It is now ubuntu-24.04 (glibc 2.39): the
+    # 22.04 image enters its deliberate-failure brownout in 2026-09, and jammy
+    # was also what forced four dependencies to be built from source behind
+    # `continue-on-error`, which is how the AppImage and the portable tarball
+    # ended up as the two channels most likely to ship a feature missing.
+    # The honest cost: 2.39 is above Debian bookworm (2.36) and Ubuntu 22.04
+    # (2.35), so those hosts need the Flatpak or a native package instead.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,24 +49,37 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
-          # libtesseract-dev/libleptonica-dev: OCR is a compile-time optional
-          # (HAVE_TESSERACT) — linuxdeploy bundles the linked libs. Language
-          # data comes from the user's system at runtime, but the bundled
-          # Ubuntu libtesseract bakes in the Debian tessdata path
-          # (/usr/share/tesseract-ocr/4.00/tessdata), so on Fedora
-          # (/usr/share/tesseract/tessdata) or Arch (/usr/share/tessdata)
-          # hosts OCR needs TESSDATA_PREFIX set until OcrEngine probes the
-          # common distro paths itself.
+          # Unisic has no optional dependencies: everything here backs a gate
+          # CMakeLists.txt refuses to configure without. Noble covers two that
+          # jammy could not, so they are apt packages again instead of source
+          # builds: libzxing-dev is 2.2.1, exactly the tag this job used to
+          # clone, and the tesseract-ocr-* data packages are what gets copied
+          # into the AppDir further down.
+          #
+          # tesseract language data used to be a documented hole: libtesseract
+          # was bundled, the .traineddata was not, and the bundled Ubuntu
+          # libtesseract bakes in the Debian tessdata path, so OCR was dead on
+          # any Fedora or Arch host. eng + pol + osd now ship inside the
+          # bundle (osd is script/orientation detection, which the default
+          # auto-detect setting loads). No TESSDATA_PREFIX is exported for
+          # them: that variable is EXCLUSIVE, so setting it would hide the
+          # user's own language packs. OcrEngine probes $APPDIR/usr/share/
+          # tessdata alongside the host paths instead.
+          #
+          # libfuse2t64, not libfuse2: noble renamed it in the 64-bit time_t
+          # transition.
           sudo apt-get install -y --no-install-recommends \
-            ca-certificates curl file desktop-file-utils patchelf libfuse2 \
+            ca-certificates curl file desktop-file-utils patchelf libfuse2t64 \
             cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
             libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
             libgl1-mesa-dev libxkbcommon-dev libxcb-cursor0 libxcb-cursor-dev \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
             libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0 \
             libwayland-client0 libwayland-cursor0 libwayland-egl1 \
-            libtesseract-dev libleptonica-dev libinput-dev libudev-dev \
-            libwayland-dev extra-cmake-modules wayland-protocols
+            libtesseract-dev libleptonica-dev libzxing-dev \
+            tesseract-ocr-eng tesseract-ocr-pol tesseract-ocr-osd \
+            libinput-dev libudev-dev \
+            libwayland-dev wayland-protocols
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -66,51 +88,57 @@ jobs:
           arch: linux_gcc_64
           # qtwayland CLIENT libs/plugins ship in the base archive; the addon
           # provides libQt6WaylandCompositor, which linuxdeploy-plugin-qt's
-          # "waylandcompositor" deployer links against (its name is misleading —
+          # "waylandcompositor" deployer links against (its name is misleading -
           # it actually deploys the client-side plugin dirs).
           modules: qtwaylandcompositor
           cache: true
 
-      - name: Build plasma-wayland-protocols and LayerShellQt (against the aqt Qt)
-        # Layer-shell (HAVE_LAYERSHELL) powers the on-top custom notification
-        # card, the overlay-over-fullscreen capture and the preview pin. No
-        # Ubuntu package matches the aqt-installed Qt, so build the small KDE
-        # lib from source. Best-effort: on failure the app still builds, with
-        # layer-shell features compiled out (the Build AppDir step warns).
-        # plasma-wayland-protocols shares this step because layer-shell-qt
-        # 6.3.x refuses to configure without it, and it is installed FIRST so
-        # a later layer-shell failure still leaves HAVE_KWIN_SCREENCAST usable.
-        continue-on-error: true
+      - name: Build extra-cmake-modules
+        # The KDE build system the three source builds below need. Noble ships
+        # ECM 5.115 and all three want 6.10, so it goes into the same local
+        # prefix they install into. Script only, seconds to build.
+        # BUILD_DOC=OFF matters: ECM auto-enables man/html docs when the runner
+        # happens to have sphinx-build, and those install rules reference files
+        # only a `cmake --build` would generate - the build-less install below
+        # would then hard-fail.
         run: |
-          # layer-shell-qt 6.3.x hard-requires ECM >= 6.10 and jammy ships
-          # 5.92, so first install the matching ECM (script-only, seconds)
-          # into the same local prefix.
-          # BUILD_DOC=OFF matters: ECM auto-enables man/html docs when the
-          # runner happens to have sphinx-build, and those install rules
-          # reference files only a `cmake --build` would generate — the
-          # build-less install below would then hard-fail the whole step.
           git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/extra-cmake-modules.git
           cmake -S extra-cmake-modules -B build-ecm -G Ninja \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
             -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
           cmake --install build-ecm
-          # HAVE_KWIN_SCREENCAST needs zkde-screencast-unstable-v1.xml, which
-          # lives in plasma-wayland-protocols >= 1.7; jammy ships an older one.
-          # Without it the AppImage and the portable tarball fall back to the
-          # portal share dialog on Plasma, i.e. the KDE-native recording path
-          # is silently absent from the two channels most users download.
-          # layer-shell-qt 6.3.x additionally hard-requires >= 1.15.0 at
-          # configure time, which is why this runs before it and not after.
-          # The package is XML plus a cmake config, so there is nothing to
-          # compile and nothing to bundle - it is consumed at build time by
-          # qt6_generate_wayland_protocol_client_sources.
+
+      - name: Build plasma-wayland-protocols
+        # Its OWN step, because two different gates depend on it and they used
+        # to share a step with layer-shell-qt: one failure there took out
+        # HAVE_KWIN_SCREENCAST and HAVE_KGUIADDONS as collateral, which is
+        # exactly the kind of invisible coupling this file is being cleaned of.
+        #   - the kit generates its KWin-native recording client from
+        #     zkde-screencast-unstable-v1.xml, which needs >= 1.7
+        #   - kguiaddons v6.10.0 refuses to configure below 1.15.0
+        # Noble's package is 1.10.0, which clears the first floor and not the
+        # second, so it is built from source. (An earlier comment here claimed
+        # layer-shell-qt was the >= 1.15.0 consumer. It is not; it needs no
+        # plasma protocols at all. The ordering constraint is real, it just
+        # belongs to kguiaddons.)
+        # XML plus a cmake config: nothing to compile, nothing to bundle - it
+        # is consumed at build time by
+        # qt6_generate_wayland_protocol_client_sources.
+        run: |
           git clone --depth 1 --branch v1.16.0 https://invent.kde.org/libraries/plasma-wayland-protocols.git
           cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib
           cmake --install build-pwp
+
+      - name: Build LayerShellQt (against the aqt Qt)
+        # HAVE_LAYERSHELL: the styled capture card, the overlay above
+        # fullscreen windows and the pinned preview. Noble's
+        # liblayershellqtinterface-dev is the Qt5 build (5.27), which cannot
+        # serve a Qt 6.8 app, so the small KDE lib is built against the aqt Qt.
+        run: |
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
@@ -121,31 +149,12 @@ jobs:
           cmake --build build-lsq --parallel
           cmake --install build-lsq
 
-      - name: Build zxing-cpp (against the aqt Qt)
-        # zxing-cpp (QR in OCR, HAVE_ZXING): Ubuntu 22.04 has no modern
-        # package — same best-effort source build into the same local prefix.
-        # Deliberately its OWN continue-on-error step: sharing a step with
-        # layer-shell-qt would let a layer-shell configure failure (bash -e)
-        # silently skip this build too.
-        continue-on-error: true
-        run: |
-          git clone --depth 1 --branch v2.2.1 https://github.com/zxing-cpp/zxing-cpp.git
-          cmake -S zxing-cpp -B build-zxing -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
-            -DCMAKE_INSTALL_LIBDIR=lib \
-            -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
-          cmake --build build-zxing --parallel
-          cmake --install build-zxing
-
       - name: Build KF6GuiAddons (against the aqt Qt)
-        # KSystemClipboard (HAVE_KGUIADDONS) puts screenshots into KDE Plasma's
-        # Klipper clipboard history — plain image/png (QClipboard/wl-copy) is
-        # pasteable but never recorded (issue #51). Ubuntu 22.04 has no KF6
-        # package, so source-build the small framework into the same prefix.
-        # Reuses the ECM installed by the LayerShellQt step. Best-effort: on
-        # failure the app still builds, images just skip Klipper history.
-        continue-on-error: true
+        # HAVE_KGUIADDONS: KSystemClipboard puts screenshots into KDE Plasma's
+        # Klipper clipboard HISTORY - plain image/png (QClipboard/wl-copy) is
+        # pasteable but never recorded (issue #51). Noble has no KF6 at all, so
+        # source-build the small framework into the same prefix. It needs the
+        # plasma-wayland-protocols installed two steps up.
         run: |
           git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/kguiaddons.git
           cmake -S kguiaddons -B build-kga -G Ninja \
@@ -157,32 +166,53 @@ jobs:
           cmake --build build-kga --parallel
           cmake --install build-kga
 
-      - name: Build AppDir
+      - name: Configure
         run: |
-          # The two optional builds above are continue-on-error — surface a
-          # missing component loudly instead of silently shipping without it.
-          find lsq-prefix -name 'LayerShellQtConfig.cmake' 2>/dev/null | grep -q . \
-            || echo "::warning::layer-shell-qt build failed — AppImage ships without HAVE_LAYERSHELL (on-top card, preview pin)"
-          find lsq-prefix -name 'ZXingConfig.cmake' 2>/dev/null | grep -q . \
-            || echo "::warning::zxing-cpp build failed — AppImage ships without HAVE_ZXING (QR decode in OCR)"
-          find lsq-prefix -name 'KF6GuiAddonsConfig.cmake' 2>/dev/null | grep -q . \
-            || echo "::warning::kguiaddons build failed — AppImage ships without HAVE_KGUIADDONS (screenshots skip KDE Klipper history)"
-          find lsq-prefix -name 'PlasmaWaylandProtocolsConfig.cmake' 2>/dev/null | grep -q . \
-            || echo "::warning::plasma-wayland-protocols build failed — AppImage ships without HAVE_KWIN_SCREENCAST (Plasma recording falls back to the portal share dialog)"
           cmake -B build-appimage -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DUNISIC_DESKTOP_EXEC=unisic
+
+      - name: Check every build gate is on
+        # This replaces four `find ... || echo "::warning::"` lines that never
+        # failed anything. They were the only signal that one of the source
+        # builds above had gone wrong, and a warning on a green job is not a
+        # signal: a transient KDE-invent clone failure quietly produced an
+        # AppImage and a portable tarball without HAVE_LAYERSHELL, HAVE_ZXING,
+        # HAVE_KGUIADDONS and HAVE_KWIN_SCREENCAST, and these two artifacts are
+        # what scripts/install.sh hands to every distro with no native package
+        # and every atomic desktop.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build-appimage
+
+      - name: Build AppDir
+        run: |
           cmake --build build-appimage --parallel
           mkdir -p AppDir
           DESTDIR="$PWD/AppDir" cmake --install build-appimage --strip
+          # OCR language data. The libraries were always bundled and the data
+          # never was, so OCR returned nothing on any host without a matching
+          # langpack. The path is found by name rather than hardcoded: Ubuntu
+          # puts it under /usr/share/tesseract-ocr/<major>/tessdata and the
+          # major moves with the distro.
+          mkdir -p AppDir/usr/share/tessdata
+          for lang in eng pol osd; do
+            data="$(find /usr/share/tesseract-ocr -name "${lang}.traineddata" -print -quit 2>/dev/null || true)"
+            if [ -z "$data" ]; then
+              echo "::error::${lang}.traineddata was not installed - the bundle would ship OCR that reads nothing"
+              exit 1
+            fi
+            cp "$data" AppDir/usr/share/tessdata/
+          done
+          ls -la AppDir/usr/share/tessdata
 
       - name: Build AppImage
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           QML_SOURCES_PATHS: ${{ github.workspace }}/qml
-          # Deploy the Qt Wayland CLIENT stack — without it the AppImage falls
+          # Deploy the Qt Wayland CLIENT stack - without it the AppImage falls
           # back to XWayland ('Could not find the Qt platform plugin "wayland"').
           # linuxdeploy-plugin-qt quirk: the module keyword for the client
           # plugin dirs (shell-integration, graphics-integration, decorations)
@@ -190,7 +220,7 @@ jobs:
           EXTRA_QT_MODULES: "waylandcompositor"
           EXTRA_PLATFORM_PLUGINS: "libqwayland-generic.so;libqwayland-egl.so"
           # The env var is honored by BOTH the linuxdeploy core and the qt
-          # plugin subprocess — the --exclude-library CLI flags below only
+          # plugin subprocess - the --exclude-library CLI flags below only
           # reach the core, and the qt plugin was re-bundling the host's
           # libwayland anyway (symbol-lookup hazard on modern compositors).
           LINUXDEPLOY_EXCLUDED_LIBRARIES: "libwayland-client*;libwayland-cursor*;libwayland-egl*"
@@ -221,21 +251,30 @@ jobs:
           chmod +x tools/linuxdeploy-x86_64.AppImage tools/linuxdeploy-plugin-qt-x86_64.AppImage
           export PATH="$PWD/tools:$PATH"
           export QMAKE="$(command -v qmake)"
-          # LayerShellQt was installed into a local prefix — linuxdeploy walks
-          # the binary's deps via the loader, so it must be resolvable here to
-          # get bundled (no-op if the optional layer-shell build was skipped).
-          # Cover every libdir ECM/GNUInstallDirs might have chosen on the
-          # runner (plain lib, Debian multiarch lib/x86_64-linux-gnu, lib64) —
-          # the KDE_INSTALL_LIBDIR=lib above forces `lib`, this is the belt.
+          # The KDE libs were installed into a local prefix - linuxdeploy walks
+          # the binary's deps via the loader, so they must be resolvable here to
+          # get bundled. Cover every libdir ECM/GNUInstallDirs might have chosen
+          # on the runner (plain lib, Debian multiarch lib/x86_64-linux-gnu,
+          # lib64) - the KDE_INSTALL_LIBDIR=lib above forces `lib`, this is the
+          # belt.
           export LD_LIBRARY_PATH="$PWD/lsq-prefix/lib:$PWD/lsq-prefix/lib/x86_64-linux-gnu:$PWD/lsq-prefix/lib64:${LD_LIBRARY_PATH:-}"
-          # Deploy the LayerShellQt lib explicitly too: linuxdeploy resolves the
-          # app's NEEDED entry, but passing the versioned .so guarantees it and
-          # its SONAME symlinks land in the AppDir even if loader search misses.
-          LSQ_LIB="$(find "$PWD/lsq-prefix" -name 'libLayerShellQtInterface.so.6.*' -print -quit 2>/dev/null)"
+          # Pass the versioned .so of each non-system library explicitly as
+          # well. linuxdeploy already resolves them as NEEDED entries, but for
+          # these three that resolution goes through the LD_LIBRARY_PATH line
+          # above and nothing else: edit that line and the libs silently vanish
+          # from the AppDir, which is not a missing feature but an AppImage
+          # that dies at load time. A missing one fails the job here instead.
           EXTRA_LIB_ARGS=()
-          [ -n "$LSQ_LIB" ] && EXTRA_LIB_ARGS+=(--library "$LSQ_LIB")
+          for pattern in 'libLayerShellQtInterface.so.6*' 'libZXing.so.*' 'libKF6GuiAddons.so.6*'; do
+            lib="$(find "$PWD/lsq-prefix" /usr/lib/x86_64-linux-gnu -name "$pattern" -print -quit 2>/dev/null || true)"
+            if [ -z "$lib" ]; then
+              echo "::error::no $pattern found to bundle - the AppImage would not start"
+              exit 1
+            fi
+            EXTRA_LIB_ARGS+=(--library "$lib")
+          done
           # --exclude-library libwayland-*: never bundle the BUILD HOST's
-          # libwayland — mixing an old libwayland-client with a modern
+          # libwayland - mixing an old libwayland-client with a modern
           # compositor breaks at symbol lookup (MuseScore#13781); every 2020+
           # distro ships its own.
           ./tools/linuxdeploy-x86_64.AppImage \
@@ -247,7 +286,7 @@ jobs:
             --exclude-library "libwayland-egl*" \
             --output appimage
 
-          # The wayland platform plugin must actually be in the AppDir — fail
+          # The wayland platform plugin must actually be in the AppDir - fail
           # loudly instead of shipping another XWayland-only build.
           test -f AppDir/usr/plugins/platforms/libqwayland-generic.so \
             || { echo "::error::Qt wayland platform plugin was not deployed"; exit 1; }
@@ -255,26 +294,38 @@ jobs:
           if find AppDir/usr -name 'libwayland-*' -print | grep -q .; then
             echo "::error::host libwayland was bundled into the AppDir"; exit 1
           fi
+          # The language data survived the deploy (linuxdeploy rewrites AppDir
+          # contents, and an empty tessdata dir is OCR that reads nothing).
+          test -s AppDir/usr/share/tessdata/eng.traineddata \
+            || { echo "::error::tessdata went missing from the AppDir"; exit 1; }
 
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
           # binary when update information is embedded. HARD-fail if it did
           # not: shipping an AppImage whose embedded update info points at a
           # .zsync that was never published breaks AppImageUpdate for users.
           mv ./*.AppImage dist/
-          mv ./*.zsync dist/ || { echo "::error::no .zsync produced — update information not embedded?"; exit 1; }
+          mv ./*.zsync dist/ || { echo "::error::no .zsync produced - update information not embedded?"; exit 1; }
           ls -la dist/
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Build portable tarball
         # The same fully-deployed AppDir, shipped as a plain unpack-and-run
         # archive: no FUSE, no package manager, works on any RPM/deb-less
-        # distro (issue #78 — RED OS). linuxdeploy already patched every
+        # distro (issue #78 - RED OS). linuxdeploy already patched every
         # rpath to $ORIGIN and wrote qt.conf, so the extracted tree is
-        # self-contained; ./AppRun is the launcher (exactly what
-        # APPIMAGE_EXTRACT_AND_RUN runs).
+        # self-contained apart from the host pieces the README names; ./AppRun
+        # is the launcher (exactly what APPIMAGE_EXTRACT_AND_RUN runs).
         run: |
           tardir="unisic-${VERSION}-x86_64"
           mv AppDir "$tardir"
+          # This text used to say "Qt and all required libraries are bundled".
+          # That was wrong in the one way that matters: libpipewire-0.3 is a
+          # DT_NEEDED of the executable AND is on the AppImage excludelist
+          # linuxdeploy honours, so it is not in here and the app does not
+          # start without it on the host. Bundling it would not help either -
+          # it dlopens its SPA modules from a directory baked in at compile
+          # time, so a copy built on Ubuntu would look for them in an Ubuntu
+          # path on a Fedora machine.
           cat > "$tardir/README.txt" <<'EOF'
           Unisic portable bundle
           ======================
@@ -282,9 +333,28 @@ jobs:
 
               ./AppRun
 
-          Qt and all required libraries are bundled (same contents as the
-          AppImage, but no FUSE needed). Wayland, PipeWire and
-          xdg-desktop-portal come from your system, as on every install.
+          Qt, the KDE libraries and the OCR engine are bundled, together with
+          English and Polish text-recognition data. No FUSE and no package
+          manager needed.
+
+          Four things come from your system, not from this bundle:
+
+            PipeWire            REQUIRED TO START. Unisic links libpipewire
+                                directly and it cannot be bundled, because
+                                PipeWire loads its own plugins from a path
+                                fixed when it was compiled. Every current
+                                desktop Linux already has it.
+            ffmpeg              screen recording, GIF export, trim, transcode
+            wl-clipboard        wl-copy, so a copied image stays on the
+                                clipboard without a focused window (Wayland)
+            xdg-desktop-portal  plus a backend for your desktop (KDE, GNOME
+                                or wlroots) - this is what takes screenshots
+
+          Both Wayland and X11 sessions are supported.
+
+          For OCR in a language other than English or Polish, install that
+          Tesseract language pack from your system's software manager; Unisic
+          reads the system data as well as its own.
           EOF
           tar czf "dist/${tardir}.tar.gz" "$tardir"
           ls -la dist/

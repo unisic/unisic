@@ -26,19 +26,69 @@ jobs:
         with:
           submodules: recursive
 
-      - name: The flake's kit input must match the submodule
-        # Two pins for one dependency: whoever bumps the submodule has to bump
-        # the flake input too, or Nix users silently build an older kit.
+      - name: The kit commit must be the same in all THREE pins
+        # One dependency, three pins, and nothing derives any of them from any
+        # other (flake.nix says the same thing at length):
+        #   1. the git submodule pointer
+        #   2. the rev in flake.nix's unisic-kit input url
+        #   3. flake.lock's nodes."unisic-kit".locked.rev, which only
+        #      `nix flake update unisic-kit` rewrites
+        # This guard used to compare 1 against 2 only, which is precisely the
+        # pair a human bumps by hand and therefore the pair least likely to
+        # drift. The lock is the one that silently wins at build time: the
+        # flake input is what fills external/unisic-kit for anyone building
+        # `github:unisic/unisic` without ?submodules=1, so a stale lock means
+        # every Nix user compiles a different kit than the submodule says -
+        # and since the kit's gates (HAVE_X11, HAVE_X11_HOTKEYS,
+        # HAVE_KWIN_SCREENCAST) are hard build requirements now, "different"
+        # can mean "does not configure".
         run: |
           sub=$(git rev-parse HEAD:external/unisic-kit)
           flake=$(grep -oP 'unisic-kit/\K[0-9a-f]{40}' flake.nix)
-          if [ "$sub" != "$flake" ]; then
-            echo "submodule is at $sub but flake.nix pins $flake" >&2
-            exit 1
+          lock=$(jq -r '.nodes["unisic-kit"].locked.rev' flake.lock)
+          printf 'submodule   %s\nflake.nix   %s\nflake.lock  %s\n' "$sub" "$flake" "$lock"
+          status=0
+          if [ "$flake" != "$sub" ]; then
+            echo "::error::flake.nix pins $flake but the submodule is at $sub"
+            status=1
           fi
+          if [ "$lock" != "$sub" ]; then
+            echo "::error::flake.lock pins $lock but the submodule is at $sub - run: nix flake update unisic-kit"
+            status=1
+          fi
+          exit "$status"
 
       - name: Install Nix (flakes enabled)
         uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Configure in the flake's dev shell
+        # This is the gate check for the Nix channel, and it is a configure
+        # rather than one of the two things one would reach for first:
+        #   - grepping the `nix build -L` log for per-gate STATUS lines: there
+        #     are none left to grep. Every gate is unconditional now, so CMake
+        #     prints nothing when it finds one and FATAL_ERRORs when it does
+        #     not.
+        #   - reading unisic-features.txt out of the derivation: nothing
+        #     installs it, and the build directory is deleted inside the
+        #     sandbox before the runner can reach it. (One install() line in
+        #     CMakeLists.txt would change that and is worth doing - it would
+        #     also let this job assert on the built store path itself.)
+        # The dev shell's inputsFrom is the package, so this resolves all ten
+        # gates against exactly the store paths nix/package.nix hands the real
+        # build, and it costs a configure instead of a third full compile. It
+        # is also the only thing that ever exercises `nix develop`, which is
+        # what the README tells contributors to use.
+        # The build dir lives outside the checkout on purpose: an untracked
+        # directory inside it would be copied into the store by the two dirty
+        # tree builds below.
+        run: |
+          nix develop -c cmake -S . -B "$RUNNER_TEMP/build-nix" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Check every build gate is on
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: ${{ runner.temp }}/build-nix
 
       - name: Build the package (compiles Unisic + runs the QtTest suite)
         # No ?submodules=1 on purpose: this is the ref shape everyone consuming

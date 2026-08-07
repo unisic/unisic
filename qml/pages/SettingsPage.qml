@@ -1075,21 +1075,16 @@ Item {
                         }
                     }
                     SettingRow {
-                        available: App.ocrAvailable
-                        hint: App.ocrAvailable ? ""
-                              : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
-                        available: App.ocrAvailable && !App.settings.ocrAutoLanguage
+                        available: !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
-                        helpDetail: (App.qrAvailable
-                                     ? qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
-                                     : qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed."))
+                        helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
@@ -1097,10 +1092,11 @@ Item {
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
                     }
-                    // Built in, but nothing to recognize with yet — the real
-                    // "OCR does nothing" trap, distinct from "not built in".
+                    // Built in (always), but nothing to recognize with yet -
+                    // the real "OCR does nothing" trap. The language data is a
+                    // separate install that no build flag can supply.
                     Text {
-                        visible: App.ocrAvailable && !App.ocrHasLanguages
+                        visible: !App.ocrHasLanguages
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
@@ -3288,8 +3284,8 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
                     // Everything above is a capture everyone takes. What
-                    // follows needs a build option or a habit not everyone has,
-                    // and those rows in a row buried the ones that matter.
+                    // follows is a habit not everyone has, and those rows in a
+                    // row buried the ones that matter.
                     DisclosureRow {
                         id: advancedHotkeys
                         label: expanded ? qsTr("Hide advanced shortcuts")
@@ -3300,13 +3296,8 @@ Item {
                         visible: advancedHotkeys.expanded || page.searchActive
                         discloser: advancedHotkeys
                         label: qsTr("OCR region (copy text)")
-                        available: App.ocrAvailable
-                        hint: App.ocrAvailable ? ""
-                              : qsTr("OCR is not built in. Install tesseract and a language pack, then rebuild.")
                         help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
-                        helpDetail: (App.qrAvailable
-                                     ? qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
-                                     : qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied."))
+                        helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
                         shortcuts: App.settings.hotkeyOcr
                         onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
@@ -3589,13 +3580,6 @@ Item {
                                color: App.capRecordBorder ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
-                        label: qsTr("PipeWire (build)")
-                        help: qsTr("Whether this build was compiled against PipeWire.")
-                        helpDetail: qsTr("Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.")
-                        Text { text: App.capPipeWireBuild ? "✓" : "-"
-                               color: App.capPipeWireBuild ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
-                    }
-                    SettingRow {
                         label: qsTr("KWin native recording")
                         help: qsTr("Whether recordings can start without the portal share dialog.")
                         helpDetail: qsTr("KWin's zkde_screencast protocol (the Spectacle path): the app names the screen, region or window itself, so no system dialog and no restore tokens are involved. Needs the X-KDE-Wayland-Interfaces grant in the installed desktop file; elsewhere recording falls back to the portal.")
@@ -3612,7 +3596,7 @@ Item {
                     SettingRow {
                         label: qsTr("X11 screen capture")
                         help: qsTr("Whether recording can grab frames directly from the X server.")
-                        helpDetail: qsTr("Needs an X11 session (xcb platform) and a build with libX11/libXext/libXfixes. On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
+                        helpDetail: qsTr("Needs an X11 session (xcb platform). On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
                         Text { text: App.capX11Capture ? "✓" : "-"
                                color: App.capX11Capture ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
@@ -3755,7 +3739,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Still GIF"); onClicked: App.devTestStaticGif() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Image conversion"); onClicked: App.devTestImageConvert() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification drag payload"); onClicked: App.devTestNotificationDrag() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); enabled: App.ocrAvailable; onClicked: App.captureRegionOcr() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR region"); onClicked: App.captureRegionOcr() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture sound"); onClicked: App.devTestCaptureSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Recording sound"); onClicked: App.devTestRecordingSound() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record start sound"); onClicked: App.devTestRecordStartSound() }
@@ -3770,7 +3754,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watermark preview"); onClicked: App.devTestWatermarkPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); enabled: App.qrAvailable; onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
@@ -3802,12 +3786,12 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Overlay mode badge"); onClicked: App.devTestOverlayMode() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Overlay preview"); onClicked: App.devTestOverlayPreview() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); enabled: App.ocrAvailable; onClicked: App.devTestOcrBoxes() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); enabled: App.ocrAvailable; onClicked: App.devTestOcrHighlight() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); enabled: App.ocrAvailable; onClicked: App.devTestOcrRedactPattern() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); onClicked: App.devTestOcrBoxes() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); onClicked: App.devTestOcrHighlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); onClicked: App.devTestOcrRedactPattern() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); enabled: App.ocrAvailable; onClicked: App.devTestOcrAutoLang() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

@@ -16,6 +16,13 @@ name: Build
 # Fedora compile now happens here in the rpm job. Only runs on pull requests
 # (and on demand) - these builds are heavy, so they must not fire on every
 # commit push.
+#
+# This workflow configures nothing itself, so it runs no gate check of its own.
+# Each delegated workflow calls .github/actions/assert-gates right after its
+# configure step instead, which is what makes "green PR = buildable release"
+# also mean "green PR = every shipped package has every feature". Before that
+# existed, exactly one build in the repo checked its gates, and it was not one
+# of these six.
 on:
   pull_request:
     branches: [dev, main]

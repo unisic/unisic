@@ -1,0 +1,124 @@
+name: Assert every build gate is on
+description: >
+  Fail the job unless all ten of Unisic's compile-time gates are ON in
+  <build-dir>/unisic-features.txt, the manifest CMake writes at configure time.
+
+# WHY THIS EXISTS. Unisic has no optional dependencies: every gate is a hard
+# build requirement and CMakeLists.txt stops the configure naming the package to
+# install. That rule only holds if something checks the RESULT of a configure in
+# every channel, because the failure mode it replaces was never a red build - it
+# was a green one shipping a binary whose UI offers a feature the code does not
+# contain. HAVE_KGUIADDONS was off in every rpm on the release page,
+# HAVE_LIBINPUT in every Flatpak, HAVE_X11 in every Nix build, and all three
+# jobs passed.
+#
+# So the CMake hard-fail is the first mechanism and this is the second. They are
+# not redundant: CMake protects a fresh configure, this protects everything else
+# - a stale build directory reused from cache, a gate added to CMakeLists.txt
+# without being added to the expected list here, a kit checkout too old to
+# contribute UNISIC_KIT_FEATURES, or a packaging recipe that configured
+# something other than what the job then built.
+#
+# The manifest is read instead of build.ninja (what the old tests.yml check
+# grepped) for two reasons: build.ninja does not exist under makepkg or
+# flatpak-builder, and a bare grep for HAVE_PIPEWIRE cannot tell the app's
+# define from the kit's, so one of the two could vanish unnoticed.
+
+inputs:
+  build-dir:
+    description: >
+      The CMake binary dir that holds unisic-features.txt (what -B was given).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Assert every build gate is on
+      shell: bash
+      # Passed through the environment rather than interpolated into the script
+      # body: a build dir is a path, and a path is not shell source.
+      env:
+        UNISIC_BUILD_DIR: ${{ inputs.build-dir }}
+      run: |
+        # No `set -e`: every problem in the manifest is collected and reported
+        # in one run, so a broken build tells the whole truth at once instead of
+        # one gate per push.
+        set -uo pipefail
+
+        manifest="${UNISIC_BUILD_DIR}/unisic-features.txt"
+
+        # The ten gates, in the order CMakeLists.txt writes them. Seven are the
+        # app's own, the last four arrive from external/unisic-kit through
+        # UNISIC_KIT_FEATURES (HAVE_PIPEWIRE is defined on both sides and is
+        # de-duplicated there, which is why this is ten names and not eleven).
+        expected=(HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
+                  HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS
+                  HAVE_X11 HAVE_X11_HOTKEYS HAVE_KWIN_SCREENCAST)
+
+        if [ ! -f "$manifest" ]; then
+          echo "::error::${manifest} does not exist, so this build's gates cannot be checked."
+          echo "  It is written by CMakeLists.txt at CONFIGURE time, at the end of the"
+          echo "  translations block. Either the configure never ran in that directory,"
+          echo "  or build-dir points somewhere other than the -B argument, or the tree"
+          echo "  predates the manifest."
+          exit 1
+        fi
+
+        # One NAME=ON per line and nothing else. Blank lines are tolerated only
+        # because the file ends with a newline.
+        mapfile -t lines < <(grep -v '^[[:space:]]*$' "$manifest")
+
+        status=0
+
+        if [ "${#lines[@]}" -ne "${#expected[@]}" ]; then
+          echo "::error::${manifest} lists ${#lines[@]} features, expected ${#expected[@]}."
+          echo "  Too few means CMake collected fewer gates than this build has, which is"
+          echo "  the same class of hole as a gate reading OFF; too many means a gate was"
+          echo "  added in one place only. Reconcile UNISIC_ALL_FEATURES in CMakeLists.txt,"
+          echo "  UNISIC_KIT_FEATURES in external/unisic-kit/CMakeLists.txt and the"
+          echo "  expected list in this action. The per-name errors below say which."
+          status=1
+        fi
+
+        echo "Build gates in ${manifest}:"
+        for name in "${expected[@]}"; do
+          value=""
+          for line in "${lines[@]}"; do
+            case "$line" in
+              "${name}="*) value="${line#*=}" ;;
+            esac
+          done
+          case "$value" in
+            ON)
+              printf '  %-22s ON\n' "$name"
+              ;;
+            "")
+              echo "::error::${name} is absent from ${manifest} - this build has no record of that gate at all"
+              status=1
+              ;;
+            *)
+              echo "::error::${name}=${value} - the feature behind it is not in this build"
+              status=1
+              ;;
+          esac
+        done
+
+        # A name in the file that this action does not know about is a gate
+        # someone added to CMakeLists.txt without adding it here, i.e. a gate no
+        # job would ever miss.
+        for line in "${lines[@]}"; do
+          name="${line%%=*}"
+          known=0
+          for want in "${expected[@]}"; do
+            [ "$want" = "$name" ] && known=1
+          done
+          if [ "$known" -eq 0 ]; then
+            echo "::error::${manifest} carries an unknown gate '${name}' - add it to the expected list in .github/actions/assert-gates/action.yml"
+            status=1
+          fi
+        done
+
+        if [ "$status" -eq 0 ]; then
+          echo "All ${#expected[@]} gates are ON."
+        fi
+        exit "$status"

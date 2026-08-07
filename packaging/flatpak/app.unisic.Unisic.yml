@@ -26,6 +26,15 @@ finish-args:
   # Default save locations (Settings can point elsewhere through the portal).
   - --filesystem=xdg-pictures:create
   - --filesystem=xdg-videos:create
+  # The pressed-key badge and the click ripple read /dev/input event devices
+  # through the bundled libinput. Without this the devices are simply not there.
+  - --device=input
+  # ...and libinput's udev backend needs the host udev database to see the
+  # ID_INPUT_* properties that tell a keyboard from a touchpad. Without it the
+  # feature builds, opens no device and reports "no permission", which is a
+  # worse answer than being absent: the user is told to fix something that is
+  # not theirs to fix. Read-only, and only the database.
+  - --filesystem=/run/udev:ro
   # Tray icon (StatusNotifierItem) and capture notifications: the filtered
   # session bus hides both names, which would leave the app with no tray entry
   # and no feedback after a capture.
@@ -53,6 +62,20 @@ cleanup:
   # CLI front ends of the bundled libraries; Unisic links the libraries.
   - /bin/tesseract
   - /bin/x264
+  - /bin/libinput
+  - /libexec/libinput
+  - /bin/mtdev-test
+  - /bin/touchpad-edge-detector
+  - /bin/mouse-dpi-tool
+  - /bin/libevdev-tweak-device
+  # curl-config is a build-time helper for whoever links libcurl; nothing in
+  # the sandbox does. The curl BINARY stays, that is the point of the module.
+  - /bin/curl-config
+  # libinput's udev rules and hwdb are for the HOST's udev to apply, and the
+  # host applied its own long before the sandbox opened. /share/libinput is
+  # deliberately NOT cleaned: libinput reads its .quirks files from there at
+  # context creation and refuses to start a context without them.
+  - /lib/udev
   # Native-packaging leftovers with no meaning inside the sandbox: the second,
   # legacy icon name (flatpak only exports app-ID-prefixed files) and the OBS
   # repository signing key the .deb/.rpm postinst uses.
@@ -122,7 +145,10 @@ modules:
           url-template: https://ffmpeg.org/releases/ffmpeg-$version.tar.xz
 
   # OCR ("copy text out of a region"). Neither leptonica nor tesseract is in
-  # the runtime; without them the app still builds, with OCR compiled out.
+  # the runtime, and HAVE_TESSERACT is a hard build requirement, so without
+  # these two modules the unisic module does not configure at all. That is the
+  # intent: a channel that cannot carry a dependency must fail loudly here
+  # rather than ship a build with a feature quietly missing.
   - name: leptonica
     buildsystem: cmake-ninja
     builddir: true
@@ -150,11 +176,17 @@ modules:
   # Language data for the bundled tesseract. The sandbox cannot read host
   # langpacks and /app is read-only at runtime, so the shipped languages are
   # the languages OCR can offer.
+  # osd is not a language: it is the orientation-and-script model behind
+  # OcrEngine::scriptDetectionAvailable(), which Settings turns on by default.
+  # Without the file that switch is on and does nothing, in every Flatpak.
+  # It costs 10 MB, the largest single file in the bundle, and it is the only
+  # non-language traineddata we ship.
   - name: tessdata
     buildsystem: simple
     build-commands:
       - install -Dm644 eng.traineddata /app/share/tessdata/eng.traineddata
       - install -Dm644 pol.traineddata /app/share/tessdata/pol.traineddata
+      - install -Dm644 osd.traineddata /app/share/tessdata/osd.traineddata
     sources:
       - type: file
         url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/eng.traineddata
@@ -162,6 +194,9 @@ modules:
       - type: file
         url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/pol.traineddata
         sha256: c4476cdbc0e33d898d32345122b7be1cbf85ace15f920f06c7714756e1ef79b2
+      - type: file
+        url: https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/4.1.0/osd.traineddata
+        sha256: 9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff
 
   # QR and barcode payloads inside the OCR path.
   - name: zxing-cpp
@@ -190,9 +225,58 @@ modules:
         url: https://github.com/bugaevc/wl-clipboard/archive/refs/tags/v2.2.1.tar.gz
         sha256: 6eb8081207fb5581d1d82c4bcd9587205a31a3d47bea3ebeb7f41aa1143783eb
 
+  # SFTP and SCP upload destinations. The runtime does ship curl, but its
+  # libcurl links no SSH backend at all (readelf on the Platform's
+  # libcurl.so.4 lists openssl, nghttp2, psl and zlib, and nothing else), so
+  # every sftp:// and scp:// destination the destination editor offers would
+  # fail inside the sandbox with an unsupported-protocol error. Two shapes
+  # would fix that; this is the safer one. Building a SHARED curl would put
+  # /app/lib/libcurl.so.4 ahead of the runtime's on the loader path for every
+  # other consumer in the sandbox, Qt's network stack included, and a bundled
+  # TLS-adjacent library that nobody audits ages badly. --disable-shared keeps
+  # the module down to one private /app/bin/curl, which is all UploadManager
+  # spawns, and /app/bin precedes /usr/bin so it is the one that gets found.
+  # libssh2 is static for the same reason: it exists only inside that binary.
+  - name: libssh2
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=OFF
+      - -DBUILD_EXAMPLES=OFF
+      - -DBUILD_TESTING=OFF
+    sources:
+      - type: archive
+        url: https://libssh2.org/download/libssh2-1.11.1.tar.xz
+        sha256: 9954cb54c4f548198a7cbebad248bdc87dd64bd26185708a294b2b50771e3769
+
+  - name: curl
+    config-opts:
+      # No libcurl.so in /app: see the note above. The static archive is a
+      # build-time artifact and the global cleanup drops it with /lib/*.a.
+      - --disable-shared
+      - --enable-static
+      - --with-openssl
+      - --with-libssh2
+      - --disable-manual
+      # Unisic only ever speaks HTTP(S), FTP(S), SFTP and SCP through this
+      # binary. LDAP pulls in a whole extra library for a protocol no upload
+      # destination can name, and libpsl only matters to a cookie jar we do
+      # not use.
+      - --disable-ldap
+      - --disable-ldaps
+      - --without-libpsl
+    sources:
+      - type: archive
+        url: https://curl.se/download/curl-8.15.0.tar.xz
+        sha256: 6cd0a8a5b126ddfda61c94dc2c3fc53481ba7a35461cf7c5ab66aa9d6775b609
+
   # HAVE_LAYERSHELL: the styled notification card, the capture overlay above
-  # fullscreen windows and the pinned preview. Without it those fall back to
-  # the GNOME paths (XWayland helpers), which also work.
+  # fullscreen windows and the pinned preview. Neither the Platform nor the
+  # Sdk ships it and the gate is a hard build requirement, so this module is
+  # what lets the unisic module configure at all. The runtime fallback is a
+  # separate matter: on a compositor that does not implement the protocol
+  # those three paths take the XWayland helper route instead, which works.
   - name: layer-shell-qt
     buildsystem: cmake-ninja
     builddir: true
@@ -208,6 +292,69 @@ modules:
           project-id: 240630
           stable-only: true
           url-template: https://download.kde.org/stable/plasma/$version/layer-shell-qt-$version.tar.xz
+
+  # HAVE_LIBINPUT, the last gate this channel was missing. It drives the
+  # pressed-key badge and the click ripple drawn over a recording, and it is
+  # now a hard build requirement like every other gate: without these three
+  # modules the unisic module fails at configure time instead of shipping a
+  # bundle where both features are silently absent, which is what every
+  # Flatpak released so far did.
+  # Only half the pair is in the runtime. libudev comes from the Platform
+  # (systemd-libs), libinput does not, and neither do its own dependencies, so
+  # they are built here in dependency order: libevdev first (libinput needs it
+  # to read evdev devices at all), then mtdev, then libinput itself.
+  # Bundling is also not the whole fix on this channel: see --device=input and
+  # --filesystem=/run/udev:ro in finish-args, without which libinput builds,
+  # opens nothing and reports "no permission".
+  - name: libevdev
+    config-opts:
+      - --disable-static
+      # The doc build wants doxygen, which is not in the Sdk, and nothing in
+      # the bundle would read the output anyway.
+      - --disable-documentation
+    sources:
+      - type: archive
+        url: https://www.freedesktop.org/software/libevdev/libevdev-1.13.6.tar.xz
+        sha256: 73f215eccbd8233f414737ac06bca2687e67c44b97d2d7576091aa9718551110
+
+  # Protocol-A multitouch devices (older touchpads) speak a format libinput
+  # reads only through mtdev. It is optional upstream, but leaving it out
+  # would make the badge and the ripple miss exactly the hardware that is
+  # hardest for the user to guess at, so device coverage here matches what the
+  # distro packages give.
+  - name: mtdev
+    config-opts:
+      - --disable-static
+    sources:
+      - type: archive
+        url: https://bitmath.org/code/mtdev/mtdev-1.1.7.tar.bz2
+        sha256: a107adad2101fecac54ac7f9f0e0a0dd155d954193da55c2340c97f2ff1d814e
+
+  # libinput publishes no release tarballs any more, so the source is the tag
+  # plus the commit it resolves to, the same shape the unisic module uses.
+  # libwacom is off: it identifies tablets, and Unisic only ever asks whether a
+  # device is a keyboard or a pointer. The udev directory is pinned inside
+  # /app so the install cannot land outside the prefix; the rules it writes are
+  # for the HOST's udev and are dropped again by the cleanup list.
+  - name: libinput
+    buildsystem: meson
+    config-opts:
+      - -Dlibwacom=false
+      - -Dmtdev=true
+      - -Ddebug-gui=false
+      - -Dtests=false
+      - -Ddocumentation=false
+      - -Dlua-plugins=disabled
+      - -Dzshcompletiondir=no
+      - -Dudev-dir=/app/lib/udev
+    sources:
+      - type: git
+        url: https://gitlab.freedesktop.org/libinput/libinput.git
+        tag: 1.31.3
+        commit: 26191d396d74d505541d6311f0b4ae68d791b890
+        x-checker-data:
+          type: git
+          tag-pattern: ^([\d.]+)$
 
   - name: unisic
     buildsystem: cmake-ninja

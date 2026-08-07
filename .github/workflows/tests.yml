@@ -5,10 +5,11 @@ name: Tests
 # nothing was compiling the tree or running ctest at all - the ten QtTest
 # targets in tests/ existed but no machine ever ran them.
 #
-# This job compiles the full app with every optional dependency enabled
-# (so the HAVE_* guarded code compiles too, not just the default path) and
-# then runs ctest. Qt and the two source-built optional libs are cached, so
-# a warm run is a compile plus half a second of tests.
+# This job compiles the full app and then runs ctest. Unisic has no optional
+# dependencies, so "the full app" is the only app there is: every gate is a
+# hard build requirement and a missing -dev package stops the configure rather
+# than quietly removing a feature. Qt and the source-built KDE libs are cached,
+# so a warm run is a compile plus half a second of tests.
 on:
   push:
     branches: [dev, main]
@@ -27,21 +28,23 @@ defaults:
     shell: bash
 
 env:
-  # Pinned so the optional-prefix cache key is stable and a bumped tag
+  # Pinned so the source-built prefix cache key is stable and a bumped tag
   # invalidates it by itself.
   QT_VERSION: "6.8.3"
   ECM_TAG: v6.10.0
   LAYERSHELL_TAG: v6.3.5
   KGUIADDONS_TAG: v6.10.0
-  ZXING_TAG: v2.2.1
   PLASMA_PROTOCOLS_TAG: v1.16.0
 
 jobs:
   ctest:
     name: Build + unit tests
     # Same runner as the release AppImage build, so a green run here means
-    # the toolchain that ships is the toolchain that was tested.
-    runs-on: ubuntu-22.04
+    # the toolchain that ships is the toolchain that was tested. Moved off
+    # ubuntu-22.04 with the AppImage: GitHub starts failing jobs on that image
+    # deliberately during its brownout, and it was also the reason half the
+    # dependencies below had to be built from source.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,17 +53,20 @@ jobs:
       - name: Install host dependencies
         run: |
           sudo apt-get update
-          # Every optional dependency the tree probes for is installed, so a
-          # syntax error inside HAVE_PIPEWIRE / HAVE_TESSERACT / HAVE_LIBINPUT
-          # / the kit's X11 grabber fails here instead of at release time.
+          # Every dependency the tree probes for is installed, because every
+          # one of them is mandatory: a missing package here is a configure
+          # error, not a quietly narrower build.
+          # extra-cmake-modules is deliberately NOT taken from apt: noble ships
+          # 5.115 and the KDE libs below need ECM 6.10, so it is built into
+          # the same local prefix they are.
           sudo apt-get install -y --no-install-recommends \
             cmake ninja-build g++ pkg-config \
             libpipewire-0.3-dev \
-            libtesseract-dev libleptonica-dev \
+            libtesseract-dev libleptonica-dev libzxing-dev \
             libinput-dev libudev-dev \
             libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
             libgl1-mesa-dev libxkbcommon-dev libxkbcommon-x11-0 \
-            libwayland-dev extra-cmake-modules wayland-protocols
+            libwayland-dev wayland-protocols
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -69,23 +75,27 @@ jobs:
           arch: linux_gcc_64
           cache: true
 
-      - name: Restore source-built optional libs
+      - name: Restore the source-built KDE prefix
         id: optprefix
         uses: actions/cache@v4
         with:
           path: lsq-prefix
-          key: optprefix-${{ runner.os }}-qt${{ env.QT_VERSION }}-ecm${{ env.ECM_TAG }}-lsq${{ env.LAYERSHELL_TAG }}-kga${{ env.KGUIADDONS_TAG }}-zxing${{ env.ZXING_TAG }}-pwp${{ env.PLASMA_PROTOCOLS_TAG }}
+          key: optprefix-noble-${{ runner.os }}-qt${{ env.QT_VERSION }}-ecm${{ env.ECM_TAG }}-lsq${{ env.LAYERSHELL_TAG }}-kga${{ env.KGUIADDONS_TAG }}-pwp${{ env.PLASMA_PROTOCOLS_TAG }}
 
-      - name: Build the optional libs Ubuntu 22.04 has no usable package for
-        # Four features would otherwise never be compiled by this job:
+      - name: Build the KDE libs Ubuntu 24.04 has no usable package for
+        # Three gates would otherwise have no dependency to find, and since
+        # every gate is now mandatory that is a failed configure, not a
+        # narrower build:
         #   HAVE_LAYERSHELL      on-top notification card, overlay over a
         #                        fullscreen window, preview pin
         #   HAVE_KGUIADDONS      Klipper clipboard history (issue #51)
-        #   HAVE_ZXING           QR/barcode decode inside the OCR path
         #   HAVE_KWIN_SCREENCAST KWin-native recording (no portal dialog)
-        # Jammy has no package matching the aqt Qt (or, for the plasma
-        # protocols, none new enough), so they are source-built once and
-        # cached - a warm run restores the prefix and skips this step.
+        # Noble has no KF6 at all (no libkf6guiaddons-dev) and its
+        # layer-shell-qt is the Qt5 build (5.27), neither of which can serve a
+        # Qt 6.8 app; its plasma-wayland-protocols is 1.10, which clears the
+        # kit's >= 1.7 floor but not the >= 1.15 that kguiaddons
+        # $KGUIADDONS_TAG requires. So all four are built once and cached - a
+        # warm run restores the prefix and skips this step.
         if: steps.optprefix.outputs.cache-hit != 'true'
         run: |
           git clone --depth 1 --branch "$ECM_TAG" https://invent.kde.org/frameworks/extra-cmake-modules.git
@@ -94,10 +104,11 @@ jobs:
             -DBUILD_TESTING=OFF -DBUILD_DOC=OFF \
             -DBUILD_MAN_DOCS=OFF -DBUILD_HTML_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF
           cmake --install build-ecm
-          # plasma-wayland-protocols is XML plus a tiny cmake config; jammy
-          # ships 1.6, the kit requires >= 1.7 for zkde-screencast-v1 and
-          # layer-shell-qt $LAYERSHELL_TAG refuses to configure below 1.15.0.
-          # It has to be installed before layer-shell-qt is configured.
+          # plasma-wayland-protocols is XML plus a tiny cmake config, nothing to
+          # compile. It carries zkde-screencast-unstable-v1.xml, which the kit
+          # generates its KWin-native recording client from, and kguiaddons
+          # refuses to configure without >= 1.15.0 - so it is installed before
+          # both of them.
           git clone --depth 1 --branch "$PLASMA_PROTOCOLS_TAG" https://invent.kde.org/libraries/plasma-wayland-protocols.git
           cmake -S plasma-wayland-protocols -B build-pwp -G Ninja \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
@@ -122,19 +133,11 @@ jobs:
             -DBUILD_TESTING=OFF
           cmake --build build-kga --parallel
           cmake --install build-kga
-          git clone --depth 1 --branch "$ZXING_TAG" https://github.com/zxing-cpp/zxing-cpp.git
-          cmake -S zxing-cpp -B build-zxing -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
-            -DCMAKE_INSTALL_LIBDIR=lib \
-            -DBUILD_EXAMPLES=OFF -DBUILD_BLACKBOX_TESTS=OFF -DBUILD_UNIT_TESTS=OFF
-          cmake --build build-zxing --parallel
-          cmake --install build-zxing
 
       - name: Set up ccache
         uses: hendrikmuhs/ccache-action@v1
         with:
-          key: tests-${{ runner.os }}-qt${{ env.QT_VERSION }}
+          key: tests-noble-${{ runner.os }}-qt${{ env.QT_VERSION }}
 
       - name: Configure
         run: |
@@ -144,26 +147,15 @@ jobs:
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
-      - name: Check every optional feature really is compiled in
-        # A missing -dev package silently compiles a feature OUT and the job
-        # would still go green while covering less code than it claims - the
-        # exact way HAVE_ONNX was off in every shipped package for months.
-        # Read the real -D flags out of the generated build system rather
-        # than grepping configure messages, whose wording drifts.
-        run: |
-          have="$(grep -o 'HAVE_[A-Z0-9_]*' build/build.ninja | sort -u)"
-          echo "$have"
-          missing=0
-          for f in HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT \
-                   HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS \
-                   HAVE_X11 HAVE_X11_HOTKEYS HAVE_KWIN_SCREENCAST
-          do
-            grep -qx "$f" <<<"$have" || {
-              echo "::error::$f is OFF - this run does not compile the code behind it"
-              missing=1
-            }
-          done
-          exit "$missing"
+      - name: Check every build gate is on
+        # A stale ccache/prefix restore or a gate added to CMakeLists.txt and
+        # nowhere else would leave this job covering less code than it claims,
+        # and green - the exact way HAVE_ONNX was off in every shipped package
+        # for months. The shared action reads the manifest CMake writes, so
+        # this check is the same check every packaging job runs.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build
 
       - name: Build
         run: cmake --build build --parallel
@@ -182,7 +174,7 @@ jobs:
     # CLAUDE.md makes this a hard requirement: lrelease bakes the .qm into
     # the qrc, so an unfinished or empty <translation> ships as a silent
     # fallback to English. Nothing enforced it before this job.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -197,5 +189,5 @@ jobs:
               status=1
             fi
           done
-          [ "$status" = "0" ] && echo "all five .ts files are complete"
+          [ "$status" = "0" ] && echo "all seven .ts files are complete"
           exit "$status"

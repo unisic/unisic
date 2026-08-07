@@ -15,23 +15,29 @@ Source0:        %{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 
 # cmake()/pkgconfig() virtual provides instead of distro package names: the
 # real -devel names differ between Fedora (qt6-qtbase-devel) and openSUSE
-# (qt6-core-devel), but both distros auto-generate these provides — so this
+# (qt6-core-devel), but both distros auto-generate these provides - so this
 # ONE spec serves COPR/Packit (Fedora) AND the OBS openSUSE targets.
+#
+# Targets: Fedora 43/44/rawhide (COPR/Packit) and openSUSE Tumbleweed +
+# Leap 16.0 (OBS). openSUSE Leap 15.x is NOT one, and no %%if below pretends
+# otherwise any more. Unisic has no optional dependencies: every compile-time
+# gate is a hard BuildRequires and CMake stops at configure time naming the
+# package to install, so a guard that switched a gate off for one distro would
+# now only turn a loud configure error into a silently crippled package.
+# 15.6 could not satisfy the set anyway - it has no KF6 at all (so
+# cmake(KF6GuiAddons) never resolved there), it provides cmake(LayerShellQt)
+# only from the Qt5 build, and its Qt 6.6 ships no Qt6GuiPrivate CMake config.
+# Its PlasmaWaylandProtocols is 1.10.0, which does satisfy the >= 1.7 below;
+# the comment that used to blame that half was wrong.
 BuildRequires:  cmake
-%if 0%{?suse_version} && 0%{?suse_version} < 1600
-# Leap 15.x defaults to gcc7 — C++20 needs the parallel gcc13 toolchain
-# (exported as CC/CXX in %%build).
-BuildRequires:  gcc13-c++
-%else
 BuildRequires:  gcc-c++
-%endif
 BuildRequires:  pkgconfig
 BuildRequires:  extra-cmake-modules
 %if !0%{?suse_version}
 # Fedora builds with Ninja (matches CI); openSUSE's %%cmake_build drives
 # plain make, so no -G there and no ninja dependency.
 BuildRequires:  ninja-build
-# appstream-util for the %%check metainfo validation; Fedora-only — the
+# appstream-util for the %%check metainfo validation; Fedora-only - the
 # %%check line is `|| :`-guarded and skips quietly where the tool is absent.
 BuildRequires:  libappstream-glib
 %endif
@@ -48,30 +54,30 @@ BuildRequires:  cmake(Qt6Svg)
 BuildRequires:  cmake(Qt6LinguistTools)
 BuildRequires:  cmake(Qt6WaylandClient)
 # KWin-native screencasting (HAVE_KWIN_SCREENCAST, zkde_screencast_unstable_v1
-# - the Spectacle path). Without BOTH of these the code compiles out and every
-# recording on Plasma falls back to the portal share dialog, which is the whole
-# thing the feature removes. Qt6 GuiPrivate is a separate package (Fedora
-# qt6-qtbase-private-devel, openSUSE qt6-gui-private-devel) and both distros
-# generate the cmake() provide. Leap 15.x is skipped for the same reason as
-# LayerShellQt above: too old to carry a Qt6-usable pair, and the feature
-# degrades to the portal instead of failing the build.
-%if !0%{?suse_version} || 0%{?suse_version} >= 1600
+# - the Spectacle path). Without all three of these (Qt6WaylandClient above
+# plus the pair below) every recording on Plasma falls back to the portal share
+# dialog, which is the whole thing the feature removes - so they are hard
+# BuildRequires and the build stops rather than shipping the fallback. Qt6
+# GuiPrivate is a separate package (Fedora qt6-qtbase-private-devel, openSUSE
+# qt6-gui-private-devel) and both distros generate the cmake() provide; the kit
+# also accepts the bare private headers where a distro ships no CMake config
+# for them, but on rpm targets the config is there and this is the cheap check.
 BuildRequires:  cmake(Qt6GuiPrivate)
 BuildRequires:  cmake(PlasmaWaylandProtocols) >= 1.7
-%endif
 BuildRequires:  pkgconfig(libpipewire-0.3)
 BuildRequires:  pkgconfig(tesseract)
 # openSUSE's tesseract link interface drags in -lcurl (libarchive chain);
-# Fedora resolves it transitively — harmless there.
+# Fedora resolves it transitively - harmless there.
 BuildRequires:  pkgconfig(libcurl)
 BuildRequires:  pkgconfig(lept)
 BuildRequires:  cmake(ZXing)
-# Leap 15.x ships LayerShellQt only for Qt5 (its cmake(LayerShellQt) provide
-# points at layer-shell-qt5-devel, which would poison a Qt6 link) — skip it
-# there; the HAVE_LAYERSHELL features compile out gracefully.
-%if !0%{?suse_version} || 0%{?suse_version} >= 1600
+# HAVE_LAYERSHELL: the recording border frame and the on-screen notifications
+# anchor themselves as layer-shell surfaces. Fedora ships layer-shell-qt-devel,
+# Tumbleweed and Leap 16.0 layer-shell-qt6-devel; all three provide
+# cmake(LayerShellQt). (Leap 15.x provided that same symbol from the Qt5 build,
+# layer-shell-qt5-devel, which would poison a Qt6 link - one more reason that
+# target is gone rather than guarded.)
 BuildRequires:  cmake(LayerShellQt)
-%endif
 # KSystemClipboard: puts screenshots into KDE Plasma's Klipper clipboard
 # history (needs the x-kde-force-image-copy hint QClipboard/wl-copy can't set).
 BuildRequires:  cmake(KF6GuiAddons)
@@ -79,8 +85,10 @@ BuildRequires:  pkgconfig(wayland-client)
 BuildRequires:  pkgconfig(wayland-protocols)
 # HAVE_LIBINPUT: the pressed-key badge and the click ripple read /dev/input
 # through libinput's udev backend. CMake needs BOTH modules (libinput.pc and
-# libudev.pc); with either missing the feature compiles out and the switches
-# in Settings stay dead on every install, whatever the user's input group is.
+# libudev.pc) and stops the configure if either is absent. It used to compile
+# the feature out instead, which is how every package before 0.8.3 shipped two
+# Settings switches that could not do anything, whatever the user's input
+# group was.
 BuildRequires:  pkgconfig(libinput)
 BuildRequires:  pkgconfig(libudev)
 # HAVE_X11 (XShm recording) and HAVE_X11_HOTKEYS (XGrabKey) in the kit: the
@@ -92,36 +100,73 @@ BuildRequires:  pkgconfig(xfixes)
 BuildRequires:  pkgconfig(xcb)
 BuildRequires:  desktop-file-utils
 
-# Runtime helpers are optional — the app degrades gracefully without them, so
-# they are Recommends (not Requires) to keep install working on stock Fedora
-# where the GPL ffmpeg is only in RPM Fusion (ffmpeg-free covers most codecs).
-%if 0%{?fedora}
-Recommends:     ffmpeg-free
-# Capture-sound cue plays through one of these if present.
-Recommends:     pipewire-utils
-%else
-Recommends:     ffmpeg
-Recommends:     pipewire-tools
-%endif
-Recommends:     wl-clipboard
+# Runtime helpers are hard Requires, not Recommends. The app does not degrade
+# gracefully without them: it cannot record, cannot region-capture, cannot copy
+# and cannot OCR, and a `dnf --setopt=install_weak_deps=False` or a zypper with
+# solver.onlyRequires used to produce exactly that install. Same policy as the
+# build gates, and the same list the CPack RPM/DEB blocks in CMakeLists.txt
+# carry - a package that installs into a state where a documented feature
+# cannot run is a broken package.
+#
+# "/usr/bin/ffmpeg" is a FILE dependency on purpose: stock Fedora ships
+# ffmpeg-free, which installs the binary (all GifRecorder/TrimController need)
+# but only RPM Fusion's package Provides the NAME "ffmpeg" - requiring the name
+# would make this rpm uninstallable on stock Fedora, while the path is
+# satisfied by ffmpeg-free, by RPM Fusion's ffmpeg and by openSUSE's alike.
+Requires:       /usr/bin/ffmpeg
 # Region/window screenshots (PortalScreenshot) and all ScreenCast recording
-# route through xdg-desktop-portal; matches the CPack RPM/DEB dependency lists.
-Recommends:     xdg-desktop-portal
+# route through xdg-desktop-portal. The BACKEND stays weak: which one is right
+# depends on the desktop, a session always has one, and picking for the user
+# would drag half a foreign desktop in.
+Requires:       xdg-desktop-portal
+Recommends:     (xdg-desktop-portal-kde or xdg-desktop-portal-gnome or xdg-desktop-portal-wlr or xdg-desktop-portal-gtk)
+Requires:       wl-clipboard
+# The pipewire DAEMON: the linked libpipewire soname only brings the library in
+# via autodeps, and every ScreenCast stream needs the service running.
+Requires:       pipewire
+# curl is the only transport for the ftp/ftps/sftp upload destinations (one
+# builtin destination is a curl destination); zip builds the diagnostics bundle
+# that Settings offers. Neither is visible to the autodep scanner.
+Requires:       curl
+Requires:       zip
+# Per-distro names for the same two things: the pipewire CLI tools
+# (pw-record/pw-dump feed app-audio recording and node enumeration, pw-play
+# plays the capture cue) and the tesseract language data. OCR is compiled into
+# every build, so shipping without data would mean an empty language list;
+# eng is the pinned default, pol is a shipped UI language, and osd.traineddata
+# is what the script auto-detection (on by default) reads. Fedora calls the OSD
+# data plain "tesseract-osd" - there is no tesseract-langpack-osd.
+%if 0%{?fedora}
+Requires:       pipewire-utils
+Requires:       tesseract-langpack-eng
+Requires:       tesseract-langpack-pol
+Requires:       tesseract-osd
+%else
+Requires:       pipewire-tools
+Requires:       tesseract-ocr-traineddata-eng
+Requires:       tesseract-ocr-traineddata-pol
+Requires:       tesseract-ocr-traineddata-osd
+%endif
 # Runtime pieces the auto-dep scanner cannot see (dlopened QML modules, the
 # SVG image plugin, the wayland platform plugin). Fedora's monolithic
 # qt6-qtdeclarative comes in via the linked libQt6Qml, but the svg/wayland
 # plugin packages do not; openSUSE additionally splits the QML imports out.
+# QtMultimedia is its own module on both: nothing links it, the trim editor's
+# video preview imports it from QML, and the CPack rpm requires it the same way
+# (CPACK_RPM_PACKAGE_REQUIRES in CMakeLists.txt).
 %if 0%{?fedora}
 Requires:       qt6-qtsvg
 Requires:       qt6-qtwayland
+Requires:       qt6-qtmultimedia
 %endif
 %if 0%{?suse_version}
-# Verified against Tumbleweed and Leap 15.6 (2026-07): the SVG imageformat
-# plugin ships inside libQt6Svg6 (no qt6-svg-imageformat package), and
-# libQt6Svg6 arrives via the linked-soname autodeps — only the dlopened
-# QML imports and the wayland platform plugin need explicit names.
+# Verified on Tumbleweed (2026-07): the SVG imageformat plugin ships inside
+# libQt6Svg6 (no qt6-svg-imageformat package), and libQt6Svg6 arrives via the
+# linked-soname autodeps - only the dlopened QML imports and the wayland
+# platform plugin need explicit names.
 Requires:       qt6-declarative-imports
 Requires:       qt6-wayland
+Requires:       qt6-multimedia-imports
 %endif
 
 %description
@@ -142,11 +187,8 @@ on KDE Plasma. Zero telemetry.
 # the RPM release as the build number ("build 1.fc44"); bump Release: (or let
 # rpkg/tito bump it) for a new number.
 export UNISIC_BUILD_NUMBER=%{release}
-%if 0%{?suse_version} && 0%{?suse_version} < 1600
-export CC=gcc-13 CXX=g++-13
-%endif
 # BUILD_TESTING=OFF: include(CTest) defaults it ON and the unit tests need
-# Qt6Test, which openSUSE ships as a separate qt6-test-devel — packages
+# Qt6Test, which openSUSE ships as a separate qt6-test-devel - packages
 # don't run unit tests (CI does).
 %cmake %{!?suse_version:-G Ninja} -DUNISIC_DEV_BUILD=OFF -DBUILD_TESTING=OFF
 %cmake_build
@@ -165,6 +207,10 @@ appstream-util validate-relax --nonet \
 %{_bindir}/unisic
 %dir %{_datadir}/unisic
 %{_datadir}/unisic/obs-signing-key.asc
+# The build-gate manifest CMake writes at configure time and installs. Listed
+# here or rpmbuild fails the build on an unpackaged file, which is the right
+# outcome: an rpm without it is an rpm nothing can audit.
+%{_datadir}/unisic/unisic-features.txt
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_mandir}/man1/unisic.1*
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
@@ -205,7 +251,7 @@ appstream-util validate-relax --nonet \
 - System theme mirrors the full KDE colorscheme: the Button role drives cards,
   dedicated tooltip base/text roles style tooltips, and the kdeglobals
   positive/negative colours plus the hover decoration feed the accent and
-  hover fills — a KDE session now looks like a native KDE app.
+  hover fills - a KDE session now looks like a native KDE app.
 - Fix filled-body system icons (camera-photo, monitor): they no longer flatten
   to a solid square under the SourceIn tint, falling back to the bundled
   symbolic glyph when a themed icon would not survive the flatten.

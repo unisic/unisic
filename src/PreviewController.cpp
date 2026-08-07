@@ -2,9 +2,7 @@
 #include <QQuickWindow>
 #include <QRegion>
 
-#ifdef HAVE_LAYERSHELL
 #include <LayerShellQt/window.h>
-#endif
 
 PreviewController::PreviewController(bool layerShell, QObject *parent)
     : QObject(parent), m_layerShell(layerShell)
@@ -20,7 +18,9 @@ void PreviewController::attach()
 {
     if (!m_win)
         return;
-#ifdef HAVE_LAYERSHELL
+    // m_layerShell is a RUNTIME flag from AppContext (the compositor advertises
+    // zwlr_layer_shell_v1), not a build one: GNOME/mutter and X11 land in the
+    // plain-window branch below.
     if (m_layerShell) {
         if (auto *ls = LayerShellQt::Window::get(m_win)) {
             using LW = LayerShellQt::Window;
@@ -42,7 +42,6 @@ void PreviewController::attach()
         applyLayer();
         return;
     }
-#endif
     applyWindowFlags();
 }
 
@@ -60,7 +59,6 @@ void PreviewController::setPinned(bool on)
 
 void PreviewController::applyLayer()
 {
-#ifdef HAVE_LAYERSHELL
     if (!m_win)
         return;
     if (auto *ls = LayerShellQt::Window::get(m_win)) {
@@ -72,7 +70,6 @@ void PreviewController::applyLayer()
         // commit; a static preview renders no new frames, so force one.
         m_win->requestUpdate();
     }
-#endif
 }
 
 void PreviewController::applyWindowFlags()

@@ -29,8 +29,8 @@ class KWinScreencastStream;
 //   -> on stop: ffmpeg #2 (palettegen/paletteuse two-pass -> .gif)
 // Region recording records the full monitor stream and crops in ffmpeg.
 //
-// On KWin (HAVE_KWIN_SCREENCAST + granted zkde_screencast interface) the
-// portal is skipped entirely — the app names the source itself (Spectacle's
+// On KWin (with the zkde_screencast interface granted by the installed desktop
+// file) the portal is skipped entirely - the app names the source itself (Spectacle's
 // model): Screen streams the monitor under the cursor (or the explicit
 // target), Region gets a compositor-side cropped stream (no ffmpeg crop),
 // Window resolves a uuid via KWin's interactive picker. No share dialog, no
@@ -58,7 +58,7 @@ public:
     void togglePause();
     int elapsedSeconds() const;
     // Encoder probes and the GIF palette filters live in unisic-kit's
-    // FfmpegUtil (media/FfmpegUtil.h) — shared with Unisic Studio.
+    // FfmpegUtil (media/FfmpegUtil.h) - shared with Unisic Studio.
     // videoEncoder(), with "auto" resolved to a working hardware encoder or
     // software.
     QString resolvedVideoEncoder() const;
@@ -92,7 +92,7 @@ public:
     // cropPhysical: region in stream (physical) pixels; empty = full stream.
     // For Window source the portal picks the window; crop is ignored.
     // holdForCommit: negotiate the portal immediately (so the GNOME share dialog
-    // is resolved first), then emit armed() when the stream is live and WAIT —
+    // is resolved first), then emit armed() when the stream is live and WAIT -
     // encoding does not begin until commit() is called. The caller runs the
     // countdown / start cue in between, so nothing (no countdown number, no start
     // sound) lands in the recording.
@@ -100,7 +100,7 @@ public:
                QScreen *screen = nullptr, bool holdForCommit = false);
     // Keystroke-badge colors (bg, text) resolved from the ACTIVE theme when key
     // capture starts. The Theme singleton lives in QML and the recorder cannot
-    // reach it; a provider dodges the engine-vs-recorder construction order —
+    // reach it; a provider dodges the engine-vs-recorder construction order -
     // recording always starts long after the engine is up. Invalid colors from
     // the provider keep the built-in defaults.
     void setKeystrokeThemeProvider(std::function<QPair<QColor, QColor>()> provider)
@@ -145,12 +145,10 @@ private:
     // resolved) and the portal must NOT be opened; false = unavailable here,
     // caller continues with the portal.
     bool tryOpenKWinStream();
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
     // Wire created/failed/closed of a requested native stream.
     void adoptKWinStream(KWinScreencastStream *stream);
     // Interactive KWin window pick (queryWindowInfo) -> stream_window(uuid).
     void openKWinWindowStream(uint cursorMode);
-#endif
     // Resolve the requested cursor mode (Hidden/Embedded/Metadata wire value,
     // shared by the portal and the KWin protocol) and arm m_cursorOverlayActive.
     uint resolveCursorMode();
@@ -246,7 +244,7 @@ private:
 
     // Cursor overlay. Only live when the portal granted CursorMetadata: in that
     // mode the compositor stops painting the pointer into the stream, so
-    // m_cursorOverlay is what puts it back — alongside the halo and ripples.
+    // m_cursorOverlay is what puts it back - alongside the halo and ripples.
     // m_lastFrame stays CLEAN (the overlay is composited into a separate
     // buffer): it is the sample-and-hold source, and baking a halo into it
     // would freeze that halo in place on every held frame.

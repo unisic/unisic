@@ -114,18 +114,17 @@ Item {
                     // cut off mid-sentence instead of wrapping.
                     width: parent.width
                     wrapMode: Text.WordWrap
-                    // Two unrelated causes, named apart: a package built without
-                    // PipeWire vs. a desktop with no ScreenCast portal backend (a
-                    // running pipewire daemon does not imply one - it serves audio).
+                    // PipeWire is a hard build requirement, so there is only one
+                    // cause left to name: a desktop with no ScreenCast portal
+                    // backend (a running pipewire daemon does not imply one - it
+                    // serves audio).
                     text: App.recordingAvailable
                           ? (page.gifMode
                              ? qsTr("Record a region or a whole screen straight to an optimized .gif.")
                              : (App.capRecordWindowSource
                                 ? qsTr("Record the full screen, a region, or a single window to a video file.")
                                 : qsTr("Record the full screen or a region to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.")))
-                          : App.capPipeWireBuild
-                            ? qsTr("Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.")
-                            : qsTr("Recording is unavailable: Unisic was built without PipeWire support.")
+                          : qsTr("Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.")
                     color: App.recordingAvailable ? Theme.textSecondary : Theme.danger
                     font.pixelSize: Theme.fontM
                 }

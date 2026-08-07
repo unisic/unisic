@@ -93,14 +93,14 @@ Every hotkey is editable in Settings → Hotkeys. The same actions work from the
 
 ## Build from source
 
-Needs **Qt 6.5+**, CMake and Ninja:
+Needs **Qt 6.5+** (including QtWayland, the GUI private headers and Linguist tools), CMake, Ninja, and the libraries every feature is built on: PipeWire, Tesseract + Leptonica with its language data, zxing-cpp, LayerShellQt, KF6GuiAddons, libinput, plasma-wayland-protocols and the X11 development packages.
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Per-distro dev packages and the optional features (recording / OCR) are listed in [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Every one of them is required - there are no optional features here, so the build stops at configure time naming the package you are missing instead of producing a Unisic with something quietly absent. That is also the promise for the packages: whichever one you install, it can do everything on this page. Copy-paste dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 ## Privacy
 

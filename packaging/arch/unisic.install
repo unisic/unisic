@@ -1,15 +1,15 @@
 # Direct-download installs self-register the OBS pacman repo, so later
-# versions arrive through plain `pacman -Syu` — the same pattern as the CI
+# versions arrive through plain `pacman -Syu` - the same pattern as the CI
 # deb (postinst → apt .sources) and the Fedora rpm (%post → COPR repo).
 # Installs FROM the OBS repo skip this automatically: their pacman.conf
 # already references the repo URL (the guard below). pacman has no drop-in
 # repo directory, so the entry is appended to /etc/pacman.conf between
-# marker lines and post_remove deletes exactly that block — a manually
+# marker lines and post_remove deletes exactly that block - a manually
 # added entry (no markers) is never touched.
 
 post_install() {
   # Repo already known (OBS-repo install, manual setup, or a re-install
-  # after the block was added) — nothing to do.
+  # after the block was added) - nothing to do.
   if grep -q 'repositories/home:/unisic/Arch' /etc/pacman.conf 2>/dev/null; then
     return 0
   fi
@@ -25,7 +25,7 @@ post_install() {
       printf 'Server = https://download.opensuse.org/repositories/home:/unisic/Arch/$arch\n'
       printf '# <<< unisic OBS repo <<<\n'
     } >> /etc/pacman.conf
-    echo '==> Unisic: OBS repository enabled — updates arrive via pacman -Syu.'
+    echo '==> Unisic: OBS repository enabled - updates arrive via pacman -Syu.'
   else
     cat <<'EOF'
 ==> Unisic: could not import the repo signing key automatically.

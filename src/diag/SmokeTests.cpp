@@ -30,13 +30,9 @@
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
-#ifdef HAVE_X11_HOTKEYS
 #include "hotkeys/X11Hotkeys.h"
-#endif
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
 #include "record/X11ShmGrabber.h"
 #include <QThread>
-#endif
 #include "record/GifRecorder.h"
 #include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
@@ -45,10 +41,8 @@
 #include "record/KeystrokeOverlayPainter.h"
 #include <linux/input-event-codes.h>
 #include "capture/ScreenCastSession.h"
-#ifdef HAVE_KWIN_SCREENCAST
 #include "capture/KWinScreencasting.h"
 #include <QCursor>
-#endif
 #include "record/RecordBorderController.h"
 #include "record/TrimController.h"
 #include "editor/EditorSession.h"
@@ -59,30 +53,22 @@
 #include "notify/CaptureNotification.h"
 #include "notify/DesktopNotifier.h"
 #include "notify/NotificationInhibitor.h"
-#ifdef HAVE_LAYERSHELL
 #include "notify/LayerShellNotifier.h"
 #include <LayerShellQt/window.h>
 #include <QMargins>
-#endif
 #include "theme/ThemeController.h"
 #include "theme/ThemeJson.h"
 #include "editor/AnnotationCanvas.h"
 #include "ConfigPath.h"
 #include "FilenameTemplate.h"
 #include "ImageEncode.h"
-#ifdef HAVE_TESSERACT
 #include "ocr/OcrEngine.h"
-#endif
-#ifdef HAVE_ZXING
 #include <ZXing/BitMatrix.h>
 #include <ZXing/MultiFormatWriter.h>
-#endif
 // Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
-// payloads all speak QMimeData, so it is needed with or without KGuiAddons.
+// payloads all speak QMimeData; KSystemClipboard consumes the same objects.
 #include <QMimeData>
-#ifdef HAVE_KGUIADDONS
 #include <KSystemClipboard>
-#endif
 #include <QGuiApplication>
 #include <QtMath>
 #include <QScreen>
@@ -348,7 +334,6 @@ static QString customThemeCheck()
 // dropping the hint fails this. Shared by the developer button and F8 smoke test.
 static QString clipboardHistoryHintCheck()
 {
-#ifdef HAVE_KGUIADDONS
     QImage img(8, 8, QImage::Format_RGB32);
     img.fill(Qt::blue);
     QScopedPointer<QMimeData> mime(makeForceImageMime(img));
@@ -356,9 +341,6 @@ static QString clipboardHistoryHintCheck()
                     && mime->hasFormat(QStringLiteral("x-kde-force-image-copy"));
     return ok ? QStringLiteral("PASS (Klipper history hint attached)")
               : QStringLiteral("FAIL (hint missing)");
-#else
-    return QStringLiteral("SKIP (no KF6GuiAddons; images still copy but skip Klipper history)");
-#endif
 }
 
 // Clipboard paste must create a real text annotation and retain a pasted image
@@ -659,13 +641,14 @@ void AppContext::devTestKeystrokeBadge()
         return;
     // Says the access state next to the render check: the badge rendering fine
     // while the row stays greyed is the exact confusion this pane exists to end.
+    // libinput is a hard build requirement, so a non-empty blocked reason can
+    // only be NoPermission, which always carries a fix command.
     const QString fix = inputAccessFixCommand();
     showToast(tr("Dev: keystroke badge: %1; input access: %2")
                   .arg(keystrokeBadgeCheck(),
                        keystrokeCaptureBlockedReason().isEmpty()
                            ? QStringLiteral("OK")
-                           : (fix.isEmpty() ? QStringLiteral("not built")
-                                            : QStringLiteral("blocked, fix: %1").arg(fix))));
+                           : QStringLiteral("blocked, fix: %1").arg(fix)));
 }
 
 void AppContext::devTestCustomTheme()
@@ -2024,7 +2007,6 @@ static QString cursorOverlayCheck()
 // Loads every bundled non-English .qm and checks a known string translates.
 static QString languageCheck()
 {
-#ifdef HAVE_TRANSLATIONS
     const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it"),
                                 QStringLiteral("fr"), QStringLiteral("ru"),
                                 QStringLiteral("de")};
@@ -2039,9 +2021,6 @@ static QString languageCheck()
         parts << QStringLiteral("%1: '%2'").arg(c, q);
     }
     return QStringLiteral("PASS (Quit → %1)").arg(parts.join(QStringLiteral(", ")));
-#else
-    return QStringLiteral("SKIP (built without Qt LinguistTools)");
-#endif
 }
 
 void AppContext::devTestLanguage()
@@ -2108,7 +2087,6 @@ void AppContext::devTestOcrBoxes()
 {
     if (!devBuild())
         return;
-#ifdef HAVE_TESSERACT
     ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
         if (!err.isEmpty())
             showToast(tr("Dev: OCR boxes: FAIL (%1)").arg(err), true);
@@ -2117,24 +2095,17 @@ void AppContext::devTestOcrBoxes()
                           .arg(words.size() >= 4 ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
                           .arg(words.size()));
     });
-#else
-    showToast(tr("Dev: OCR boxes: SKIP (built without tesseract)"));
-#endif
 }
 
 void AppContext::devTestOcrHighlight()
 {
     if (!devBuild())
         return;
-#ifdef HAVE_TESSERACT
     ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
         showToast(!err.isEmpty() ? tr("Dev: OCR highlight + redact: FAIL (%1)").arg(err)
                                  : tr("Dev: OCR highlight + redact: %1").arg(ocrHighlightCheck(words)),
                   !err.isEmpty());
     });
-#else
-    showToast(tr("Dev: OCR highlight + redact: SKIP (built without tesseract)"));
-#endif
 }
 
 void AppContext::devTestCursorOverlay()
@@ -2155,22 +2126,17 @@ void AppContext::devTestOcrRedactPattern()
 {
     if (!devBuild())
         return;
-#ifdef HAVE_TESSERACT
     ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
         showToast(!err.isEmpty() ? tr("Dev: auto-redact pattern: FAIL (%1)").arg(err)
                                  : tr("Dev: auto-redact pattern: %1").arg(ocrRedactPatternCheck(words)),
                   !err.isEmpty());
     });
-#else
-    showToast(tr("Dev: auto-redact pattern: SKIP (built without tesseract)"));
-#endif
 }
 
 void AppContext::devTestOcrAutoLang()
 {
     if (!devBuild())
         return;
-#ifdef HAVE_TESSERACT
     const QString detected = OcrEngine::detectedLanguages();
     // Pin the script→langpack mapping deterministically (no OSD traineddata
     // needed): a distinct script narrows to its pack + eng, Latin/Cyrillic keep
@@ -2201,9 +2167,6 @@ void AppContext::devTestOcrAutoLang()
                        detected.isEmpty() ? QStringLiteral("none") : detected, osd,
                        mapErr.isEmpty() ? QStringLiteral("ok") : mapErr),
               !ok);
-#else
-    showToast(tr("Dev: OCR auto language: SKIP (built without tesseract)"));
-#endif
 }
 
 void AppContext::devTestZipExport()
@@ -2637,7 +2600,6 @@ void AppContext::devTestKWinRecord()
 {
     if (!devBuild())
         return;
-#ifdef HAVE_KWIN_SCREENCAST
     if (!capKWinRecord()) {
         showToast(tr("Dev: KWin record: interface not granted (desktop file / not KWin)"), true);
         return;
@@ -2659,9 +2621,6 @@ void AppContext::devTestKWinRecord()
         showToast(tr("Dev: KWin record failed: %1").arg(e), true);
         stream->deleteLater();
     });
-#else
-    showToast(tr("Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)"), true);
-#endif
 }
 
 void AppContext::devTestRecordBorder()
@@ -3616,7 +3575,6 @@ static QString fileManager1Check()
 // so it isolates the new frame source. English status (like the other *Check()).
 static QString x11RecordCheck()
 {
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
     if (QGuiApplication::platformName() != QLatin1String("xcb"))
         return QStringLiteral("SKIP (not an X11 session)");
     QScreen *scr = QGuiApplication::primaryScreen();
@@ -3642,9 +3600,6 @@ static QString x11RecordCheck()
     if (frame.size() != expected)
         return QStringLiteral("FAIL (size %1 != %2)").arg(frame.size()).arg(expected);
     return QStringLiteral("PASS (%1x%2 %3)").arg(rootRect.width()).arg(rootRect.height()).arg(fmt);
-#else
-    return QStringLiteral("SKIP (built without X11 capture)");
-#endif
 }
 
 // Dev/smoke: prove XGrabKey works end-to-end without disturbing the live binds -
@@ -3652,7 +3607,6 @@ static QString x11RecordCheck()
 // ungrabs). Reports the active hotkey backend too.
 static QString x11HotkeysCheck(const QString &backend)
 {
-#ifdef HAVE_X11_HOTKEYS
     if (!X11Hotkeys::isAvailable())
         return QStringLiteral("SKIP (not an X11 session)");
     X11Hotkeys probe;
@@ -3663,10 +3617,6 @@ static QString x11HotkeysCheck(const QString &backend)
                ? QStringLiteral("PASS (active backend)")
                : QStringLiteral("PASS (available; active backend: %1)")
                      .arg(backend.isEmpty() ? QStringLiteral("none") : backend);
-#else
-    Q_UNUSED(backend)
-    return QStringLiteral("SKIP (built without X11 hotkeys)");
-#endif
 }
 
 void AppContext::devTestX11Record()
@@ -3727,19 +3677,14 @@ void AppContext::runSmokeTest()
                         ? QStringLiteral("PASS (%1)").arg(m_screenCastPortalPresent
                               ? QStringLiteral("ScreenCast portal")
                               : QStringLiteral("X11 XShm - no portal needed"))
-                    : capPipeWireBuild() ? QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")
-                                         : QStringLiteral("SKIP (built without PipeWire)")));
+                    : QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")));
         smokeLog(QStringLiteral("window record source: ")
                  + (capRecordWindowSource() ? QStringLiteral("PASS")
                                             : QStringLiteral("SKIP (no window picker - X11 grabs a monitor)")));
         smokeLog(QStringLiteral("X11 record grab: ") + x11RecordCheck());
-#ifdef HAVE_KWIN_SCREENCAST
         smokeLog(QStringLiteral("KWin native record: ")
                  + (capKWinRecord() ? QStringLiteral("PASS (zkde_screencast bound - no portal dialog)")
                                     : QStringLiteral("SKIP (not KWin, or desktop file lacks the grant)")));
-#else
-        smokeLog(QStringLiteral("KWin native record: SKIP (built without qtwayland/plasma-wayland-protocols)"));
-#endif
         const QString cardWhy = customNotificationReason();
         smokeLog(QStringLiteral("notifications: native=%1 custom=%2%3 -> %4")
                  .arg(capNativeNotification() ? "y" : "n", capCustomNotification() ? "y" : "n",
@@ -3804,9 +3749,13 @@ void AppContext::runSmokeTest()
         }
         smokeLog(QStringLiteral("X11 hotkeys: ") + x11HotkeysCheck(hotkeyBackend()));
         smokeLog(QStringLiteral("desktop shortcuts: ") + desktopShortcutsCheck());
-        smokeLog(QStringLiteral("OCR: %1, QR: %2").arg(
-                 ocrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tesseract)"),
-                 qrAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no zxing-cpp)")));
+        // tesseract and zxing-cpp are hard build requirements, so the only
+        // question left is the one no build flag answers: is any traineddata
+        // actually installed on THIS machine?
+        smokeLog(QStringLiteral("OCR language data: ")
+                 + (ocrHasLanguages()
+                        ? QStringLiteral("PASS (%1)").arg(OcrEngine::detectedLanguages())
+                        : QStringLiteral("SKIP (no Tesseract language pack installed)")));
         smokeLog(QStringLiteral("tool letter shortcuts: ") + toolShortcutsCheck());
         smokeLog(QStringLiteral("history drag payload: ")
                  + (fileDragUri(QStringLiteral("/tmp/a b.png"))
@@ -4308,17 +4257,13 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // 3e3i) QR generation reuses the optional zxing-cpp already present for
-    // decoding. Keep the smoke path offline and bounded to a tiny matrix.
+    // 3e3i) QR generation reuses the zxing-cpp already linked in for decoding.
+    // Keep the smoke path offline and bounded to a tiny matrix.
     m_smokeSteps.append([this] {
-        if (!qrAvailable()) {
-            smokeLog(QStringLiteral("QR preview: SKIP (no zxing-cpp)"));
-        } else {
-            const QImage qr = qrPreviewImage(QStringLiteral("https://example.invalid/unisic-smoke"));
-            smokeLog(QStringLiteral("QR preview: ")
-                     + (!qr.isNull() && qr.size() == QSize(360, 360)
-                            ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
-        }
+        const QImage qr = qrPreviewImage(QStringLiteral("https://example.invalid/unisic-smoke"));
+        smokeLog(QStringLiteral("QR preview: ")
+                 + (!qr.isNull() && qr.size() == QSize(360, 360)
+                        ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
     });
 
@@ -4474,7 +4419,6 @@ void AppContext::runSmokeTest()
     // 3f0) OCR auto language: the tessdata scan enumerates installed langpacks
     // and the effective spec is non-empty (auto-detected list or manual spec).
     m_smokeSteps.append([this] {
-#ifdef HAVE_TESSERACT
         const QString detected = OcrEngine::detectedLanguages();
         const QString effective = effectiveOcrLanguages();
         // Also pin the script→langpack narrowing (deterministic, no OSD data):
@@ -4494,16 +4438,12 @@ void AppContext::runSmokeTest()
                          .arg(detected.isEmpty() ? QStringLiteral("none") : detected, effective,
                               OcrEngine::scriptDetectionAvailable() ? QStringLiteral("OSD")
                                                                     : QStringLiteral("load-all (no osd pack)")));
-#else
-        smokeLog(QStringLiteral("ocr auto language: SKIP (built without tesseract)"));
-#endif
         smokeNext();
     });
 
     // 3f) OCR recognition — a real tesseract run on a rendered known token
     // (digits: language-neutral, works with any installed traineddata).
     m_smokeSteps.append([this] {
-#ifdef HAVE_TESSERACT
         QImage t(320, 120, QImage::Format_ARGB32);
         t.fill(Qt::white);
         {
@@ -4524,10 +4464,6 @@ void AppContext::runSmokeTest()
                 smokeLog(QStringLiteral("ocr recognize: FAIL (got '%1')").arg(text.simplified()));
             smokeNext();
         });
-#else
-        smokeLog(QStringLiteral("ocr recognize: SKIP (built without tesseract)"));
-        smokeNext();
-#endif
     });
 
     // 3f1a) UI translations: the bundled .qm loads and a known string translates.
@@ -4538,7 +4474,6 @@ void AppContext::runSmokeTest()
 
     // 3f2) OCR word boxes — the selectable-text overlay's data source.
     m_smokeSteps.append([this] {
-#ifdef HAVE_TESSERACT
         ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
             if (!err.isEmpty())
                 smokeLog(QStringLiteral("ocr boxes: FAIL (%1)").arg(err));
@@ -4548,38 +4483,24 @@ void AppContext::runSmokeTest()
                 smokeLog(QStringLiteral("ocr boxes: FAIL (%1 glyphs)").arg(words.size()));
             smokeNext();
         });
-#else
-        smokeLog(QStringLiteral("ocr boxes: SKIP (built without tesseract)"));
-        smokeNext();
-#endif
     });
 
     // 3f3) OCR selected text → permanent highlight/redaction annotations.
     m_smokeSteps.append([this] {
-#ifdef HAVE_TESSERACT
         ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
             smokeLog(!err.isEmpty() ? QStringLiteral("ocr highlight + redact: FAIL (%1)").arg(err)
                                      : QStringLiteral("ocr highlight + redact: ") + ocrHighlightCheck(words));
             smokeNext();
         });
-#else
-        smokeLog(QStringLiteral("ocr highlight + redact: SKIP (built without tesseract)"));
-        smokeNext();
-#endif
     });
 
     // 3f4) Auto-redact: pattern → redaction bars with no selection made.
     m_smokeSteps.append([this] {
-#ifdef HAVE_TESSERACT
         ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
             smokeLog(!err.isEmpty() ? QStringLiteral("auto-redact pattern: FAIL (%1)").arg(err)
                                      : QStringLiteral("auto-redact pattern: ") + ocrRedactPatternCheck(words));
             smokeNext();
         });
-#else
-        smokeLog(QStringLiteral("auto-redact pattern: SKIP (built without tesseract)"));
-        smokeNext();
-#endif
     });
 
     // 3f6) Recording cursor overlay — pointer/halo/ripple compositing.

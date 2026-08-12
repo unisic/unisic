@@ -51,12 +51,6 @@
         <translation>Text kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="847"/>
-        <location filename="../src/AppContext.cpp" line="867"/>
-        <source>OCR is not available in this build</source>
-        <translation>Texterkennung ist in dieser Version nicht enthalten</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="1030"/>
         <source>Capture failed: %1</source>
         <translation>Aufnahme fehlgeschlagen: %1</translation>
@@ -108,11 +102,6 @@
         <translation>Dev: OCR-Rahmen: %1 (%2 Zeichen)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2033"/>
-        <source>Dev: OCR boxes: SKIP (built without tesseract)</source>
-        <translation>Dev: OCR-Rahmen: SKIP (ohne tesseract gebaut)</translation>
-    </message>
-    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2154"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev: Aufnahmeklang „%1“ abgespielt</translation>
@@ -131,10 +120,6 @@
         <location filename="../src/AppContext.cpp" line="196"/>
         <source>Couldn&apos;t start the update: %1</source>
         <translation>Die Aktualisierung konnte nicht gestartet werden: %1</translation>
-    </message>
-    <message>
-        <source>This build has no libinput support, so key presses cannot be detected.</source>
-        <translation type="vanished">Diese Version wurde ohne libinput gebaut, deshalb lassen sich Tastendrücke nicht erkennen.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="1128"/>
@@ -553,10 +538,6 @@
         <translation>. GNOME blockiert stille Bildschirmfotos für Unisic - führen Sie „flatpak permission-reset screenshot“ aus, versuchen Sie es erneut und prüfen Sie, ob xdg-desktop-portal-gnome läuft.</translation>
     </message>
     <message>
-        <source>This build has no libinput support, so clicks cannot be detected.</source>
-        <translation type="vanished">Diese Version wurde ohne libinput gebaut, deshalb lassen sich Mausklicks nicht erkennen.</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="1114"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Zum Mitlesen von Mausklicks wird Zugriff auf die Eingabegeräte benötigt. Führen Sie „%1“ aus und melden Sie sich danach ab und wieder an.</translation>
@@ -778,11 +759,6 @@
         <translation>Dev: OCR-Hervorhebung und -Schwärzung: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2048"/>
-        <source>Dev: OCR highlight + redact: SKIP (built without tesseract)</source>
-        <translation>Dev: OCR-Hervorhebung und -Schwärzung: SKIP (ohne tesseract gebaut)</translation>
-    </message>
-    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2056"/>
         <source>Dev: cursor overlay: %1</source>
         <translation>Dev: Mauszeigerebene: %1</translation>
@@ -801,16 +777,6 @@
         <location filename="../src/diag/SmokeTests.cpp" line="2073"/>
         <source>Dev: auto-redact pattern: %1</source>
         <translation>Dev: Muster für automatisches Schwärzen: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2077"/>
-        <source>Dev: auto-redact pattern: SKIP (built without tesseract)</source>
-        <translation>Dev: Muster für automatisches Schwärzen: SKIP (ohne tesseract gebaut)</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2117"/>
-        <source>Dev: OCR auto language: SKIP (built without tesseract)</source>
-        <translation>Dev: OCR-Sprachautomatik: SKIP (ohne tesseract gebaut)</translation>
     </message>
     <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2126"/>
@@ -1075,11 +1041,6 @@
         <translation>Der QR-Code konnte nicht erstellt werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4838"/>
-        <source>QR codes need zxing-cpp</source>
-        <translation>QR-Codes benötigen zxing-cpp</translation>
-    </message>
-    <message>
         <location filename="../src/AppContext.cpp" line="4842"/>
         <source>QR code preview</source>
         <translation>QR-Code-Vorschau</translation>
@@ -1274,11 +1235,6 @@
         <location filename="../src/diag/SmokeTests.cpp" line="2571"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev: KWin-Aufnahme fehlgeschlagen: %1</translation>
-    </message>
-    <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2575"/>
-        <source>Dev: KWin record: not built (needs qt6-qtwayland-devel + plasma-wayland-protocols)</source>
-        <translation>Dev: KWin-Aufnahme: nicht gebaut (benötigt qt6-qtwayland-devel und plasma-wayland-protocols)</translation>
     </message>
     <message>
         <location filename="../src/diag/SmokeTests.cpp" line="2871"/>
@@ -1622,16 +1578,6 @@
         <location filename="../src/AppContext.cpp" line="5228"/>
         <source>Start/save instant replay</source>
         <translation>Sofortwiedergabe starten/speichern</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1110"/>
-        <source>This package was built without libinput support, so clicks cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.</source>
-        <translation>Dieses Paket wurde ohne libinput-Unterstützung gebaut, daher können Klicks nicht erkannt werden. libinput im System zu installieren ändert daran nichts - die Unterstützung muss einkompiliert sein.</translation>
-    </message>
-    <message>
-        <location filename="../src/AppContext.cpp" line="1124"/>
-        <source>This package was built without libinput support, so key presses cannot be detected. Installing libinput on the system does not change that - the support has to be compiled in.</source>
-        <translation>Dieses Paket wurde ohne libinput-Unterstützung gebaut, daher können Tastendrücke nicht erkannt werden. libinput im System zu installieren ändert daran nichts - die Unterstützung muss einkompiliert sein.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5483"/>
@@ -2606,12 +2552,6 @@
         <translation>Gesamten Text kopieren</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="946"/>
-        <location filename="../qml/EditorWindow.qml" line="949"/>
-        <source>Needs OCR</source>
-        <translation>Benötigt OCR</translation>
-    </message>
-    <message>
         <location filename="../qml/EditorWindow.qml" line="948"/>
         <source>Select text…</source>
         <translation>Text auswählen…</translation>
@@ -2780,11 +2720,6 @@
 </context>
 <context>
     <name>GifRecorder</name>
-    <message>
-        <location filename="../src/record/GifRecorder.cpp" line="154"/>
-        <source>Unisic was built without PipeWire support, so recording is unavailable</source>
-        <translation>Unisic wurde ohne PipeWire-Unterstützung gebaut, deshalb ist die Aufnahme nicht verfügbar</translation>
-    </message>
     <message>
         <location filename="../src/record/GifRecorder.cpp" line="478"/>
         <location filename="../src/record/GifRecorder.cpp" line="533"/>
@@ -3884,11 +3819,6 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Aufnahme nicht verfügbar: diese Arbeitsumgebung hat kein ScreenCast-Portal-Backend, deshalb kann Unisic den Bildschirm von niemandem bekommen. Ein laufender PipeWire-Prozess genügt nicht - das Portal fragt Sie um Erlaubnis und öffnet den Stream. Cinnamon, MATE und XFCE liefern noch kein solches Backend.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="128"/>
-        <source>Recording is unavailable: Unisic was built without PipeWire support.</source>
-        <translation>Aufnahme nicht verfügbar: Unisic wurde ohne PipeWire-Unterstützung gebaut.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/RecordPage.qml" line="148"/>
         <source>Screen</source>
         <translation>Bildschirm</translation>
@@ -4329,12 +4259,6 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <translation>Verwendet den Sperrzustand des Benachrichtigungsservers (Vollbildanwendung, Nicht stören, Bildschirmfreigabe). Sperren, die beim Start von Unisic bereits festhingen, werden ignoriert, damit eine fehlerhafte Fremdanwendung Ihre Aufnahmerückmeldung nicht dauerhaft stummschalten kann.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1080"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3305"/>
-        <source>OCR is not built in. Install tesseract and a language pack, then rebuild.</source>
-        <translation>OCR ist nicht eingebaut. Installieren Sie tesseract und ein Sprachpaket und bauen Sie neu.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1088"/>
         <source>OCR languages</source>
         <translation>OCR-Sprachen</translation>
@@ -4348,11 +4272,6 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <location filename="../qml/pages/SettingsPage.qml" line="1091"/>
         <source>Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.</source>
         <translation>Verbinden Sie Sprachen mit „+“, z. B. „pol+eng“; für jede muss das Tesseract-Sprachpaket installiert sein. OCR liest auch QR- und Barcodes: ein Code im Bereich kopiert seinen Inhalt statt des umgebenden Textes.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="1092"/>
-        <source>Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed.</source>
-        <translation>Verbinden Sie Sprachen mit „+“, z. B. „pol+eng“; für jede muss das Tesseract-Sprachpaket installiert sein.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1120"/>
@@ -5081,8 +5000,8 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3615"/>
-        <source>Needs an X11 session (xcb platform) and a build with libX11/libXext/libXfixes. On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal&apos;s window picker and stays unavailable there.</source>
-        <translation>Benötigt eine X11-Sitzung (xcb-Plattform) und einen Build mit libX11/libXext/libXfixes. Unter X11 kommen die Bilder von XShm statt vom ScreenCast-Portal, deshalb funktioniert die Aufnahme auch auf Arbeitsumgebungen ganz ohne Portal-Backend - Cinnamon, MATE und XFCE unter Xorg. Ein einzelnes Fenster braucht weiterhin die Fensterauswahl des Portals und bleibt dort nicht verfügbar.</translation>
+        <source>Needs an X11 session (xcb platform). On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal&apos;s window picker and stays unavailable there.</source>
+        <translation>Benötigt eine X11-Sitzung (xcb-Plattform). Unter X11 kommen die Bilder von XShm statt vom ScreenCast-Portal, deshalb funktioniert die Aufnahme auch auf Arbeitsumgebungen ganz ohne Portal-Backend - Cinnamon, MATE und XFCE unter Xorg. Ein einzelnes Fenster braucht weiterhin die Fensterauswahl des Portals und bleibt dort nicht verfügbar.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3721"/>
@@ -6543,11 +6462,6 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Öffnet die Bereichsauswahl und lässt OCR über den Ausschnitt laufen. Es wird nichts gespeichert und keine Benachrichtigung gezeigt; der erkannte Text wird einfach kopiert. QR- und Barcodes werden ebenfalls gelesen: ein Code im Bereich kopiert stattdessen seinen Inhalt.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3309"/>
-        <source>Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied.</source>
-        <translation>Öffnet die Bereichsauswahl und lässt OCR über den Ausschnitt laufen. Es wird nichts gespeichert und keine Benachrichtigung gezeigt; der erkannte Text wird einfach kopiert.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3316"/>
         <location filename="../qml/pages/SettingsPage.qml" line="3742"/>
         <source>Copy last capture</source>
@@ -6745,21 +6659,6 @@ Gilt ab der nächsten Aufnahme.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="3586"/>
         <source>Whether a border can be drawn around the recorded region.</source>
         <translation>Ob ein Rahmen um den aufgezeichneten Bereich gezeichnet werden kann.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3592"/>
-        <source>PipeWire (build)</source>
-        <translation>PipeWire (Build)</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3593"/>
-        <source>Whether this build was compiled against PipeWire.</source>
-        <translation>Ob dieser Build gegen PipeWire kompiliert wurde.</translation>
-    </message>
-    <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3594"/>
-        <source>Set at build time by pipewire-devel (the HAVE_PIPEWIRE guard). Without it every recording path is compiled out, no matter what the desktop supports.</source>
-        <translation>Wird beim Bauen von pipewire-devel gesetzt (die HAVE_PIPEWIRE-Absicherung). Ohne es wird jeder Aufzeichnungsweg herauskompiliert, ganz gleich was die Arbeitsumgebung unterstützt.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3599"/>

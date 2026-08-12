@@ -1,9 +1,17 @@
-# Depends/Recommends mirror the CPack DEB block in CMakeLists.txt (the
-# explicit entries cover runtime-loaded pieces ${shlibs:Depends} cannot see:
-# QML modules, the Qt SVG image plugin, the pipewire daemon, the ffmpeg CLI,
-# portals, wl-clipboard). Keep both lists in sync when either changes.
+# Depends mirrors UNISIC_DEBIAN_RUNTIME_DEPENDS in CMakeLists.txt and must stay
+# CHARACTER-IDENTICAL to it: the explicit entries cover runtime-loaded pieces
+# ${shlibs:Depends} cannot see (QML modules, the Qt SVG image plugin, the
+# pipewire daemon, the ffmpeg/curl/zip CLIs, portals, wl-clipboard, the
+# tesseract language data). None of them is a Recommends - Unisic has no
+# optional dependencies, and an install that cannot record, cannot upload over
+# sftp, cannot build a diagnostics bundle and has an empty OCR language list is
+# a broken install, not a degraded one. Only the portal BACKEND stays weak,
+# because a session always has one and choosing for the user would pull in half
+# a foreign desktop.
 # Build-Depends mirror the debian:trixie CI job in .github/workflows/deb.yml
-# and the Build-Depends line in unisic.dsc.
+# and the Build-Depends line in unisic.dsc, and cover all 11 compile-time gates
+# (each is REQUIRED in CMakeLists.txt now, so a missing one fails configure
+# with the package name to install instead of silently dropping a feature).
 Source: unisic
 Section: graphics
 Priority: optional
@@ -11,6 +19,7 @@ Maintainer: Unisic maintainers <unisic@debondor.com>
 Standards-Version: 4.7.0
 Homepage: https://github.com/unisic/unisic
 Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config,
+ extra-cmake-modules,
  qt6-base-dev, qt6-declarative-dev, qt6-svg-dev, qt6-tools-dev, qt6-l10n-tools,
  qt6-wayland-dev, qt6-base-private-dev, plasma-wayland-protocols,
  libpipewire-0.3-dev, libtesseract-dev, libleptonica-dev, libzxing-dev,
@@ -20,11 +29,13 @@ Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config,
 
 Package: unisic
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ffmpeg, libqt6svg6, pipewire,
- qml6-module-qtquick, qml6-module-qtquick-controls, qml6-module-qtquick-dialogs,
+Depends: ${shlibs:Depends}, ${misc:Depends}, curl, ffmpeg, libqt6svg6,
+ pipewire, qml6-module-qtmultimedia, qml6-module-qtquick,
+ qml6-module-qtquick-controls, qml6-module-qtquick-dialogs,
  qml6-module-qtquick-effects, qml6-module-qtquick-window, qt6-wayland,
- wl-clipboard, xdg-desktop-portal
-Recommends: curl, xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
+ tesseract-ocr-eng, tesseract-ocr-osd, tesseract-ocr-pol, wl-clipboard,
+ xdg-desktop-portal, zip
+Recommends: xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
  xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh |
  xdg-desktop-portal-gtk | xdg-desktop-portal-xapp
 Description: Capture, annotate, record and share your screen on Linux Wayland

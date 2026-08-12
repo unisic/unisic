@@ -8,16 +8,16 @@
 #include "../Settings.h"
 
 // The one description of the capture card, shared by BOTH hosts:
-//   LayerShellNotifier — in-process layer surface (KWin, wlroots, COSMIC, and
+//   LayerShellNotifier - in-process layer surface (KWin, wlroots, COSMIC, and
 //                        muffin 6.7+); chosen whenever zwlr_layer_shell_v1 is
 //                        advertised.
-//   NotificationHelper — a second process on xcb, spawned ONLY when that probe
+//   NotificationHelper - a second process on xcb, spawned ONLY when that probe
 //                        comes back empty (GNOME/mutter). It exists because one
 //                        process cannot host two QPA platforms: the app is
 //                        Wayland, and an override-redirect X11 window is the
 //                        only surface mutter keeps above everything.
 // Both hosts render the same NotificationPopup.qml. What used to be copied
-// between them — the style->size table and the settings the QML reads — lives
+// between them - the style->size table and the settings the QML reads - lives
 // here instead, because a divergence is not a compile error: it silently clips
 // the card on one desktop only.
 //
@@ -72,7 +72,7 @@ inline const QStringList &settingKeys()
 }
 
 // The values a card is actually built from: the saved settings, with `overrides`
-// (if any) laid on top. Overrides exist for the settings preview — pointing at
+// (if any) laid on top. Overrides exist for the settings preview - pointing at
 // "Top left" in the dropdown must show a top-left card WITHOUT saving top-left,
 // so the card cannot simply read Settings.
 inline QVariantMap effectiveSettings(const Settings *s, const QVariantMap &overrides = {})
@@ -84,26 +84,26 @@ inline QVariantMap effectiveSettings(const Settings *s, const QVariantMap &overr
     return out;
 }
 
-inline QJsonObject encodeConfig(const Settings *s, bool qrAvailable, bool ocrAvailable,
-                                const QVariantMap &overrides = {})
+// No capability flags ride along any more: zxing-cpp and tesseract are hard
+// build requirements, and the helper IS this same binary re-invoked, so the QR
+// and OCR buttons are available in the card by definition.
+inline QJsonObject encodeConfig(const Settings *s, const QVariantMap &overrides = {})
 {
     QJsonObject settings;
     const QVariantMap eff = effectiveSettings(s, overrides);
     for (auto it = eff.begin(); it != eff.end(); ++it)
         settings.insert(it.key(), QJsonValue::fromVariant(it.value()));
-    return QJsonObject{{QStringLiteral("settings"), settings},
-                       {QStringLiteral("qrAvailable"), qrAvailable},
-                       {QStringLiteral("ocrAvailable"), ocrAvailable}};
+    return QJsonObject{{QStringLiteral("settings"), settings}};
 }
 
 // Rebuilds the QML-visible `App.settings` in the helper. A property map, not a
 // hand-written stub class: the stub had to mirror every property by hand, and a
-// forgotten one is invisible in C++ — the QML just reads undefined and the
+// forgotten one is invisible in C++ - the QML just reads undefined and the
 // setting appears to do nothing on GNOME only.
 inline QQmlPropertyMap *makeSettingsMap(const QJsonObject &settings, QObject *parent)
 {
     // The public constructor is deprecated since Qt 6.11 in favor of create()
-    // — which older Qt (project minimum 6.5) does not have yet.
+    // - which older Qt (project minimum 6.5) does not have yet.
 #if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
     QQmlPropertyMap *map = QQmlPropertyMap::create(parent);
 #else

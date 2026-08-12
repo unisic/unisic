@@ -100,6 +100,46 @@ jobs:
           # The step below uploads it under a version-stamped name instead.
           upload-artifact: false
 
+      - name: Locate the gate manifest
+        id: gates
+        # There is no dependency list to extend in this workflow: every hard
+        # dependency the other channels apt/dnf/pacman-install is a module in
+        # packaging/flatpak/app.unisic.Unisic.yml, built inside the sandbox.
+        # That is also why this job needs a lookup step at all. flatpak-builder
+        # DELETES each module's build directory after a successful build (only
+        # --keep-build-dirs stops it, and this action exposes no input for it),
+        # so build-appimage/build-rpm-style paths do not exist here: the file
+        # has to be read from the built app tree, where the unisic module
+        # installs it.
+        run: |
+          # The INSTALLED copy first and by full path: a restored
+          # .flatpak-builder cache could in principle still hold a build
+          # directory from an earlier run, and asserting on last week's gates
+          # would be worse than not asserting at all.
+          found="$(find . -path '*/share/unisic/unisic-features.txt' -print 2>/dev/null | head -n1 || true)"
+          if [ -z "$found" ]; then
+            found="$(find . -name unisic-features.txt -print 2>/dev/null | head -n1 || true)"
+          fi
+          if [ -z "$found" ]; then
+            echo "::error::no unisic-features.txt anywhere in this build, so the Flatpak's build gates cannot be checked."
+            echo "  CMake writes it into the build directory, and flatpak-builder throws that"
+            echo "  directory away on success. It has to be INSTALLED to survive:"
+            echo "  CMakeLists.txt should install it as"
+            echo "  \${CMAKE_INSTALL_DATADIR}/unisic/unisic-features.txt, which also puts a"
+            echo "  readable feature list inside every deb, rpm and Arch package."
+            exit 1
+          fi
+          echo "manifest at $found"
+          echo "dir=$(dirname "$found")" >> "$GITHUB_OUTPUT"
+
+      - name: Check every build gate is on
+        # The Flatpak is the channel where a missing gate hurts most: a user
+        # cannot install the absent library afterwards even if they knew to.
+        # HAVE_LIBINPUT was off in every Flatpak ever built and nothing said so.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: ${{ steps.gates.outputs.dir }}
+
       # release.yml attaches this to the GitHub release, where install.sh finds
       # it. The name carries the version because a release asset called
       # unisic.flatpak would say nothing about which version it is.

@@ -254,6 +254,82 @@ x11_notice() {
     printf '      screen recording (video and GIF) and global hotkeys all work here.\n'
 }
 
+# --- what the portable channels do NOT bring with them -------------------
+# The AppImage and the tarball bundle LIBRARIES: linuxdeploy walks the binary's
+# library dependencies and copies those. A separate PROGRAM (ffmpeg, wl-copy), a
+# desktop SERVICE (the portal) and language DATA are outside that walk, so they
+# come from the system or not at all. Every native package declares them as
+# dependencies and the package manager installs them unasked, which is exactly
+# why the two channels that cannot do that need to say something instead of
+# leaving the user to discover a dead button.
+
+# xdg-desktop-portal is the service Unisic asks for a screenshot. The frontend
+# alone answers nothing: a backend for the running desktop has to be installed
+# too, and each one registers itself with a .portal file.
+portal_backend_present() {
+    local f d found=0
+    for f in /usr/libexec/xdg-desktop-portal /usr/lib/xdg-desktop-portal \
+             /usr/lib64/xdg-desktop-portal /usr/lib/x86_64-linux-gnu/xdg-desktop-portal; do
+        if [ -x "$f" ]; then found=1; break; fi
+    done
+    [ "$found" -eq 1 ] || return 1
+    for d in /usr/share/xdg-desktop-portal/portals \
+             /usr/local/share/xdg-desktop-portal/portals; do
+        set -- "$d"/*.portal
+        [ -e "$1" ] && return 0
+    done
+    return 1
+}
+
+# Tesseract reads its language data from a directory, and every distro picked a
+# different one. The last entry is the portable tarball's own copy (English,
+# Polish and script detection ship inside the bundle); the AppImage carries the
+# same files but inside its image, where nothing here can look.
+tessdata_present() {
+    local d
+    for d in /usr/share/tesseract/tessdata /usr/share/tessdata \
+             /usr/share/tesseract-ocr/*/tessdata /usr/share/tesseract-ocr/tessdata \
+             "${PREFIX}"/lib/unisic-*-x86_64/usr/share/tessdata; do
+        set -- "$d"/*.traineddata
+        [ -e "$1" ] && return 0
+    done
+    return 1
+}
+
+# Printed after a portable install only. Each line costs ONE feature, never the
+# app, so these are warnings and the installer still reports success.
+portable_runtime_notice() {
+    local said=0
+    if ! have ffmpeg; then
+        warn "Screen recording and GIF export need the 'ffmpeg' program, which isn't installed here.
+    Everything else works without it. Install it with your software manager
+    (for example: sudo dnf install ffmpeg, or sudo apt install ffmpeg)."
+        said=1
+    fi
+    if [ "$(session_kind)" = wayland ] && ! have wl-copy; then
+        warn "Copying a picture to the clipboard works better with 'wl-clipboard' (it provides
+    wl-copy), which isn't installed here. Without it a copied image can vanish as soon as
+    Unisic's window loses focus. Install it with your software manager
+    (for example: sudo apt install wl-clipboard)."
+        said=1
+    fi
+    if ! portal_backend_present; then
+        warn "No desktop portal was found. That is the system service Unisic asks to take a
+    screenshot, so captures will fail until it is installed. Install xdg-desktop-portal
+    plus the backend for your desktop: xdg-desktop-portal-kde on KDE Plasma,
+    -gnome on GNOME, -wlr on sway or Hyprland."
+        said=1
+    fi
+    if ! tessdata_present; then
+        warn "No Tesseract language data was found on this computer. Reading text out of a
+    capture (OCR) works for English and Polish from the data inside this download; for
+    any other language install its Tesseract language pack
+    (for example: sudo dnf install tesseract-langpack-de)."
+        said=1
+    fi
+    [ "$said" -eq 0 ] || printf '\n    Unisic itself is installed and will start - each note above is one feature\n    waiting for a helper program.\n'
+}
+
 # Extract every browser_download_url from a release JSON blob on stdin, then
 # print the first whose filename matches the ERE in $1. Avoids a jq dependency.
 asset_url() {
@@ -1343,5 +1419,15 @@ fi
 # was taken, the last word is which version it actually left behind.
 update_note "$RESOLVED_CHANNEL"
 
-# X11 users: recording won't work here - say so plainly.
+# The portable channels are the ones that bundle no helper programs, and they
+# are also the ones handed to every distro without a native package and to every
+# atomic desktop - i.e. exactly the systems least likely to have ffmpeg or a
+# portal backend already. A native or Flatpak install declares all of it.
+case "$RESOLVED_CHANNEL" in
+    appimage|tarball) portable_runtime_notice ;;
+esac
+
+# X11 has been a fully supported session since 0.8, recording included. Say so:
+# the assumption that a Wayland-first tool cannot record on X11 is common enough
+# that silence reads as confirmation.
 if [ "$(session_kind)" = x11 ]; then x11_notice; fi

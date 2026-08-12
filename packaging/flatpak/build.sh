@@ -5,6 +5,13 @@
 # builds from a git TAG. --local rewrites that one source to the working tree
 # for testing an unreleased change; the copy it writes is never the one to
 # submit.
+#
+# Give the first build time. Unisic has no optional dependencies, so every one
+# the runtime does not carry is compiled from source here (x264, ffmpeg,
+# leptonica, tesseract, zxing-cpp, wl-clipboard, libssh2 + a static curl,
+# layer-shell-qt and the libevdev/mtdev/libinput chain) before flatpak-builder
+# even reaches the app. Later runs reuse the cache under the state dir and
+# rebuild the app module alone.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,7 +33,7 @@ for arg in "$@"; do
         --lint) do_lint=1; do_build=0 ;;
         --build) do_build=1 ;;
         -h|--help)
-            sed -n '2,9p' "$0"
+            sed -n '2,14p' "$0"
             printf '\nUsage: %s [--local] [--run] [--lint]\n' "$(basename "$0")"
             exit 0
             ;;

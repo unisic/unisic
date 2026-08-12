@@ -2,30 +2,75 @@ pkgname=unisic
 # Plain literal on purpose: OBS parses the PKGBUILD server-side (no bash
 # ${var:-default} expansion) and its set_version service rewrites this line
 # at build time; the CI release job seds in the CMakeLists version likewise.
-pkgver=0.6.4
+# Both of them overwrite it, so this value only ever reaches a human running
+# makepkg by hand in this directory - which is exactly why it must track
+# CMakeLists.txt's project(VERSION): left stale it builds 0.8.x sources into a
+# package named after a release from a year ago. Bump it with the project.
+pkgver=0.8.4
 pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
 license=('GPL-3.0-or-later')
-# tesseract/leptonica/layer-shell-qt are hard deps: the CI build links them
-# (HAVE_TESSERACT / HAVE_LAYERSHELL), so the binary needs the libs at runtime.
-# libinput (keystroke/click overlays link libinput.so.10) and
-# hicolor-icon-theme (the icons land in its hierarchy) were missing up to
-# 0.7.5 - namcap on the AUR recipes caught them. Both are present on any real
+# Unisic has no optional dependencies. Every compile-time gate is a hard build
+# requirement (CMake stops at configure time naming the missing package), so
+# every library the gates detect is also a hard runtime one here:
+# tesseract/leptonica (HAVE_TESSERACT), layer-shell-qt (HAVE_LAYERSHELL),
+# zxing-cpp (HAVE_ZXING), kguiaddons (HAVE_KGUIADDONS), libinput
+# (HAVE_LIBINPUT - the keystroke/click overlays link libinput.so.10), and the
+# libx* four for the X11 capture and hotkey paths added in 0.8 (HAVE_X11 XShm
+# recording, HAVE_X11_HOTKEYS XGrabKey). hicolor-icon-theme owns the hierarchy
+# the icons land in. libinput and hicolor-icon-theme were missing up to 0.7.5
+# - namcap on the AUR recipes caught them. Both are present on any real
 # Wayland desktop, so nobody hit it, but an unstated dependency is a bug.
-depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'pipewire' 'ffmpeg' 'wl-clipboard' 'xdg-desktop-portal'
-         'tesseract' 'leptonica' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libinput' 'hicolor-icon-theme'
-         'libx11' 'libxext' 'libxfixes' 'libxcb')
+# curl and the three tesseract-data packs were optdepends until that rule
+# arrived, and each was the same bug in slower motion: src/upload/
+# UploadManager.cpp shells out to `curl` for every ftp/ftps/sftp destination,
+# OCR reports "language data not found" without eng/pol, and osd.traineddata
+# is what the auto-language script detection Settings enables BY DEFAULT runs
+# on. namcap will report curl and tesseract-data-osd as "already satisfied by
+# a dependency" (pacman needs curl, tesseract needs both) - that warning is
+# the price of stating a requirement instead of inheriting it by luck of
+# somebody else's dependency graph.
+# Two more entries no linker can ever justify, and that is exactly why they
+# have to be written down: `zip` (no zip library is linked - src/AppContext.cpp
+# shells out to Info-ZIP for the ZIP export and the diagnostics bundle) and
+# qt6-multimedia, whose QML module the trim editor imports at RUNTIME. Neither
+# leaves a trace in the binary, so a missing one is invisible until a user
+# presses the button. Same names the deb and rpm lists carry (curl, zip,
+# qml6-module-qtmultimedia / qt6-qtmultimedia in CMakeLists.txt's CPack block).
+# qt6-multimedia-ffmpeg is named alongside it deliberately: qt6-multimedia
+# depends on the VIRTUAL qt6-multimedia-backend, which ffmpeg and gstreamer
+# both provide, and an unresolved virtual is what makes pacman prompt (and an
+# AUR helper under --noconfirm choose for the user) - the very thing that kept
+# xdg-desktop-portal-impl out of this list. ffmpeg is already a hard dependency
+# here and is Qt's own default backend, so picking that one costs nothing and
+# leaves nothing to choose.
+depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'qt6-multimedia'
+         'qt6-multimedia-ffmpeg' 'pipewire' 'ffmpeg' 'wl-clipboard' 'curl' 'zip'
+         'xdg-desktop-portal' 'tesseract' 'leptonica' 'tesseract-data-eng' 'tesseract-data-pol'
+         'tesseract-data-osd' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libinput'
+         'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb')
 # plasma-wayland-protocols carries zkde-screencast-unstable-v1.xml, which
 # HAVE_KWIN_SCREENCAST (KWin-native recording, no portal share dialog) is
 # generated from. Build-time only: the generated client code is linked in.
-makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'plasma-wayland-protocols' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb' 'libinput')
-optdepends=('curl: FTP/SFTP upload destinations'
-            'xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
-            'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops'
-            'tesseract-data-pol: Polish OCR language data'
-            'tesseract-data-eng: English OCR language data')
+# systemd-libs and libpipewire are the two .pc files no entry above provides
+# under its own name: libudev.pc (the second half of HAVE_LIBINPUT, which
+# checks libinput AND libudev) and libpipewire-0.3.pc (HAVE_PIPEWIRE - the
+# headers live in the `libpipewire` split package, not in `pipewire`). Both
+# reach the runtime through a declared dependency anyway (qt6-base depends on
+# systemd-libs, pipewire on libpipewire=<exact version>), so naming them here
+# states the gate without duplicating a runtime entry.
+makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'plasma-wayland-protocols' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb' 'libinput' 'systemd-libs' 'libpipewire')
+# The only optdepends that survive the no-optional-dependencies rule, because
+# a portal backend is neither a feature gate nor a library this binary links:
+# it is a session component with several mutually exclusive providers. The
+# virtual 'xdg-desktop-portal-impl' would state it as a hard depend, but a
+# virtual with more than one provider makes makepkg prompt for a choice, and
+# an AUR helper running --noconfirm would silently pick the first one for the
+# user. Naming both backends and letting the user choose is the honest form.
+optdepends=('xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
+            'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops')
 install=unisic.install
 source=("${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')

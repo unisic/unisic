@@ -69,14 +69,12 @@ class AppContext : public QObject
     Q_PROPERTY(bool recordingCanPause READ recordingCanPause NOTIFY recordingChanged)
     Q_PROPERTY(int recordSeconds READ recordSeconds NOTIFY recordSecondsChanged)
     Q_PROPERTY(bool recordingAvailable READ recordingAvailable NOTIFY recordingAvailableChanged)
-    // Why recording is off, so the UI can name the actual missing piece. The two
-    // causes are unrelated: capPipeWireBuild is compile-time (the package was
-    // built without pipewire-devel), capScreenCastPortal is runtime (the desktop
-    // ships no org.freedesktop.impl.portal.ScreenCast backend — Cinnamon, MATE
-    // and XFCE run -xapp, LXQt runs -lxqt; neither implements ScreenCast). A
-    // running pipewire daemon says nothing about the latter: it serves audio on
-    // those desktops with no screen-cast portal in sight.
-    Q_PROPERTY(bool capPipeWireBuild READ capPipeWireBuild CONSTANT)
+    // Why recording is off, so the UI can name the actual missing piece. PipeWire
+    // is a hard build requirement, so the only cause left is runtime: the desktop
+    // ships no org.freedesktop.impl.portal.ScreenCast backend - Cinnamon, MATE
+    // and XFCE run -xapp, LXQt runs -lxqt; neither implements ScreenCast. A
+    // running pipewire daemon says nothing about that: it serves audio on those
+    // desktops with no screen-cast portal in sight.
     Q_PROPERTY(bool capScreenCastPortal READ capScreenCastPortal NOTIFY recordingAvailableChanged)
     // X11 session: frames come from XShm instead of the ScreenCast portal, so
     // recording works on desktops that ship no portal backend at all (Cinnamon,
@@ -92,10 +90,10 @@ class AppContext : public QObject
     // True while a hotkey recorder in Settings is capturing a key combo. The
     // built-in window Shortcuts (Ctrl+W/Q/1-6/… in Main.qml) gate on this
     // (`enabled: !App.shortcutRecording`) so they never steal the combo the
-    // user is trying to bind — otherwise Ctrl+Q would quit the app mid-bind.
+    // user is trying to bind - otherwise Ctrl+Q would quit the app mid-bind.
     Q_PROPERTY(bool shortcutRecording READ shortcutRecording NOTIFY shortcutRecordingChanged)
     // True when the capture card is shown on the layer-shell overlay (KWin/wlroots)
-    // rather than as a native notification — lets the UI expose card-only options
+    // rather than as a native notification - lets the UI expose card-only options
     // (e.g. corner position, which a native notification server controls itself).
     Q_PROPERTY(bool layerShellActive READ layerShellActive CONSTANT)
     // Developer build (F8 smoke test; capability options stay editable). False in
@@ -116,9 +114,9 @@ class AppContext : public QObject
     // built on. Optional in the ScreenCast spec, so it can be absent.
     Q_PROPERTY(bool capCursorMetadata READ capCursorMetadata CONSTANT)
     // KWin-native screencasting (zkde_screencast): recordings start without the
-    // portal share dialog — the app names the source itself. False off KWin,
-    // when built without qtwayland/plasma-wayland-protocols, or when the
-    // installed desktop file does not carry the X-KDE-Wayland-Interfaces grant.
+    // portal share dialog - the app names the source itself. False off KWin, or
+    // when the installed desktop file does not carry the X-KDE-Wayland-Interfaces
+    // grant.
     Q_PROPERTY(bool capKWinRecord READ capKWinRecord CONSTANT)
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
@@ -136,14 +134,12 @@ class AppContext : public QObject
     // Contrast colour for the (monochrome) bundled presets: light on a dark
     // system scheme, dark on a light one. Follows the OS light/dark, live.
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
-    // Open post-capture editors — quit-on-close must not destroy unsaved work.
+    // Open post-capture editors - quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
-    Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
-    // OCR is compiled in AND at least one Tesseract langpack is installed. When
-    // ocrAvailable is true but this is false, OCR can't recognize anything yet —
+    // Tesseract is a hard build requirement, but its language data is a separate
+    // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
     Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
-    Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)   // zxing-cpp compiled in
     // ffmpeg is in PATH. Recording already reports its own absence when it
     // fails; this exists so the GIF actions can grey out with a reason BEFORE
     // the user picks one, rather than failing afterwards.
@@ -161,7 +157,7 @@ class AppContext : public QObject
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
     Q_PROPERTY(bool hotkeysAvailable READ hotkeysAvailable NOTIFY hotkeysAvailableChanged)
-    // "kglobalaccel" | "portal" | "" — lets the UI tailor its hints.
+    // "kglobalaccel" | "portal" | "" - lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
     // With no hotkey backend: whether this desktop's own custom-shortcut store
     // can be written for us (COSMIC/GNOME/Cinnamon/Xfce), and its display name.
@@ -203,7 +199,6 @@ public:
     bool recordingCanPause() const { return m_recorder->canPause(); }
     int recordSeconds() const;
     bool recordingAvailable() const;
-    bool capPipeWireBuild() const;
     bool capScreenCastPortal() const;
     bool capX11Capture() const;
     bool capRecordWindowSource() const;
@@ -245,10 +240,12 @@ public:
     // command over itself.
     Q_INVOKABLE QString inputAccessFixCommand() const;
     // A copy-pasteable plain-text dump of everything a bug report needs: app
-    // version/build, Qt, desktop/session, compiled-in features, runtime caps,
-    // and which optional external tools (ffmpeg, wl-clipboard, Tesseract packs)
-    // are present. Zero telemetry — nothing leaves the machine on its own; the
-    // user pastes this into an issue. Wired to the "Copy diagnostics" button.
+    // version/build, Qt, desktop/session, runtime capabilities, and which
+    // external tools (ffmpeg, wl-clipboard, Tesseract language packs) are
+    // present. No build-feature section: every gate is a hard requirement, so
+    // the answer would be "yes" ten times over and tell a reporter nothing.
+    // Zero telemetry - nothing leaves the machine on its own; the user pastes
+    // this into an issue. Wired to the "Copy diagnostics" button.
     Q_INVOKABLE QString systemDiagnostics() const;
     // systemDiagnostics() plus the previous run's crash report and the recent
     // log. Separate from the plain one so "Copy diagnostics" stays a small,
@@ -267,13 +264,13 @@ public:
     // hasDependencyWarnings); the rest are informational.
     Q_INVOKABLE QVariantList dependencyReport() const;
     // Card dimensions for the in-window notification preview, read from the one
-    // style->size table both notification hosts size their real surfaces with —
+    // style->size table both notification hosts size their real surfaces with -
     // a preview with its own copy would drift the moment a style is retuned.
     Q_INVOKABLE QSize notifCardSize(const QString &style) const;
-    // True when any `warn` dependency is missing — gates the one-shot first-run
+    // True when any `warn` dependency is missing - gates the one-shot first-run
     // system-check popup so a fully-provisioned machine never sees it.
     Q_INVOKABLE bool hasDependencyWarnings() const;
-    // True when the compositor exposes wlr-layer-shell — the selection overlay
+    // True when the compositor exposes wlr-layer-shell - the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
     // Developer smoke-test: sequentially exercises the main app paths and logs
@@ -396,9 +393,7 @@ public:
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
-    bool ocrAvailable() const;
     bool ocrHasLanguages() const;
-    bool qrAvailable() const;
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
@@ -429,7 +424,7 @@ public:
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
     QString buildNumber() const { return QStringLiteral(UNISIC_BUILD); }
-    // In the .cpp: the generated unisic_build_date.h changes on every commit —
+    // In the .cpp: the generated unisic_build_date.h changes on every commit -
     // including it here would recompile every AppContext.h dependent each time.
     QString buildDate() const;
     // Release notes (markdown) in `lang` ("en"/"pl"): the `### English`/
@@ -437,7 +432,7 @@ public:
     // heading matches changelogVersion(). Empty when there is no such entry.
     // Shown when the user clicks the version label.
     Q_INVOKABLE QString changelog(const QString &lang) const;
-    // The version whose section changelog() returns — appVersion() in a
+    // The version whose section changelog() returns - appVersion() in a
     // release build. A dev build shows the TOP (newest) section instead: work
     // for the next release accumulates under its future heading, which would
     // otherwise stay invisible in-app until the version bump.
@@ -471,9 +466,9 @@ public:
     QImage stampWatermark(const QImage &source) const;
     // Bring a file you already have into the app: an image opens in the editor,
     // a recording in the trim window. One entry point, routed by what the file
-    // actually is — the two windows are the same ones a capture would open.
+    // actually is - the two windows are the same ones a capture would open.
     // kind: "image" (editor), "video" (trim window), or empty for both. It only
-    // preselects the dialog's filter — where the file actually lands is decided
+    // preselects the dialog's filter - where the file actually lands is decided
     // by what it IS (editableKindFor), so picking an mp4 under "Images" still
     // opens the trim window instead of failing.
     Q_INVOKABLE void openFileForEditing(const QString &kind = {});
@@ -498,14 +493,14 @@ public:
     // follows. Never fails silently. The routing itself lives in
     // pasteMimeData(), which takes the payload from anywhere.
     Q_INVOKABLE void pasteFromClipboard();
-    // "image" | "video" | "" — which window (if any) can take this file. Split
+    // "image" | "video" | "" - which window (if any) can take this file. Split
     // out of openFileForEditing so the routing is checkable without a dialog.
     static QString editableKindFor(const QString &path);
     Q_INVOKABLE void openTrimRecording(const QString &path);
     // Write the selection to a new file next to the source.
     // lossless=false (the default): the selection is re-encoded, so the cut
     // lands on the exact frame the trim window previewed. lossless=true: a
-    // stream copy, which is instant but can only START on a keyframe — the trim
+    // stream copy, which is instant but can only START on a keyframe - the trim
     // window snaps its in-point onto one first (TrimController::snapStart), so
     // what it showed is still what gets written. GIF ignores the flag: its
     // demuxer cannot seek and stream-copying one produces a file that starts at
@@ -561,7 +556,7 @@ public:
     Q_INVOKABLE QString formatShortcut(int key, int modifiers, int nativeScanCode = 0) const;
     Q_INVOKABLE void setShortcutRecording(bool recording);
     Q_INVOKABLE void applyHotkeys();
-    // Push ONE just-edited action — never re-asserts the app's possibly-stale
+    // Push ONE just-edited action - never re-asserts the app's possibly-stale
     // copies of the others (that used to clobber KCM edits).
     Q_INVOKABLE void applyHotkey(const QString &actionId);
     // Run a hotkey action's entry point directly. Used by the `--hotkey <id>`
@@ -573,11 +568,11 @@ public:
     Q_INVOKABLE bool installDesktopShortcuts();
     Q_INVOKABLE void removeDesktopShortcuts();
     // Copy-paste guidance (the exact commands + where to add them) for desktops
-    // we can't write automatically — and as a fallback everywhere.
+    // we can't write automatically - and as a fallback everywhere.
     Q_INVOKABLE QString desktopShortcutManualText() const;
     Q_INVOKABLE QString exportSettings(const QUrl &file);   // "" on success, else error
     Q_INVOKABLE QString importSettings(const QUrl &file);
-    // Native (DE) file picker + export/import in one call — the QML FileDialog
+    // Native (DE) file picker + export/import in one call - the QML FileDialog
     // fell back to an ugly non-native dialog under the forced Basic style.
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
@@ -639,12 +634,12 @@ public:
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
-    // Same, for finished recordings/GIFs (General > Recording sound) —
+    // Same, for finished recordings/GIFs (General > Recording sound) -
     // a separate cue with its own setting.
     void playRecordingSound();
     // Cue the instant recording begins (after the countdown), own setting.
     void playRecordStartSound();
-    // Fixed trash cue for explicit deletions — always the bundled "trash"
+    // Fixed trash cue for explicit deletions - always the bundled "trash"
     // sound, deliberately not user-configurable.
     void playTrashSound();
     // Preview the selected capture sound from the settings UI.
@@ -654,13 +649,13 @@ public:
     // Live preview of the capture card while the user edits its style, corner or
     // edge margin: the REAL card, on the real screen, through the real path (the
     // layer surface or the XWayland helper), with a placeholder image. A drawn
-    // mock-up would have to guess what only the compositor knows — where panels
-    // and docks push the card to — which is the one thing worth previewing.
+    // mock-up would have to guess what only the compositor knows - where panels
+    // and docks push the card to - which is the one thing worth previewing.
     // Re-entrant: each call replaces the card still on screen, so dragging a
     // slider re-renders it live. Never fires the native-notification fallback:
     // an unwanted desktop notification is not a preview.
     // `overrides` (setting name -> value, see NotifCard::settingKeys) renders a
-    // card for values the user has NOT saved — pointing at "Top left" in the
+    // card for values the user has NOT saved - pointing at "Top left" in the
     // dropdown must show a top-left card without committing it. Empty = preview
     // exactly what is saved.
     Q_INVOKABLE void previewCapturePopup(const QVariantMap &overrides = {});
@@ -672,7 +667,7 @@ public:
     // files dropped into ~/.config/unisic/sounds (basenames incl. extension).
     Q_INVOKABLE QStringList captureSoundIds() const;
     // Pick an audio file and COPY it into the user sounds dir (the player is
-    // only ever handed bundled cues or files from that dir — never an
+    // only ever handed bundled cues or files from that dir - never an
     // arbitrary config-supplied path). Returns the new id, "" on cancel/fail.
     Q_INVOKABLE QString addCustomSound();
     // historyId: the entry this capture already owns, so the upload URL updates
@@ -714,7 +709,7 @@ signals:
     void toastChanged();
     void showMainWindowRequested();
     // A native-package update was discovered and can be installed via the
-    // install.sh-in-a-terminal path — QML opens the "Install now?" prompt.
+    // install.sh-in-a-terminal path - QML opens the "Install now?" prompt.
     void installerUpdatePromptRequested(const QString &version);
     // Re-opens the first-run welcome card on demand (Settings / Developer pane).
     void showWelcomeRequested();
@@ -769,7 +764,7 @@ private:
     QFileSystemWatcher *m_shortcutStoreWatcher = nullptr;
     QTimer *m_shortcutReassertDebounce = nullptr;
     // Consecutive re-installs whose entries the desktop wiped again before the
-    // next pass — the give-up valve for a rewrite war (see reassert lambda).
+    // next pass - the give-up valve for a rewrite war (see reassert lambda).
     int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
@@ -779,7 +774,7 @@ private:
     // Query each action's live daemon binding; with heal, re-assert stored
     // keys on actions the daemon reports unbound. Lines for smoke/dev output.
     // `conflicts` (optional) collects keys that are in OUR binding yet resolve
-    // to ANOTHER component daemon-side (e.g. a KWin script) — those actions
+    // to ANOTHER component daemon-side (e.g. a KWin script) - those actions
     // look bound but never fire, and healing cannot win the key back.
     QStringList hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts = nullptr);
     // Production counterpart: same daemon-authoritative audit without blocking
@@ -787,7 +782,7 @@ private:
     void hotkeyBindStatusAsync(
         bool heal,
         std::function<void(int, const QStringList &, const QStringList &)> done);
-    // Windows (editor/preview) opened while the smoke test runs — the final
+    // Windows (editor/preview) opened while the smoke test runs - the final
     // step closes them so F8 leaves no manual cleanup behind.
     QVector<QPointer<QQuickWindow>> m_smokeWindows;
     // Same idea one scope down, for a dev CHECK that has to open real windows
@@ -882,7 +877,7 @@ private:
     // Restart into an installed update when idle; false = deferred.
     bool tryUpdateRestart();
 
-    // forceCopy: the overlay was confirmed with Ctrl+C (Spectacle semantics) —
+    // forceCopy: the overlay was confirmed with Ctrl+C (Spectacle semantics) -
     // copy to the clipboard even when auto-copy is off.
     void finishCapture(const QImage &img, bool inhibited, bool forceCopy = false);
     // Shared player behind playCaptureSound/playRecordingSound: resolves a
@@ -912,8 +907,8 @@ private:
     // it could not be started (caller then falls back to a native notification).
     bool showNotificationHelper(CaptureNotification *n, const QVariantMap &overrides = {});
     // Are notifications inhibited RIGHT NOW (fullscreen app / DND / screen share)?
-    // Sampled at each capture/record trigger — BEFORE our own fullscreen selection
-    // overlay opens, so the overlay can't self-suppress the resulting card — and
+    // Sampled at each capture/record trigger - BEFORE our own fullscreen selection
+    // overlay opens, so the overlay can't self-suppress the resulting card - and
     // threaded per-operation to the card (never a shared member: a screenshot
     // during a recording would otherwise clobber the recording's value).
     // Consulted by the layer-shell card only (the native path is server-suppressed).
@@ -930,15 +925,15 @@ private:
     // that draws a frame just OUTSIDE the recorded rect (physRegion, physical
     // px on screen) so the user sees what is being captured without the frame
     // landing inside the ffmpeg crop. Hosted on layer-shell (KWin/wlroots/
-    // COSMIC), a KWin fullscreen-transparent fallback, or — GNOME — a separate
+    // COSMIC), a KWin fullscreen-transparent fallback, or - GNOME - a separate
     // XWayland helper process (see RecordBorderHelper.h).
     // countdownOnly: draw ONLY the centered countdown number, no frame and no
     // REC badge, centered on the whole surface rather than a sub-region. Used
-    // for full-screen / window recordings, which have no region frame — the
+    // for full-screen / window recordings, which have no region frame - the
     // overlay exists only to answer "is it about to record" and is torn down
     // the instant recording begins (a persistent surface would be captured).
     // countdownRef: logical size the countdown disc scales to (the recorded
-    // window's stream size) — empty = scale to the whole surface. In-process
+    // window's stream size) - empty = scale to the whole surface. In-process
     // frame only; the GNOME helper keeps its capped disc.
     void showRecordBorder(QRect physRegion, QScreen *screen, int countdown = 0,
                           bool countdownOnly = false,
@@ -1009,7 +1004,7 @@ private:
     void trimGif(const QString &path, const QString &output, qreal start, qreal end);
     // Dev harness: cut a generated clip both ways through the real trim path and
     // report whether the files came out where the selection said they would,
-    // plus whether the timeline's filmstrip and keyframe table built. Async —
+    // plus whether the timeline's filmstrip and keyframe table built. Async -
     // `done` gets one summary line. Shared by the smoke test and its button.
     void trimCutCheck(std::function<void(const QString &)> done);
     // Excise a known pause span from a generated clip and confirm the output
@@ -1059,7 +1054,7 @@ private:
     QTimer *m_trimTimer = nullptr;
     QTimer *m_updateRestartTimer = nullptr; // retries the idle auto-restart
     // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K
-    // QImage) — the "Copy last capture" hotkey decodes and copies it.
+    // QImage) - the "Copy last capture" hotkey decodes and copies it.
     QByteArray m_lastCaptureData;
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     NotificationInhibitor *m_dnd = nullptr;

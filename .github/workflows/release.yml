@@ -44,12 +44,12 @@ jobs:
             version="${version%% *}"
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # Release only when this version has not been tagged yet — i.e. the
+          # Release only when this version has not been tagged yet - i.e. the
           # version in CMakeLists.txt was bumped. Plain pushes to main (docs,
           # refactors without a bump) build nothing and cut no release.
           if git rev-parse -q --verify "refs/tags/v${version}" >/dev/null; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Tag v${version} already exists — no version bump, skipping release."
+            echo "::notice::Tag v${version} already exists - no version bump, skipping release."
           else
             echo "should_release=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Releasing v${version}."
@@ -121,10 +121,10 @@ jobs:
           submodules: recursive
 
       # Every package is attached to the GitHub release. The repos stay the
-      # UPDATE channel — each direct-download package self-registers its native
+      # UPDATE channel - each direct-download package self-registers its native
       # repo on first install, so a one-off download keeps updating natively:
       #   .deb      → OBS apt repo   (packaging/deb/postinst)
-      #   .rpm      → Fedora-only asset (.fedora — see the rpm job comment);
+      #   .rpm      → Fedora-only asset (.fedora - see the rpm job comment);
       #               %post registers the COPR dnf repo. openSUSE has no
       #               release rpm: it installs from the OBS repos (README)
       #   .pkg.tar.zst → OBS pacman repo (packaging/arch/unisic.install)
@@ -206,7 +206,7 @@ jobs:
     # needs `release` so the v<version> tag exists when OBS's obs_scm service
     # fetches the repo; `check` only for the should_release output. The OBS
     # project (home:unisic) rebuilds Debian/Ubuntu/Arch/openSUSE
-    # repos from the tag — see packaging/obs/README.md.
+    # repos from the tag - see packaging/obs/README.md.
     needs:
       - check
       - release

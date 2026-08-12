@@ -37,16 +37,10 @@ class AppStub : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QObject *settings READ settings CONSTANT)
-    Q_PROPERTY(bool qrAvailable READ qrAvailable CONSTANT)
-    Q_PROPERTY(bool ocrAvailable READ ocrAvailable CONSTANT)
 public:
     using QObject::QObject;
     QQmlPropertyMap *m_settings = nullptr;
-    bool m_qr = false;
-    bool m_ocr = false;
     QObject *settings() const { return m_settings; }
-    bool qrAvailable() const { return m_qr; }
-    bool ocrAvailable() const { return m_ocr; }
 };
 
 // Stub `notif` (mirrors CaptureNotification's QML surface). Every action button
@@ -150,9 +144,9 @@ int runNotificationHelper(int argc, char *argv[])
     // --notification-helper <name> <lx> <ly> <lw> <lh> <configJson> <lang>
     //   <kind> <uploading> <url> <thumbPath> [filePath]
     // The helper is this same binary, so the argument list never version-skews
-    // against the parent — positional is fine. Everything the card's look is
+    // against the parent - positional is fine. Everything the card's look is
     // driven by rides in <configJson> (NotifCard::encodeConfig), so adding a
-    // card setting never touches this list again — which is what the old
+    // card setting never touches this list again - which is what the old
     // one-arg-per-setting shape cost: every addition shifted every index below
     // it, silently, at runtime.
     const QStringList args = app.arguments();
@@ -173,8 +167,6 @@ int runNotificationHelper(int argc, char *argv[])
     const QString style =
         NotifCard::normalizeStyle(settingsJson.value(QStringLiteral("capturePopupStyle")).toString());
     const int durationSec = settingsJson.value(QStringLiteral("capturePopupDurationSec")).toInt(8);
-    const bool qrAvail = config.value(QStringLiteral("qrAvailable")).toBool();
-    const bool ocrAvail = config.value(QStringLiteral("ocrAvailable")).toBool();
     const QString lang = args[i + 7];
     const QString kind = args[i + 8];
     const bool uploading = args[i + 9] == QLatin1String("1");
@@ -195,7 +187,7 @@ int runNotificationHelper(int argc, char *argv[])
     const bool dark = app.styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     QIcon::setFallbackThemeName(dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze"));
 
-    // Same table as the layer-shell host — NotifCard is the only copy.
+    // Same table as the layer-shell host - NotifCard is the only copy.
     const QSize card = NotifCard::sizeForStyle(style);
     const int cardW = card.width(), cardH = card.height();
     const int pad = NotifCard::kPad;
@@ -203,8 +195,6 @@ int runNotificationHelper(int argc, char *argv[])
 
     auto *appStub = new AppStub(&app);
     appStub->m_settings = NotifCard::makeSettingsMap(settingsJson, appStub);
-    appStub->m_qr = qrAvail;
-    appStub->m_ocr = ocrAvail;
 
     auto *bridge = new NotifBridge(&app);
     bridge->m_kind = kind;
@@ -223,7 +213,7 @@ int runNotificationHelper(int argc, char *argv[])
     engine.rootContext()->setContextProperty(QStringLiteral("popupY"), pad);
     engine.rootContext()->setContextProperty(QStringLiteral("popupW"), cardW);
     engine.rootContext()->setContextProperty(QStringLiteral("popupH"), cardH);
-    // Same card settings the layer-shell host sets, from the same snapshot — the card
+    // Same card settings the layer-shell host sets, from the same snapshot - the card
     // QML reads these, never App.settings.
     engine.rootContext()->setContextProperty(QStringLiteral("popupStyle"), style);
     engine.rootContext()->setContextProperty(QStringLiteral("popupAutoHideSec"), qMax(0, durationSec));
@@ -262,30 +252,30 @@ int runNotificationHelper(int argc, char *argv[])
     if (target)
         win->setScreen(target);
 
-    // Override-redirect, always-on-top, no focus stealing — but NOT
+    // Override-redirect, always-on-top, no focus stealing - but NOT
     // input-transparent (the card's buttons must receive clicks).
     win->setFlags(Qt::Window | Qt::FramelessWindowHint | Qt::BypassWindowManagerHint
                   | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus);
     win->setColor(Qt::transparent);
     QSurfaceFormat fmt = win->format();
-    fmt.setAlphaBufferSize(8); // ARGB visual — rounded corners / shadow need it
+    fmt.setAlphaBufferSize(8); // ARGB visual - rounded corners / shadow need it
     win->setFormat(fmt);
 
     const int winW = cardW + 2 * pad, winH = cardH + 2 * pad;
     // availableGeometry, not geometry: this helper runs on xcb, where Qt derives
-    // it from _NET_WORKAREA — so panels and docks that reserve space are already
+    // it from _NET_WORKAREA - so panels and docks that reserve space are already
     // subtracted and the card lands beside them instead of under them. The
     // layer-shell path gets the same clearance from exclusive zones. Nothing to
     // guard: with no strut (or no reader for it) the two rects are identical, so
     // the worst case is exactly the old full-screen behaviour. Intersected with
     // the screen because _NET_WORKAREA is one rect for the whole X screen, not
-    // one per monitor — on a multi-head layout Qt's per-screen clamp can still
+    // one per monitor - on a multi-head layout Qt's per-screen clamp can still
     // hand back a rect that is empty or off this monitor.
     QRect sg = target ? target->availableGeometry() : QRect(0, 0, 1920, 1080);
     if (target && (sg.isEmpty() || !target->geometry().intersects(sg)))
         sg = target->geometry();
     // Anchor the WINDOW at `edge`; the card sits `pad` inside, so the visible
-    // card lands edge+pad from the screen — the same inset as the layer-shell card.
+    // card lands edge+pad from the screen - the same inset as the layer-shell card.
     int x = sg.x() + edge, y = sg.y() + edge;
     if (corner.contains(QLatin1String("right")))
         x = sg.x() + sg.width() - winW - edge;
@@ -310,8 +300,8 @@ int runNotificationHelper(int argc, char *argv[])
     QObject::connect(bridge, &NotifBridge::closeRequested, &app, &QGuiApplication::quit);
 
     // Parent -> helper commands, newline-delimited:
-    //   state:<uploading>|<url>|<filePath>   — refresh the action buttons
-    //   close                                — the parent retired this card
+    //   state:<uploading>|<url>|<filePath>   - refresh the action buttons
+    //   close                                - the parent retired this card
     // stdin EOF (parent died) also quits, so a card never outlives its parent.
     static QByteArray inbuf;
     auto *stdinWatch = new QSocketNotifier(0, QSocketNotifier::Read, &app);
@@ -331,7 +321,7 @@ int runNotificationHelper(int argc, char *argv[])
             if (line.startsWith(QLatin1String("state:"))) {
                 const QStringList parts = line.mid(6).split(QLatin1Char('|'));
                 if (parts.size() >= 3)
-                    // filePath may itself contain '|' — rejoin the tail.
+                    // filePath may itself contain '|' - rejoin the tail.
                     bridge->setState(parts[0] == QLatin1String("1"), parts[1],
                                      QStringList(parts.mid(2)).join(QLatin1Char('|')));
             }

@@ -34,14 +34,38 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          # tesseract/leptonica and layer-shell-qt are OPTIONAL compile-time
-          # deps (HAVE_TESSERACT / HAVE_LAYERSHELL) - see the deb job comment.
-          # libinput-devel + systemd-devel are the pair behind HAVE_LIBINPUT
-          # (pressed-key badge, click ripple): CMake needs BOTH pkg-config
-          # modules, and on Fedora libudev.pc ships in systemd-devel, not in a
-          # package called libudev-*. Miss either one and the feature is
-          # compiled out silently - the switch then stays dead on every user's
-          # machine no matter how their input group is set up.
+          # Unisic has no optional dependencies, so this list is not a wish
+          # list: every -dev package below backs a gate CMakeLists.txt stops
+          # the configure without, and the assert-gates step later checks that
+          # the configure really did find all ten.
+          #
+          # The list is written out this way because the old framing ("these
+          # are optional, the build copes") is exactly what produced the bug it
+          # now fixes: kf6-kguiaddons-devel was simply missing here, so every
+          # .fedora.x86_64.rpm on the release page shipped with Klipper
+          # clipboard history compiled out while the COPR rpm of the same
+          # version (unisic.spec carries BuildRequires: cmake(KF6GuiAddons))
+          # shipped with it in. Nothing was red, and the two rpms of one
+          # version differed in features.
+          #
+          # What each non-obvious entry is for:
+          #   qt6-qtwayland-devel + qt6-qtbase-private-devel +
+          #     plasma-wayland-protocols-devel  HAVE_KWIN_SCREENCAST, the
+          #     KWin-native recording path (no portal share dialog). Runtime
+          #     qt6-qtwayland alone is not enough: the protocol scanner and the
+          #     private QPA header for the per-screen wl_output are build-time.
+          #   tesseract-devel leptonica-devel zxing-cpp-devel  HAVE_TESSERACT
+          #     and HAVE_ZXING, i.e. OCR and QR/barcode decode inside it.
+          #   layer-shell-qt-devel wayland-devel  HAVE_LAYERSHELL, the styled
+          #     capture card, the overlay above fullscreen windows and the
+          #     pinned preview.
+          #   kf6-kguiaddons-devel  HAVE_KGUIADDONS, KSystemClipboard, which is
+          #     what puts a screenshot into Plasma's clipboard HISTORY instead
+          #     of only the current clipboard slot.
+          #   libinput-devel + systemd-devel  the pair behind HAVE_LIBINPUT
+          #     (pressed-key badge, click ripple). CMake needs BOTH pkg-config
+          #     modules and on Fedora libudev.pc ships in systemd-devel, not in
+          #     anything called libudev-*.
           dnf install -y \
             ca-certificates git cmake ninja-build gcc-c++ pkgconf-pkg-config rpm-build file \
             qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
@@ -49,7 +73,7 @@ jobs:
             qt6-qttools-devel \
             pipewire-devel \
             tesseract-devel leptonica-devel zxing-cpp-devel \
-            layer-shell-qt-devel wayland-devel \
+            layer-shell-qt-devel wayland-devel kf6-kguiaddons-devel \
             libX11-devel libXext-devel libXfixes-devel libxcb-devel \
             libinput-devel systemd-devel
 
@@ -57,11 +81,22 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build RPM
+      - name: Configure
         run: |
           cmake -B build-rpm -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCPACK_GENERATOR=RPM
+
+      - name: Check every build gate is on
+        # Split out of the build step so a gate that ended up OFF is reported
+        # before ten minutes of compiling, and so the rpm on the release page
+        # can never again differ in features from the COPR one.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build-rpm
+
+      - name: Build RPM
+        run: |
           cmake --build build-rpm --parallel
           cpack --config build-rpm/CPackConfig.cmake -G RPM -B dist
           # Install gate: resolves the runtime Requires against Fedora repos

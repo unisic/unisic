@@ -27,24 +27,28 @@ jobs:
       - name: Install build dependencies
         run: |
           apt-get update
-          # tesseract/leptonica and LayerShellQt are OPTIONAL compile-time deps
-          # (HAVE_TESSERACT / HAVE_LAYERSHELL) - without the -dev packages here
-          # the shipped binary has OCR and the on-top layer-shell surfaces
-          # (custom notification card, overlay-over-fullscreen, preview pin)
-          # compiled out no matter what the user installs at runtime.
-          # Same trap for HAVE_KWIN_SCREENCAST (KWin-native recording, no
-          # portal share dialog): it needs Qt6WaylandClient + the protocol
+          # Unisic has no optional dependencies: every -dev package below backs
+          # a gate CMakeLists.txt refuses to configure without, and the
+          # assert-gates step checks that the configure really found all ten.
+          # Drop one and the build stops naming it, instead of shipping a
+          # binary whose UI offers a feature the code does not contain.
+          #
+          # The awkward one is HAVE_KWIN_SCREENCAST (KWin-native recording, no
+          # portal share dialog). It needs Qt6WaylandClient plus the protocol
           # scanner (qt6-wayland-dev, which pulls qt6-wayland-dev-tools),
           # plasma-wayland-protocols for zkde-screencast-unstable-v1.xml, and
-          # Qt6GuiPrivate for the per-screen wl_output. Runtime qt6-wayland
-          # alone is not enough.
-          # KNOWN GAP, deliberately not worked around here: trixie ships NO
-          # Qt6GuiPrivateConfig.cmake at all (qt6-base-private-dev is headers
-          # only; sid moved the config into qt6-base-dev), so the kit's
-          # find_package(Qt6 COMPONENTS GuiPrivate) fails and the .deb still
-          # falls back to the portal. The private headers are installed anyway
-          # so that a kit-side fallback can use them without touching this
-          # list again.
+          # the private QPA header for the per-screen wl_output. Trixie ships
+          # NO Qt6GuiPrivateConfig.cmake at all - qt6-base-private-dev is
+          # headers only, and sid moved the config into qt6-base-dev - so
+          # find_package(Qt6 COMPONENTS GuiPrivate) fails here and used to take
+          # the whole feature with it: the released .deb fell back to the
+          # portal on every Plasma desktop.
+          # That gap is closed in the kit rather than worked around here.
+          # external/unisic-kit tries the GuiPrivate component first and, when
+          # it is absent, find_path()s qpa/qplatformnativeinterface.h under the
+          # Qt6Gui include dirs. qt6-base-private-dev below is what that
+          # fallback consumes, so it is now load-bearing on Debian 13 rather
+          # than installed on speculation.
           apt-get install -y --no-install-recommends \
             ca-certificates git cmake ninja-build g++ pkg-config dpkg-dev file \
             qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
@@ -60,15 +64,35 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build DEB
+      - name: Configure
         run: |
           cmake -B build-deb -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
             -DCPACK_GENERATOR=DEB
+
+      - name: Check every build gate is on
+        # Split out of the build step so a gate that ended up OFF is named
+        # before the compile, and so the Debian 13 GuiPrivate fallback above is
+        # verified by a machine rather than assumed: if it ever stops working,
+        # HAVE_KWIN_SCREENCAST reads absent here instead of the .deb silently
+        # going back to the portal.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build-deb
+
+      - name: Build DEB
+        run: |
           cmake --build build-deb --parallel
           cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
           dpkg-deb --field dist/*.deb Depends Recommends
-          apt-get install -y --no-install-recommends ./dist/*.deb
+          # Install gate. Deliberately WITHOUT --no-install-recommends, unlike
+          # the build-dependency install above: apt honours Recommends by
+          # default, so that is what a user's `apt install ./unisic.deb`
+          # actually pulls, and this gate exists to prove that resolves. The
+          # Recommends is the xdg-desktop-portal-* alternation (a backend has
+          # several mutually exclusive providers, so it cannot be a Depends);
+          # skipping it here would have tested a set of packages nobody gets.
+          apt-get install -y ./dist/*.deb
 
       - uses: actions/upload-artifact@v4
         with:

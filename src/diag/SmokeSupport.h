@@ -37,15 +37,11 @@ QImage ocrBoxTestImage();
 // never needs a worker or retains a full capture-sized buffer.
 QImage qrPreviewImage(const QString &url);
 
-#ifdef HAVE_KGUIADDONS
 // Builds the clipboard offer that Klipper actually records in its history.
 // Ownership passes to KSystemClipboard::setMimeData.
 QMimeData *makeForceImageMime(const QImage &img);
-#endif
 
-#ifdef HAVE_KWIN_SCREENCAST
 // One process-wide binding of the zkde_screencast global: the answer cannot
 // change without reinstalling the desktop file and restarting anyway, and
 // GifRecorder keeps its own instance for the actual recordings.
 KWinScreencasting *kwinScreencastProbe();
-#endif

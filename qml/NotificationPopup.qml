@@ -182,10 +182,10 @@ Window {
         if (!actionShown(id)) return false
         if (id === "edit" || id === "copy") return notif.kind === "image"
         if (id === "link") return notif.url !== ""
-        if (id === "qr") return App.qrAvailable && notif.url !== ""
+        if (id === "qr") return notif.url !== ""
         if (id === "folder") return true
         if (id === "upload") return notif.url === "" && !notif.uploading
-        if (id === "ocr") return App.ocrAvailable && notif.kind === "image"
+        if (id === "ocr") return notif.kind === "image"
         if (id === "trim") return notif.filePath !== ""
                                   && (notif.kind === "video" || notif.kind === "gif")
         if (id === "delete") return notif.filePath !== ""

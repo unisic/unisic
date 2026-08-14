@@ -6,4 +6,4 @@ Version: 0.5.1-0
 Maintainer: Unisic maintainers <unisic@debondor.com>
 Homepage: https://github.com/unisic/unisic
 Standards-Version: 4.7.0
-Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config, qt6-base-dev, qt6-declarative-dev, qt6-svg-dev, qt6-tools-dev, qt6-l10n-tools, qt6-wayland-dev, qt6-base-private-dev, plasma-wayland-protocols, libpipewire-0.3-dev, libtesseract-dev, libleptonica-dev, libzxing-dev, liblayershellqtinterface-dev, libwayland-dev, libkf6guiaddons-dev, libx11-dev, libxext-dev, libxfixes-dev, libxcb1-dev, libinput-dev, libudev-dev
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config, extra-cmake-modules, qt6-base-dev, qt6-declarative-dev, qt6-svg-dev, qt6-tools-dev, qt6-l10n-tools, qt6-wayland-dev, qt6-base-private-dev, plasma-wayland-protocols, libpipewire-0.3-dev, libtesseract-dev, libleptonica-dev, libzxing-dev, liblayershellqtinterface-dev, libwayland-dev, libkf6guiaddons-dev, libx11-dev, libxext-dev, libxfixes-dev, libxcb1-dev, libinput-dev, libudev-dev

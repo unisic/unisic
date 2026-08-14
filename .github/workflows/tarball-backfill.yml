@@ -3,7 +3,7 @@ name: Tarball backfill
 # Manually-dispatched: rebuild an already-released tag through the shared
 # AppImage workflow and attach ONLY the portable .tar.gz to that tag's
 # existing GitHub release. Exists because releases up to v0.7.5 shipped no
-# plain-archive asset (issue #78) — future releases get the tarball
+# plain-archive asset (issue #78) - future releases get the tarball
 # automatically from release.yml, so this is for retrofitting old ones.
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
             exit 1
           fi
           # --clobber: re-running the dispatch replaces the asset instead of
-          # failing. Only the tarball is uploaded — the release's existing
+          # failing. Only the tarball is uploaded - the release's existing
           # AppImage/.zsync stay exactly as published.
           gh release upload "${{ inputs.release_tag }}" "${tarballs[@]}" \
             --repo "$GITHUB_REPOSITORY" --clobber

@@ -1343,5 +1343,7 @@ fi
 # was taken, the last word is which version it actually left behind.
 update_note "$RESOLVED_CHANNEL"
 
-# X11 users: recording won't work here - say so plainly.
+# X11 has been a fully supported session since 0.8, recording included. Say so:
+# the assumption that a Wayland-first tool cannot record on X11 is common enough
+# that silence reads as confirmation.
 if [ "$(session_kind)" = x11 ]; then x11_notice; fi

@@ -990,18 +990,17 @@ Window {
                     width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                // "More": the occasional text actions, greyed with a reason
-                // when the build lacks the dependency (kept discoverable, not hidden).
+                // "More": the occasional text actions. OCR is always built in;
+                // rows that depend on an EXTERNAL tool (ffmpeg below) are still
+                // greyed with a reason rather than hidden.
                 UMenuButton {
                     visible: !canvas.ocrMode
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTr("More")
                     actions: [
                         { label: qsTr("Copy all text"), iconName: "ocr",
-                          enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
                           trigger: function () { editorSession.ocrCopyText() } },
                         { label: qsTr("Select text…"), iconName: "select",
-                          enabled: App.ocrAvailable, hint: App.ocrAvailable ? "" : qsTr("Needs OCR"),
                           trigger: function () { editorSession.startOcrPick() } },
                         // Always a new file, never the overwrite Save does -
                         // the extension changes, so there is nothing to

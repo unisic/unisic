@@ -8,8 +8,9 @@
 #include <memory>
 #include "OcrWord.h"
 
-// Optional Tesseract-backed OCR. This whole translation unit is only compiled
-// when HAVE_TESSERACT is defined (see CMakeLists). Recognition runs on a worker
+// Tesseract-backed OCR. tesseract + leptonica are hard build requirements (see
+// CMakeLists), so this is always compiled in; whether any language data is
+// INSTALLED is a separate runtime question. Recognition runs on a worker
 // thread; the callback is delivered on the GUI thread.
 class OcrEngine : public QObject
 {
@@ -27,7 +28,7 @@ public:
     // Init fallback; cheap (a directory listing), safe to call on the GUI thread.
     static QString detectedLanguages();
 
-    // Whether osd.traineddata is installed — the model the auto-language script
+    // Whether osd.traineddata is installed - the model the auto-language script
     // detection needs. Without it, auto falls back to loading every pack.
     static bool scriptDetectionAvailable();
 
@@ -53,7 +54,7 @@ public:
 private:
     // Flipped by the destructor so an in-flight worker aborts at its next
     // checkpoint: QtConcurrent tasks can't be cancelled from outside, and the
-    // global pool's destructor waits for them — without this, quitting mid-
+    // global pool's destructor waits for them - without this, quitting mid-
     // recognition keeps the process alive until tesseract finishes.
     std::shared_ptr<std::atomic_bool> m_cancelled = std::make_shared<std::atomic_bool>(false);
 };

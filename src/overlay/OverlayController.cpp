@@ -13,10 +13,8 @@
 #include <QPointer>
 #include <QDebug>
 #include <memory>
-#ifdef HAVE_LAYERSHELL
 #include <LayerShellQt/window.h>
 #include <QMargins>
-#endif
 
 OverlayController::OverlayController(AppContext *app, QObject *parent)
     : QObject(parent), m_app(app)
@@ -183,11 +181,11 @@ void OverlayController::createWindows()
         }
 
         bool shown = false;
-#ifdef HAVE_LAYERSHELL
         // A fullscreen toplevel can't sit above a fullscreen application on
         // Wayland, so region/window selection over a fullscreen game/video
-        // failed. A layer-shell OVERLAY surface can — with exclusive keyboard so
-        // Escape/Enter and the text tool still receive input.
+        // failed. A layer-shell OVERLAY surface can - with exclusive keyboard so
+        // Escape/Enter and the text tool still receive input. Runtime, not build:
+        // GNOME/mutter and X11 offer no layer-shell at all.
         if (m_app->layerShellAvailable()) {
             win->resize(screen->geometry().size());
             if (auto *ls = LayerShellQt::Window::get(win)) {
@@ -203,7 +201,6 @@ void OverlayController::createWindows()
             win->show();
             shown = true;
         }
-#endif
         if (!shown)
             win->showFullScreen();
         m_windows.append(win);

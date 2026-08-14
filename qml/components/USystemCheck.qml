@@ -3,9 +3,9 @@ import QtQuick.Controls
 import Unisic
 import Unisic.Kit
 
-// First-run (and on-demand) system check. Lists the optional runtime
-// dependencies from App.dependencyReport() — each with a tick or an install
-// hint — plus a Copy-diagnostics action for bug reports. Modal Popup parented
+// First-run (and on-demand) system check. Lists the packaged runtime
+// dependencies from App.dependencyReport(), each with a tick or a repair hint,
+// plus a Copy-diagnostics action for bug reports. Modal Popup parented
 // to Overlay.overlay, same shell as UConfirmDialog.
 //
 // markSeenOnClose flips App.settings.systemCheckSeen so the one-shot first-run
@@ -38,10 +38,9 @@ Popup {
         border.color: Theme.divider
     }
 
-    // Scroller + column, exactly like UConfirmDialog/UShortcutsHelp: the row
-    // list grows with what the build was compiled with (OCR adds two more) and
-    // with how long each install hint runs in the current language, so a report
-    // taller than the window has to SCROLL (UFlyout rule 3) instead of pushing
+    // Scroller + column, exactly like UConfirmDialog/UShortcutsHelp: the list
+    // height varies with localized repair hints, so a report taller than the
+    // window has to SCROLL (UFlyout rule 3) instead of pushing
     // its own buttons off screen. Measured before the fix, at the 880x560
     // minimum window with the Polish details: 5 rows fitted with 14px to spare,
     // 6 rows put "Got it" 2px below the window edge, 8 rows put it 109px below,
@@ -80,7 +79,7 @@ Popup {
             }
             Text {
                 width: parent.width
-                text: qsTr("Unisic works out of the box. These optional tools unlock more - install any that are missing.")
+                text: qsTr("Every packaged tool should be present. A missing item means this install is incomplete.")
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontM
                 wrapMode: Text.WordWrap
@@ -120,7 +119,7 @@ Popup {
                 spacing: Theme.spacingS
 
                 Repeater {
-                    // A plain list of {label, ok, warn, detail} maps from C++.
+                    // A plain list of {label, ok, detail} maps from C++.
                     model: App.dependencyReport()
                     delegate: Row {
                         width: parent ? parent.width : 0
@@ -129,9 +128,7 @@ Popup {
                         // The tick/bang glyph is a picture of the state; spell it
                         // out instead so the row reads as one sentence.
                         Accessible.role: Accessible.ListItem
-                        Accessible.name: (modelData.ok ? qsTr("Installed")
-                                        : modelData.warn ? qsTr("Missing")
-                                        : qsTr("Optional"))
+                        Accessible.name: (modelData.ok ? qsTr("Installed") : qsTr("Missing"))
                                          + ": " + modelData.label
                         Accessible.description: modelData.detail
 
@@ -139,9 +136,8 @@ Popup {
                         // description above, so they opt out individually here.
                         Text {
                             width: 18
-                            text: modelData.ok ? "✓" : (modelData.warn ? "!" : "-")
-                            color: modelData.ok ? Theme.success
-                                 : (modelData.warn ? Theme.danger : Theme.textTertiary)
+                            text: modelData.ok ? "✓" : "!"
+                            color: modelData.ok ? Theme.success : Theme.danger
                             font.pixelSize: Theme.fontM
                             font.weight: Font.DemiBold
                             Accessible.ignored: true

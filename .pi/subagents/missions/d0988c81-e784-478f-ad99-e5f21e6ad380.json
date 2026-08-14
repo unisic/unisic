@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "id": "d0988c81-e784-478f-ad99-e5f21e6ad380",
+  "title": "Read-only adversarial review of the current uncommitted diff in /home/dean/Projects/unisic for th...",
+  "objective": "Read-only adversarial review of the current uncommitted diff in /home/dean/Projects/unisic for the no-optional-dependencies packaging task. Focus only on correctness gaps: mismatched dependency lists, silent compile-outs, portable bundle omissions, runtime helper/codec/plugin gaps, portal backend resolution, translation/UI contradictions, and CI checks that cannot work. Inspect the actual diff and relevant call sites. Do not edit. Return ranked concrete findings with path:line and explain only verified issues; explicitly say if no blocker remains.",
+  "status": "completed",
+  "createdAt": "2026-08-12T21:13:01.122Z",
+  "updatedAt": "2026-08-12T21:16:56.808Z",
+  "runs": [
+    {
+      "runId": "a5a3bcdc-eda4-4f4d-bbeb-fce26e2b3cd2",
+      "mode": "workflow",
+      "asyncDir": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a5a3bcdc-eda4-4f4d-bbeb-fce26e2b3cd2",
+      "status": "complete",
+      "startedAt": "2026-08-12T21:13:01.125Z",
+      "completedAt": "2026-08-12T21:16:56.807Z"
+    }
+  ],
+  "workflowChildren": [
+    {
+      "workflowRunId": "a5a3bcdc-eda4-4f4d-bbeb-fce26e2b3cd2",
+      "key": "packaging-review",
+      "status": "completed",
+      "startedAt": "2026-08-12T21:13:01.160Z",
+      "updatedAt": "2026-08-12T21:16:56.800Z",
+      "artifactPaths": [
+        "/home/dean/.pi/agent/sessions/--home-dean-Projects-unisic--/2026-08-12T21-13-01-224Z_019ff7d2-4828-74b1-a1e0-b3e1bde40ac5.jsonl"
+      ],
+      "runId": "1005a8ca",
+      "agent": "reviewer",
+      "task": "Read-only adversarial review of the current uncommitted diff in /home/dean/Projects/unisic for the no-optional-dependencies packaging task. Focus only on correctness gaps: mismatched dependency lists, silent compile-outs, portable bundle omissions, runtime helper/codec/plugin gaps, portal backend resolution, translation/UI contradictions, and CI checks that cannot work. Inspect the actual diff and relevant call sites. Do not edit. Return ranked concrete findings with path:line and explain only verified issues; explicitly say if no blocker remains.",
+      "completedAt": "2026-08-12T21:16:56.800Z",
+      "sessionPath": "/home/dean/.pi/agent/sessions/--home-dean-Projects-unisic--/2026-08-12T21-13-01-224Z_019ff7d2-4828-74b1-a1e0-b3e1bde40ac5.jsonl",
+      "heartbeat": {
+        "updatedAt": "2026-08-12T21:16:56.800Z",
+        "status": "completed"
+      }
+    }
+  ],
+  "decisions": [],
+  "artifacts": [
+    {
+      "kind": "status",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a5a3bcdc-eda4-4f4d-bbeb-fce26e2b3cd2/status.json"
+    },
+    {
+      "kind": "other",
+      "path": "/tmp/pi-subagents-uid-1000/async-subagent-runs/a5a3bcdc-eda4-4f4d-bbeb-fce26e2b3cd2/events.jsonl",
+      "description": "Lifecycle events"
+    },
+    {
+      "kind": "output",
+      "path": "/home/dean/.pi/agent/sessions/--home-dean-Projects-unisic--/2026-08-12T21-13-01-224Z_019ff7d2-4828-74b1-a1e0-b3e1bde40ac5.jsonl"
+    }
+  ],
+  "receipts": [],
+  "cwd": "/home/dean/Projects/unisic",
+  "ownerSessionId": "/home/dean/.pi/agent/sessions/--home-dean-Projects-unisic--/2026-08-12T19-26-55-977Z_019ff771-27e9-77ba-922c-6d4c7a06375e.jsonl",
+  "summary": "Workflow completed with 1 child run(s). Return: {\n  \"key\": \"packaging-review\",\n  \"ok\": true,\n  \"agent\": \"reviewer\",\n  \"runId\": \"1005a8ca\",\n  \"output\": \"## Review\\n\\n- **Blocker:** `nix/package.nix:99-134` omits `qt6.qtmultimedia` from `buildInputs` and the runtime wrapper. `external/unisic-kit/qml/components/VideoPreview.qml:1-2` imports `QtMultimedia` at runtime, so the Nix package can still ship without trim-preview playback despite other native packages explicitly requiring that module.\\n- **High:** `src/AppContext.cpp:1790-1828` reports only FFmpeg, `wl-copy`, OCR language data, and OSD. However, `qml/components/USystemCheck.qml:68-72` and `qml/pages/SettingsPage.qml:1302-1305` claim the check covers every packaged runtime tool. Missing `ffprobe`, `curl`, `zip`, `grim`, `pw-record`, `pw-dump`, `pw-play`, or QtMultimedia will not be reported.\\n- **High:** `packaging/flatpak/app.unisic.Unisic.yml:457-461` still pins tag `v0.8.1` and commit `66ec650...`, while `CMakeLists.txt:2-7` is 0.8.4. Local CI rewrites this source, masking th Trace: 2 event(s)."
+}

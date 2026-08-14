@@ -5,8 +5,7 @@
 #include <QFileInfo>
 #include <QSet>
 #include <tesseract/baseapi.h>
-#include <tesseract/ocrclass.h> // ETEXT_DESC — cancellable Recognize()
-#ifdef HAVE_ZXING
+#include <tesseract/ocrclass.h> // ETEXT_DESC - cancellable Recognize()
 #include <ZXing/ReadBarcode.h>
 // DecodeHints was renamed to ReaderOptions in zxing-cpp 2.2; the version
 // header itself moved names across releases, so probe the header directly.
@@ -16,20 +15,19 @@ using ZXingOptions = ZXing::ReaderOptions;
 using ZXingOptions = ZXing::DecodeHints;
 #endif
 // Result::text() returns std::string in zxing-cpp 2.x but std::wstring in
-// 1.x (still what openSUSE Leap 15.6 ships) — overloads pick the right
+// 1.x (still what openSUSE Leap 15.6 ships) - overloads pick the right
 // conversion at compile time.
 // maybe_unused: exactly ONE of the two is called per zxing-cpp version, so the
 // other is always dead and would warn on every build.
 [[maybe_unused]] static QString zxingText(const std::string &s) { return QString::fromStdString(s); }
 [[maybe_unused]] static QString zxingText(const std::wstring &s) { return QString::fromStdWString(s); }
-#endif
 
 namespace {
 struct OcrResult { QString text; QString error; };
 struct OcrBoxResult { QVector<OcrWord> words; QString error; };
 
 // The tessdata directories the loader consults, honouring TESSDATA_PREFIX (when
-// set, ONLY its dir is valid — advertising langs from the distro dirs there
+// set, ONLY its dir is valid - advertising langs from the distro dirs there
 // would name packs Init then refuses to load).
 QStringList tessdataDirs()
 {
@@ -38,10 +36,19 @@ QStringList tessdataDirs()
         const QString p = QString::fromLocal8Bit(prefix);
         return {p, QDir(p).filePath(QStringLiteral("tessdata"))};
     }
-    return {QStringLiteral("/usr/share/tesseract/tessdata"),
-            QStringLiteral("/usr/share/tessdata"),
-            QStringLiteral("/usr/share/tesseract-ocr/5/tessdata"),
-            QStringLiteral("/usr/share/tesseract-ocr/4.00/tessdata")};
+    QStringList dirs{QStringLiteral("/usr/share/tesseract/tessdata"),
+                     QStringLiteral("/usr/share/tessdata"),
+                     QStringLiteral("/usr/share/tesseract-ocr/5/tessdata"),
+                     QStringLiteral("/usr/share/tesseract-ocr/4.00/tessdata")};
+    // AppImage: the bundle ships eng/pol/osd under $APPDIR/usr/share/tessdata,
+    // because a self-contained image cannot count on the host having ANY
+    // langpack. APPENDED, not TESSDATA_PREFIX: that variable is exclusive (see
+    // above), so setting it would hide every langpack the user installed on the
+    // host behind our three. APPDIR is only set when running from an AppImage.
+    const QByteArray appDir = qgetenv("APPDIR");
+    if (!appDir.isEmpty())
+        dirs << QDir(QString::fromLocal8Bit(appDir)).filePath(QStringLiteral("usr/share/tessdata"));
+    return dirs;
 }
 
 // The first tessdata dir that actually holds <code>.traineddata, or "" if none.
@@ -54,7 +61,7 @@ QString tessdataDirWith(const QString &code)
 }
 
 // Init `api` with `langs`, trying the default resolution first and then each
-// known tessdata dir (only when TESSDATA_PREFIX is unset — see tessdataDirs).
+// known tessdata dir (only when TESSDATA_PREFIX is unset - see tessdataDirs).
 bool initTess(tesseract::TessBaseAPI &api, const QByteArray &langs)
 {
     if (api.Init(nullptr, langs.constData()) == 0)
@@ -69,7 +76,7 @@ bool initTess(tesseract::TessBaseAPI &api, const QByteArray &langs)
 
 // The Tesseract langpack codes that write each non-Latin script OSD can name.
 // Latin (and Latin-derived scripts: Fraktur, Vietnamese…) is handled by
-// elimination — everything not in one of these sets.
+// elimination - everything not in one of these sets.
 const QHash<QString, QStringList> &scriptCodeTable()
 {
     static const QHash<QString, QStringList> m = {
@@ -130,7 +137,7 @@ QString langsForScript(const QString &script, const QStringList &available)
     if (picked.isEmpty())
         return {};
     // Latin digits / URLs turn up inside any script, and Tesseract weights the
-    // first language most — put eng first when it is installed.
+    // first language most - put eng first when it is installed.
     picked.removeAll(QStringLiteral("eng"));
     if (avail.contains(QStringLiteral("eng")))
         picked.prepend(QStringLiteral("eng"));
@@ -139,7 +146,7 @@ QString langsForScript(const QString &script, const QStringList &available)
 
 // Detect the image's script via osd.traineddata and narrow `availableSpec`
 // (the "+"-joined load-all list) to the langpacks for that script. Returns ""
-// on any failure — no OSD data, low confidence, nothing installed — so the
+// on any failure - no OSD data, low confidence, nothing installed - so the
 // caller falls back to load-all. Runs on the worker thread.
 QString resolveScriptLangs(const QImage &img, const QString &availableSpec)
 {
@@ -169,7 +176,7 @@ QString resolveScriptLangs(const QImage &img, const QString &availableSpec)
 // Runs on a worker thread. Recognizes and walks the result iterator at SYMBOL
 // (glyph) granularity so the editor overlay can select individual letters,
 // tracking the text-line index (for per-line underlines) and word boundaries
-// (so a copied range keeps its spaces). No barcode short-circuit — a QR
+// (so a copied range keeps its spaces). No barcode short-circuit - a QR
 // payload has no glyph geometry.
 OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
                          std::shared_ptr<std::atomic_bool> cancelled)
@@ -181,7 +188,7 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
-    // Auto-language: detect the script (OSD) and narrow to its langpacks — far
+    // Auto-language: detect the script (OSD) and narrow to its langpacks - far
     // more accurate than loading every installed pack at once. Empty result
     // keeps `langs` (the full load-all spec) as the fallback.
     if (autoScript) {
@@ -255,9 +262,8 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
-#ifdef HAVE_ZXING
     // Barcode pass first: a QR (or other code) in the region means the user
-    // wants its PAYLOAD — OCR-ing the code's pixels yields garbage. Grayscale
+    // wants its PAYLOAD - OCR-ing the code's pixels yields garbage. Grayscale
     // keeps the ImageView format portable across zxing-cpp versions.
     {
         const QImage gray = img.convertToFormat(QImage::Format_Grayscale8);
@@ -273,7 +279,6 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript,
                 return r;
         }
     }
-#endif
     if (cancelled->load())
         return r;
     // Auto-language: narrow to the detected script's langpacks (see runOcrBoxes).
@@ -284,8 +289,8 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript,
     }
     tesseract::TessBaseAPI api;
     // initTess() resolves the datapath itself: the nullptr path uses the
-    // TESSDATA_PREFIX baked into libtesseract at ITS build time — the AppImage
-    // bundles Ubuntu's build, whose baked path does not exist on Fedora/Arch —
+    // TESSDATA_PREFIX baked into libtesseract at ITS build time - the AppImage
+    // bundles Ubuntu's build, whose baked path does not exist on Fedora/Arch -
     // then retries the known distro tessdata dirs (unless the user pinned one).
     const bool ok = initTess(api, langs.toUtf8());
     if (!ok) {
@@ -331,10 +336,10 @@ QString OcrEngine::detectedLanguages()
     // fallback loop uses, and join every real langpack into one spec. Tesseract
     // can't pick a language per region, so "auto" = load them all together;
     // osd (orientation/script) and equ (math) are not text languages. The first
-    // directory that actually holds langpacks wins — mixing dirs would list a
+    // directory that actually holds langpacks wins - mixing dirs would list a
     // language twice under different tessdata versions.
     // Mirror the loader's search scope (runOcr's Init fallback): when
-    // TESSDATA_PREFIX is set, only its dir is consulted — advertising languages
+    // TESSDATA_PREFIX is set, only its dir is consulted - advertising languages
     // from the distro dirs there would name packs Init then refuses to load.
     QStringList langs;
     QSet<QString> seen;

@@ -34,6 +34,7 @@
 #include <QDBusConnectionInterface>
 #include <QSocketNotifier>
 #include <csignal>
+#include <cstdio>
 #include <sys/socket.h>
 #include <unistd.h>
 #if defined(__GLIBC__)
@@ -565,6 +566,14 @@ int main(int argc, char *argv[])
     // this process has won the single-instance handshake) and installs the
     // message handler by CHAINING, so journald keeps getting everything.
     DiagLog::install(argc, argv);
+    // This must precede QApplication and staged-update dispatch: asking for a
+    // version is informational and must not start the UI or change what runs.
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], "--version") == 0) {
+            std::fputs(UNISIC_VERSION "\n", stdout);
+            return 0;
+        }
+    }
     // Point unisic-kit's config resolution at THIS app's settings file before
     // anything from the kit (ThemeController's QSettings, themesFolder) is
     // constructed. The explicit file override — not setConfigName — because

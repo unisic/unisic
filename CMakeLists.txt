@@ -595,6 +595,12 @@ if(BUILD_TESTING)
     target_include_directories(unisic_version_compare_test PRIVATE src/update)
     add_test(NAME unisic_version_compare_test COMMAND unisic_version_compare_test)
 
+    # --version is intentionally handled before QApplication, so this can run
+    # without a graphical session and never starts the UI.
+    add_test(NAME unisic_version_cli_test COMMAND unisic --version)
+    set_tests_properties(unisic_version_cli_test PROPERTIES
+        PASS_REGULAR_EXPRESSION "${UNISIC_VERSION_STRING}")
+
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp

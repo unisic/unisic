@@ -84,19 +84,38 @@ static bool isKnownOption(const char *argument)
            || option == "--version";
 }
 
+static bool optionRequiresValue(const QByteArray &option)
+{
+    return option == "--delay" || option == "--output" || option == "--format"
+           || option == "--export-settings" || option == "--import-settings"
+           || option == "--hotkey";
+}
+
 static const char *optionMissingValue(int argc, char *argv[])
 {
     for (int i = 1; i < argc; ++i) {
         const QByteArray option(argv[i]);
-        const bool requiresValue = option == "--delay" || option == "--output"
-                                   || option == "--format" || option == "--export-settings"
-                                   || option == "--import-settings" || option == "--hotkey";
-        if (requiresValue && (i + 1 == argc || qstrncmp(argv[i + 1], "--", 2) == 0))
+        if (optionRequiresValue(option)
+            && (i + 1 == argc || qstrncmp(argv[i + 1], "--", 2) == 0))
             return argv[i];
         if ((option.startsWith("--delay=") || option.startsWith("--output=")
              || option.startsWith("--format="))
             && option.endsWith('='))
             return argv[i];
+    }
+    return nullptr;
+}
+
+static const char *unexpectedArgument(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray argument(argv[i]);
+        if (argument.startsWith("--")) {
+            if (optionRequiresValue(argument))
+                ++i;
+            continue;
+        }
+        return argv[i];
     }
     return nullptr;
 }
@@ -666,6 +685,11 @@ int main(int argc, char *argv[])
     }
     if (const char *option = optionMissingValue(argc, argv)) {
         std::fprintf(stderr, "%s requires a value\n\n", option);
+        printHelp(stderr);
+        return 2;
+    }
+    if (const char *argument = unexpectedArgument(argc, argv)) {
+        std::fprintf(stderr, "Unexpected argument: %s\n\n", argument);
         printHelp(stderr);
         return 2;
     }

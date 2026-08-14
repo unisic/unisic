@@ -78,8 +78,8 @@ or
 .TP
 .B \-\-help
 Print a concise list of capture, settings and startup options, then exit
-without starting the application. An unrecognised option prints this guide as
-well and exits with status 2.
+without starting the application. An unrecognised option or argument prints
+this guide as well and exits with status 2.
 .TP
 .B \-\-version
 Print the compiled version and exit without starting the application.

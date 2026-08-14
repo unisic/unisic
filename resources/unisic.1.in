@@ -71,7 +71,18 @@ written or the selection was cancelled.
 .BI \-\-format " FORMAT"
 Image format for
 .BR \-\-output :
-.BR png " (default), " jpg " or " webp .
+.BR png " (default), " jpg ,
+.B webp
+or
+.BR gif .
+.TP
+.B \-\-help
+Print a concise list of capture, settings and startup options, then exit
+without starting the application. An unrecognised option prints this guide as
+well and exits with status 2.
+.TP
+.B \-\-version
+Print the compiled version and exit without starting the application.
 .TP
 .B \-\-tray\-only
 Start hidden in the system tray, with no window. This is what the autostart

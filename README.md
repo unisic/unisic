@@ -89,7 +89,7 @@ Unisic starts in the background with a tray icon. Press a hotkey and go:
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Every hotkey is editable in Settings → Hotkeys. The same actions work from the command line (`unisic --region | --fullscreen | --window | --gif`), which is also how compositor keybinds should call it - see the docs for the [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations) and [wlroots setup](https://unisic.app/docs/compositors).
+Every hotkey is editable in Settings → Hotkeys. The same actions work from the command line (`unisic --region | --fullscreen | --window | --gif`); run `unisic --help` for every option. This is also how compositor keybinds should call it - see the docs for the [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations) and [wlroots setup](https://unisic.app/docs/compositors).
 
 ## Build from source
 

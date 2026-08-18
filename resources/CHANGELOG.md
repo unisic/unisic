@@ -10,6 +10,7 @@ whole per release (not per individual change).
 
 ### English
 **Improved**
+- **The command line can tell you how to use it**: run `unisic --help` to see every capture, settings and startup option without opening the application. An unrecognised option or argument now prints the same guide instead of silently starting Unisic.
 - **Whatever you installed Unisic from, it can do everything Unisic does**: a package could be built without one of the pieces the program is made of, and nothing anywhere said so - the feature was simply not there, the switch in Settings sat greyed out blaming "this build", and the only way anyone found out was a bug report months later. Several of the fixes below are exactly that, each in a different package. It cannot happen again: building Unisic without any part of it now stops before a single file is compiled and names the missing piece, so a package that exists at all is a complete one. Nothing changes in how you use the program; this is the promise behind the entries under it, and the reason there will not be another list like them.
 
 **Fixed**
@@ -23,6 +24,7 @@ whole per release (not per individual change).
 
 ### Polski
 **Ulepszone**
+- **Wiersz poleceń potrafi teraz wyjaśnić, jak go używać**: uruchom `unisic --help`, aby zobaczyć wszystkie opcje przechwytywania, ustawień i uruchamiania bez otwierania aplikacji. Nierozpoznana opcja lub argument wyświetla teraz tę samą podpowiedź zamiast po cichu uruchamiać Unisic.
 - **Skąd byś Unisica nie zainstalował, potrafi wszystko to, co Unisic**: paczkę dało się zbudować bez którejś z części, z których program się składa, i nic nigdzie tego nie mówiło - funkcji po prostu nie było, przełącznik w Ustawieniach stał wyszarzony, zrzucając winę na „tę kompilację", a jedynym sposobem, żeby się o tym dowiedzieć, było zgłoszenie błędu kilka miesięcy później. Kilka poprawek poniżej to dokładnie takie przypadki, każdy w innej paczce. To się już nie powtórzy: budowanie Unisica bez którejkolwiek z jego części zatrzymuje się teraz, zanim skompiluje się choćby jeden plik, i nazywa brakujący element, więc paczka, która w ogóle istnieje, jest kompletna. W samym używaniu programu nic się nie zmienia; to jest obietnica stojąca za wpisami poniżej i powód, dla którego drugiej takiej listy nie będzie.
 
 **Naprawione**

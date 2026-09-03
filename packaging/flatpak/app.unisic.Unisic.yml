@@ -154,6 +154,7 @@ modules:
     builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_PROG=OFF
       - -DSW_BUILD=OFF
     post-install:
@@ -168,6 +169,7 @@ modules:
     builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_TRAINING_TOOLS=OFF
       - -DDISABLE_CURL=ON
     sources:

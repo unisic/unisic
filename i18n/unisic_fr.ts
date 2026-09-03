@@ -1056,13 +1056,13 @@
         <location filename="../src/AppContext.cpp" line="1806"/>
         <location filename="../src/AppContext.cpp" line="1822"/>
         <source>Found.</source>
-        <translation type="unfinished"></translation>
+        <translation>Trouvé.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="1807"/>
         <location filename="../src/AppContext.cpp" line="1823"/>
         <source>Missing from this install: %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Manquant dans cette installation : %1.</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="3135"/>
@@ -8583,182 +8583,187 @@ S’applique à la prochaine capture.</translation>
 <context>
     <name>UpdateChecker</name>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="260"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="268"/>
         <source>a check is already running</source>
         <translation>une vérification est déjà en cours</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="264"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="272"/>
         <source>Checking for updates…</source>
         <translation>Recherche de mises à jour…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="294"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="321"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="380"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="302"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="329"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="393"/>
         <source>Checked at %1 - up to date</source>
         <translation>Vérifié à %1 - à jour</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="302"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="310"/>
         <source>GitHub rate limit reached - try again later</source>
         <translation>Limite de requêtes GitHub atteinte - réessayez plus tard</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="307"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="332"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="315"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="340"/>
         <source>Update check failed: %1</source>
         <translation>Échec de la vérification de mise à jour : %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="330"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="338"/>
         <source>malformed release feed</source>
         <translation>flux de version mal formé</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="379"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="392"/>
         <source>Checked at %1 - version %2 is available</source>
         <translation>Vérifié à %1 - la version %2 est disponible</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="409"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="422"/>
         <source>This release has no AppImage - it can&apos;t be installed in place</source>
         <translation>Cette version n’a pas d’AppImage - elle ne peut pas être installée sur place</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="410"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="423"/>
         <source>This install can&apos;t update itself</source>
         <translation>Cette installation ne peut pas se mettre à jour elle-même</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="421"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="521"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="434"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="562"/>
         <source>Update failed: cannot create %1</source>
         <translation>Échec de la mise à jour : impossible de créer %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="428"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="825"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="847"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="441"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="871"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="893"/>
         <source>Update failed: cannot write %1</source>
         <translation>Échec de la mise à jour : impossible d’écrire %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="435"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="448"/>
         <source>Downloading version %1…</source>
         <translation>Téléchargement de la version %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="461"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="881"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="480"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="927"/>
         <source>Update failed: %1</source>
         <translation>Échec de la mise à jour : %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="470"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="491"/>
         <source>cannot write the file</source>
         <translation>impossible d’écrire le fichier</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="477"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="498"/>
         <source>download looks truncated</source>
         <translation>le téléchargement semble tronqué</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="492"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="513"/>
+        <source>the download does not match the checksum published with the release - nothing was installed</source>
+        <translation>le fichier téléchargé ne correspond pas à la somme de contrôle publiée avec la version - rien n&apos;a été installé</translation>
+    </message>
+    <message>
+        <location filename="../src/update/UpdateChecker.cpp" line="533"/>
         <source>cannot replace %1</source>
         <translation>impossible de remplacer %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="498"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="579"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="539"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="620"/>
         <source>Update installed - restart to run version %1</source>
         <translation>Mise à jour installée - redémarrez pour exécuter la version %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="508"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="549"/>
         <source>cannot move the download into place</source>
         <translation>impossible de déplacer le téléchargement en place</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="525"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="566"/>
         <source>Installing version %1…</source>
         <translation>Installation de la version %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="546"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="587"/>
         <source>Update failed: could not unpack the new version</source>
         <translation>Échec de la mise à jour : impossible d’extraire la nouvelle version</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="561"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="571"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="602"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="612"/>
         <source>Update failed: could not write the update pointer</source>
         <translation>Échec de la mise à jour : impossible d’écrire le pointeur de mise à jour</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="655"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="696"/>
         <source>Simulated: version %1 is available</source>
         <translation>Simulé : la version %1 est disponible</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="693"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="739"/>
         <source>cannot create the cache folder</source>
         <translation>impossible de créer le dossier de cache</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="716"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="762"/>
         <source>the downloaded file is not the Unisic installer</source>
         <translation>le fichier téléchargé n&apos;est pas l&apos;installateur d&apos;Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="732"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="778"/>
         <source>the installer does not match the checksum published with the release - nothing was run</source>
         <translation>l&apos;installateur ne correspond pas à la somme de contrôle publiée avec la version - rien n&apos;a été exécuté</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="745"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="791"/>
         <source>cannot write %1</source>
         <translation>impossible d&apos;écrire %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="808"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="854"/>
         <source>No terminal program was found to run the installer.</source>
         <translation>Aucun programme de terminal n&apos;a été trouvé pour lancer l&apos;installateur.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="810"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="856"/>
         <source>no terminal found</source>
         <translation>aucun terminal trouvé</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="827"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="849"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="873"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="895"/>
         <source>cannot write the helper script</source>
         <translation>impossible d&apos;écrire le script d&apos;assistance</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="856"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="902"/>
         <source>A terminal opened to install the update - restart Unisic when it finishes.</source>
         <translation>Un terminal a été ouvert pour installer la mise à jour - redémarrez Unisic une fois terminé.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="860"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="906"/>
         <source>Could not open a terminal to run the installer.</source>
         <translation>Impossible d&apos;ouvrir un terminal pour lancer l&apos;installateur.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="862"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="908"/>
         <source>the terminal failed to start</source>
         <translation>le terminal n&apos;a pas pu démarrer</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="869"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="915"/>
         <source>this install can&apos;t be updated this way</source>
         <translation>cette installation ne peut pas être mise à jour de cette façon</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="875"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="921"/>
         <source>Fetching the installer…</source>
         <translation>Téléchargement de l&apos;installateur…</translation>
     </message>

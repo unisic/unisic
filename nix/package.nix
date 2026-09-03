@@ -67,7 +67,7 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.8.4";
+  version = "0.8.5";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the

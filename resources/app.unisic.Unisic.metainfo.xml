@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.5" date="2026-09-03">
+      <description>
+        <p>Save screenshots to any folder or format with the new Save split button in the editor: click the main half to save or overwrite as usual, or open the dropdown for "Save as…" with a native path dialog and one-click export to PNG, JPEG, WebP, or GIF. Every package is complete: hard build gates guarantee that no packaging channel ships with missing features, libraries or language data. Updates and installer assets are checked against GitHub SHA-256 release digests before installation, and the installer recommends a self-updating portable AppImage requiring no password. The command line now provides comprehensive --help and exits immediately on --version.</p>
+      </description>
+    </release>
     <release version="0.8.4" date="2026-08-05">
       <description>
         <p>The active window's area is one key away while you select: press W in the region selector and the window's rectangle is selected for you, ready to nudge, resize or confirm, in a screenshot, a text read, a GIF and a recording alike (needs KWin). A shape you drew keeps its handles on screen and can now be turned by a rotation grip, with Shift snapping to 15 degrees and the hit test following the rotation. A callout holds the words you type into it and sizes itself around them, so the bubble and its text move, resize and turn as one thing. The hotkey list leads with the five captures and keeps the rest behind one Show advanced shortcuts row. Shortcuts Unisic stopped using are removed from the KDE shortcut list for real now, the app no longer vanishes when it restarts itself after an update, and the pressed-key badge and click ripple work in the packages rather than only in a build you compiled yourself.</p>

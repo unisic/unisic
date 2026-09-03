@@ -6,7 +6,7 @@ pkgname=unisic
 # makepkg by hand in this directory - which is exactly why it must track
 # CMakeLists.txt's project(VERSION): left stale it builds 0.8.x sources into a
 # package named after a release from a year ago. Bump it with the project.
-pkgver=0.8.4
+pkgver=0.8.5
 pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')

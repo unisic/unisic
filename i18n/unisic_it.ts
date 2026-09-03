@@ -2567,97 +2567,112 @@
         <translation>Salva</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Overwrite (Ctrl+S)</source>
+        <translation>Sovrascrivi (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Save (Ctrl+S)</source>
+        <translation>Salva (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="987"/>
+        <source>More save options</source>
+        <translation>Altre opzioni di salvataggio</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Uploading…</source>
         <translation>Caricamento…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Upload</source>
         <translation>Carica</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1005"/>
+        <location filename="../qml/EditorWindow.qml" line="1019"/>
         <source>More</source>
         <translation>Altro</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1007"/>
+        <location filename="../qml/EditorWindow.qml" line="1021"/>
         <source>Copy all text</source>
         <translation>Copia tutto il testo</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1023"/>
         <source>Select text…</source>
         <translation>Seleziona testo…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1013"/>
+        <location filename="../qml/EditorWindow.qml" line="990"/>
         <source>Save as…</source>
         <translation>Salva come…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1020"/>
+        <location filename="../qml/EditorWindow.qml" line="995"/>
         <source>Save as GIF</source>
         <translation>Salva come GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1022"/>
+        <location filename="../qml/EditorWindow.qml" line="997"/>
         <source>Needs ffmpeg</source>
         <translation>Richiede ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1032"/>
+        <location filename="../qml/EditorWindow.qml" line="1030"/>
         <source>Close (Esc)</source>
         <translation>Chiudi (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Recognizing…</source>
         <translation>Riconoscimento…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Copy selection</source>
         <translation>Copia selezione</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1048"/>
+        <location filename="../qml/EditorWindow.qml" line="1046"/>
         <source>Highlight selection</source>
         <translation>Evidenzia selezione</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1058"/>
+        <location filename="../qml/EditorWindow.qml" line="1056"/>
         <source>Redact selection</source>
         <translation>Oscura selezione</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1069"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>Auto-redact</source>
         <translation>Oscuramento automatico</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1072"/>
+        <location filename="../qml/EditorWindow.qml" line="1070"/>
         <source>E-mail addresses</source>
         <translation>Indirizzi e-mail</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1076"/>
+        <location filename="../qml/EditorWindow.qml" line="1074"/>
         <source>IP addresses</source>
         <translation>Indirizzi IP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1080"/>
+        <location filename="../qml/EditorWindow.qml" line="1078"/>
         <source>Long numbers</source>
         <translation>Numeri lunghi</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1088"/>
+        <location filename="../qml/EditorWindow.qml" line="1086"/>
         <source>Select all</source>
         <translation>Seleziona tutto</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1094"/>
+        <location filename="../qml/EditorWindow.qml" line="1092"/>
         <source>Done</source>
         <translation>Fatto</translation>
     </message>
@@ -8151,6 +8166,15 @@ Si applica alla prossima cattura.</translation>
         <location filename="../external/unisic-kit/qml/components/UShortcutsHelp.qml" line="155"/>
         <source>Press Ctrl+/ or Esc to close</source>
         <translation>Premi Ctrl+/ o Esc per chiudere</translation>
+    </message>
+</context>
+<context>
+    <name>USplitMenuButton</name>
+    <message>
+        <location filename="../qml/components/USplitMenuButton.qml" line="184"/>
+        <location filename="../qml/components/USplitMenuButton.qml" line="195"/>
+        <source>More save options</source>
+        <translation>Altre opzioni di salvataggio</translation>
     </message>
 </context>
 <context>

@@ -2569,97 +2569,112 @@
         <translation>Сохранить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Overwrite (Ctrl+S)</source>
+        <translation>Перезаписать (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Save (Ctrl+S)</source>
+        <translation>Сохранить (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="987"/>
+        <source>More save options</source>
+        <translation>Другие варианты сохранения</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Uploading…</source>
         <translation>Отправка…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Upload</source>
         <translation>Отправить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1005"/>
+        <location filename="../qml/EditorWindow.qml" line="1019"/>
         <source>More</source>
         <translation>Ещё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1007"/>
+        <location filename="../qml/EditorWindow.qml" line="1021"/>
         <source>Copy all text</source>
         <translation>Копировать весь текст</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1023"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1013"/>
+        <location filename="../qml/EditorWindow.qml" line="990"/>
         <source>Save as…</source>
         <translation>Сохранить как…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1020"/>
+        <location filename="../qml/EditorWindow.qml" line="995"/>
         <source>Save as GIF</source>
         <translation>Сохранить как GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1022"/>
+        <location filename="../qml/EditorWindow.qml" line="997"/>
         <source>Needs ffmpeg</source>
         <translation>Требуется ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1032"/>
+        <location filename="../qml/EditorWindow.qml" line="1030"/>
         <source>Close (Esc)</source>
         <translation>Закрыть (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Recognizing…</source>
         <translation>Распознавание…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Copy selection</source>
         <translation>Копировать выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1048"/>
+        <location filename="../qml/EditorWindow.qml" line="1046"/>
         <source>Highlight selection</source>
         <translation>Подсветить выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1058"/>
+        <location filename="../qml/EditorWindow.qml" line="1056"/>
         <source>Redact selection</source>
         <translation>Скрыть выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1069"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>Auto-redact</source>
         <translation>Автоскрытие</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1072"/>
+        <location filename="../qml/EditorWindow.qml" line="1070"/>
         <source>E-mail addresses</source>
         <translation>Адреса эл. почты</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1076"/>
+        <location filename="../qml/EditorWindow.qml" line="1074"/>
         <source>IP addresses</source>
         <translation>IP-адреса</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1080"/>
+        <location filename="../qml/EditorWindow.qml" line="1078"/>
         <source>Long numbers</source>
         <translation>Длинные числа</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1088"/>
+        <location filename="../qml/EditorWindow.qml" line="1086"/>
         <source>Select all</source>
         <translation>Выделить всё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1094"/>
+        <location filename="../qml/EditorWindow.qml" line="1092"/>
         <source>Done</source>
         <translation>Готово</translation>
     </message>
@@ -8153,6 +8168,15 @@ Applies to the next capture.</source>
         <location filename="../external/unisic-kit/qml/components/UShortcutsHelp.qml" line="155"/>
         <source>Press Ctrl+/ or Esc to close</source>
         <translation>Ctrl+/ или Esc закрывает</translation>
+    </message>
+</context>
+<context>
+    <name>USplitMenuButton</name>
+    <message>
+        <location filename="../qml/components/USplitMenuButton.qml" line="184"/>
+        <location filename="../qml/components/USplitMenuButton.qml" line="195"/>
+        <source>More save options</source>
+        <translation>Другие варианты сохранения</translation>
     </message>
 </context>
 <context>

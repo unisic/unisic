@@ -2509,42 +2509,57 @@
         <translation>Kopiuj</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1005"/>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Overwrite (Ctrl+S)</source>
+        <translation>Nadpisz (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="986"/>
+        <source>Save (Ctrl+S)</source>
+        <translation>Zapisz (Ctrl+S)</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="987"/>
+        <source>More save options</source>
+        <translation>Więcej opcji zapisu</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1019"/>
         <source>More</source>
         <translation>Więcej</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1007"/>
+        <location filename="../qml/EditorWindow.qml" line="1021"/>
         <source>Copy all text</source>
         <translation>Kopiuj cały tekst</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1023"/>
         <source>Select text…</source>
         <translation>Zaznacz tekst…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1013"/>
+        <location filename="../qml/EditorWindow.qml" line="990"/>
         <source>Save as…</source>
         <translation>Zapisz jako…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1020"/>
+        <location filename="../qml/EditorWindow.qml" line="995"/>
         <source>Save as GIF</source>
         <translation>Zapisz jako GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1022"/>
+        <location filename="../qml/EditorWindow.qml" line="997"/>
         <source>Needs ffmpeg</source>
         <translation>Wymaga ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1032"/>
+        <location filename="../qml/EditorWindow.qml" line="1030"/>
         <source>Close (Esc)</source>
         <translation>Zamknij (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Copy selection</source>
         <translation>Kopiuj zaznaczenie</translation>
     </message>
@@ -2554,37 +2569,37 @@
         <translation>Usuń kształt</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1048"/>
+        <location filename="../qml/EditorWindow.qml" line="1046"/>
         <source>Highlight selection</source>
         <translation>Podświetl zaznaczenie</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1058"/>
+        <location filename="../qml/EditorWindow.qml" line="1056"/>
         <source>Redact selection</source>
         <translation>Zredaguj zaznaczenie</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1069"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>Auto-redact</source>
         <translation>Auto-redakcja</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1072"/>
+        <location filename="../qml/EditorWindow.qml" line="1070"/>
         <source>E-mail addresses</source>
         <translation>Adresy e-mail</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1076"/>
+        <location filename="../qml/EditorWindow.qml" line="1074"/>
         <source>IP addresses</source>
         <translation>Adresy IP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1080"/>
+        <location filename="../qml/EditorWindow.qml" line="1078"/>
         <source>Long numbers</source>
         <translation>Długie liczby</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1094"/>
+        <location filename="../qml/EditorWindow.qml" line="1092"/>
         <source>Done</source>
         <translation>Gotowe</translation>
     </message>
@@ -2609,7 +2624,7 @@
         <translation>Nadpisać plik?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1041"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>Recognizing…</source>
         <translation>Rozpoznawanie…</translation>
     </message>
@@ -2624,7 +2639,7 @@
         <translation>Zapisz</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1088"/>
+        <location filename="../qml/EditorWindow.qml" line="1086"/>
         <source>Select all</source>
         <translation>Zaznacz wszystko</translation>
     </message>
@@ -2654,12 +2669,12 @@
         <translation>Edytor Unisic (edycja zapisanego obrazu)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Upload</source>
         <translation>Wyślij</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="990"/>
+        <location filename="../qml/EditorWindow.qml" line="1006"/>
         <source>Uploading…</source>
         <translation>Wysyłanie…</translation>
     </message>
@@ -8153,6 +8168,15 @@ Dotyczy następnego przechwycenia.</translation>
         <location filename="../external/unisic-kit/qml/components/UShortcutsHelp.qml" line="155"/>
         <source>Press Ctrl+/ or Esc to close</source>
         <translation>Naciśnij Ctrl+/ lub Esc, aby zamknąć</translation>
+    </message>
+</context>
+<context>
+    <name>USplitMenuButton</name>
+    <message>
+        <location filename="../qml/components/USplitMenuButton.qml" line="184"/>
+        <location filename="../qml/components/USplitMenuButton.qml" line="195"/>
+        <source>More save options</source>
+        <translation>Więcej opcji zapisu</translation>
     </message>
 </context>
 <context>

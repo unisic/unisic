@@ -979,11 +979,27 @@ Window {
                     iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
                     onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
                 }
-                UButton {
+                USplitMenuButton {
                     visible: !canvas.ocrMode
                     iconName: "document-save"
                     text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
-                    variant: "tonal"; onClicked: editorWindow.doSave()
+                    tooltip: editorSession.overwriteMode ? qsTr("Overwrite (Ctrl+S)") : qsTr("Save (Ctrl+S)")
+                    dropdownTooltip: qsTr("More save options")
+                    onClicked: editorWindow.doSave()
+                    actions: [
+                        { label: qsTr("Save as…"), iconName: "document-save",
+                          hint: "Ctrl+Shift+S",
+                          trigger: function () {
+                              editorWindow.doSaveAs()
+                          } },
+                        { label: qsTr("Save as GIF"), iconName: "document-save",
+                          enabled: App.ffmpegAvailable,
+                          hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("gif")
+                          } }
+                    ]
                 }
                 UButton {
                     visible: !canvas.ocrMode
@@ -996,9 +1012,7 @@ Window {
                     width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                // "More": the occasional text actions. OCR is always built in;
-                // rows that depend on an EXTERNAL tool (ffmpeg below) are still
-                // greyed with a reason rather than hidden.
+                // "More": the occasional text actions. OCR is always built in.
                 UMenuButton {
                     visible: !canvas.ocrMode
                     anchors.verticalCenter: parent.verticalCenter
@@ -1007,23 +1021,7 @@ Window {
                         { label: qsTr("Copy all text"), iconName: "ocr",
                           trigger: function () { editorSession.ocrCopyText() } },
                         { label: qsTr("Select text…"), iconName: "select",
-                          trigger: function () { editorSession.startOcrPick() } },
-                        // Always a new file, never the overwrite Save does -
-                        // prompt user for custom destination path and format.
-                        { label: qsTr("Save as…"), iconName: "document-save",
-                          separatorBefore: true,
-                          trigger: function () {
-                              editorWindow.doSaveAs()
-                          } },
-                        // Greyed with a reason when ffmpeg is
-                        // missing, since Qt cannot write a GIF on its own.
-                        { label: qsTr("Save as GIF"), iconName: "document-save",
-                          enabled: App.ffmpegAvailable,
-                          hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
-                          trigger: function () {
-                              editorWindow.commitPendingText()
-                              editorSession.saveAs("gif")
-                          } }
+                          trigger: function () { editorSession.startOcrPick() } }
                     ]
                 }
                 UIconButton {

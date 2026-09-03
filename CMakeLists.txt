@@ -302,6 +302,7 @@ qt_add_qml_module(unisic
         qml/components/UPatchNotes.qml
         qml/components/UUpdatePrompt.qml
         qml/components/ToolPropsBar.qml
+        qml/components/USplitMenuButton.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename

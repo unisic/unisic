@@ -25,8 +25,7 @@ Rectangle {
     radius: height / 2
     color: Theme.tertiary
     border.width: 1
-    border.color: popup.opened ? Theme.accent : Theme.divider
-    Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+    border.color: Theme.divider
 
     function _openMenu(fromKeyboard) {
         if (!root.enabled)
@@ -73,15 +72,18 @@ Rectangle {
     Rectangle {
         id: leftPart
         anchors.left: parent.left
+        anchors.leftMargin: 1
         anchors.top: parent.top
+        anchors.topMargin: 1
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: 1
         implicitWidth: leftRow.implicitWidth + (root.compact ? 24 : 32)
-        topLeftRadius: root.radius
-        bottomLeftRadius: root.radius
+        topLeftRadius: Math.max(0, root.radius - 1)
+        bottomLeftRadius: Math.max(0, root.radius - 1)
         topRightRadius: 0
         bottomRightRadius: 0
-        color: lm.pressed && root.enabled ? Qt.darker(Theme.tertiary, 1.08)
-             : lm.containsMouse && root.enabled ? Qt.lighter(Theme.tertiary, 1.12)
+        color: lm.pressed && root.enabled ? Theme.alpha(Theme.accent, 0.22)
+             : lm.containsMouse && root.enabled ? Theme.alpha(Theme.accent, 0.12)
              : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
@@ -142,7 +144,7 @@ Rectangle {
         anchors.left: leftPart.right
         anchors.verticalCenter: parent.verticalCenter
         width: 1
-        height: parent.height - (root.compact ? 12 : 16)
+        height: parent.height - (root.compact ? 14 : 18)
         color: Theme.divider
     }
 
@@ -150,24 +152,29 @@ Rectangle {
     Rectangle {
         id: rightPart
         anchors.left: divider.right
+        anchors.right: parent.right
+        anchors.rightMargin: 1
         anchors.top: parent.top
+        anchors.topMargin: 1
         anchors.bottom: parent.bottom
+        anchors.bottomMargin: 1
         implicitWidth: root.compact ? 28 : 34
-        topRightRadius: root.radius
-        bottomRightRadius: root.radius
+        topRightRadius: Math.max(0, root.radius - 1)
+        bottomRightRadius: Math.max(0, root.radius - 1)
         topLeftRadius: 0
         bottomLeftRadius: 0
         color: (popup.opened || (rm.containsMouse && !rm.pressed)) && root.enabled
-             ? Qt.lighter(Theme.tertiary, 1.12)
-             : (rm.pressed && root.enabled ? Qt.darker(Theme.tertiary, 1.08) : "transparent")
+             ? Theme.alpha(Theme.accent, 0.20)
+             : (rm.pressed && root.enabled ? Theme.alpha(Theme.accent, 0.30) : "transparent")
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
 
         UIcon {
             anchors.centerIn: parent
             name: "chevron-down"
             size: 14
-            color: Theme.textSecondary
+            color: popup.opened ? Theme.accent : (rm.containsMouse ? Theme.textPrimary : Theme.textSecondary)
             rotation: popup.opened ? 180 : 0
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
             Behavior on rotation { NumberAnimation { duration: Theme.animFast } }
         }
 

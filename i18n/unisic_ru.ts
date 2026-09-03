@@ -2584,27 +2584,50 @@
         <translation>Другие варианты сохранения</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1006"/>
+        <location filename="../qml/EditorWindow.qml" line="995"/>
+        <source>Save as PNG</source>
+        <translation>Сохранить как PNG</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="997"/>
+        <location filename="../qml/EditorWindow.qml" line="1003"/>
+        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1017"/>
+        <source>Default</source>
+        <translation>По умолчанию</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1002"/>
+        <source>Save as JPEG</source>
+        <translation>Сохранить как JPEG</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1008"/>
+        <source>Save as WebP</source>
+        <translation>Сохранить как WebP</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1026"/>
         <source>Uploading…</source>
         <translation>Отправка…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1006"/>
+        <location filename="../qml/EditorWindow.qml" line="1026"/>
         <source>Upload</source>
         <translation>Отправить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1019"/>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>More</source>
         <translation>Ещё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1021"/>
+        <location filename="../qml/EditorWindow.qml" line="1041"/>
         <source>Copy all text</source>
         <translation>Копировать весь текст</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1023"/>
+        <location filename="../qml/EditorWindow.qml" line="1043"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
@@ -2614,67 +2637,67 @@
         <translation>Сохранить как…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="995"/>
+        <location filename="../qml/EditorWindow.qml" line="1014"/>
         <source>Save as GIF</source>
         <translation>Сохранить как GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="997"/>
+        <location filename="../qml/EditorWindow.qml" line="1016"/>
         <source>Needs ffmpeg</source>
         <translation>Требуется ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1030"/>
+        <location filename="../qml/EditorWindow.qml" line="1050"/>
         <source>Close (Esc)</source>
         <translation>Закрыть (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1059"/>
         <source>Recognizing…</source>
         <translation>Распознавание…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1059"/>
         <source>Copy selection</source>
         <translation>Копировать выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1046"/>
+        <location filename="../qml/EditorWindow.qml" line="1066"/>
         <source>Highlight selection</source>
         <translation>Подсветить выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1056"/>
+        <location filename="../qml/EditorWindow.qml" line="1076"/>
         <source>Redact selection</source>
         <translation>Скрыть выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1067"/>
+        <location filename="../qml/EditorWindow.qml" line="1087"/>
         <source>Auto-redact</source>
         <translation>Автоскрытие</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1070"/>
+        <location filename="../qml/EditorWindow.qml" line="1090"/>
         <source>E-mail addresses</source>
         <translation>Адреса эл. почты</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1074"/>
+        <location filename="../qml/EditorWindow.qml" line="1094"/>
         <source>IP addresses</source>
         <translation>IP-адреса</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1078"/>
+        <location filename="../qml/EditorWindow.qml" line="1098"/>
         <source>Long numbers</source>
         <translation>Длинные числа</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1086"/>
+        <location filename="../qml/EditorWindow.qml" line="1106"/>
         <source>Select all</source>
         <translation>Выделить всё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1092"/>
+        <location filename="../qml/EditorWindow.qml" line="1112"/>
         <source>Done</source>
         <translation>Готово</translation>
     </message>

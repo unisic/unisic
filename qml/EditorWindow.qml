@@ -992,9 +992,29 @@ Window {
                           trigger: function () {
                               editorWindow.doSaveAs()
                           } },
+                        { label: qsTr("Save as PNG"), iconName: "document-save",
+                          separatorBefore: true,
+                          hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("png")
+                          } },
+                        { label: qsTr("Save as JPEG"), iconName: "document-save",
+                          hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("jpg")
+                          } },
+                        { label: qsTr("Save as WebP"), iconName: "document-save",
+                          hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("webp")
+                          } },
                         { label: qsTr("Save as GIF"), iconName: "document-save",
                           enabled: App.ffmpegAvailable,
-                          hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
+                          hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
+                                : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
                           trigger: function () {
                               editorWindow.commitPendingText()
                               editorSession.saveAs("gif")

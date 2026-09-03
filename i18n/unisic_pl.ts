@@ -2524,17 +2524,40 @@
         <translation>Więcej opcji zapisu</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1019"/>
+        <location filename="../qml/EditorWindow.qml" line="995"/>
+        <source>Save as PNG</source>
+        <translation>Zapisz jako PNG</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="997"/>
+        <location filename="../qml/EditorWindow.qml" line="1003"/>
+        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1017"/>
+        <source>Default</source>
+        <translation>Domyślny</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1002"/>
+        <source>Save as JPEG</source>
+        <translation>Zapisz jako JPEG</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1008"/>
+        <source>Save as WebP</source>
+        <translation>Zapisz jako WebP</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1039"/>
         <source>More</source>
         <translation>Więcej</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1021"/>
+        <location filename="../qml/EditorWindow.qml" line="1041"/>
         <source>Copy all text</source>
         <translation>Kopiuj cały tekst</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1023"/>
+        <location filename="../qml/EditorWindow.qml" line="1043"/>
         <source>Select text…</source>
         <translation>Zaznacz tekst…</translation>
     </message>
@@ -2544,22 +2567,22 @@
         <translation>Zapisz jako…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="995"/>
+        <location filename="../qml/EditorWindow.qml" line="1014"/>
         <source>Save as GIF</source>
         <translation>Zapisz jako GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="997"/>
+        <location filename="../qml/EditorWindow.qml" line="1016"/>
         <source>Needs ffmpeg</source>
         <translation>Wymaga ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1030"/>
+        <location filename="../qml/EditorWindow.qml" line="1050"/>
         <source>Close (Esc)</source>
         <translation>Zamknij (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1059"/>
         <source>Copy selection</source>
         <translation>Kopiuj zaznaczenie</translation>
     </message>
@@ -2569,37 +2592,37 @@
         <translation>Usuń kształt</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1046"/>
+        <location filename="../qml/EditorWindow.qml" line="1066"/>
         <source>Highlight selection</source>
         <translation>Podświetl zaznaczenie</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1056"/>
+        <location filename="../qml/EditorWindow.qml" line="1076"/>
         <source>Redact selection</source>
         <translation>Zredaguj zaznaczenie</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1067"/>
+        <location filename="../qml/EditorWindow.qml" line="1087"/>
         <source>Auto-redact</source>
         <translation>Auto-redakcja</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1070"/>
+        <location filename="../qml/EditorWindow.qml" line="1090"/>
         <source>E-mail addresses</source>
         <translation>Adresy e-mail</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1074"/>
+        <location filename="../qml/EditorWindow.qml" line="1094"/>
         <source>IP addresses</source>
         <translation>Adresy IP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1078"/>
+        <location filename="../qml/EditorWindow.qml" line="1098"/>
         <source>Long numbers</source>
         <translation>Długie liczby</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1092"/>
+        <location filename="../qml/EditorWindow.qml" line="1112"/>
         <source>Done</source>
         <translation>Gotowe</translation>
     </message>
@@ -2624,7 +2647,7 @@
         <translation>Nadpisać plik?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1059"/>
         <source>Recognizing…</source>
         <translation>Rozpoznawanie…</translation>
     </message>
@@ -2639,7 +2662,7 @@
         <translation>Zapisz</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1086"/>
+        <location filename="../qml/EditorWindow.qml" line="1106"/>
         <source>Select all</source>
         <translation>Zaznacz wszystko</translation>
     </message>
@@ -2669,12 +2692,12 @@
         <translation>Edytor Unisic (edycja zapisanego obrazu)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1006"/>
+        <location filename="../qml/EditorWindow.qml" line="1026"/>
         <source>Upload</source>
         <translation>Wyślij</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1006"/>
+        <location filename="../qml/EditorWindow.qml" line="1026"/>
         <source>Uploading…</source>
         <translation>Wysyłanie…</translation>
     </message>

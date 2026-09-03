@@ -156,6 +156,8 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DBUILD_PROG=OFF
       - -DSW_BUILD=OFF
+    post-install:
+      - cp /app/lib/pkgconfig/lept_*.pc /app/lib/pkgconfig/lept.pc
     sources:
       - type: archive
         url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz

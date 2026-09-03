@@ -92,7 +92,7 @@ jobs:
           # "waylandcompositor" deployer links against (its name is misleading -
           # it actually deploys the client-side plugin dirs).
           modules: qtmultimedia qtwaylandcompositor
-          cache: true
+          cache: false
 
       - name: Build extra-cmake-modules
         # The KDE build system the three source builds below need. Noble ships

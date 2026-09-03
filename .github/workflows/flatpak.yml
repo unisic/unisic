@@ -86,7 +86,7 @@ jobs:
 
       - name: Validate the metainfo
         run: |
-          appstreamcli validate --pedantic --explain \
+          appstreamcli validate --no-net --pedantic --explain \
             resources/app.unisic.Unisic.metainfo.xml
 
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master

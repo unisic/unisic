@@ -37,6 +37,7 @@ jobs:
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
+            qt6-multimedia qt6-multimedia-ffmpeg \
             plasma-wayland-protocols \
             pipewire pipewire-audio ffmpeg grim wl-clipboard \
             xdg-desktop-portal xdg-desktop-portal-gtk \

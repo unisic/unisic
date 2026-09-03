@@ -106,6 +106,11 @@ Window {
         else editorSession.save()
     }
 
+    function doSaveAs() {
+        commitPendingText()
+        editorSession.saveAsDialog()
+    }
+
     MessageDialog {
         id: overwriteConfirm
         title: qsTr("Overwrite file?")
@@ -229,6 +234,7 @@ Window {
             if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Z) {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
+            else if ((e.modifiers & Qt.ControlModifier) && (e.modifiers & Qt.ShiftModifier) && e.key === Qt.Key_S) editorWindow.doSaveAs()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
             // Ctrl+W closes the editor window (the discard prompt still applies).
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) editorWindow.close()
@@ -1003,11 +1009,15 @@ Window {
                         { label: qsTr("Select text…"), iconName: "select",
                           trigger: function () { editorSession.startOcrPick() } },
                         // Always a new file, never the overwrite Save does -
-                        // the extension changes, so there is nothing to
-                        // overwrite. Greyed with a reason when ffmpeg is
+                        // prompt user for custom destination path and format.
+                        { label: qsTr("Save as…"), iconName: "document-save",
+                          separatorBefore: true,
+                          trigger: function () {
+                              editorWindow.doSaveAs()
+                          } },
+                        // Greyed with a reason when ffmpeg is
                         // missing, since Qt cannot write a GIF on its own.
                         { label: qsTr("Save as GIF"), iconName: "document-save",
-                          separatorBefore: true,
                           enabled: App.ffmpegAvailable,
                           hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
                           trigger: function () {

@@ -2957,8 +2957,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                 startDir + QLatin1Char('/') + fileName,
                 tr("Images (*.png *.jpg *.jpeg *.webp)"));
             if (!chosen.isEmpty()) {
-                const QFileInfo fi(chosen);
-                path = saveImageTo(output, fi.absolutePath(), fi.fileName());
+                path = saveImageExact(output, chosen);
                 if (path.isEmpty())
                     showToast(tr("Could not save to %1").arg(chosen), true);
             }
@@ -4531,6 +4530,66 @@ bool AppContext::overwriteImageFile(const QImage &img, const QString &path)
         return false;
     }
     return true;
+}
+
+QString AppContext::saveImageExact(const QImage &img, const QString &targetPath,
+                                   bool allowAutoConvert)
+{
+    if (targetPath.isEmpty() || img.isNull())
+        return {};
+
+    QString ext = QFileInfo(targetPath).suffix().toLower();
+    if (ext != QLatin1String("png") && ext != QLatin1String("jpg")
+        && ext != QLatin1String("jpeg") && ext != QLatin1String("webp")
+        && ext != QLatin1String("gif")) {
+        ext = m_settings->imageFormat().toLower();
+    }
+
+    QImage stripped;
+    if (m_settings->stripMetadata() && img.depth() >= 24
+        && (!img.textKeys().isEmpty() || img.dotsPerMeterX() != 0 || img.dotsPerMeterY() != 0))
+        stripped = QImage(img.constBits(), img.width(), img.height(),
+                          img.bytesPerLine(), img.format()).copy();
+    const QImage &toSave = stripped.isNull() ? img : stripped;
+
+    const ImageEncode::Result enc =
+        ImageEncode::encode(toSave, ext, m_settings->imageQuality());
+    if (!enc.ok())
+        return {};
+    if (enc.fallbackReason == QLatin1String("alpha"))
+        showToast(tr("Saved as PNG to keep transparency"));
+    else if (enc.fallbackReason == QLatin1String("gif"))
+        showToast(tr("GIF needs ffmpeg. Saved as PNG"));
+    else if (enc.fallbackReason == QLatin1String("encoder"))
+        showToast(tr("%1 could not hold this image. Saved as PNG").arg(ext.toUpper()));
+
+    QString finalPath = targetPath;
+    const QString targetExt = QFileInfo(targetPath).suffix();
+    if (targetExt.isEmpty()) {
+        finalPath += QLatin1Char('.') + enc.format;
+    } else if (!FilenameTemplate::sameFormat(targetExt, enc.format)) {
+        finalPath = QFileInfo(targetPath).path() + QLatin1Char('/')
+                  + QFileInfo(targetPath).completeBaseName() + QLatin1Char('.') + enc.format;
+    }
+
+    QDir().mkpath(QFileInfo(finalPath).absolutePath());
+
+    QSaveFile f(finalPath);
+    if (!f.open(QIODevice::WriteOnly)) {
+        showToast(tr("Can't write %1").arg(QFileInfo(finalPath).fileName()), true);
+        return {};
+    }
+    f.write(enc.bytes);
+    if (!f.commit()) {
+        showToast(tr("Can't write %1").arg(QFileInfo(finalPath).fileName()), true);
+        return {};
+    }
+
+    if (allowAutoConvert)
+        finalPath = autoConvertIfLarge(finalPath, toSave);
+    if (m_settings->openAfterSave())
+        openFile(finalPath);
+    return finalPath;
 }
 
 QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName,

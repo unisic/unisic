@@ -613,6 +613,11 @@ public:
                           bool allowAutoConvert = true);
     QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {},
                         bool allowAutoConvert = true);
+    // Saves an image directly to targetPath without a collision-dedup suffix,
+    // encoded according to the target file's extension. Used when the path was
+    // explicitly chosen by the user (e.g. Save As dialog).
+    QString saveImageExact(const QImage &img, const QString &targetPath,
+                           bool allowAutoConvert = true);
     // Overwrites an EXISTING image file in place with `img`, encoded for the
     // extension that file already has (so a .jpg keeps the quality setting and
     // a .gif goes through ffmpeg instead of failing). Toasts and returns false

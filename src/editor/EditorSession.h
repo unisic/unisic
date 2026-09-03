@@ -34,6 +34,8 @@ public:
     // always into a NEW file: a different format means a different extension,
     // so overwriting is not on the table even in overwrite mode.
     Q_INVOKABLE QString saveAs(const QString &format);
+    // Prompts the user with a native file dialog (QFileDialog) to choose a destination path and format.
+    Q_INVOKABLE QString saveAsDialog();
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text

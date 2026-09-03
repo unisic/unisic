@@ -19,8 +19,8 @@
         <translation>Не удалось переместить %1 в корзину; файл остался на диске</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3077"/>
-        <location filename="../src/AppContext.cpp" line="4718"/>
+        <location filename="../src/AppContext.cpp" line="3076"/>
+        <location filename="../src/AppContext.cpp" line="4777"/>
         <source>Copied to clipboard</source>
         <translation>Скопировано в буфер обмена</translation>
     </message>
@@ -81,7 +81,7 @@
         <translation>Dev: правка фигуры: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5688"/>
+        <location filename="../src/AppContext.cpp" line="5747"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2014"/>
         <source>Quit</source>
         <translation>Выход</translation>
@@ -373,7 +373,7 @@
         <translation>нет</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5413"/>
+        <location filename="../src/AppContext.cpp" line="5472"/>
         <location filename="../src/diag/SmokeTests.cpp" line="3545"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Горячая клавиша занята другим приложением: %1. Выберите другую клавишу в «Настройки → Горячие клавиши» или освободите её в «Параметры системы → Комбинации клавиш».</translation>
@@ -390,116 +390,116 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="2865"/>
-        <location filename="../src/AppContext.cpp" line="3035"/>
-        <location filename="../src/AppContext.cpp" line="4406"/>
+        <location filename="../src/AppContext.cpp" line="3034"/>
+        <location filename="../src/AppContext.cpp" line="4405"/>
         <source>Saved %1</source>
         <translation>Сохранено: %1</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="2882"/>
-        <location filename="../src/AppContext.cpp" line="3022"/>
-        <location filename="../src/AppContext.cpp" line="4025"/>
-        <location filename="../src/AppContext.cpp" line="4045"/>
-        <location filename="../src/AppContext.cpp" line="4221"/>
-        <location filename="../src/AppContext.cpp" line="4243"/>
+        <location filename="../src/AppContext.cpp" line="3021"/>
+        <location filename="../src/AppContext.cpp" line="4024"/>
+        <location filename="../src/AppContext.cpp" line="4044"/>
+        <location filename="../src/AppContext.cpp" line="4220"/>
+        <location filename="../src/AppContext.cpp" line="4242"/>
         <source>Upload failed: %1</source>
         <translation>Не удалось отправить: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2971"/>
+        <location filename="../src/AppContext.cpp" line="2970"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>Не удалось сохранить в %1. Проверьте папку сохранения в настройках</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3211"/>
+        <location filename="../src/AppContext.cpp" line="3210"/>
         <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</source>
         <translation>Изображения (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3212"/>
+        <location filename="../src/AppContext.cpp" line="3211"/>
         <source>Recordings (*.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Записи (*.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3213"/>
+        <location filename="../src/AppContext.cpp" line="3212"/>
         <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Изображения и записи (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3215"/>
+        <location filename="../src/AppContext.cpp" line="3214"/>
         <source>All files (*)</source>
         <translation>Все файлы (*)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3220"/>
+        <location filename="../src/AppContext.cpp" line="3219"/>
         <source>Open an image to edit</source>
         <translation>Открыть изображение для правки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3223"/>
+        <location filename="../src/AppContext.cpp" line="3222"/>
         <source>Open a recording to trim</source>
         <translation>Открыть запись для обрезки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4885"/>
-        <location filename="../src/AppContext.cpp" line="4920"/>
+        <location filename="../src/AppContext.cpp" line="4944"/>
+        <location filename="../src/AppContext.cpp" line="4979"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Ни один из выбранных снимков не сохранён на диске.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4889"/>
+        <location filename="../src/AppContext.cpp" line="4948"/>
         <source>Export captures to ZIP</source>
         <translation>Экспорт снимков в ZIP</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4891"/>
+        <location filename="../src/AppContext.cpp" line="4950"/>
         <source>ZIP archive (*.zip)</source>
         <translation>Архив ZIP (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4894"/>
+        <location filename="../src/AppContext.cpp" line="4953"/>
         <source>Exporting %1 captures…</source>
         <translation>Экспорт снимков (%1)…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4911"/>
+        <location filename="../src/AppContext.cpp" line="4970"/>
         <source>The “zip” program is not installed - install it and try again.</source>
         <translation>Программа «zip» не установлена - установите её и попробуйте снова.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4937"/>
+        <location filename="../src/AppContext.cpp" line="4996"/>
         <source>Could not create a temporary folder: %1</source>
         <translation>Не удалось создать временную папку: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4964"/>
+        <location filename="../src/AppContext.cpp" line="5023"/>
         <source>Exported %1 captures to %2</source>
         <translation>Экспортировано снимков: %1 в %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4968"/>
+        <location filename="../src/AppContext.cpp" line="5027"/>
         <source>Export failed: %1</source>
         <translation>Не удалось экспортировать: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4969"/>
+        <location filename="../src/AppContext.cpp" line="5028"/>
         <source>zip exited with code %1</source>
         <translation>zip завершился с кодом %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4978"/>
+        <location filename="../src/AppContext.cpp" line="5037"/>
         <source>Could not run the “zip” program.</source>
         <translation>Не удалось запустить программу «zip».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5095"/>
-        <location filename="../src/AppContext.cpp" line="5363"/>
-        <location filename="../src/AppContext.cpp" line="5667"/>
+        <location filename="../src/AppContext.cpp" line="5154"/>
+        <location filename="../src/AppContext.cpp" line="5422"/>
+        <location filename="../src/AppContext.cpp" line="5726"/>
         <source>Copy last capture</source>
         <translation>Копировать последний снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3085"/>
+        <location filename="../src/AppContext.cpp" line="3084"/>
         <source>Uploaded, link copied</source>
         <translation>Отправлено, ссылка скопирована</translation>
     </message>
@@ -931,7 +931,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="2945"/>
-        <location filename="../src/AppContext.cpp" line="2963"/>
+        <location filename="../src/AppContext.cpp" line="2962"/>
         <source>Could not save to %1</source>
         <translation>Не удалось сохранить в %1</translation>
     </message>
@@ -941,114 +941,115 @@
         <translation>Dev: скрывать во время снимка: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3073"/>
+        <location filename="../src/AppContext.cpp" line="3072"/>
         <source>No capture to copy yet</source>
         <translation>Пока нечего копировать</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3087"/>
+        <location filename="../src/AppContext.cpp" line="3086"/>
         <source>Uploaded: %1</source>
         <translation>Отправлено: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3773"/>
+        <location filename="../src/AppContext.cpp" line="3772"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>Не удалось открыть %1 для правки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3783"/>
+        <location filename="../src/AppContext.cpp" line="3782"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>Не удалось открыть %1 для предпросмотра</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3944"/>
+        <location filename="../src/AppContext.cpp" line="3943"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Звуки (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3945"/>
+        <location filename="../src/AppContext.cpp" line="3944"/>
         <source>Sounds (*.wav)</source>
         <translation>Звуки (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3947"/>
+        <location filename="../src/AppContext.cpp" line="3946"/>
         <source>Add capture sound</source>
         <translation>Добавить звук снимка</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3954"/>
+        <location filename="../src/AppContext.cpp" line="3953"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Неподдерживаемый формат звука (нужен WAV или OGG)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3963"/>
+        <location filename="../src/AppContext.cpp" line="3962"/>
         <source>Could not copy the sound file</source>
         <translation>Не удалось скопировать звуковой файл</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3967"/>
+        <location filename="../src/AppContext.cpp" line="3966"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Добавлен звук снимка «%1»</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3975"/>
+        <location filename="../src/AppContext.cpp" line="3974"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>Не удалось открыть %1 для копирования</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3979"/>
+        <location filename="../src/AppContext.cpp" line="3978"/>
         <source>Image copied</source>
         <translation>Изображение скопировано</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3986"/>
-        <location filename="../src/AppContext.cpp" line="4730"/>
+        <location filename="../src/AppContext.cpp" line="3985"/>
+        <location filename="../src/AppContext.cpp" line="4789"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Сначала сохраните снимок, чтобы скопировать путь к файлу</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4000"/>
+        <location filename="../src/AppContext.cpp" line="3999"/>
         <source>Uploading %1…</source>
         <translation>Отправка %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4032"/>
-        <location filename="../src/AppContext.cpp" line="4050"/>
+        <location filename="../src/AppContext.cpp" line="4031"/>
+        <location filename="../src/AppContext.cpp" line="4049"/>
         <source>Uploaded</source>
         <translation>Отправлено</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4159"/>
+        <location filename="../src/AppContext.cpp" line="4158"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Не удалось открыть предпросмотр</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4577"/>
+        <location filename="../src/AppContext.cpp" line="4560"/>
+        <location filename="../src/AppContext.cpp" line="4636"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Сохранено в PNG, чтобы сохранить прозрачность</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4699"/>
+        <location filename="../src/AppContext.cpp" line="4758"/>
         <source>No valid link to turn into a QR code</source>
         <translation>Нет подходящей ссылки для QR-кода</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4706"/>
+        <location filename="../src/AppContext.cpp" line="4765"/>
         <source>Could not create QR code</source>
         <translation>Не удалось создать QR-код</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4710"/>
+        <location filename="../src/AppContext.cpp" line="4769"/>
         <source>QR code preview</source>
         <translation>Предпросмотр QR-кода</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4743"/>
+        <location filename="../src/AppContext.cpp" line="4802"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Сначала сохраните или отправьте снимок, чтобы скопировать ссылку на него</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3045"/>
+        <location filename="../src/AppContext.cpp" line="3044"/>
         <source>Could not encode the capture</source>
         <translation>Не удалось закодировать снимок</translation>
     </message>
@@ -1065,61 +1066,61 @@
         <translation>Отсутствует в этой установке: %1.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3135"/>
+        <location filename="../src/AppContext.cpp" line="3134"/>
         <source>Choose watermark image</source>
         <translation>Выберите изображение водяного знака</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3136"/>
+        <location filename="../src/AppContext.cpp" line="3135"/>
         <source>Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</source>
         <translation>Изображения (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3144"/>
+        <location filename="../src/AppContext.cpp" line="3143"/>
         <source>The watermark image is invalid or too large</source>
         <translation>Изображение водяного знака повреждено или слишком велико</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3149"/>
+        <location filename="../src/AppContext.cpp" line="3148"/>
         <source>Could not load the watermark image</source>
         <translation>Не удалось загрузить изображение водяного знака</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3227"/>
+        <location filename="../src/AppContext.cpp" line="3226"/>
         <source>Open image or recording</source>
         <translation>Открыть изображение или запись</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3261"/>
-        <location filename="../src/AppContext.cpp" line="3304"/>
+        <location filename="../src/AppContext.cpp" line="3260"/>
+        <location filename="../src/AppContext.cpp" line="3303"/>
         <source>Unisic cannot edit this file type</source>
         <translation>Unisic не умеет править файлы этого типа</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3397"/>
+        <location filename="../src/AppContext.cpp" line="3396"/>
         <source>Recording file not found</source>
         <translation>Файл записи не найден</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3402"/>
-        <location filename="../src/AppContext.cpp" line="3453"/>
+        <location filename="../src/AppContext.cpp" line="3401"/>
+        <location filename="../src/AppContext.cpp" line="3452"/>
         <source>Trimming requires ffprobe from the ffmpeg package</source>
         <translation>Для обрезки нужен ffprobe из пакета ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3442"/>
+        <location filename="../src/AppContext.cpp" line="3441"/>
         <source>Could not read the recording duration</source>
         <translation>Не удалось определить длительность записи</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3590"/>
+        <location filename="../src/AppContext.cpp" line="3589"/>
         <source>Invalid trim range</source>
         <translation>Неверный диапазон обрезки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3499"/>
-        <location filename="../src/AppContext.cpp" line="3520"/>
-        <location filename="../src/AppContext.cpp" line="3594"/>
+        <location filename="../src/AppContext.cpp" line="3498"/>
+        <location filename="../src/AppContext.cpp" line="3519"/>
+        <location filename="../src/AppContext.cpp" line="3593"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Для обрезки нужен ffmpeg</translation>
     </message>
@@ -1159,7 +1160,7 @@
         <translation>Микрофон</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3626"/>
+        <location filename="../src/AppContext.cpp" line="3625"/>
         <location filename="../src/diag/SmokeTests.cpp" line="1173"/>
         <source>Mix</source>
         <translation>Микс</translation>
@@ -1300,207 +1301,211 @@
         <translation>Dev: горячие клавиши X11: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3243"/>
-        <location filename="../src/AppContext.cpp" line="4369"/>
+        <location filename="../src/AppContext.cpp" line="3242"/>
+        <location filename="../src/AppContext.cpp" line="4368"/>
         <source>Can&apos;t find %1</source>
         <translation>Не удалось найти %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3250"/>
-        <location filename="../src/AppContext.cpp" line="3303"/>
+        <location filename="../src/AppContext.cpp" line="3249"/>
+        <location filename="../src/AppContext.cpp" line="3302"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic открывает файлы, а не папки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3280"/>
+        <location filename="../src/AppContext.cpp" line="3279"/>
         <source>Unisic can only open files from this computer</source>
         <translation>Unisic может открывать файлы только с этого компьютера</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3281"/>
+        <location filename="../src/AppContext.cpp" line="3280"/>
         <source>Nothing to open in that drop</source>
         <translation>В перетащенном нет ничего, что можно открыть</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3324"/>
+        <location filename="../src/AppContext.cpp" line="3323"/>
         <source>Opened %1. Drop one file at a time to open the others.</source>
         <translation>Открыт %1. Перетаскивайте по одному файлу, чтобы открыть остальные.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3326"/>
+        <location filename="../src/AppContext.cpp" line="3325"/>
         <source>Opened %1. Nothing else in that drop is a file Unisic can open.</source>
         <translation>Открыт %1. Больше в перетащенном нет файлов, которые Unisic может открыть.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3356"/>
+        <location filename="../src/AppContext.cpp" line="3355"/>
         <source>The clipboard is empty</source>
         <translation>Буфер обмена пуст</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3391"/>
+        <location filename="../src/AppContext.cpp" line="3390"/>
         <source>The clipboard holds no image to paste</source>
         <translation>В буфере обмена нет изображения для вставки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3563"/>
-        <location filename="../src/AppContext.cpp" line="3578"/>
-        <location filename="../src/AppContext.cpp" line="3712"/>
+        <location filename="../src/AppContext.cpp" line="3562"/>
+        <location filename="../src/AppContext.cpp" line="3577"/>
+        <location filename="../src/AppContext.cpp" line="3711"/>
         <source>Trim failed: %1</source>
         <translation>Не удалось обрезать: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3604"/>
+        <location filename="../src/AppContext.cpp" line="3603"/>
         <source>Trimming recording…</source>
         <translation>Обрезка записи…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3733"/>
+        <location filename="../src/AppContext.cpp" line="3732"/>
         <source>External action failed: %1</source>
         <translation>Внешнее действие не выполнено: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3739"/>
+        <location filename="../src/AppContext.cpp" line="3738"/>
         <source>External action created %1</source>
         <translation>Внешнее действие создало %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3741"/>
+        <location filename="../src/AppContext.cpp" line="3740"/>
         <source>External action finished</source>
         <translation>Внешнее действие завершено</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3759"/>
+        <location filename="../src/AppContext.cpp" line="3758"/>
         <source>Could not prepare the external action input</source>
         <translation>Не удалось подготовить данные для внешнего действия</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4016"/>
+        <location filename="../src/AppContext.cpp" line="4015"/>
         <source>Could not encode %1 for upload</source>
         <translation>Не удалось закодировать %1 для отправки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4373"/>
+        <location filename="../src/AppContext.cpp" line="4372"/>
         <source>Already a %1 file</source>
         <translation>Это уже файл %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4382"/>
+        <location filename="../src/AppContext.cpp" line="4381"/>
         <source>%1 is animated. Trim it instead</source>
         <translation>%1 анимирован. Обрежьте его вместо этого</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4387"/>
+        <location filename="../src/AppContext.cpp" line="4386"/>
         <source>Can&apos;t read %1</source>
         <translation>Не удалось прочитать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4400"/>
+        <location filename="../src/AppContext.cpp" line="4399"/>
         <source>Couldn&apos;t convert %1</source>
         <translation>Не удалось преобразовать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4495"/>
+        <location filename="../src/AppContext.cpp" line="4494"/>
         <source>Over %1 MB, so it was converted to %2 (%3 instead of %4)</source>
         <translation>Больше %1 МБ, поэтому файл сконвертирован в %2 (%3 вместо %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4514"/>
+        <location filename="../src/AppContext.cpp" line="4513"/>
         <source>GIF needs ffmpeg. Use Save as to write another format</source>
         <translation>Для GIF нужен ffmpeg. Используйте Сохранить как, чтобы записать другой формат</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4515"/>
+        <location filename="../src/AppContext.cpp" line="4514"/>
         <source>Can&apos;t write %1 back as %2. Use Save as</source>
         <translation>Не удаётся записать %1 обратно как %2. Используйте Сохранить как</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4525"/>
-        <location filename="../src/AppContext.cpp" line="4530"/>
+        <location filename="../src/AppContext.cpp" line="4524"/>
+        <location filename="../src/AppContext.cpp" line="4529"/>
+        <location filename="../src/AppContext.cpp" line="4579"/>
+        <location filename="../src/AppContext.cpp" line="4584"/>
         <source>Can&apos;t write %1</source>
         <translation>Не удаётся записать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4579"/>
+        <location filename="../src/AppContext.cpp" line="4562"/>
+        <location filename="../src/AppContext.cpp" line="4638"/>
         <source>GIF needs ffmpeg. Saved as PNG</source>
         <translation>GIF требует ffmpeg. Сохранено как PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4581"/>
+        <location filename="../src/AppContext.cpp" line="4564"/>
+        <location filename="../src/AppContext.cpp" line="4640"/>
         <source>%1 could not hold this image. Saved as PNG</source>
         <translation>%1 не смог вместить это изображение. Сохранено в PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4753"/>
+        <location filename="../src/AppContext.cpp" line="4812"/>
         <source>Unknown copy format</source>
         <translation>Неизвестный формат копирования</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4853"/>
+        <location filename="../src/AppContext.cpp" line="4912"/>
         <source>Export Unisic settings</source>
         <translation>Экспорт настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4855"/>
-        <location filename="../src/AppContext.cpp" line="4866"/>
+        <location filename="../src/AppContext.cpp" line="4914"/>
+        <location filename="../src/AppContext.cpp" line="4925"/>
         <source>Unisic settings (*.json)</source>
         <translation>Настройки Unisic (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4859"/>
+        <location filename="../src/AppContext.cpp" line="4918"/>
         <source>Settings exported</source>
         <translation>Настройки экспортированы</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4865"/>
+        <location filename="../src/AppContext.cpp" line="4924"/>
         <source>Import Unisic settings</source>
         <translation>Импорт настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4870"/>
-        <location filename="../src/AppContext.cpp" line="5080"/>
+        <location filename="../src/AppContext.cpp" line="4929"/>
+        <location filename="../src/AppContext.cpp" line="5139"/>
         <source>Settings imported</source>
         <translation>Настройки импортированы</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4993"/>
+        <location filename="../src/AppContext.cpp" line="5052"/>
         <source>No file selected</source>
         <translation>Файл не выбран</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5024"/>
-        <location filename="../src/AppContext.cpp" line="5035"/>
+        <location filename="../src/AppContext.cpp" line="5083"/>
+        <location filename="../src/AppContext.cpp" line="5094"/>
         <source>Cannot write %1</source>
         <translation>Не удалось записать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5038"/>
+        <location filename="../src/AppContext.cpp" line="5097"/>
         <source>Settings exported to %1</source>
         <translation>Настройки экспортированы в %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5047"/>
+        <location filename="../src/AppContext.cpp" line="5106"/>
         <source>Cannot read %1</source>
         <translation>Не удалось прочитать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5050"/>
+        <location filename="../src/AppContext.cpp" line="5109"/>
         <source>Not a Unisic settings file</source>
         <translation>Это не файл настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5089"/>
-        <location filename="../src/AppContext.cpp" line="5639"/>
+        <location filename="../src/AppContext.cpp" line="5148"/>
+        <location filename="../src/AppContext.cpp" line="5698"/>
         <source>Capture full screen</source>
         <translation>Снимок всего экрана</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5090"/>
-        <location filename="../src/AppContext.cpp" line="5638"/>
+        <location filename="../src/AppContext.cpp" line="5149"/>
+        <location filename="../src/AppContext.cpp" line="5697"/>
         <source>Capture region</source>
         <translation>Снимок области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5091"/>
+        <location filename="../src/AppContext.cpp" line="5150"/>
         <source>Capture active window</source>
         <translation>Снимок активного окна</translation>
     </message>
@@ -1509,17 +1514,17 @@
         <translation type="vanished">Запись активного окна (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5139"/>
+        <location filename="../src/AppContext.cpp" line="5198"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Этот рабочий стол нельзя настроить автоматически - используйте команды ниже.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5144"/>
+        <location filename="../src/AppContext.cpp" line="5203"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Не удалось добавить сочетания клавиш: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="5148"/>
+        <location filename="../src/AppContext.cpp" line="5207"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>Добавлено %n сочетание для %1</numerusform>
@@ -1528,22 +1533,22 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5152"/>
+        <location filename="../src/AppContext.cpp" line="5211"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(пропущено, нет подходящей клавиши: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5159"/>
+        <location filename="../src/AppContext.cpp" line="5218"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 уже использует эти клавиши - измените их в разделе «Горячие клавиши»: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5170"/>
+        <location filename="../src/AppContext.cpp" line="5229"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Не удалось удалить сочетания клавиш: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5173"/>
+        <location filename="../src/AppContext.cpp" line="5232"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Сочетания клавиш Unisic удалены из %1</translation>
     </message>
@@ -1553,39 +1558,39 @@
         <translation>Dev: сочетания клавиш рабочего стола: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5376"/>
-        <location filename="../src/AppContext.cpp" line="5640"/>
+        <location filename="../src/AppContext.cpp" line="5435"/>
+        <location filename="../src/AppContext.cpp" line="5699"/>
         <source>Capture screen under cursor</source>
         <translation>Снимок экрана под курсором</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5378"/>
-        <location filename="../src/AppContext.cpp" line="5642"/>
+        <location filename="../src/AppContext.cpp" line="5437"/>
+        <location filename="../src/AppContext.cpp" line="5701"/>
         <source>Re-capture last region</source>
         <translation>Повторить снимок последней области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5092"/>
+        <location filename="../src/AppContext.cpp" line="5151"/>
         <source>Record GIF (start/stop)</source>
         <translation>Запись GIF (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5093"/>
+        <location filename="../src/AppContext.cpp" line="5152"/>
         <source>Record video (start/stop)</source>
         <translation>Запись видео (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5094"/>
+        <location filename="../src/AppContext.cpp" line="5153"/>
         <source>OCR region (copy text)</source>
         <translation>OCR области (копировать текст)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5369"/>
+        <location filename="../src/AppContext.cpp" line="5428"/>
         <source>Open quick task chooser</source>
         <translation>Открыть быстрый выбор задачи</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5096"/>
+        <location filename="../src/AppContext.cpp" line="5155"/>
         <source>Start/save instant replay</source>
         <translation>Запустить/сохранить мгновенный повтор</translation>
     </message>
@@ -1599,159 +1604,159 @@
         <translation>Отсутствует в этой установке. Пакет Tesseract «osd» необходим для определения письменности с помощью OCR.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5345"/>
-        <location filename="../src/AppContext.cpp" line="5465"/>
+        <location filename="../src/AppContext.cpp" line="5404"/>
+        <location filename="../src/AppContext.cpp" line="5524"/>
         <source>Stop recording (emergency)</source>
         <translation>Остановить запись (аварийно)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5351"/>
+        <location filename="../src/AppContext.cpp" line="5410"/>
         <source>Ctrl+Esc emergency stop unavailable: the key is taken by the system (System Settings → Shortcuts to free it)</source>
         <translation>Аварийная остановка по Ctrl+Esc недоступна: клавиша занята системой (освободите её в «Параметры системы → Комбинации клавиш»)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5357"/>
+        <location filename="../src/AppContext.cpp" line="5416"/>
         <source>Developer smoke test</source>
         <translation>Проверочный тест разработчика</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5488"/>
+        <location filename="../src/AppContext.cpp" line="5547"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys.</source>
         <translation>Горячая клавиша занята другим приложением: %1. Выберите другую клавишу в «Настройки → Горячие клавиши».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5518"/>
+        <location filename="../src/AppContext.cpp" line="5577"/>
         <source>Could not bind %1; the key is taken by another shortcut</source>
         <translation>Не удалось назначить %1; клавиша занята другим сочетанием</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5559"/>
+        <location filename="../src/AppContext.cpp" line="5618"/>
         <source>Some hotkeys could not be bound (keys taken); showing the actual state</source>
         <translation>Некоторые горячие клавиши назначить не удалось (клавиши заняты); показано фактическое состояние</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5641"/>
+        <location filename="../src/AppContext.cpp" line="5700"/>
         <source>Capture window</source>
         <translation>Снимок окна</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5644"/>
+        <location filename="../src/AppContext.cpp" line="5703"/>
         <source>Measure</source>
         <translation>Измерить</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5645"/>
+        <location filename="../src/AppContext.cpp" line="5704"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5647"/>
+        <location filename="../src/AppContext.cpp" line="5706"/>
         <source>Record video (region)</source>
         <translation>Запись видео (область)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5648"/>
+        <location filename="../src/AppContext.cpp" line="5707"/>
         <source>Record video (full screen)</source>
         <translation>Запись видео (весь экран)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5649"/>
+        <location filename="../src/AppContext.cpp" line="5708"/>
         <source>Record video (window)</source>
         <translation>Запись видео (окно)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5650"/>
+        <location filename="../src/AppContext.cpp" line="5709"/>
         <source>Record GIF (region)</source>
         <translation>Запись GIF (область)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5651"/>
+        <location filename="../src/AppContext.cpp" line="5710"/>
         <source>Record GIF (full screen)</source>
         <translation>Запись GIF (весь экран)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5652"/>
+        <location filename="../src/AppContext.cpp" line="5711"/>
         <source>Start instant replay</source>
         <translation>Запустить мгновенный повтор</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5654"/>
+        <location filename="../src/AppContext.cpp" line="5713"/>
         <source>Save instant replay</source>
         <translation>Сохранить мгновенный повтор</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5656"/>
+        <location filename="../src/AppContext.cpp" line="5715"/>
         <source>Stop recording</source>
         <translation>Остановить запись</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5671"/>
+        <location filename="../src/AppContext.cpp" line="5730"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Перезапустить для обновления до Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5677"/>
+        <location filename="../src/AppContext.cpp" line="5736"/>
         <source>Install update to Unisic %1</source>
         <translation>Установить обновление до Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5683"/>
+        <location filename="../src/AppContext.cpp" line="5742"/>
         <source>Update available - Unisic %1</source>
         <translation>Доступно обновление - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5687"/>
+        <location filename="../src/AppContext.cpp" line="5746"/>
         <source>Open Unisic</source>
         <translation>Открыть Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5842"/>
+        <location filename="../src/AppContext.cpp" line="5901"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Изображения (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5841"/>
+        <location filename="../src/AppContext.cpp" line="5900"/>
         <source>Add a tray icon</source>
         <translation>Добавить значок в трей</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5847"/>
-        <location filename="../src/AppContext.cpp" line="5886"/>
+        <location filename="../src/AppContext.cpp" line="5906"/>
+        <location filename="../src/AppContext.cpp" line="5945"/>
         <source>Could not load that image as an icon</source>
         <translation>Не удалось загрузить это изображение как значок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5867"/>
+        <location filename="../src/AppContext.cpp" line="5926"/>
         <source>Could not copy the icon into %1</source>
         <translation>Не удалось скопировать значок в %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5873"/>
+        <location filename="../src/AppContext.cpp" line="5932"/>
         <source>Icon added to your tray icons</source>
         <translation>Значок добавлен к вашим значкам в трее</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6044"/>
+        <location filename="../src/AppContext.cpp" line="6103"/>
         <source>Unisic starts hidden in the tray so its capture shortcuts work right after you log in.</source>
         <translation>Unisic запускается скрытым в трее, чтобы его горячие клавиши работали сразу после входа в систему.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6052"/>
+        <location filename="../src/AppContext.cpp" line="6111"/>
         <source>The desktop refused the autostart request</source>
         <translation>Рабочий стол отклонил запрос на автозапуск</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6060"/>
+        <location filename="../src/AppContext.cpp" line="6119"/>
         <source>Autostart was not granted</source>
         <translation>Автозапуск не разрешён</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6076"/>
+        <location filename="../src/AppContext.cpp" line="6135"/>
         <source>Could not disable autostart: cannot remove %1</source>
         <translation>Не удалось отключить автозапуск: не получается удалить %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6081"/>
+        <location filename="../src/AppContext.cpp" line="6140"/>
         <source>Could not enable autostart: cannot write %1</source>
         <translation>Не удалось включить автозапуск: не получается записать %1</translation>
     </message>
@@ -2309,98 +2314,110 @@
 <context>
     <name>EditorSession</name>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="88"/>
+        <location filename="../src/editor/EditorSession.cpp" line="90"/>
         <source>Saved (overwrote %1)</source>
         <translation>Сохранено (перезаписан %1)</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="75"/>
-        <location filename="../src/editor/EditorSession.cpp" line="91"/>
-        <location filename="../src/editor/EditorSession.cpp" line="110"/>
-        <location filename="../src/editor/EditorSession.cpp" line="123"/>
+        <location filename="../src/editor/EditorSession.cpp" line="77"/>
+        <location filename="../src/editor/EditorSession.cpp" line="93"/>
+        <location filename="../src/editor/EditorSession.cpp" line="112"/>
+        <location filename="../src/editor/EditorSession.cpp" line="125"/>
+        <location filename="../src/editor/EditorSession.cpp" line="173"/>
         <source>Save failed</source>
         <translation>Не удалось сохранить</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="80"/>
+        <location filename="../src/editor/EditorSession.cpp" line="82"/>
         <source>Saved as %1</source>
         <translation>Сохранено как %1</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="108"/>
-        <location filename="../src/editor/EditorSession.cpp" line="136"/>
+        <location filename="../src/editor/EditorSession.cpp" line="110"/>
+        <location filename="../src/editor/EditorSession.cpp" line="138"/>
+        <location filename="../src/editor/EditorSession.cpp" line="184"/>
         <source>Saved to %1</source>
         <translation>Сохранено в %1</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="143"/>
+        <location filename="../src/editor/EditorSession.cpp" line="164"/>
+        <source>Images (*.png *.jpg *.jpeg *.webp);;PNG image (*.png);;JPEG image (*.jpg *.jpeg);;WebP image (*.webp);;All files (*)</source>
+        <translation>Изображения (*.png *.jpg *.jpeg *.webp);;Изображение PNG (*.png);;Изображение JPEG (*.jpg *.jpeg);;Изображение WebP (*.webp);;Все файлы (*)</translation>
+    </message>
+    <message>
+        <location filename="../src/editor/EditorSession.cpp" line="167"/>
+        <source>Save capture as…</source>
+        <translation>Сохранить снимок как…</translation>
+    </message>
+    <message>
+        <location filename="../src/editor/EditorSession.cpp" line="191"/>
         <source>Copied to clipboard</source>
         <translation>Скопировано в буфер обмена</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="148"/>
+        <location filename="../src/editor/EditorSession.cpp" line="196"/>
         <source>Uploading…</source>
         <translation>Отправка…</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="154"/>
+        <location filename="../src/editor/EditorSession.cpp" line="202"/>
         <source>Uploaded, link copied: %1</source>
         <translation>Отправлено, ссылка скопирована: %1</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="155"/>
+        <location filename="../src/editor/EditorSession.cpp" line="203"/>
         <source>Upload failed: %1</source>
         <translation>Не удалось отправить: %1</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="170"/>
+        <location filename="../src/editor/EditorSession.cpp" line="218"/>
         <source>Recognizing text…</source>
         <translation>Распознавание текста…</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="189"/>
+        <location filename="../src/editor/EditorSession.cpp" line="237"/>
         <source>No text found</source>
         <translation>Текст не найден</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="191"/>
+        <location filename="../src/editor/EditorSession.cpp" line="239"/>
         <source>Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy</source>
         <translation>Текст распознан - щёлкните по строке, дважды по слову или потяните для букв · Ctrl+A всё · Ctrl+C копировать</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="202"/>
-        <location filename="../src/editor/EditorSession.cpp" line="212"/>
-        <location filename="../src/editor/EditorSession.cpp" line="221"/>
+        <location filename="../src/editor/EditorSession.cpp" line="250"/>
+        <location filename="../src/editor/EditorSession.cpp" line="260"/>
+        <location filename="../src/editor/EditorSession.cpp" line="269"/>
         <source>No text selected</source>
         <translation>Текст не выделен</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="206"/>
+        <location filename="../src/editor/EditorSession.cpp" line="254"/>
         <source>Copied selected text</source>
         <translation>Выделенный текст скопирован</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="215"/>
+        <location filename="../src/editor/EditorSession.cpp" line="263"/>
         <source>Highlighted selected text</source>
         <translation>Выделенный текст подсвечен</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="224"/>
+        <location filename="../src/editor/EditorSession.cpp" line="272"/>
         <source>Redacted selected text</source>
         <translation>Выделенный текст скрыт</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="233"/>
+        <location filename="../src/editor/EditorSession.cpp" line="281"/>
         <source>Not a valid search pattern</source>
         <translation>Неверный шаблон поиска</translation>
     </message>
     <message>
-        <location filename="../src/editor/EditorSession.cpp" line="240"/>
+        <location filename="../src/editor/EditorSession.cpp" line="288"/>
         <source>Nothing matched</source>
         <translation>Совпадений нет</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/editor/EditorSession.cpp" line="243"/>
+        <location filename="../src/editor/EditorSession.cpp" line="291"/>
         <source>Redacted %n match(es)</source>
         <translation>
             <numerusform>Скрыто %n совпадение</numerusform>
@@ -2422,222 +2439,227 @@
         <translation>Редактор Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="111"/>
+        <location filename="../qml/EditorWindow.qml" line="116"/>
         <source>Overwrite file?</source>
         <translation>Перезаписать файл?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="112"/>
+        <location filename="../qml/EditorWindow.qml" line="117"/>
         <source>This replaces the original saved image with your edited version. This can&apos;t be undone.</source>
         <translation>Это заменит исходное сохранённое изображение вашей изменённой версией. Отменить это нельзя.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="218"/>
+        <location filename="../qml/EditorWindow.qml" line="223"/>
         <source>Discard annotations?</source>
         <translation>Отбросить разметку?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="219"/>
+        <location filename="../qml/EditorWindow.qml" line="224"/>
         <source>You have unsaved annotations. Close the editor and discard them?</source>
         <translation>У вас есть несохранённая разметка. Закрыть редактор и отбросить её?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="220"/>
+        <location filename="../qml/EditorWindow.qml" line="225"/>
         <source>Discard</source>
         <translation>Отбросить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="339"/>
+        <location filename="../qml/EditorWindow.qml" line="345"/>
         <source>Minimize</source>
         <translation>Свернуть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="344"/>
+        <location filename="../qml/EditorWindow.qml" line="350"/>
         <source>Maximize</source>
         <translation>Развернуть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="350"/>
+        <location filename="../qml/EditorWindow.qml" line="356"/>
         <source>Close</source>
         <translation>Закрыть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="378"/>
+        <location filename="../qml/EditorWindow.qml" line="384"/>
         <source>Annotation tools</source>
         <translation>Инструменты разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="438"/>
+        <location filename="../qml/EditorWindow.qml" line="444"/>
         <source>%1 tool group</source>
         <translation>Группа инструментов «%1»</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="441"/>
+        <location filename="../qml/EditorWindow.qml" line="447"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
         <translation>Открывает эти инструменты на панели ниже: %1. У самой группы нет сочетания клавиш.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="455"/>
+        <location filename="../qml/EditorWindow.qml" line="461"/>
         <source>Undo</source>
         <translation>Отменить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="456"/>
+        <location filename="../qml/EditorWindow.qml" line="462"/>
         <source>Redo</source>
         <translation>Повторить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="461"/>
+        <location filename="../qml/EditorWindow.qml" line="467"/>
         <source>Apply crop</source>
         <translation>Применить обрезку</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="527"/>
+        <location filename="../qml/EditorWindow.qml" line="533"/>
         <source>Delete shape</source>
         <translation>Удалить фигуру</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="686"/>
+        <location filename="../qml/EditorWindow.qml" line="692"/>
         <source>Annotation canvas</source>
         <translation>Холст разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="687"/>
+        <location filename="../qml/EditorWindow.qml" line="693"/>
         <source>%1 by %2 pixels</source>
         <translation>%1 на %2 пикселей</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="840"/>
+        <location filename="../qml/EditorWindow.qml" line="846"/>
         <source>Annotation text</source>
         <translation>Текст разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="841"/>
+        <location filename="../qml/EditorWindow.qml" line="847"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Enter завершает, Escape отменяет</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="898"/>
+        <location filename="../qml/EditorWindow.qml" line="904"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Текст… (Ctrl+Enter завершает)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="913"/>
+        <location filename="../qml/EditorWindow.qml" line="919"/>
         <source>Click a line · double-click a word · drag for letters</source>
         <translation>Щелчок по строке · двойной щелчок по слову · протягивание для букв</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="935"/>
+        <location filename="../qml/EditorWindow.qml" line="941"/>
         <source>Editor actions</source>
         <translation>Действия редактора</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="952"/>
+        <location filename="../qml/EditorWindow.qml" line="958"/>
         <source> (fit)</source>
         <translation> (вписать)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="973"/>
+        <location filename="../qml/EditorWindow.qml" line="979"/>
         <source>Copy</source>
         <translation>Копировать</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="979"/>
+        <location filename="../qml/EditorWindow.qml" line="985"/>
         <source>Overwrite</source>
         <translation>Перезаписать</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="979"/>
+        <location filename="../qml/EditorWindow.qml" line="985"/>
         <source>Save</source>
         <translation>Сохранить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="984"/>
+        <location filename="../qml/EditorWindow.qml" line="990"/>
         <source>Uploading…</source>
         <translation>Отправка…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="984"/>
+        <location filename="../qml/EditorWindow.qml" line="990"/>
         <source>Upload</source>
         <translation>Отправить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="999"/>
+        <location filename="../qml/EditorWindow.qml" line="1005"/>
         <source>More</source>
         <translation>Ещё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1001"/>
+        <location filename="../qml/EditorWindow.qml" line="1007"/>
         <source>Copy all text</source>
         <translation>Копировать весь текст</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1003"/>
+        <location filename="../qml/EditorWindow.qml" line="1009"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1009"/>
+        <location filename="../qml/EditorWindow.qml" line="1013"/>
+        <source>Save as…</source>
+        <translation>Сохранить как…</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1020"/>
         <source>Save as GIF</source>
         <translation>Сохранить как GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1012"/>
+        <location filename="../qml/EditorWindow.qml" line="1022"/>
         <source>Needs ffmpeg</source>
         <translation>Требуется ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1022"/>
+        <location filename="../qml/EditorWindow.qml" line="1032"/>
         <source>Close (Esc)</source>
         <translation>Закрыть (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1031"/>
+        <location filename="../qml/EditorWindow.qml" line="1041"/>
         <source>Recognizing…</source>
         <translation>Распознавание…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1031"/>
+        <location filename="../qml/EditorWindow.qml" line="1041"/>
         <source>Copy selection</source>
         <translation>Копировать выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1038"/>
+        <location filename="../qml/EditorWindow.qml" line="1048"/>
         <source>Highlight selection</source>
         <translation>Подсветить выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1048"/>
+        <location filename="../qml/EditorWindow.qml" line="1058"/>
         <source>Redact selection</source>
         <translation>Скрыть выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1059"/>
+        <location filename="../qml/EditorWindow.qml" line="1069"/>
         <source>Auto-redact</source>
         <translation>Автоскрытие</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1062"/>
+        <location filename="../qml/EditorWindow.qml" line="1072"/>
         <source>E-mail addresses</source>
         <translation>Адреса эл. почты</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1066"/>
+        <location filename="../qml/EditorWindow.qml" line="1076"/>
         <source>IP addresses</source>
         <translation>IP-адреса</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1070"/>
+        <location filename="../qml/EditorWindow.qml" line="1080"/>
         <source>Long numbers</source>
         <translation>Длинные числа</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1078"/>
+        <location filename="../qml/EditorWindow.qml" line="1088"/>
         <source>Select all</source>
         <translation>Выделить всё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1084"/>
+        <location filename="../qml/EditorWindow.qml" line="1094"/>
         <source>Done</source>
         <translation>Готово</translation>
     </message>
@@ -8909,12 +8931,12 @@ Applies to the next capture.</source>
 <context>
     <name>VideoPreview</name>
     <message>
-        <location filename="../external/unisic-kit/qml/components/VideoPreview.qml" line="164"/>
+        <location filename="../external/unisic-kit/qml/components/VideoPreview.qml" line="165"/>
         <source>Pause</source>
         <translation>Пауза</translation>
     </message>
     <message>
-        <location filename="../external/unisic-kit/qml/components/VideoPreview.qml" line="164"/>
+        <location filename="../external/unisic-kit/qml/components/VideoPreview.qml" line="165"/>
         <source>Play</source>
         <translation>Воспроизвести</translation>
     </message>

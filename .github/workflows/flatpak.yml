@@ -163,18 +163,21 @@ jobs:
       - name: Lint the manifest and the built repo
         run: |
           flatpak install -y --noninteractive flathub org.flatpak.Builder
-          # Three linter errors are expected for this app and can never clear
+          # Four linter errors are expected for this app and can never clear
           # here, so a bare exit-code check would fail every single run: the
           # permission-store hole is granted by a Flathub reviewer as an
-          # exception, and the two screenshot ones only pass on Flathub's own
-          # build service, which mirrors screenshots to dl.flathub.org.
-          # Everything else is a real failure.
+          # exception, appid-url-not-reachable occurs because unisic.app is
+          # protected by Cloudflare bot challenges (HTTP 403 on CI runners;
+          # domain control is verified manually), and the two screenshot ones
+          # only pass on Flathub's own build service, which mirrors screenshots
+          # to dl.flathub.org. Everything else is a real failure.
           cat > /tmp/lintcheck.py <<'PY'
           import json, sys
           ALLOWED = {
               "finish-args-portal-impl-permissionstore-talk-name",
               "appstream-screenshots-not-mirrored-in-ostree",
               "appstream-external-screenshot-url",
+              "appid-url-not-reachable",
           }
           raw = open(sys.argv[1], encoding="utf-8").read().strip()
           if not raw:

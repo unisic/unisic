@@ -28,6 +28,7 @@ finish-args:
   - --filesystem=xdg-videos:create
   # The pressed-key badge and the click ripple read /dev/input event devices
   # through the bundled libinput. Without this the devices are simply not there.
+  - --require-version=1.16.0
   - --device=input
   # ...and libinput's udev backend needs the host udev database to see the
   # ID_INPUT_* properties that tell a keyboard from a touchpad. Without it the

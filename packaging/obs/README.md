@@ -34,8 +34,8 @@ Hard-won details (each cost a broken round - don't regress them):
   Build-Depends must carry every one of them. A build root short one -dev
   package now fails the build loudly instead of publishing a package with a
   feature silently missing. The runtime helpers (ffmpeg, portal, wl-clipboard,
-  pipewire + its CLI tools, curl, zip, the tesseract eng/pol/osd data) are hard
-  Requires/Depends for the same reason; only the portal BACKEND stays weak.
+  pipewire + its CLI tools, curl, zip, grim, the tesseract eng/pol/osd data)
+  are hard Requires/Depends for the same reason; only the portal BACKEND stays weak.
 - Installed binaries carry no RPATH (CMakeLists sets INSTALL_RPATH "") or
   openSUSE's rpmlint hard-fails the build.
 

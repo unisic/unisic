@@ -106,6 +106,11 @@ Window {
         else editorSession.save()
     }
 
+    function doSaveAs() {
+        commitPendingText()
+        editorSession.saveAsDialog()
+    }
+
     MessageDialog {
         id: overwriteConfirm
         title: qsTr("Overwrite file?")
@@ -229,6 +234,7 @@ Window {
             if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Z) {
                 if (e.modifiers & Qt.ShiftModifier) canvas.redo(); else canvas.undo()
             } else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Y) canvas.redo()
+            else if ((e.modifiers & Qt.ControlModifier) && (e.modifiers & Qt.ShiftModifier) && e.key === Qt.Key_S) editorWindow.doSaveAs()
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
             // Ctrl+W closes the editor window (the discard prompt still applies).
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) editorWindow.close()
@@ -973,11 +979,47 @@ Window {
                     iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
                     onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
                 }
-                UButton {
+                USplitMenuButton {
                     visible: !canvas.ocrMode
                     iconName: "document-save"
                     text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
-                    variant: "tonal"; onClicked: editorWindow.doSave()
+                    tooltip: editorSession.overwriteMode ? qsTr("Overwrite (Ctrl+S)") : qsTr("Save (Ctrl+S)")
+                    dropdownTooltip: qsTr("More save options")
+                    onClicked: editorWindow.doSave()
+                    actions: [
+                        { label: qsTr("Save as…"), iconName: "document-save",
+                          hint: "Ctrl+Shift+S",
+                          trigger: function () {
+                              editorWindow.doSaveAs()
+                          } },
+                        { label: qsTr("Save as PNG"), iconName: "document-save",
+                          separatorBefore: true,
+                          hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("png")
+                          } },
+                        { label: qsTr("Save as JPEG"), iconName: "document-save",
+                          hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("jpg")
+                          } },
+                        { label: qsTr("Save as WebP"), iconName: "document-save",
+                          hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("webp")
+                          } },
+                        { label: qsTr("Save as GIF"), iconName: "document-save",
+                          enabled: App.ffmpegAvailable,
+                          hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
+                                : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
+                          trigger: function () {
+                              editorWindow.commitPendingText()
+                              editorSession.saveAs("gif")
+                          } }
+                    ]
                 }
                 UButton {
                     visible: !canvas.ocrMode
@@ -990,9 +1032,7 @@ Window {
                     width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
                 }
-                // "More": the occasional text actions. OCR is always built in;
-                // rows that depend on an EXTERNAL tool (ffmpeg below) are still
-                // greyed with a reason rather than hidden.
+                // "More": the occasional text actions. OCR is always built in.
                 UMenuButton {
                     visible: !canvas.ocrMode
                     anchors.verticalCenter: parent.verticalCenter
@@ -1001,19 +1041,7 @@ Window {
                         { label: qsTr("Copy all text"), iconName: "ocr",
                           trigger: function () { editorSession.ocrCopyText() } },
                         { label: qsTr("Select text…"), iconName: "select",
-                          trigger: function () { editorSession.startOcrPick() } },
-                        // Always a new file, never the overwrite Save does -
-                        // the extension changes, so there is nothing to
-                        // overwrite. Greyed with a reason when ffmpeg is
-                        // missing, since Qt cannot write a GIF on its own.
-                        { label: qsTr("Save as GIF"), iconName: "document-save",
-                          separatorBefore: true,
-                          enabled: App.ffmpegAvailable,
-                          hint: App.ffmpegAvailable ? "" : qsTr("Needs ffmpeg"),
-                          trigger: function () {
-                              editorWindow.commitPendingText()
-                              editorSession.saveAs("gif")
-                          } }
+                          trigger: function () { editorSession.startOcrPick() } }
                     ]
                 }
                 UIconButton {

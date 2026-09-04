@@ -783,17 +783,13 @@ void AppContext::devTestSystemCheck()
     if (!devBuild())
         return;
     const QVariantList rep = dependencyReport();
-    int missing = 0, warn = 0;
+    int missing = 0;
     for (const QVariant &v : rep) {
-        const QVariantMap m = v.toMap();
-        if (!m.value(QStringLiteral("ok")).toBool()) {
+        if (!v.toMap().value(QStringLiteral("ok")).toBool())
             ++missing;
-            if (m.value(QStringLiteral("warn")).toBool())
-                ++warn;
-        }
     }
-    showToast(tr("Dev: system check: %1 checks, %2 missing (%3 core)")
-                  .arg(rep.size()).arg(missing).arg(warn));
+    showToast(tr("Dev: system check: %1 checks, %2 missing")
+                  .arg(rep.size()).arg(missing));
 }
 
 void AppContext::devTestWelcome()
@@ -3780,32 +3776,29 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
-    // Diagnostics dump + optional-dependency report (the "Copy diagnostics" and
-    // first-run "system check" paths). A missing optional dep on the dev box is
-    // reported, never failed — the check itself running is the pass.
+    // Diagnostics dump + runtime-dependency report (the "Copy diagnostics" and
+    // first-run "system check" paths). Package recipes require every listed
+    // tool; a local dev box can still be incomplete, so report rather than abort.
     m_smokeSteps.append([this] {
         const QString diag = systemDiagnostics();
         smokeLog(QStringLiteral("diagnostics: %1")
                      .arg(diag.size() > 40 ? QStringLiteral("PASS (%1 chars)").arg(diag.size())
                                            : QStringLiteral("FAIL (empty)")));
         const QVariantList rep = dependencyReport();
-        int warn = 0;
         QStringList missing;
         for (const QVariant &v : rep) {
             const QVariantMap m = v.toMap();
-            if (!m.value(QStringLiteral("ok")).toBool() && m.value(QStringLiteral("warn")).toBool()) {
-                ++warn;
+            if (!m.value(QStringLiteral("ok")).toBool())
                 missing << m.value(QStringLiteral("label")).toString();
-            }
         }
         smokeLog(QStringLiteral("dependency report: %1")
                      .arg(rep.isEmpty()
                               ? QStringLiteral("FAIL (no entries)")
-                              : warn == 0
-                                    ? QStringLiteral("PASS (%1 checks, all core deps present)").arg(rep.size())
-                                    : QStringLiteral("PASS (%1 checks; %2 core dep(s) missing: %3)")
+                              : missing.isEmpty()
+                                    ? QStringLiteral("PASS (%1 checks, all required deps present)").arg(rep.size())
+                                    : QStringLiteral("PASS (%1 checks; %2 required dep(s) missing: %3)")
                                           .arg(rep.size())
-                                          .arg(warn)
+                                          .arg(missing.size())
                                           .arg(missing.join(QStringLiteral(", ")))));
 
         // Diagnostic log: four assertions, because each one fails on its own.
@@ -4084,9 +4077,8 @@ void AppContext::runSmokeTest()
                         ? QStringLiteral("PASS (/dev/input readable)")
                         : QStringLiteral("SKIP (%1)").arg(keystrokeCaptureBlockedReason())));
         // The Settings row offers its fix button off this string, and it must be
-        // offered ONLY where a command would help: a package built without
-        // libinput cannot be fixed by joining a group, and a working setup has
-        // nothing to fix. Getting this wrong sends the user to run a pointless
+        // offered ONLY where joining the input group would help. A working setup
+        // has nothing to fix; getting this wrong sends the user to run a pointless
         // sudo command, which is exactly the kind of advice a tool must not give.
         const bool fixOffered = !inputAccessFixCommand().isEmpty();
         const bool fixWanted = InputPermission::probe() == InputPermission::NoPermission;

@@ -28,6 +28,7 @@ finish-args:
   - --filesystem=xdg-videos:create
   # The pressed-key badge and the click ripple read /dev/input event devices
   # through the bundled libinput. Without this the devices are simply not there.
+  - --require-version=1.16.0
   - --device=input
   # ...and libinput's udev backend needs the host udev database to see the
   # ID_INPUT_* properties that tell a keyboard from a touchpad. Without it the
@@ -154,8 +155,11 @@ modules:
     builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_PROG=OFF
       - -DSW_BUILD=OFF
+    post-install:
+      - cp /app/lib/pkgconfig/lept_*.pc /app/lib/pkgconfig/lept.pc
     sources:
       - type: archive
         url: https://github.com/DanBloomberg/leptonica/releases/download/1.85.0/leptonica-1.85.0.tar.gz
@@ -166,6 +170,7 @@ modules:
     builddir: true
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
       - -DBUILD_TRAINING_TOOLS=OFF
       - -DDISABLE_CURL=ON
     sources:
@@ -211,6 +216,22 @@ modules:
       - type: archive
         url: https://github.com/zxing-cpp/zxing-cpp/archive/refs/tags/v2.2.1.tar.gz
         sha256: 02078ae15f19f9d423a441f205b1d1bee32349ddda7467e2c84e8f08876f8635
+
+  # Silent, multi-monitor-safe screenshots on niri and other wlroots
+  # compositors. The host's grim is outside the sandbox, so this has to travel
+  # with the bundle just like wl-copy.
+  - name: grim
+    buildsystem: meson
+    config-opts:
+      # Unisic always requests PNG. Avoid pulling JPEG support into the bundle.
+      - -Djpeg=disabled
+      - -Dman-pages=disabled
+      - -Dfish-completions=false
+      - -Dbash-completions=false
+    sources:
+      - type: archive
+        url: https://gitlab.freedesktop.org/emersion/grim/-/archive/v1.5.0/grim-v1.5.0.tar.gz
+        sha256: 9e72a98f7621b1f5741b405b8dbd447acf7d300ddb12667ec526db1ce6154eaa
 
   # Clipboard reliability on Wayland: copies are mirrored through wl-copy when
   # it is present, and the runtime does not ship it.
@@ -374,11 +395,23 @@ modules:
       # ../LICENSE, not LICENSE: builddir: true runs every command of this
       # module from _flatpak_build, and the license sits in the source root.
       - install -Dm644 ../LICENSE /app/share/licenses/app.unisic.Unisic/LICENSE
+      # Compile-time gates are asserted from unisic-features.txt in CI. This is
+      # the matching runtime gate: every helper offered by the UI must exist in
+      # the finished sandbox, whether it came from /app or the KDE runtime.
+      - >-
+        for tool in ffmpeg ffprobe wl-copy curl grim; do
+          test -x "/app/bin/$tool" ||
+          { echo "missing packaged runtime helper: $tool" >&2; exit 1; };
+        done;
+        for tool in zip pw-record pw-dump pw-play; do
+          command -v "$tool" >/dev/null ||
+          { echo "missing runtime helper: $tool" >&2; exit 1; };
+        done
     sources:
       - type: git
         url: https://github.com/unisic/unisic.git
-        tag: v0.8.1
-        commit: 66ec650fcf2458cbbf50fc9d9ffe81e132272b4d
+        tag: v0.8.4
+        commit: a805afa1bca0e44e4019b7e0015689418b6a0e71
         x-checker-data:
           type: git
           tag-pattern: ^v([\d.]+)$

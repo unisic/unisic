@@ -37,8 +37,10 @@ jobs:
           pacman -Syu --noconfirm --needed \
             ca-certificates git base-devel cmake ninja pkgconf \
             qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
+            qt6-multimedia qt6-multimedia-ffmpeg \
             plasma-wayland-protocols \
-            pipewire ffmpeg wl-clipboard xdg-desktop-portal \
+            pipewire pipewire-audio ffmpeg grim wl-clipboard \
+            xdg-desktop-portal xdg-desktop-portal-gtk \
             tesseract leptonica layer-shell-qt wayland zxing-cpp \
             kguiaddons libx11 libxext libxfixes libxcb libinput \
             curl zip tesseract-data-eng tesseract-data-pol tesseract-data-osd
@@ -105,6 +107,9 @@ jobs:
         # trusted key.
         run: |
           pacman -U --noconfirm dist/*.pkg.tar.zst
+          for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
+            command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }
+          done
           if grep -q 'home_unisic_Arch' /etc/pacman.conf; then
             pacman-key --list-keys E5057FCB0F3DF876 >/dev/null
             pacman -Sy   # the registered OBS repo must actually resolve

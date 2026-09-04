@@ -6,6 +6,8 @@
 #include <QPointer>
 #include <QFileInfo>
 #include <QVector>
+#include <QFileDialog>
+#include <QDir>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image,
                              const QString &overwritePath, quint64 historyId, QObject *parent)
@@ -126,6 +128,52 @@ QString EditorSession::saveAs(const QString &format)
     // Same one-capture-one-tile rule as save(): a capture whose entry has no
     // file yet claims this one; an entry that already points at a file gets a
     // second tile, because this really is a second file.
+    if (m_historyId != 0
+        && m_app->history()->entryById(m_historyId)
+               .value(QStringLiteral("filePath")).toString().isEmpty()
+        && m_app->history()->setFilePathById(m_historyId, path))
+        m_app->history()->refreshEntry(path, img);
+    else
+        m_app->history()->addEntry(path, img, QStringLiteral("image"));
+    setStatus(tr("Saved to %1").arg(path));
+    return path;
+}
+
+QString EditorSession::saveAsDialog()
+{
+    const QImage img = composited();
+    if (img.isNull())
+        return {};
+
+    QString startDir;
+    QString defaultName;
+    if (!m_overwritePath.isEmpty()) {
+        const QFileInfo fi(m_overwritePath);
+        startDir = fi.absolutePath();
+        defaultName = fi.fileName();
+    } else {
+        startDir = m_app->settings()->saveDirectory();
+        if (m_app->settings()->dateSubfolders())
+            startDir += QLatin1Char('/')
+                      + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
+        defaultName = m_app->makeFileName();
+    }
+    QDir().mkpath(startDir);
+
+    const QString defaultPath = startDir + QLatin1Char('/') + defaultName;
+    const QString filter = tr("Images (*.png *.jpg *.jpeg *.webp);;PNG image (*.png);;JPEG image (*.jpg *.jpeg);;WebP image (*.webp);;All files (*)");
+
+    const QString chosen = QFileDialog::getSaveFileName(
+        nullptr, tr("Save capture as…"), defaultPath, filter);
+    if (chosen.isEmpty())
+        return {};
+
+    const QString path = m_app->saveImageExact(img, chosen, /*allowAutoConvert=*/false);
+    if (path.isEmpty()) {
+        setStatus(tr("Save failed"));
+        return {};
+    }
+
     if (m_historyId != 0
         && m_app->history()->entryById(m_historyId)
                .value(QStringLiteral("filePath")).toString().isEmpty()

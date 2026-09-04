@@ -8,7 +8,7 @@
 #
 # Give the first build time. Unisic has no optional dependencies, so every one
 # the runtime does not carry is compiled from source here (x264, ffmpeg,
-# leptonica, tesseract, zxing-cpp, wl-clipboard, libssh2 + a static curl,
+# leptonica, tesseract, zxing-cpp, grim, wl-clipboard, libssh2 + a static curl,
 # layer-shell-qt and the libevdev/mtdev/libinput chain) before flatpak-builder
 # even reaches the app. Later runs reuse the cache under the state dir and
 # rebuild the app module alone.

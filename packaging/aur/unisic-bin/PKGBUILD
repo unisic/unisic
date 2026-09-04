@@ -56,13 +56,14 @@ license=('GPL-3.0-or-later')
 # under --noconfirm pick a provider for the user - the very thing that kept
 # xdg-desktop-portal-impl out of this list and in optdepends. ffmpeg is already
 # a hard dependency here and is Qt's own default backend, so choosing that one
-# costs nothing and leaves nothing to choose.
+# costs nothing and leaves nothing to choose. `pipewire` owns pw-dump;
+# `pipewire-audio` owns pw-record and pw-play, and all three commands are runtime paths.
 # namcap will call curl and tesseract-data-osd "already satisfied by a
 # dependency" (pacman needs curl, tesseract needs both). That warning is the
 # price of stating a requirement instead of inheriting it by luck of somebody
 # else's dependency graph.
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'qt6-multimedia'
-         'qt6-multimedia-ffmpeg' 'pipewire' 'ffmpeg' 'wl-clipboard' 'curl' 'zip'
+         'qt6-multimedia-ffmpeg' 'pipewire' 'pipewire-audio' 'ffmpeg' 'grim' 'wl-clipboard' 'curl' 'zip'
          'xdg-desktop-portal' 'tesseract' 'leptonica' 'tesseract-data-eng' 'tesseract-data-pol'
          'tesseract-data-osd' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libinput'
          'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb')

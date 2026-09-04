@@ -24,6 +24,11 @@
   wl-clipboard,
   zip,
   grim,
+  xdg-desktop-portal,
+  # Nix cannot express the distro-style "one of these desktop backends" virtual
+  # dependency. KDE is the default because it is Unisic's primary target; a
+  # caller packaging for another desktop can override this one argument.
+  portalBackend ? kdePackages.xdg-desktop-portal-kde,
   # The unisic-kit checkout, passed by the flake. Only used when the source
   # copy has no submodule content of its own (see postUnpack).
   unisicKitSrc ? null,
@@ -65,7 +70,7 @@ let
 in
 stdenv.mkDerivation (finalAttrs: {
   pname = "unisic";
-  version = "0.8.4";
+  version = "0.8.5";
 
   # cleanSource here resolves to the flake's store copy (git-tracked files only),
   # so build/ dist/ and .git never enter the derivation. That copy carries the
@@ -104,6 +109,7 @@ stdenv.mkDerivation (finalAttrs: {
     qt6.qtdeclarative # Quick, Qml, QuickControls2
     qt6.qtsvg
     qt6.qtwayland
+    qt6.qtmultimedia # QML video preview and its ffmpeg backend
     kdePackages.layer-shell-qt # LayerShellQt (notification/preview surfaces)
     kdePackages.kguiaddons # KF6::GuiAddons - KSystemClipboard (Klipper history)
     # HAVE_KWIN_SCREENCAST - carries zkde-screencast-unstable-v1.xml, which the
@@ -134,6 +140,15 @@ stdenv.mkDerivation (finalAttrs: {
     libxext
     libxfixes
     libxcb
+  ];
+
+  # Native packages require the portal service and one concrete backend. NixOS
+  # still owns service activation (`xdg.portal.enable`); propagation makes the
+  # complete package set explicit instead of relying on an unrelated desktop
+  # package to happen to provide it.
+  propagatedBuildInputs = [
+    xdg-desktop-portal
+    portalBackend
   ];
 
   cmakeFlags = [

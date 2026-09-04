@@ -1789,32 +1789,48 @@ void AppContext::showLogInFileManager()
 QVariantList AppContext::dependencyReport() const
 {
     QVariantList out;
-    const auto add = [&out](const QString &label, bool ok, bool warn, const QString &detail) {
+    const auto add = [&out](const QString &label, bool ok, const QString &detail) {
         out.append(QVariantMap{{QStringLiteral("label"), label},
                                {QStringLiteral("ok"), ok},
-                               {QStringLiteral("warn"), warn},
                                {QStringLiteral("detail"), detail}});
     };
 
-    const bool ffmpeg = !QStandardPaths::findExecutable(QStringLiteral("ffmpeg")).isEmpty();
-    add(tr("FFmpeg"), ffmpeg, true,
-        ffmpeg ? tr("Found - screen recording and GIF export are available.")
-               : tr("Missing. Screen recording and GIF export need FFmpeg. Install the \"ffmpeg\" package."));
+    const auto addExecutables = [&add, this](const QString &label,
+                                              const QStringList &executables) {
+        QStringList missing;
+        for (const QString &executable : executables) {
+            if (QStandardPaths::findExecutable(executable).isEmpty())
+                missing.append(executable);
+        }
+        add(label, missing.isEmpty(),
+            missing.isEmpty() ? tr("Found.")
+                              : tr("Missing from this install: %1.").arg(missing.join(QStringLiteral(", "))));
+    };
 
-    const bool wlclip = !QStandardPaths::findExecutable(QStringLiteral("wl-copy")).isEmpty();
-    add(tr("wl-clipboard"), wlclip, false,
-        wlclip ? tr("Found - copy to clipboard is at its most reliable.")
-               : tr("Optional. Install \"wl-clipboard\" for the most reliable copy-to-clipboard on Wayland."));
+    addExecutables(QStringLiteral("ffmpeg / ffprobe"),
+                   {QStringLiteral("ffmpeg"), QStringLiteral("ffprobe")});
+    addExecutables(QStringLiteral("wl-clipboard"), {QStringLiteral("wl-copy")});
+    addExecutables(QStringLiteral("curl"), {QStringLiteral("curl")});
+    addExecutables(QStringLiteral("zip"), {QStringLiteral("zip")});
+    addExecutables(QStringLiteral("grim"), {QStringLiteral("grim")});
+    addExecutables(QStringLiteral("PipeWire tools"),
+                   {QStringLiteral("pw-record"), QStringLiteral("pw-dump"),
+                    QStringLiteral("pw-play")});
+
+    const bool multimedia = capVideoPlayback();
+    add(QStringLiteral("QtMultimedia"), multimedia,
+        multimedia ? tr("Found.")
+                   : tr("Missing from this install: %1.").arg(QStringLiteral("QtMultimedia")));
 
     const bool haveLangs = ocrHasLanguages();
-    add(tr("OCR language pack"), haveLangs, true,
+    add(tr("OCR language pack"), haveLangs,
         haveLangs ? tr("Found - text recognition (OCR) is ready.")
                   : tr("Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. \"tesseract-langpack-eng\"."));
     if (haveLangs) {
         const bool osd = OcrEngine::scriptDetectionAvailable();
-        add(tr("OCR auto-language (osd)"), osd, false,
+        add(tr("OCR auto-language (osd)"), osd,
             osd ? tr("Found - OCR detects the script of each capture automatically.")
-                : tr("Optional. Install the Tesseract \"osd\" pack so OCR auto-language works across scripts."));
+                : tr("Missing from this install. The Tesseract \"osd\" pack is required for OCR script detection."));
     }
     return out;
 }
@@ -1823,8 +1839,7 @@ bool AppContext::hasDependencyWarnings() const
 {
     const QVariantList rep = dependencyReport();
     for (const QVariant &v : rep) {
-        const QVariantMap m = v.toMap();
-        if (m.value(QStringLiteral("warn")).toBool() && !m.value(QStringLiteral("ok")).toBool())
+        if (!v.toMap().value(QStringLiteral("ok")).toBool())
             return true;
     }
     return false;
@@ -2942,8 +2957,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                 startDir + QLatin1Char('/') + fileName,
                 tr("Images (*.png *.jpg *.jpeg *.webp)"));
             if (!chosen.isEmpty()) {
-                const QFileInfo fi(chosen);
-                path = saveImageTo(output, fi.absolutePath(), fi.fileName());
+                path = saveImageExact(output, chosen);
                 if (path.isEmpty())
                     showToast(tr("Could not save to %1").arg(chosen), true);
             }
@@ -4516,6 +4530,66 @@ bool AppContext::overwriteImageFile(const QImage &img, const QString &path)
         return false;
     }
     return true;
+}
+
+QString AppContext::saveImageExact(const QImage &img, const QString &targetPath,
+                                   bool allowAutoConvert)
+{
+    if (targetPath.isEmpty() || img.isNull())
+        return {};
+
+    QString ext = QFileInfo(targetPath).suffix().toLower();
+    if (ext != QLatin1String("png") && ext != QLatin1String("jpg")
+        && ext != QLatin1String("jpeg") && ext != QLatin1String("webp")
+        && ext != QLatin1String("gif")) {
+        ext = m_settings->imageFormat().toLower();
+    }
+
+    QImage stripped;
+    if (m_settings->stripMetadata() && img.depth() >= 24
+        && (!img.textKeys().isEmpty() || img.dotsPerMeterX() != 0 || img.dotsPerMeterY() != 0))
+        stripped = QImage(img.constBits(), img.width(), img.height(),
+                          img.bytesPerLine(), img.format()).copy();
+    const QImage &toSave = stripped.isNull() ? img : stripped;
+
+    const ImageEncode::Result enc =
+        ImageEncode::encode(toSave, ext, m_settings->imageQuality());
+    if (!enc.ok())
+        return {};
+    if (enc.fallbackReason == QLatin1String("alpha"))
+        showToast(tr("Saved as PNG to keep transparency"));
+    else if (enc.fallbackReason == QLatin1String("gif"))
+        showToast(tr("GIF needs ffmpeg. Saved as PNG"));
+    else if (enc.fallbackReason == QLatin1String("encoder"))
+        showToast(tr("%1 could not hold this image. Saved as PNG").arg(ext.toUpper()));
+
+    QString finalPath = targetPath;
+    const QString targetExt = QFileInfo(targetPath).suffix();
+    if (targetExt.isEmpty()) {
+        finalPath += QLatin1Char('.') + enc.format;
+    } else if (!FilenameTemplate::sameFormat(targetExt, enc.format)) {
+        finalPath = QFileInfo(targetPath).path() + QLatin1Char('/')
+                  + QFileInfo(targetPath).completeBaseName() + QLatin1Char('.') + enc.format;
+    }
+
+    QDir().mkpath(QFileInfo(finalPath).absolutePath());
+
+    QSaveFile f(finalPath);
+    if (!f.open(QIODevice::WriteOnly)) {
+        showToast(tr("Can't write %1").arg(QFileInfo(finalPath).fileName()), true);
+        return {};
+    }
+    f.write(enc.bytes);
+    if (!f.commit()) {
+        showToast(tr("Can't write %1").arg(QFileInfo(finalPath).fileName()), true);
+        return {};
+    }
+
+    if (allowAutoConvert)
+        finalPath = autoConvertIfLarge(finalPath, toSave);
+    if (m_settings->openAfterSave())
+        openFile(finalPath);
+    return finalPath;
 }
 
 QString AppContext::saveImageTo(const QImage &img, const QString &dir, const QString &fileName,

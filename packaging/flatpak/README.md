@@ -49,6 +49,8 @@ manifest builds:
   turns on by default, and it is the single largest file in the bundle at
   10 MB.
 - **zxing-cpp** - QR and barcode payloads inside the OCR path.
+- **grim** - the silent, multi-monitor-safe capture path on niri and other
+  wlroots compositors. A host binary is invisible inside the sandbox.
 - **wl-clipboard** - `wl-copy`, the Wayland clipboard mirror.
 - **libssh2 + curl** - the SFTP and SCP upload destinations. The runtime has
   curl, but its libcurl is linked against no SSH backend, so those destinations
@@ -64,6 +66,11 @@ manifest builds:
   and neither do its own dependencies. Bundling is only half of it: the feature
   also needs `--device=input` and `--filesystem=/run/udev:ro` below, or it opens
   no device and reports no permission.
+
+The Unisic module's `post-install` step also fails unless every runtime helper
+exists in the finished sandbox: `ffmpeg`, `ffprobe`, `wl-copy`, `curl`, `grim`,
+`zip`, `pw-record`, `pw-dump` and `pw-play`. That check covers programs, while
+`unisic-features.txt` covers linked compile-time gates.
 
 ## Permissions
 
@@ -161,15 +168,17 @@ the short form of it, with the Unisic-specific answers filled in.
    packaging/flatpak/build.sh --run
    packaging/flatpak/build.sh --lint
    ```
-   Three linter errors are expected and are not something to fix here.
+   Four linter errors are expected and are not something to fix here.
    `finish-args-portal-impl-permissionstore-talk-name` is the permission-store
-   hole below, which a reviewer grants as an exception. The two screenshot ones
-   (`appstream-screenshots-not-mirrored-in-ostree`,
+   hole below, which a reviewer grants as an exception. `appid-url-not-reachable`
+   is verified manually by Flathub reviewers because <https://unisic.app> is
+   protected by Cloudflare bot challenges (HTTP 403 on CI runners). The two
+   screenshot ones (`appstream-screenshots-not-mirrored-in-ostree`,
    `appstream-external-screenshot-url`) only clear on Flathub's own build
    service, which mirrors the screenshots to dl.flathub.org. Anything else in
-   the output is a real failure. The same three are hardcoded as the `ALLOWED`
+   the output is a real failure. The same four are hardcoded as the `ALLOWED`
    set in `.github/workflows/flatpak.yml`, so if a permission change ever adds
-   a fourth expected code, it has to be added in both places or every CI run
+   another expected code, it has to be added in both places or every CI run
    fails on it.
 4. **Fork <https://github.com/flathub/flathub>**, branch from `new-pr` (not
    `master`), and add exactly two files at the repository root:

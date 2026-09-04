@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.4 LANGUAGES CXX)
+project(unisic VERSION 0.8.5 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.4")
+set(UNISIC_VERSION_STRING "0.8.5")
 
 include(GNUInstallDirs)
 
@@ -302,6 +302,7 @@ qt_add_qml_module(unisic
         qml/components/UPatchNotes.qml
         qml/components/UUpdatePrompt.qml
         qml/components/ToolPropsBar.qml
+        qml/components/USplitMenuButton.qml
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
@@ -487,12 +488,13 @@ set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unisic maintainers")
 set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 # Everything the binary needs at RUNTIME that dpkg-shlibdeps cannot see for
-# itself: dlopened QML modules, the ffmpeg/curl/zip CLIs, the portal, and the
-# tesseract language data. Same policy as the build gates - a package that
+# itself: dlopened QML modules, the ffmpeg/curl/zip/grim/PipeWire CLIs, the
+# portal, and the tesseract language data. Same policy as the build gates - a package that
 # installs into a state where a documented feature cannot run is a broken
 # package, so none of this is a Recommends.
 #   curl              the only transport for the ftp/ftps/sftp destinations
 #   zip               the diagnostics bundle in Settings shells out to it
+#   grim              reliable capture on niri and other wlroots compositors
 #   qml6-module-qtmultimedia  the trim editor's video preview
 #   tesseract-ocr-*   OCR is compiled into every build and had no language data
 #                     on any of them; osd is what the script auto-detection
@@ -501,8 +503,10 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
     ffmpeg
+    grim
     libqt6svg6
     pipewire
+    pipewire-bin
     qml6-module-qtmultimedia
     qml6-module-qtquick
     qml6-module-qtquick-controls
@@ -549,13 +553,14 @@ set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 #   plugin). The SVG imageformat plugin needs no entry: Fedora's qt6-qtsvg
 #   and openSUSE's libQt6Svg6 both ship it and both arrive via the soname
 #   autodep (verified on Tumbleweed + Leap 15.6).
-# - The tesseract language data, the curl/zip CLIs and the QtMultimedia QML
-#   module are here for the same reason as in the Debian list: OCR, the
-#   ftp/ftps/sftp destinations, the diagnostics bundle and the trim preview all
-#   fail at runtime without them, and nothing in the autodeps can see any of it.
+# - The tesseract language data, the curl/zip/grim/PipeWire CLIs and the
+#   QtMultimedia QML module are here for the same reason as in the Debian list:
+#   OCR, the ftp/ftps/sftp destinations, diagnostics bundle, wlroots capture,
+#   audio selection/recording and trim preview all fail at runtime without them,
+#   and autodeps can see none of it.
 #   Boolean per distro again, since the langpack names differ (Fedora
 #   tesseract-langpack-*, and its OSD data is plain "tesseract-osd").
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, wl-clipboard, xdg-desktop-portal, curl, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
 # Direct-download rpms self-register the COPR repo (%post - dnf repo on
 # Fedora, zypp repo on openSUSE) so later versions arrive natively;
 # %postun drops the entry on erase.

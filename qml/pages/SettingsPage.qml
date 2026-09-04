@@ -1301,8 +1301,8 @@ Item {
                     SectionTitle { text: qsTr("Diagnostics") }
                     SettingRow {
                         label: qsTr("System check")
-                        help: qsTr("See which optional tools (FFmpeg, wl-clipboard, OCR packs) are installed.")
-                        helpDetail: qsTr("Unisic runs on the built-in Wayland APIs alone; these external tools are optional and unlock recording, the most reliable clipboard copy, and text recognition. The check lists what is present and how to install the rest.")
+                        help: qsTr("Check that every packaged runtime tool is present.")
+                        helpDetail: qsTr("Unisic packages include or require FFmpeg, wl-clipboard and the OCR data packs. If one is missing, the installation is incomplete; the check names what must be repaired.")
                         UButton {
                             compact: true
                             variant: "tonal"

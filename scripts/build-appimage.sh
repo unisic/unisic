@@ -45,7 +45,7 @@ APPDIR="$CACHE/AppDir"
 OUT="$CACHE/dist"
 mkdir -p "$CACHE" "$PREFIX" "$TOOLS" "$OUT"
 
-has_config() { find "$PREFIX" -name "$1" 2>/dev/null | grep -q .; }
+has_config() { find "$PREFIX" -name "$1" -print -quit 2>/dev/null | grep -q .; }
 
 # A gate that did not end up in $PREFIX is a stop, not a note. See the header.
 require_config() {   # <ConfigFile.cmake> <gate> <what breaks>
@@ -66,12 +66,15 @@ require_config() {   # <ConfigFile.cmake> <gate> <what breaks>
 #        5.115, the KDE builds below need 6.10), and libfuse2 is libfuse2t64
 #        since noble's 64-bit time_t transition.
 # ----------------------------------------------------------------------------
-if ! command -v patchelf >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1; then
+if ! command -v patchelf >/dev/null 2>&1 || ! command -v ninja >/dev/null 2>&1 \
+   || ! command -v ffmpeg >/dev/null 2>&1 || ! command -v grim >/dev/null 2>&1 \
+   || ! command -v pw-record >/dev/null 2>&1 || ! command -v wl-copy >/dev/null 2>&1 \
+   || ! command -v zip >/dev/null 2>&1; then
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \
-        ca-certificates curl file git desktop-file-utils patchelf libfuse2t64 \
-        python3 python3-pip \
+        ca-certificates curl ffmpeg file git grim pipewire-bin wl-clipboard zip \
+        desktop-file-utils patchelf libfuse2t64 python3 python3-venv \
         cmake ninja-build g++ pkg-config libpipewire-0.3-dev \
         libfontconfig1-dev libfreetype-dev \
         libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
@@ -89,10 +92,15 @@ fi
 #        happens the first time). qtwaylandcompositor supplies the lib the qt
 #        deploy plugin's (misnamed) "waylandcompositor" deployer links to. ----
 QT_DIR="$QT_ROOT/$QT_VERSION/gcc_64"
-if [ ! -x "$QT_DIR/bin/qmake" ]; then
-    pip3 install --no-cache-dir aqtinstall
-    aqt install-qt linux desktop "$QT_VERSION" linux_gcc_64 \
-        -m qtwaylandcompositor -O "$QT_ROOT"
+if [ ! -x "$QT_DIR/bin/qmake" ] \
+   || [ ! -f "$QT_DIR/qml/QtMultimedia/libquickmultimediaplugin.so" ]; then
+    AQT_VENV="$TOOLS/aqt-venv"
+    [ -x "$AQT_VENV/bin/aqt" ] || {
+        python3 -m venv "$AQT_VENV"
+        "$AQT_VENV/bin/pip" install --no-cache-dir aqtinstall
+    }
+    "$AQT_VENV/bin/aqt" install-qt linux desktop "$QT_VERSION" linux_gcc_64 \
+        -m qtmultimedia qtwaylandcompositor -O "$QT_ROOT"
 fi
 export PATH="$QT_DIR/bin:$TOOLS:$PATH"
 export QMAKE="$QT_DIR/bin/qmake"
@@ -169,6 +177,7 @@ cd "$CACHE"
 cmake -S "$SRC" -B "$BUILD" -G Ninja \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTING=OFF \
+    -DUNISIC_DESKTOP_EXEC=unisic \
     -DCMAKE_PREFIX_PATH="$QT_DIR;$PREFIX" \
     -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build "$BUILD" --parallel
@@ -220,10 +229,15 @@ chmod +x "$TOOLS"/linuxdeploy*.AppImage
 
 # Containers have no FUSE - run the tool AppImages by self-extracting.
 export APPIMAGE_EXTRACT_AND_RUN=1
-export QML_SOURCES_PATHS="$SRC/qml"
+# The only QtMultimedia import lives in the kit's lazy VideoPreview.qml. Scan
+# both source roots or linuxdeploy sees the app QML but misses that module and
+# ships a trim editor with no video preview.
+export QML_SOURCES_PATHS="$SRC/qml:$SRC/external/unisic-kit/qml"
 # Deploy the Qt Wayland CLIENT stack, else the AppImage falls back to XWayland.
-export EXTRA_QT_MODULES="waylandcompositor"
-export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so;libqwayland-egl.so"
+export EXTRA_QT_MODULES="waylandcompositor;multimedia;multimediaquick"
+# Offscreen keeps settings export/import usable without a graphical session;
+# xcb is discovered automatically from the application binary.
+export EXTRA_PLATFORM_PLUGINS="libqwayland-generic.so;libqwayland-egl.so;libqoffscreen.so"
 # Never bundle the build host's libwayland - an old libwayland-client against a
 # modern compositor breaks at symbol lookup. Every 2020+ distro ships its own.
 export LINUXDEPLOY_EXCLUDED_LIBRARIES="libwayland-client*;libwayland-cursor*;libwayland-egl*"
@@ -243,12 +257,29 @@ for pattern in 'libLayerShellQtInterface.so.6*' 'libZXing.so.*' 'libKF6GuiAddons
     fi
     EXTRA_LIB_ARGS+=(--library "$lib")
 done
+# Runtime helpers are programs, not linked libraries, so linuxdeploy cannot
+# discover them from Unisic. Name each one and let linuxdeploy copy its shared
+# libraries and patch its RPATH.
+HELPER_ARGS=()
+for tool in ffmpeg ffprobe wl-copy curl zip pw-record pw-dump pw-play grim; do
+    helper="$(command -v "$tool" || true)"
+    if [ -z "$helper" ]; then
+        echo "ERROR: runtime helper $tool is not installed on the AppImage builder" >&2
+        exit 1
+    fi
+    HELPER_ARGS+=(--executable "$helper")
+done
+ffmpeg -hide_banner -encoders 2>/dev/null | grep -w libx264 >/dev/null \
+    || { echo "ERROR: the bundled ffmpeg has no libx264 encoder" >&2; exit 1; }
+curl --version | grep -E '^Protocols: .*sftp' >/dev/null \
+    || { echo "ERROR: the bundled curl has no SFTP support" >&2; exit 1; }
 
 cd "$CACHE"
 rm -f ./*.AppImage   # drop any AppImage from a previous run in the work dir
 "$TOOLS/linuxdeploy-x86_64.AppImage" \
     --appdir "$APPDIR" --plugin qt \
     "${EXTRA_LIB_ARGS[@]}" \
+    "${HELPER_ARGS[@]}" \
     --exclude-library "libwayland-client*" \
     --exclude-library "libwayland-cursor*" \
     --exclude-library "libwayland-egl*" \
@@ -256,11 +287,19 @@ rm -f ./*.AppImage   # drop any AppImage from a previous run in the work dir
 
 test -f "$APPDIR/usr/plugins/platforms/libqwayland-generic.so" \
     || { echo "ERROR: Qt wayland platform plugin was not deployed" >&2; exit 1; }
-if find "$APPDIR/usr" -name 'libwayland-*' -print | grep -q .; then
+if find "$APPDIR/usr" -name 'libwayland-*' -print -quit | grep -q .; then
     echo "ERROR: host libwayland was bundled into the AppDir" >&2; exit 1
 fi
 test -s "$APPDIR/usr/share/tessdata/eng.traineddata" \
     || { echo "ERROR: tessdata went missing from the AppDir" >&2; exit 1; }
+test -f "$APPDIR/usr/qml/QtMultimedia/libquickmultimediaplugin.so" \
+    || { echo "ERROR: QtMultimedia QML plugin was not deployed" >&2; exit 1; }
+test -f "$APPDIR/usr/plugins/multimedia/libffmpegmediaplugin.so" \
+    || { echo "ERROR: QtMultimedia ffmpeg backend was not deployed" >&2; exit 1; }
+for tool in ffmpeg ffprobe wl-copy curl zip pw-record pw-dump pw-play grim; do
+    test -x "$APPDIR/usr/bin/$tool" \
+        || { echo "ERROR: $tool went missing from the AppDir" >&2; exit 1; }
+done
 
 mkdir -p "$OUT"
 mv -f ./*.AppImage "$OUT"/

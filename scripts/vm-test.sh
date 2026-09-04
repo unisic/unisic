@@ -146,7 +146,8 @@ deps)
         layer-shell-qt-devel wayland-devel kf6-kguiaddons-devel \
         libinput-devel systemd-devel \
         libX11-devel libXext-devel libXfixes-devel libxcb-devel \
-        wl-clipboard rsync rpm-build dpkg \
+        curl grim pipewire-utils wl-clipboard zip xdg-desktop-portal \
+        rsync rpm-build dpkg \
         tesseract-langpack-eng tesseract-langpack-pol tesseract-osd
     # ffmpeg: plain Fedora ships ffmpeg-free; RPM Fusion systems have ffmpeg.
     sudo dnf install -y ffmpeg-free || sudo dnf install -y ffmpeg

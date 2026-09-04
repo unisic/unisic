@@ -227,8 +227,8 @@ public:
     bool capScreenshotCursor() const;
     bool capCursorMetadata() const;
     bool capKWinRecord() const;
-    // Whether click ripples can be captured here: "" when they can, else a
-    // ready-to-show reason (no libinput at build time, or no /dev/input access).
+    // Whether click ripples can be captured here: "" when they can, else the
+    // ready-to-show reason that /dev/input is unavailable.
     Q_INVOKABLE QString clickCaptureBlockedReason() const;
     // Same probe for the keystroke badge (it reads the same /dev/input
     // devices), with key-specific wording.
@@ -258,10 +258,10 @@ public:
     Q_INVOKABLE bool hasUnseenCrash() const;
     Q_INVOKABLE void markCrashNoticeSeen();
     Q_INVOKABLE void showLogInFileManager();
-    // The optional runtime dependencies and whether each is satisfied, as a list
-    // of {label, ok, warn, detail} maps for the first-run system check to render.
-    // `warn` marks the ones whose absence actually degrades a core path (drives
-    // hasDependencyWarnings); the rest are informational.
+    // Runtime dependencies and whether each is satisfied, as a list of
+    // {label, ok, detail} maps for the first-run system check to render.
+    // Package recipes require them; a missing one means the install was altered
+    // or broken and drives hasDependencyWarnings.
     Q_INVOKABLE QVariantList dependencyReport() const;
     // Card dimensions for the in-window notification preview, read from the one
     // style->size table both notification hosts size their real surfaces with -
@@ -613,6 +613,11 @@ public:
                           bool allowAutoConvert = true);
     QString saveImageTo(const QImage &img, const QString &dir, const QString &fileName = {},
                         bool allowAutoConvert = true);
+    // Saves an image directly to targetPath without a collision-dedup suffix,
+    // encoded according to the target file's extension. Used when the path was
+    // explicitly chosen by the user (e.g. Save As dialog).
+    QString saveImageExact(const QImage &img, const QString &targetPath,
+                           bool allowAutoConvert = true);
     // Overwrites an EXISTING image file in place with `img`, encoded for the
     // extension that file already has (so a .jpg keeps the quality setting and
     // a .gif goes through ffmpeg instead of failing). Toasts and returns false

@@ -588,8 +588,8 @@ Window {
 
     // First-run welcome, then the dependency check — never both at once. The
     // welcome always shows on a fresh config (showWelcome latch); the check
-    // only when a core optional tool is actually missing, so a fully set-up
-    // machine never sees it. Both are skipped on a tray-only boot (no visible
+    // only when a required packaged tool is actually missing, so a complete
+    // install never sees it. Both are skipped on a tray-only boot (no visible
     // window to host a modal); the next normal launch picks them up. The small
     // delay lets the window paint before the modal dims it.
     // Fills the WINDOW (not the screen), below the custom title bar so the

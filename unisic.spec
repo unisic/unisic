@@ -114,6 +114,9 @@ BuildRequires:  desktop-file-utils
 # would make this rpm uninstallable on stock Fedora, while the path is
 # satisfied by ffmpeg-free, by RPM Fusion's ffmpeg and by openSUSE's alike.
 Requires:       /usr/bin/ffmpeg
+# niri's screenshot APIs fail on multi-monitor setups. Grim is the supported
+# wlr-screencopy path there and the silent path on other wlroots compositors.
+Requires:       grim
 # Region/window screenshots (PortalScreenshot) and all ScreenCast recording
 # route through xdg-desktop-portal. The BACKEND stays weak: which one is right
 # depends on the desktop, a session always has one, and picking for the user

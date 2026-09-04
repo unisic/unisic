@@ -86,7 +86,7 @@ jobs:
 
       - name: Validate the metainfo
         run: |
-          appstreamcli validate --pedantic --explain \
+          appstreamcli validate --no-net --pedantic --explain \
             resources/app.unisic.Unisic.metainfo.xml
 
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
@@ -112,21 +112,15 @@ jobs:
         # has to be read from the built app tree, where the unisic module
         # installs it.
         run: |
-          # The INSTALLED copy first and by full path: a restored
-          # .flatpak-builder cache could in principle still hold a build
-          # directory from an earlier run, and asserting on last week's gates
-          # would be worse than not asserting at all.
-          found="$(find . -path '*/share/unisic/unisic-features.txt' -print 2>/dev/null | head -n1 || true)"
-          if [ -z "$found" ]; then
-            found="$(find . -name unisic-features.txt -print 2>/dev/null | head -n1 || true)"
-          fi
-          if [ -z "$found" ]; then
-            echo "::error::no unisic-features.txt anywhere in this build, so the Flatpak's build gates cannot be checked."
-            echo "  CMake writes it into the build directory, and flatpak-builder throws that"
-            echo "  directory away on success. It has to be INSTALLED to survive:"
-            echo "  CMakeLists.txt should install it as"
-            echo "  \${CMAKE_INSTALL_DATADIR}/unisic/unisic-features.txt, which also puts a"
-            echo "  readable feature list inside every deb, rpm and Arch package."
+          # Read the CURRENT app ref from the repo the builder just exported.
+          # Searching the workspace can hit a restored .flatpak-builder cache
+          # and accidentally approve last week's manifest instead.
+          ref="app/app.unisic.Unisic/$(flatpak --default-arch)/master"
+          rm -rf flatpak-gate-checkout
+          ostree --repo=repo checkout "$ref" flatpak-gate-checkout
+          found="$PWD/flatpak-gate-checkout/files/share/unisic/unisic-features.txt"
+          if [ ! -r "$found" ]; then
+            echo "::error::the current Flatpak export has no unisic-features.txt."
             exit 1
           fi
           echo "manifest at $found"
@@ -169,18 +163,21 @@ jobs:
       - name: Lint the manifest and the built repo
         run: |
           flatpak install -y --noninteractive flathub org.flatpak.Builder
-          # Three linter errors are expected for this app and can never clear
+          # Four linter errors are expected for this app and can never clear
           # here, so a bare exit-code check would fail every single run: the
           # permission-store hole is granted by a Flathub reviewer as an
-          # exception, and the two screenshot ones only pass on Flathub's own
-          # build service, which mirrors screenshots to dl.flathub.org.
-          # Everything else is a real failure.
+          # exception, appid-url-not-reachable occurs because unisic.app is
+          # protected by Cloudflare bot challenges (HTTP 403 on CI runners;
+          # domain control is verified manually), and the two screenshot ones
+          # only pass on Flathub's own build service, which mirrors screenshots
+          # to dl.flathub.org. Everything else is a real failure.
           cat > /tmp/lintcheck.py <<'PY'
           import json, sys
           ALLOWED = {
               "finish-args-portal-impl-permissionstore-talk-name",
               "appstream-screenshots-not-mirrored-in-ostree",
               "appstream-external-screenshot-url",
+              "appid-url-not-reachable",
           }
           raw = open(sys.argv[1], encoding="utf-8").read().strip()
           if not raw:

@@ -93,6 +93,9 @@ jobs:
           # several mutually exclusive providers, so it cannot be a Depends);
           # skipping it here would have tested a set of packages nobody gets.
           apt-get install -y ./dist/*.deb
+          for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
+            command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }
+          done
 
       - uses: actions/upload-artifact@v4
         with:

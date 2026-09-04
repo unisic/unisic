@@ -4,10 +4,10 @@
 # PipeWire daemon and CLI tools, the ffmpeg/curl/zip/grim CLIs, portals,
 # wl-clipboard, the tesseract language data). None of them is a Recommends -
 # Unisic has no optional dependencies, and an install that cannot record,
-# cannot upload over sftp, cannot build a diagnostics bundle or has no portal
-# backend and an empty OCR language list is broken, not degraded. Debian's
-# xdg-desktop-portal-backend virtual keeps the desktop-specific choice open
-# while still requiring one provider.
+# cannot upload over sftp, cannot build a diagnostics bundle or has an empty
+# OCR language list is a broken install, not a degraded one. Only the portal
+# BACKEND stays weak, because a session always has one and choosing for the user
+# would pull in half a foreign desktop.
 # Build-Depends mirror the debian:trixie CI job in .github/workflows/deb.yml
 # and the Build-Depends line in unisic.dsc, and cover all 11 compile-time gates
 # (each is REQUIRED in CMakeLists.txt now, so a missing one fails configure
@@ -34,7 +34,10 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, curl, ffmpeg, grim, libqt6svg6,
  qml6-module-qtquick-controls, qml6-module-qtquick-dialogs,
  qml6-module-qtquick-effects, qml6-module-qtquick-window, qt6-wayland,
  tesseract-ocr-eng, tesseract-ocr-osd, tesseract-ocr-pol, wl-clipboard,
- xdg-desktop-portal, xdg-desktop-portal-backend, zip
+ xdg-desktop-portal, zip
+Recommends: xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
+ xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh |
+ xdg-desktop-portal-gtk | xdg-desktop-portal-xapp
 Description: Capture, annotate, record and share your screen on Linux Wayland
  Unisic covers the whole workflow after you press the hotkey: annotate on the
  selection overlay before the shot is taken, keep editing afterwards (blur,

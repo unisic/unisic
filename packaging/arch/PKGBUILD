@@ -41,14 +41,16 @@ license=('GPL-3.0-or-later')
 # qml6-module-qtmultimedia / qt6-qtmultimedia in CMakeLists.txt's CPack block).
 # qt6-multimedia-ffmpeg is named alongside it deliberately: qt6-multimedia
 # depends on the VIRTUAL qt6-multimedia-backend, which ffmpeg and gstreamer
-# both provide. This choice is not desktop-specific and ffmpeg is already a
-# hard dependency, so choosing Qt's ffmpeg backend costs nothing. The portal
-# backend below stays virtual because that choice does belong to the desktop.
-# `pipewire` owns pw-dump; `pipewire-audio` owns pw-record and pw-play. All
-# three commands are runtime paths, so both split packages are required.
+# both provide, and an unresolved virtual is what makes pacman prompt (and an
+# AUR helper under --noconfirm choose for the user) - the very thing that kept
+# xdg-desktop-portal-impl out of this list. ffmpeg is already a hard dependency
+# here and is Qt's own default backend, so picking that one costs nothing and
+# leaves nothing to choose. `pipewire` owns pw-dump; `pipewire-audio` owns
+# pw-record and pw-play. All three commands are runtime paths, so both split
+# packages are required.
 depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'qt6-multimedia'
          'qt6-multimedia-ffmpeg' 'pipewire' 'pipewire-audio' 'ffmpeg' 'grim' 'wl-clipboard' 'curl' 'zip'
-         'xdg-desktop-portal' 'xdg-desktop-portal-impl' 'tesseract' 'leptonica' 'tesseract-data-eng' 'tesseract-data-pol'
+         'xdg-desktop-portal' 'tesseract' 'leptonica' 'tesseract-data-eng' 'tesseract-data-pol'
          'tesseract-data-osd' 'layer-shell-qt' 'zxing-cpp' 'kguiaddons' 'libinput'
          'hicolor-icon-theme' 'libx11' 'libxext' 'libxfixes' 'libxcb')
 # plasma-wayland-protocols carries zkde-screencast-unstable-v1.xml, which
@@ -62,9 +64,15 @@ depends=('qt6-base' 'qt6-declarative' 'qt6-svg' 'qt6-wayland' 'qt6-multimedia'
 # systemd-libs, pipewire on libpipewire=<exact version>), so naming them here
 # states the gate without duplicating a runtime entry.
 makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'plasma-wayland-protocols' 'tesseract' 'leptonica' 'layer-shell-qt' 'wayland' 'zxing-cpp' 'kguiaddons' 'libx11' 'libxext' 'libxfixes' 'libxcb' 'libinput' 'systemd-libs' 'libpipewire')
-# xdg-desktop-portal-impl is a hard virtual dependency above. An existing
-# desktop backend satisfies it; on a bare window-manager install pacman asks
-# which provider to use instead of completing an install that cannot capture.
+# The only optdepends that survive the no-optional-dependencies rule, because
+# a portal backend is neither a feature gate nor a library this binary links:
+# it is a session component with several mutually exclusive providers. The
+# virtual 'xdg-desktop-portal-impl' would state it as a hard depend, but a
+# virtual with more than one provider makes makepkg prompt for a choice, and
+# an AUR helper running --noconfirm would silently pick the first one for the
+# user. Naming both backends and letting the user choose is the honest form.
+optdepends=('xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
+            'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops')
 install=unisic.install
 source=("${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')

@@ -85,9 +85,13 @@ jobs:
           cmake --build build-deb --parallel
           cpack --config build-deb/CPackConfig.cmake -G DEB -B dist
           dpkg-deb --field dist/*.deb Depends Recommends
-          # Install gate. The desktop-specific portal backend is a hard
-          # dependency through Debian's xdg-desktop-portal-backend virtual, so
-          # apt may choose any provider but may not complete without one.
+          # Install gate. Deliberately WITHOUT --no-install-recommends, unlike
+          # the build-dependency install above: apt honours Recommends by
+          # default, so that is what a user's `apt install ./unisic.deb`
+          # actually pulls, and this gate exists to prove that resolves. The
+          # Recommends is the xdg-desktop-portal-* alternation (a backend has
+          # several mutually exclusive providers, so it cannot be a Depends);
+          # skipping it here would have tested a set of packages nobody gets.
           apt-get install -y ./dist/*.deb
           for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
             command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }

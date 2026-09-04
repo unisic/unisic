@@ -257,7 +257,6 @@ for pattern in 'libLayerShellQtInterface.so.6*' 'libZXing.so.*' 'libKF6GuiAddons
     fi
     EXTRA_LIB_ARGS+=(--library "$lib")
 done
-
 # Runtime helpers are programs, not linked libraries, so linuxdeploy cannot
 # discover them from Unisic. Name each one and let linuxdeploy copy its shared
 # libraries and patch its RPATH.

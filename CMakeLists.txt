@@ -489,8 +489,7 @@ set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 # Everything the binary needs at RUNTIME that dpkg-shlibdeps cannot see for
 # itself: dlopened QML modules, the ffmpeg/curl/zip/grim/PipeWire CLIs, the
-# portal plus a backend, and the tesseract language data. Same policy as the
-# build gates - a package that
+# portal, and the tesseract language data. Same policy as the build gates - a package that
 # installs into a state where a documented feature cannot run is a broken
 # package, so none of this is a Recommends.
 #   curl              the only transport for the ftp/ftps/sftp destinations
@@ -520,9 +519,12 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     tesseract-ocr-pol
     wl-clipboard
     xdg-desktop-portal
-    xdg-desktop-portal-backend
     zip)
 string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
+# The portal BACKEND stays a Recommends: which one is right depends on the
+# desktop, the alternation cannot be expressed as a Depends without picking for
+# the user, and a session always has one.
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
 # Direct-download debs self-register the OBS apt repo (postinst) so later
 # versions arrive natively via apt; postrm drops the entry on purge.
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -551,14 +553,14 @@ set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
 #   plugin). The SVG imageformat plugin needs no entry: Fedora's qt6-qtsvg
 #   and openSUSE's libQt6Svg6 both ship it and both arrive via the soname
 #   autodep (verified on Tumbleweed + Leap 15.6).
-# - The tesseract language data, the curl/zip/grim/PipeWire CLIs, a portal
-#   backend and the QtMultimedia QML module are here for the same reason as in
-#   the Debian list: OCR, the ftp/ftps/sftp destinations, diagnostics bundle,
-#   wlroots capture, audio selection/recording and trim preview all fail at
-#   runtime without them, and autodeps can see none of it.
+# - The tesseract language data, the curl/zip/grim/PipeWire CLIs and the
+#   QtMultimedia QML module are here for the same reason as in the Debian list:
+#   OCR, the ftp/ftps/sftp destinations, diagnostics bundle, wlroots capture,
+#   audio selection/recording and trim preview all fail at runtime without them,
+#   and autodeps can see none of it.
 #   Boolean per distro again, since the langpack names differ (Fedora
 #   tesseract-langpack-*, and its OSD data is plain "tesseract-osd").
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, (xdg-desktop-portal-kde or xdg-desktop-portal-gnome or xdg-desktop-portal-cosmic or xdg-desktop-portal-wlr or xdg-desktop-portal-lxqt or xdg-desktop-portal-phosh or xdg-desktop-portal-gtk or xdg-desktop-portal-xapp), curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
 # Direct-download rpms self-register the COPR repo (%post - dnf repo on
 # Fedora, zypp repo on openSUSE) so later versions arrive natively;
 # %postun drops the entry on erase.
@@ -597,6 +599,12 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_version_compare_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_version_compare_test PRIVATE src/update)
     add_test(NAME unisic_version_compare_test COMMAND unisic_version_compare_test)
+
+    # --version is intentionally handled before QApplication, so this can run
+    # without a graphical session and never starts the UI.
+    add_test(NAME unisic_version_cli_test COMMAND unisic --version)
+    set_tests_properties(unisic_version_cli_test PROPERTIES
+        PASS_REGULAR_EXPRESSION "${UNISIC_VERSION_STRING}")
 
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp

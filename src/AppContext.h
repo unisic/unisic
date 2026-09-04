@@ -267,8 +267,8 @@ public:
     // style->size table both notification hosts size their real surfaces with -
     // a preview with its own copy would drift the moment a style is retuned.
     Q_INVOKABLE QSize notifCardSize(const QString &style) const;
-    // True when any required dependency is missing - gates the one-shot
-    // first-run system-check popup so a complete install never sees it.
+    // True when any `warn` dependency is missing - gates the one-shot first-run
+    // system-check popup so a fully-provisioned machine never sees it.
     Q_INVOKABLE bool hasDependencyWarnings() const;
     // True when the compositor exposes wlr-layer-shell - the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.

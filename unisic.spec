@@ -118,11 +118,11 @@ Requires:       /usr/bin/ffmpeg
 # wlr-screencopy path there and the silent path on other wlroots compositors.
 Requires:       grim
 # Region/window screenshots (PortalScreenshot) and all ScreenCast recording
-# route through xdg-desktop-portal. Require one backend, but keep the desktop-
-# specific choice as an RPM rich dependency: an installed provider satisfies
-# it, and a bare window-manager install must choose instead of staying broken.
+# route through xdg-desktop-portal. The BACKEND stays weak: which one is right
+# depends on the desktop, a session always has one, and picking for the user
+# would drag half a foreign desktop in.
 Requires:       xdg-desktop-portal
-Requires:       (xdg-desktop-portal-kde or xdg-desktop-portal-gnome or xdg-desktop-portal-cosmic or xdg-desktop-portal-wlr or xdg-desktop-portal-lxqt or xdg-desktop-portal-phosh or xdg-desktop-portal-gtk or xdg-desktop-portal-xapp)
+Recommends:     (xdg-desktop-portal-kde or xdg-desktop-portal-gnome or xdg-desktop-portal-wlr or xdg-desktop-portal-gtk)
 Requires:       wl-clipboard
 # The pipewire DAEMON: the linked libpipewire soname only brings the library in
 # via autodeps, and every ScreenCast stream needs the service running.

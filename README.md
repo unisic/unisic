@@ -64,7 +64,7 @@ By hand instead: grab the **AppImage** from the **[latest release](https://githu
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --gif`) - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
+Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --gif`); run `unisic --help` for every option - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
 
 ## What it does
 

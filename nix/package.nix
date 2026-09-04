@@ -16,7 +16,10 @@
   zxing-cpp,
   wayland,
   wayland-scanner,
-  xorg,
+  libx11,
+  libxext,
+  libxfixes,
+  libxcb,
   ffmpeg,
   wl-clipboard,
   zip,
@@ -133,10 +136,10 @@ stdenv.mkDerivation (finalAttrs: {
     # and pkg_check_modules takes all three modules in one call - so the single
     # missing .pc used to report the whole gate as not found. All four are
     # listed explicitly rather than left to Qt's closure.
-    xorg.libX11
-    xorg.libXext
-    xorg.libXfixes
-    xorg.libxcb
+    libx11
+    libxext
+    libxfixes
+    libxcb
   ];
 
   # Native packages require the portal service and one concrete backend. NixOS

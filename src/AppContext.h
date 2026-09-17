@@ -296,6 +296,7 @@ public:
     Q_INVOKABLE void devTestNotificationDrag();
     Q_INVOKABLE void devTestHistoryFilter();
     Q_INVOKABLE void devTestImgurSetup();
+    Q_INVOKABLE void devTestVgyMe();
     Q_INVOKABLE void devTestCurlDestination();
     Q_INVOKABLE void devTestTemplateVars();
     Q_INVOKABLE void devTestStaticGif();
@@ -823,6 +824,7 @@ private:
     // destination without an ID fails fast with a message that says what to do
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
+    QString vgyMeCheck() const;
     // The two pieces of a curl destination that used to need a real server to
     // see: where the file is PUT (the %file% token, and the legacy append when
     // it is absent, with a file name that must not be able to climb out of the

@@ -11,6 +11,7 @@ private slots:
     void curlTarget();
     void responseTemplate();
     void offeredVariablesResolve();
+    void vgyMeSupport();
     void liveBuzzheavierUpload();
 };
 
@@ -118,6 +119,39 @@ void UploadUrlTest::offeredVariablesResolve()
     QCOMPARE(extract("$text$"), QString::fromUtf8(answer));
     QCOMPARE(extract("$json:data.link$"), want);
     QCOMPARE(extract(byRegex), want);
+}
+
+void UploadUrlTest::vgyMeSupport()
+{
+    // Host detection
+    QVERIFY(UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")}}));
+    QVERIFY(UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://i.vgy.me/upload")}}));
+    QVERIFY(!UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://catbox.moe/user/api.php")}}));
+    QVERIFY(!UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://notvgy.me/upload")}}));
+
+    // User key extraction
+    const QJsonObject withKey{
+        {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("userkey"), QStringLiteral("secret123")}}}};
+    QCOMPARE(UploadManager::vgyMeUserKey(withKey), QStringLiteral("secret123"));
+
+    const QJsonObject withKeyCased{
+        {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("UserKey"), QStringLiteral("secret456")}}}};
+    QCOMPARE(UploadManager::vgyMeUserKey(withKeyCased), QStringLiteral("secret456"));
+
+    const QJsonObject withoutKey{
+        {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("other"), QStringLiteral("val")}}}};
+    QVERIFY(UploadManager::vgyMeUserKey(withoutKey).isEmpty());
+
+    // Response URL extraction
+    const QJsonObject vgyDest{
+        {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+        {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:delete$")},
+    };
+    const QByteArray response(R"({"error":false,"url":"https://vgy.me/u/test","image":"https://i.vgy.me/test.png","delete":"https://vgy.me/delete/del123"})");
+    QCOMPARE(UploadManager::extractUrl(vgyDest, QStringLiteral("urlPath"), response),
+             QStringLiteral("https://i.vgy.me/test.png"));
+    QCOMPARE(UploadManager::extractUrl(vgyDest, QStringLiteral("deletionUrlPath"), response),
+             QStringLiteral("https://vgy.me/delete/del123"));
 }
 
 // The whole curl path against the real host it was built for: the %file% token

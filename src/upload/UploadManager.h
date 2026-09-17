@@ -106,6 +106,13 @@ public:
     Q_INVOKABLE QString imgurClientIdOf(const QVariantMap &dest) const
     { return imgurClientId(QJsonObject::fromVariantMap(dest)); }
 
+    // vgy.me support: allows uploading images with an optional user key attached
+    // to the user's account.
+    Q_INVOKABLE bool isVgyMeDestination(const QVariantMap &dest) const
+    { return isVgyMe(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE QString vgyMeUserKeyOf(const QVariantMap &dest) const
+    { return vgyMeUserKey(QJsonObject::fromVariantMap(dest)); }
+
     // What a given form field substitutes, for the editor to offer as chips and
     // to draw as pills inside the field. Answered HERE and not spelled out in
     // QML because this class is the only thing that actually performs the
@@ -140,6 +147,8 @@ public:
     static QString curlTargetUrl(const QString &requestUrl, const QString &fileName);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
+    static bool isVgyMe(const QJsonObject &dest);
+    static QString vgyMeUserKey(const QJsonObject &dest);
 
 signals:
     void destinationsChanged();

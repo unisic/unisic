@@ -36,6 +36,7 @@
 // repaired in ensureBuiltins().
 static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
 static const char kImgurHost[] = "api.imgur.com";
+static const char kVgyMeHost[] = "vgy.me";
 
 // The two squares of the checkerboard testDestination() uploads: the mandatory
 // palette's Secondary (#2E236C) and Accent (#C8ACD6), i.e. the `secondary` and
@@ -82,6 +83,22 @@ QString UploadManager::imgurClientId(const QJsonObject &dest)
         return {};
     const QString id = auth.mid(10).trimmed();
     return id == QLatin1String(kImgurPlaceholderId) ? QString() : id;
+}
+
+bool UploadManager::isVgyMe(const QJsonObject &dest)
+{
+    const QString host = QUrl(dest.value(QStringLiteral("requestUrl")).toString()).host().toLower();
+    return host == QLatin1String(kVgyMeHost) || host.endsWith(QLatin1String(".vgy.me"));
+}
+
+QString UploadManager::vgyMeUserKey(const QJsonObject &dest)
+{
+    const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
+    for (auto it = args.begin(); it != args.end(); ++it) {
+        if (it.key().compare(QLatin1String("userkey"), Qt::CaseInsensitive) == 0)
+            return it.value().toString().trimmed();
+    }
+    return {};
 }
 
 UploadManager::UploadManager(Settings *settings, QObject *parent)
@@ -303,6 +320,20 @@ void UploadManager::ensureBuiltins()
             {QStringLiteral("type"), QStringLiteral("curl")},
             {QStringLiteral("requestUrl"), QStringLiteral("https://w.buzzheavier.com/%file%")},
             {QStringLiteral("urlPath"), QStringLiteral("https://buzzheavier.com/$json:data.id$")},
+            {QStringLiteral("builtin"), true},
+        });
+        changed = true;
+    }
+    if (!has(QStringLiteral("vgy.me"))) {
+        m_destinations.append(QJsonObject{
+            {QStringLiteral("name"), QStringLiteral("vgy.me")},
+            {QStringLiteral("type"), QStringLiteral("http")},
+            {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+            {QStringLiteral("method"), QStringLiteral("POST")},
+            {QStringLiteral("fileFormName"), QStringLiteral("file")},
+            {QStringLiteral("responseType"), QStringLiteral("json")},
+            {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+            {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:delete$")},
             {QStringLiteral("builtin"), true},
         });
         changed = true;

@@ -411,6 +411,7 @@ Item {
             fUrlPath.text = e.urlPath || ""
             fHeaders.text = e.headers ? JSON.stringify(e.headers) : ""
             fClientId.text = App.uploads.imgurClientIdOf(e)
+            fUserKey.text = App.uploads.vgyMeUserKeyOf(e)
             fUser.text = e.user || ""
             fPublicBase.text = e.publicUrlBase || ""
             testing = false
@@ -485,7 +486,17 @@ Item {
                     delete d.body
                     delete d.data
                     d.fileFormName = fFormName.text.trim() || "file"
-                    if (fArgs.text.trim() !== "") {
+                    if (editSheet.vgyMeMode) {
+                        var args = d.arguments || {}
+                        for (var k in args) {
+                            if (k.toLowerCase() === "userkey")
+                                delete args[k]
+                        }
+                        if (fUserKey.text.trim() !== "")
+                            args["userkey"] = fUserKey.text.trim()
+                        if (Object.keys(args).length > 0) d.arguments = args
+                        else delete d.arguments
+                    } else if (fArgs.text.trim() !== "") {
                         try { d.arguments = JSON.parse(fArgs.text) }
                         catch (e) {
                             App.showToast(qsTr("Extra form fields are not valid JSON. Fix or clear the field"))
@@ -522,6 +533,7 @@ Item {
         // credential field immediately. The host test lives in C++ - one rule for
         // the editor, the list badge and the upload precheck.
         readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
+        readonly property bool vgyMeMode: App.uploads.isVgyMeDestination({ requestUrl: fUrl.text })
         // Test-upload state. Local on purpose: App.uploads.busy is global and a
         // real capture upload running in parallel would grey the Test button out.
         property bool testing: false
@@ -786,12 +798,29 @@ Item {
                         }
                     }
                     Labeled {
-                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0
+                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0 && !editSheet.vgyMeMode
                         label: qsTr("Extra form fields (JSON)")
                         UTextField {
                             id: fArgs; width: parent.width
                             placeholder: qsTr("e.g. {\"reqtype\":\"fileupload\"}")
                         }
+                    }
+                    Labeled {
+                        id: rUserKey
+                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0 && editSheet.vgyMeMode
+                        label: qsTr("vgy.me user key (optional)")
+                        UTextField {
+                            id: fUserKey; width: parent.width
+                            placeholder: qsTr("e.g. your-user-key")
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rUserKey.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Optional user key from https://vgy.me/account/details#userkeys. Attach uploads to your vgy.me account (required if anonymous uploads are disabled).")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                     Labeled {
                         label: qsTr("URL extractor")

@@ -50,7 +50,7 @@ curl -fsSL https://api.github.com/repos/unisic/unisic/releases/latest | tr -d '\
 less install.sh && bash install.sh
 ```
 
-By hand instead: grab the **AppImage** from the **[latest release](https://github.com/unisic/unisic/releases/latest)** - one file, no password, and it replaces itself when a new version appears, which is why the installer recommends it too. The native packages are on the same page and register their repo on first install, so from then on updates arrive through your package manager. Copy-paste repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and a Nix flake: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
+By hand instead: grab the **AppImage** from the **[latest release](https://github.com/unisic/unisic/releases/latest)** - one file, no password, and it replaces itself when a new version appears, which is why the installer recommends it too. The native packages are on the same page and register their repo on first install, so from then on updates arrive through your package manager (install downloaded files using `sudo dnf install ./unisic-*.fedora.x86_64.rpm` or `sudo apt install ./unisic_*_amd64.deb` so repository dependencies are resolved automatically). Copy-paste repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and a Nix flake: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
 
 ## Press a hotkey, go
 

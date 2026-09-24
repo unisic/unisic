@@ -309,6 +309,9 @@ Item {
                                 readonly property bool needsClientId:
                                     App.uploads.isImgurDestination(modelData)
                                     && App.uploads.imgurClientIdOf(modelData) === ""
+                                readonly property bool needsUserKey:
+                                    App.uploads.isVgyMeDestination(modelData)
+                                    && App.uploads.vgyMeUserKeyOf(modelData) === ""
                                 Row {
                                     width: parent.width
                                     spacing: Theme.spacingS
@@ -320,7 +323,7 @@ Item {
                                     }
                                     Rectangle {
                                         id: setupChip
-                                        visible: infoCol.needsClientId
+                                        visible: infoCol.needsClientId || infoCol.needsUserKey
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: setupChipText.implicitWidth + 12
                                         height: 18
@@ -331,7 +334,9 @@ Item {
                                         Text {
                                             id: setupChipText
                                             anchors.centerIn: parent
-                                            text: qsTr("Needs a Client-ID")
+                                            text: infoCol.needsClientId
+                                                  ? qsTr("Needs a Client-ID")
+                                                  : qsTr("Needs a user key")
                                             color: Theme.danger
                                             font.pixelSize: Theme.fontS - 2
                                             font.weight: Font.DemiBold
@@ -411,6 +416,7 @@ Item {
             fUrlPath.text = e.urlPath || ""
             fHeaders.text = e.headers ? JSON.stringify(e.headers) : ""
             fClientId.text = App.uploads.imgurClientIdOf(e)
+            fUserKey.text = App.uploads.vgyMeUserKeyOf(e)
             fUser.text = e.user || ""
             fPublicBase.text = e.publicUrlBase || ""
             testing = false
@@ -485,7 +491,17 @@ Item {
                     delete d.body
                     delete d.data
                     d.fileFormName = fFormName.text.trim() || "file"
-                    if (fArgs.text.trim() !== "") {
+                    if (editSheet.vgyMeMode) {
+                        var args = d.arguments || {}
+                        for (var k in args) {
+                            if (k.toLowerCase() === "userkey")
+                                delete args[k]
+                        }
+                        if (fUserKey.text.trim() !== "")
+                            args["userkey"] = fUserKey.text.trim()
+                        if (Object.keys(args).length > 0) d.arguments = args
+                        else delete d.arguments
+                    } else if (fArgs.text.trim() !== "") {
                         try { d.arguments = JSON.parse(fArgs.text) }
                         catch (e) {
                             App.showToast(qsTr("Extra form fields are not valid JSON. Fix or clear the field"))
@@ -522,6 +538,7 @@ Item {
         // credential field immediately. The host test lives in C++ - one rule for
         // the editor, the list badge and the upload precheck.
         readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
+        readonly property bool vgyMeMode: App.uploads.isVgyMeDestination({ requestUrl: fUrl.text })
         // Test-upload state. Local on purpose: App.uploads.busy is global and a
         // real capture upload running in parallel would grey the Test button out.
         property bool testing: false
@@ -786,12 +803,29 @@ Item {
                         }
                     }
                     Labeled {
-                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0
+                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0 && !editSheet.vgyMeMode
                         label: qsTr("Extra form fields (JSON)")
                         UTextField {
                             id: fArgs; width: parent.width
                             placeholder: qsTr("e.g. {\"reqtype\":\"fileupload\"}")
                         }
+                    }
+                    Labeled {
+                        id: rUserKey
+                        visible: fType.currentIndex === 0 && fBody.currentIndex === 0 && editSheet.vgyMeMode
+                        label: qsTr("vgy.me user key")
+                        UTextField {
+                            id: fUserKey; width: parent.width
+                            placeholder: qsTr("e.g. your-user-key")
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rUserKey.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("User key from https://vgy.me/account/details#userkeys. Required because vgy.me does not allow anonymous uploads.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
                     }
                     Labeled {
                         label: qsTr("URL extractor")

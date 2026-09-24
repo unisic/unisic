@@ -2871,6 +2871,102 @@ QString AppContext::imgurSetupCheck()
     return QStringLiteral("PASS (placeholder purged, missing Client-ID refused early)");
 }
 
+QString AppContext::vgyMeCheck() const
+{
+    QStringList fails;
+    if (!UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")}}))
+        fails << QStringLiteral("isVgyMe missed https://vgy.me/upload");
+    if (!UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://i.vgy.me/upload")}}))
+        fails << QStringLiteral("isVgyMe missed https://i.vgy.me/upload");
+    if (UploadManager::isVgyMe(QJsonObject{{QStringLiteral("requestUrl"), QStringLiteral("https://catbox.moe/api")}}))
+        fails << QStringLiteral("isVgyMe false positive on catbox.moe");
+
+    const QJsonObject withKey{
+        {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("userkey"), QStringLiteral("mySecretKey123")}}}};
+    if (UploadManager::vgyMeUserKey(withKey) != QLatin1String("mySecretKey123"))
+        fails << QStringLiteral("vgyMeUserKey failed to extract userkey");
+    const QJsonObject withMixedKey{
+        {QStringLiteral("arguments"), QJsonObject{{QStringLiteral("UserKey"), QStringLiteral("mixedKey456")}}}};
+    if (UploadManager::vgyMeUserKey(withMixedKey) != QLatin1String("mixedKey456"))
+        fails << QStringLiteral("vgyMeUserKey failed to extract UserKey (case-insensitive)");
+
+    const QJsonObject vgyDest{
+        {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+        {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:delete$")},
+    };
+    const QByteArray response(R"({"error":false,"url":"https://vgy.me/u/test123","image":"https://i.vgy.me/test123.png","delete":"https://vgy.me/delete/del456"})");
+    const QString imgUrl = UploadManager::extractUrl(vgyDest, QStringLiteral("urlPath"), response);
+    if (imgUrl != QLatin1String("https://i.vgy.me/test123.png"))
+        fails << QStringLiteral("urlPath extract failed: ") + imgUrl;
+    const QString delUrl = UploadManager::extractUrl(vgyDest, QStringLiteral("deletionUrlPath"), response);
+    if (delUrl != QLatin1String("https://vgy.me/delete/del456"))
+        fails << QStringLiteral("deletionUrlPath extract failed: ") + delUrl;
+
+    bool hasVgy = false;
+    for (const QJsonValue &v : m_uploads->destinationsJson()) {
+        if (v.toObject().value(QStringLiteral("name")).toString() == QLatin1String("vgy.me")) {
+            hasVgy = true;
+            break;
+        }
+    }
+    if (!hasVgy)
+        fails << QStringLiteral("vgy.me builtin destination missing");
+
+    // The guard: a vgy.me destination with no user key must fail before any
+    // request goes out, naming the fix.
+    const QString scratch = QStringLiteral("unisic-smoke-vgy");
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), scratch},
+        {QStringLiteral("type"), QStringLiteral("http")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+        {QStringLiteral("fileFormName"), QStringLiteral("file")},
+        {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+    });
+    QString guardError;
+    bool guardCalled = false;
+    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        guardCalled = true;
+        guardError = err;
+    });
+    m_uploads->removeDestination(scratch);
+    if (!guardCalled)
+        fails << QStringLiteral("no user key: upload was attempted, not refused");
+    else if (!guardError.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+        fails << QStringLiteral("unhelpful error on missing user key: ") + guardError.left(80);
+
+    bool testCalled = false;
+    QString testErr;
+    m_uploads->testDestination(QVariantMap{
+        {QStringLiteral("name"), scratch},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+    }, [&](bool ok, const QString &, const QString &err) {
+        testCalled = true;
+        if (ok)
+            fails << QStringLiteral("testDestination succeeded without user key");
+        testErr = err;
+    });
+    if (!testCalled)
+        fails << QStringLiteral("testDestination was not called synchronously for missing user key");
+    else if (!testErr.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+        fails << QStringLiteral("unhelpful test error on missing user key: ") + testErr.left(80);
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (host match, user key extraction, response parsing, missing key guard, builtin present)")
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
 QString AppContext::curlDestinationCheck() const
 {
     QStringList fails;
@@ -3175,6 +3271,13 @@ void AppContext::devTestImgurSetup()
     if (!devBuild())
         return;
     showToast(tr("Dev: Imgur Client-ID guard: %1").arg(imgurSetupCheck()));
+}
+
+void AppContext::devTestVgyMe()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: vgy.me support: %1").arg(vgyMeCheck()));
 }
 
 void AppContext::devTestSettingsRoundTrip()
@@ -3759,6 +3862,7 @@ void AppContext::runSmokeTest()
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
+        smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
         smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());

@@ -6,6 +6,26 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.6
+
+### English
+**Added**
+- **vgy.me upload destination and user key support**: vgy.me is now available as a built-in upload server, and the server editor provides a dedicated user key field whenever a vgy.me address is used to associate uploads with your account. Thanks to aliceabyss for requesting this ([#114](https://github.com/unisic/unisic/issues/114)).
+
+**Fixed**
+- **Recordings keep audio and video in sync after pausing**: pausing a recording and resuming it could make the video speed up to catch up with the audio, or leave the two drifting apart for the rest of the clip. Frames now carry their real wall-clock timestamp into the container, so a pause simply removes a slice of time rather than re-numbering every frame from scratch, and the audio track stays where it belongs.
+- **The Fedora installer updates instead of failing when Unisic is already installed**: running the installer on Fedora with Unisic already present tried `dnf install` on a package that was already there, which dnf refused. It now uses `dnf upgrade --refresh` when an existing install is detected, so the update goes through.
+- **Debian and RPM packages carry a proper description**: the `.deb` and `.rpm` built by CPack had an empty or generic description field; package managers now show what Unisic actually is ([#116](https://github.com/unisic/unisic/issues/116)).
+
+### Polski
+**Dodane**
+- **Obsługa serwera wysyłania vgy.me i klucza użytkownika**: vgy.me jest teraz dostępny jako wbudowany serwer wysyłania, a edytor serwerów oferuje dedykowane pole klucza użytkownika dla adresu vgy.me, co pozwala przypisać wysyłane pliki do Twojego konta. Podziękowania dla aliceabyss za zgłoszenie ([#114](https://github.com/unisic/unisic/issues/114)).
+
+**Naprawione**
+- **Nagrania zachowują synchronizację audio i wideo po wstrzymaniu**: wstrzymanie nagrywania i wznowienie go mogło sprawić, że obraz przyspieszał, żeby dogonić dźwięk, albo jedno i drugie rozsynchronizowywało się na resztę klipu. Klatki niosą teraz swój prawdziwy znacznik czasu do kontenera, więc pauza po prostu usuwa wycinek czasu zamiast przenumerowywać każdą klatkę od zera, a ścieżka audio zostaje na swoim miejscu.
+- **Instalator na Fedorze aktualizuje zamiast kończyć się błędem, gdy Unisic jest już zainstalowany**: uruchomienie instalatora na Fedorze z już zainstalowanym Unisicem próbowało `dnf install` na paczce, która już była, a dnf tego odmawiał. Teraz używa `dnf upgrade --refresh`, gdy wykryje istniejącą instalację, więc aktualizacja przechodzi.
+- **Paczki Debian i RPM mają właściwy opis**: `.deb` i `.rpm` zbudowane przez CPack miały puste albo ogólnikowe pole opisu; menedżery pakietów pokazują teraz, czym Unisic naprawdę jest ([#116](https://github.com/unisic/unisic/issues/116)).
+
 ## 0.8.5
 
 ### English

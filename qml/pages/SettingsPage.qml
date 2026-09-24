@@ -3734,6 +3734,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("vgy.me support"); onClicked: App.devTestVgyMe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("curl destination"); onClicked: App.devTestCurlDestination() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Template variables"); onClicked: App.devTestTemplateVars() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Still GIF"); onClicked: App.devTestStaticGif() }

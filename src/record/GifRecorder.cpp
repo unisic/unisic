@@ -780,16 +780,15 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // unbounded in the QProcess read buffer for the whole recording.
     QStringList args{QStringLiteral("-y"),
                      QStringLiteral("-nostats"), QStringLiteral("-loglevel"), QStringLiteral("error"),
+                     QStringLiteral("-use_wallclock_as_timestamps"), QStringLiteral("1"),
                      QStringLiteral("-f"), QStringLiteral("rawvideo"),
                      QStringLiteral("-pix_fmt"), pixFmt,
                      QStringLiteral("-video_size"),
                      QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
                      QStringLiteral("-framerate"), QString::number(fps),
-                     // A raw packet is a whole frame. 512 here can make ffmpeg
-                     // retain tens of gigabytes independently of QProcess's
-                     // bounded writeCap; two frames absorb hand-off jitter
-                     // without recreating a second large frame reservoir.
-                     QStringLiteral("-thread_queue_size"), QStringLiteral("2"),
+                     // Absorb hand-off jitter and thread scheduling without retaining
+                     // unbounded memory.
+                     QStringLiteral("-thread_queue_size"), QStringLiteral("16"),
                      QStringLiteral("-i"), QStringLiteral("-")};
 
     // Audio inputs are added after raw screen input 0.
@@ -1100,8 +1099,8 @@ void GifRecorder::sampleFrame()
     if (frameBytes <= 0)
         return;
     const qsizetype absoluteCap = qsizetype(192) * 1024 * 1024;
-    const qsizetype queuedFrames = qBound(qsizetype(1), absoluteCap / frameBytes,
-                                          qsizetype(6));
+    const qsizetype queuedFrames = qBound(qsizetype(2), absoluteCap / frameBytes,
+                                          qsizetype(16));
     const qsizetype writeCap = frameBytes * queuedFrames;
     if (m_ffmpeg->bytesToWrite() + frameBytes > writeCap)
         return;
@@ -1166,34 +1165,27 @@ void GifRecorder::sampleFrame()
         encoded = compositeCursorOverlay(encoded, monoNowNs());
 
     // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
-    // 30.3 fps) and backpressure drops ticks, while the container claims an
-    // exact -framerate - pace by elapsed time, duplicating frames as needed,
-    // or playback speed drifts from real time.
+    // 30.3 fps) and backpressure drops ticks. With -use_wallclock_as_timestamps
+    // on ffmpeg's rawvideo input, each frame gets its real arrival timestamp.
+    // Dropped ticks or scheduling delays lower the visual framerate during lag
+    // rather than deleting time from the container (which caused video
+    // acceleration and A/V desync). We write at most 1 frame per tick and
+    // update m_framesWritten to target to prevent flooding an already-
+    // backpressured encoder with bursts of duplicate backlog frames.
     const qint64 target = m_elapsed.elapsed() * m_fps / 1000 + 1;
     if (target <= m_framesWritten)
         return; // ahead of schedule
-    qint64 n = qMin<qint64>(target - m_framesWritten, m_fps); // ≤1 s burst
-    // Also clamp by the remaining write-buffer headroom: after an encoder stall
-    // drained ticks, one catch-up tick could otherwise memcpy up to fps full
-    // frames (~2 GB at 4K60) into the QProcess buffer in a single GUI-thread
-    // loop. bytesToWrite() <= writeCap here (checked above), so headroom >= 0;
-    // If there is not room for one whole frame, wait for the next tick; rawvideo
-    // cannot safely accept a partial frame as a pacing unit.
-    n = qMin<qint64>(n, (writeCap - m_ffmpeg->bytesToWrite()) / frameBytes);
-    qint64 accepted = 0;
-    for (; accepted < n; ++accepted) {
-        qsizetype offset = 0;
-        while (offset < encoded.size()) {
-            const qint64 written = m_ffmpeg->write(encoded.constData() + offset,
-                                                    encoded.size() - offset);
-            if (written <= 0)
-                break;
-            offset += written;
-        }
-        if (offset != encoded.size())
+
+    qsizetype offset = 0;
+    while (offset < encoded.size()) {
+        const qint64 written = m_ffmpeg->write(encoded.constData() + offset,
+                                                encoded.size() - offset);
+        if (written <= 0)
             break;
+        offset += written;
     }
-    m_framesWritten += accepted;
+    if (offset == encoded.size())
+        m_framesWritten = target;
 }
 
 void GifRecorder::stop()
@@ -1578,14 +1570,30 @@ QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &ou
     // recorded (un-paused) length. Commas inside the expression are protected by
     // the surrounding single quotes (there is no shell - ffmpeg sees them raw).
     QStringList inside;
+    QStringList shifts;
     for (const auto &iv : intervalsMs) {
+        if (iv.second <= iv.first)
+            continue;
+        const double startSec = iv.first / 1000.0;
+        const double endSec = iv.second / 1000.0;
+        const double durSec = endSec - startSec;
         inside << QStringLiteral("between(t,%1,%2)")
-                      .arg(iv.first / 1000.0, 0, 'f', 3)
-                      .arg(iv.second / 1000.0, 0, 'f', 3);
+                      .arg(startSec, 0, 'f', 3)
+                      .arg(endSec, 0, 'f', 3);
+        shifts << QStringLiteral("%1/TB*gte(T,%2)")
+                      .arg(durSec, 0, 'f', 3)
+                      .arg(endSec, 0, 'f', 3);
     }
-    const QString keep = QStringLiteral("not(%1)").arg(inside.join(QLatin1Char('+')));
-    const QString vf = QStringLiteral("select='%1',setpts=N/FRAME_RATE/TB").arg(keep);
-    const QString af = QStringLiteral("aselect='%1',asetpts=N/SR/TB").arg(keep);
+    const QString keep = inside.isEmpty()
+                             ? QStringLiteral("1")
+                             : QStringLiteral("not(%1)").arg(inside.join(QLatin1Char('+')));
+    const QString shiftExpr = shifts.join(QLatin1Char('+'));
+    const QString vf = shifts.isEmpty()
+                           ? QStringLiteral("select='%1',setpts=PTS-STARTPTS").arg(keep)
+                           : QStringLiteral("select='%1',setpts='PTS-STARTPTS-(%2)'").arg(keep, shiftExpr);
+    const QString af = shifts.isEmpty()
+                           ? QStringLiteral("aselect='%1',asetpts=PTS-STARTPTS").arg(keep)
+                           : QStringLiteral("aselect='%1',asetpts='PTS-STARTPTS-(%2)'").arg(keep, shiftExpr);
 
     QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
                      QStringLiteral("-loglevel"), QStringLiteral("error"),

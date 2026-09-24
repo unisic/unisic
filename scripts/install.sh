@@ -1134,7 +1134,11 @@ catch_up_from_release() {   # 1 when the newest could not be fetched
     file="${tmpdir}/$(basename "$url")"
     download "$url" "$file" || return 1
     case "$native_pm" in
-        dnf) priv dnf install -y "$file" || return 1 ;;
+        dnf) if native_installed; then
+                 priv dnf upgrade -y "$file" || priv dnf install -y "$file" || return 1
+             else
+                 priv dnf install -y "$file" || return 1
+             fi ;;
         apt) priv apt-get install -y "$file" || return 1 ;;
     esac
     say "Installed ${latest_ver}. Your software source keeps updating it from here on."
@@ -1216,7 +1220,9 @@ install_rpm() {
     local url file
     if [ -z "$REQ_VERSION" ] && [ "${ID:-}" = fedora ] && add_copr_repo; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
-        if priv dnf install -y unisic; then
+        local dnf_cmd="install"
+        if native_installed; then dnf_cmd="upgrade"; fi
+        if priv dnf --refresh "$dnf_cmd" -y unisic; then
             if channel_behind native; then catch_up_from_release || true; fi
             return
         fi
@@ -1227,7 +1233,11 @@ install_rpm() {
     file="${tmpdir}/$(basename "$url")"
     download "$url" "$file"
     say "Installing Unisic... (from now on it updates with your system's normal updates)"
-    priv dnf install -y "$file" || native_fail
+    if native_installed; then
+        priv dnf upgrade -y "$file" || priv dnf install -y "$file" || native_fail
+    else
+        priv dnf install -y "$file" || native_fail
+    fi
 }
 
 install_arch() {

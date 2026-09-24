@@ -87,25 +87,41 @@ bin_sha="$(fetch_sha "$asset")"
 # friends) and nobody updated these recipes, the AUR package installs and then
 # fails to start - so a MISSING entry is fatal.
 #
+# BOTH recipes are checked, and separately. unisic-bin repacks the released
+# package, so its list obviously has to cover it; the source recipe compiles
+# the same tree with the same hard gates, so its list has to cover it too, and
+# since Unisic has no optional dependencies there is no longer any reason for
+# the two to differ. Checking only unisic-bin - which is what this did until
+# that rule landed - let the source recipe drift unnoticed indefinitely, and a
+# union of the two would hide a gap in one behind the other.
+#
 # The comparison is deliberately one-way. Extra entries here are how namcap
-# findings land: libinput and hicolor-icon-theme are real dependencies the
-# upstream package still under-declares, and failing on those would just train
-# the maintainer to skip the check.
+# findings and the runtime helpers land: libinput and hicolor-icon-theme are
+# real dependencies the upstream package still under-declares, while curl,
+# zip, qt6-multimedia and the tesseract-data packs are shelled out to or
+# imported from QML, so no linker ever records them in .PKGINFO. Failing on
+# those would just train the maintainer to skip the check.
 say "Comparing dependencies against the released package"
 pkginfo="$(tar --zstd -xOf "${tmp}/${asset_name}" .PKGINFO 2>/dev/null || true)"
 released_deps="$(printf '%s' "$pkginfo" | sed -n 's/^depend = //p' | sort -u)"
-recipe_deps="$(sed -n '/^depends=(/,/)/p' "${here}/unisic-bin/PKGBUILD" \
-               | tr -d "()'" | sed 's/^depends=//' | tr ' ' '\n' | sed '/^$/d' | sort -u)"
-missing="$(comm -13 <(printf '%s\n' "$recipe_deps") <(printf '%s\n' "$released_deps"))"
-extra="$(comm -23 <(printf '%s\n' "$recipe_deps") <(printf '%s\n' "$released_deps"))"
-if [ -n "$extra" ]; then
-    printf '\033[1;33m==> only in the AUR recipes\033[0m (fine - namcap additions):\n'
-    printf '      %s\n' $extra
-fi
-if [ -n "$missing" ]; then
-    printf '\033[1;31m==> the release needs packages the recipes do not list:\033[0m\n'
-    printf '      %s\n' $missing
-    die "Add them to depends=() in BOTH PKGBUILDs, then re-run."
+dep_gap=0
+for recipe in unisic unisic-bin; do
+    recipe_deps="$(sed -n '/^depends=(/,/)/p' "${here}/${recipe}/PKGBUILD" \
+                   | tr -d "()'" | sed 's/^depends=//' | tr ' ' '\n' | sed '/^$/d' | sort -u)"
+    missing="$(comm -13 <(printf '%s\n' "$recipe_deps") <(printf '%s\n' "$released_deps"))"
+    extra="$(comm -23 <(printf '%s\n' "$recipe_deps") <(printf '%s\n' "$released_deps"))"
+    if [ -n "$extra" ]; then
+        printf '\033[1;33m==> only in %s\033[0m (fine - namcap additions and runtime helpers):\n' "$recipe"
+        printf '      %s\n' $extra
+    fi
+    if [ -n "$missing" ]; then
+        printf '\033[1;31m==> %s does not list packages the release needs:\033[0m\n' "$recipe"
+        printf '      %s\n' $missing
+        dep_gap=1
+    fi
+done
+if [ "$dep_gap" -eq 1 ]; then
+    die "Add the packages listed above to depends=() in the PKGBUILD(s) named, then re-run."
 fi
 
 # ----------------------------------------------------------------- rewrite ---

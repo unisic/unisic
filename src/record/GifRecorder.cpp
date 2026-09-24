@@ -10,22 +10,15 @@
 #include "capture/ScreenCastSession.h"
 #include <QGuiApplication>
 #include "record/IScreenGrabber.h"
-#ifdef HAVE_PIPEWIRE
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
-#endif
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
 #include "record/X11ShmGrabber.h"
-#include <QCursor>
-#endif
-#ifdef HAVE_KWIN_SCREENCAST
 #include "capture/KWinScreencasting.h"
 #include <QCursor>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
-#endif
 #include <QStandardPaths>
 #include <QSettings>
 #include <QDateTime>
@@ -51,7 +44,7 @@
 // non-blocking stopProcess escalation.
 
 // "auto" (the default) picks a hardware encoder that really works, else falls
-// back to software. An explicit choice is honoured as-is — including software.
+// back to software. An explicit choice is honoured as-is - including software.
 QString GifRecorder::resolvedVideoEncoder() const
 {
     const QString choice = m_settings->videoEncoder();
@@ -71,7 +64,7 @@ GifRecorder::GifRecorder(Settings *settings, QObject *parent)
     connect(&m_sampler, &QTimer::timeout, this, &GifRecorder::sampleFrame);
     m_maxTimer.setSingleShot(true);
     connect(&m_maxTimer, &QTimer::timeout, this, &GifRecorder::stop);
-    // 1 s — the elapsed clock displays whole seconds (sidebar pill, REC
+    // 1 s - the elapsed clock displays whole seconds (sidebar pill, REC
     // badge), so ticking 4x/s only woke the GUI thread three extra times per
     // second for identical text, recording-long, even with the window hidden.
     m_elapsedTick.setInterval(1000);
@@ -92,7 +85,7 @@ static QString restoreTokenKey(GifRecorder::SourceType source, QScreen *screen)
     if (source == GifRecorder::Window)
         return QStringLiteral("record/portalRestoreTokenWindow");
     // Region: per-monitor token. A restore token silently replays the monitor
-    // it was created with — reusing one recorded on another screen streams the
+    // it was created with - reusing one recorded on another screen streams the
     // WRONG monitor and the region crop lands elsewhere (dual-monitor bug).
     if (source == GifRecorder::Region && screen && !screen->name().isEmpty())
         return QStringLiteral("record/portalRestoreTokenMonitor@") + screen->name();
@@ -149,11 +142,6 @@ void GifRecorder::togglePause()
 void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysical, QScreen *screen,
                         bool holdForCommit)
 {
-#ifndef HAVE_PIPEWIRE
-    Q_UNUSED(output) Q_UNUSED(source) Q_UNUSED(cropPhysical) Q_UNUSED(screen) Q_UNUSED(holdForCommit)
-    emit failed(tr("Unisic was built without PipeWire support, so recording is unavailable"));
-    return;
-#else
     if (m_state != Idle)
         return;
     // Sweep temp intermediates orphaned by a crash/SIGKILL (multi-GB each in
@@ -167,7 +155,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
         const QStringList stale = cache.entryList({QStringLiteral("unisic-rec-*")}, QDir::Files);
         for (const QString &f : stale)
             cache.remove(f);
-        // A FIFO is not QDir::Files — the audio pipe orphaned by a hard crash
+        // A FIFO is not QDir::Files - the audio pipe orphaned by a hard crash
         // needs QDir::System to match; replay snapshot dirs are directories.
         const QStringList staleFifos = cache.entryList({QStringLiteral("unisic-audio-*.fifo")},
                                                        QDir::System);
@@ -179,7 +167,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
             QDir(cache.filePath(d)).removeRecursively();
     }
     // Warm the ffmpeg encoder probe off the GUI thread while the portal
-    // dialog / stream negotiation runs — without this the first beginEncoding
+    // dialog / stream negotiation runs - without this the first beginEncoding
     // blocks the UI for up to 5 s on the synchronous "ffmpeg -encoders"
     // round-trip. Keep the watcher so beginEncoding can gate on it (a portal
     // restore token can beat the warm-up) instead of touching the blocking
@@ -205,20 +193,19 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_monitorRetryDone = false;
     m_nativeStream = false;
 
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
-    // X11 session: the ScreenCast portal has no working path there, so grab the
-    // monitor directly with XShm. Window source is not offered on X11 (v1), so
-    // it still falls through to the portal (which will just fail on X11).
+    // BOTH grabbers are compiled in; which one runs is a per-SESSION choice, not
+    // a build one. X11 session: the ScreenCast portal has no working path there,
+    // so grab the monitor directly with XShm. Window source is not offered on
+    // X11 (v1), so it still falls through to the portal (which will just fail
+    // on X11).
     if (m_source != Window && QGuiApplication::platformName() == QLatin1String("xcb")) {
         openX11Session();
         return;
     }
-#endif
     openPortalSession();
-#endif
 }
 
-// CLOCK_MONOTONIC now, in ns — the one clock shared by PipeWire frame pts,
+// CLOCK_MONOTONIC now, in ns - the one clock shared by PipeWire frame pts,
 // CursorSample::tMonoNs and libinput's click timestamps.
 static qint64 monoNowNs()
 {
@@ -229,14 +216,13 @@ static qint64 monoNowNs()
 
 QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64 nowNs)
 {
-#ifdef HAVE_PIPEWIRE
     const bool wantCursor = m_cursorOverlayActive && m_cursorOverlay.hasContent(nowNs);
     const bool wantKeys = m_keystrokeOverlayActive && m_keystrokes.hasContent(nowNs);
     if (encoded.isEmpty() || (!wantCursor && !wantKeys))
         return encoded;
 
     // The frames are kept in the stream's native byte order (see
-    // PipeWireGrabber::pixelFormat) — wrap them in the QImage format whose
+    // PipeWireGrabber::pixelFormat) - wrap them in the QImage format whose
     // in-memory bytes match, so nothing has to be swizzled per frame.
     const QString pf = m_grabber ? m_grabber->pixelFormat() : QString();
     QImage::Format fmt;
@@ -266,10 +252,6 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
         m_keystrokes.paint(p, nowNs);
     p.end();
     return m_overlayFrame;
-#else
-    Q_UNUSED(nowNs)
-    return encoded;
-#endif
 }
 
 void GifRecorder::startClickCapture()
@@ -308,7 +290,7 @@ void GifRecorder::startKeyCapture()
     if (!m_settings->recordKeystrokes() || m_keys)
         return;
     // Same access story as clicks: /dev/input needs the `input` group, and
-    // most desktop users are not in it — degrade to no badge, never an error.
+    // most desktop users are not in it - degrade to no badge, never an error.
     if (InputPermission::probe() != InputPermission::Available)
         return;
     m_keystrokes.reset();
@@ -324,7 +306,7 @@ void GifRecorder::startKeyCapture()
     m_keys = new KeyCapture(this);
     connect(m_keys, &KeyCapture::keyEvent, this,
             [this](qint64 tUsec, quint32 code, bool pressed) {
-                // Paused spans are excised later — a badge armed during one
+                // Paused spans are excised later - a badge armed during one
                 // would pop in fully faded mid-recording. Releases still pass
                 // so a modifier held across the pause can't stick on the badge.
                 if (m_paused && pressed)
@@ -349,11 +331,11 @@ void GifRecorder::stopKeyCapture()
 // The one cursor-mode wish, shared verbatim by the portal's cursor_mode and
 // KWin's zkde_screencast pointer enum (same wire values). Highlighting the
 // pointer means asking for Metadata, which STOPS the compositor drawing the
-// pointer into the stream — from then on m_cursorOverlay is the only thing
+// pointer into the stream - from then on m_cursorOverlay is the only thing
 // that draws it. Metadata is optional in the portal spec and an unsupported
 // mode fails SelectSources outright, so a portal without it silently degrades
 // to the plain embedded cursor rather than killing the recording (KWin's own
-// protocol always understands Metadata — the probe only gates the portal).
+// protocol always understands Metadata - the probe only gates the portal).
 uint GifRecorder::resolveCursorMode()
 {
     m_cursorOverlayActive = false;
@@ -373,7 +355,7 @@ uint GifRecorder::resolveCursorMode()
     }
 
     // The overlay draws the system cursor 1:1 with a halo and click ripples.
-    // Pointer size / custom images / glide are deliberately NOT here — that
+    // Pointer size / custom images / glide are deliberately NOT here - that
     // styling is Unisic Studio's job; a recorder keeps the pointer true to the
     // desktop. The pointer is smoothed only to kill the raw metadata jitter,
     // using CursorSmoother's default (Studio-tuned) parameters.
@@ -388,15 +370,15 @@ uint GifRecorder::resolveCursorMode()
 }
 
 // KWin-native screencast: the app names the source, KWin answers with a
-// PipeWire node id on the DEFAULT session daemon — no share dialog, no restore
-// token. Returns false when the interface is unavailable (not KWin, desktop
-// file lacks X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1, or the
-// feature was not built) — the caller then opens the portal. A stream-level
-// failure AFTER a successful request also retries via the portal once,
-// mirroring KWinScreenShot2's auth fallback for screenshots.
+// PipeWire node id on the DEFAULT session daemon - no share dialog, no restore
+// token. Returns false when the interface is unavailable at RUNTIME (not KWin,
+// or the installed desktop file lacks
+// X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1) - the caller then opens
+// the portal. A stream-level failure AFTER a successful request also retries
+// via the portal once, mirroring KWinScreenShot2's auth fallback for
+// screenshots.
 bool GifRecorder::tryOpenKWinStream()
 {
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
     if (!m_kwinCast)
         m_kwinCast = new KWinScreencasting(this);
     if (!m_kwinCast->isAvailable())
@@ -424,7 +406,7 @@ bool GifRecorder::tryOpenKWinStream()
         return true;
     } else {
         // Full screen: the explicit target, else the monitor under the
-        // cursor — with one monitor that is simply the only one, with more it
+        // cursor - with one monitor that is simply the only one, with more it
         // records where the user is working, no dialog either way.
         QScreen *screen = m_targetScreen ? m_targetScreen.data()
                                          : QGuiApplication::screenAt(QCursor::pos());
@@ -438,12 +420,8 @@ bool GifRecorder::tryOpenKWinStream()
     }
     adoptKWinStream(stream);
     return true;
-#else
-    return false;
-#endif
 }
 
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_KWIN_SCREENCAST)
 // Wire the created/failed/closed answers of a requested native stream.
 void GifRecorder::adoptKWinStream(KWinScreencastStream *stream)
 {
@@ -471,7 +449,7 @@ void GifRecorder::adoptKWinStream(KWinScreencastStream *stream)
     });
     connect(stream, &KWinScreencastStream::closed, this, [this] {
         // The compositor ended the cast (output unplugged, window closed):
-        // finalize what we have — same semantics as the portal's sessionClosed.
+        // finalize what we have - same semantics as the portal's sessionClosed.
         if (m_state == Recording)
             stop();
         else if (m_state == Starting)
@@ -481,7 +459,7 @@ void GifRecorder::adoptKWinStream(KWinScreencastStream *stream)
 
 // KWin's interactive window pick (org.kde.KWin queryWindowInfo): the cursor
 // becomes a picker, the clicked window's uuid feeds stream_window. Escape
-// cancels with an error reply — treated as a cancelled recording, not a
+// cancels with an error reply - treated as a cancelled recording, not a
 // portal fallback (the portal would only re-ask with its own picker).
 void GifRecorder::openKWinWindowStream(uint cursorMode)
 {
@@ -512,13 +490,11 @@ void GifRecorder::openKWinWindowStream(uint cursorMode)
                 adoptKWinStream(stream);
             });
 }
-#endif
 
 void GifRecorder::openPortalSession()
 {
-#ifdef HAVE_PIPEWIRE
     // KDE first: the compositor-native path needs no share dialog and no
-    // restore token — the app names the source itself (Spectacle's model).
+    // restore token - the app names the source itself (Spectacle's model).
     if (tryOpenKWinStream())
         return;
 
@@ -547,7 +523,7 @@ void GifRecorder::openPortalSession()
     // Full-screen recording on a multi-monitor setup: do NOT send the stored
     // restore token. The system share dialog is the screen selector, and a
     // token suppresses it while silently replaying whatever was picked when it
-    // was created — including an "entire workspace" share, which recorded BOTH
+    // was created - including an "entire workspace" share, which recorded BOTH
     // screens with no dialog to say otherwise (dual-monitor bug). With one
     // monitor there is nothing to choose, so the token keeps its silent-start
     // convenience; Region keeps its per-monitor tokens (the overlay already
@@ -557,28 +533,24 @@ void GifRecorder::openPortalSession()
     if (m_source == Screen && QGuiApplication::screens().size() > 1)
         restoreToken.clear();
     m_session->start(cursorMode, m_source == Window ? 2u : 1u, restoreToken);
-#endif
 }
 
 void GifRecorder::commit()
 {
-#ifdef HAVE_PIPEWIRE
     if (m_state != Starting || !m_armed || m_committed)
         return;
     m_committed = true;
     beginEncoding(m_heldStreamSize);
-#endif
 }
 
 void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, const QPoint &pos)
 {
-#ifdef HAVE_PIPEWIRE
     // Wrong-monitor guard (dual-monitor): the region crop is LOCAL to the
     // screen it was drawn on, so a stream of a different monitor records a
     // misplaced area. Happens when a stale restore token replays a previously
-    // picked monitor — or a whole-workspace share, which arrives as ONE stream
+    // picked monitor - or a whole-workspace share, which arrives as ONE stream
     // spanning every monitor whose position equals a primary-monitor target,
-    // so the reported SIZE has to be checked too — or the user shares the
+    // so the reported SIZE has to be checked too - or the user shares the
     // wrong entry in the portal dialog. StreamGeometry::streamMatchesScreen
     // tells a workspace/other-monitor stream apart from the one legitimate
     // mismatch, a fractional-scaling rescale of the right monitor.
@@ -588,7 +560,7 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, co
                m_targetScreen->devicePixelRatio(),
                m_targetScreen->virtualGeometry().size(),
                int(QGuiApplication::screens().size()))) {
-        ::close(fd); // dup'd for us — nobody else will
+        ::close(fd); // dup'd for us - nobody else will
         m_settings->raw()->remove(restoreTokenKey(m_source, m_targetScreen));
         m_session->disconnect(this);
         m_session->deleteLater();
@@ -605,9 +577,6 @@ void GifRecorder::onStreamReady(int fd, uint nodeId, const QSize &portalSize, co
         return;
     }
     attachStream(fd, nodeId);
-#else
-    Q_UNUSED(fd) Q_UNUSED(nodeId)
-#endif
 }
 
 // Common tail of both stream paths: wire a PipeWireGrabber onto the negotiated
@@ -639,7 +608,6 @@ void GifRecorder::wireGrabber(IScreenGrabber *grabber)
 
 void GifRecorder::attachStream(int fd, uint nodeId)
 {
-#ifdef HAVE_PIPEWIRE
     auto *pw = new PipeWireGrabber(this);
     m_grabber = pw;
     wireGrabber(pw);
@@ -650,12 +618,8 @@ void GifRecorder::attachStream(int fd, uint nodeId)
                                                     : m_settings->videoFps(), 60);
     if (!pw->start(fd, nodeId, targetFps, m_cursorOverlayActive))
         fail(tr("Failed to connect to the PipeWire stream"));
-#else
-    Q_UNUSED(fd) Q_UNUSED(nodeId)
-#endif
 }
 
-#if defined(HAVE_PIPEWIRE) && defined(HAVE_X11)
 void GifRecorder::openX11Session()
 {
     // Pick the target monitor: the explicit target, else the screen under the
@@ -695,7 +659,6 @@ void GifRecorder::openX11Session()
     if (!x->start(rootRect, targetFps, m_cursorOverlayActive))
         fail(tr("Failed to start X11 screen capture"));
 }
-#endif
 
 void GifRecorder::beginEncoding(const QSize &streamSize)
 {
@@ -712,7 +675,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
     // Commit hold. The portal share dialog is resolved FIRST; reaching here means
     // it was approved and the stream is live. Announce arming (the caller runs
-    // the countdown / start cue) and WAIT — encoding begins only on commit(), so
+    // the countdown / start cue) and WAIT - encoding begins only on commit(), so
     // no countdown number and no start sound can land in the recording.
     if (m_holdForCommit && !m_committed) {
         if (!m_armed) {
@@ -730,7 +693,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     QRect sourceRect(QPoint(0, 0), m_streamSize);
     QRect c = sourceRect;
 
-    // KWin-native region streams arrive PRE-CROPPED by the compositor — the
+    // KWin-native region streams arrive PRE-CROPPED by the compositor - the
     // stream IS the selection, so the ffmpeg crop (and the fractional-scale
     // rescale below, which compares against full-monitor sizes) must not run.
     if (m_source == Region && !m_nativeStream) {
@@ -755,7 +718,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         c = crop.intersected(sourceRect);
     }
 
-    // yuv420p (MP4/WebM) requires even dimensions — enforce for every source,
+    // yuv420p (MP4/WebM) requires even dimensions - enforce for every source,
     // not just Region: window streams are frequently odd-sized.
     c.setWidth(c.width() & ~1);
     c.setHeight(c.height() & ~1);
@@ -781,7 +744,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                          : QStringLiteral("mp4");
     const QDateTime nowDt = QDateTime::currentDateTime();
     const QString stamp = nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
-    // Optional per-month subfolders (yyyy-MM) — same knob as screenshots
+    // Optional per-month subfolders (yyyy-MM) - same knob as screenshots
     // (Settings::dateSubfolders), applied to recordings too so the option
     // actually buckets GIFs/videos and not just images. mkpath creates the
     // subfolder as well.
@@ -810,10 +773,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // grabber's onProcess stays a plain row memcpy; the encoder's swscale does
     // any conversion far faster than a per-pixel swizzle on the PipeWire thread.
     QString pixFmt = QStringLiteral("bgra");
-#ifdef HAVE_PIPEWIRE
     if (m_grabber)
         pixFmt = m_grabber->pixelFormat();
-#endif
 
     // -nostats: with MergedChannels the progress spam would otherwise grow
     // unbounded in the QProcess read buffer for the whole recording.
@@ -834,7 +795,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // Audio inputs are added after raw screen input 0.
     int nextInput = 1;
 
-    // Optional audio — video output only (GIF has none). Pulse sources are
+    // Optional audio - video output only (GIF has none). Pulse sources are
     // followed by an optional PipeWire application node captured through a
     // bounded kernel FIFO (pw-record writes raw PCM; no audio accumulates in RAM).
     m_hasAudio = false;
@@ -889,7 +850,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
-    // x264, else utvideo (fast intra-only RGB), else FFV1 — fallbacks for an
+    // x264, else utvideo (fast intra-only RGB), else FFV1 - fallbacks for an
     // ffmpeg built without GPL x264.
     const QSet<QString> &encoders = FfmpegUtil::encoders();
     if (m_output == Replay) {
@@ -1004,7 +965,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         const int segments = replaySegmentCount(m_settings->instantReplaySeconds());
         // The segment muxer can only cut on a keyframe. libx264(rgb) at
         // -preset ultrafast has no forced GOP, so keyint defaults to 250 frames
-        // (~4-8s) and every "2s" segment is really ~8s — the ring then holds far
+        // (~4-8s) and every "2s" segment is really ~8s - the ring then holds far
         // more than the requested window and an early Save-replay (before two
         // segments exist) yields nothing. Force an IDR every 2s so segment_time
         // is honoured and replaySegmentCount's /2 maths hold.
@@ -1049,7 +1010,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 qWarning() << out;
             // Salvage before fail(): fail() -> abort() deletes m_tempPath, but
             // an encoder that was watchdog-killed (or died on ENOSPC etc.)
-            // leaves a readable trailer-less mkv behind — ffmpeg reads it back
+            // leaves a readable trailer-less mkv behind - ffmpeg reads it back
             // to the last complete cluster ("File ended prematurely" warning,
             // verified on a real wedge: 143 s of a 166 s recording recovered).
             // Converting that beats discarding the user's whole recording.
@@ -1121,20 +1082,19 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
 
 void GifRecorder::sampleFrame()
 {
-#ifdef HAVE_PIPEWIRE
     if (m_state != Recording || !m_grabber || !m_ffmpeg)
         return;
     // Bounded buffer: drop this sample instead of aborting the recording.
-    // Scale with the frame size — a fixed 64 MB is only ~2 frames at 4K BGRA,
+    // Scale with the frame size - a fixed 64 MB is only ~2 frames at 4K BGRA,
     // so a momentary encoder stall would drop samples immediately. But keep the
     // ceiling TIGHT: when the encoder can't sustain the frame rate at all
     // (software encode in a VM / GNOME on weak hardware), the backlog fills to
-    // whatever this cap allows and just sits there for the whole recording —
+    // whatever this cap allows and just sits there for the whole recording -
     // ×30 measured as a standing 462 MB RSS at 1440p (~1 GB at 4K), and every
     // buffered byte also delays stop(): closeWriteChannel() flushes the entire
     // backlog through the encoder before conversion can begin. A sustained
     // deficit drops samples at ANY cap (pacing duplicates frames afterwards),
-    // so a big backlog buys nothing beyond burst absorption — ×6 (~200 ms at
+    // so a big backlog buys nothing beyond burst absorption - ×6 (~200 ms at
     // 30 fps) absorbs the same stalls at a fraction of the memory.
     const qsizetype frameBytes = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
     if (frameBytes <= 0)
@@ -1148,14 +1108,14 @@ void GifRecorder::sampleFrame()
     // ffmpeg's rawvideo demuxer slices stdin into fixed m_streamSize frames. If
     // the source renegotiated a different size mid-recording (e.g. a window was
     // resized), feeding the new-size frame would desync every subsequent frame
-    // into corruption — hold the last good frame instead.
+    // into corruption - hold the last good frame instead.
     const qsizetype expected = qsizetype(m_streamSize.width()) * m_streamSize.height() * 4;
     QByteArray frame;
     QByteArray encoded;
     quint64 seq = 0;
     // While paused, don't pull new frames: keep the pacing running (so video and
     // audio stay wall-clock-aligned in the intermediate) but repeat the last
-    // frame — the whole paused span is excised later, so its content is moot and
+    // frame - the whole paused span is excised later, so its content is moot and
     // a freeze is the cheapest thing to encode.
     if (!m_paused && m_grabber->latestFrame(frame, &seq) && frame.size() == expected) {
         if (seq == m_lastSampledSeq && !m_lastFrame.isEmpty()) {
@@ -1191,7 +1151,7 @@ void GifRecorder::sampleFrame()
 
     // Cursor overlay. Drain every sample (not just the newest): the one-euro
     // filter is a time series, so skipping samples would change the smoothing.
-    // While paused the pointer must freeze with the picture — the paused span
+    // While paused the pointer must freeze with the picture - the paused span
     // is excised later, so a pointer that kept moving would teleport across
     // the cut.
     if (m_cursorOverlayActive && m_grabber && !m_paused) {
@@ -1207,7 +1167,7 @@ void GifRecorder::sampleFrame()
 
     // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
     // 30.3 fps) and backpressure drops ticks, while the container claims an
-    // exact -framerate — pace by elapsed time, duplicating frames as needed,
+    // exact -framerate - pace by elapsed time, duplicating frames as needed,
     // or playback speed drifts from real time.
     const qint64 target = m_elapsed.elapsed() * m_fps / 1000 + 1;
     if (target <= m_framesWritten)
@@ -1234,7 +1194,6 @@ void GifRecorder::sampleFrame()
             break;
     }
     m_framesWritten += accepted;
-#endif
 }
 
 void GifRecorder::stop()
@@ -1258,7 +1217,6 @@ void GifRecorder::stop()
     m_maxTimer.stop();
     m_elapsedTick.stop();
     emit converting();
-#ifdef HAVE_PIPEWIRE
     if (m_grabber) {
         // Detach and stop on a worker thread: pw_thread_loop_stop JOINS the
         // capture thread, and doing that on the GUI thread blocks the very
@@ -1277,21 +1235,18 @@ void GifRecorder::stop()
             QMetaObject::invokeMethod(g, "deleteLater", Qt::QueuedConnection);
         });
     }
-#endif
     if (m_session) {
         m_session->disconnect(this);
         m_session->deleteLater();
         m_session = nullptr;
     }
-#ifdef HAVE_KWIN_SCREENCAST
     // Deleting the stream closes the native cast (KWin drops the node and its
-    // "screen is being shared" indicator) — the portal-session equivalent.
+    // "screen is being shared" indicator) - the portal-session equivalent.
     if (m_kwinStream) {
         m_kwinStream->disconnect(this);
         m_kwinStream->deleteLater();
         m_kwinStream = nullptr;
     }
-#endif
     m_nativeStream = false;
 
     if (!m_ffmpeg) {
@@ -1304,7 +1259,7 @@ void GifRecorder::stop()
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
     m_lastFrame.clear(); // don't pin a full raw frame through the whole conversion
     m_overlayFrame.clear(); // ditto for the overlay scratch copy
-    // Watchdog: ffmpeg can wedge internally and never process the EOF — seen
+    // Watchdog: ffmpeg can wedge internally and never process the EOF - seen
     // in the field when the pulse @DEFAULT_MONITOR@ input stalled (PipeWire
     // link died): the -shortest sync queue waits for video timestamps that
     // will never come, stdin stops being read, closeWriteChannel() can never
@@ -1328,7 +1283,7 @@ void GifRecorder::stopWatchdogTick()
         return;
     }
     const qint64 bytes = m_ffmpeg->bytesToWrite();
-    // The replay ring's %03d pattern names no real file — size() is then a
+    // The replay ring's %03d pattern names no real file - size() is then a
     // constant and the stall test rides on bytesToWrite alone.
     const qint64 size = QFileInfo(m_tempPath).size();
     if (bytes != m_stallBytes || size != m_stallSize) {
@@ -1361,7 +1316,7 @@ void GifRecorder::stopWatchdogTick()
         return;
     }
     // Second stage: the kill never got reaped. Detach the process and salvage
-    // the temp directly. The QProcess stays parented but is NOT deleted —
+    // the temp directly. The QProcess stays parented but is NOT deleted -
     // ~QProcess would wait on the unreapable child and hang the GUI thread.
     qWarning() << "GifRecorder: killed encoder was never reaped - salvaging without it";
     m_stopWatchdog.stop();
@@ -1402,7 +1357,7 @@ void GifRecorder::saveInstantReplay()
     // The newest segment is still being written. COPY the completed files into
     // an independent snapshot before concatenating: a symlink (what QFile::link
     // makes on Unix) OR even a hard link is insufficient, because segment_wrap
-    // reopens the ring names with O_TRUNC and rewrites the SAME inode — ffmpeg
+    // reopens the ring names with O_TRUNC and rewrites the SAME inode - ffmpeg
     // would then read a truncated/mutating file. Only a byte copy isolates the
     // export from the live ring.
     segments.removeLast();
@@ -1621,7 +1576,7 @@ QStringList GifRecorder::pauseExciseArgs(const QString &input, const QString &ou
     // their sync (both shift back by the cut length); setpts/asetpts restamp the
     // survivors onto a gapless timeline, so the container duration is the
     // recorded (un-paused) length. Commas inside the expression are protected by
-    // the surrounding single quotes (there is no shell — ffmpeg sees them raw).
+    // the surrounding single quotes (there is no shell - ffmpeg sees them raw).
     QStringList inside;
     for (const auto &iv : intervalsMs) {
         inside << QStringLiteral("between(t,%1,%2)")
@@ -1700,7 +1655,7 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
         QFile::remove(m_tempPath);
         fail(tr("ffmpeg could not be started. Is it installed?"));
     });
-    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
+    // FailedToStart lands in the errorOccurred handler above - no blocking wait.
     conv->start(QStringLiteral("ffmpeg"), args);
 }
 
@@ -1711,14 +1666,14 @@ void GifRecorder::convertToGif()
     // would quadruple/drop every frame relative to the container rate.
     const int fps = m_fps;
     // quality: 0 = fast/small, 1 = balanced, 2 = best. The filters themselves
-    // live in gifPaletteGenFilter/gifPaletteUseFilter — the trim editor renders
+    // live in gifPaletteGenFilter/gifPaletteUseFilter - the trim editor renders
     // a GIF cut through the same two passes.
     const int q = qBound(0, m_settings->gifQuality(), 2);
     const QString dither = FfmpegUtil::gifPaletteUseFilter(q);
 
     // True two-pass. A single split-graph command (`split[a][b];[a]palettegen…`)
-    // buffers every decoded [b] frame in RAM until palettegen hits EOF — ~3 GB
-    // for 30 s of 1080p, >10 GB for 4K — driving the machine into swap. The
+    // buffers every decoded [b] frame in RAM until palettegen hits EOF - ~3 GB
+    // for 30 s of 1080p, >10 GB for 4K - driving the machine into swap. The
     // temp file is on disk anyway; decoding the lossless intermediate twice
     // is cheap by comparison.
     m_palettePath = m_tempPath + QStringLiteral(".palette.png");
@@ -1755,7 +1710,7 @@ void GifRecorder::convertToGif()
                  QStringLiteral("-loglevel"), QStringLiteral("error"),
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-vf"), vf, m_palettePath});
-    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
+    // FailedToStart lands in the errorOccurred handler above - no blocking wait.
 }
 
 void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
@@ -1797,14 +1752,14 @@ void GifRecorder::convertToGifRender(int fps, const QString &paletteUse)
                  QStringLiteral("-i"), m_tempPath,
                  QStringLiteral("-i"), m_palettePath,
                  QStringLiteral("-lavfi"), lavfi, m_outPath});
-    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
+    // FailedToStart lands in the errorOccurred handler above - no blocking wait.
 }
 
 void GifRecorder::convertVideo()
 {
     // Resolving the "auto" encoder can probe hardware with a blocking QProcess
     // (up to 8 s per cold probe). The cache is warmed at startup, but a first
-    // conversion racing that warm-up would stall the GUI — resolve on a pool
+    // conversion racing that warm-up would stall the GUI - resolve on a pool
     // thread and hop back. Settings are read HERE, on the GUI thread; the
     // worker only touches the static, mutex-guarded probe cache.
     const QString choice = m_settings->videoEncoder();
@@ -1819,13 +1774,13 @@ void GifRecorder::convertVideo()
     const Output output = m_output;
     watcher->setFuture(QtConcurrent::run([choice, output]() -> QString {
         if (output == WebM) {
-            // WebM carries only VP8/VP9/AV1 — the H.264 hardware paths never
+            // WebM carries only VP8/VP9/AV1 - the H.264 hardware paths never
             // applied, so conversion sat on libvpx-vp9 regardless of the
             // encoder setting. AV1 NVENC (RTX 40+) muxes into WebM fine and is
             // the escape hatch: measured on a 30 s 1440p clip, 5.0x realtime
             // vs libvpx's 1.4x, SSIM 0.9996 vs 0.9984. Probed HERE (pool
             // thread) so convertVideoWith never runs a cold 8 s probe on the
-            // GUI thread. An explicit "software" (or "vaapi" — no AV1 VAAPI
+            // GUI thread. An explicit "software" (or "vaapi" - no AV1 VAAPI
             // path, see convertVideoWith) keeps VP9.
             if (choice != QLatin1String("software") && choice != QLatin1String("vaapi")
                 && FfmpegUtil::hardwareEncoderWorks(QStringLiteral("av1-nvenc")))
@@ -1862,9 +1817,9 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              << QStringLiteral("-pix_fmt") << QStringLiteral("yuv420p");
     } else if (m_output == WebM) {
         // Without -deadline/-cpu-used libvpx-vp9 defaults to good/cpu-used 0,
-        // i.e. 0.1–0.3× realtime — minutes of conversion for a 1-minute clip.
+        // i.e. 0.1–0.3× realtime - minutes of conversion for a 1-minute clip.
         // Re-tuning on a 16-thread box (30 s 1440p clip): cpu-used 5..8 and
-        // tile-columns 0..3 all land within noise (19-22 s) — libvpx plateaus
+        // tile-columns 0..3 all land within noise (19-22 s) - libvpx plateaus
         // near 4 cores here, so there is nothing further to win in these knobs.
         args << QStringLiteral("-c:v") << QStringLiteral("libvpx-vp9")
              << QStringLiteral("-crf") << QString::number(crf)
@@ -1873,7 +1828,7 @@ void GifRecorder::convertVideoWith(const QString &encoder)
              // 14.5 s -> 4.8 s, SSIM 0.99866 -> 0.99844 (invisible), file +15%.
              // Do NOT "improve" this to cpu-used 6 with deadline=good: that is
              // reproducibly 2.4x SLOWER than cpu-used 4, not faster.
-             // There is no usable VP9 hardware path to fall back on either — a
+             // There is no usable VP9 hardware path to fall back on either - a
              // listed vp9_vaapi failed to encode at all on the box this was
              // tuned on (AV1 NVENC above is the only hardware WebM escape).
              << QStringLiteral("-deadline") << QStringLiteral("realtime")
@@ -1944,7 +1899,7 @@ void GifRecorder::convertVideoWith(const QString &encoder)
         QFile::remove(m_tempPath);
         fail(tr("ffmpeg could not be started. Is it installed?"));
     });
-    // FailedToStart lands in the errorOccurred handler above — no blocking wait.
+    // FailedToStart lands in the errorOccurred handler above - no blocking wait.
     conv->start(QStringLiteral("ffmpeg"), args);
 }
 
@@ -1956,28 +1911,24 @@ void GifRecorder::abort()
     m_stopWatchdog.stop();
     stopClickCapture();
     stopKeyCapture();
-#ifdef HAVE_PIPEWIRE
     if (m_grabber) {
         m_grabber->stop();
         m_grabber->deleteLater();
         m_grabber = nullptr;
     }
-#endif
     // fail() (and thus abort()) can run inside a ScreenCastSession signal
-    // emission — deleting the sender there is UB, so defer.
+    // emission - deleting the sender there is UB, so defer.
     if (m_session) {
         m_session->disconnect(this);
         m_session->deleteLater();
         m_session = nullptr;
     }
-#ifdef HAVE_KWIN_SCREENCAST
     // Same deferred-delete rule: closing the wl stream object ends the cast.
     if (m_kwinStream) {
         m_kwinStream->disconnect(this);
         m_kwinStream->deleteLater();
         m_kwinStream = nullptr;
     }
-#endif
     m_nativeStream = false;
     FfmpegUtil::stopProcess(m_ffmpeg);
     FfmpegUtil::stopProcess(m_converter);
@@ -2044,7 +1995,7 @@ void GifRecorder::fail(const QString &msg)
 {
     // Single-fire: a streamError/formatReady queued from the PipeWire thread
     // just before abort() is still delivered after it (disconnect/deleteLater
-    // don't cancel already-posted queued calls) — without this guard a cancel
+    // don't cancel already-posted queued calls) - without this guard a cancel
     // during Starting could re-enter here and emit a second failed().
     if (m_state == Idle)
         return;

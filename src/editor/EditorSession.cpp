@@ -6,6 +6,8 @@
 #include <QPointer>
 #include <QFileInfo>
 #include <QVector>
+#include <QFileDialog>
+#include <QDir>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image,
                              const QString &overwritePath, quint64 historyId, QObject *parent)
@@ -20,16 +22,17 @@ void EditorSession::bindCanvas(AnnotationCanvas *canvas)
     if (m_canvas) {
         m_canvas->setImage(m_image);
         // setImage converts to premultiplied ARGB32, detaching into a NEW
-        // buffer — keeping the original here pinned TWO full-res copies for
+        // buffer - keeping the original here pinned TWO full-res copies for
         // the editor window's lifetime. Re-share the canvas's buffer instead
         // (pixel-identical; only the internal format differs).
         m_image = m_canvas->image();
         // Text-aware Highlight: when the user selects the Highlight tool the
         // canvas asks (once) for glyph boxes. OCR the clean base off-thread and
         // feed them back so a plain highlight drag over text snaps to the line.
-        // If OCR is unavailable, the highlighter simply stays a plain rectangle.
+        // If no language data is installed the recognizer returns nothing and
+        // the highlighter simply stays a plain rectangle.
         connect(m_canvas, &AnnotationCanvas::glyphBoxesRequested, this, [this] {
-            if (!m_canvas || !m_app->ocrAvailable())
+            if (!m_canvas)
                 return;
             QPointer<AnnotationCanvas> canvas(m_canvas);
             m_app->ocrBoxes(m_canvas->image(),
@@ -125,6 +128,52 @@ QString EditorSession::saveAs(const QString &format)
     // Same one-capture-one-tile rule as save(): a capture whose entry has no
     // file yet claims this one; an entry that already points at a file gets a
     // second tile, because this really is a second file.
+    if (m_historyId != 0
+        && m_app->history()->entryById(m_historyId)
+               .value(QStringLiteral("filePath")).toString().isEmpty()
+        && m_app->history()->setFilePathById(m_historyId, path))
+        m_app->history()->refreshEntry(path, img);
+    else
+        m_app->history()->addEntry(path, img, QStringLiteral("image"));
+    setStatus(tr("Saved to %1").arg(path));
+    return path;
+}
+
+QString EditorSession::saveAsDialog()
+{
+    const QImage img = composited();
+    if (img.isNull())
+        return {};
+
+    QString startDir;
+    QString defaultName;
+    if (!m_overwritePath.isEmpty()) {
+        const QFileInfo fi(m_overwritePath);
+        startDir = fi.absolutePath();
+        defaultName = fi.fileName();
+    } else {
+        startDir = m_app->settings()->saveDirectory();
+        if (m_app->settings()->dateSubfolders())
+            startDir += QLatin1Char('/')
+                      + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM"));
+        defaultName = m_app->makeFileName();
+    }
+    QDir().mkpath(startDir);
+
+    const QString defaultPath = startDir + QLatin1Char('/') + defaultName;
+    const QString filter = tr("Images (*.png *.jpg *.jpeg *.webp);;PNG image (*.png);;JPEG image (*.jpg *.jpeg);;WebP image (*.webp);;All files (*)");
+
+    const QString chosen = QFileDialog::getSaveFileName(
+        nullptr, tr("Save capture as…"), defaultPath, filter);
+    if (chosen.isEmpty())
+        return {};
+
+    const QString path = m_app->saveImageExact(img, chosen, /*allowAutoConvert=*/false);
+    if (path.isEmpty()) {
+        setStatus(tr("Save failed"));
+        return {};
+    }
+
     if (m_historyId != 0
         && m_app->history()->entryById(m_historyId)
                .value(QStringLiteral("filePath")).toString().isEmpty()

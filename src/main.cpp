@@ -33,12 +33,92 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QSocketNotifier>
+#include <algorithm>
 #include <csignal>
+#include <cstdio>
 #include <sys/socket.h>
 #include <unistd.h>
 #if defined(__GLIBC__)
 #include <malloc.h>
 #endif
+
+static void printHelp(FILE *stream)
+{
+    std::fputs(
+        "Usage: unisic [OPTION]\n"
+        "\n"
+        "Capture:\n"
+        "  --fullscreen                 Capture all screens\n"
+        "  --region                     Capture a selected region\n"
+        "  --window                     Capture the active window\n"
+        "  --monitor                    Capture the screen under the cursor\n"
+        "  --recapture                  Capture the last selected region again\n"
+        "  --measure                    Measure a selected region\n"
+        "  --gif                        Record a selected region as a GIF\n"
+        "\n"
+        "Capture options:\n"
+        "  --delay SECONDS              Delay a screenshot by 0 to 60 seconds\n"
+        "  --output PATH                Save a screenshot to PATH; use - for stdout\n"
+        "  --format FORMAT              Use png, jpg, webp, or gif with --output\n"
+        "\n"
+        "Other options:\n"
+        "  --export-settings PATH       Export settings without starting the UI\n"
+        "  --import-settings PATH       Import settings without starting the UI\n"
+        "  --hotkey ID                  Run a configured hotkey action\n"
+        "  --tray-only                  Start without showing the main window\n"
+        "  --help                       Show this help and exit\n"
+        "  --version                    Show the version and exit\n",
+        stream);
+}
+
+static bool isKnownOption(const char *argument)
+{
+    const QByteArray option(argument);
+    return option == "--fullscreen" || option == "--region" || option == "--window"
+           || option == "--measure" || option == "--monitor" || option == "--recapture"
+           || option == "--gif" || option == "--delay" || option.startsWith("--delay=")
+           || option == "--output" || option.startsWith("--output=")
+           || option == "--format" || option.startsWith("--format=")
+           || option == "--export-settings" || option == "--import-settings"
+           || option == "--hotkey" || option == "--tray-only" || option == "--help"
+           || option == "--version";
+}
+
+static bool optionRequiresValue(const QByteArray &option)
+{
+    return option == "--delay" || option == "--output" || option == "--format"
+           || option == "--export-settings" || option == "--import-settings"
+           || option == "--hotkey";
+}
+
+static const char *optionMissingValue(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray option(argv[i]);
+        if (optionRequiresValue(option)
+            && (i + 1 == argc || qstrncmp(argv[i + 1], "--", 2) == 0))
+            return argv[i];
+        if ((option.startsWith("--delay=") || option.startsWith("--output=")
+             || option.startsWith("--format="))
+            && option.endsWith('='))
+            return argv[i];
+    }
+    return nullptr;
+}
+
+static const char *unexpectedArgument(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray argument(argv[i]);
+        if (argument.startsWith("--")) {
+            if (optionRequiresValue(argument))
+                ++i;
+            continue;
+        }
+        return argv[i];
+    }
+    return nullptr;
+}
 
 // SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
 // cleanup, tray teardown) — the default handlers kill the process cold and
@@ -565,6 +645,18 @@ int main(int argc, char *argv[])
     // this process has won the single-instance handshake) and installs the
     // message handler by CHAINING, so journald keeps getting everything.
     DiagLog::install(argc, argv);
+    // This must precede QApplication and staged-update dispatch: informational
+    // CLI requests must not start the UI or change what runs.
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], "--help") == 0) {
+            printHelp(stdout);
+            return 0;
+        }
+        if (qstrcmp(argv[i], "--version") == 0) {
+            std::fputs(UNISIC_VERSION "\n", stdout);
+            return 0;
+        }
+    }
     // Point unisic-kit's config resolution at THIS app's settings file before
     // anything from the kit (ThemeController's QSettings, themesFolder) is
     // constructed. The explicit file override — not setConfigName — because
@@ -583,6 +675,67 @@ int main(int argc, char *argv[])
         // reason as the record border (one process can't host two QPA platforms).
         if (qstrcmp(argv[i], "--notification-helper") == 0)
             return runNotificationHelper(argc, argv);
+    }
+    for (int i = 1; i < argc; ++i) {
+        if (qstrncmp(argv[i], "--", 2) == 0 && !isKnownOption(argv[i])) {
+            std::fprintf(stderr, "Unknown option: %s\n\n", argv[i]);
+            printHelp(stderr);
+            return 2;
+        }
+    }
+    if (const char *option = optionMissingValue(argc, argv)) {
+        std::fprintf(stderr, "%s requires a value\n\n", option);
+        printHelp(stderr);
+        return 2;
+    }
+    if (const char *argument = unexpectedArgument(argc, argv)) {
+        std::fprintf(stderr, "Unexpected argument: %s\n\n", argument);
+        printHelp(stderr);
+        return 2;
+    }
+    QStringList args;
+    args.reserve(argc);
+    for (int i = 0; i < argc; ++i)
+        args.append(QString::fromLocal8Bit(argv[i]));
+    const int delayMs = cliDelayMs(args);
+    if (delayMs == -2) {
+        std::fputs("--delay expects whole seconds from 0 to 60\n\n", stderr);
+        printHelp(stderr);
+        return 2;
+    }
+    const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
+                                   || args.contains(QLatin1String("--region"))
+                                   || args.contains(QLatin1String("--window"))
+                                   || args.contains(QLatin1String("--measure"))
+                                   || args.contains(QLatin1String("--monitor"))
+                                   || args.contains(QLatin1String("--recapture"));
+    if (delayMs >= 0 && !screenshotRequested) {
+        std::fputs("--delay requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        printHelp(stderr);
+        return 2;
+    }
+    const QString outputArg = cliValue(args, QStringLiteral("--output"));
+    if (!outputArg.isEmpty() && !screenshotRequested) {
+        std::fputs("--output requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        printHelp(stderr);
+        return 2;
+    }
+    const QString outputFormat = cliFormat(args);
+    const bool formatRequested = args.contains(QLatin1String("--format"))
+                                 || std::any_of(args.cbegin(), args.cend(), [](const QString &arg) {
+                                        return arg.startsWith(QLatin1String("--format="));
+                                    });
+    if (formatRequested && outputArg.isEmpty()) {
+        std::fputs("--format requires --output\n\n", stderr);
+        printHelp(stderr);
+        return 2;
+    }
+    if (!outputArg.isEmpty() && outputFormat != QLatin1String("png")
+        && outputFormat != QLatin1String("jpg") && outputFormat != QLatin1String("webp")
+        && outputFormat != QLatin1String("gif")) {
+        std::fputs("--format expects png, jpg, webp, or gif\n\n", stderr);
+        printHelp(stderr);
+        return 2;
     }
     execStagedUpdate(argc, argv);
 #if defined(__GLIBC__)
@@ -622,7 +775,6 @@ int main(int argc, char *argv[])
 #endif
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 
-    const QStringList args = app.arguments();
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
                                    || args.contains(QLatin1String("--import-settings"));
 
@@ -657,34 +809,6 @@ int main(int argc, char *argv[])
             return 1;
         }
         return 0;
-    }
-
-    const int delayMs = cliDelayMs(args);
-    if (delayMs == -2) {
-        qWarning() << "--delay expects whole seconds from 0 to 60";
-        return 2;
-    }
-    const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
-                                   || args.contains(QLatin1String("--region"))
-                                   || args.contains(QLatin1String("--window"))
-                                   || args.contains(QLatin1String("--measure"))
-                                   || args.contains(QLatin1String("--monitor"))
-                                   || args.contains(QLatin1String("--recapture"));
-    if (delayMs >= 0 && !screenshotRequested) {
-        qWarning() << "--delay requires --fullscreen, --region, --window, --measure, --monitor, or --recapture";
-        return 2;
-    }
-    const QString outputArg = cliValue(args, QStringLiteral("--output"));
-    if (!outputArg.isEmpty() && !screenshotRequested) {
-        qWarning() << "--output requires --fullscreen, --region, --window, --measure, --monitor, or --recapture";
-        return 2;
-    }
-    const QString outputFormat = cliFormat(args);
-    if (!outputArg.isEmpty() && outputFormat != QLatin1String("png")
-        && outputFormat != QLatin1String("jpg") && outputFormat != QLatin1String("webp")
-        && outputFormat != QLatin1String("gif")) {
-        qWarning() << "--format expects png, jpg, webp, or gif";
-        return 2;
     }
 
     // Batch mode above runs without an event loop — the self-pipe notifier

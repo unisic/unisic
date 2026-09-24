@@ -1,6 +1,5 @@
 #include "ClickCapture.h"
 
-#ifdef HAVE_LIBINPUT
 #include <QThread>
 #include <libinput.h>
 #include <libudev.h>
@@ -21,7 +20,6 @@ int clickOpen(const char *path, int flags, void *)
 void clickClose(int fd, void *) { ::close(fd); }
 const libinput_interface kClickInterface = {clickOpen, clickClose};
 } // namespace
-#endif
 
 ClickCapture::ClickCapture(QObject *parent) : QObject(parent) {}
 
@@ -29,22 +27,19 @@ ClickCapture::~ClickCapture() { stop(); }
 
 void ClickCapture::start()
 {
-#ifdef HAVE_LIBINPUT
     if (m_running)
         return;
     m_stopFd = ::eventfd(0, EFD_CLOEXEC);
     if (m_stopFd < 0)
-        return;   // cannot arm the stop channel — refuse rather than leak a thread
+        return;   // cannot arm the stop channel - refuse rather than leak a thread
     m_running = true;
     m_thread = QThread::create([this] { run(); });
     m_thread->setObjectName(QStringLiteral("ClickCapture"));
     m_thread->start();
-#endif
 }
 
 void ClickCapture::stop()
 {
-#ifdef HAVE_LIBINPUT
     if (!m_running)
         return;
     m_running = false;
@@ -61,10 +56,8 @@ void ClickCapture::stop()
         ::close(m_stopFd);
         m_stopFd = -1;
     }
-#endif
 }
 
-#ifdef HAVE_LIBINPUT
 void ClickCapture::run()
 {
     // The libinput context lives entirely on THIS thread; every libinput call is
@@ -115,7 +108,7 @@ void ClickCapture::run()
         if (rc < 0) {
             if (errno == EINTR)
                 continue;
-            break;   // unexpected poll failure — bail rather than spin
+            break;   // unexpected poll failure - bail rather than spin
         }
         if (fds[1].revents & POLLIN)
             break;   // stop() signalled us
@@ -125,4 +118,3 @@ void ClickCapture::run()
     libinput_unref(li);
     udev_unref(ud);
 }
-#endif

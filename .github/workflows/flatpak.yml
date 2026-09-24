@@ -86,7 +86,7 @@ jobs:
 
       - name: Validate the metainfo
         run: |
-          appstreamcli validate --pedantic --explain \
+          appstreamcli validate --no-net --pedantic --explain \
             resources/app.unisic.Unisic.metainfo.xml
 
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
@@ -99,6 +99,40 @@ jobs:
           verbose: false
           # The step below uploads it under a version-stamped name instead.
           upload-artifact: false
+
+      - name: Locate the gate manifest
+        id: gates
+        # There is no dependency list to extend in this workflow: every hard
+        # dependency the other channels apt/dnf/pacman-install is a module in
+        # packaging/flatpak/app.unisic.Unisic.yml, built inside the sandbox.
+        # That is also why this job needs a lookup step at all. flatpak-builder
+        # DELETES each module's build directory after a successful build (only
+        # --keep-build-dirs stops it, and this action exposes no input for it),
+        # so build-appimage/build-rpm-style paths do not exist here: the file
+        # has to be read from the built app tree, where the unisic module
+        # installs it.
+        run: |
+          # Read the CURRENT app ref from the repo the builder just exported.
+          # Searching the workspace can hit a restored .flatpak-builder cache
+          # and accidentally approve last week's manifest instead.
+          ref="app/app.unisic.Unisic/$(flatpak --default-arch)/master"
+          rm -rf flatpak-gate-checkout
+          ostree --repo=repo checkout "$ref" flatpak-gate-checkout
+          found="$PWD/flatpak-gate-checkout/files/share/unisic/unisic-features.txt"
+          if [ ! -r "$found" ]; then
+            echo "::error::the current Flatpak export has no unisic-features.txt."
+            exit 1
+          fi
+          echo "manifest at $found"
+          echo "dir=$(dirname "$found")" >> "$GITHUB_OUTPUT"
+
+      - name: Check every build gate is on
+        # The Flatpak is the channel where a missing gate hurts most: a user
+        # cannot install the absent library afterwards even if they knew to.
+        # HAVE_LIBINPUT was off in every Flatpak ever built and nothing said so.
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: ${{ steps.gates.outputs.dir }}
 
       # release.yml attaches this to the GitHub release, where install.sh finds
       # it. The name carries the version because a release asset called
@@ -129,18 +163,21 @@ jobs:
       - name: Lint the manifest and the built repo
         run: |
           flatpak install -y --noninteractive flathub org.flatpak.Builder
-          # Three linter errors are expected for this app and can never clear
+          # Four linter errors are expected for this app and can never clear
           # here, so a bare exit-code check would fail every single run: the
           # permission-store hole is granted by a Flathub reviewer as an
-          # exception, and the two screenshot ones only pass on Flathub's own
-          # build service, which mirrors screenshots to dl.flathub.org.
-          # Everything else is a real failure.
+          # exception, appid-url-not-reachable occurs because unisic.app is
+          # protected by Cloudflare bot challenges (HTTP 403 on CI runners;
+          # domain control is verified manually), and the two screenshot ones
+          # only pass on Flathub's own build service, which mirrors screenshots
+          # to dl.flathub.org. Everything else is a real failure.
           cat > /tmp/lintcheck.py <<'PY'
           import json, sys
           ALLOWED = {
               "finish-args-portal-impl-permissionstore-talk-name",
               "appstream-screenshots-not-mirrored-in-ostree",
               "appstream-external-screenshot-url",
+              "appid-url-not-reachable",
           }
           raw = open(sys.argv[1], encoding="utf-8").read().strip()
           if not raw:

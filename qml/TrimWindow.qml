@@ -18,8 +18,8 @@ Window {
            : (Qt.Window | Qt.FramelessWindowHint)
     readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
 
-    // Video preview is optional: it needs the QtMultimedia QML module
-    // (qt6-qtmultimedia). Without it the window falls back to two sliders.
+    // Packages require the QtMultimedia QML module for video preview. Keep the
+    // slider fallback so a hand-altered or broken install still opens the file.
     readonly property bool hasPreview: App.capVideoPlayback
 
     // Whole timeline is expressed in seconds. Duration prefers the player's own

@@ -856,13 +856,13 @@ Item {
                                                     if (filePath !== "")
                                                         a.push({ label: qsTr("Upload"), iconName: "upload-cloud", separatorBefore: a.length > 0,
                                                                  trigger: function() { App.uploadFromHistory(filePath) } })
-                                                    if (App.qrAvailable && url !== "")
+                                                    if (url !== "")
                                                         a.push({ label: qsTr("Show QR code"), iconName: "view-preview", separatorBefore: a.length > 0,
                                                                  trigger: function() { App.showQr(url) } })
                                                     if (kind === "image" && filePath !== "")
                                                         a.push({ label: qsTr("Pin as floating preview"), iconName: "window-pin",
                                                                  trigger: function() { App.previewFromHistory(filePath) } })
-                                                    if (App.ocrAvailable && kind === "image" && filePath !== "")
+                                                    if (kind === "image" && filePath !== "")
                                                         a.push({ label: qsTr("Copy text (OCR)"), iconName: "ocr",
                                                                  trigger: function() { App.ocrFile(filePath) } })
                                                     // Each conversion writes a second file beside the

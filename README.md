@@ -64,7 +64,7 @@ By hand instead: grab the **AppImage** from the **[latest release](https://githu
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --gif`) - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
+Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --gif`); run `unisic --help` for every option - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
 
 ## What it does
 
@@ -100,14 +100,14 @@ Development and daily use happen on Wayland, so X11 was verified by walking thro
 
 <br />
 
-Needs **Qt 6.5+**, CMake and Ninja:
+Needs **Qt 6.5+** (including QtWayland, the GUI private headers and Linguist tools), CMake, Ninja, and the libraries every feature is built on: PipeWire, Tesseract + Leptonica with its language data, zxing-cpp, LayerShellQt, KF6GuiAddons, libinput, plasma-wayland-protocols and the X11 development packages.
 
 ```sh
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Per-distro dev packages and the optional features (recording, OCR) are listed in [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Every one of them is required - there are no optional features here, so the build stops at configure time naming the package you are missing instead of producing a Unisic with something quietly absent. Packages also carry every runtime helper, including ffmpeg, curl, grim, zip, wl-copy and the PipeWire tools. Whichever format you install can do everything on this page. Copy-paste dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
 

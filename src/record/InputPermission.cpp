@@ -1,6 +1,5 @@
 #include "InputPermission.h"
 
-#ifdef HAVE_LIBINPUT
 #include <libinput.h>
 #include <libudev.h>
 #include <cerrno>
@@ -8,7 +7,7 @@
 #include <unistd.h>
 
 namespace {
-// open_restricted is a PLAIN open — no EVIOCGRAB, so we observe input without
+// open_restricted is a PLAIN open - no EVIOCGRAB, so we observe input without
 // stealing it. close_restricted mirrors it. libinput calls these on the caller's
 // thread during the synchronous probe.
 int probeOpen(const char *path, int flags, void *)
@@ -19,13 +18,9 @@ int probeOpen(const char *path, int flags, void *)
 void probeClose(int fd, void *) { ::close(fd); }
 const libinput_interface kProbeInterface = {probeOpen, probeClose};
 } // namespace
-#endif
 
 InputPermission::Status InputPermission::probe()
 {
-#ifndef HAVE_LIBINPUT
-    return NotBuilt;
-#else
     udev *ud = udev_new();
     if (!ud)
         return NoPermission;
@@ -57,5 +52,4 @@ InputPermission::Status InputPermission::probe()
     libinput_unref(li);
     udev_unref(ud);
     return pointers > 0 ? Available : NoPermission;
-#endif
 }

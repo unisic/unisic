@@ -106,8 +106,7 @@ public:
     Q_INVOKABLE QString imgurClientIdOf(const QVariantMap &dest) const
     { return imgurClientId(QJsonObject::fromVariantMap(dest)); }
 
-    // vgy.me support: allows uploading images with an optional user key attached
-    // to the user's account.
+    // vgy.me support: requires a user key as anonymous uploads are not allowed
     Q_INVOKABLE bool isVgyMeDestination(const QVariantMap &dest) const
     { return isVgyMe(QJsonObject::fromVariantMap(dest)); }
     Q_INVOKABLE QString vgyMeUserKeyOf(const QVariantMap &dest) const

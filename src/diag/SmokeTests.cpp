@@ -2912,8 +2912,58 @@ QString AppContext::vgyMeCheck() const
     if (!hasVgy)
         fails << QStringLiteral("vgy.me builtin destination missing");
 
+    // The guard: a vgy.me destination with no user key must fail before any
+    // request goes out, naming the fix.
+    const QString scratch = QStringLiteral("unisic-smoke-vgy");
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), scratch},
+        {QStringLiteral("type"), QStringLiteral("http")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+        {QStringLiteral("fileFormName"), QStringLiteral("file")},
+        {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+    });
+    QString guardError;
+    bool guardCalled = false;
+    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        guardCalled = true;
+        guardError = err;
+    });
+    m_uploads->removeDestination(scratch);
+    if (!guardCalled)
+        fails << QStringLiteral("no user key: upload was attempted, not refused");
+    else if (!guardError.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
+             && !guardError.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+        fails << QStringLiteral("unhelpful error on missing user key: ") + guardError.left(80);
+
+    bool testCalled = false;
+    QString testErr;
+    m_uploads->testDestination(QVariantMap{
+        {QStringLiteral("name"), scratch},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+    }, [&](bool ok, const QString &, const QString &err) {
+        testCalled = true;
+        if (ok)
+            fails << QStringLiteral("testDestination succeeded without user key");
+        testErr = err;
+    });
+    if (!testCalled)
+        fails << QStringLiteral("testDestination was not called synchronously for missing user key");
+    else if (!testErr.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
+             && !testErr.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+        fails << QStringLiteral("unhelpful test error on missing user key: ") + testErr.left(80);
+
     return fails.isEmpty()
-        ? QStringLiteral("PASS (host match, user key extraction, response parsing, builtin present)")
+        ? QStringLiteral("PASS (host match, user key extraction, response parsing, missing key guard, builtin present)")
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
 }
 

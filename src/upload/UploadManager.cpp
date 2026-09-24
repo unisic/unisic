@@ -666,6 +666,12 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
                       "Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
+    if (isVgyMe(dest) && vgyMeUserKey(dest).isEmpty()) {
+        cb({}, {}, tr("vgy.me requires a user key. Log in to "
+                      "https://vgy.me/account/details#userkeys to find your key, "
+                      "then paste it into Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
+        return;
+    }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
     // `busy` means "a capture is on its way to a server": it greys the editor's
     // Upload button out and relabels it "Uploading…". A configuration test is
@@ -716,6 +722,11 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
     // standing in the editor the long message would send them to.
     if (isImgur(dest) && imgurClientId(dest).isEmpty()) {
         cb(false, {}, tr("Imgur needs your own Client-ID. Paste it into the "
+                         "field above, then test again."));
+        return;
+    }
+    if (isVgyMe(dest) && vgyMeUserKey(dest).isEmpty()) {
+        cb(false, {}, tr("vgy.me requires a user key. Paste it into the "
                          "field above, then test again."));
         return;
     }
@@ -912,9 +923,12 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         auto *multi = new QHttpMultiPart(QHttpMultiPart::FormDataType);
         const QJsonObject args = dest.value(QStringLiteral("arguments")).toObject();
         for (auto it = args.begin(); it != args.end(); ++it) {
+            QString key = it.key();
+            if (isVgyMe(dest) && key.compare(QLatin1String("userkey"), Qt::CaseInsensitive) == 0)
+                key = QStringLiteral("userkey");
             QHttpPart part;
             part.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QStringLiteral("form-data; name=\"%1\"").arg(sanitizeFileName(it.key())));
+                           QStringLiteral("form-data; name=\"%1\"").arg(sanitizeFileName(key)));
             part.setBody(it.value().toString().toUtf8());
             multi->append(part);
         }
@@ -952,13 +966,58 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         reply->deleteLater();
         const QByteArray body = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(),
-                                                     QString::fromUtf8(body.left(300))));
+            QString serverMsg;
+            const QJsonDocument doc = QJsonDocument::fromJson(body);
+            if (doc.isObject()) {
+                const QJsonObject obj = doc.object();
+                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
+                if (msgVal.isObject()) {
+                    QStringList parts;
+                    const QJsonObject msgObj = msgVal.toObject();
+                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
+                        parts << (it.value().isString() ? it.value().toString()
+                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
+                    }
+                    serverMsg = parts.join(QStringLiteral(", "));
+                } else if (msgVal.isString()) {
+                    serverMsg = msgVal.toString();
+                } else if (obj.value(QStringLiteral("message")).isString()) {
+                    serverMsg = obj.value(QStringLiteral("message")).toString();
+                } else if (obj.value(QStringLiteral("error")).isString()) {
+                    serverMsg = obj.value(QStringLiteral("error")).toString();
+                }
+            }
+            if (serverMsg.isEmpty())
+                serverMsg = QString::fromUtf8(body.left(300));
+            cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
             return;
         }
         const QString url = extractUrl(dest, QStringLiteral("urlPath"), body);
         const QString del = extractUrl(dest, QStringLiteral("deletionUrlPath"), body);
         if (url.isEmpty()) {
+            const QJsonDocument doc = QJsonDocument::fromJson(body);
+            if (doc.isObject() && doc.object().value(QStringLiteral("error")).toBool()) {
+                QString serverMsg;
+                const QJsonObject obj = doc.object();
+                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
+                if (msgVal.isObject()) {
+                    QStringList parts;
+                    const QJsonObject msgObj = msgVal.toObject();
+                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
+                        parts << (it.value().isString() ? it.value().toString()
+                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
+                    }
+                    serverMsg = parts.join(QStringLiteral(", "));
+                } else if (msgVal.isString()) {
+                    serverMsg = msgVal.toString();
+                } else if (obj.value(QStringLiteral("message")).isString()) {
+                    serverMsg = obj.value(QStringLiteral("message")).toString();
+                }
+                if (!serverMsg.isEmpty()) {
+                    cb({}, {}, QStringLiteral("Server reported error: %1").arg(serverMsg));
+                    return;
+                }
+            }
             cb({}, {}, QStringLiteral("Upload succeeded but no URL found in response: %1")
                            .arg(QString::fromUtf8(body.left(300))));
             return;

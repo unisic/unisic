@@ -309,6 +309,9 @@ Item {
                                 readonly property bool needsClientId:
                                     App.uploads.isImgurDestination(modelData)
                                     && App.uploads.imgurClientIdOf(modelData) === ""
+                                readonly property bool needsUserKey:
+                                    App.uploads.isVgyMeDestination(modelData)
+                                    && App.uploads.vgyMeUserKeyOf(modelData) === ""
                                 Row {
                                     width: parent.width
                                     spacing: Theme.spacingS
@@ -320,7 +323,7 @@ Item {
                                     }
                                     Rectangle {
                                         id: setupChip
-                                        visible: infoCol.needsClientId
+                                        visible: infoCol.needsClientId || infoCol.needsUserKey
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: setupChipText.implicitWidth + 12
                                         height: 18
@@ -331,7 +334,9 @@ Item {
                                         Text {
                                             id: setupChipText
                                             anchors.centerIn: parent
-                                            text: qsTr("Needs a Client-ID")
+                                            text: infoCol.needsClientId
+                                                  ? qsTr("Needs a Client-ID")
+                                                  : qsTr("Needs a user key")
                                             color: Theme.danger
                                             font.pixelSize: Theme.fontS - 2
                                             font.weight: Font.DemiBold
@@ -808,7 +813,7 @@ Item {
                     Labeled {
                         id: rUserKey
                         visible: fType.currentIndex === 0 && fBody.currentIndex === 0 && editSheet.vgyMeMode
-                        label: qsTr("vgy.me user key (optional)")
+                        label: qsTr("vgy.me user key")
                         UTextField {
                             id: fUserKey; width: parent.width
                             placeholder: qsTr("e.g. your-user-key")
@@ -818,7 +823,7 @@ Item {
                         width: parent.width
                         visible: rUserKey.visible
                         wrapMode: Text.WordWrap
-                        text: qsTr("Optional user key from https://vgy.me/account/details#userkeys. Attach uploads to your vgy.me account (required if anonymous uploads are disabled).")
+                        text: qsTr("User key from https://vgy.me/account/details#userkeys. Required because vgy.me does not allow anonymous uploads.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }

@@ -13,6 +13,7 @@ private slots:
     void offeredVariablesResolve();
     void vgyMeSupport();
     void liveBuzzheavierUpload();
+    void liveVgyMeUpload();
 };
 
 void UploadUrlTest::curlTarget_data()
@@ -152,6 +153,26 @@ void UploadUrlTest::vgyMeSupport()
              QStringLiteral("https://i.vgy.me/test.png"));
     QCOMPARE(UploadManager::extractUrl(vgyDest, QStringLiteral("deletionUrlPath"), response),
              QStringLiteral("https://vgy.me/delete/del123"));
+
+    // Guard test: vgy.me destination without a user key must be refused early
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+
+    Settings settings;
+    UploadManager uploads(&settings);
+
+    bool testDone = false;
+    uploads.testDestination(QVariantMap{
+        {QStringLiteral("name"), QStringLiteral("vgy.me")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")}
+    }, [&](bool ok, const QString &url, const QString &err) {
+        testDone = true;
+        QVERIFY(!ok);
+        QVERIFY(url.isEmpty());
+        QVERIFY(err.contains(QStringLiteral("user key")));
+    });
+    QVERIFY(testDone);
 }
 
 // The whole curl path against the real host it was built for: the %file% token
@@ -188,6 +209,39 @@ void UploadUrlTest::liveBuzzheavierUpload()
                  && url.size() > int(sizeof("https://buzzheavier.com/")),
              qPrintable(QStringLiteral("no id in the returned link: '%1'").arg(url)));
     qInfo() << "live upload landed at" << url;
+}
+
+void UploadUrlTest::liveVgyMeUpload()
+{
+    const QByteArray key = qgetenv("UNISIC_LIVE_VGYME_KEY");
+    if (key.isEmpty())
+        QSKIP("live vgy.me upload: set UNISIC_LIVE_VGYME_KEY=<your-key> to test real upload to vgy.me");
+
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+
+    Settings settings;
+    UploadManager uploads(&settings);
+    bool done = false, ok = false;
+    QString url, err;
+    uploads.testDestination(QVariantMap{
+        {QStringLiteral("name"), QStringLiteral("vgy.me live test")},
+        {QStringLiteral("type"), QStringLiteral("http")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+        {QStringLiteral("method"), QStringLiteral("POST")},
+        {QStringLiteral("fileFormName"), QStringLiteral("file")},
+        {QStringLiteral("responseType"), QStringLiteral("json")},
+        {QStringLiteral("urlPath"), QStringLiteral("$json:image$")},
+        {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:delete$")},
+        {QStringLiteral("arguments"), QVariantMap{{QStringLiteral("userkey"), QString::fromUtf8(key)}}},
+    }, [&](bool o, const QString &u, const QString &e) {
+        done = true; ok = o; url = u; err = e;
+    });
+    QTRY_VERIFY_WITH_TIMEOUT(done, 60000);
+    QVERIFY2(ok, qPrintable(err));
+    QVERIFY2(url.contains(QStringLiteral("vgy.me")), qPrintable(url));
+    qInfo() << "live vgy.me upload landed at" << url;
 }
 
 QTEST_MAIN(UploadUrlTest)

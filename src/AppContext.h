@@ -295,6 +295,7 @@ public:
     Q_INVOKABLE void devTestActiveWindowGeometry();
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
+    Q_INVOKABLE void devTestEditorZoom();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
@@ -364,6 +365,7 @@ public:
     Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
     Q_INVOKABLE void devTestShiftSnap();
+    Q_INVOKABLE void devTestPenLine();
     Q_INVOKABLE void devTestQrPreview();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();

@@ -584,6 +584,7 @@ Window {
 
             Flickable {
                 id: canvasFlick
+                objectName: "editorCanvasFlick"  // the smoke test drives zoom through it
                 anchors.fill: parent
                 anchors.margins: Theme.spacingM
                 clip: true
@@ -637,12 +638,21 @@ Window {
                     clampPan()
                 }
 
+                // WheelHandler takes only PointerDevice.Mouse by default, and
+                // Qt on Wayland tags some wheels (and every touchpad) as
+                // TouchPad: those scrolls were declined, so Ctrl+wheel did
+                // nothing. The zoom step is scaled by the delta, 1.2x per
+                // 120-unit notch, because a touchpad or a high-resolution
+                // wheel sends many small events and a fixed step per event
+                // would race to the zoom limit.
                 WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                     acceptedModifiers: Qt.ControlModifier
-                    onWheel: (ev) => canvasFlick.zoomBy(ev.angleDelta.y > 0 ? 1.2 : 1 / 1.2,
+                    onWheel: (ev) => canvasFlick.zoomBy(Math.pow(1.2, ev.angleDelta.y / 120),
                                                         ev.x, ev.y)
                 }
                 WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                     acceptedModifiers: Qt.NoModifier
                     onWheel: (ev) => {
                         canvasFlick.contentY -= ev.angleDelta.y
@@ -651,6 +661,7 @@ Window {
                     }
                 }
                 WheelHandler {
+                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                     acceptedModifiers: Qt.ShiftModifier
                     onWheel: (ev) => {
                         canvasFlick.contentX -= ev.angleDelta.y
@@ -949,16 +960,90 @@ Window {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.spacingL
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.right: actionRow.left
+                anchors.right: zoomRow.left
                 anchors.rightMargin: Theme.spacingM
                 text: editorSession.statusText !== ""
                       ? editorSession.statusText
-                      : canvas.imageSize.width + " × " + canvas.imageSize.height + " px · "
-                        + Math.round(canvasFlick.effectiveScale * 100) + "%"
-                        + (canvasFlick.zoom > 0 ? "" : qsTr(" (fit)"))
+                      : canvas.imageSize.width + " × " + canvas.imageSize.height + " px"
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontS + 1
                 elide: Text.ElideMiddle
+            }
+
+            // View zoom, the same steps as Ctrl+wheel / Ctrl+± / Ctrl+0 for
+            // anyone who never finds those. It scales the view only: the
+            // image, the annotations and the export are untouched. The
+            // percentage has a fixed width so "25%" -> "100%" never shifts
+            // the + button out from under a pointer clicking it repeatedly.
+            Row {
+                id: zoomRow
+                anchors.right: actionRow.left
+                anchors.rightMargin: Theme.spacingM
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                UIconButton {
+                    objectName: "editorZoomOut"
+                    iconName: "minus"; iconSize: 14; width: 30; height: 30
+                    anchors.verticalCenter: parent.verticalCenter
+                    tooltip: qsTr("Zoom out (Ctrl+-)")
+                    enabled: canvasFlick.effectiveScale > canvasFlick.minZoom + 0.001
+                    onClicked: canvasFlick.zoomBy(1 / 1.2)
+                }
+                Rectangle {
+                    id: zoomPct
+                    objectName: "editorZoomPct"
+                    width: zoomPctMetrics.width + 2 * Theme.spacingS
+                    height: 30
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: Theme.radiusM
+                    color: zoomPctMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16) : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    // Fit and 100% are the two views worth one click; anything
+                    // in between is what - and + are for.
+                    function _activate() {
+                        canvasFlick.zoom = canvasFlick.zoom > 0 ? 0 : Math.min(1, canvasFlick.maxZoom)
+                        canvasFlick.clampPan()
+                    }
+                    TextMetrics { id: zoomPctMetrics; font: zoomPctText.font; text: "400%" }
+                    Text {
+                        id: zoomPctText
+                        anchors.centerIn: parent
+                        text: Math.round(canvasFlick.effectiveScale * 100) + "%"
+                        color: canvasFlick.zoom > 0 ? Theme.textPrimary : Theme.textSecondary
+                        font.pixelSize: Theme.fontS + 1
+                        Accessible.ignored: true
+                    }
+                    MouseArea {
+                        id: zoomPctMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: zoomPct._activate()
+                    }
+                    UHoverTip {
+                        anchor: zoomPct
+                        text: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
+                        show: zoomPctMouse.containsMouse
+                    }
+                    activeFocusOnTab: true
+                    Keys.onSpacePressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Keys.onReturnPressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Keys.onEnterPressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Zoom %1%").arg(Math.round(canvasFlick.effectiveScale * 100))
+                    Accessible.description: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
+                    Accessible.focusable: true
+                    Accessible.onPressAction: zoomPct._activate()
+                    UFocusRing {}
+                }
+                UIconButton {
+                    objectName: "editorZoomIn"
+                    iconName: "plus"; iconSize: 14; width: 30; height: 30
+                    anchors.verticalCenter: parent.verticalCenter
+                    tooltip: qsTr("Zoom in (Ctrl++)")
+                    enabled: canvasFlick.effectiveScale < canvasFlick.maxZoom - 0.001
+                    onClicked: canvasFlick.zoomBy(1.2)
+                }
             }
 
             // Primary exports stay labeled; the occasional OCR actions

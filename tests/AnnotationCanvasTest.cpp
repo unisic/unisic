@@ -26,6 +26,7 @@ class AnnotationCanvasTest : public QObject
 private slots:
     void penStrokeKeepsReleaseEndpoint();
     void penTapRendersDot();
+    void penModifierClickDrawsStraightLine();
     void deselectRestoresStrokeStyle();
     void selectionAnnouncedBeforeStyleSeeding();
     void editShapesSelectMoveDelete();
@@ -57,11 +58,12 @@ private slots:
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
-static void click(TestAnnotationCanvas &c, const QPointF &at)
+static void click(TestAnnotationCanvas &c, const QPointF &at,
+                  Qt::KeyboardModifiers mods = Qt::NoModifier)
 {
-    QMouseEvent p(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent p(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, mods);
     c.mousePressEvent(&p);
-    QMouseEvent r(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QMouseEvent r(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, mods);
     c.mouseReleaseEvent(&r);
 }
 static void drag(TestAnnotationCanvas &c, const QPointF &from, const QPointF &to,
@@ -123,6 +125,67 @@ void AnnotationCanvasTest::penTapRendersDot()
     QCOMPARE(canvas.annotCount(), 1);
     QVERIFY2(canvas.rendered().pixelColor(50, 50).lightness() < 80,
              "a pen tap must render a visible dot at the tap point");
+}
+
+// Shift+click and Ctrl+click with the pen join the last stroke's end to the
+// click with a straight line, and chain. A plain click stays a dot. Dragged
+// with the modifier, the line runs from the press instead.
+void AnnotationCanvasTest::penModifierClickDrawsStraightLine()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(100);
+    canvas.setHeight(100);
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Pen);
+    canvas.setStrokeColor(Qt::black);
+    canvas.setStrokeWidth(4);
+
+    drag(canvas, QPointF(10, 20), QPointF(40, 20));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    click(canvas, QPointF(40, 80), Qt::ShiftModifier);
+    QCOMPARE(canvas.annotCount(), 2);
+    QVERIFY2(canvas.rendered().pixelColor(40, 50).lightness() < 80,
+             "Shift+click must draw a line from the previous stroke's end");
+
+    click(canvas, QPointF(80, 80), Qt::ControlModifier);
+    QCOMPARE(canvas.annotCount(), 3);
+    QVERIFY2(canvas.rendered().pixelColor(60, 80).lightness() < 80,
+             "Ctrl+click must chain on from the line Shift+click drew");
+
+    click(canvas, QPointF(80, 20));
+    QCOMPARE(canvas.annotCount(), 4);
+    QVERIFY2(canvas.rendered().pixelColor(80, 50).lightness() > 200,
+             "a plain click must stay a dot, not join the strokes");
+
+    canvas.undo();
+    canvas.undo();
+    click(canvas, QPointF(10, 80), Qt::ShiftModifier);
+    QVERIFY2(canvas.rendered().pixelColor(25, 80).lightness() < 80,
+             "after undo the line must start from the stroke still there");
+
+    // Dragged with the modifier held, the line starts at the press, not at the
+    // last stroke's end: the bend through (60, 70) stays freehand ink, never
+    // a jump from (10, 80).
+    QMouseEvent p(QEvent::MouseButtonPress, QPointF(60, 40), QPointF(60, 40),
+                  Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+    canvas.mousePressEvent(&p);
+    for (const QPointF at : {QPointF(70, 50), QPointF(85, 30), QPointF(90, 60)}) {
+        QMouseEvent m(QEvent::MouseMove, at, at, Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+        canvas.mouseMoveEvent(&m);
+    }
+    QMouseEvent r(QEvent::MouseButtonRelease, QPointF(90, 60), QPointF(90, 60),
+                  Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+    canvas.mouseReleaseEvent(&r);
+    const QImage out = canvas.rendered();
+    QVERIFY2(out.pixelColor(75, 50).lightness() < 80,
+             "Ctrl+drag must draw one straight line from the press to the release");
+    QVERIFY2(out.pixelColor(85, 30).lightness() > 200,
+             "Ctrl+drag must not keep the freehand path it passed through");
+    QVERIFY2(out.pixelColor(35, 60).lightness() > 200,
+             "Ctrl+drag must not start from the previous stroke's end");
 }
 
 // Selecting a shape seeds the props bar from that shape's style; deselecting via

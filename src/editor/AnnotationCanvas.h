@@ -581,7 +581,7 @@ private:
     // it until paint() delivers. See unisic-qt-qml-gotchas.
     void update(const QRect &rect = QRect());
     QRectF m_lastDragBoundsImg;   // previous m_current bounds during DrawDrag
-    // Pen straight-line: while Shift is held mid-stroke, the freehand tail is
+    // Pen straight-line: while Shift or Ctrl is held mid-stroke, the freehand tail is
     // replaced by a single straight segment from this committed anchor index to
     // the cursor. -1 = not currently in a Shift straight-segment.
     int m_penShiftAnchor = -1;

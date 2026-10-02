@@ -3699,6 +3699,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor zoom"); onClicked: App.devTestEditorZoom() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -3745,6 +3746,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watermark preview"); onClicked: App.devTestWatermarkPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Pen line click"); onClicked: App.devTestPenLine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }

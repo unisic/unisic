@@ -27,6 +27,7 @@
 #include "diag/DiagLog.h"
 
 #include <csignal>
+#include <QWheelEvent>
 #include <QTemporaryFile>
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
@@ -562,6 +563,56 @@ static QString shiftSnapCheck()
                : QStringLiteral("FAIL (line not constrained)");
 }
 
+// Shift/Ctrl + click with the pen: a straight line from the last stroke's end.
+static QString penLineCheck()
+{
+    class InputCanvas final : public AnnotationCanvas {
+    public:
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    };
+    InputCanvas canvas;
+    QImage base(100, 100, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Pen);
+    canvas.setStrokeColor(Qt::black);
+    canvas.setStrokeWidth(4);
+    const auto send = [&canvas](QEvent::Type t, QPointF at, Qt::KeyboardModifiers mods) {
+        QMouseEvent e(t, at, at, Qt::LeftButton,
+                      t == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, mods);
+        if (t == QEvent::MouseButtonPress)
+            canvas.mousePressEvent(&e);
+        else if (t == QEvent::MouseMove)
+            canvas.mouseMoveEvent(&e);
+        else
+            canvas.mouseReleaseEvent(&e);
+    };
+    send(QEvent::MouseButtonPress, {10, 20}, Qt::NoModifier);
+    send(QEvent::MouseMove, {40, 20}, Qt::NoModifier);
+    send(QEvent::MouseButtonRelease, {40, 20}, Qt::NoModifier);
+    send(QEvent::MouseButtonPress, {40, 80}, Qt::ShiftModifier);
+    send(QEvent::MouseButtonRelease, {40, 80}, Qt::ShiftModifier);
+    if (canvas.rendered().pixelColor(40, 50).lightness() >= 80)
+        return QStringLiteral("FAIL (Shift+click drew no line)");
+    send(QEvent::MouseButtonPress, {80, 80}, Qt::ControlModifier);
+    send(QEvent::MouseButtonRelease, {80, 80}, Qt::ControlModifier);
+    if (canvas.rendered().pixelColor(60, 80).lightness() >= 80)
+        return QStringLiteral("FAIL (Ctrl+click drew no line)");
+    // Dragged with the modifier: from the press, through no freehand detour.
+    send(QEvent::MouseButtonPress, {60, 10}, Qt::ControlModifier);
+    send(QEvent::MouseMove, {90, 10}, Qt::ControlModifier);
+    send(QEvent::MouseMove, {90, 40}, Qt::ControlModifier);
+    send(QEvent::MouseButtonRelease, {90, 40}, Qt::ControlModifier);
+    const QImage out = canvas.rendered();
+    if (out.pixelColor(75, 25).lightness() >= 80)
+        return QStringLiteral("FAIL (Ctrl+drag drew no line from the press)");
+    if (out.pixelColor(85, 10).lightness() < 200)
+        return QStringLiteral("FAIL (Ctrl+drag kept the freehand path)");
+    return QStringLiteral("PASS (Shift+click, Ctrl+click chained, Ctrl+drag)");
+}
+
 static QString externalActionCheck()
 {
     QString program, output, error;
@@ -761,6 +812,14 @@ void AppContext::devTestShiftSnap()
     if (!devBuild())
         return;
     showToast(tr("Dev: Shift snap: %1").arg(shiftSnapCheck()));
+}
+
+void AppContext::devTestPenLine()
+{
+    if (!devBuild())
+        return;
+    const QString r = penLineCheck();
+    showToast(tr("Dev: pen line click: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestQrPreview()
@@ -2413,6 +2472,73 @@ void AppContext::devTestNotificationOrder()
         {QStringLiteral("capturePopupDurationSec"), 6},
     });
     QTimer::singleShot(6000, this, [this] { hideCapturePopupPreview(); });
+}
+
+// Drives the editor's bottom-bar zoom control the way clicks do and reads the
+// view zoom back: the percentage toggles fit <-> 100%, + and - step from
+// there. Only the view property is read, so a pass also means nothing here
+// went near the image.
+static QString editorZoomCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *flick = win->findChild<QQuickItem *>(QStringLiteral("editorCanvasFlick"));
+    auto *pct = win->findChild<QQuickItem *>(QStringLiteral("editorZoomPct"));
+    auto *in = win->findChild<QQuickItem *>(QStringLiteral("editorZoomIn"));
+    auto *out = win->findChild<QQuickItem *>(QStringLiteral("editorZoomOut"));
+    if (!flick || !pct || !in || !out)
+        return QStringLiteral("FAIL (zoom control not found)");
+    const auto zoom = [flick] { return flick->property("zoom").toDouble(); };
+    if (zoom() != 0)
+        return QStringLiteral("FAIL (opened at %1, not fit)").arg(zoom());
+    // Ctrl+wheel through the window, the way a real notch arrives: delivery
+    // picks the item under the point, so anything stacked over the canvas
+    // that eats wheel events shows up here and not in the button checks.
+    // Once per device class: Qt on Wayland tags some wheels as TouchPad, and
+    // a handler left at its Mouse-only default declined exactly those.
+    const QPointF at = flick->mapToScene(QPointF(flick->width() / 2, flick->height() / 2));
+    int wheels = 0;
+    for (const QInputDevice *d : QInputDevice::devices()) {
+        if (d->type() != QInputDevice::DeviceType::Mouse
+            && d->type() != QInputDevice::DeviceType::TouchPad)
+            continue;
+        QWheelEvent wheel(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                          static_cast<const QPointingDevice *>(d));
+        QCoreApplication::sendEvent(win, &wheel);
+        if (zoom() == 0)
+            return QStringLiteral("FAIL (Ctrl+wheel from %1 did not zoom)").arg(d->name());
+        flick->setProperty("zoom", 0);
+        ++wheels;
+    }
+    QMetaObject::invokeMethod(pct, "_activate");
+    if (!qFuzzyCompare(zoom(), 1.0))
+        return QStringLiteral("FAIL (percentage gave %1, not 100%)").arg(zoom());
+    QMetaObject::invokeMethod(in, "clicked");
+    const double zoomedIn = zoom();
+    if (!(zoomedIn > 1.0))
+        return QStringLiteral("FAIL (+ gave %1)").arg(zoomedIn);
+    QMetaObject::invokeMethod(out, "clicked");
+    if (!(zoom() < zoomedIn))
+        return QStringLiteral("FAIL (- gave %1 from %2)").arg(zoom()).arg(zoomedIn);
+    QMetaObject::invokeMethod(pct, "_activate");
+    if (zoom() != 0)
+        return QStringLiteral("FAIL (percentage did not return to fit)");
+    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, 100%, +, -, fit)").arg(wheels);
+}
+
+void AppContext::devTestEditorZoom()
+{
+    if (!devBuild())
+        return;
+    QString r;
+    {
+        // Closes the editor it opened once the check is read.
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        r = editorZoomCheck(m_checkWindows.isEmpty() ? nullptr : m_checkWindows.last().data());
+    }
+    showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestEditor()
@@ -4213,6 +4339,9 @@ void AppContext::runSmokeTest()
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        smokeLog(QStringLiteral("editor zoom control: ")
+                 + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
+                                       ? m_smokeWindows.last().data() : nullptr));
         smokeNext();
     });
 
@@ -4353,6 +4482,12 @@ void AppContext::runSmokeTest()
     // 3e3h) Shift snaps geometry to a grid and constrains line angles/ratios.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("shift snap: ") + shiftSnapCheck());
+        smokeNext();
+    });
+
+    // 3e3h2) Shift/Ctrl + click with the pen joins the last stroke with a line.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("pen line click: ") + penLineCheck());
         smokeNext();
     });
 

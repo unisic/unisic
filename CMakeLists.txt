@@ -670,9 +670,10 @@ if(BUILD_TESTING)
     # actually shipped rather than a list written twice.
     qt_add_resources(unisic_theme_seed_test "seedthemes" PREFIX "/" FILES ${UNISIC_THEMES})
     # Qt6::Qml for qqmlregistration.h only (ThemeController is a QML singleton in
-    # the app); the test drives it as a plain QObject.
+    # the app); the test drives it as a plain QObject. Qt6::DBus for the portal
+    # color-scheme read.
     target_link_libraries(unisic_theme_seed_test PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::DBus Qt6::Test)
     target_include_directories(unisic_theme_seed_test PRIVATE external/unisic-kit/src)
     add_test(NAME unisic_theme_seed_test COMMAND unisic_theme_seed_test)
     # QGuiApplication (styleHints, palette) without a real display.

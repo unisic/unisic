@@ -46,6 +46,7 @@ class NotificationInhibitor;
 class ExternalActionRunner;
 class PreviewController;
 class LayerShellNotifier;
+class ScrollCaptureController;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -121,6 +122,7 @@ class AppContext : public QObject
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
     Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
+    Q_PROPERTY(bool scrollCaptureActive READ scrollCaptureActive NOTIFY scrollCaptureActiveChanged)
     Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
     Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
@@ -191,6 +193,10 @@ public:
     UpdateChecker *updater() const { return m_updater; }
     CaptureManager *captureManager() const { return m_capture; }
     QQmlEngine *qmlEngine() const { return m_engine; }
+
+    bool scrollCaptureActive() const;
+    ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
+    void startScrollCapture(const QRect &physRegion, QScreen *screen);
 
     bool recording() const;
     bool converting() const;
@@ -391,6 +397,7 @@ public:
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
     Q_INVOKABLE void devTestFilename();
+    Q_INVOKABLE void devTestScrollStitch();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -450,6 +457,7 @@ public:
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
     Q_INVOKABLE void captureMeasure();
+    Q_INVOKABLE void captureScroll();
     // Single monitor: the screen under the cursor (fallback: primary).
     Q_INVOKABLE void captureScreenUnderCursor();
     // Repeat the last region capture's exact rect without opening the overlay
@@ -728,6 +736,7 @@ signals:
     void hotkeysAvailableChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
+    void scrollCaptureActiveChanged();
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
@@ -876,6 +885,7 @@ private:
     // Round-trips the desktop custom-shortcut writer on the real store (touches
     // only Unisic's own entries): install then remove, both must succeed.
     QString desktopShortcutsCheck();
+    QString scrollStitchCheck() const;
     // Idle gate for the automatic post-update restart: empty = safe to
     // restart, else a comma-joined list of what blocks it (recording, open
     // editors, visible window…).
@@ -1052,6 +1062,7 @@ private:
     X11Hotkeys *m_x11hotkeys = nullptr;
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
     GifRecorder *m_recorder;
+    ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale

@@ -9,6 +9,7 @@
 // stays a file-static in this file.
 
 #include "AppContext.h"
+#include "capture/ScrollStitcher.h"
 #include "capture/KWinWindowGeometry.h"
 #include "unisic_build_date.h" // generated into the build dir (cmake/BuildDate.cmake)
 #include "Settings.h"
@@ -3867,6 +3868,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());
         smokeLog(QStringLiteral("image conversion: ") + imageConvertCheck());
+        smokeLog(QStringLiteral("scrolling screenshot stitch: ") + scrollStitchCheck());
         {
             // Notification thumbnail drag: an unsaved image must materialize a
             // real temp file for the drop target (the new dragUri() branch).
@@ -4869,4 +4871,59 @@ void AppContext::devTestDesktopShortcuts()
     if (!devBuild())
         return;
     showToast(tr("Dev: desktop shortcuts: %1").arg(desktopShortcutsCheck()));
+}
+
+QString AppContext::scrollStitchCheck() const
+{
+    const int w = 300;
+    const int h = 200;
+    const int shift = 40;
+
+    QImage f1(w, h, QImage::Format_RGB32);
+    f1.fill(Qt::white);
+    {
+        QPainter p(&f1);
+        p.setPen(Qt::black);
+        for (int y = 20; y < h; y += 15)
+            p.drawText(30, y, QStringLiteral("Line at y=%1 text content").arg(y));
+    }
+
+    QImage f2(w, h, QImage::Format_RGB32);
+    f2.fill(Qt::white);
+    {
+        QPainter p(&f2);
+        p.setPen(Qt::black);
+        for (int y = 20 - shift; y < h; y += 15) {
+            if (y >= 10)
+                p.drawText(30, y, QStringLiteral("Line at y=%1 text content").arg(y + shift));
+        }
+    }
+
+    double conf = 0.0;
+    const int detected = ScrollStitcher::detectVerticalShift(f1, f2, ScrollStitcher::Direction::Down, &conf);
+    if (detected != shift)
+        return QStringLiteral("FAIL (detected %1px, expected %2px)").arg(detected).arg(shift);
+
+    ScrollStitcher stitcher;
+    if (!stitcher.addFrame(f1))
+        return QStringLiteral("FAIL (frame 1 rejected)");
+    if (!stitcher.addFrame(f2))
+        return QStringLiteral("FAIL (frame 2 rejected)");
+
+    const int stitchedH = stitcher.stitchedHeight();
+    if (stitchedH != h + shift)
+        return QStringLiteral("FAIL (height %1, expected %2)").arg(stitchedH).arg(h + shift);
+
+    return QStringLiteral("PASS (%1px shift, conf %2, %3x%4)")
+        .arg(shift)
+        .arg(QString::number(conf, 'f', 2))
+        .arg(stitcher.stitchedWidth())
+        .arg(stitcher.stitchedHeight());
+}
+
+void AppContext::devTestScrollStitch()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: scrolling stitch: %1").arg(scrollStitchCheck()));
 }

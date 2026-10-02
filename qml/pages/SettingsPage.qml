@@ -3263,6 +3263,13 @@ Item {
                         onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") }
                     }
                     HotkeyRow {
+                        label: qsTr("Scrolling region")
+                        help: qsTr("Hotkey: capture a scrolling region (long screenshot).")
+                        helpDetail: qsTr("Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.")
+                        shortcuts: App.settings.hotkeyScroll
+                        onChanged: (t) => { App.settings.hotkeyScroll = t; App.applyHotkey("capture-scroll") }
+                    }
+                    HotkeyRow {
                         label: qsTr("Window")
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
@@ -3767,6 +3774,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action timeout"); onClicked: App.devTestExternalActionTimeout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Scrolling stitch"); onClicked: App.devTestScrollStitch() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Measure"); onClicked: App.devTestMeasureTools() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Hardware encoder"); onClicked: App.devTestHardwareEncoder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Freeze recorder (watchdog)"); onClicked: App.devTestFreezeRecorder() }

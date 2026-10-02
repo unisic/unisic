@@ -9,6 +9,9 @@ whole per release (not per individual change).
 ## 0.8.5
 
 ### English
+**Added**
+- **Scrolling / long screenshot capture**: capture tall documents, code files, and web pages that exceed your screen. Trigger scrolling capture from the main window, via `--scroll`, from the hotkey, or directly from the selection toolbar using the new scroll icon. Once selected, scroll the target window using your mouse wheel, trackpad, or keys while Unisic stitches incoming frames in real-time with automatic stationary header detection and margin exclusion. A floating overlay with live dimension readout, progress thumbnail, and click-through pass-through keeps control effortless.
+
 **Improved**
 - **vgy.me upload destination and user key support**: vgy.me is now available as a built-in upload server, and the server editor provides a dedicated user key field whenever a vgy.me address is used to associate uploads with your account. Thanks to aliceabyss for requesting this ([#114](https://github.com/unisic/unisic/issues/114)).
 - **Save as and direct format export in the editor**: the Save button in the editor is now a split button. Clicking it saves or overwrites the file as usual, while the dropdown arrow lets you pick "Save as…" (Ctrl+Shift+S) to choose a destination path and format via a native file dialog, or quick-save directly as PNG, JPEG, WebP, or GIF.
@@ -28,6 +31,9 @@ whole per release (not per individual change).
 - **A watermark set to the smallest size is still a mark you can see**: the lowest step of the Size setting scaled the stamp down to 4 pixels, which is not merely too small to read - on a system carrying only a minimal set of fonts it drew nothing at all, so the watermark silently went missing. The smallest stamp is 8 pixels now, and a watermark left at any normal size is unchanged, down to the pixel.
 
 ### Polski
+**Dodane**
+- **Przechwytywanie przewijanych / długich zrzutów ekranu**: przechwytuj długie dokumenty, pliki z kodem i strony internetowe wykraczające poza ekran. Uruchom tryb z okna głównego, parametrem `--scroll`, skrótem klawiszowym lub bezpośrednio z paska wyboru obszaru za pomocą ikony przewijania. Po zaznaczeniu obszaru przewijaj okno docelowe kółkiem myszy, gładzikiem lub klawiaturą, a Unisic na bieżąco łączy kolejne klatki z automatycznym wykrywaniem stałych nagłówków i marginesów. Pływający pasek z podglądem na żywo, wymiarami i pełnym przekazywaniem kliknięć do okna pod spodem zapewnia pełną kontrolę.
+
 **Ulepszone**
 - **Obsługa serwera wysyłania vgy.me i klucza użytkownika**: vgy.me jest teraz dostępny jako wbudowany serwer wysyłania, a edytor serwerów oferuje dedykowane pole klucza użytkownika dla adresu vgy.me, co pozwala przypisać wysyłane pliki do Twojego konta. Podziękowania dla aliceabyss za zgłoszenie ([#114](https://github.com/unisic/unisic/issues/114)).
 - **Zapisz jako i bezpośredni eksport formatu w edytorze**: przycisk Zapisz w edytorze jest teraz przyciskiem dzielonym (split button). Kliknięcie go zapisuje lub nadpisuje plik jak dotąd, natomiast rozwijana strzałka pozwala wybrać „Zapisz jako…” (Ctrl+Shift+S), aby wskazać ścieżkę w natywnym oknie dialogowym, albo szybko zapisać bezpośrednio jako PNG, JPEG, WebP lub GIF.

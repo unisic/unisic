@@ -4,6 +4,7 @@
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
 #include "capture/PortalRequest.h"
+#include "capture/ScrollCaptureController.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -296,6 +297,7 @@ AppContext::~AppContext()
 {
     // Keep registered shortcuts so they survive restarts (KGlobalAccel autoloads them).
     delete m_trayMenu; // QSystemTrayIcon::setContextMenu doesn't take ownership
+    delete m_scrollCapture;
 }
 
 void AppContext::initialize(QQmlEngine *engine)
@@ -428,6 +430,9 @@ void AppContext::dispatchHotkey(const QString &action)
         m_nextCaptureTask = taskFromId(m_settings->regionTask());
         m_nextCaptureDestination = m_settings->regionTaskDestination();
         captureRegion();
+    } else if (action == QLatin1String("capture-scroll")) {
+        if (m_captureInFlight || m_overlay->active() || scrollCaptureActive()) return;
+        captureScroll();
     } else if (action == QLatin1String("capture-window")) {
         if (m_captureInFlight || m_overlay->active()) return;
         m_nextCaptureTask = taskFromId(m_settings->windowTask());
@@ -1171,6 +1176,56 @@ void AppContext::captureRegion()
 void AppContext::captureMeasure()
 {
     captureRegionWithTool(AnnotationCanvas::Measure);
+}
+
+void AppContext::captureScroll()
+{
+    if (m_captureInFlight || m_overlay->active() || scrollCaptureActive()) {
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Another capture is already active"));
+        return;
+    }
+    m_captureInFlight = true;
+    beginCaptureIsolation();
+    withCaptureDelay([this] {
+        if (m_overlay->active() || scrollCaptureActive()) {
+            m_captureInFlight = false;
+            endCaptureIsolation();
+            m_nextCaptureTask = {};
+            clearCliCapture(tr("Another capture is already active"));
+            return;
+        }
+        m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen) {
+            m_captureInFlight = false;
+            endCaptureIsolation();
+            if (!physRegion.isEmpty() && screen) {
+                startScrollCapture(physRegion, screen);
+            } else {
+                m_nextCaptureTask = {};
+                clearCliCapture(tr("Capture cancelled"));
+            }
+        }, OverlayController::Purpose::Scroll);
+    });
+}
+
+void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
+{
+    if (!m_scrollCapture) {
+        m_scrollCapture = new ScrollCaptureController(this, m_engine, this);
+        connect(m_scrollCapture, &ScrollCaptureController::activeChanged,
+                this, &AppContext::scrollCaptureActiveChanged);
+        connect(m_scrollCapture, &ScrollCaptureController::finished,
+                this, [this](const QImage &img) {
+            finishCapture(img, nowInhibited());
+        });
+    }
+    m_scrollCapture->start(physRegion, screen);
+    emit scrollCaptureActiveChanged();
+}
+
+bool AppContext::scrollCaptureActive() const
+{
+    return m_scrollCapture && m_scrollCapture->active();
 }
 
 void AppContext::captureRegionWithTool(int initialTool)
@@ -5147,6 +5202,7 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
     return {
         {QStringLiteral("capture-fullscreen"), tr("Capture full screen"), m_settings->hotkeyFullScreen()},
         {QStringLiteral("capture-region"), tr("Capture region"), m_settings->hotkeyRegion()},
+        {QStringLiteral("capture-scroll"), tr("Capture scrolling region"), m_settings->hotkeyScroll()},
         {QStringLiteral("capture-window"), tr("Capture active window"), m_settings->hotkeyWindow()},
         {QStringLiteral("record-gif"), tr("Record GIF (start/stop)"), m_settings->hotkeyGif()},
         {QStringLiteral("record-video"), tr("Record video (start/stop)"), m_settings->hotkeyRecord()},
@@ -5328,6 +5384,7 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
 
     if (actionId == QLatin1String("capture-fullscreen")) m_settings->setHotkeyFullScreen(portable);
     else if (actionId == QLatin1String("capture-region")) m_settings->setHotkeyRegion(portable);
+    else if (actionId == QLatin1String("capture-scroll")) m_settings->setHotkeyScroll(portable);
     else if (actionId == QLatin1String("capture-window")) m_settings->setHotkeyWindow(portable);
     else if (actionId == QLatin1String("record-gif")) m_settings->setHotkeyGif(portable);
     else if (actionId == QLatin1String("record-video")) m_settings->setHotkeyRecord(portable);

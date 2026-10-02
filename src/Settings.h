@@ -49,6 +49,7 @@ class Settings : public QObject
     Q_PROPERTY(QString activeDestination READ activeDestination WRITE setActiveDestination NOTIFY activeDestinationChanged)
     Q_PROPERTY(QString hotkeyFullScreen READ hotkeyFullScreen WRITE setHotkeyFullScreen NOTIFY hotkeyFullScreenChanged)
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
+    Q_PROPERTY(QString hotkeyScroll READ hotkeyScroll WRITE setHotkeyScroll NOTIFY hotkeyScrollChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
     Q_PROPERTY(QString lastCaptureRegion READ lastCaptureRegion WRITE setLastCaptureRegion NOTIFY lastCaptureRegionChanged)
@@ -205,7 +206,7 @@ public:
             // physically present in stable's file, but a hotkey left at its code
             // default is never written there, so it would ship BOUND on a fresh
             // dev config and collide with the stable KGlobalAccel component.
-            for (const char *hk : {"fullScreen", "region", "window", "gif", "record",
+            for (const char *hk : {"fullScreen", "region", "scroll", "window", "gif", "record",
                                    "ocrRegion", "copyLast", "instantReplay"})
                 m_s.setValue(QStringLiteral("hotkeys/") + QLatin1String(hk), QString());
             m_s.sync();
@@ -417,6 +418,7 @@ public:
     U_SETTING(QString, activeDestination, setActiveDestination, "upload/activeDestination", QStringLiteral("catbox.moe"))
     U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral("Meta+Shift+1"))
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
+    U_SETTING(QString, hotkeyScroll, setHotkeyScroll, "hotkeys/scroll", QString())
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
@@ -694,7 +696,7 @@ public:
         emit captureDelayMsChanged(); emit hideWindowOnCaptureChanged();
         emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
-        emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
+        emit hotkeyRegionChanged(); emit hotkeyScrollChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
@@ -774,6 +776,7 @@ signals:
     void activeDestinationChanged();
     void hotkeyFullScreenChanged();
     void hotkeyRegionChanged();
+    void hotkeyScrollChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
     void lastCaptureRegionChanged();

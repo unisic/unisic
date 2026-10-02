@@ -48,7 +48,7 @@ public:
     // them apart and showed the same chrome and the same "Start" button for all
     // of them (issue #98: you cannot see which capture mode is active). Only
     // the caller knows, so the caller says.
-    enum class Purpose { Shot, Measure, Ocr, Gif, Video };
+    enum class Purpose { Shot, Measure, Ocr, Gif, Video, Scroll };
     // The QML-side name of a purpose. A plain string and not a Q_ENUM because
     // OverlayController reaches QML as a context property, not as a registered
     // type, so QML could not spell the enumerators anyway - and this value is
@@ -91,6 +91,7 @@ signals:
 public slots:
     void confirmFromWindow(QQuickWindow *win);   // Enter / double-click
     void confirmAndCopy(QQuickWindow *win);      // Ctrl+C: confirm + force copy
+    void startScrollCapture(QQuickWindow *win);  // Starts scrolling capture for selected region
     void cancel();                               // Esc
     // W: selects the rectangle of the window that was active when the overlay
     // opened (KWin only). Does nothing when nobody could tell us where it was.

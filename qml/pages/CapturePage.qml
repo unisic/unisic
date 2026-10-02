@@ -76,7 +76,7 @@ Item {
                 // DIVIDE the card count are allowed — a row that fits all but
                 // one strands that one alone underneath, which reads as a
                 // mistake rather than a wrap.
-                readonly property int count: 3
+                readonly property int count: 4
                 readonly property int minCard: 180
                 readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
                 readonly property int perRow: {
@@ -89,9 +89,10 @@ Item {
 
                 Repeater {
                     model: [
-                        { iconName: "monitor", title: qsTr("Full screen"), sub: qsTr("All monitors"), hotkey: App.settings.hotkeyFullScreen, action: 0 },
-                        { iconName: "region",  title: qsTr("Region"), sub: qsTr("Select + annotate live"), hotkey: App.settings.hotkeyRegion, action: 1 },
-                        { iconName: "window",  title: qsTr("Window"), sub: qsTr("Active window"), hotkey: App.settings.hotkeyWindow, action: 2 },
+                        { iconName: "monitor",      title: qsTr("Full screen"), sub: qsTr("All monitors"),          hotkey: App.settings.hotkeyFullScreen, action: 0 },
+                        { iconName: "region",       title: qsTr("Region"),      sub: qsTr("Select + annotate live"), hotkey: App.settings.hotkeyRegion,     action: 1 },
+                        { iconName: "window",       title: qsTr("Window"),      sub: qsTr("Active window"),          hotkey: App.settings.hotkeyWindow,     action: 2 },
+                        { iconName: "chevron-down", title: qsTr("Scrolling"),   sub: qsTr("Long screenshot"),        hotkey: App.settings.hotkeyScroll,     action: 3 },
                     ]
 
                     // Hover feedback is color-only (surface, border, icon tint):
@@ -104,7 +105,8 @@ Item {
                         function activate() {
                             if (modelData.action === 0) App.captureFullScreen()
                             else if (modelData.action === 1) App.captureRegion()
-                            else App.captureWindow()
+                            else if (modelData.action === 2) App.captureWindow()
+                            else App.captureScroll()
                         }
                         width: modeFlow.cardW
                         // 140, not 172: the option grid below grew a fourth row

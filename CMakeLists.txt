@@ -150,6 +150,9 @@ qt_add_executable(unisic
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
+    src/capture/ScrollStitcher.h src/capture/ScrollStitcher.cpp
+    src/capture/ScrollCaptureController.h src/capture/ScrollCaptureController.cpp
+    src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
@@ -286,6 +289,7 @@ qt_add_qml_module(unisic
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
+        qml/ScrollCaptureOverlay.qml
         qml/PreviewWindow.qml
         qml/TrimWindow.qml
         qml/pages/CapturePage.qml
@@ -306,7 +310,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/notify src/update src/record)
+target_include_directories(unisic PRIVATE src src/capture src/editor src/upload src/history src/notify src/update src/record)
 # unisic-kit propagates its src/ include dir (capture/, record/, theme/,
 # media/ headers), Qt6::DBus and, when found, PkgConfig::PIPEWIRE +
 # HAVE_PIPEWIRE - so the app-side guards keep working unchanged.
@@ -772,5 +776,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_diag_redact_test PRIVATE src)
     add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
+
+    qt_add_executable(unisic_scroll_stitch_test
+        tests/ScrollStitchTest.cpp
+        src/capture/ScrollStitcher.h
+        src/capture/ScrollStitcher.cpp
+    )
+    target_link_libraries(unisic_scroll_stitch_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_scroll_stitch_test PRIVATE src)
+    add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
+    set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 endif()

@@ -4,6 +4,7 @@
 #include "theme/ThemeController.h"
 #include "theme/IconImageProvider.h"
 #include "editor/WatermarkPreview.h"
+#include "capture/ScrollPreviewProvider.h"
 #include "update/VersionCompare.h"
 #include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
 // The kit's own ConfigPath.h shares the basename, so it needs the explicit
@@ -50,6 +51,7 @@ static void printHelp(FILE *stream)
         "Capture:\n"
         "  --fullscreen                 Capture all screens\n"
         "  --region                     Capture a selected region\n"
+        "  --scroll                     Capture a scrolling region (long screenshot)\n"
         "  --window                     Capture the active window\n"
         "  --monitor                    Capture the screen under the cursor\n"
         "  --recapture                  Capture the last selected region again\n"
@@ -74,7 +76,7 @@ static void printHelp(FILE *stream)
 static bool isKnownOption(const char *argument)
 {
     const QByteArray option(argument);
-    return option == "--fullscreen" || option == "--region" || option == "--window"
+    return option == "--fullscreen" || option == "--region" || option == "--scroll" || option == "--window"
            || option == "--measure" || option == "--monitor" || option == "--recapture"
            || option == "--gif" || option == "--delay" || option.startsWith("--delay=")
            || option == "--output" || option.startsWith("--output=")
@@ -231,6 +233,7 @@ static QByteArray cliCommand(const QStringList &args)
     QByteArray command;
     if (args.contains(QLatin1String("--fullscreen"))) command = "fullscreen";
     else if (args.contains(QLatin1String("--region"))) command = "region";
+    else if (args.contains(QLatin1String("--scroll"))) command = "scroll";
     else if (args.contains(QLatin1String("--window"))) command = "window";
     else if (args.contains(QLatin1String("--measure"))) command = "measure";
     else if (args.contains(QLatin1String("--monitor"))) command = "monitor";
@@ -294,6 +297,7 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
         }
     }
     if (delayMs >= 0 && (command == "fullscreen" || command == "region"
+                         || command == "scroll"
                          || command == "window" || command == "measure"
                          || command == "monitor" || command == "recapture"))
         context.setNextCaptureDelayMs(delayMs);
@@ -314,6 +318,7 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     }
     if (command == "fullscreen") context.captureFullScreen();
     else if (command == "region") context.captureRegion();
+    else if (command == "scroll") context.captureScroll();
     else if (command == "window") context.captureWindow();
     else if (command == "measure") context.captureMeasure();
     else if (command == "monitor") context.captureScreenUnderCursor();
@@ -902,6 +907,8 @@ int main(int argc, char *argv[])
     // engine takes ownership, and it outlives every QML request by construction.
     engine.addImageProvider(QStringLiteral("watermark"),
                             new WatermarkPreviewProvider(&context));
+    engine.addImageProvider(QStringLiteral("scrollpreview"),
+                            new ScrollPreviewProvider(&context));
     engine.rootContext()->setContextProperty(QStringLiteral("App"), &context);
     // Autostart path: `unisic --tray-only` boots straight into the tray with no
     // main window (Main.qml binds `visible: !startHidden`). A manual `unisic`
@@ -996,6 +1003,7 @@ int main(int argc, char *argv[])
         }
         if (args.contains(QLatin1String("--fullscreen"))) context.captureFullScreen();
         else if (args.contains(QLatin1String("--region"))) context.captureRegion();
+        else if (args.contains(QLatin1String("--scroll"))) context.captureScroll();
         else if (args.contains(QLatin1String("--window"))) context.captureWindow();
         else if (args.contains(QLatin1String("--measure"))) context.captureMeasure();
         else if (args.contains(QLatin1String("--monitor"))) context.captureScreenUnderCursor();

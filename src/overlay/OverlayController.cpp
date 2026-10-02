@@ -34,6 +34,7 @@ QString OverlayController::purposeName(Purpose p)
     case Purpose::Ocr:     return QStringLiteral("ocr");
     case Purpose::Gif:     return QStringLiteral("gif");
     case Purpose::Video:   return QStringLiteral("video");
+    case Purpose::Scroll:  return QStringLiteral("scroll");
     case Purpose::Shot:    break;
     }
     return QStringLiteral("shot");
@@ -284,11 +285,45 @@ void OverlayController::confirmAndCopy(QQuickWindow *win)
     confirmFromWindow(win);
 }
 
+void OverlayController::startScrollCapture(QQuickWindow *win)
+{
+    auto *canvas = win ? win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas")) : nullptr;
+    if (!canvas || !canvas->hasSelection())
+        return;
+
+    const int idx = m_windows.indexOf(win);
+    QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;
+
+    const QRectF sel = canvas->selectionRect();
+    const QSize imgSize = canvas->image().size();
+    const QSize physSize = screen
+        ? QSize(qRound(screen->geometry().width() * screen->devicePixelRatio()),
+                qRound(screen->geometry().height() * screen->devicePixelRatio()))
+        : QSize();
+    QRect phys;
+    if (screen && !imgSize.isEmpty() && physSize != imgSize) {
+        const double sx = double(physSize.width()) / imgSize.width();
+        const double sy = double(physSize.height()) / imgSize.height();
+        phys = QRectF(sel.x() * sx, sel.y() * sy,
+                      sel.width() * sx, sel.height() * sy).toAlignedRect();
+    } else {
+        phys = sel.toAlignedRect();
+    }
+
+    closeAll();
+    m_app->startScrollCapture(phys, screen);
+}
+
 void OverlayController::confirmFromWindow(QQuickWindow *win)
 {
     auto *canvas = win ? win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas")) : nullptr;
     if (!canvas || !canvas->hasSelection())
         return;
+
+    if (m_purpose == Purpose::Scroll) {
+        startScrollCapture(win);
+        return;
+    }
 
     const int idx = m_windows.indexOf(win);
     QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;

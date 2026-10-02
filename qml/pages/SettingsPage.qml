@@ -6,11 +6,28 @@ import Unisic.Kit
 import "../components"
 
 Item {
+    objectName: "settingsPage"  // the smoke test drives panes through it
     id: page
     // paneArea is already inset by spacingXL on both sides, so don't subtract it
     // again here (that left the cards mis-centered with a big right-hand gap).
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
+
+    // A text field is left by Enter or by a press anywhere outside it, not
+    // only by Escape or a blank spot. A switch, slider or button consumes its
+    // press and takes no focus, so the field kept every keystroke after the
+    // user had clearly moved on (user-reported three times: "can't get out of
+    // the filename field"). The press side is the MouseArea at the end of
+    // this file.
+    function leaveTextField() {
+        const f = page.Window.activeFocusItem
+        if (f && f.cursorRectangle !== undefined)
+            f.focus = false
+    }
+    // TextInput emits accepted and passes Return on, so it lands here; a
+    // multi-line TextEdit keeps it for the newline and never does.
+    Keys.onReturnPressed: page.leaveTextField()
+    Keys.onEnterPressed: page.leaveTextField()
 
     // { pattern, vars } for the filename template, from the code that expands
     // it. Here rather than at the field because the pane is rebuilt by a Loader
@@ -686,6 +703,16 @@ Item {
             Accessible.focusable: false
         }
         default property alias content: paneCol.data
+        // A click on the pane's background (a caption, a card's padding) takes
+        // focus away from whatever field had it, the way a desktop form does.
+        // Declared before the Column so every control still gets its own
+        // press first; this only sees what lands on nothing. The press is not
+        // accepted, so the Flickable's own drag handling is untouched.
+        MouseArea {
+            width: fl.contentWidth
+            height: Math.max(fl.height, fl.contentHeight)
+            onPressed: (m) => { fl.forceActiveFocus(); m.accepted = false }
+        }
         Column {
             id: paneCol
             width: fl.width
@@ -2212,12 +2239,14 @@ Item {
                         spacing: 4
                         Text {
                             id: templateCaption
+                            objectName: "settingsTemplateCaption"
                             text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
                         UTextField {
                             id: templateField
+                            objectName: "settingsTemplateField"  // smoke: leaving the field
                             width: parent.width
                             // Caption + field, with no placeholder to fall back
                             // on: unnamed before this. The caption is a whole
@@ -2272,7 +2301,7 @@ Item {
                         label: qsTr("Open file after saving")
                         help: qsTr("Opens each capture in your image viewer after saving.")
                         helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
-                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
+                        USwitch { objectName: "settingsOpenAfterSaveSwitch"; checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
                     }
                     SettingRow {
                         label: qsTr("Ask where to save")
@@ -3716,6 +3745,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Editor zoom"); onClicked: App.devTestEditorZoom() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Leave filename field"); onClicked: App.devTestLeaveField() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -3828,5 +3858,23 @@ Item {
         // Loader's content, and an id inside one is not visible out here.
         UVarBar { id: varBar }
 
+    }
+
+    // Last child, so it is the first to see every press on the page. It only
+    // looks and refuses the press, which then goes on to whatever is under it
+    // as if this were not here. A TapHandler does not do the job: a control
+    // that takes the press keeps it from a parent's handler. No hover and no
+    // wheel handler, so neither cursors nor scrolling notice it. The variable
+    // bar is exempt: a chip press must reach the field it types into.
+    MouseArea {
+        anchors.fill: parent
+        onPressed: (m) => {
+            m.accepted = false
+            const f = page.Window.activeFocusItem
+            const inside = (it) => !!it && it.visible
+                                   && it.contains(it.mapFromItem(page, m.x, m.y))
+            if (!inside(f) && !inside(varBar))
+                page.leaveTextField()
+        }
     }
 }

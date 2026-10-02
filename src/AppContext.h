@@ -300,6 +300,7 @@ public:
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestEditorZoom();
+    Q_INVOKABLE void devTestLeaveField();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();

@@ -2541,6 +2541,126 @@ void AppContext::devTestEditorZoom()
     showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
+// Settings > Saving > filename template: a field once entered has to be
+// leavable, by Escape and by a click on nothing (user-reported twice: "can't
+// get out of the filename field"). Real key and mouse events through the
+// window, so whatever eats them on the way shows up here.
+static QString leaveFieldCheck(QQuickWindow *win)
+{
+    if (!win || !win->isVisible())
+        return QStringLiteral("SKIP (main window not open)");
+    const QVariant page0 = win->property("currentPage");
+    win->setProperty("currentPage", 5);
+    QCoreApplication::processEvents();
+    auto *page = win->findChild<QQuickItem *>(QStringLiteral("settingsPage"));
+    if (!page) {
+        win->setProperty("currentPage", page0);
+        return QStringLiteral("FAIL (settings page not found)");
+    }
+    const QVariant tab0 = page->property("tab");
+    page->setProperty("tab", 4);
+    QCoreApplication::processEvents();
+    const auto restore = [&] { page->setProperty("tab", tab0); win->setProperty("currentPage", page0); };
+    auto *field = win->findChild<QQuickItem *>(QStringLiteral("settingsTemplateField"));
+    auto *caption = win->findChild<QQuickItem *>(QStringLiteral("settingsTemplateCaption"));
+    if (!field || !caption) {
+        restore();
+        return QStringLiteral("FAIL (filename field not found)");
+    }
+    const auto focused = [field] { return field->property("inputActiveFocus").toBool(); };
+    // Qt hands no item active focus in an inactive window. Ask for the window
+    // once; the compositor may still say no, which is the SKIP below.
+    if (!win->isActive()) {
+        win->requestActivate();
+        QElapsedTimer t;
+        t.start();
+        while (!win->isActive() && t.elapsed() < 1500)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    QMetaObject::invokeMethod(field, "forceFocus");
+    if (!focused()) {
+        restore();
+        return QStringLiteral("SKIP (window inactive, the field cannot take focus)");
+    }
+    QKeyEvent escDown(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QKeyEvent escUp(QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &escDown);
+    QCoreApplication::sendEvent(win, &escUp);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (Escape did not leave the field)");
+    }
+    QMetaObject::invokeMethod(field, "forceFocus");
+    QKeyEvent retDown(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QKeyEvent retUp(QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &retDown);
+    QCoreApplication::sendEvent(win, &retUp);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (Enter did not leave the field)");
+    }
+    const auto press = [win](const QPointF &at, const QPointF &releaseAt) {
+        QMouseEvent down(QEvent::MouseButtonPress, at, win->mapToGlobal(at),
+                         Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent up(QEvent::MouseButtonRelease, releaseAt, win->mapToGlobal(releaseAt),
+                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        // The move is what tells a MouseArea the pointer left it; without one
+        // it still thinks it is hovered and calls the release a click.
+        QMouseEvent move(QEvent::MouseMove, releaseAt, win->mapToGlobal(releaseAt),
+                         Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(win, &down);
+        QCoreApplication::sendEvent(win, &move);
+        QCoreApplication::sendEvent(win, &up);
+    };
+    const QPointF beside = caption->mapToScene(QPointF(caption->width() / 2, caption->height() / 2));
+    QMetaObject::invokeMethod(field, "forceFocus");
+    press(beside, beside);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (a click beside the field did not leave it)");
+    }
+    // A press a control consumes: the switch takes it and takes no focus. The
+    // release lands on the caption, so the switch never sees a click and the
+    // user's setting stays as it was.
+    auto *sw = win->findChild<QQuickItem *>(QStringLiteral("settingsOpenAfterSaveSwitch"));
+    if (!sw) {
+        restore();
+        return QStringLiteral("FAIL (switch not found)");
+    }
+    const bool before = sw->property("checked").toBool();
+    QMetaObject::invokeMethod(field, "forceFocus");
+    press(sw->mapToScene(QPointF(sw->width() / 2, sw->height() / 2)), beside);
+    const bool stuck = focused();
+    const bool flipped = sw->property("checked").toBool() != before;
+    if (flipped)
+        QMetaObject::invokeMethod(sw, "toggled", Q_ARG(bool, before));
+    // And whatever watches presses on the way must still let a real click
+    // through: two clicks flip the switch and flip it back.
+    const QPointF swAt = sw->mapToScene(QPointF(sw->width() / 2, sw->height() / 2));
+    press(swAt, swAt);
+    const bool clickWorks = sw->property("checked").toBool() != before;
+    if (clickWorks)
+        press(swAt, swAt);
+    if (sw->property("checked").toBool() != before)
+        QMetaObject::invokeMethod(sw, "toggled", Q_ARG(bool, before));
+    restore();
+    if (flipped)
+        return QStringLiteral("FAIL (the switch toggled, the test changed a setting)");
+    if (stuck)
+        return QStringLiteral("FAIL (a press on a switch did not leave the field)");
+    if (!clickWorks)
+        return QStringLiteral("FAIL (a click no longer reaches the switch)");
+    return QStringLiteral("PASS (Escape, Enter, click beside, press on a switch, switch still clicks)");
+}
+
+void AppContext::devTestLeaveField()
+{
+    if (!devBuild())
+        return;
+    const QString r = leaveFieldCheck(mainWindow());
+    showToast(tr("Dev: leave filename field %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 void AppContext::devTestEditor()
 {
     if (!devBuild())
@@ -4354,6 +4474,12 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("editor zoom control: ")
                  + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
                                        ? m_smokeWindows.last().data() : nullptr));
+        smokeNext();
+    });
+
+    // 3a) a settings text field can be left again
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
         smokeNext();
     });
 

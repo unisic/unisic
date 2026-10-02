@@ -300,6 +300,7 @@ qt_add_qml_module(unisic
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
         qml/components/USystemCheck.qml
+        qml/components/ULogViewer.qml
         qml/components/UAppAudioPicker.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml

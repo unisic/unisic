@@ -257,6 +257,10 @@ public:
     // log. Separate from the plain one so "Copy diagnostics" stays a small,
     // obviously safe paste and the bigger one is an explicit choice.
     Q_INVOKABLE QString diagnosticsWithLog() const;
+    // The in-app log viewer: the redacted ring, and a counter that moves
+    // whenever a line is added (polled, so nothing is emitted per line).
+    Q_INVOKABLE QString recentLog() const;
+    Q_INVOKABLE double logRevision() const;
     Q_INVOKABLE QString logFilePath() const;
     Q_INVOKABLE bool hasPreviousCrash() const;
     // Latched on the report's own content: the same crash never nags twice, a

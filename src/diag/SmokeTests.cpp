@@ -4039,7 +4039,19 @@ void AppContext::runSmokeTest()
         // or the reason it does not is legitimate, (4) the crash report still
         // renders in the shape a user would paste.
         const int before = DiagLog::bufferedLineCount();
+        const double revBefore = logRevision();
         qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
+        // The log viewer's whole data path: the counter it polls moved, and
+        // the text it shows carries the probe, redacted.
+        const QString viewerText = recentLog();
+        smokeLog(QStringLiteral("log viewer feed: %1")
+                     .arg(!(logRevision() > revBefore)
+                              ? QStringLiteral("FAIL (revision did not move)")
+                          : !viewerText.contains(QStringLiteral("smoke: log probe"))
+                              ? QStringLiteral("FAIL (probe line missing)")
+                          : viewerText.contains(QStringLiteral("smoketoken987"))
+                              ? QStringLiteral("FAIL (secret visible)")
+                              : QStringLiteral("PASS")));
         const QString tail = DiagLog::recentLines(3);
         const bool grew = DiagLog::bufferedLineCount() > before;
         const bool clean = !tail.contains(QStringLiteral("smoketoken987"))

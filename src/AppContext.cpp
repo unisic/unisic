@@ -1742,6 +1742,16 @@ QString AppContext::diagnosticsWithLog() const
     return out;
 }
 
+QString AppContext::recentLog() const
+{
+    return DiagLog::recentLines();
+}
+
+double AppContext::logRevision() const
+{
+    return double(DiagLog::revision());
+}
+
 QString AppContext::logFilePath() const
 {
     const QString p = DiagLog::logFilePath();

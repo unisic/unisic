@@ -33,6 +33,7 @@ constexpr qint64 kMaxFileBytes = 2 * 1024 * 1024;
 
 std::mutex g_mutex;
 std::array<QByteArray, kRingLines> g_ring;
+quint64 g_revision = 0;
 int g_head = 0;
 int g_count = 0;
 QByteArray g_lastLine;
@@ -84,6 +85,7 @@ void storeLocked(const QByteArray &stamped)
     g_head = (g_head + 1) % kRingLines;
     if (g_count < kRingLines)
         ++g_count;
+    ++g_revision;
     writeToFileLocked(stamped + '\n');
 }
 
@@ -281,6 +283,12 @@ int bufferedLineCount()
 {
     std::lock_guard<std::mutex> lock(g_mutex);
     return g_count;
+}
+
+quint64 revision()
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    return g_revision;
 }
 
 QString recentLines(int maxLines)

@@ -45,6 +45,7 @@ Item {
     // included, which is the side to err on.
     readonly property bool modalOpen: helpDialog.visible || settingsPatchNotes.visible
                                       || settingsSystemCheck.visible || haloColorPopup.visible
+                                      || logViewer.visible
 
     // Free colour choice for the recording halo. Declared at the page root, not
     // inside the row: the row is inside a Flickable, and a popup parented there
@@ -66,6 +67,9 @@ Item {
         id: settingsSystemCheck
         markSeenOnClose: false
     }
+
+    // General -> Activity log -> View log.
+    ULogViewer { id: logViewer }
 
     // ---- settings search ----
     property string searchQuery: ""
@@ -1328,21 +1332,33 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Activity log")
-                        help: qsTr("Copy the same summary plus what Unisic has been doing this run.")
+                        help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "edit-copy"
-                            text: qsTr("Copy with log")
-                            onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
-                        }
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "folder-open"
-                            text: qsTr("Show log file")
-                            onClicked: App.showLogInFileManager()
+                        // The slot is a plain Item, so loose buttons all land on
+                        // the same spot - lay them out side by side.
+                        Row {
+                            spacing: Theme.spacingS
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "magnify"
+                                text: qsTr("View log")
+                                onClicked: logViewer.open()
+                            }
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "edit-copy"
+                                text: qsTr("Copy with log")
+                                onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
+                            }
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "folder-open"
+                                text: qsTr("Show log file")
+                                onClicked: App.showLogInFileManager()
+                            }
                         }
                     }
                 }
@@ -3750,6 +3766,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }

@@ -138,6 +138,13 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
         done(QStringLiteral("SKIP (main window not open)"));
         return;
     }
+    if (!win->isExposed() || win->windowStates().testFlag(Qt::WindowMinimized)) {
+        // Minimized: a capture must leave it where it is, so it must not hide.
+        done(hideOwnWindowForCapture()
+                 ? QStringLiteral("FAIL (minimized window was hidden and would pop back up)")
+                 : QStringLiteral("PASS (minimized window left alone)"));
+        return;
+    }
     if (!m_settings->hideWindowOnCapture()) {
         // Deliberately does NOT flip the setting to run anyway: this check runs
         // from the smoke test on the user's own configuration, and a check that
@@ -151,11 +158,18 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
     // same-turn hide/show would not exercise that at all.
     QTimer::singleShot(kSelfHideSettleMs, this, [this, win, wentDown, done = std::move(done)] {
         restoreOwnWindowAfterCapture();
-        const bool cameBack = win && win->isVisible();
-        done(wentDown && cameBack
-                 ? QStringLiteral("PASS")
-                 : QStringLiteral("FAIL (hidden=%1, restored=%2)")
-                       .arg(wentDown ? 1 : 0).arg(cameBack ? 1 : 0));
+        // With a tray the window must stay down; without one it must come back.
+        const bool stayDown = trayAvailable();
+        const bool visible = win && win->isVisible();
+        const bool ok = wentDown && visible != stayDown;
+        // The smoke test runs on the user's own session: put the window back
+        // where the user left it whatever the verdict.
+        if (win && !visible)
+            win->show();
+        done(ok ? QStringLiteral("PASS (%1)").arg(stayDown ? QStringLiteral("stays in the tray")
+                                                           : QStringLiteral("no tray, came back"))
+                : QStringLiteral("FAIL (hidden=%1, visible after=%2, tray=%3)")
+                      .arg(wentDown ? 1 : 0).arg(visible ? 1 : 0).arg(stayDown ? 1 : 0));
     });
 }
 

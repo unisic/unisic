@@ -1015,6 +1015,13 @@ bool AppContext::hideOwnWindowForCapture()
     QQuickWindow *win = mainWindow();
     if (!win || !win->isVisible())
         return false; // triggered from a hotkey or the tray: nothing to hide
+    // Minimized from the taskbar or a KWin shortcut, the window is still
+    // "visible" to Qt: xdg-shell has no minimized state, KWin only marks the
+    // surface suspended, which Qt reports as not exposed. Hiding it anyway
+    // and calling show() afterwards un-minimized it, so every hotkey capture
+    // pulled the window up out of the taskbar. Not on screen, not in the shot.
+    if (!win->isExposed() || win->windowStates().testFlag(Qt::WindowMinimized))
+        return false;
     win->hide();
     m_hiddenForCapture = win;
     return true;
@@ -1026,6 +1033,11 @@ void AppContext::restoreOwnWindowAfterCapture()
         return;
     QQuickWindow *win = m_hiddenForCapture;
     m_hiddenForCapture = nullptr;
+    // The window stays in the tray after the capture: the user took the shot
+    // to work with the shot, not to land back on the page that started it.
+    // Only without a tray does it come back, since nothing else could reopen it.
+    if (trayAvailable())
+        return;
     // show(), not showNormal()/requestActivate(): the editor window opens
     // straight after this on the default settings, and stealing focus back from
     // it is exactly the wrong end of the capture to be looking at.

@@ -27,6 +27,8 @@ class ScrollCaptureController : public QObject
     Q_PROPERTY(int frameCount READ frameCount NOTIFY frameCountChanged)
     Q_PROPERTY(int previewRevision READ previewRevision NOTIFY previewRevisionChanged)
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
+    Q_PROPERTY(bool lostTrack READ lostTrack NOTIFY statusChanged)
+    Q_PROPERTY(bool full READ full NOTIFY statusChanged)
 
 public:
     explicit ScrollCaptureController(AppContext *app, QQmlEngine *engine, QObject *parent = nullptr);
@@ -42,6 +44,11 @@ public:
     int frameCount() const { return m_stitcher.frameCount(); }
     int previewRevision() const { return m_previewRevision; }
     bool active() const { return m_active; }
+    bool lostTrack() const { return m_lostTrack; }
+    bool full() const { return m_full; }
+
+    // Logical px the floating badge needs above or below the region.
+    static constexpr int kBadgeRoom = 58;
 
     QImage previewThumbnail(int maxW, int maxH) const;
 
@@ -60,6 +67,7 @@ signals:
     void frameCountChanged();
     void previewRevisionChanged();
     void activeChanged();
+    void statusChanged();
     void finished(const QImage &image);
 
 private slots:
@@ -72,6 +80,7 @@ private:
     void wireGrabber(IScreenGrabber *grabber);
     void createOverlayWindow();
     void closeOverlayWindow();
+    void setStatus(bool lostTrack, bool full);
 
     AppContext *m_app;
     QQmlEngine *m_engine;
@@ -83,6 +92,9 @@ private:
     int m_regionH = 0;
 
     bool m_active = false;
+    bool m_lostTrack = false;
+    bool m_full = false;
+    int m_unmatchedRun = 0;
     bool m_isRegionStream = false;
     quint64 m_lastSampledSeq = 0;
     int m_previewRevision = 0;

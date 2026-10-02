@@ -52,6 +52,8 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
     m_previewRevision = 0;
     m_streamSize = QSize();
     m_isRegionStream = false;
+    m_unmatchedRun = 0;
+    setStatus(false, false);
 
     // Convert physical crop coordinates to window-local logical pixels
     const qreal dpr = m_screen->devicePixelRatio() > 0 ? m_screen->devicePixelRatio() : 1.0;
@@ -60,10 +62,20 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
     const int right  = qCeil((cropPhysical.x() + cropPhysical.width()) / dpr);
     const int bottom = qCeil((cropPhysical.y() + cropPhysical.height()) / dpr);
 
+    // The badge must sit outside the captured area: anything of ours inside
+    // it would be stitched into every slice. With no room above or below
+    // (a full-height selection), the bottom of the region gives way.
+    const int screenH = m_screen->geometry().height();
+    int capBottom = std::min(bottom, screenH);
+    if (top < kBadgeRoom && screenH - capBottom < kBadgeRoom)
+        capBottom = screenH - kBadgeRoom;
+
     m_regionX = left;
     m_regionY = top;
     m_regionW = std::max(20, right - left);
-    m_regionH = std::max(20, bottom - top);
+    m_regionH = std::max(20, capBottom - top);
+    m_cropPhysical.setBottom(std::min(m_cropPhysical.bottom(),
+                                      int(std::floor((top + m_regionH) * dpr)) - 1));
     emit regionChanged();
 
     m_active = true;
@@ -111,6 +123,7 @@ void ScrollCaptureController::finish()
 
     stop();
     const QImage result = m_stitcher.stitchedImage();
+    m_stitcher.reset();   // the canvas can be hundreds of MB
     closeOverlayWindow();
 
     if (!result.isNull()) {
@@ -235,6 +248,10 @@ void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)
 {
     connect(grabber, &IScreenGrabber::formatReady, this, [this](const QSize &sz) {
         m_streamSize = sz;
+        qInfo().noquote() << QStringLiteral("Scroll capture: %1 stream %2x%3, selection %4x%5 physical")
+                                 .arg(m_isRegionStream ? QStringLiteral("region") : QStringLiteral("monitor"))
+                                 .arg(sz.width()).arg(sz.height())
+                                 .arg(m_cropPhysical.width()).arg(m_cropPhysical.height());
         m_sampleTimer.start(33); // ~30 fps sampling
     });
 
@@ -260,12 +277,16 @@ void ScrollCaptureController::sampleTick()
     if (m_streamSize.isEmpty() || buf.size() < m_streamSize.width() * m_streamSize.height() * 4)
         return;
 
-    QImage::Format fmt = QImage::Format_RGB32;
+    // The frames are in the stream's native byte order; wrap them in the
+    // QImage format whose bytes match (as GifRecorder does), opaque for the
+    // x formats whose padding byte is undefined.
     const QString pf = m_grabber->pixelFormat();
-    if (pf == QLatin1String("rgba") || pf == QLatin1String("rgb0"))
-        fmt = QImage::Format_RGBA8888;
-    else if (pf == QLatin1String("bgra") || pf == QLatin1String("bgr0"))
-        fmt = QImage::Format_ARGB32_Premultiplied;
+    QImage::Format fmt;
+    if (pf == QLatin1String("bgra"))      fmt = QImage::Format_ARGB32;
+    else if (pf == QLatin1String("bgr0")) fmt = QImage::Format_RGB32;
+    else if (pf == QLatin1String("rgba")) fmt = QImage::Format_RGBA8888;
+    else if (pf == QLatin1String("rgb0")) fmt = QImage::Format_RGBX8888;
+    else return;
 
     const QImage fullImg(reinterpret_cast<const uchar *>(buf.constData()),
                          m_streamSize.width(), m_streamSize.height(), fmt);
@@ -274,19 +295,54 @@ void ScrollCaptureController::sampleTick()
     if (m_isRegionStream) {
         frameImg = fullImg.copy();
     } else {
-        const QRect streamBounds(0, 0, m_streamSize.width(), m_streamSize.height());
-        const QRect crop = m_cropPhysical.intersected(streamBounds);
+        // A monitor stream should be the output's physical size; if the
+        // compositor scaled it, scale the crop with it.
+        QRect crop = m_cropPhysical;
+        const QSize phys = m_screen ? m_screen->geometry().size() * m_screen->devicePixelRatio() : QSize();
+        if (!phys.isEmpty() && phys != m_streamSize) {
+            const double sx = double(m_streamSize.width()) / phys.width();
+            const double sy = double(m_streamSize.height()) / phys.height();
+            crop = QRectF(crop.x() * sx, crop.y() * sy, crop.width() * sx, crop.height() * sy).toAlignedRect();
+        }
+        crop = crop.intersected(QRect(QPoint(0, 0), m_streamSize));
         if (crop.width() < 10 || crop.height() < 10)
             return;
         frameImg = fullImg.copy(crop);
     }
 
-    if (m_stitcher.addFrame(frameImg)) {
+    switch (m_stitcher.addFrame(frameImg)) {
+    case ScrollStitcher::Result::Started:
+    case ScrollStitcher::Result::Stitched:
+        m_unmatchedRun = 0;
+        setStatus(false, false);
         ++m_previewRevision;
         emit previewRevisionChanged();
         emit stitchedSizeChanged();
         emit frameCountChanged();
+        break;
+    case ScrollStitcher::Result::Unchanged:
+        m_unmatchedRun = 0;
+        setStatus(false, m_stitcher.isFull());
+        break;
+    case ScrollStitcher::Result::Unmatched:
+        // ~0.3 s of frames that moved but fit nowhere: the user scrolled
+        // further than one viewport between two samples.
+        if (++m_unmatchedRun >= 10)
+            setStatus(true, false);
+        break;
+    case ScrollStitcher::Result::Full:
+        setStatus(false, true);
+        break;
     }
+}
+
+void ScrollCaptureController::setStatus(bool lostTrack, bool full)
+{
+    if (lostTrack == m_lostTrack && full == m_full)
+        return;
+    m_lostTrack = lostTrack;
+    m_full = full;
+    emit statusChanged();
 }
 
 void ScrollCaptureController::createOverlayWindow()

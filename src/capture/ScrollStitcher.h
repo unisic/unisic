@@ -1,71 +1,79 @@
 #pragma once
 #include <QImage>
-#include <QRect>
 #include <QVector>
 
-// Stitches consecutive scrolling viewport frames into a single seamless vertical screenshot.
-// Uses fast 1D row profile projection, multi-column luminance sampling, and
-// fine-matching verification. Robust against scrollbars, sticky headers, and blank margins.
+// Stitches the frames of a region the user scrolls into one tall image.
+//
+// Alignment is pixel-exact: a per-row luminance profile proposes candidate
+// shifts, and every candidate is verified row by row against the real pixels.
+// Stream frames are lossless, so the right shift matches byte for byte while a
+// shift that is off by one row breaks every line of text. Rows are copied
+// verbatim and never resampled, so the result is exactly as sharp as the
+// screen and reads at any zoom.
+//
+// Rows that stay put while the content moves (sticky headers and footers,
+// columns that do not scroll like a sidebar) are left out of the matching and
+// kept once instead of repeating in every slice. The viewport position is
+// tracked in document coordinates, so scrolling back up, or starting at the
+// bottom of a chat and scrolling up, extends the image at the top.
 class ScrollStitcher
 {
 public:
-    enum class Direction {
-        Down,
-        Up,
-        Auto
+    enum class Result {
+        Started,    // first frame, or a replacement before the first scroll
+        Stitched,   // new rows were added
+        Unchanged,  // no scroll (identical, or only a small part changed)
+        Unmatched,  // the content moved but no shift fits: scrolled too fast
+        Full        // the size cap is reached
     };
 
-    static constexpr int kMaxStitchedHeight = 32768;
+    struct Shift {
+        bool changed = false;     // most of the area between the sticky bands changed
+        bool ok = false;          // a verified shift was found
+        int dy = 0;               // >0 content moved up (scrolled down)
+        int header = 0;           // top rows that did not move
+        int footer = 0;           // bottom rows that did not move
+        QVector<int> staleRows;   // overlapping rows of curr that differ from prev
+    };
 
-    explicit ScrollStitcher();
-    ~ScrollStitcher() = default;
+    // Upper bound for the stitched image. A 1920px-wide region gets ~34000 rows.
+    static constexpr qsizetype kMaxBytes = qsizetype(256) * 1024 * 1024;
 
-    // Resets all internal state and canvas.
     void reset();
+    Result addFrame(const QImage &frame);
 
-    // Preferred scroll direction (default: Down).
-    void setDirection(Direction dir) { m_direction = dir; }
-    Direction direction() const { return m_direction; }
-
-    // Feeds a new frame. Returns true if new content was detected and stitched.
-    bool addFrame(const QImage &frame);
-
-    // Current full stitched image.
+    // The full stitched image, at the frames' native resolution.
     QImage stitchedImage() const;
+    // Small preview of the stitched body (nearest-neighbour, cheap at any height).
+    QImage previewThumbnail(int maxW, int maxH) const;
 
-    // Scaled thumbnail for live preview.
-    QImage previewThumbnail(int maxW = 140, int maxH = 300) const;
-
-    int stitchedWidth() const { return m_actualWidth; }
-    int stitchedHeight() const { return m_actualHeight; }
+    int stitchedWidth() const { return m_prev.width(); }
+    int stitchedHeight() const;
     int frameCount() const { return m_frameCount; }
+    bool isFull() const { return m_full; }
     bool isEmpty() const { return m_frameCount == 0; }
 
-    // Detects vertical shift between two frames in pixels.
-    // > 0: content moved up / user scrolled down.
-    // < 0: content moved down / user scrolled up.
-    //   0: no shift or no confident match.
-    // confidenceOut (optional): returns confidence in range [0.0 .. 1.0].
-    static int detectVerticalShift(const QImage &prev, const QImage &curr,
-                                  Direction dir = Direction::Down,
-                                  double *confidenceOut = nullptr);
+    // Pure alignment of two equally sized 32-bit frames.
+    static Shift findShift(const QImage &prev, const QImage &curr);
 
 private:
-    struct RowProfile {
-        double mean = 0.0;
-        quint8 samples[16]{};
-    };
+    void restart(const QImage &frame);
+    bool ensureCanvas(int top, int bottom);
+    void writeRow(int docRow, const QImage &src, int srcRow);
 
-    static QVector<RowProfile> computeProfiles(const QImage &img, int leftMargin, int rightMargin);
-    static int detectStickyHeader(const QVector<RowProfile> &prev, const QVector<RowProfile> &curr);
+    QImage m_prev;          // last aligned frame
+    int m_pos = 0;          // document row of m_prev's row 0
+    bool m_moved = false;   // a scroll has been stitched since the first frame
+    bool m_full = false;    // the size cap was reached
 
-    Direction m_direction = Direction::Down;
-    QImage m_canvas;
-    QImage m_prevFrame;
-    QVector<RowProfile> m_prevProfiles;
-    int m_actualWidth = 0;
-    int m_actualHeight = 0;
+    QImage m_canvas;        // body rows, document row r at canvas row r - m_canvasTop
+    int m_canvasTop = 0;
+    int m_top = 0;          // body range [m_top, m_bottom) in document rows
+    int m_bottom = 0;
+    QImage m_head;          // sticky header shown above the body
+    QImage m_tail;          // sticky footer shown below the body
+    int m_headPos = 0;      // document row of m_head's first row
+    int m_tailEnd = 0;      // document row just past m_tail
+
     int m_frameCount = 0;
-    int m_leftMargin = 0;
-    int m_rightMargin = 0;
 };

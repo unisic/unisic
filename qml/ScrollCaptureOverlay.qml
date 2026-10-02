@@ -109,19 +109,23 @@ Window {
             UIcon {
                 anchors.verticalCenter: parent.verticalCenter
                 name: "chevron-down"
-                color: Theme.accent
+                color: scrollCtl.lostTrack ? Theme.danger : Theme.accent
                 size: 16
             }
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
-                text: scrollCtl.frameCount <= 1
-                      ? qsTr("Scroll down to capture...")
-                      : qsTr("%1 × %2 px (%3)")
-                        .arg(scrollCtl.stitchedWidth)
-                        .arg(scrollCtl.stitchedHeight)
-                        .arg(scrollCtl.frameCount)
-                color: Theme.textPrimary
+                text: scrollCtl.lostTrack
+                      ? qsTr("Scrolled too far at once - scroll back a little")
+                      : scrollCtl.full
+                        ? qsTr("Size limit reached - press Finish")
+                        : scrollCtl.frameCount <= 1
+                          ? qsTr("Scroll down to capture...")
+                          : qsTr("%1 × %2 px (%3)")
+                            .arg(scrollCtl.stitchedWidth)
+                            .arg(scrollCtl.stitchedHeight)
+                            .arg(scrollCtl.frameCount)
+                color: scrollCtl.lostTrack ? Theme.danger : Theme.textPrimary
                 font.pixelSize: Theme.fontM
                 font.weight: Font.DemiBold
             }
@@ -154,14 +158,15 @@ Window {
         id: previewCard
         readonly property bool roomRight: scrollCtl.regionX + scrollCtl.regionW + width + 16 <= overlayWindow.width
         readonly property bool roomLeft: scrollCtl.regionX - width - 16 >= 0
-        visible: scrollCtl.frameCount > 1
+        // Only beside the region: anywhere over it, the card would be
+        // captured into the stitch.
+        visible: scrollCtl.frameCount > 1 && (roomRight || roomLeft)
 
         width: 120
         height: Math.min(300, Math.max(90, scrollCtl.stitchedHeight > 0
                                        ? (scrollCtl.stitchedHeight * 100 / Math.max(1, scrollCtl.stitchedWidth))
                                        : 100))
-        x: roomRight ? (scrollCtl.regionX + scrollCtl.regionW + 12)
-                     : (roomLeft ? (scrollCtl.regionX - width - 12) : (overlayWindow.width - width - 12))
+        x: roomRight ? (scrollCtl.regionX + scrollCtl.regionW + 12) : (scrollCtl.regionX - width - 12)
         y: Math.max(10, Math.min(overlayWindow.height - height - 10, scrollCtl.regionY))
 
         radius: 8
@@ -199,7 +204,7 @@ Window {
                 horizontalAlignment: Text.AlignHCenter
                 text: qsTr("%1 px").arg(scrollCtl.stitchedHeight)
                 color: Theme.textSecondary
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontS
                 font.bold: true
             }
         }

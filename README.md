@@ -64,11 +64,11 @@ By hand instead: grab the **AppImage** from the **[latest release](https://githu
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --gif`); run `unisic --help` for every option - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
+Unisic lives in the tray, every hotkey is rebindable in Settings → Hotkeys, and the same actions run from the command line (`unisic --region | --fullscreen | --window | --scroll | --gif`); run `unisic --help` for every option - which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
 
 ## What it does
 
-- **Capture** - full screen across all monitors, an interactive region with live dimensions, or the active window; configurable delay, optional cursor.
+- **Capture** - full screen across all monitors, an interactive region with live dimensions, the active window, or a scrolling capture stitched pixel-exact from a page taller than the screen; configurable delay, optional cursor.
 - **Annotate before the shot** - the selection overlay is already a canvas: arrows, shapes, text, blur and numbered steps on the frozen screen, burned into the crop on <kbd>Enter</kbd>.
 - **Edit after it** - 17 tools including highlight, pixelate, smart eraser, magnifier, callout, rotatable shapes and crop, with undo/redo and zoom.
 - **Record** - region, full screen or window → GIF, MP4 or WebM, with optional system and microphone audio.

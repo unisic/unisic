@@ -4875,50 +4875,49 @@ void AppContext::devTestDesktopShortcuts()
 
 QString AppContext::scrollStitchCheck() const
 {
-    const int w = 300;
-    const int h = 200;
-    const int shift = 40;
-
-    QImage f1(w, h, QImage::Format_RGB32);
-    f1.fill(Qt::white);
+    // A text document behind a sticky header, scrolled in irregular steps
+    // down and back up: the stitched image must equal the original pixels.
+    const int w = 320, vh = 200, hdr = 24, docH = 900;
+    QImage doc(w, docH, QImage::Format_RGB32);
+    doc.fill(Qt::white);
     {
-        QPainter p(&f1);
+        QPainter p(&doc);
         p.setPen(Qt::black);
-        for (int y = 20; y < h; y += 15)
-            p.drawText(30, y, QStringLiteral("Line at y=%1 text content").arg(y));
+        for (int y = 14; y < docH; y += 15)
+            p.drawText(8, y, QStringLiteral("Line %1 of the scrolled page").arg(y / 15));
     }
-
-    QImage f2(w, h, QImage::Format_RGB32);
-    f2.fill(Qt::white);
-    {
-        QPainter p(&f2);
-        p.setPen(Qt::black);
-        for (int y = 20 - shift; y < h; y += 15) {
-            if (y >= 10)
-                p.drawText(30, y, QStringLiteral("Line at y=%1 text content").arg(y + shift));
-        }
-    }
-
-    double conf = 0.0;
-    const int detected = ScrollStitcher::detectVerticalShift(f1, f2, ScrollStitcher::Direction::Down, &conf);
-    if (detected != shift)
-        return QStringLiteral("FAIL (detected %1px, expected %2px)").arg(detected).arg(shift);
+    auto frame = [&](int y) {
+        QImage f(w, vh, QImage::Format_RGB32);
+        QPainter p(&f);
+        p.fillRect(0, 0, w, hdr, QColor(40, 40, 90));
+        p.drawImage(0, hdr, doc.copy(0, y, w, vh - hdr));
+        return f;
+    };
 
     ScrollStitcher stitcher;
-    if (!stitcher.addFrame(f1))
-        return QStringLiteral("FAIL (frame 1 rejected)");
-    if (!stitcher.addFrame(f2))
-        return QStringLiteral("FAIL (frame 2 rejected)");
+    int lo = 300, hi = 300;
+    stitcher.addFrame(frame(300));
+    for (int y : {340, 341, 420, 500, 437, 260, 200, 255}) {
+        if (stitcher.addFrame(frame(y)) == ScrollStitcher::Result::Unmatched)
+            return QStringLiteral("FAIL (lost track at y=%1)").arg(y);
+        lo = std::min(lo, y);
+        hi = std::max(hi, y);
+    }
 
-    const int stitchedH = stitcher.stitchedHeight();
-    if (stitchedH != h + shift)
-        return QStringLiteral("FAIL (height %1, expected %2)").arg(stitchedH).arg(h + shift);
-
-    return QStringLiteral("PASS (%1px shift, conf %2, %3x%4)")
-        .arg(shift)
-        .arg(QString::number(conf, 'f', 2))
-        .arg(stitcher.stitchedWidth())
-        .arg(stitcher.stitchedHeight());
+    QImage expect(w, hi - lo + vh, QImage::Format_RGB32);
+    {
+        QPainter p(&expect);
+        p.drawImage(0, 0, frame(lo).copy(0, 0, w, hdr));
+        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh - hdr));
+    }
+    const QImage got = stitcher.stitchedImage();
+    if (got.size() != expect.size())
+        return QStringLiteral("FAIL (%1x%2, expected %3x%4)")
+            .arg(got.width()).arg(got.height()).arg(expect.width()).arg(expect.height());
+    if (got != expect)
+        return QStringLiteral("FAIL (pixels differ)");
+    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
+        .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
 }
 
 void AppContext::devTestScrollStitch()

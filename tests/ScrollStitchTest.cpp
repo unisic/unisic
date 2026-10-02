@@ -1,227 +1,344 @@
 #include <QTest>
 #include <QImage>
 #include <QPainter>
+#include <QElapsedTimer>
+#include <QRandomGenerator>
 #include "capture/ScrollStitcher.h"
+
+using R = ScrollStitcher::Result;
 
 class ScrollStitchTest : public QObject
 {
     Q_OBJECT
 
 private slots:
-    void initialFrameSetsCanvas();
-    void identicalFrameIgnored();
-    void singleScrollDownStitchesCorrectly();
-    void multiStepScrollReconstructsOriginal();
-    void stickyHeaderHandling();
-    void scrollbarInMarginIgnored();
-    void upwardScrollHandling();
+    void firstFrameStarts();
+    void identicalFrameIsUnchanged();
+    void scrollDownIsByteExact();
+    void irregularStepsAreByteExact();
+    void stickyHeaderAndFooterAppearOnce();
+    void staticSidebarAndScrollbarDoNotBreakAlignment();
+    void scrollingUpExtendsTheTop();
+    void scrollingBackAndForthDoesNotDuplicate();
+    void tooFastScrollIsUnmatched();
+    void localAnimationIsUnchanged();
+    void lateLoadedContentTakesNewerPixels();
+    void replacesBaseBeforeFirstScroll();
+    void sizeCapStopsGrowth();
+    void randomWalkIsByteExact();
+    void largeFrameCost();
 
 private:
-    static QImage createTestDocument(int width, int height);
+    static QImage document(int w, int h);
 };
 
-QImage ScrollStitchTest::createTestDocument(int width, int height)
+// Text-like content: dense lines with real glyphs, blank gaps and repeated
+// identical lines, so a shift that is off by a row or matches a repeated line
+// would show up as a pixel difference.
+QImage ScrollStitchTest::document(int w, int h)
 {
-    QImage doc(width, height, QImage::Format_RGB32);
-    doc.fill(Qt::white);
-
+    QImage doc(w, h, QImage::Format_RGB32);
+    doc.fill(QColor(250, 250, 250));
     QPainter p(&doc);
     QFont f = p.font();
-    f.setPixelSize(14);
+    f.setPixelSize(13);
     p.setFont(f);
-
-    for (int y = 20; y < height - 10; y += 25) {
-        // Draw colored bars and text lines
-        p.setPen(Qt::NoPen);
-        p.setBrush(QColor((y * 13) % 200, (y * 37) % 200, (y * 73) % 200));
-        p.drawRect(20, y - 10, width - 60, 4);
-
-        p.setPen(Qt::black);
-        p.drawText(25, y + 10, QStringLiteral("Line at offset %1 with random text pattern ABCDEFG").arg(y));
+    p.setPen(QColor(20, 20, 20));
+    int line = 0;
+    for (int y = 16; y < h - 4; y += 18, ++line) {
+        if (line % 7 == 3)
+            continue;                                   // blank line
+        if (line % 5 == 0) {
+            p.drawText(12, y, QStringLiteral("}"));    // repeated identical line
+            continue;
+        }
+        p.drawText(12, y, QStringLiteral("%1: the quick brown fox %2 jumps over lazy dog")
+                              .arg(line).arg(line * 37 % 1000));
     }
     p.end();
-
     return doc;
 }
 
-void ScrollStitchTest::initialFrameSetsCanvas()
+void ScrollStitchTest::firstFrameStarts()
 {
-    const QImage doc = createTestDocument(300, 600);
-    const QImage frame0 = doc.copy(0, 0, 300, 200);
-
-    ScrollStitcher stitcher;
-    QCOMPARE(stitcher.frameCount(), 0);
-    QVERIFY(stitcher.isEmpty());
-
-    const bool added = stitcher.addFrame(frame0);
-    QVERIFY(added);
-    QCOMPARE(stitcher.frameCount(), 1);
-    QCOMPARE(stitcher.stitchedWidth(), 300);
-    QCOMPARE(stitcher.stitchedHeight(), 200);
-
-    const QImage result = stitcher.stitchedImage();
-    QCOMPARE(result.size(), QSize(300, 200));
-    QCOMPARE(result, frame0);
-
-    const QImage thumb = stitcher.previewThumbnail(100, 100);
+    const QImage doc = document(300, 600);
+    ScrollStitcher s;
+    QVERIFY(s.isEmpty());
+    QCOMPARE(s.addFrame(doc.copy(0, 0, 300, 200)), R::Started);
+    QCOMPARE(s.frameCount(), 1);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 300, 200));
+    const QImage thumb = s.previewThumbnail(100, 100);
     QVERIFY(!thumb.isNull());
-    QVERIFY(thumb.width() <= 100);
-    QVERIFY(thumb.height() <= 100);
+    QVERIFY(thumb.width() <= 100 && thumb.height() <= 100);
 }
 
-void ScrollStitchTest::identicalFrameIgnored()
+void ScrollStitchTest::identicalFrameIsUnchanged()
 {
-    const QImage doc = createTestDocument(300, 600);
-    const QImage frame0 = doc.copy(0, 0, 300, 200);
-
-    ScrollStitcher stitcher;
-    stitcher.addFrame(frame0);
-
-    // Feed identical frame (user hasn't scrolled)
-    const bool added = stitcher.addFrame(frame0);
-    QVERIFY(!added);
-    QCOMPARE(stitcher.frameCount(), 1);
-    QCOMPARE(stitcher.stitchedHeight(), 200);
+    const QImage doc = document(300, 600);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 300, 200));
+    QCOMPARE(s.addFrame(doc.copy(0, 0, 300, 200)), R::Unchanged);
+    QCOMPARE(s.stitchedHeight(), 200);
 }
 
-void ScrollStitchTest::singleScrollDownStitchesCorrectly()
+void ScrollStitchTest::scrollDownIsByteExact()
 {
-    const QImage doc = createTestDocument(360, 800);
-    const int viewportH = 250;
-    const int shift = 50;
+    const QImage doc = document(360, 800);
+    const auto sh = ScrollStitcher::findShift(doc.copy(0, 0, 360, 250), doc.copy(0, 50, 360, 250));
+    QVERIFY(sh.ok);
+    QCOMPARE(sh.dy, 50);
 
-    const QImage frame0 = doc.copy(0, 0, 360, viewportH);
-    const QImage frame1 = doc.copy(0, shift, 360, viewportH);
-
-    double conf = 0.0;
-    const int detected = ScrollStitcher::detectVerticalShift(frame0, frame1, ScrollStitcher::Direction::Down, &conf);
-    QCOMPARE(detected, shift);
-    QVERIFY(conf > 0.6);
-
-    ScrollStitcher stitcher;
-    stitcher.addFrame(frame0);
-    const bool added = stitcher.addFrame(frame1);
-    QVERIFY(added);
-
-    QCOMPARE(stitcher.frameCount(), 2);
-    QCOMPARE(stitcher.stitchedHeight(), viewportH + shift);
-
-    // Verify pixel accuracy against ground truth document
-    const QImage stitched = stitcher.stitchedImage();
-    const QImage groundTruth = doc.copy(0, 0, 360, viewportH + shift);
-    QCOMPARE(stitched, groundTruth);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 360, 250));
+    QCOMPARE(s.addFrame(doc.copy(0, 50, 360, 250)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 360, 300));
 }
 
-void ScrollStitchTest::multiStepScrollReconstructsOriginal()
+void ScrollStitchTest::irregularStepsAreByteExact()
 {
-    const QImage doc = createTestDocument(400, 1000);
-    const int viewportH = 300;
-    const QVector<int> scrollSteps = {40, 65, 80, 55};
-
-    ScrollStitcher stitcher;
-    stitcher.addFrame(doc.copy(0, 0, 400, viewportH));
-
-    int currentY = 0;
-    for (int step : scrollSteps) {
-        currentY += step;
-        const QImage frame = doc.copy(0, currentY, 400, viewportH);
-        const bool added = stitcher.addFrame(frame);
-        QVERIFY(added);
+    const QImage doc = document(420, 3000);
+    const int vh = 300;
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 420, vh));
+    // 1px steps (smooth scrolling), a wheel notch, and near the overlap limit.
+    const int steps[] = {1, 1, 3, 54, 120, 7, 230, 18, 1, 90, 250, 2, 66};
+    int y = 0;
+    for (int d : steps) {
+        y += d;
+        QCOMPARE(s.addFrame(doc.copy(0, y, 420, vh)), R::Stitched);
     }
-
-    QCOMPARE(stitcher.frameCount(), scrollSteps.size() + 1);
-    const int expectedTotalH = viewportH + currentY;
-    QCOMPARE(stitcher.stitchedHeight(), expectedTotalH);
-
-    const QImage stitched = stitcher.stitchedImage();
-    const QImage groundTruth = doc.copy(0, 0, 400, expectedTotalH);
-    QCOMPARE(stitched, groundTruth);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 420, y + vh));
 }
 
-void ScrollStitchTest::stickyHeaderHandling()
+void ScrollStitchTest::stickyHeaderAndFooterAppearOnce()
 {
-    // Document with fixed 35px sticky navbar at top
-    const int w = 350;
-    const int h = 700;
-    const QImage doc = createTestDocument(w, h);
-
-    auto makeFrameWithStickyHeader = [&](int contentY) {
-        QImage f = doc.copy(0, contentY, w, 250);
-        // Paint sticky header on top 35px
-        QPainter fp(&f);
-        fp.fillRect(0, 0, w, 35, QColor(30, 30, 60));
-        fp.setPen(Qt::white);
-        fp.drawText(15, 22, QStringLiteral("Fixed Top Navigation Bar"));
-        fp.end();
+    const int w = 350, vh = 260, hdr = 36, ftr = 28;
+    const QImage doc = document(w, 1200);
+    auto frame = [&](int y) {
+        QImage f(w, vh, QImage::Format_RGB32);
+        QPainter p(&f);
+        p.drawImage(0, hdr, doc.copy(0, y, w, vh - hdr - ftr));
+        p.fillRect(0, 0, w, hdr, QColor(30, 30, 60));
+        p.setPen(Qt::white);
+        p.drawText(15, 22, QStringLiteral("Fixed Top Navigation Bar"));
+        p.fillRect(0, vh - ftr, w, ftr, QColor(60, 30, 30));
+        p.drawText(15, vh - 9, QStringLiteral("Cookie banner footer"));
         return f;
     };
-
-    const QImage frame0 = makeFrameWithStickyHeader(0);
-    const QImage frame1 = makeFrameWithStickyHeader(45);
-
-    double conf = 0.0;
-    const int detected = ScrollStitcher::detectVerticalShift(frame0, frame1, ScrollStitcher::Direction::Down, &conf);
-    QCOMPARE(detected, 45);
-    QVERIFY(conf > 0.6);
-
-    ScrollStitcher stitcher;
-    stitcher.addFrame(frame0);
-    const bool added = stitcher.addFrame(frame1);
-    QVERIFY(added);
-    QCOMPARE(stitcher.stitchedHeight(), 250 + 45);
+    ScrollStitcher s;
+    s.addFrame(frame(0));
+    int y = 0;
+    for (int d : {40, 75, 12, 120, 60}) {
+        y += d;
+        QCOMPARE(s.addFrame(frame(y)), R::Stitched);
+    }
+    const int body = y + vh - hdr - ftr;
+    QImage expect(w, hdr + body + ftr, QImage::Format_RGB32);
+    QPainter p(&expect);
+    p.drawImage(0, 0, frame(y).copy(0, 0, w, hdr));
+    p.drawImage(0, hdr, doc.copy(0, 0, w, body));
+    p.drawImage(0, hdr + body, frame(y).copy(0, vh - ftr, w, ftr));
+    p.end();
+    QCOMPARE(s.stitchedImage(), expect);
 }
 
-void ScrollStitchTest::scrollbarInMarginIgnored()
+void ScrollStitchTest::staticSidebarAndScrollbarDoNotBreakAlignment()
 {
-    const QImage doc = createTestDocument(350, 700);
-    const int viewportH = 260;
-    const int shift = 50;
-
-    QImage frame0 = doc.copy(0, 0, 350, viewportH);
-    QImage frame1 = doc.copy(0, shift, 350, viewportH);
-
-    // Draw simulated scrollbars on the right 16px of each frame
-    QPainter p0(&frame0);
-    p0.fillRect(350 - 16, 0, 16, viewportH, QColor(220, 220, 220));
-    p0.fillRect(350 - 14, 10, 12, 40, QColor(100, 100, 100)); // thumb at top
-    p0.end();
-
-    QPainter p1(&frame1);
-    p1.fillRect(350 - 16, 0, 16, viewportH, QColor(220, 220, 220));
-    p1.fillRect(350 - 14, 70, 12, 40, QColor(100, 100, 100)); // thumb moved down!
-    p1.end();
-
-    double conf = 0.0;
-    const int detected = ScrollStitcher::detectVerticalShift(frame0, frame1, ScrollStitcher::Direction::Down, &conf);
-    QCOMPARE(detected, shift);
-    QVERIFY(conf > 0.6);
+    const int w = 400, vh = 280, side = 90, bar = 12;
+    const QImage doc = document(w, 1500);
+    auto frame = [&](int y) {
+        QImage f = doc.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(0, 0, side, vh, QColor(40, 44, 52));
+        p.setPen(Qt::white);
+        for (int i = 0; i < 8; ++i)
+            p.drawText(8, 24 + i * 30, QStringLiteral("Nav %1").arg(i));
+        p.fillRect(w - bar, 0, bar, vh, QColor(220, 220, 220));
+        p.fillRect(w - bar + 2, 10 + y / 6, bar - 4, 50, QColor(90, 90, 90));
+        return f;
+    };
+    ScrollStitcher s;
+    s.addFrame(frame(0));
+    int y = 0;
+    for (int d : {30, 80, 5, 140}) {
+        y += d;
+        QCOMPARE(s.addFrame(frame(y)), R::Stitched);
+    }
+    const QImage got = s.stitchedImage();
+    QCOMPARE(got.height(), y + vh);
+    // The scrolling column is the document, row for row.
+    QCOMPARE(got.copy(side, 0, w - side - bar, got.height()),
+             doc.copy(side, 0, w - side - bar, y + vh));
 }
 
-void ScrollStitchTest::upwardScrollHandling()
+void ScrollStitchTest::scrollingUpExtendsTheTop()
 {
-    const QImage doc = createTestDocument(350, 700);
-    const int viewportH = 250;
-    const int shift = 40;
+    const QImage doc = document(350, 1400);
+    const int vh = 250;
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 900, 350, vh));
+    int y = 900;
+    for (int d : {40, 3, 150, 77}) {
+        y -= d;
+        QCOMPARE(s.addFrame(doc.copy(0, y, 350, vh)), R::Stitched);
+    }
+    QCOMPARE(s.stitchedImage(), doc.copy(0, y, 350, 900 + vh - y));
+}
 
-    const QImage frameAt100 = doc.copy(0, 100, 350, viewportH);
-    const QImage frameAt60 = doc.copy(0, 100 - shift, 350, viewportH); // scrolled UP by 40
+void ScrollStitchTest::scrollingBackAndForthDoesNotDuplicate()
+{
+    const QImage doc = document(350, 2000);
+    const int vh = 250;
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 300, 350, vh));
+    int lo = 300, hi = 300;
+    for (int y : {400, 520, 450, 330, 200, 260, 420, 600, 700}) {
+        s.addFrame(doc.copy(0, y, 350, vh));
+        lo = std::min(lo, y);
+        hi = std::max(hi, y);
+    }
+    QCOMPARE(s.stitchedImage(), doc.copy(0, lo, 350, hi + vh - lo));
+}
 
-    double conf = 0.0;
-    const int detected = ScrollStitcher::detectVerticalShift(frameAt100, frameAt60, ScrollStitcher::Direction::Up, &conf);
-    QCOMPARE(detected, -shift);
-    QVERIFY(conf > 0.6);
+void ScrollStitchTest::tooFastScrollIsUnmatched()
+{
+    const QImage doc = document(350, 2000);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 350, 250));
+    QCOMPARE(s.addFrame(doc.copy(0, 40, 350, 250)), R::Stitched);
+    // Jumped past the whole viewport: no overlap, nothing may be guessed.
+    QCOMPARE(s.addFrame(doc.copy(0, 600, 350, 250)), R::Unmatched);
+    QCOMPARE(s.stitchedHeight(), 290);
+    // Scrolling back to where the overlap is resumes the capture.
+    QCOMPARE(s.addFrame(doc.copy(0, 150, 350, 250)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 350, 400));
+}
 
-    ScrollStitcher stitcher;
-    stitcher.setDirection(ScrollStitcher::Direction::Up);
-    stitcher.addFrame(frameAt100);
-    const bool added = stitcher.addFrame(frameAt60);
-    QVERIFY(added);
-    QCOMPARE(stitcher.stitchedHeight(), viewportH + shift);
+void ScrollStitchTest::localAnimationIsUnchanged()
+{
+    const QImage doc = document(350, 800);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 350, 250));
+    s.addFrame(doc.copy(0, 30, 350, 250));
+    QImage f = doc.copy(0, 30, 350, 250);
+    QPainter p(&f);
+    p.fillRect(20, 100, 120, 30, Qt::red);   // spinner / hover / caret
+    p.end();
+    QCOMPARE(s.addFrame(f), R::Unchanged);
+    QCOMPARE(s.stitchedHeight(), 280);
+}
 
-    // The result should match doc.copy(0, 60, 350, 290)
-    const QImage stitched = stitcher.stitchedImage();
-    const QImage groundTruth = doc.copy(0, 60, 350, viewportH + shift);
-    QCOMPARE(stitched, groundTruth);
+void ScrollStitchTest::lateLoadedContentTakesNewerPixels()
+{
+    QImage doc = document(350, 900);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 350, 250));
+    // An image placeholder at doc rows 150..175 loads between the frames.
+    QPainter p(&doc);
+    p.fillRect(30, 150, 200, 25, QColor(0, 120, 200));
+    p.end();
+    QCOMPARE(s.addFrame(doc.copy(0, 60, 350, 250)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 350, 310));
+}
+
+void ScrollStitchTest::replacesBaseBeforeFirstScroll()
+{
+    const QImage doc = document(350, 900);
+    QImage dimmed = doc.copy(0, 0, 350, 250);
+    QPainter p(&dimmed);
+    p.fillRect(dimmed.rect(), QColor(0, 0, 0, 120));   // selection overlay fading out
+    p.end();
+    ScrollStitcher s;
+    s.addFrame(dimmed);
+    QCOMPARE(s.addFrame(doc.copy(0, 0, 350, 250)), R::Started);
+    QCOMPARE(s.addFrame(doc.copy(0, 70, 350, 250)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 350, 320));
+}
+
+void ScrollStitchTest::sizeCapStopsGrowth()
+{
+    // 8192px wide: the 256 MiB cap is 8192 rows.
+    const int w = 8192, vh = 300;
+    QImage doc(w, 9000, QImage::Format_RGB32);
+    doc.fill(Qt::white);
+    for (int y = 0; y < doc.height(); ++y) {
+        QRgb *row = reinterpret_cast<QRgb *>(doc.scanLine(y));
+        for (int x = 0; x < w; x += 7)
+            row[(x + y * 13) % w] = qRgb((y * 31) & 255, (y * 7) & 255, (x * 3) & 255);
+    }
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, w, vh));
+    R last = R::Stitched;
+    for (int y = 200; y < 8800 && last != R::Full; y += 200)
+        last = s.addFrame(doc.copy(0, y, w, vh));
+    QCOMPARE(last, R::Full);
+    QVERIFY(qsizetype(s.stitchedHeight()) * w * 4 <= ScrollStitcher::kMaxBytes);
+    const QImage got = s.stitchedImage();
+    QCOMPARE(got, doc.copy(0, 0, w, got.height()));
+}
+
+void ScrollStitchTest::randomWalkIsByteExact()
+{
+    // Seeded random scrolling in both directions, with a sticky header, a
+    // sticky footer, both or neither: whatever range was visited must come
+    // out exact, sticky bands once.
+    for (int seed = 1; seed <= 40; ++seed) {
+        QRandomGenerator rng(seed);
+        const int w = 320, vh = 240;
+        const int hdr = (seed % 2) ? 30 : 0;
+        const int ftr = (seed % 3 == 0) ? 22 : 0;
+        const int body = vh - hdr - ftr;
+        const QImage doc = document(w, 2400);
+        auto frame = [&](int y) {
+            QImage f(w, vh, QImage::Format_RGB32);
+            QPainter p(&f);
+            p.drawImage(0, hdr, doc.copy(0, y, w, body));
+            p.fillRect(0, 0, w, hdr, QColor(30, 30, 60));
+            p.fillRect(0, vh - ftr, w, ftr, QColor(60, 30, 30));
+            return f;
+        };
+        ScrollStitcher s;
+        int y = 1000, lo = y, hi = y;
+        s.addFrame(frame(y));
+        for (int i = 0; i < 30; ++i) {
+            const int d = int(rng.bounded(-body / 2, body / 2 + 1));
+            const int ny = std::clamp(y + d, 0, 2400 - body);
+            if (ny == y)
+                continue;
+            const R r = s.addFrame(frame(ny));
+            QVERIFY2(r == R::Stitched || r == R::Unchanged,
+                     qPrintable(QStringLiteral("seed %1 step %2: %3").arg(seed).arg(i).arg(int(r))));
+            y = ny;
+            lo = std::min(lo, y);
+            hi = std::max(hi, y);
+        }
+        QImage expect(w, hdr + hi + body - lo + ftr, QImage::Format_RGB32);
+        QPainter p(&expect);
+        p.drawImage(0, 0, frame(lo).copy(0, 0, w, hdr));
+        p.drawImage(0, hdr, doc.copy(0, lo, w, hi + body - lo));
+        p.drawImage(0, hdr + hi + body - lo, frame(hi).copy(0, vh - ftr, w, ftr));
+        p.end();
+        QVERIFY2(s.stitchedImage() == expect, qPrintable(QStringLiteral("seed %1").arg(seed)));
+    }
+}
+
+void ScrollStitchTest::largeFrameCost()
+{
+    // A 1920x1200 physical region scrolled by a wheel notch: the per-frame
+    // cost runs on the GUI thread every 33 ms, so it has to stay small.
+    const QImage doc = document(1920, 4000);
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 1920, 1200));
+    QElapsedTimer t;
+    t.start();
+    int y = 0;
+    for (int i = 0; i < 10; ++i) {
+        y += 57;
+        QCOMPARE(s.addFrame(doc.copy(0, y, 1920, 1200)), R::Stitched);
+    }
+    const qint64 perFrame = t.elapsed() / 10;
+    qInfo("1920x1200 frame: %lld ms per addFrame", perFrame);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 1920, y + 1200));
 }
 
 QTEST_MAIN(ScrollStitchTest)

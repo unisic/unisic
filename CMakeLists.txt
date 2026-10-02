@@ -154,6 +154,7 @@ qt_add_executable(unisic
     src/capture/ScrollCaptureController.h src/capture/ScrollCaptureController.cpp
     src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/PwDump.h src/record/PwDump.cpp
     src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
@@ -299,6 +300,7 @@ qt_add_qml_module(unisic
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
         qml/components/USystemCheck.qml
+        qml/components/UAppAudioPicker.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
         qml/components/UOverlayPreview.qml
@@ -597,6 +599,14 @@ if(BUILD_TESTING)
     target_include_directories(unisic_shortcut_binder_test
         PRIVATE src/hotkeys external/unisic-kit/src)
     add_test(NAME unisic_shortcut_binder_test COMMAND unisic_shortcut_binder_test)
+
+    qt_add_executable(unisic_pwdump_test
+        tests/PwDumpTest.cpp
+        src/record/PwDump.h src/record/PwDump.cpp
+    )
+    target_link_libraries(unisic_pwdump_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_pwdump_test PRIVATE src/record)
+    add_test(NAME unisic_pwdump_test COMMAND unisic_pwdump_test)
 
     qt_add_executable(unisic_version_compare_test
         tests/VersionCompareTest.cpp

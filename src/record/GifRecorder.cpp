@@ -13,6 +13,7 @@
 #include "record/PipeWireGrabber.h"
 #include "media/FfmpegUtil.h"
 #include "record/X11ShmGrabber.h"
+#include "record/PwDump.h"
 #include "capture/KWinScreencasting.h"
 #include <QCursor>
 #include <QDBusConnection>
@@ -825,27 +826,46 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
              << QStringLiteral("-i") << dev;
         audioInputs << nextInput++;
     }
-    // ffmpeg input index of the app-audio FIFO, -1 when there is none. The one
-    // audio input that can end before the recording does.
-    int fifoInput = -1;
-    const QString appNode = m_output == Gif ? QString()
-                                             : m_settings->recordAppAudioNode().trimmed();
-    if (!appNode.isEmpty()
+    // ffmpeg input indices of the app-audio FIFOs. The only audio inputs that
+    // can end before the recording does.
+    QList<int> fifoInputs;
+    // pw-record serial per FIFO, same order as m_audioFifoPaths.
+    QStringList appSerials;
+    const QStringList apps = m_output == Gif ? QStringList()
+                                             : m_settings->recordAppAudioApps();
+    if (!apps.isEmpty()
         && !QStandardPaths::findExecutable(QStringLiteral("pw-record")).isEmpty()) {
-        m_audioFifoPath = tmpBase + QStringLiteral("/unisic-audio-%1.fifo").arg(stamp);
-        QFile::remove(m_audioFifoPath);
-        if (::mkfifo(QFile::encodeName(m_audioFifoPath).constData(), 0600) == 0) {
+        // Resolved now, not when the user ticked the app: a serial is only
+        // good for the stream it named. pw-dump takes ~10 ms (2.5 s cap).
+        // ponytail: streams an app opens AFTER this point are not picked up;
+        // that needs a pw-dump --monitor watcher.
+        constexpr int kMaxAppStreams = 8; // processes + FIFOs + ffmpeg inputs
+        const QList<PwDump::AppStream> streams = PwDump::appStreams(PwDump::nodes());
+        for (const PwDump::AppStream &st : streams) {
+            if (!apps.contains(st.app))
+                continue;
+            if (appSerials.size() == kMaxAppStreams) {
+                qWarning() << "unisic: application audio capped at" << kMaxAppStreams << "streams";
+                break;
+            }
+            const QString fifo = tmpBase + QStringLiteral("/unisic-audio-%1-%2.fifo")
+                                               .arg(stamp).arg(appSerials.size());
+            QFile::remove(fifo);
+            if (::mkfifo(QFile::encodeName(fifo).constData(), 0600) != 0)
+                continue;
+            m_audioFifoPaths << fifo;
+            appSerials << st.serial;
             args << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
                  << QStringLiteral("-f") << QStringLiteral("s16le")
                  << QStringLiteral("-ar") << QStringLiteral("48000")
                  << QStringLiteral("-ac") << QStringLiteral("2")
-                 << QStringLiteral("-i") << m_audioFifoPath;
+                 << QStringLiteral("-i") << fifo;
             audioInputs << nextInput++;
-            fifoInput = audioInputs.last();
-            audioLabels << tr("Application audio");
-        } else {
-            m_audioFifoPath.clear();
+            fifoInputs << audioInputs.last();
+            audioLabels << st.label;
         }
+        if (appSerials.isEmpty())
+            qWarning() << "unisic: none of the selected applications is playing audio:" << apps;
     }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
@@ -899,10 +919,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
             // input; asplit feeds the same padded signal to the mix and to the
             // stem. amix's duration=longest does the same job for mixed audio,
             // which is why this only shows up with separate tracks.
-            if (input == fifoInput) {
-                filters << QStringLiteral("[%1:a]apad,asplit=2[fifomix][fifostem]").arg(input);
-                mixInputs += QStringLiteral("[fifomix]");
-                trackMaps << QStringLiteral("[fifostem]");
+            if (fifoInputs.contains(input)) {
+                filters << QStringLiteral("[%1:a]apad,asplit=2[fifomix%1][fifostem%1]").arg(input);
+                mixInputs += QStringLiteral("[fifomix%1]").arg(input);
+                trackMaps << QStringLiteral("[fifostem%1]").arg(input);
             } else {
                 mixInputs += QStringLiteral("[%1:a]").arg(input);
                 trackMaps << QStringLiteral("%1:a").arg(input);
@@ -950,9 +970,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         // fraction of a second. When app audio is the SOLE source, drop it: our
         // explicit stop closes the video pipe and kills pw-record so ffmpeg still
         // ends, and a mid-recording pw-record death just ends the audio stream
-        // instead of the file. (a sole input + a FIFO ⟺ app audio is that sole
-        // source, since any pulse source would add a second input.)
-        if (audioInputs.size() > 1 || m_audioFifoPath.isEmpty())
+        // instead of the file. Mixed FIFOs and nothing else end too: amix's
+        // duration=longest stops at the last one to close. Separate tracks
+        // are the exception - every FIFO there is apad-ed and never ends, so
+        // without -shortest the encode would run forever.
+        if (separateTracks || audioInputs.size() > fifoInputs.size())
             args << QStringLiteral("-shortest");
         m_hasAudio = true;
         // Mixed sources have no name to carry - the one stream is all of them.
@@ -1054,28 +1076,34 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         emit started();
     });
     encoder->start(QStringLiteral("ffmpeg"), args);
-    if (!m_audioFifoPath.isEmpty()) {
-        m_appAudio = new QProcess(this);
-        connect(m_appAudio, &QProcess::errorOccurred, this,
+    for (int i = 0; i < m_audioFifoPaths.size(); ++i) {
+        auto *pw = new QProcess(this);
+        m_appAudio << pw;
+        connect(pw, &QProcess::errorOccurred, this,
                 [this](QProcess::ProcessError error) {
             if (error == QProcess::FailedToStart
                 && (m_state == Starting || m_state == Recording))
                 fail(tr("pw-record could not capture the selected application audio"));
         });
-        // A pw-record that exits mid-recording (target node closed) used to be
-        // silent. Surface it as a warning; the recording keeps going without
-        // -shortest driving the file end (see the audio-map branch above).
-        connect(m_appAudio, &QProcess::finished, this,
+        // A pw-record that exits mid-recording (the app closed its stream)
+        // used to be silent. Surface it as a warning; the recording keeps
+        // going on silence for that track (apad / amix duration=longest).
+        connect(pw, &QProcess::finished, this,
                 [](int code, QProcess::ExitStatus status) {
             if (status != QProcess::NormalExit || code != 0)
                 qWarning() << "unisic: application-audio capture (pw-record) exited early, code" << code;
         });
-        m_appAudio->start(QStringLiteral("pw-record"),
-                          {QStringLiteral("--target"), appNode,
-                           QStringLiteral("--rate"), QStringLiteral("48000"),
-                           QStringLiteral("--channels"), QStringLiteral("2"),
-                           QStringLiteral("--format"), QStringLiteral("s16"),
-                           QStringLiteral("--raw"), m_audioFifoPath});
+        // node.dont-fallback: a target that vanished between pw-dump and here
+        // must fail, not silently link to the default source. Measured on
+        // PipeWire 1.6.9 / WirePlumber 0.5.18: without it, --target <gone>
+        // recorded the microphone.
+        pw->start(QStringLiteral("pw-record"),
+                  {QStringLiteral("--target"), appSerials.at(i),
+                   QStringLiteral("-P"), QStringLiteral("{ node.dont-fallback = true }"),
+                   QStringLiteral("--rate"), QStringLiteral("48000"),
+                   QStringLiteral("--channels"), QStringLiteral("2"),
+                   QStringLiteral("--format"), QStringLiteral("s16"),
+                   QStringLiteral("--raw"), m_audioFifoPaths.at(i)});
     }
 }
 
@@ -1245,7 +1273,9 @@ void GifRecorder::stop()
         fail(tr("Recording encoder is not running"));
         return;
     }
-    FfmpegUtil::stopProcess(m_appAudio);
+    for (QProcess *&pw : m_appAudio)
+        FfmpegUtil::stopProcess(pw);
+    m_appAudio.clear();
     stopClickCapture(); // release the libinput devices as soon as we stop drawing
     stopKeyCapture();
     m_ffmpeg->closeWriteChannel(); // EOF -> ffmpeg finalizes the file
@@ -1940,7 +1970,9 @@ void GifRecorder::abort()
     m_nativeStream = false;
     FfmpegUtil::stopProcess(m_ffmpeg);
     FfmpegUtil::stopProcess(m_converter);
-    FfmpegUtil::stopProcess(m_appAudio);
+    for (QProcess *&pw : m_appAudio)
+        FfmpegUtil::stopProcess(pw);
+    m_appAudio.clear();
     FfmpegUtil::stopProcess(m_replayExporter);
     if (!m_tempPath.isEmpty())
         QFile::remove(m_tempPath);
@@ -1949,8 +1981,8 @@ void GifRecorder::abort()
     // Aborting mid-conversion leaves a truncated file in the save directory.
     if (m_state == Converting && !m_outPath.isEmpty())
         QFile::remove(m_outPath);
-    if (!m_audioFifoPath.isEmpty())
-        QFile::remove(m_audioFifoPath);
+    for (const QString &fifo : std::as_const(m_audioFifoPaths))
+        QFile::remove(fifo);
     cleanup();
 }
 
@@ -1971,8 +2003,8 @@ void GifRecorder::cleanup()
     m_tempPath.clear();
     m_palettePath.clear();
     m_outPath.clear();
-    if (!m_audioFifoPath.isEmpty())
-        QFile::remove(m_audioFifoPath);
+    for (const QString &fifo : std::as_const(m_audioFifoPaths))
+        QFile::remove(fifo);
     // Never delete an in-flight replay export's inputs/output: the Replay stop
     // path reaches cleanup() via the segment-muxer finished handler while a Save
     // may still be running. Its own finished/errorOccurred handlers own the
@@ -1985,7 +2017,7 @@ void GifRecorder::cleanup()
         m_replayExportPath.clear();
         m_replaySnapshotDir.clear();
     }
-    m_audioFifoPath.clear();
+    m_audioFifoPaths.clear();
     if (!m_replayDir.isEmpty())
         QDir(m_replayDir).removeRecursively();
     m_replayDir.clear();

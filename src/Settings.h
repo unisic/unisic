@@ -139,7 +139,7 @@ class Settings : public QObject
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
-    Q_PROPERTY(QString recordAppAudioNode READ recordAppAudioNode WRITE setRecordAppAudioNode NOTIFY recordAppAudioNodeChanged)
+    Q_PROPERTY(QStringList recordAppAudioApps READ recordAppAudioApps WRITE setRecordAppAudioApps NOTIFY recordAppAudioAppsChanged)
     Q_PROPERTY(QString microphoneSource READ microphoneSource WRITE setMicrophoneSource NOTIFY microphoneSourceChanged)
     Q_PROPERTY(bool separateAudioTracks READ separateAudioTracks WRITE setSeparateAudioTracks NOTIFY separateAudioTracksChanged)
     Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
@@ -584,8 +584,13 @@ public:
     // Video recording audio (never GIF). Both OFF by default.
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
-    U_SETTING(QString, recordAppAudioNode, setRecordAppAudioNode,
-              "audio/recordAppAudioNode", QString())
+    // Applications whose audio is recorded, by PwDump::AppStream::app (the
+    // binary name), resolved to their live streams when a recording starts.
+    // Replaces audio/recordAppAudioNode, which held an object.serial: that
+    // went stale on every app relaunch and pw-record then recorded the mic,
+    // so the old value is deliberately not migrated.
+    U_SETTING(QStringList, recordAppAudioApps, setRecordAppAudioApps,
+              "audio/recordAppAudioApps", QStringList())
     // Pulse/PipeWire source NAME for the microphone; empty means the default
     // input. Stored by node.name, not serial: names survive a reboot.
     U_SETTING(QString, microphoneSource, setMicrophoneSource,
@@ -733,7 +738,7 @@ public:
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
-        emit recordAppAudioNodeChanged(); emit microphoneSourceChanged();
+        emit recordAppAudioAppsChanged(); emit microphoneSourceChanged();
         emit videoEncoderChanged();
         emit separateAudioTracksChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
@@ -852,7 +857,7 @@ signals:
     void videoMaxDurationSecChanged();
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
-    void recordAppAudioNodeChanged();
+    void recordAppAudioAppsChanged();
     void microphoneSourceChanged();
     void videoEncoderChanged();
     void separateAudioTracksChanged();

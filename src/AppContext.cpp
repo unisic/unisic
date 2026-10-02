@@ -25,6 +25,7 @@
 #include "record/X11ShmGrabber.h"
 #include <QThread>
 #include "record/GifRecorder.h"
+#include "record/PwDump.h"
 #include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
@@ -539,81 +540,14 @@ bool AppContext::perAppAudioAvailable() const
            && !QStandardPaths::findExecutable(QStringLiteral("pw-dump")).isEmpty();
 }
 
-// Pure: runs pw-dump + parses its JSON with no AppContext/GUI state, so both
-// query fronts below are safe to call from a worker thread.
-static QJsonArray pwDumpNodes()
-{
-    const QString helper = QStandardPaths::findExecutable(QStringLiteral("pw-dump"));
-    if (helper.isEmpty())
-        return {};
-    QProcess process;
-    process.start(helper, {});
-    if (!process.waitForFinished(2500)) {
-        process.kill();
-        return {};
-    }
-    const QJsonDocument doc = QJsonDocument::fromJson(process.readAllStandardOutput());
-    return doc.isArray() ? doc.array() : QJsonArray();
-}
-
 static QVariantList queryAudioApplicationNodesImpl()
 {
-    QVariantList result;
-    for (const QJsonValue &value : pwDumpNodes()) {
-        const QJsonObject object = value.toObject();
-        if (object.value(QStringLiteral("type")).toString()
-            != QLatin1String("PipeWire:Interface:Node"))
-            continue;
-        const QJsonObject props = object.value(QStringLiteral("info")).toObject()
-                                      .value(QStringLiteral("props")).toObject();
-        if (props.value(QStringLiteral("media.class")).toString()
-            != QLatin1String("Stream/Output/Audio"))
-            continue;
-        const QString id = props.value(QStringLiteral("object.serial")).toVariant().toString();
-        if (id.isEmpty())
-            continue;
-        QString label = props.value(QStringLiteral("application.name")).toString();
-        if (label.isEmpty())
-            label = props.value(QStringLiteral("node.description")).toString();
-        if (label.isEmpty())
-            label = props.value(QStringLiteral("node.name")).toString();
-        result.append(QVariantMap{{QStringLiteral("id"), id},
-                                  {QStringLiteral("label"), label}});
-    }
-    return result;
+    return PwDump::applications(PwDump::appStreams(PwDump::nodes()));
 }
 
-// Capture-capable inputs: real mics (Audio/Source) and virtual sources such as
-// an EasyEffects processed mic (Audio/Source/Virtual). Monitors never appear -
-// PipeWire models them as sink ports, not nodes. The id is node.name, which is
-// also the source's pipewire-pulse name, i.e. exactly what ffmpeg's pulse
-// input takes - and unlike object.serial it survives a reboot in the setting.
 static QVariantList queryAudioInputDevicesImpl()
 {
-    QVariantList result;
-    for (const QJsonValue &value : pwDumpNodes()) {
-        const QJsonObject object = value.toObject();
-        if (object.value(QStringLiteral("type")).toString()
-            != QLatin1String("PipeWire:Interface:Node"))
-            continue;
-        const QJsonObject props = object.value(QStringLiteral("info")).toObject()
-                                      .value(QStringLiteral("props")).toObject();
-        const QString mediaClass = props.value(QStringLiteral("media.class")).toString();
-        if (mediaClass != QLatin1String("Audio/Source")
-            && mediaClass != QLatin1String("Audio/Source/Virtual"))
-            continue;
-        const QString id = props.value(QStringLiteral("node.name")).toString();
-        if (id.isEmpty())
-            continue;
-        QString label = props.value(QStringLiteral("node.description")).toString();
-        if (label.isEmpty())
-            label = props.value(QStringLiteral("node.nick")).toString();
-        if (label.isEmpty())
-            label = id;
-        result.append(QVariantMap{{QStringLiteral("id"), id},
-                                  {QStringLiteral("label"), label}});
-    }
-    return result;
+    return PwDump::inputDevices(PwDump::nodes());
 }
 
 QVariantList AppContext::audioApplicationNodes() const

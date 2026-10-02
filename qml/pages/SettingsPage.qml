@@ -242,26 +242,19 @@ Item {
         }
         return best
     }
-    property var appAudioNodes: []
     property var micDevices: []
-    // Async: pw-dump runs off the GUI thread and returns via onAudioApplicationNodesReady.
-    function refreshAppAudioNodes() { App.requestAudioApplicationNodes() }
+    // Async: pw-dump runs off the GUI thread and returns via onAudioInputDevicesReady.
     function refreshMicDevices() { App.requestAudioInputDevices() }
     Connections {
         target: App
-        function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
         function onAudioInputDevicesReady(devices) { page.micDevices = devices }
     }
     // Load once on open so persisted, non-reactive helper models are ready
     // before their panes are visited.
     Component.onCompleted: {
-        if (App.perAppAudioAvailable)
-            page.refreshAppAudioNodes()
         if (App.audioInputListAvailable)
             page.refreshMicDevices()
     }
-    readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
-    readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
     readonly property var micDeviceIds: [""].concat(micDevices.map(function(d) { return d.id }))
     readonly property var micDeviceLabels: [qsTr("Default input")].concat(micDevices.map(function(d) { return d.label }))
     readonly property var taskDestinationIds: [""].concat(App.uploads.destinations.map(function(d) { return d.name }))
@@ -1822,20 +1815,10 @@ Item {
                     SettingRow {
                         label: qsTr("Application audio only")
                         help: App.perAppAudioAvailable
-                              ? qsTr("Capture one selected application's PipeWire audio stream.")
+                              ? qsTr("Record only the applications you tick, one or several.")
                               : qsTr("Requires the pw-dump and pw-record helpers.")
-                        helpDetail: qsTr("Start audio playback in the application, press Refresh, then select it. This can be mixed with the microphone or system audio. A kernel FIFO keeps PCM buffering bounded.")
-                        Row {
-                            spacing: Theme.spacingS
-                            UComboBox {
-                                width: 170
-                                enabled: App.perAppAudioAvailable
-                                model: page.appAudioLabels
-                                currentIndex: Math.max(0, page.appAudioIds.indexOf(App.settings.recordAppAudioNode))
-                                onActivated: (i) => App.settings.recordAppAudioNode = page.appAudioIds[i]
-                            }
-                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
-                        }
+                        helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
+                        footer: UAppAudioPicker {}
                     }
                     SettingRow {
                         label: qsTr("Separate audio tracks")

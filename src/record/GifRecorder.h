@@ -198,7 +198,9 @@ private:
     IScreenGrabber *m_grabber = nullptr;
     QProcess *m_ffmpeg = nullptr;
     QProcess *m_converter = nullptr;
-    QProcess *m_appAudio = nullptr;
+    // One pw-record per application stream, each into its own FIFO (paths
+    // below, same order). At most kMaxAppStreams of each.
+    QList<QProcess *> m_appAudio;
     QTimer m_sampler;
     QTimer m_maxTimer;
     QElapsedTimer m_elapsed;
@@ -264,7 +266,7 @@ private:
     QString m_tempPath;
     QString m_palettePath;
     QString m_outPath;
-    QString m_audioFifoPath;
+    QStringList m_audioFifoPaths;
     QString m_replayDir;
     QString m_replaySnapshotDir;
     QString m_replayExportPath;

@@ -29,19 +29,6 @@ Item {
         }
         return best
     }
-    // Per-application audio picker model - the same one as Settings > Recording
-    // > Audio. pw-dump runs off the GUI thread and returns asynchronously.
-    property var appAudioNodes: []
-    function refreshAppAudioNodes() { App.requestAudioApplicationNodes() }
-    Connections {
-        target: App
-        function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
-    }
-    // Load once so a previously-saved node shows correctly instead of "Off".
-    Component.onCompleted: if (App.perAppAudioAvailable) page.refreshAppAudioNodes()
-    readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
-    readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
-
     Flickable {
         id: pageFlick
         anchors.fill: parent
@@ -363,17 +350,7 @@ Item {
                         }
                         USettingRow {
                             label: qsTr("Application audio only")
-                            Row {
-                                spacing: Theme.spacingS
-                                UComboBox {
-                                    width: 140
-                                    enabled: App.perAppAudioAvailable
-                                    model: page.appAudioLabels
-                                    currentIndex: Math.max(0, page.appAudioIds.indexOf(App.settings.recordAppAudioNode))
-                                    onActivated: (i) => App.settings.recordAppAudioNode = page.appAudioIds[i]
-                                }
-                                UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
-                            }
+                            footer: UAppAudioPicker {}
                         }
                         USettingRow {
                             label: qsTr("Separate audio tracks")

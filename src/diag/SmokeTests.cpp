@@ -914,7 +914,7 @@ void AppContext::devTestPerAppAudio()
     const QVariantList nodes = audioApplicationNodes();
     showToast(tr("Dev: per-app audio: %1")
                   .arg(!perAppAudioAvailable() ? QStringLiteral("SKIP")
-                                               : QStringLiteral("PASS (%1 nodes)").arg(nodes.size())));
+                                               : QStringLiteral("PASS (%1 applications)").arg(nodes.size())));
 }
 
 void AppContext::devTestInstantReplay()
@@ -3977,8 +3977,9 @@ void AppContext::runSmokeTest()
         if (!perAppAudioAvailable())
             smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
         else
-            smokeLog(QStringLiteral("per-app audio: PASS (%1 active nodes)")
-                         .arg(audioApplicationNodes().size()));
+            smokeLog(QStringLiteral("per-app audio: PASS (%1 applications playing, %2 ticked)")
+                         .arg(audioApplicationNodes().size())
+                         .arg(m_settings->recordAppAudioApps().size()));
         if (!audioInputListAvailable())
             smokeLog(QStringLiteral("audio input devices: SKIP (pw-dump missing)"));
         else

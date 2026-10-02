@@ -1130,16 +1130,21 @@ void AppContext::captureScroll()
             return;
         }
         m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen) {
-            m_captureInFlight = false;
-            endCaptureIsolation();
-            if (!physRegion.isEmpty() && screen) {
-                startScrollCapture(physRegion, screen);
-            } else {
-                m_nextCaptureTask = {};
-                clearCliCapture(tr("Capture cancelled"));
-            }
+            onScrollRegionPicked(physRegion, screen);
         }, OverlayController::Purpose::Scroll);
     });
+}
+
+void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
+{
+    m_captureInFlight = false;
+    endCaptureIsolation();
+    if (!physRegion.isEmpty() && screen) {
+        startScrollCapture(physRegion, screen);
+    } else {
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Capture cancelled"));
+    }
 }
 
 void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)

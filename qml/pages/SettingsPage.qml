@@ -3807,6 +3807,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Scrolling stitch"); onClicked: App.devTestScrollStitch() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Scrolling hand-off"); onClicked: App.devTestScrollHandoff() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Measure"); onClicked: App.devTestMeasureTools() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Hardware encoder"); onClicked: App.devTestHardwareEncoder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Freeze recorder (watchdog)"); onClicked: App.devTestFreezeRecorder() }

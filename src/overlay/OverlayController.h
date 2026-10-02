@@ -57,6 +57,12 @@ public:
 
     void pickAnnotatedImage(ImageCallback cb, Purpose purpose, int initialTool = 0);
     void pickRegion(RegionCallback cb, Purpose purpose); // no annotation tools
+    // Pays off the session's one pending callback when the user starts a
+    // scrolling capture. Returns true when nobody asked for a region, so the
+    // caller must start the scroll itself. Static so the smoke test can check
+    // the contract without a frozen screen.
+    static bool handOffScrollPick(const RegionCallback &regionCb, const ImageCallback &imageCb,
+                                  const QRect &phys, QScreen *screen);
 
     // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
     // Consumed by the capture callback to force a clipboard copy even when

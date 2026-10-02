@@ -4115,6 +4115,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());
         smokeLog(QStringLiteral("image conversion: ") + imageConvertCheck());
         smokeLog(QStringLiteral("scrolling screenshot stitch: ") + scrollStitchCheck());
+        smokeLog(QStringLiteral("scrolling capture hand-off: ") + scrollHandoffCheck());
         {
             // Notification thumbnail drag: an unsaved image must materialize a
             // real temp file for the drop target (the new dragUri() branch).
@@ -5171,7 +5172,7 @@ QString AppContext::scrollStitchCheck() const
     ScrollStitcher stitcher;
     int lo = 300, hi = 300;
     stitcher.addFrame(frame(300));
-    for (int y : {340, 341, 420, 500, 437, 260, 200, 255}) {
+    for (int y : {340, 341, 420, 500, 437, 330, 260, 200, 255}) {
         if (stitcher.addFrame(frame(y)) == ScrollStitcher::Result::Unmatched)
             return QStringLiteral("FAIL (lost track at y=%1)").arg(y);
         lo = std::min(lo, y);
@@ -5192,6 +5193,57 @@ QString AppContext::scrollStitchCheck() const
         return QStringLiteral("FAIL (pixels differ)");
     return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
         .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
+}
+
+// Starting a scrolling capture from the overlay must pay off the overlay's
+// pending callback, or AppContext's capture-in-flight guard stays armed and
+// every later screenshot and recording is refused without a word for the rest
+// of the session. Checks both halves without a frozen screen: the overlay's
+// hand-off calls exactly one callback, and the scroll pick callback disarms
+// the guard (fed an empty rect, so no real stream is opened).
+QString AppContext::scrollHandoffCheck()
+{
+    if (m_captureInFlight || m_overlay->active() || scrollCaptureActive())
+        return QStringLiteral("SKIP (a capture is in progress)");
+
+    const QRect rect(10, 20, 300, 400);
+    int regionCalls = 0;
+    QRect seen;
+    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *) {
+        ++regionCalls;
+        seen = r;
+    };
+    if (OverlayController::handOffScrollPick(regionCb, nullptr, rect, nullptr))
+        return QStringLiteral("FAIL (a scroll pick was started twice)");
+    if (regionCalls != 1 || seen != rect)
+        return QStringLiteral("FAIL (region callback called %1 times)").arg(regionCalls);
+
+    int imageCalls = 0;
+    bool released = false;
+    const OverlayController::ImageCallback imageCb = [&](const QImage &img) {
+        ++imageCalls;
+        released = img.isNull();
+    };
+    if (!OverlayController::handOffScrollPick(nullptr, imageCb, rect, nullptr))
+        return QStringLiteral("FAIL (screenshot overlay did not start the scroll)");
+    if (imageCalls != 1 || !released)
+        return QStringLiteral("FAIL (screenshot callback not released)");
+
+    m_captureInFlight = true;
+    beginCaptureIsolation();
+    onScrollRegionPicked(QRect(), nullptr);
+    if (m_captureInFlight) {
+        m_captureInFlight = false;
+        return QStringLiteral("FAIL (capture guard left armed)");
+    }
+    return QStringLiteral("PASS (one callback per path, guard released)");
+}
+
+void AppContext::devTestScrollHandoff()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: scrolling hand-off: %1").arg(scrollHandoffCheck()));
 }
 
 void AppContext::devTestScrollStitch()

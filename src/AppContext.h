@@ -197,6 +197,7 @@ public:
     bool scrollCaptureActive() const;
     ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
     void startScrollCapture(const QRect &physRegion, QScreen *screen);
+    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen);
 
     bool recording() const;
     bool converting() const;
@@ -405,6 +406,7 @@ public:
     Q_INVOKABLE void devTestSaveDialog();
     Q_INVOKABLE void devTestFilename();
     Q_INVOKABLE void devTestScrollStitch();
+    Q_INVOKABLE void devTestScrollHandoff();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -893,6 +895,7 @@ private:
     // only Unisic's own entries): install then remove, both must succeed.
     QString desktopShortcutsCheck();
     QString scrollStitchCheck() const;
+    QString scrollHandoffCheck();
     // Idle gate for the automatic post-update restart: empty = safe to
     // restart, else a comma-joined list of what blocks it (recording, open
     // editors, visible window…).

@@ -92,7 +92,7 @@ Window {
         radius: 19
         color: Theme.primary
         border.width: 1
-        border.color: Theme.border
+        border.color: Theme.divider
 
         onXChanged: overlayWindow.updateMask()
         onYChanged: overlayWindow.updateMask()
@@ -193,7 +193,7 @@ Window {
                 Image {
                     id: previewImg
                     anchors.fill: parent
-                    source: "image://scrollpreview/" + scrollCtl.previewRevision
+                    source: previewCard.visible ? "image://scrollpreview/" + scrollCtl.previewRevision : ""
                     fillMode: Image.PreserveAspectFit
                     cache: false
                 }
@@ -210,8 +210,14 @@ Window {
         }
     }
 
-    Keys.onReturnPressed: (e) => { e.accepted = true; scrollCtl.finish(); }
-    Keys.onEnterPressed: (e) => { e.accepted = true; scrollCtl.finish(); }
-    Keys.onSpacePressed: (e) => { e.accepted = true; scrollCtl.finish(); }
-    Keys.onEscapePressed: (e) => { e.accepted = true; scrollCtl.cancel(); }
+    // Keys attach to an Item, never to the Window itself. Only reached while
+    // the overlay holds focus (after a click on the badge), so the scrolled
+    // window keeps the keyboard otherwise.
+    Item {
+        focus: true
+        Keys.onReturnPressed: (e) => { e.accepted = true; scrollCtl.finish(); }
+        Keys.onEnterPressed: (e) => { e.accepted = true; scrollCtl.finish(); }
+        Keys.onSpacePressed: (e) => { e.accepted = true; scrollCtl.finish(); }
+        Keys.onEscapePressed: (e) => { e.accepted = true; scrollCtl.cancel(); }
+    }
 }

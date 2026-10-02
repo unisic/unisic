@@ -285,6 +285,28 @@ void OverlayController::confirmAndCopy(QQuickWindow *win)
     confirmFromWindow(win);
 }
 
+// The selection is in frozen-IMAGE pixels; the region callback contract is
+// PHYSICAL pixels (screen geometry * DPR). On the KWin path the frozen image
+// is already native res so the two match and this is a no-op, but the portal
+// workspace-crop fallback can hand back a logical / uniformly-scaled image -
+// rescale so the recorder crops the right area instead of a mis-scaled quadrant.
+static QRect physicalSelection(const AnnotationCanvas *canvas, const QScreen *screen)
+{
+    const QRectF sel = canvas->selectionRect();
+    const QSize imgSize = canvas->image().size();
+    const QSize physSize = screen
+        ? QSize(qRound(screen->geometry().width() * screen->devicePixelRatio()),
+                qRound(screen->geometry().height() * screen->devicePixelRatio()))
+        : QSize();
+    if (screen && !imgSize.isEmpty() && physSize != imgSize) {
+        const double sx = double(physSize.width()) / imgSize.width();
+        const double sy = double(physSize.height()) / imgSize.height();
+        return QRectF(sel.x() * sx, sel.y() * sy,
+                      sel.width() * sx, sel.height() * sy).toAlignedRect();
+    }
+    return sel.toAlignedRect();
+}
+
 void OverlayController::startScrollCapture(QQuickWindow *win)
 {
     auto *canvas = win ? win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas")) : nullptr;
@@ -293,25 +315,32 @@ void OverlayController::startScrollCapture(QQuickWindow *win)
 
     const int idx = m_windows.indexOf(win);
     QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;
+    const QRect phys = physicalSelection(canvas, screen);
 
-    const QRectF sel = canvas->selectionRect();
-    const QSize imgSize = canvas->image().size();
-    const QSize physSize = screen
-        ? QSize(qRound(screen->geometry().width() * screen->devicePixelRatio()),
-                qRound(screen->geometry().height() * screen->devicePixelRatio()))
-        : QSize();
-    QRect phys;
-    if (screen && !imgSize.isEmpty() && physSize != imgSize) {
-        const double sx = double(physSize.width()) / imgSize.width();
-        const double sy = double(physSize.height()) / imgSize.height();
-        phys = QRectF(sel.x() * sx, sel.y() * sy,
-                      sel.width() * sx, sel.height() * sy).toAlignedRect();
-    } else {
-        phys = sel.toAlignedRect();
-    }
-
+    auto regionCb = std::move(m_regionCb);
+    auto imageCb = std::move(m_imageCb);
+    m_regionCb = nullptr;
+    m_imageCb = nullptr;
     closeAll();
-    m_app->startScrollCapture(phys, screen);
+    if (handOffScrollPick(regionCb, imageCb, phys, screen))
+        m_app->startScrollCapture(phys, screen);
+}
+
+bool OverlayController::handOffScrollPick(const RegionCallback &regionCb,
+                                          const ImageCallback &imageCb,
+                                          const QRect &phys, QScreen *screen)
+{
+    // Every overlay session owes its caller exactly one callback: that is
+    // what clears AppContext's capture-in-flight guard and ends capture
+    // isolation. Skipping it left the guard armed and blocked every later
+    // capture and recording for the rest of the session.
+    if (regionCb) {
+        regionCb(phys, screen);   // a scroll pick: the caller starts it
+        return false;
+    }
+    if (imageCb)
+        imageCb(QImage());        // a screenshot overlay switched to scrolling: release that shot
+    return true;
 }
 
 void OverlayController::confirmFromWindow(QQuickWindow *win)
@@ -319,11 +348,6 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
     auto *canvas = win ? win->findChild<AnnotationCanvas *>(QStringLiteral("overlayCanvas")) : nullptr;
     if (!canvas || !canvas->hasSelection())
         return;
-
-    if (m_purpose == Purpose::Scroll) {
-        startScrollCapture(win);
-        return;
-    }
 
     const int idx = m_windows.indexOf(win);
     QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;
@@ -343,27 +367,7 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
         closeAll();
         cb(result);
     } else if (m_regionCb) {
-        // The selection is in frozen-IMAGE pixels; the region callback contract
-        // is PHYSICAL pixels (screen geometry * DPR). On the KWin path the
-        // frozen image is already native res so the two match and this is a
-        // no-op, but the portal workspace-crop fallback can hand back a
-        // logical / uniformly-scaled image — rescale so the recorder crops the
-        // right area instead of a mis-scaled quadrant.
-        const QRectF sel = canvas->selectionRect();
-        const QSize imgSize = canvas->image().size();
-        const QSize physSize = screen
-            ? QSize(qRound(screen->geometry().width() * screen->devicePixelRatio()),
-                    qRound(screen->geometry().height() * screen->devicePixelRatio()))
-            : QSize();
-        QRect phys;
-        if (screen && !imgSize.isEmpty() && physSize != imgSize) {
-            const double sx = double(physSize.width()) / imgSize.width();
-            const double sy = double(physSize.height()) / imgSize.height();
-            phys = QRectF(sel.x() * sx, sel.y() * sy,
-                          sel.width() * sx, sel.height() * sy).toAlignedRect();
-        } else {
-            phys = sel.toAlignedRect();
-        }
+        const QRect phys = physicalSelection(canvas, screen);
         auto cb = std::move(m_regionCb);
         closeAll();
         cb(phys, screen);

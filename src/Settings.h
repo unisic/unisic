@@ -163,6 +163,7 @@ class Settings : public QObject
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(int recordPageMode READ recordPageMode WRITE setRecordPageMode NOTIFY recordPageModeChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
+    Q_PROPERTY(QString hiddenTrayItems READ hiddenTrayItems WRITE setHiddenTrayItems NOTIFY hiddenTrayItemsChanged)
     Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
     Q_PROPERTY(QString updateChannel READ updateChannel WRITE setUpdateChannel NOTIFY updateChannelChanged)
     Q_PROPERTY(int recordCountdownSec READ recordCountdownSec WRITE setRecordCountdownSec NOTIFY recordCountdownSecChanged)
@@ -663,6 +664,12 @@ public:
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
+    // CSV of tray-menu entry ids the menu must NOT show ("measure,gif-region"),
+    // same opt-out shape as hiddenNotifActions: empty = the full menu, and an id
+    // a newer build adds appears on its own. "Open Unisic" and "Quit" are never
+    // hidable (AppContext ignores them here), so the menu always keeps a way in
+    // and a way out.
+    U_SETTING(QString, hiddenTrayItems, setHiddenTrayItems, "ui/hiddenTrayItems", QString())
     // Daily GitHub release check + automatic AppImage self-install
     // (UpdateChecker). Suppressed in dev builds regardless of this value.
     U_SETTING(bool, autoCheckUpdates, setAutoCheckUpdates, "updates/autoCheck", true)
@@ -748,7 +755,7 @@ public:
         emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
-        emit useSystemDecorationChanged(); emit trayIconPathChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
         emit recordPageModeChanged();
         emit autoCheckUpdatesChanged();
         emit updateChannelChanged(); emit recordCountdownSecChanged(); emit soundVolumeChanged();
@@ -882,6 +889,7 @@ signals:
     void useSystemDecorationChanged();
     void recordPageModeChanged();
     void trayIconPathChanged();
+    void hiddenTrayItemsChanged();
     void autoCheckUpdatesChanged();
     void updateChannelChanged();
     void recordCountdownSecChanged();

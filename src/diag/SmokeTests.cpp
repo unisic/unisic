@@ -3845,6 +3845,51 @@ QString AppContext::recordPageModeCheck()
         .arg(original == 1 ? QStringLiteral("GIF") : QStringLiteral("video"));
 }
 
+QString AppContext::trayMenuCheck()
+{
+    // Hide two entries plus Open and Quit: the two must leave the menu, the
+    // locked pair must stay, and no separator may lead, trail or double up.
+    // Signals blocked: the live tray must not be torn down and rebuilt twice for a probe.
+    QMenu *menu = nullptr;
+    {
+        const QSignalBlocker quiet(m_settings);
+        const QString original = m_settings->hiddenTrayItems();
+        m_settings->setHiddenTrayItems(QStringLiteral("region,ocr,open,quit"));
+        menu = buildTrayMenu();
+        m_settings->setHiddenTrayItems(original);
+    }
+
+    QStringList texts;
+    bool badSeparator = false;
+    const QList<QAction *> actions = menu->actions();
+    for (int i = 0; i < actions.size(); ++i) {
+        if (actions[i]->isSeparator()) {
+            if (i == 0 || i == actions.size() - 1 || actions[i - 1]->isSeparator())
+                badSeparator = true;
+        } else {
+            texts.append(actions[i]->text());
+        }
+    }
+    delete menu;
+
+    const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
+    const bool kept = texts.contains(tr("Capture full screen"))
+                      && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
+    if (!hidden || !kept || badSeparator)
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3)")
+            .arg(hidden).arg(kept).arg(badSeparator);
+    return QStringLiteral("PASS (%1 entries listed; hide list honoured, Open/Quit locked)")
+        .arg(trayMenuEntries().size());
+}
+
+void AppContext::devTestTrayMenu()
+{
+    if (!devBuild())
+        return;
+    const QString result = trayMenuCheck();
+    showToast(tr("Dev: tray menu: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestRecordPageMode()
 {
     if (!devBuild())
@@ -5032,6 +5077,7 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
         smokeLog(QStringLiteral("record page mode: ") + recordPageModeCheck());
+        smokeLog(QStringLiteral("tray menu entries: ") + trayMenuCheck());
         smokeNext();
     });
 

@@ -78,6 +78,8 @@
 #include <QQuickWindow>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QSet>
+#include <QHash>
 #include <QIcon>
 #include <QSize>
 #include <QColor>
@@ -116,6 +118,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusReply>
 #include <QDebug>
+#include <functional>
 #include <memory>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -281,6 +284,11 @@ AppContext::AppContext(QObject *parent)
     // Live-apply a custom tray icon the moment the setting changes (also covers
     // an import that rewrites trayIconPath).
     connect(m_settings, &Settings::trayIconPathChanged, this, &AppContext::applyTrayIcon);
+    // Same for the entries the user hid or restored (also covers an import).
+    connect(m_settings, &Settings::hiddenTrayItemsChanged, this, [this] {
+        if (m_tray)
+            setupTray();
+    });
 
     // Follow the OS light/dark scheme: recolor the (monochrome) bundled preset
     // in the tray, and let the settings gallery re-render its thumbnails.
@@ -785,6 +793,7 @@ void AppContext::applyLanguage()
         m_engine->retranslate();
     if (m_tray)
         setupTray();
+    emit trayMenuEntriesChanged();
 }
 
 void AppContext::quitApp(const QString &reason)
@@ -5659,6 +5668,145 @@ static QIcon trayMenuIcon(const QString &name)
     return icon;
 }
 
+namespace {
+
+// One tray-menu entry. `id` is the stable key stored in Settings::hiddenTrayItems;
+// a separator goes between groups, never inside one. `locked` entries ignore the
+// hide list: the menu must always keep a way into the window and a way out.
+struct TrayEntry {
+    QString id;
+    QString icon;
+    QString label;
+    int group;
+    bool locked;
+    std::function<void()> run;
+};
+
+constexpr int kTrayUpdateGroup = 3; // dynamic update entries sit between the groups below
+
+// Every capture and recording mode the app has must be reachable from the tray,
+// or it is a worse copy of the window; grouped so a dozen entries stay readable.
+QVector<TrayEntry> trayEntryTable(AppContext *a)
+{
+    return {
+        {QStringLiteral("region"), QStringLiteral("region"), AppContext::tr("Capture region"), 0, false, [a] { a->captureRegion(); }},
+        {QStringLiteral("full-screen"), QStringLiteral("monitor"), AppContext::tr("Capture full screen"), 0, false, [a] { a->captureFullScreen(); }},
+        {QStringLiteral("screen-under-cursor"), QStringLiteral("monitor"), AppContext::tr("Capture screen under cursor"), 0, false, [a] { a->captureScreenUnderCursor(); }},
+        {QStringLiteral("window"), QStringLiteral("window"), AppContext::tr("Capture window"), 0, false, [a] { a->captureWindow(); }},
+        {QStringLiteral("recapture"), QStringLiteral("region"), AppContext::tr("Re-capture last region"), 0, false, [a] { a->recaptureLastRegion(); }},
+        {QStringLiteral("measure"), QStringLiteral("measure"), AppContext::tr("Measure"), 0, false, [a] { a->captureMeasure(); }},
+        {QStringLiteral("ocr"), QStringLiteral("ocr"), AppContext::tr("Select text…"), 0, false, [a] { a->captureRegionOcr(); }},
+        {QStringLiteral("video-region"), QStringLiteral("media-record"), AppContext::tr("Record video (region)"), 1, false, [a] { a->startVideoRegion(); }},
+        {QStringLiteral("video-screen"), QStringLiteral("media-record"), AppContext::tr("Record video (full screen)"), 1, false, [a] { a->startVideoScreen(); }},
+        {QStringLiteral("video-window"), QStringLiteral("media-record"), AppContext::tr("Record video (window)"), 1, false, [a] { a->startVideoWindow(); }},
+        {QStringLiteral("gif-region"), QStringLiteral("gif"), AppContext::tr("Record GIF (region)"), 1, false, [a] { a->startGifRegion(); }},
+        {QStringLiteral("gif-screen"), QStringLiteral("gif"), AppContext::tr("Record GIF (full screen)"), 1, false, [a] { a->startGifFullScreen(); }},
+        {QStringLiteral("replay-start"), QStringLiteral("media-record"), AppContext::tr("Start instant replay"), 1, false, [a] { a->startInstantReplay(); }},
+        {QStringLiteral("replay-save"), QStringLiteral("document-save"), AppContext::tr("Save instant replay"), 1, false, [a] { a->saveInstantReplay(); }},
+        {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] { a->stopRecording(); }},
+        {QStringLiteral("copy-last"), QStringLiteral("content-copy"), AppContext::tr("Copy last capture"), 2, false, [a] { a->copyLastCapture(); }},
+        {QStringLiteral("open"), QStringLiteral("monitor"), AppContext::tr("Open Unisic"), kTrayUpdateGroup + 1, true, [a] { emit a->showMainWindowRequested(); }},
+        {QStringLiteral("quit"), QStringLiteral("close"), AppContext::tr("Quit"), kTrayUpdateGroup + 1, true, [a] { a->quitApp(QStringLiteral("tray menu Quit")); }},
+    };
+}
+
+QSet<QString> hiddenTrayIds(const Settings *settings)
+{
+    QSet<QString> ids;
+    for (const QString &id : settings->hiddenTrayItems().split(QLatin1Char(','), Qt::SkipEmptyParts))
+        ids.insert(id.trimmed());
+    return ids;
+}
+
+} // namespace
+
+QVariantList AppContext::trayMenuEntries() const
+{
+    QVariantList out;
+    for (const TrayEntry &e : trayEntryTable(const_cast<AppContext *>(this))) {
+        if (!e.locked)
+            out.append(QVariantMap{{QStringLiteral("id"), e.id}, {QStringLiteral("label"), e.label}});
+    }
+    return out;
+}
+
+QMenu *AppContext::buildTrayMenu()
+{
+    const QVector<TrayEntry> entries = trayEntryTable(this);
+    const QSet<QString> hidden = hiddenTrayIds(m_settings);
+    auto *menu = new QMenu;
+    QHash<QString, QAction *> actions;
+    int group = -1;
+    bool separatorPending = false;
+    // A separator is only worth drawing between two groups that both kept an
+    // entry, so hiding a whole group never leaves a leading, trailing or
+    // doubled line behind.
+    auto enterGroup = [&](int g) {
+        if (g == group)
+            return;
+        group = g;
+        separatorPending = !menu->isEmpty();
+    };
+    auto flushSeparator = [&] {
+        if (separatorPending)
+            menu->addSeparator();
+        separatorPending = false;
+    };
+    auto addEntry = [&](const TrayEntry &e) {
+        enterGroup(e.group);
+        if (!e.locked && hidden.contains(e.id))
+            return;
+        flushSeparator();
+        QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
+        connect(a, &QAction::triggered, this, e.run);
+        actions.insert(e.id, a);
+    };
+    for (const TrayEntry &e : entries)
+        if (e.group < kTrayUpdateGroup)
+            addEntry(e);
+
+    // Not hidable: an update is news, not a shortcut, and a tray-dwelling app
+    // may never have a window up when the one-shot toast fires.
+    enterGroup(kTrayUpdateGroup);
+    if (m_updater && m_updater->restartPending()) {
+        // The new version is already swapped in - one click finishes the job.
+        flushSeparator();
+        menu->addAction(tr("Restart to update to Unisic %1").arg(m_updater->latestVersion()),
+                        m_updater, &UpdateChecker::restartNow);
+    } else if (m_updater && m_updater->updateAvailable()
+               && m_updater->canInstallViaScript()) {
+        // Native package: one click runs install.sh in a terminal (sudo there).
+        flushSeparator();
+        menu->addAction(tr("Install update to Unisic %1").arg(m_updater->latestVersion()),
+                        m_updater, &UpdateChecker::installViaScript);
+    } else if (m_updater && m_updater->updateAvailable()) {
+        flushSeparator();
+        menu->addAction(tr("Update available - Unisic %1").arg(m_updater->latestVersion()),
+                        this, [this] { emit showMainWindowRequested(); });
+    }
+    for (const TrayEntry &e : entries)
+        if (e.group > kTrayUpdateGroup)
+            addEntry(e);
+
+    // The menu is built once, so anything state-dependent has to be refreshed
+    // when it opens - otherwise it shows whatever was true at startup. An entry
+    // the user hid has no action here, hence the null checks.
+    connect(menu, &QMenu::aboutToShow, this, [this, actions] {
+        const bool replay = instantReplayActive();
+        if (QAction *a = actions.value(QStringLiteral("replay-start"))) {
+            a->setVisible(!replay);
+            a->setEnabled(!recording());
+        }
+        if (QAction *a = actions.value(QStringLiteral("replay-save")))
+            a->setVisible(replay);
+        if (QAction *a = actions.value(QStringLiteral("stop-recording")))
+            a->setEnabled(recording());
+        if (QAction *a = actions.value(QStringLiteral("recapture")))
+            a->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
+    });
+    return menu;
+}
+
 void AppContext::setupTray()
 {
     if (!QSystemTrayIcon::isSystemTrayAvailable()) {
@@ -5707,64 +5855,8 @@ void AppContext::setupTray()
     delete m_trayMenu;
     m_trayMenu = nullptr;
     m_tray = new QSystemTrayIcon(trayIcon(), this);
-    auto *menu = new QMenu;
-    m_trayMenu = menu;
-    // The tray menu is the app's quick menu: every capture and recording mode
-    // the app has must be reachable here, or the tray is a worse copy of the
-    // window. Grouped so the list stays readable at a dozen entries.
-    menu->addAction(trayMenuIcon(QStringLiteral("region")), tr("Capture region"), this, &AppContext::captureRegion);
-    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Capture full screen"), this, &AppContext::captureFullScreen);
-    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Capture screen under cursor"), this, &AppContext::captureScreenUnderCursor);
-    menu->addAction(trayMenuIcon(QStringLiteral("window")), tr("Capture window"), this, &AppContext::captureWindow);
-    QAction *recapture = menu->addAction(trayMenuIcon(QStringLiteral("region")), tr("Re-capture last region"),
-                                         this, &AppContext::recaptureLastRegion);
-    menu->addAction(trayMenuIcon(QStringLiteral("measure")), tr("Measure"), this, &AppContext::captureMeasure);
-    menu->addAction(trayMenuIcon(QStringLiteral("ocr")), tr("Select text…"), this, &AppContext::captureRegionOcr);
-    menu->addSeparator();
-    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (region)"), this, &AppContext::startVideoRegion);
-    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (full screen)"), this, &AppContext::startVideoScreen);
-    menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Record video (window)"), this, &AppContext::startVideoWindow);
-    menu->addAction(trayMenuIcon(QStringLiteral("gif")), tr("Record GIF (region)"), this, &AppContext::startGifRegion);
-    menu->addAction(trayMenuIcon(QStringLiteral("gif")), tr("Record GIF (full screen)"), this, &AppContext::startGifFullScreen);
-    QAction *replayStart = menu->addAction(trayMenuIcon(QStringLiteral("media-record")), tr("Start instant replay"), this,
-                                           &AppContext::startInstantReplay);
-    QAction *replaySave = menu->addAction(trayMenuIcon(QStringLiteral("document-save")), tr("Save instant replay"), this,
-                                          &AppContext::saveInstantReplay);
-    QAction *stopRec = menu->addAction(trayMenuIcon(QStringLiteral("stop")), tr("Stop recording"), this, &AppContext::stopRecording);
-    // The menu is built once, so anything state-dependent has to be refreshed
-    // when it opens - otherwise it shows whatever was true at startup.
-    connect(menu, &QMenu::aboutToShow, this, [this, replayStart, replaySave, stopRec, recapture] {
-        replayStart->setVisible(!instantReplayActive());
-        replaySave->setVisible(instantReplayActive());
-        replayStart->setEnabled(!recording());
-        stopRec->setEnabled(recording());
-        recapture->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
-    });
-    menu->addSeparator();
-    menu->addAction(trayMenuIcon(QStringLiteral("content-copy")), tr("Copy last capture"), this, &AppContext::copyLastCapture);
-    menu->addSeparator();
-    if (m_updater && m_updater->restartPending()) {
-        // The new version is already swapped in - one click finishes the job.
-        menu->addAction(tr("Restart to update to Unisic %1").arg(m_updater->latestVersion()),
-                        m_updater, &UpdateChecker::restartNow);
-        menu->addSeparator();
-    } else if (m_updater && m_updater->updateAvailable()
-               && m_updater->canInstallViaScript()) {
-        // Native package: one click runs install.sh in a terminal (sudo there).
-        menu->addAction(tr("Install update to Unisic %1").arg(m_updater->latestVersion()),
-                        m_updater, &UpdateChecker::installViaScript);
-        menu->addSeparator();
-    } else if (m_updater && m_updater->updateAvailable()) {
-        // Persistent counterpart of the one-shot update toast - a tray-dwelling
-        // app may never have a window up when the toast fires.
-        menu->addAction(tr("Update available - Unisic %1").arg(m_updater->latestVersion()),
-                        this, [this] { emit showMainWindowRequested(); });
-        menu->addSeparator();
-    }
-    menu->addAction(trayMenuIcon(QStringLiteral("monitor")), tr("Open Unisic"), this, [this] { emit showMainWindowRequested(); });
-    menu->addAction(trayMenuIcon(QStringLiteral("close")), tr("Quit"), this,
-                    [this] { quitApp(QStringLiteral("tray menu Quit")); });
-    m_tray->setContextMenu(menu);
+    m_trayMenu = buildTrayMenu();
+    m_tray->setContextMenu(m_trayMenu);
     m_tray->setToolTip(QGuiApplication::applicationDisplayName());
     connect(m_tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason r) {
         if (r == QSystemTrayIcon::Trigger)

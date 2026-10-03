@@ -133,6 +133,10 @@ class AppContext : public QObject
     Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
     // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
     Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // The tray-menu entries the user may hide, as {id, label} in menu order.
+    // Labels are translated here (the same strings the menu shows), so a
+    // property rather than a function: it re-notifies when the language flips.
+    Q_PROPERTY(QVariantList trayMenuEntries READ trayMenuEntries NOTIFY trayMenuEntriesChanged)
     // Contrast colour for the (monochrome) bundled presets: light on a dark
     // system scheme, dark on a light one. Follows the OS light/dark, live.
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
@@ -340,6 +344,7 @@ public:
     // The Record page's Video/GIF mode segment (a persisted setting, because
     // the page Loader is destroyed on every navigation).
     Q_INVOKABLE void devTestRecordPageMode();
+    Q_INVOKABLE void devTestTrayMenu();
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestInstallChannel();
     Q_INVOKABLE void devTestCaptureSound();
@@ -437,6 +442,7 @@ public:
     void setAutostartEnabled(bool on);
     QStringList trayIconPresets() const;  // image files in trayIconsDir()
     QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QVariantList trayMenuEntries() const;
     QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
@@ -753,6 +759,7 @@ signals:
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
+    void trayMenuEntriesChanged();
     void trayContrastColorChanged();
     void recordingCapabilitiesChanged();
 
@@ -772,6 +779,7 @@ private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
         QString name;
@@ -889,6 +897,9 @@ private:
     QString clipboardImportCheck();
     // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
     QString recordPageModeCheck();
+    // Tray menu: hidden entries really leave it, Open/Quit never can, and no
+    // separator is left leading, trailing or doubled.
+    QString trayMenuCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
     // Round-trips the desktop custom-shortcut writer on the real store (touches

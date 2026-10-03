@@ -352,6 +352,19 @@ Item {
         if (hidden) list.push(id)
         App.settings.hiddenTools = list.join(",")
     }
+    // Tray-menu entries the user hid (CSV of ids in hiddenTrayItems); the same
+    // opt-out shape as hiddenTools, so a new entry in a later build shows up
+    // on its own.
+    function trayItemHidden(id) {
+        var csv = App.settings.hiddenTrayItems
+        return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
+    }
+    function setTrayItemHidden(id, hidden) {
+        var csv = App.settings.hiddenTrayItems
+        var list = csv ? csv.split(",").filter(function (x) { return x.length > 0 && x !== id }) : []
+        if (hidden) list.push(id)
+        App.settings.hiddenTrayItems = list.join(",")
+    }
     // Per-tool freedesktop icon-name overrides (JSON map in editorToolIcons).
     // Parsed once per setting change — iconOverride() is called from two
     // bindings on every tool row, and each keystroke in an override field used
@@ -3224,6 +3237,47 @@ Item {
                     }
                 }
             }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("System tray menu") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Choose which entries the tray menu shows. Open Unisic and Quit always stay.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Repeater {
+                        model: App.trayMenuEntries
+                        delegate: Item {
+                            width: parent.width
+                            height: 40
+                            Text {
+                                anchors.left: parent.left
+                                anchors.right: trayEntrySwitch.left
+                                anchors.rightMargin: Theme.spacingM
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.label
+                                elide: Text.ElideRight
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.fontM
+                            }
+                            USwitch {
+                                id: trayEntrySwitch
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                accessibleName: modelData.label
+                                checked: !page.trayItemHidden(modelData.id)
+                                onToggled: (c) => page.setTrayItemHidden(modelData.id, !c)
+                            }
+                        }
+                    }
+                }
+            }
         }
         }
 
@@ -3760,6 +3814,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tray menu entries"); onClicked: App.devTestTrayMenu() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }

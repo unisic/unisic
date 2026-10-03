@@ -3251,41 +3251,112 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
-                    Repeater {
-                        model: App.trayMenuEntries
-                        delegate: Item {
-                            width: parent.width
-                            height: 40
-                            // Forced to the bundled glyph: the tray menu draws
-                            // exactly these, so the list previews it faithfully
-                            // whatever desktop icon theme is active.
-                            UIcon {
-                                id: trayEntryIcon
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
-                                name: modelData.icon
-                                iconStyle: "custom"
-                                size: 18
-                                color: Theme.textSecondary
-                            }
-                            Text {
-                                anchors.left: trayEntryIcon.right
-                                anchors.leftMargin: 10
-                                anchors.right: trayEntrySwitch.left
-                                anchors.rightMargin: Theme.spacingM
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.label
-                                elide: Text.ElideRight
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontM
-                            }
-                            USwitch {
-                                id: trayEntrySwitch
-                                anchors.right: parent.right
-                                anchors.verticalCenter: parent.verticalCenter
-                                accessibleName: modelData.label
-                                checked: !page.trayItemHidden(modelData.id)
-                                onToggled: (c) => page.setTrayItemHidden(modelData.id, !c)
+                    // Drawn like the menu it controls: one popup panel, a rule
+                    // between groups, the bundled glyph the menu itself uses.
+                    // A row is the whole control; hidden rows go dim and
+                    // struck through, locked rows carry a lock instead.
+                    Rectangle {
+                        width: Math.min(parent.width, 360)
+                        height: trayPreview.implicitHeight + 2 * Theme.spacingS
+                        radius: Theme.radiusM
+                        color: Theme.surfaceHi
+                        border.width: 1
+                        border.color: Theme.divider
+                        Column {
+                            id: trayPreview
+                            x: Theme.spacingS
+                            y: Theme.spacingS
+                            width: parent.width - 2 * Theme.spacingS
+                            Repeater {
+                                model: App.trayMenuEntries
+                                delegate: Item {
+                                    id: trayRow
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool locked: modelData.locked
+                                    readonly property bool shown: locked || !page.trayItemHidden(modelData.id)
+                                    readonly property bool groupStart: index > 0
+                                        && App.trayMenuEntries[index - 1].group !== modelData.group
+                                    function _activate() {
+                                        if (!locked) page.setTrayItemHidden(modelData.id, shown)
+                                    }
+                                    width: parent.width
+                                    height: 34 + (groupStart ? Theme.spacingS * 2 + 1 : 0)
+                                    Rectangle {
+                                        visible: trayRow.groupStart
+                                        x: Theme.spacingS
+                                        y: Theme.spacingS
+                                        width: parent.width - 2 * Theme.spacingS
+                                        height: 1
+                                        color: Theme.divider
+                                    }
+                                    Rectangle {
+                                        id: rowBody
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width
+                                        height: 34
+                                        radius: Theme.radiusS
+                                        color: !trayRow.locked && rowMouse.containsMouse
+                                               ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                               : "transparent"
+                                        // Forced to the bundled glyph so the
+                                        // preview matches the menu on any
+                                        // desktop icon theme.
+                                        UIcon {
+                                            id: rowIcon
+                                            x: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.modelData.icon
+                                            iconStyle: "custom"
+                                            size: 18
+                                            color: Theme.textPrimary
+                                            opacity: trayRow.shown ? 1 : 0.35
+                                        }
+                                        Text {
+                                            anchors.left: rowIcon.right
+                                            anchors.leftMargin: 10
+                                            anchors.right: rowMark.left
+                                            anchors.rightMargin: Theme.spacingS
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: trayRow.modelData.label
+                                            elide: Text.ElideRight
+                                            color: Theme.textPrimary
+                                            font.pixelSize: Theme.fontM
+                                            font.strikeout: !trayRow.shown
+                                            opacity: trayRow.shown ? 1 : 0.4
+                                        }
+                                        UIcon {
+                                            id: rowMark
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.locked ? "lock" : "checkmark"
+                                            iconStyle: "custom"
+                                            size: 16
+                                            color: trayRow.locked ? Theme.textTertiary : Theme.accent
+                                            visible: trayRow.locked || trayRow.shown
+                                        }
+                                        MouseArea {
+                                            id: rowMouse
+                                            anchors.fill: parent
+                                            enabled: !trayRow.locked
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: trayRow._activate()
+                                        }
+                                        activeFocusOnTab: !trayRow.locked
+                                        Keys.onSpacePressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onReturnPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onEnterPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Accessible.role: Accessible.CheckBox
+                                        Accessible.name: trayRow.modelData.label
+                                        Accessible.focusable: activeFocusOnTab
+                                        Accessible.checkable: !trayRow.locked
+                                        Accessible.checked: trayRow.shown
+                                        Accessible.onPressAction: trayRow._activate()
+                                        UFocusRing { inset: 1 }
+                                    }
+                                }
                             }
                         }
                     }

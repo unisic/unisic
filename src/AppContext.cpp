@@ -5724,9 +5724,9 @@ QVariantList AppContext::trayMenuEntries() const
 {
     QVariantList out;
     for (const TrayEntry &e : trayEntryTable(const_cast<AppContext *>(this))) {
-        if (!e.locked)
-            out.append(QVariantMap{{QStringLiteral("id"), e.id}, {QStringLiteral("label"), e.label},
-                                   {QStringLiteral("icon"), e.icon}});
+        out.append(QVariantMap{{QStringLiteral("id"), e.id}, {QStringLiteral("label"), e.label},
+                               {QStringLiteral("icon"), e.icon}, {QStringLiteral("group"), e.group},
+                               {QStringLiteral("locked"), e.locked}});
     }
     return out;
 }

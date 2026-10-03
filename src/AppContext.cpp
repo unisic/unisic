@@ -5693,6 +5693,7 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("full-screen"), QStringLiteral("monitor"), AppContext::tr("Capture full screen"), 0, false, [a] { a->captureFullScreen(); }},
         {QStringLiteral("screen-under-cursor"), QStringLiteral("monitor"), AppContext::tr("Capture screen under cursor"), 0, false, [a] { a->captureScreenUnderCursor(); }},
         {QStringLiteral("window"), QStringLiteral("window"), AppContext::tr("Capture window"), 0, false, [a] { a->captureWindow(); }},
+        {QStringLiteral("scroll"), QStringLiteral("chevron-down"), AppContext::tr("Capture scrolling region"), 0, false, [a] { a->captureScroll(); }},
         {QStringLiteral("recapture"), QStringLiteral("region"), AppContext::tr("Re-capture last region"), 0, false, [a] { a->recaptureLastRegion(); }},
         {QStringLiteral("measure"), QStringLiteral("measure"), AppContext::tr("Measure"), 0, false, [a] { a->captureMeasure(); }},
         {QStringLiteral("ocr"), QStringLiteral("ocr"), AppContext::tr("Select text…"), 0, false, [a] { a->captureRegionOcr(); }},

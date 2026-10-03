@@ -3872,13 +3872,22 @@ QString AppContext::trayMenuCheck()
     }
     delete menu;
 
+    // Every entry's glyph must exist in the bundle, or the menu and the
+    // Settings list silently draw a blank where the icon belongs.
+    QStringList noGlyph;
+    for (const QVariant &v : trayMenuEntries()) {
+        const QString icon = v.toMap().value(QStringLiteral("icon")).toString();
+        if (!QFile::exists(QStringLiteral(":/resources/icons/sym/%1.svg").arg(icon)))
+            noGlyph.append(icon);
+    }
+
     const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
     const bool kept = texts.contains(tr("Capture full screen"))
                       && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
-    if (!hidden || !kept || badSeparator)
-        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3)")
-            .arg(hidden).arg(kept).arg(badSeparator);
-    return QStringLiteral("PASS (%1 entries listed; hide list honoured, Open/Quit locked)")
+    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty())
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4)")
+            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')));
+    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked)")
         .arg(trayMenuEntries().size());
 }
 

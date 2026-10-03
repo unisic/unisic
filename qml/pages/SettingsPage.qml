@@ -3256,8 +3256,21 @@ Item {
                         delegate: Item {
                             width: parent.width
                             height: 40
-                            Text {
+                            // Forced to the bundled glyph: the tray menu draws
+                            // exactly these, so the list previews it faithfully
+                            // whatever desktop icon theme is active.
+                            UIcon {
+                                id: trayEntryIcon
                                 anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: modelData.icon
+                                iconStyle: "custom"
+                                size: 18
+                                color: Theme.textSecondary
+                            }
+                            Text {
+                                anchors.left: trayEntryIcon.right
+                                anchors.leftMargin: 10
                                 anchors.right: trayEntrySwitch.left
                                 anchors.rightMargin: Theme.spacingM
                                 anchors.verticalCenter: parent.verticalCenter

@@ -133,7 +133,7 @@ class AppContext : public QObject
     Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
     // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
     Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
-    // The tray-menu entries the user may hide, as {id, label} in menu order.
+    // The tray-menu entries the user may hide, as {id, label, icon} in menu order.
     // Labels are translated here (the same strings the menu shows), so a
     // property rather than a function: it re-notifies when the language flips.
     Q_PROPERTY(QVariantList trayMenuEntries READ trayMenuEntries NOTIFY trayMenuEntriesChanged)

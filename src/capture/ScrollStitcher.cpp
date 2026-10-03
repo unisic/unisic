@@ -6,9 +6,11 @@
 
 namespace {
 
-// Per-channel tolerance of a "matching" pixel: absorbs dithering and colour
-// management rounding, far below the contrast a misaligned glyph edge makes.
-constexpr int kTol = 8;
+// Tolerance of a "matching" pixel of the smoothed frames (see smoothed()):
+// absorbs what is left of the difference between two ways of drawing the same
+// glyph, dithering and colour management rounding, far below the contrast a
+// misaligned glyph edge makes.
+constexpr int kTol = 24;
 // Contrast inside a row that makes it carry information (text, edges). Flat
 // rows match at every shift, so they never decide an alignment.
 constexpr int kFlat = 24;
@@ -23,6 +25,7 @@ inline bool pxEq(const uchar *a, const uchar *b)
 }
 
 inline int lum(const uchar *p) { return p[0] + 2 * p[1] + p[2]; }
+inline int lum32(quint32 px) { return int(px & 0xff) + 2 * int((px >> 8) & 0xff) + int((px >> 16) & 0xff); }
 
 struct Rows {
     const QImage &prev;
@@ -61,6 +64,38 @@ QImage as32(const QImage &img)
     return img.depth() == 32 ? img : img.convertToFormat(QImage::Format_RGB32);
 }
 
+// The picture the alignment is judged on: n columns, every sx pixels, each the
+// luminance averaged over the 3 pixels around it in its row, as gray. A browser
+// draws the same text with coloured sub-pixel fringes at one moment and with
+// plain gray smoothing at the next (Firefox on Wikipedia does, per block of the
+// page, depending on how it is composited), and the two differ by far more than
+// any per-channel tolerance on every glyph edge. Judged on raw pixels a page
+// standing still then looks changed in every text row while no shift fits, and
+// the capture reports "scrolled too far". Averaging along the row removes the
+// fringes, and only along the row, so the vertical resolution that tells shifts
+// apart stays. Only the sampled columns are built, so the picture is at most
+// ~1250 columns wide however wide the region is.
+QImage smoothed(const QImage &src, int sx, int n)
+{
+    const int w = src.width();
+    QImage out(n, src.height(), QImage::Format_RGB32);
+    QVector<int> l(w + 2);   // one row of luminance, edges repeated: a plain loop the compiler vectorizes
+    int *const lp = l.data();
+    for (int y = 0; y < src.height(); ++y) {
+        const quint32 *in = reinterpret_cast<const quint32 *>(src.constScanLine(y));
+        for (int x = 0; x < w; ++x)
+            lp[x + 1] = lum32(in[x]);
+        lp[0] = lp[1];
+        lp[w + 1] = lp[w];
+        quint32 *o = reinterpret_cast<quint32 *>(out.scanLine(y));
+        for (int i = 0; i < n; ++i) {
+            const quint32 v = quint32(lp[i * sx] + lp[i * sx + 1] + lp[i * sx + 2]) / 12;   // lum32() weighs to 4, three pixels
+            o[i] = 0xff000000u | v << 16 | v << 8 | v;
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QImage &currIn)
@@ -68,11 +103,18 @@ ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QIma
     Shift out;
     if (prevIn.isNull() || prevIn.size() != currIn.size())
         return out;
-    const QImage prev = as32(prevIn);
-    const QImage curr = as32(currIn);
-    const int w = curr.width();
-    const int h = curr.height();
+    const int w = currIn.width();
+    const int h = currIn.height();
     if (w < 8 || h < 32)
+        return out;
+    const QImage prev32 = as32(prevIn);
+    const QImage curr32 = as32(currIn);
+
+    // A page standing still, the usual state, needs none of the work below.
+    bool same = true;
+    for (int y = 0; same && y < h; ++y)
+        same = std::memcmp(prev32.constScanLine(y), curr32.constScanLine(y), size_t(w) * 4) == 0;
+    if (same)
         return out;
 
     // Sample at most ~640 columns: vertical alignment only needs enough of each
@@ -83,19 +125,75 @@ ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QIma
     // and would only dilute the comparison. The right edge is skipped too: the
     // scrollbar thumb moves at its own pace, overlay scrollbars fade in there.
     const int scrollbar = std::clamp(w / 16, 8, 40);
-    QVector<int> cols;
-    cols.reserve(w / sx + 1);
-    for (int x = 0; x < w - scrollbar; x += sx) {
-        const int off = x * 4;
-        for (int y = 0; y < h; ++y) {
-            if (!pxEq(prev.constScanLine(y) + off, curr.constScanLine(y) + off)) {
-                cols.append(off);
-                break;
+    const int n = std::max(0, (w - scrollbar + sx - 1) / sx);
+    if (n < 4)
+        return out;
+    const QImage prev = smoothed(prev32, sx, n);
+    const QImage curr = smoothed(curr32, sx, n);
+
+    QVector<int> cols;   // byte offsets into a row of the smoothed pictures
+    {
+        QVector<uchar> moved(n, 0);
+        int left = n;
+        for (int y = 0; y < h && left > 0; ++y) {   // row by row: columns are cache-hostile
+            const uchar *a = prev.constScanLine(y);
+            const uchar *b = curr.constScanLine(y);
+            for (int i = 0; i < n; ++i) {
+                if (!moved[i] && !pxEq(a + i * 4, b + i * 4)) {
+                    moved[i] = 1;
+                    --left;
+                }
             }
+        }
+        cols.reserve(n - left);
+        for (int i = 0; i < n; ++i) {
+            if (moved[i])
+                cols.append(i * 4);
         }
     }
     if (cols.size() < 4)
         return out;   // identical, or a few pixels flickered
+
+    // Changes far apart span as many rows as a scroll does, yet nothing moved:
+    // a link underlined under the pointer plus the highlighted entry of a
+    // contents list. Judged as a scroll they never find a shift, and with the
+    // page standing still the controller counts up to "scrolled too far".
+    // What tells them apart is whether the text lines themselves moved: in a
+    // scroll nearly every informative row of a block of columns differs in
+    // place (88 % even for 1 px on a Wikipedia page), here a few percent do.
+    // Blocks that stay put leave the comparison, and no block with text left
+    // means nothing scrolled (columns without text cannot tell). That also keeps a sticky sidebar out of the way of the page,
+    // but only when the moving blocks are at least half of the columns:
+    // otherwise a panel scrolling by itself would pass for the page.
+    {
+        const int gap = (std::max(12, 2 * sx) + sx - 1) / sx * 4;   // bytes: closer columns are one block
+        QVector<int> moving;
+        bool text = false, textMoved = false;
+        for (int i = 0; i < cols.size();) {
+            int j = i + 1;
+            while (j < cols.size() && cols[j] - cols[j - 1] <= gap)
+                ++j;
+            const QVector<int> block = cols.mid(i, j - i);
+            const Rows br{prev, curr, block, std::max(1, int(block.size()) / 50)};
+            int inf = 0, moved = 0;
+            for (int y = 0; y < h; ++y) {
+                if (!br.informative(y))
+                    continue;
+                ++inf;
+                moved += !br.equal(y, y);
+            }
+            text |= inf > 0;
+            if (inf == 0 || moved * 2 >= inf) {   // no text to judge by: keep it
+                moving += block;
+                textMoved |= inf > 0;
+            }
+            i = j;
+        }
+        if (moving.isEmpty() || (text && !textMoved))
+            return out;
+        if (moving.size() >= 4 && moving.size() * 2 >= cols.size())
+            cols = moving;
+    }
 
     // A row still matches with a few differing pixels (a blinking caret).
     // Any looser and the ascender/descender rows of a misaligned text line,
@@ -169,34 +267,72 @@ ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QIma
         }
     }
 
-    // Exact verification against the pixels.
+    // Exact verification against the pixels. At least 75 % of the informative
+    // rows must match, not counting one window of rows that differ: the
+    // hover card Wikipedia opens over a link or a footnote, or a picture that
+    // finishes loading, covers a good part of the view for a few frames and
+    // would otherwise make the true shift fail by a single row.
     int bestInf = -1, bestBad = 0, bestD = 0;
-    for (int d : check) {
+    QVector<int> miss;
+    QVector<uchar> flags;   // per row of the overlap: bit 0 informative, bit 1 matching
+    auto verify = [&](const Rows &r, int d) {
         const int y0 = d > 0 ? areaTop : areaTop - d;
         const int y1 = d > 0 ? areaBottom - d : areaBottom;
         const int overlap = y1 - y0;
+        const int window = overlap / 3;
         int inf = 0, infOk = 0, bad = 0;
-        bool dead = false;
+        miss.clear();
+        flags.resize(overlap);
         for (int y = y0; y < y1; ++y) {
-            const bool ok = rows.equal(y + d, y);
-            const bool info = rows.informative(y);
+            const bool ok = r.equal(y + d, y);
+            const bool info = r.informative(y);
+            flags[y - y0] = uchar(info | (ok << 1));
             inf += info;
             infOk += info && ok;
             bad += !ok;
-            if (info && !ok && (inf - infOk) * 4 > overlap) {
-                dead = true;   // cannot reach 75% any more
-                break;
+            if (info && !ok) {
+                miss.append(y);
+                if (miss.size() > window + overlap / 4)
+                    return;   // cannot reach 75 % any more
             }
         }
-        if (dead || infOk < 6 || infOk * 4 < inf * 3)
-            continue;
+        if (infOk < 6)
+            return;
+        bool fits = infOk * 4 >= inf * 3;
+        if (!fits && infOk * 2 >= inf) {
+            int first = 0, covered = 0, lo = 0, hi = -1;
+            for (int last = 0; last < miss.size(); ++last) {
+                while (miss[last] - miss[first] >= window)
+                    ++first;
+                if (last - first + 1 > covered) {
+                    covered = last - first + 1;
+                    lo = first;
+                    hi = last;
+                }
+            }
+            int winInf = 0, winOk = 0;
+            if (hi >= lo) {
+                for (int y = miss[lo]; y <= miss[hi]; ++y) {
+                    const uchar f = flags[y - y0];
+                    winInf += f & 1;
+                    winOk += (f & 1) && (f & 2);
+                }
+            }
+            const int restInf = inf - winInf, restOk = infOk - winOk;
+            fits = restOk >= 6 && restOk * 4 >= restInf * 3;
+        }
+        if (!fits)
+            return;
         if (infOk > bestInf || (infOk == bestInf && (bad < bestBad
                 || (bad == bestBad && std::abs(d) < std::abs(bestD))))) {
             bestInf = infOk;
             bestBad = bad;
             bestD = d;
         }
-    }
+    };
+    for (int d : check)
+        verify(rows, d);
+
     if (bestInf < 0)
         return out;
 

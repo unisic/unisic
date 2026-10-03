@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <QTest>
 #include <QImage>
 #include <QPainter>
@@ -18,10 +19,15 @@ private slots:
     void irregularStepsAreByteExact();
     void stickyHeaderAndFooterAppearOnce();
     void staticSidebarAndScrollbarDoNotBreakAlignment();
+    void changingStickySidebarDoesNotBreakAlignment();
     void scrollingUpExtendsTheTop();
     void scrollingBackAndForthDoesNotDuplicate();
     void tooFastScrollIsUnmatched();
     void localAnimationIsUnchanged();
+    void scatteredSmallChangesAreUnchanged();
+    void hoverCardOverTheViewDoesNotBlockTheShift();
+    void veryWideFrameStillScrolls();
+    void textSmoothingChangeIsNotAChange();
     void lateLoadedContentTakesNewerPixels();
     void replacesBaseBeforeFirstScroll();
     void sizeCapStopsGrowth();
@@ -30,6 +36,7 @@ private slots:
 
 private:
     static QImage document(int w, int h);
+    static QImage subpixel(const QImage &gray);
 };
 
 // Text-like content: dense lines with real glyphs, blank gaps and repeated
@@ -57,6 +64,25 @@ QImage ScrollStitchTest::document(int w, int h)
     }
     p.end();
     return doc;
+}
+
+// The same picture with coloured fringes on every edge, the way a browser draws
+// text with sub-pixel smoothing instead of the plain gray one: red and blue
+// are sampled a third of a pixel to either side of green.
+QImage ScrollStitchTest::subpixel(const QImage &gray)
+{
+    const QImage src = gray.convertToFormat(QImage::Format_RGB32);
+    QImage out(src.size(), QImage::Format_RGB32);
+    for (int y = 0; y < src.height(); ++y) {
+        const QRgb *p = reinterpret_cast<const QRgb *>(src.constScanLine(y));
+        QRgb *o = reinterpret_cast<QRgb *>(out.scanLine(y));
+        const int last = src.width() - 1;
+        for (int x = 0; x <= last; ++x) {
+            const QRgb l = p[std::max(x - 1, 0)], r = p[std::min(x + 1, last)];
+            o[x] = qRgb((2 * qRed(p[x]) + qRed(l)) / 3, qGreen(p[x]), (2 * qBlue(p[x]) + qBlue(r)) / 3);
+        }
+    }
+    return out;
 }
 
 void ScrollStitchTest::firstFrameStarts()
@@ -171,6 +197,38 @@ void ScrollStitchTest::staticSidebarAndScrollbarDoNotBreakAlignment()
              doc.copy(side, 0, w - side - bar, y + vh));
 }
 
+// A sticky contents list beside the article (Wikipedia): it does not scroll
+// with the page, yet the highlight of the current section moves between
+// frames, so its columns join the compared ones and every row with list text
+// would mismatch at the true shift. They leave the comparison because the list
+// stays put: only a few of its rows differ in place, unlike the article's.
+void ScrollStitchTest::changingStickySidebarDoesNotBreakAlignment()
+{
+    const int side = 110, gap = 20, aw = 390, w = side + gap + aw, vh = 300;
+    const QImage doc = document(aw, 1800);
+    auto frame = [&](int y) {
+        QImage f(w, vh, QImage::Format_RGB32);
+        f.fill(Qt::white);
+        QPainter p(&f);
+        p.drawImage(side + gap, 0, doc.copy(0, y, aw, vh));
+        p.fillRect(4, 10 + (y / 90 % 8) * 30 - 14, side - 8, 22, QColor(200, 220, 255));
+        p.setPen(Qt::black);
+        for (int i = 0; i < 8; ++i)
+            p.drawText(8, 10 + i * 30, QStringLiteral("Section %1").arg(i));
+        return f;
+    };
+    ScrollStitcher s;
+    s.addFrame(frame(0));
+    int y = 0;
+    for (int d : {40, 75, 12, 120, 60, 90}) {
+        y += d;
+        QVERIFY2(s.addFrame(frame(y)) == R::Stitched, qPrintable(QStringLiteral("y %1").arg(y)));
+    }
+    const QImage got = s.stitchedImage();
+    QCOMPARE(got.height(), y + vh);
+    QCOMPARE(got.copy(side + gap, 0, aw, got.height()), doc.copy(0, 0, aw, y + vh));
+}
+
 void ScrollStitchTest::scrollingUpExtendsTheTop()
 {
     const QImage doc = document(350, 1400);
@@ -226,6 +284,87 @@ void ScrollStitchTest::localAnimationIsUnchanged()
     p.end();
     QCOMPARE(s.addFrame(f), R::Unchanged);
     QCOMPARE(s.stitchedHeight(), 280);
+}
+
+// A link underlined under the pointer and a highlighted entry of a contents
+// list, far apart: together they span a third of the frame, yet nothing
+// scrolled. This must not read as a scroll that found no shift, or a capture
+// that is merely paused counts up to "scrolled too far".
+void ScrollStitchTest::scatteredSmallChangesAreUnchanged()
+{
+    const QImage doc = document(350, 1500);
+    const int vh = 300;
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 350, vh));
+    QCOMPARE(s.addFrame(doc.copy(0, 50, 350, vh)), R::Stitched);
+    for (int i = 0; i < 12; ++i) {
+        QImage f = doc.copy(0, 50, 350, vh);
+        QPainter p(&f);
+        p.fillRect(250, 8 + i % 3, 80, 14, QColor(200, 220, 255));   // highlight
+        p.fillRect(12, 200, 170, 1, QColor(20, 20, 20));             // underline
+        p.end();
+        QCOMPARE(s.addFrame(f), R::Unchanged);
+    }
+    QCOMPARE(s.addFrame(doc.copy(0, 110, 350, vh)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 350, 110 + vh));
+}
+
+// The card Wikipedia opens over a link or a footnote hovered by the pointer
+// covers a good part of the view for a few frames. On a standing page it is not
+// a scroll; during one it is a block of rows that differ and must not make the
+// true shift fail, and the rows it covered are repainted once it is gone.
+void ScrollStitchTest::hoverCardOverTheViewDoesNotBlockTheShift()
+{
+    const QImage doc = document(350, 1500);
+    const int vh = 300;
+    auto withCard = [&](int y) {
+        QImage f = doc.copy(0, y, 350, vh);
+        QPainter p(&f);
+        p.fillRect(30, 90, 280, 72, QColor(235, 235, 250));
+        p.setPen(QColor(60, 60, 120));
+        p.drawText(40, 110, QStringLiteral("Phelan, William (2012). What Is Sui Generis"));
+        p.drawText(40, 130, QStringLiteral("About the European Union? Costly Cooperation"));
+        p.end();
+        return f;
+    };
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 350, vh));
+    QCOMPARE(s.addFrame(withCard(0)), R::Unchanged);
+    QCOMPARE(s.addFrame(withCard(40)), R::Stitched);
+    QCOMPARE(s.addFrame(doc.copy(0, 100, 350, vh)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 350, 100 + vh));
+}
+
+// Columns are sampled every w/640 px, so on a region several monitors wide the
+// sampled columns of one text block are further apart than any fixed gap.
+void ScrollStitchTest::veryWideFrameStillScrolls()
+{
+    const QImage doc = document(12000, 900);
+    const int vh = 250;
+    ScrollStitcher s;
+    s.addFrame(doc.copy(0, 0, 12000, vh));
+    QCOMPARE(s.addFrame(doc.copy(0, 40, 12000, vh)), R::Stitched);
+    QCOMPARE(s.addFrame(doc.copy(0, 130, 12000, vh)), R::Stitched);
+    QCOMPARE(s.stitchedImage(), doc.copy(0, 0, 12000, 130 + vh));
+}
+
+// Firefox on Wikipedia redraws the text of a block of the page with sub-pixel
+// smoothing at one moment and with gray smoothing at the next. Every glyph edge
+// then differs between two frames of the same page, which once made a page
+// standing still look scrolled with no shift to fit ("scrolled too far"), and a
+// real scroll between a frame of one kind and a frame of the other unmatched.
+void ScrollStitchTest::textSmoothingChangeIsNotAChange()
+{
+    const QImage doc = document(350, 1500);
+    const int vh = 300;
+    ScrollStitcher s;
+    s.addFrame(subpixel(doc.copy(0, 0, 350, vh)));
+    QCOMPARE(s.addFrame(doc.copy(0, 0, 350, vh)), R::Unchanged);
+    QCOMPARE(s.addFrame(doc.copy(0, 3, 350, vh)), R::Stitched);
+    QCOMPARE(s.addFrame(subpixel(doc.copy(0, 3, 350, vh))), R::Unchanged);
+    QCOMPARE(s.addFrame(subpixel(doc.copy(0, 70, 350, vh))), R::Stitched);
+    QCOMPARE(s.addFrame(doc.copy(0, 150, 350, vh)), R::Stitched);
+    QCOMPARE(s.stitchedImage().height(), 150 + vh);
 }
 
 void ScrollStitchTest::lateLoadedContentTakesNewerPixels()

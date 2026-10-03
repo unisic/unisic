@@ -70,6 +70,16 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.7" date="2026-10-03" type="development">
+      <description>
+        <p>Capture tall pages and long documents in one picture with the new scrolling capture (start it from the main window or with --scroll). The editor draws straight pen lines with Shift or Ctrl, has a zoom control and zooms with Ctrl+wheel; a recording can take sound from several applications at once; the activity log opens inside Settings. The System theme now follows GNOME's dark style, the QR code, file path, Markdown and HTML actions show their icons on every desktop, and the window no longer jumps back up after a capture.</p>
+      </description>
+    </release>
+    <release version="0.8.6" date="2026-09-24" type="development">
+      <description>
+        <p>vgy.me is now a built-in upload destination: the server editor shows a dedicated user key field when the URL points at vgy.me, and uploads without a key are refused early with a clear message. Recordings keep audio and video in sync after pausing: frames carry wall-clock timestamps so a pause removes a slice of time instead of re-numbering every frame and drifting from the audio. The Fedora installer uses dnf upgrade when Unisic is already installed, and .deb/.rpm packages now carry a proper description. Closes #114.</p>
+      </description>
+    </release>
     <release version="0.8.5" date="2026-09-03">
       <description>
         <p>Save screenshots to any folder or format with the new Save split button in the editor: click the main half to save or overwrite as usual, or open the dropdown for "Save as…" with a native path dialog and one-click export to PNG, JPEG, WebP, or GIF. Every package is complete: hard build gates guarantee that no packaging channel ships with missing features, libraries or language data. Updates and installer assets are checked against GitHub SHA-256 release digests before installation, and the installer recommends a self-updating portable AppImage requiring no password. The command line now provides comprehensive --help and exits immediately on --version.</p>

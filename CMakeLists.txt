@@ -661,6 +661,13 @@ if(BUILD_TESTING)
         PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME unisic_theme_json_test COMMAND unisic_theme_json_test)
 
+    # Pure file scan: QML icon names against the kit's bundled glyphs.
+    qt_add_executable(unisic_icon_coverage_test tests/IconCoverageTest.cpp)
+    target_link_libraries(unisic_icon_coverage_test PRIVATE Qt6::Core Qt6::Test)
+    target_compile_definitions(unisic_icon_coverage_test
+        PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME unisic_icon_coverage_test COMMAND unisic_icon_coverage_test)
+
     qt_add_executable(unisic_theme_seed_test
         tests/ThemeSeedTest.cpp
         external/unisic-kit/src/theme/ThemeController.h

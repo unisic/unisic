@@ -6,6 +6,26 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.6
+
+### English
+**Added**
+- **vgy.me upload destination and user key support**: vgy.me is now available as a built-in upload server, and the server editor provides a dedicated user key field whenever a vgy.me address is used to associate uploads with your account. Thanks to aliceabyss for requesting this ([#114](https://github.com/unisic/unisic/issues/114)).
+
+**Fixed**
+- **Recordings keep audio and video in sync**: pausing and resuming a recording could make the video speed up to catch up with the audio, and on a computer too slow to encode every frame the video ran ahead of the sound for the rest of the clip. Every frame now carries the moment it was captured into the file, so a pause removes exactly its own slice of time and a busy encoder only lowers the frame rate for a moment instead of shortening the video.
+- **The Fedora installer updates instead of failing when Unisic is already installed**: running the installer on Fedora with Unisic already present tried `dnf install` on a package that was already there, which dnf refused. It now uses `dnf upgrade --refresh` when an existing install is detected, so the update goes through. Picking an older version in the version menu now really installs it, instead of reporting success and keeping the newer one.
+- **Debian and RPM packages carry a proper description**: the `.deb` and `.rpm` built by CPack had an empty or generic description field; package managers now show what Unisic actually is ([#116](https://github.com/unisic/unisic/issues/116)).
+
+### Polski
+**Dodane**
+- **Obsługa serwera wysyłania vgy.me i klucza użytkownika**: vgy.me jest teraz dostępny jako wbudowany serwer wysyłania, a edytor serwerów oferuje dedykowane pole klucza użytkownika dla adresu vgy.me, co pozwala przypisać wysyłane pliki do Twojego konta. Podziękowania dla aliceabyss za zgłoszenie ([#114](https://github.com/unisic/unisic/issues/114)).
+
+**Naprawione**
+- **Nagrania zachowują synchronizację audio i wideo**: wstrzymanie i wznowienie nagrywania mogło sprawić, że obraz przyspieszał, żeby dogonić dźwięk, a na komputerze zbyt wolnym, by zakodować każdą klatkę, obraz wyprzedzał dźwięk do końca klipu. Każda klatka niesie teraz do pliku moment, w którym została przechwycona, więc pauza wycina dokładnie swój fragment czasu, a zajęty enkoder tylko na chwilę obniża liczbę klatek na sekundę, zamiast skracać wideo.
+- **Instalator na Fedorze aktualizuje zamiast kończyć się błędem, gdy Unisic jest już zainstalowany**: uruchomienie instalatora na Fedorze z już zainstalowanym Unisicem próbowało `dnf install` na paczce, która już była, a dnf tego odmawiał. Teraz używa `dnf upgrade --refresh`, gdy wykryje istniejącą instalację, więc aktualizacja przechodzi. Wybranie starszej wersji w menu wersji naprawdę ją teraz instaluje, zamiast zgłaszać sukces i zostawiać nowszą.
+- **Paczki Debian i RPM mają właściwy opis**: `.deb` i `.rpm` zbudowane przez CPack miały puste albo ogólnikowe pole opisu; menedżery pakietów pokazują teraz, czym Unisic naprawdę jest ([#116](https://github.com/unisic/unisic/issues/116)).
+
 ## 0.8.5
 
 ### English
@@ -14,7 +34,6 @@ whole per release (not per individual change).
 
 **Improved**
 - **Shift or Ctrl with the pen draws a straight line**: drag with either key held and the line runs from where you pressed to the pointer. A click without a drag joins the end of your last pen stroke to the click instead, and each further click carries on from there, so a polyline is a few clicks. Pressing Ctrl mid-stroke now lays a straight segment just like Shift; let go to keep drawing freehand. It works with the freehand highlighter too, and Ctrl+Z takes the line back.
-- **vgy.me upload destination and user key support**: vgy.me is now available as a built-in upload server, and the server editor provides a dedicated user key field whenever a vgy.me address is used to associate uploads with your account. Thanks to aliceabyss for requesting this ([#114](https://github.com/unisic/unisic/issues/114)).
 - **Save as and direct format export in the editor**: the Save button in the editor is now a split button. Clicking it saves or overwrites the file as usual, while the dropdown arrow lets you pick "Save as…" (Ctrl+Shift+S) to choose a destination path and format via a native file dialog, or quick-save directly as PNG, JPEG, WebP, or GIF.
 - **The command line can tell you how to use it**: run `unisic --help` to see every capture, settings and startup option without opening the application. An unrecognised option or argument now prints the same guide instead of silently starting Unisic - contributed by Bob van der Linden ([@bobvanderlinden](https://github.com/bobvanderlinden)).
 - **Whatever you installed Unisic from, it can do everything Unisic does**: a package could be built without one of the pieces the program is made of, and nothing anywhere said so - the feature was simply not there, the switch in Settings sat greyed out blaming "this build", and the only way anyone found out was a bug report months later. Several of the fixes below are exactly that, each in a different package. It cannot happen again: building Unisic without any part of it now stops before a single file is compiled and names the missing piece, so a package that exists at all is a complete one. Runtime tools and OCR data are required or bundled too; the first-run system check now treats a missing item as an incomplete installation instead of calling it optional. Nothing changes in how you use the program; this is the promise behind the entries under it, and the reason there will not be another list like them.
@@ -46,7 +65,6 @@ whole per release (not per individual change).
 
 **Ulepszone**
 - **Shift lub Ctrl z ołówkiem rysuje prostą linię**: przeciągnij z wciśniętym którymś z nich, a linia biegnie od miejsca wciśnięcia do kursora. Kliknięcie bez przeciągania łączy za to koniec ostatniej kreski z miejscem kliknięcia, a każde kolejne kliknięcie ciągnie linię dalej, więc łamana to kilka kliknięć. Ctrl wciśnięty w trakcie rysowania kładzie teraz prosty odcinek tak samo jak Shift; puść, żeby rysować dalej odręcznie. Działa też z zakreślaczem odręcznym, a Ctrl+Z cofa linię.
-- **Obsługa serwera wysyłania vgy.me i klucza użytkownika**: vgy.me jest teraz dostępny jako wbudowany serwer wysyłania, a edytor serwerów oferuje dedykowane pole klucza użytkownika dla adresu vgy.me, co pozwala przypisać wysyłane pliki do Twojego konta. Podziękowania dla aliceabyss za zgłoszenie ([#114](https://github.com/unisic/unisic/issues/114)).
 - **Zapisz jako i bezpośredni eksport formatu w edytorze**: przycisk Zapisz w edytorze jest teraz przyciskiem dzielonym (split button). Kliknięcie go zapisuje lub nadpisuje plik jak dotąd, natomiast rozwijana strzałka pozwala wybrać „Zapisz jako…” (Ctrl+Shift+S), aby wskazać ścieżkę w natywnym oknie dialogowym, albo szybko zapisać bezpośrednio jako PNG, JPEG, WebP lub GIF.
 - **Wiersz poleceń potrafi teraz wyjaśnić, jak go używać**: uruchom `unisic --help`, aby zobaczyć wszystkie opcje przechwytywania, ustawień i uruchamiania bez otwierania aplikacji. Nierozpoznana opcja lub argument wyświetla teraz tę samą podpowiedź zamiast po cichu uruchamiać Unisic - przygotowane przez Boba van der Lindena ([@bobvanderlinden](https://github.com/bobvanderlinden)).
 - **Skąd byś Unisica nie zainstalował, potrafi wszystko to, co Unisic**: paczkę dało się zbudować bez którejś z części, z których program się składa, i nic nigdzie tego nie mówiło - funkcji po prostu nie było, przełącznik w Ustawieniach stał wyszarzony, zrzucając winę na „tę kompilację", a jedynym sposobem, żeby się o tym dowiedzieć, było zgłoszenie błędu kilka miesięcy później. Kilka poprawek poniżej to dokładnie takie przypadki, każdy w innej paczce. To się już nie powtórzy: budowanie Unisica bez którejkolwiek z jego części zatrzymuje się teraz, zanim skompiluje się choćby jeden plik, i nazywa brakujący element, więc paczka, która w ogóle istnieje, jest kompletna. Narzędzia uruchomieniowe i dane OCR są również wymagane albo dołączone; sprawdzenie systemu przy pierwszym uruchomieniu traktuje teraz brak jako niekompletną instalację, zamiast nazywać go opcjonalnym. W samym używaniu programu nic się nie zmienia; to jest obietnica stojąca za wpisami poniżej i powód, dla którego drugiej takiej listy nie będzie.

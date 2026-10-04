@@ -227,6 +227,8 @@ private:
     QVector<QPair<qint64, qint64>> m_pauseIntervals; // completed [startMs,endMs] spans to excise
     int m_fps = 15;
     qint64 m_framesWritten = 0; // wall-clock pacing (see sampleFrame)
+    qint64 m_videoOriginMs = -1; // m_elapsed of the first frame: t=0 of the file
+    qint64 m_lastPtsMs = -1;     // last frame timestamp written (kept strictly rising)
     QRect m_crop;
     QRect m_encodeCrop;
     QSize m_streamSize;

@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <ctime>
 #include "Settings.h"
+#include "MatroskaRawStream.h"
 #include "StreamGeometry.h"
 #include "VideoQuality.h"
 #include "capture/ScreenCastSession.h"
@@ -735,6 +736,8 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     const int fps = qBound(1, m_output == Gif ? m_settings->gifFps() : m_settings->videoFps(), 60);
     m_fps = fps;
     m_framesWritten = 0;
+    m_videoOriginMs = -1;
+    m_lastPtsMs = -1;
     m_paused = false;
     m_pauseStartMs = 0;
     m_pausedTotalMs = 0;
@@ -781,16 +784,19 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // unbounded in the QProcess read buffer for the whole recording.
     QStringList args{QStringLiteral("-y"),
                      QStringLiteral("-nostats"), QStringLiteral("-loglevel"), QStringLiteral("error"),
-                     QStringLiteral("-use_wallclock_as_timestamps"), QStringLiteral("1"),
-                     QStringLiteral("-f"), QStringLiteral("rawvideo"),
-                     QStringLiteral("-pix_fmt"), pixFmt,
-                     QStringLiteral("-video_size"),
-                     QStringLiteral("%1x%2").arg(m_encodeSize.width()).arg(m_encodeSize.height()),
-                     QStringLiteral("-framerate"), QString::number(fps),
-                     // Absorb hand-off jitter and thread scheduling without retaining
-                     // unbounded memory.
-                     QStringLiteral("-thread_queue_size"), QStringLiteral("16"),
+                     // Streamed Matroska, not rawvideo: each frame carries the
+                     // time it was sampled (see MatroskaRawStream.h). Size,
+                     // pixel order and nominal rate are in the header that the
+                     // started handler writes first.
+                     QStringLiteral("-f"), QStringLiteral("matroska"),
+                     // A raw packet is a whole frame. 512 here can make ffmpeg
+                     // retain tens of gigabytes independently of QProcess's
+                     // bounded writeCap; two frames absorb hand-off jitter
+                     // without recreating a second large frame reservoir.
+                     QStringLiteral("-thread_queue_size"), QStringLiteral("2"),
                      QStringLiteral("-i"), QStringLiteral("-")};
+    const QByteArray streamHeader = MatroskaRawStream::header(
+        m_encodeSize.width(), m_encodeSize.height(), pixFmt, fps);
 
     // Audio inputs are added after raw screen input 0.
     int nextInput = 1;
@@ -947,6 +953,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         args << QStringLiteral("-filter_complex") << filters.join(QLatin1Char(';'));
 
     args << QStringLiteral("-map") << videoMap;
+    // Keep the sampled timestamps as they are. Muxers without variable frame
+    // rate (the replay ring's segment muxer) otherwise resample to the 1 ms
+    // time base: measured 30 frames in, 702 out.
+    args << QStringLiteral("-fps_mode") << QStringLiteral("passthrough");
 
     // Audio mux: one source maps straight through, two or more are mixed unless
     // the user asked for separate tracks. Stored as lossless FLAC in the
@@ -1062,9 +1072,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // mis-reported a merely slow spawn as a failure. Recording state begins
     // once the process is really up; stop/abort during the spawn window is
     // covered by the identity + state guard (stopProcess also disconnects).
-    connect(encoder, &QProcess::started, this, [this, encoder, fps] {
+    connect(encoder, &QProcess::started, this, [this, encoder, fps, streamHeader] {
         if (m_ffmpeg != encoder || m_state != Starting)
             return;
+        encoder->write(streamHeader);
         m_state = Recording;
         m_elapsed.start();
         m_elapsedTick.start();
@@ -1120,15 +1131,15 @@ void GifRecorder::sampleFrame()
     // ×30 measured as a standing 462 MB RSS at 1440p (~1 GB at 4K), and every
     // buffered byte also delays stop(): closeWriteChannel() flushes the entire
     // backlog through the encoder before conversion can begin. A sustained
-    // deficit drops samples at ANY cap (pacing duplicates frames afterwards),
+    // deficit drops samples at ANY cap (the next frame's timestamp spans the gap),
     // so a big backlog buys nothing beyond burst absorption - ×6 (~200 ms at
     // 30 fps) absorbs the same stalls at a fraction of the memory.
     const qsizetype frameBytes = qsizetype(m_encodeSize.width()) * m_encodeSize.height() * 4;
     if (frameBytes <= 0)
         return;
     const qsizetype absoluteCap = qsizetype(192) * 1024 * 1024;
-    const qsizetype queuedFrames = qBound(qsizetype(2), absoluteCap / frameBytes,
-                                          qsizetype(16));
+    const qsizetype queuedFrames = qBound(qsizetype(1), absoluteCap / frameBytes,
+                                          qsizetype(6));
     const qsizetype writeCap = frameBytes * queuedFrames;
     if (m_ffmpeg->bytesToWrite() + frameBytes > writeCap)
         return;
@@ -1192,18 +1203,23 @@ void GifRecorder::sampleFrame()
     if (m_cursorOverlayActive || m_keystrokeOverlayActive)
         encoded = compositeCursorOverlay(encoded, monoNowNs());
 
-    // Wall-clock pacing: the timer interval truncates (1000/30 = 33 ms →
-    // 30.3 fps) and backpressure drops ticks. With -use_wallclock_as_timestamps
-    // on ffmpeg's rawvideo input, each frame gets its real arrival timestamp.
-    // Dropped ticks or scheduling delays lower the visual framerate during lag
-    // rather than deleting time from the container (which caused video
-    // acceleration and A/V desync). We write at most 1 frame per tick and
-    // update m_framesWritten to target to prevent flooding an already-
-    // backpressured encoder with bursts of duplicate backlog frames.
-    const qint64 target = m_elapsed.elapsed() * m_fps / 1000 + 1;
+    // Pacing: the timer interval truncates (1000/30 = 33 ms -> 30.3 fps) and
+    // backpressure drops ticks. Each frame is stamped with the time it was
+    // sampled, so a dropped tick lowers the frame rate for that moment instead
+    // of deleting time from the file, and nothing has to be duplicated to keep
+    // the clock. The gate below only keeps the rate at or under m_fps.
+    // Timestamps count from the first frame because ffmpeg starts the input
+    // there; maybeExcisePauses shifts the pause spans by the same origin.
+    const qint64 now = m_elapsed.elapsed();
+    const qint64 target = now * m_fps / 1000 + 1;
     if (target <= m_framesWritten)
         return; // ahead of schedule
+    if (m_videoOriginMs < 0)
+        m_videoOriginMs = now;
+    const qint64 pts = qMax(now - m_videoOriginMs, m_lastPtsMs + 1);
 
+    if (m_ffmpeg->write(MatroskaRawStream::frameHeader(pts, encoded.size())) <= 0)
+        return;
     qsizetype offset = 0;
     while (offset < encoded.size()) {
         const qint64 written = m_ffmpeg->write(encoded.constData() + offset,
@@ -1212,8 +1228,10 @@ void GifRecorder::sampleFrame()
             break;
         offset += written;
     }
-    if (offset == encoded.size())
+    if (offset == encoded.size()) {
         m_framesWritten = target;
+        m_lastPtsMs = pts;
+    }
 }
 
 void GifRecorder::stop()
@@ -1660,7 +1678,15 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
 
     const QString excised = m_tempPath + QStringLiteral(".cut.mkv");
     QFile::remove(excised);
-    const QStringList args = pauseExciseArgs(m_tempPath, excised, m_pauseIntervals, m_hasAudio);
+    // The spans are on m_elapsed, which starts with the process; the file
+    // starts at the first sampled frame (see sampleFrame), later than that.
+    QVector<QPair<qint64, qint64>> spans;
+    const qint64 origin = qMax<qint64>(0, m_videoOriginMs);
+    for (const auto &iv : std::as_const(m_pauseIntervals)) {
+        if (iv.second > origin)
+            spans.append({qMax<qint64>(0, iv.first - origin), iv.second - origin});
+    }
+    const QStringList args = pauseExciseArgs(m_tempPath, excised, spans, m_hasAudio);
 
     auto *conv = new QProcess(this);
     m_converter = conv;
@@ -1699,8 +1725,8 @@ void GifRecorder::maybeExcisePauses(std::function<void()> thenConvert)
 
 void GifRecorder::convertToGif()
 {
-    // Captured at recording start (beginEncoding): the intermediate was encoded
-    // with -framerate m_fps, so reading a mid-recording gifFps() change here
+    // Captured at recording start (beginEncoding): the intermediate's nominal
+    // rate (its DefaultDuration) is m_fps, so reading a mid-recording gifFps() change here
     // would quadruple/drop every frame relative to the container rate.
     const int fps = m_fps;
     // quality: 0 = fast/small, 1 = balanced, 2 = best. The filters themselves

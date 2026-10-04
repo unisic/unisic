@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.5 LANGUAGES CXX)
+project(unisic VERSION 0.8.6 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.5")
+set(UNISIC_VERSION_STRING "0.8.6")
 
 include(GNUInstallDirs)
 
@@ -156,6 +156,7 @@ qt_add_executable(unisic
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/PwDump.h src/record/PwDump.cpp
     src/record/VideoQuality.h
+    src/record/MatroskaRawStream.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
     src/record/ClickCapture.h src/record/ClickCapture.cpp
@@ -717,6 +718,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_stream_geometry_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_stream_geometry_test PRIVATE src)
     add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
+
+    # The recorder's stdin framing, read back by the real ffmpeg when present.
+    qt_add_executable(unisic_matroska_raw_stream_test
+        tests/MatroskaRawStreamTest.cpp
+        src/record/MatroskaRawStream.h
+    )
+    target_link_libraries(unisic_matroska_raw_stream_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_matroska_raw_stream_test PRIVATE src)
+    add_test(NAME unisic_matroska_raw_stream_test COMMAND unisic_matroska_raw_stream_test)
 
     # The percent <-> CRF scale the recorder's quality setting is stored in.
     qt_add_executable(unisic_video_quality_test

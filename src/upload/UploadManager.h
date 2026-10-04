@@ -146,6 +146,7 @@ public:
     static QString curlTargetUrl(const QString &requestUrl, const QString &fileName);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
+    static QString serverErrorMessage(const QByteArray &response);
     static bool isVgyMe(const QJsonObject &dest);
     static QString vgyMeUserKey(const QJsonObject &dest);
 

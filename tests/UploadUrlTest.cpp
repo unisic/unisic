@@ -154,6 +154,16 @@ void UploadUrlTest::vgyMeSupport()
     QCOMPARE(UploadManager::extractUrl(vgyDest, QStringLiteral("deletionUrlPath"), response),
              QStringLiteral("https://vgy.me/delete/del123"));
 
+    // Error bodies: vgy.me's "messages" object or string, then the usual keys
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":true,"messages":{"Unauthorized":"Invalid userkey"}})"),
+             QStringLiteral("Invalid userkey"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":true,"messages":"File too large"})"),
+             QStringLiteral("File too large"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"message":"Rate limited"})"), QStringLiteral("Rate limited"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":"Bad file"})"), QStringLiteral("Bad file"));
+    QVERIFY(UploadManager::serverErrorMessage(R"({"error":true})").isEmpty());
+    QVERIFY(UploadManager::serverErrorMessage("<html>502</html>").isEmpty());
+
     // Guard test: vgy.me destination without a user key must be refused early
     QTemporaryDir cfg;
     QVERIFY(cfg.isValid());

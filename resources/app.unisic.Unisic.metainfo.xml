@@ -72,7 +72,7 @@
   <releases>
     <release version="0.8.6" date="2026-09-24" type="development">
       <description>
-        <p>vgy.me is now a built-in upload destination: the server editor shows a dedicated user key field when the URL points at vgy.me, and uploads without a key are refused early with a clear message. Recordings keep audio and video in sync after pausing: frames carry wall-clock timestamps so a pause removes a slice of time instead of re-numbering every frame and drifting from the audio. The Fedora installer uses dnf upgrade when Unisic is already installed, and .deb/.rpm packages now carry a proper description. Closes #114.</p>
+        <p>vgy.me is now a built-in upload destination: the server editor shows a dedicated user key field when the URL points at vgy.me, and uploads without a key are refused early with a clear message. Recordings keep audio and video in sync: every frame carries the moment it was captured, so a pause removes exactly its own slice of time and a busy encoder lowers the frame rate for a moment instead of shortening the video. The Fedora installer uses dnf upgrade when Unisic is already installed, and .deb/.rpm packages now carry a proper description. Closes #114.</p>
       </description>
     </release>
     <release version="0.8.5" date="2026-09-03">

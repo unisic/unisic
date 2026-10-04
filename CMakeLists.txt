@@ -152,6 +152,7 @@ qt_add_executable(unisic
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/VideoQuality.h
+    src/record/MatroskaRawStream.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
     src/record/ClickCapture.h src/record/ClickCapture.cpp
@@ -701,6 +702,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_stream_geometry_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_stream_geometry_test PRIVATE src)
     add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
+
+    # The recorder's stdin framing, read back by the real ffmpeg when present.
+    qt_add_executable(unisic_matroska_raw_stream_test
+        tests/MatroskaRawStreamTest.cpp
+        src/record/MatroskaRawStream.h
+    )
+    target_link_libraries(unisic_matroska_raw_stream_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_matroska_raw_stream_test PRIVATE src)
+    add_test(NAME unisic_matroska_raw_stream_test COMMAND unisic_matroska_raw_stream_test)
 
     # The percent <-> CRF scale the recorder's quality setting is stored in.
     qt_add_executable(unisic_video_quality_test

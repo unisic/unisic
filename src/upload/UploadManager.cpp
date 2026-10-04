@@ -755,6 +755,29 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
     });
 }
 
+// The human-readable part of a JSON error body: vgy.me's "messages" (an object
+// of field: text, or one string), else the usual "message" or "error" string.
+// Empty when the body is not JSON or names none of them.
+QString UploadManager::serverErrorMessage(const QByteArray &response)
+{
+    const QJsonObject obj = QJsonDocument::fromJson(response).object();
+    const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
+    if (msgVal.isObject()) {
+        QStringList parts;
+        const QJsonObject msgObj = msgVal.toObject();
+        for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
+            parts << (it.value().isString() ? it.value().toString()
+                                            : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
+        }
+        return parts.join(QStringLiteral(", "));
+    }
+    if (msgVal.isString())
+        return msgVal.toString();
+    if (obj.value(QStringLiteral("message")).isString())
+        return obj.value(QStringLiteral("message")).toString();
+    return obj.value(QStringLiteral("error")).toString();
+}
+
 // Resolve a single $text$/$json:...$/$regex:...$ token against the response.
 // A string that is not a recognized token is returned verbatim.
 QString UploadManager::extractToken(const QString &token, const QByteArray &response)
@@ -966,27 +989,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         reply->deleteLater();
         const QByteArray body = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            QString serverMsg;
-            const QJsonDocument doc = QJsonDocument::fromJson(body);
-            if (doc.isObject()) {
-                const QJsonObject obj = doc.object();
-                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
-                if (msgVal.isObject()) {
-                    QStringList parts;
-                    const QJsonObject msgObj = msgVal.toObject();
-                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
-                        parts << (it.value().isString() ? it.value().toString()
-                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
-                    }
-                    serverMsg = parts.join(QStringLiteral(", "));
-                } else if (msgVal.isString()) {
-                    serverMsg = msgVal.toString();
-                } else if (obj.value(QStringLiteral("message")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("message")).toString();
-                } else if (obj.value(QStringLiteral("error")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("error")).toString();
-                }
-            }
+            QString serverMsg = serverErrorMessage(body);
             if (serverMsg.isEmpty())
                 serverMsg = QString::fromUtf8(body.left(300));
             cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
@@ -997,24 +1000,9 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         if (url.isEmpty()) {
             const QJsonDocument doc = QJsonDocument::fromJson(body);
             if (doc.isObject() && doc.object().value(QStringLiteral("error")).toBool()) {
-                QString serverMsg;
-                const QJsonObject obj = doc.object();
-                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
-                if (msgVal.isObject()) {
-                    QStringList parts;
-                    const QJsonObject msgObj = msgVal.toObject();
-                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
-                        parts << (it.value().isString() ? it.value().toString()
-                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
-                    }
-                    serverMsg = parts.join(QStringLiteral(", "));
-                } else if (msgVal.isString()) {
-                    serverMsg = msgVal.toString();
-                } else if (obj.value(QStringLiteral("message")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("message")).toString();
-                }
+                const QString serverMsg = serverErrorMessage(body);
                 if (!serverMsg.isEmpty()) {
-                    cb({}, {}, QStringLiteral("Server reported error: %1").arg(serverMsg));
+                    cb({}, {}, UploadManager::tr("Server reported error: %1").arg(serverMsg));
                     return;
                 }
             }

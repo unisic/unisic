@@ -14,7 +14,7 @@ whole per release (not per individual change).
 
 **Fixed**
 - **Recordings keep audio and video in sync**: pausing and resuming a recording could make the video speed up to catch up with the audio, and on a computer too slow to encode every frame the video ran ahead of the sound for the rest of the clip. Every frame now carries the moment it was captured into the file, so a pause removes exactly its own slice of time and a busy encoder only lowers the frame rate for a moment instead of shortening the video.
-- **The Fedora installer updates instead of failing when Unisic is already installed**: running the installer on Fedora with Unisic already present tried `dnf install` on a package that was already there, which dnf refused. It now uses `dnf upgrade --refresh` when an existing install is detected, so the update goes through.
+- **The Fedora installer updates instead of failing when Unisic is already installed**: running the installer on Fedora with Unisic already present tried `dnf install` on a package that was already there, which dnf refused. It now uses `dnf upgrade --refresh` when an existing install is detected, so the update goes through. Picking an older version in the version menu now really installs it, instead of reporting success and keeping the newer one.
 - **Debian and RPM packages carry a proper description**: the `.deb` and `.rpm` built by CPack had an empty or generic description field; package managers now show what Unisic actually is ([#116](https://github.com/unisic/unisic/issues/116)).
 
 ### Polski
@@ -23,7 +23,7 @@ whole per release (not per individual change).
 
 **Naprawione**
 - **Nagrania zachowują synchronizację audio i wideo**: wstrzymanie i wznowienie nagrywania mogło sprawić, że obraz przyspieszał, żeby dogonić dźwięk, a na komputerze zbyt wolnym, by zakodować każdą klatkę, obraz wyprzedzał dźwięk do końca klipu. Każda klatka niesie teraz do pliku moment, w którym została przechwycona, więc pauza wycina dokładnie swój fragment czasu, a zajęty enkoder tylko na chwilę obniża liczbę klatek na sekundę, zamiast skracać wideo.
-- **Instalator na Fedorze aktualizuje zamiast kończyć się błędem, gdy Unisic jest już zainstalowany**: uruchomienie instalatora na Fedorze z już zainstalowanym Unisicem próbowało `dnf install` na paczce, która już była, a dnf tego odmawiał. Teraz używa `dnf upgrade --refresh`, gdy wykryje istniejącą instalację, więc aktualizacja przechodzi.
+- **Instalator na Fedorze aktualizuje zamiast kończyć się błędem, gdy Unisic jest już zainstalowany**: uruchomienie instalatora na Fedorze z już zainstalowanym Unisicem próbowało `dnf install` na paczce, która już była, a dnf tego odmawiał. Teraz używa `dnf upgrade --refresh`, gdy wykryje istniejącą instalację, więc aktualizacja przechodzi. Wybranie starszej wersji w menu wersji naprawdę ją teraz instaluje, zamiast zgłaszać sukces i zostawiać nowszą.
 - **Paczki Debian i RPM mają właściwy opis**: `.deb` i `.rpm` zbudowane przez CPack miały puste albo ogólnikowe pole opisu; menedżery pakietów pokazują teraz, czym Unisic naprawdę jest ([#116](https://github.com/unisic/unisic/issues/116)).
 
 ## 0.8.5

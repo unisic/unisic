@@ -1217,7 +1217,7 @@ install_deb() {
 }
 
 install_rpm() {
-    local url file
+    local url file want
     if [ -z "$REQ_VERSION" ] && [ "${ID:-}" = fedora ] && add_copr_repo; then
         say "Installing Unisic... (from now on it updates with your system's normal updates)"
         local dnf_cmd="install"
@@ -1234,7 +1234,13 @@ install_rpm() {
     download "$url" "$file"
     say "Installing Unisic... (from now on it updates with your system's normal updates)"
     if native_installed; then
+        # `dnf upgrade` with an OLDER file (picked in the version menu) does nothing
+        # and exits 0, so the installed version is checked, not the exit code.
+        want="$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$file" 2>/dev/null)"
         priv dnf upgrade -y "$file" || priv dnf install -y "$file" || native_fail
+        if [ -n "$want" ] && [ "$(rpm -q --qf '%{VERSION}-%{RELEASE}' unisic 2>/dev/null)" != "$want" ]; then
+            priv dnf downgrade -y "$file" || native_fail
+        fi
     else
         priv dnf install -y "$file" || native_fail
     fi

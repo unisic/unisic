@@ -328,68 +328,68 @@
         <translation>Dev: das Testbild konnte nicht gespeichert werden</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3125"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3118"/>
         <source>Dev: template variables: %1</source>
         <translation>Dev: Vorlagenvariablen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3280"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3273"/>
         <source>Dev: vgy.me support: %1</source>
         <translation>Dev: vgy.me-Unterstützung: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3287"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3280"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev: Einstellungen exportieren und importieren: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3328"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3321"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev: Testbild wird zu „%1“ hochgeladen…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3331"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3324"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev: Hochladen erfolgreich: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3333"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3326"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev: Hochladen fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3605"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3598"/>
         <source>Alternate hotkey test</source>
         <translation>Test der Ersatz-Tastenkürzel</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3631"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3624"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev: Ersatz-Tastenkürzel - %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3639"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3632"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev: KGlobalAccel nicht verfügbar (Backend: %1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3640"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3633"/>
         <source>none</source>
         <translation>keines</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5472"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3648"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3641"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Das Tastenkürzel ist von einer anderen Anwendung belegt: %1. Wählen Sie in „Einstellungen → Tastenkürzel“ eine andere Taste oder geben Sie sie in den „Systemeinstellungen → Kurzbefehle“ frei.</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3652"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3645"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Tastenkürzel: alle %1 beim Dienst registriert</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3654"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3647"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Tastenkürzel: %1 von %2 waren verloren und wurden neu registriert (Einzelheiten im Protokoll)</translation>
     </message>
@@ -920,12 +920,12 @@
         <translation>Dev: Aufnahmerahmen konnte NICHT angezeigt werden</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3266"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3259"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev: Suche und Filter im Verlauf: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3273"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3266"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev: Schutz vor eingebauter Imgur-Client-ID: %1</translation>
     </message>
@@ -1252,7 +1252,7 @@
         <translation>Dev: KWin-Aufnahme fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3010"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3003"/>
         <source>Dev: curl destination: %1</source>
         <translation>Dev: curl-Ziel: %1</translation>
     </message>
@@ -1261,47 +1261,47 @@
         <translation type="vanished">Dev: Upload-Variablen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3176"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3169"/>
         <source>Dev: still GIF: %1</source>
         <translation>Dev: statisches GIF: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3259"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3252"/>
         <source>Dev: image conversion: %1</source>
         <translation>Dev: Bildkonvertierung: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3321"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3314"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev: Installationskanal: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3385"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3378"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev: Test-Upload zum Server: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3483"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3476"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev: Import per Ablegen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3566"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3559"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev: Import per Einfügen: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3592"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3585"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev: Modus der Aufnahmeseite: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3726"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3719"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev: X11-Aufnahmezugriff: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3734"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3727"/>
         <source>Dev: X11 hotkeys: %1</source>
         <translation>Dev: X11-Tastenkürzel: %1</translation>
     </message>
@@ -1557,7 +1557,7 @@
         <translation>Unisic-Tastenkürzel aus %1 entfernt</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4871"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4864"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: Tastenkürzel der Arbeitsumgebung: %1</translation>
     </message>
@@ -2832,150 +2832,150 @@
 <context>
     <name>GifRecorder</name>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="456"/>
-        <location filename="../src/record/GifRecorder.cpp" line="509"/>
+        <location filename="../src/record/GifRecorder.cpp" line="457"/>
+        <location filename="../src/record/GifRecorder.cpp" line="510"/>
         <source>Screen sharing was stopped</source>
         <translation>Die Bildschirmfreigabe wurde beendet</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="481"/>
+        <location filename="../src/record/GifRecorder.cpp" line="482"/>
         <source>No window was picked</source>
         <translation>Es wurde kein Fenster ausgewählt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="487"/>
+        <location filename="../src/record/GifRecorder.cpp" line="488"/>
         <source>Failed to start the window recording</source>
         <translation>Die Fensteraufnahme konnte nicht gestartet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="575"/>
+        <location filename="../src/record/GifRecorder.cpp" line="576"/>
         <source>The shared screen doesn&apos;t match the one the region was selected on - pick &quot;%1&quot; in the sharing dialog</source>
         <translation>Der freigegebene Bildschirm ist nicht der, auf dem der Bereich ausgewählt wurde - wählen Sie „%1“ im Freigabedialog</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="620"/>
+        <location filename="../src/record/GifRecorder.cpp" line="621"/>
         <source>Failed to connect to the PipeWire stream</source>
         <translation>Die Verbindung zum PipeWire-Stream ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="633"/>
+        <location filename="../src/record/GifRecorder.cpp" line="634"/>
         <source>No screen is available to record</source>
         <translation>Es ist kein Bildschirm zum Aufnehmen verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="660"/>
+        <location filename="../src/record/GifRecorder.cpp" line="661"/>
         <source>Failed to start X11 screen capture</source>
         <translation>Die X11-Bildschirmaufnahme konnte nicht gestartet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="689"/>
+        <location filename="../src/record/GifRecorder.cpp" line="690"/>
         <source>PipeWire returned an invalid stream size</source>
         <translation>PipeWire hat eine ungültige Streamgröße geliefert</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="727"/>
+        <location filename="../src/record/GifRecorder.cpp" line="728"/>
         <source>Selected recording region is outside the chosen screen stream</source>
         <translation>Der gewählte Aufnahmebereich liegt außerhalb des gewählten Bildschirmstreams</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="728"/>
+        <location filename="../src/record/GifRecorder.cpp" line="729"/>
         <source>Recording stream is too small</source>
         <translation>Der Aufnahmestream ist zu klein</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="812"/>
+        <location filename="../src/record/GifRecorder.cpp" line="817"/>
         <source>System audio</source>
         <translation>Systemton</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="820"/>
+        <location filename="../src/record/GifRecorder.cpp" line="825"/>
         <source>Microphone</source>
         <translation>Mikrofon</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="846"/>
+        <location filename="../src/record/GifRecorder.cpp" line="851"/>
         <source>Application audio</source>
         <translation>Anwendungston</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="916"/>
+        <location filename="../src/record/GifRecorder.cpp" line="921"/>
         <source>Mix</source>
         <translation>Mix</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="986"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1656"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1706"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1747"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1900"/>
+        <location filename="../src/record/GifRecorder.cpp" line="995"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1690"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1740"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1781"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1934"/>
         <source>ffmpeg could not be started. Is it installed?</source>
         <translation>ffmpeg konnte nicht gestartet werden. Ist es installiert?</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1002"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1011"/>
         <source>Recording encoder crashed</source>
         <translation>Der Aufnahme-Encoder ist abgestürzt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1003"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1012"/>
         <source>Recording encoder stopped unexpectedly (code %1)</source>
         <translation>Der Aufnahme-Encoder hat unerwartet gestoppt (Code %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1020"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1029"/>
         <source>Recording encoder failed (code %1)</source>
         <translation>Der Aufnahme-Encoder ist fehlgeschlagen (Code %1)</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1064"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1074"/>
         <source>pw-record could not capture the selected application audio</source>
         <translation>pw-record konnte den Ton der gewählten Anwendung nicht aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1253"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1263"/>
         <source>Recording encoder is not running</source>
         <translation>Der Aufnahme-Encoder läuft nicht</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1327"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1337"/>
         <source>Recording encoder hung and nothing could be salvaged</source>
         <translation>Der Aufnahme-Encoder hängt und es konnte nichts gerettet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1354"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1364"/>
         <source>Instant replay needs at least one completed segment</source>
         <translation>Die Sofortwiedergabe braucht mindestens einen fertigen Abschnitt</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1377"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1387"/>
         <source>Could not snapshot the replay segments</source>
         <translation>Die Abschnitte der Wiedergabe konnten nicht gesichert werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1383"/>
         <location filename="../src/record/GifRecorder.cpp" line="1393"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1403"/>
         <source>Could not prepare the replay export</source>
         <translation>Der Export der Wiedergabe konnte nicht vorbereitet werden</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1425"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1443"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1435"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1453"/>
         <source>Instant replay export failed</source>
         <translation>Der Export der Sofortwiedergabe ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1641"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1675"/>
         <source>Removing the paused sections failed</source>
         <translation>Das Entfernen der pausierten Abschnitte ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1695"/>
-        <location filename="../src/record/GifRecorder.cpp" line="1733"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1729"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1767"/>
         <source>GIF conversion failed</source>
         <translation>Die GIF-Umwandlung ist fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/record/GifRecorder.cpp" line="1887"/>
+        <location filename="../src/record/GifRecorder.cpp" line="1921"/>
         <source>Video conversion failed</source>
         <translation>Die Videoumwandlung ist fehlgeschlagen</translation>
     </message>
@@ -8970,8 +8970,8 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../src/upload/UploadManager.cpp" line="623"/>
-        <location filename="../src/upload/UploadManager.cpp" line="893"/>
-        <location filename="../src/upload/UploadManager.cpp" line="949"/>
+        <location filename="../src/upload/UploadManager.cpp" line="916"/>
+        <location filename="../src/upload/UploadManager.cpp" line="972"/>
         <source>Cannot read %1</source>
         <translation>%1 kann nicht gelesen werden</translation>
     </message>
@@ -9006,17 +9006,22 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>vgy.me erfordert einen Benutzerschlüssel. Fügen Sie ihn in das Feld oben ein und testen Sie erneut.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1085"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1005"/>
+        <source>Server reported error: %1</source>
+        <translation>Der Server meldete einen Fehler: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/upload/UploadManager.cpp" line="1073"/>
         <source>Cannot create temp file</source>
         <translation>Die temporäre Datei kann nicht angelegt werden</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1092"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1080"/>
         <source>Cannot write temp file</source>
         <translation>Die temporäre Datei kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1184"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1172"/>
         <source>Could not run curl. Is it installed? (needed for FTP/SFTP uploads)</source>
         <translation>curl konnte nicht ausgeführt werden. Ist es installiert? (für FTP-/SFTP-Uploads nötig)</translation>
     </message>

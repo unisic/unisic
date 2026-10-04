@@ -2933,12 +2933,10 @@ QString AppContext::vgyMeCheck() const
     m_uploads->removeDestination(scratch);
     if (!guardCalled)
         fails << QStringLiteral("no user key: upload was attempted, not refused");
-    else if (!guardError.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+    // Every translation of both refusals names vgy.me (checked in all seven
+    // i18n/*.ts), so this holds in any UI language. A per-language word list
+    // missed one (Russian) and failed the check on a correct message.
+    else if (!guardError.contains(QStringLiteral("vgy.me")))
         fails << QStringLiteral("unhelpful error on missing user key: ") + guardError.left(80);
 
     bool testCalled = false;
@@ -2954,12 +2952,7 @@ QString AppContext::vgyMeCheck() const
     });
     if (!testCalled)
         fails << QStringLiteral("testDestination was not called synchronously for missing user key");
-    else if (!testErr.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+    else if (!testErr.contains(QStringLiteral("vgy.me")))
         fails << QStringLiteral("unhelpful test error on missing user key: ") + testErr.left(80);
 
     return fails.isEmpty()

@@ -1455,7 +1455,7 @@ Item {
                     SettingRow {
                         label: qsTr("Hide Unisic while capturing")
                         help: qsTr("Takes the Unisic window off screen so it never lands in the shot.")
-                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
+                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
                         USwitch { checked: App.settings.hideWindowOnCapture; onToggled: (c) => App.settings.hideWindowOnCapture = c }
                     }
                     SettingRow {

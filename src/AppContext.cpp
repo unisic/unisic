@@ -1007,6 +1007,19 @@ bool AppContext::capScreenshotCursor() const
 
 void AppContext::beginCaptureIsolation()
 {
+    // Decided HERE, at the trigger, because every path calls this exactly once
+    // before any delay or portal dialog: by the time the window would go down
+    // (after the delay, or on GifRecorder::started behind the share dialog) the
+    // focus has moved on, so asking then could not tell where the capture came
+    // from. A window already down for a running capture keeps its answer.
+    if (!m_hiddenForCapture) {
+        // focusWindow() is only ever one of our own windows. The editor, the
+        // preview and the trim window have no transient parent; popups and
+        // dialogs of the main window do, and count as the main window.
+        const QWindow *focus = QGuiApplication::focusWindow();
+        const QQuickWindow *main = mainWindow();
+        m_otherWindowFocused = focus && focus != main && focus->transientParent() != main;
+    }
     if (m_settings->doNotDisturbWhileCapturing() && capDoNotDisturb())
         m_dnd->acquire();
 }
@@ -1024,9 +1037,14 @@ bool AppContext::hideOwnWindowForCapture()
         return false;
     if (m_hiddenForCapture)
         return true; // already down for this capture - do not stack restores
+    // The user is in the editor (or another Unisic window of ours): the main
+    // window is not what they are looking at, and show() afterwards would map it
+    // on top of the window they are working in. Leave it exactly where it is.
+    if (m_otherWindowFocused)
+        return false;
     QQuickWindow *win = mainWindow();
     if (!win || !win->isVisible())
-        return false; // triggered from a hotkey or the tray: nothing to hide
+        return false;
     // Minimized from the taskbar or a KWin shortcut, the window is still
     // "visible" to Qt: xdg-shell has no minimized state, KWin only marks the
     // surface suspended, which Qt reports as not exposed. Hiding it anyway
@@ -1045,11 +1063,6 @@ void AppContext::restoreOwnWindowAfterCapture()
         return;
     QQuickWindow *win = m_hiddenForCapture;
     m_hiddenForCapture = nullptr;
-    // The window stays in the tray after the capture: the user took the shot
-    // to work with the shot, not to land back on the page that started it.
-    // Only without a tray does it come back, since nothing else could reopen it.
-    if (trayAvailable())
-        return;
     // show(), not showNormal()/requestActivate(): the editor window opens
     // straight after this on the default settings, and stealing focus back from
     // it is exactly the wrong end of the capture to be looking at.

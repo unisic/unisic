@@ -140,6 +140,7 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
     }
     if (!win->isExposed() || win->windowStates().testFlag(Qt::WindowMinimized)) {
         // Minimized: a capture must leave it where it is, so it must not hide.
+        m_otherWindowFocused = false;
         done(hideOwnWindowForCapture()
                  ? QStringLiteral("FAIL (minimized window was hidden and would pop back up)")
                  : QStringLiteral("PASS (minimized window left alone)"));
@@ -152,24 +153,30 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
         done(QStringLiteral("SKIP (hide while capturing is off)"));
         return;
     }
+    // beginCaptureIsolation() decides "another Unisic window has focus" from the
+    // real focus window, which a smoke test fired by a hotkey cannot arrange, so
+    // the flag is forced to exercise both outcomes. With the editor in front the
+    // main window must not move at all; otherwise it goes down and, on the timer
+    // a real capture uses, comes back - the failure that matters is the window
+    // not coming BACK, and a same-turn hide/show would not exercise that.
+    m_otherWindowFocused = true;
+    if (hideOwnWindowForCapture()) {
+        restoreOwnWindowAfterCapture();
+        done(QStringLiteral("FAIL (window hidden while another Unisic window had focus)"));
+        return;
+    }
+    m_otherWindowFocused = false;
     const bool wentDown = hideOwnWindowForCapture() && !win->isVisible();
-    // Restored a whole event-loop turn later, on the same timer a real capture
-    // uses - the failure that matters here is the window not coming BACK, and a
-    // same-turn hide/show would not exercise that at all.
     QTimer::singleShot(kSelfHideSettleMs, this, [this, win, wentDown, done = std::move(done)] {
         restoreOwnWindowAfterCapture();
-        // With a tray the window must stay down; without one it must come back.
-        const bool stayDown = trayAvailable();
-        const bool visible = win && win->isVisible();
-        const bool ok = wentDown && visible != stayDown;
+        const bool back = win && win->isVisible();
         // The smoke test runs on the user's own session: put the window back
         // where the user left it whatever the verdict.
-        if (win && !visible)
+        if (win && !back)
             win->show();
-        done(ok ? QStringLiteral("PASS (%1)").arg(stayDown ? QStringLiteral("stays in the tray")
-                                                           : QStringLiteral("no tray, came back"))
-                : QStringLiteral("FAIL (hidden=%1, visible after=%2, tray=%3)")
-                      .arg(wentDown ? 1 : 0).arg(visible ? 1 : 0).arg(stayDown ? 1 : 0));
+        done(wentDown && back
+                 ? QStringLiteral("PASS (left alone while another Unisic window has focus; otherwise down and back)")
+                 : QStringLiteral("FAIL (down=%1 back=%2)").arg(wentDown).arg(back));
     });
 }
 

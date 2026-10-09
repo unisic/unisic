@@ -5714,10 +5714,6 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Nimmt das Unisic-Fenster vom Bildschirm, damit es nie im Bild landet.</translation>
     </message>
     <message>
-        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation type="vanished">Gilt für jede Aufnahme, die bei geöffnetem Fenster gestartet wird, und für Aufzeichnungen. Das Fenster kommt zurück, sobald die Aufnahme endet. Schalten Sie dies nur aus, wenn Unisic selbst das Motiv ist, etwa für Bildschirmfotos für die Dokumentation.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1463"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Das einfache Screenshot-Portal kann den Mauszeiger auf dieser Arbeitsumgebung nicht mit aufnehmen.</translation>
@@ -6213,8 +6209,8 @@ Gilt ab der nächsten Aufnahme.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>Gilt für jede Aufnahme, die bei geöffnetem Fenster gestartet wird, und für Aufzeichnungen. Danach bleibt das Fenster im Systembereich; öffnen Sie es von dort wieder. Schalten Sie dies nur aus, wenn Unisic selbst das Motiv ist, etwa für Bildschirmfotos für die Dokumentation.</translation>
+        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>Gilt für jede Aufnahme, die bei geöffnetem Fenster gestartet wird, und für Aufzeichnungen. Das Fenster kommt zurück, sobald die Aufnahme endet. Schalten Sie dies nur aus, wenn Unisic selbst das Motiv ist, etwa für Bildschirmfotos für die Dokumentation.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1874"/>

@@ -5716,10 +5716,6 @@ Applies to the next capture.</source>
         <translation>Убирает окно Unisic с экрана, чтобы оно не попало в кадр.</translation>
     </message>
     <message>
-        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation type="vanished">Действует для любого снимка, начатого при открытом окне, и для записей. Окно возвращается сразу после окончания снимка. Выключайте это, только когда сам Unisic и есть объект съёмки, например при подготовке снимков для документации.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1463"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Обычный портал Screenshot не умеет включать курсор на этом рабочем столе.</translation>
@@ -6215,8 +6211,8 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>Действует для любого снимка, начатого при открытом окне, и для записей. После этого окно остаётся в трее; откройте его снова оттуда. Выключайте это, только когда сам Unisic и есть объект съёмки, например при подготовке снимков для документации.</translation>
+        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>Действует для любого снимка, начатого при открытом окне, и для записей. Окно возвращается сразу после окончания снимка. Выключайте это, только когда сам Unisic и есть объект съёмки, например при подготовке снимков для документации.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1874"/>

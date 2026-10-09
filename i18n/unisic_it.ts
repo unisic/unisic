@@ -5032,10 +5032,6 @@ Disattivato o non supportato: viene mostrata invece una notifica desktop nativa 
         <translation>Toglie la finestra di Unisic dallo schermo, così non finisce mai nello scatto.</translation>
     </message>
     <message>
-        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation type="vanished">Vale per ogni cattura avviata con la finestra aperta e per le registrazioni. La finestra torna appena la cattura finisce. Disattivalo solo quando il soggetto è Unisic stesso, per esempio per gli screenshot della documentazione.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2982"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2992"/>
         <source>Preview mode</source>
@@ -7476,8 +7472,8 @@ Si applica alla prossima cattura.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>Vale per ogni cattura avviata con la finestra aperta e per le registrazioni. Dopo, la finestra resta nell&apos;area di notifica; riaprila da lì. Disattivalo solo quando il soggetto è Unisic stesso, per esempio per gli screenshot della documentazione.</translation>
+        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>Vale per ogni cattura avviata con la finestra aperta e per le registrazioni. La finestra torna appena la cattura finisce. Disattivalo solo quando il soggetto è Unisic stesso, per esempio per gli screenshot della documentazione.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1874"/>

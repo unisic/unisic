@@ -4659,10 +4659,6 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>Usuwa okno Unisic z ekranu, żeby nigdy nie trafiło na zrzut.</translation>
     </message>
     <message>
-        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation type="vanished">Dotyczy każdego przechwytywania rozpoczętego przy otwartym oknie oraz nagrań. Okno wraca zaraz po zakończeniu przechwytywania. Wyłącz tę opcję tylko wtedy, gdy tematem zrzutu jest sam Unisic, na przykład przy robieniu zrzutów do dokumentacji.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1463"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Zwykły portal zrzutów ekranu nie może dołączyć kursora na tym pulpicie.</translation>
@@ -5072,8 +5068,8 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>Dotyczy każdego przechwytywania rozpoczętego przy otwartym oknie oraz nagrań. Potem okno zostaje w zasobniku; otwórz je ponownie stamtąd. Wyłącz tę opcję tylko wtedy, gdy tematem zrzutu jest sam Unisic, na przykład przy robieniu zrzutów do dokumentacji.</translation>
+        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>Dotyczy każdego przechwytywania rozpoczętego przy otwartym oknie oraz nagrań. Okno wraca zaraz po zakończeniu przechwytywania. Wyłącz tę opcję tylko wtedy, gdy tematem zrzutu jest sam Unisic, na przykład przy robieniu zrzutów do dokumentacji.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1874"/>

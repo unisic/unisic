@@ -5714,10 +5714,6 @@ S’applique à la prochaine capture.</translation>
         <translation>Retire la fenêtre Unisic de l&apos;écran pour qu&apos;elle n&apos;apparaisse jamais sur la capture.</translation>
     </message>
     <message>
-        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation type="vanished">S&apos;applique à chaque capture lancée avec la fenêtre ouverte, ainsi qu&apos;aux enregistrements. La fenêtre revient dès la fin de la capture. Ne désactivez ceci que lorsque le sujet est Unisic lui-même, par exemple pour les captures de documentation.</translation>
-    </message>
-    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1463"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Le portail Screenshot simple ne peut pas inclure le curseur sur ce bureau.</translation>
@@ -6213,8 +6209,8 @@ S’applique à la prochaine capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1458"/>
-        <source>Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
-        <translation>S&apos;applique à chaque capture lancée avec la fenêtre ouverte, ainsi qu&apos;aux enregistrements. Ensuite, la fenêtre reste dans la zone de notification ; rouvrez-la depuis celle-ci. Ne désactivez ceci que lorsque le sujet est Unisic lui-même, par exemple pour les captures de documentation.</translation>
+        <source>Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.</source>
+        <translation>S&apos;applique à chaque capture lancée avec la fenêtre ouverte, ainsi qu&apos;aux enregistrements. La fenêtre revient dès la fin de la capture. Ne désactivez ceci que lorsque le sujet est Unisic lui-même, par exemple pour les captures de documentation.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1874"/>

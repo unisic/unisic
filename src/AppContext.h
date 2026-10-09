@@ -1109,6 +1109,10 @@ private:
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.
     QPointer<QQuickWindow> m_hiddenForCapture;
+    // Another window of ours (editor, preview, trim) had focus when this capture
+    // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
+    // then leaves the main window alone.
+    bool m_otherWindowFocused = false;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

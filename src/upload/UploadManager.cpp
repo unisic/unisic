@@ -1104,7 +1104,14 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     // --speed-* aborts only below 1 byte/s for 60 s — progressing uploads of
     // any length are unaffected; a stall exits non-zero into the normal
     // finished cleanup path.
+    // --proto: the destination is user-editable and importable (.sxcu,
+    // destinations.json), and curl would otherwise happily "upload" to
+    // file:///... and write a local file. -g: the file name is always
+    // percent-encoded, but a '[' or '{' the user typed into the folder part of
+    // requestUrl is a URL glob to curl and fails with "bad range in URL position".
     QStringList args{QStringLiteral("-sS"), QStringLiteral("--fail"),
+                     QStringLiteral("--proto"), QStringLiteral("=ftp,ftps,sftp,http,https"),
+                     QStringLiteral("-g"),
                      QStringLiteral("--connect-timeout"), QStringLiteral("30"),
                      QStringLiteral("--speed-time"), QStringLiteral("60"),
                      QStringLiteral("--speed-limit"), QStringLiteral("1"),
@@ -1113,8 +1120,9 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     // in /proc/<pid>/cmdline for the whole transfer. Feed them as a config
     // file on stdin instead (curl -K -). Custom headers ride the same channel
     // for the same reason: an API key in an Authorization header is every bit
-    // as much a secret as a password.
-    QByteArray curlConfig;
+    // as much a secret as a password. So does the target URL: requestUrl can
+    // carry the key itself ("?key=...").
+    QByteArray curlConfig = curlConfigLine(QStringLiteral("url"), target);
     const QString user = dest.value(QStringLiteral("user")).toString();
     if (!user.isEmpty())
         curlConfig += curlConfigLine(QStringLiteral("user"), user);
@@ -1122,18 +1130,13 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
         curlConfig += curlConfigLine(QStringLiteral("header"),
                                      it.key() + QStringLiteral(": ") + it.value().toString());
-    if (!curlConfig.isEmpty())
-        args << QStringLiteral("-K") << QStringLiteral("-");
+    args << QStringLiteral("-K") << QStringLiteral("-");
     // Skipping host-key verification enables silent MITM; only on explicit
     // per-destination opt-in ("insecure": true) for curl builds whose sftp
     // backend can't read known_hosts.
     if (target.startsWith(QLatin1String("sftp://"))
         && dest.value(QStringLiteral("insecure")).toBool())
         args << QStringLiteral("--insecure");
-    // The URL goes last, after end-of-options: a destination-controlled
-    // requestUrl starting with '-' must never be parsed as curl options
-    // (e.g. "-K<file>" reads an arbitrary config file).
-    args << QStringLiteral("--") << target;
 
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this,
@@ -1194,7 +1197,6 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         if (proc->state() != QProcess::NotRunning)
             proc->kill();
     });
-    if (!curlConfig.isEmpty())
-        proc->write(curlConfig);
+    proc->write(curlConfig);
     proc->closeWriteChannel();
 }

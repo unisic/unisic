@@ -296,10 +296,24 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
             toStdout = true;
         }
     }
-    if (delayMs >= 0 && (command == "fullscreen" || command == "region"
-                         || command == "scroll"
-                         || command == "window" || command == "measure"
-                         || command == "monitor" || command == "recapture"))
+    const bool isCapture = command == "fullscreen" || command == "region"
+                           || command == "scroll"
+                           || command == "window" || command == "measure"
+                           || command == "monitor" || command == "recapture";
+    // A capture already open owns the shared one-shot members (task, upload
+    // destination, output, delay). The capture methods refuse a second one, but
+    // only after this function has overwritten them and their refusal then
+    // clears them, so the capture in progress would finish with the defaults.
+    if (isCapture && context.captureBusy()) {
+        const QString busy = AppContext::tr("Another capture is already active");
+        qWarning().noquote() << busy;
+        if (toStdout && replySocket) {
+            replySocket->write("ERR " + busy.toUtf8().toBase64() + "\n");
+            replySocket->disconnectFromServer();
+        }
+        return false;
+    }
+    if (delayMs >= 0 && isCapture)
         context.setNextCaptureDelayMs(delayMs);
     if (!outputPath.isEmpty()) {
         context.setNextCaptureOutput(toStdout ? QString() : outputPath, format, toStdout);
@@ -340,8 +354,10 @@ static int requestExistingStdoutCapture(const QString &serverName,
         return -1;
     socket.write(command + '\n');
     socket.flush();
-    if (!socket.waitForBytesWritten(1000))
-        return 1;
+    // flush() has already written the whole command, so this returns false at
+    // once on an empty buffer; treating that as failure dropped every reply. A
+    // real write failure still shows below as an empty response.
+    socket.waitForBytesWritten(1000);
     QByteArray response;
     while (socket.state() != QLocalSocket::UnconnectedState) {
         if (!socket.waitForReadyRead(10 * 60 * 1000)

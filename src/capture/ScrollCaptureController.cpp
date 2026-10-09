@@ -126,9 +126,10 @@ void ScrollCaptureController::finish()
     m_stitcher.reset();   // the canvas can be hundreds of MB
     closeOverlayWindow();
 
-    if (!result.isNull()) {
+    if (!result.isNull())
         emit finished(result);
-    }
+    else
+        emit cancelled();
 }
 
 void ScrollCaptureController::cancel()
@@ -142,6 +143,7 @@ void ScrollCaptureController::cancel()
     stop();
     m_stitcher.reset();
     closeOverlayWindow();
+    emit cancelled();
 }
 
 void ScrollCaptureController::setInputRect(int x, int y, int w, int h)

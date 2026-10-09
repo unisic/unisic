@@ -405,7 +405,7 @@ void ScrollStitcher::writeRow(int docRow, const QImage &src, int srcRow)
 
 ScrollStitcher::Result ScrollStitcher::addFrame(const QImage &frameIn)
 {
-    if (frameIn.isNull() || frameIn.width() < 8 || frameIn.height() < 32)
+    if (frameIn.isNull() || frameIn.width() < kMinFrameWidth || frameIn.height() < kMinFrameHeight)
         return Result::Unchanged;
     if (m_full)
         return Result::Full;

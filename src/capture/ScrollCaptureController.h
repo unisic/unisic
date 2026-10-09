@@ -69,6 +69,7 @@ signals:
     void activeChanged();
     void statusChanged();
     void finished(const QImage &image);
+    void cancelled();   // ended without an image: cancel(), or finish() with no frames
 
 private slots:
     void sampleTick();

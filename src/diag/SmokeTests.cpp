@@ -5305,7 +5305,23 @@ QString AppContext::scrollHandoffCheck()
         m_captureInFlight = false;
         return QStringLiteral("FAIL (capture guard left armed)");
     }
-    return QStringLiteral("PASS (one callback per path, guard released)");
+
+    // A selection the stitcher would refuse every frame of must not open a
+    // session that can only end empty, and must drop the one-shot task.
+    m_nextCaptureTask.active = true;
+    startScrollCapture(QRect(10, 20, ScrollStitcher::kMinFrameWidth - 1, 400),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-narrow selection started a scroll)");
+    startScrollCapture(QRect(10, 20, 300, ScrollStitcher::kMinFrameHeight - 1),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-short selection started a scroll)");
+    if (m_nextCaptureTask.active) {
+        m_nextCaptureTask = {};
+        return QStringLiteral("FAIL (refused scroll left its task armed)");
+    }
+    return QStringLiteral("PASS (one callback per path, guard released, tiny selection refused)");
 }
 
 void AppContext::devTestScrollHandoff()

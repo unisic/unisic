@@ -101,6 +101,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QTemporaryFile>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTemporaryDir>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -852,6 +854,7 @@ void AppContext::clearCliCapture(const QString &error)
     m_nextCaptureOutputFormat.clear();
     m_nextCaptureToStdout = false;
     m_nextCaptureDestination.clear();
+    m_nextCaptureDelayMs = -1; // a capture that never reached withDelay must not leave its --delay behind
     if (stdoutPending && !error.isEmpty())
         emit cliCaptureReady({}, error);
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
@@ -1170,6 +1173,15 @@ void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
 
 void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
 {
+    // The stitcher refuses frames below this, so the capture would run and end
+    // with nothing to show for it.
+    if (physRegion.width() < ScrollStitcher::kMinFrameWidth
+        || physRegion.height() < ScrollStitcher::kMinFrameHeight) {
+        m_nextCaptureTask = {};
+        clearCliCapture(tr("Selection is too small for scrolling capture"));
+        showToast(tr("Selection is too small for scrolling capture"), true);
+        return;
+    }
     if (!m_scrollCapture) {
         m_scrollCapture = new ScrollCaptureController(this, m_engine, this);
         connect(m_scrollCapture, &ScrollCaptureController::activeChanged,
@@ -1177,6 +1189,13 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
         connect(m_scrollCapture, &ScrollCaptureController::finished,
                 this, [this](const QImage &img) {
             finishCapture(img, nowInhibited());
+        });
+        // No image is coming: drop the one-shot task/output, or the next
+        // capture inherits them and a `--output -` caller waits for a reply
+        // that never arrives.
+        connect(m_scrollCapture, &ScrollCaptureController::cancelled, this, [this] {
+            m_nextCaptureTask = {};
+            clearCliCapture(tr("Capture cancelled"));
         });
     }
     m_scrollCapture->start(physRegion, screen);
@@ -1186,6 +1205,11 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
 bool AppContext::scrollCaptureActive() const
 {
     return m_scrollCapture && m_scrollCapture->active();
+}
+
+bool AppContext::captureBusy() const
+{
+    return m_captureInFlight || m_overlay->active() || scrollCaptureActive();
 }
 
 void AppContext::captureRegionWithTool(int initialTool)
@@ -2008,53 +2032,87 @@ void AppContext::hideCapturePopupPreview()
 void AppContext::destinationTestTransport(const QString &guard, int destsBefore,
                                           std::function<void(const QString &)> done)
 {
-    // The transport half runs curl against a file:// target in a scratch dir,
-    // so the check stays offline and costs nobody's upload quota. Testing the
-    // user's real destination would put a stray file on their server on every
-    // F8 run.
+    // The transport half runs curl against a PUT listener on the loopback
+    // interface, so the check stays offline and costs nobody's upload quota.
+    // Testing the user's real destination would put a stray file on their
+    // server on every F8 run. (Not a file:// target: curl is restricted to
+    // network protocols, see UploadManager::curlUpload.)
     if (QStandardPaths::findExecutable(QStringLiteral("curl")).isEmpty()) {
         done(QStringLiteral("guard %1, transport SKIP (curl missing)").arg(guard));
         return;
     }
-    auto dir = std::make_shared<QTemporaryDir>();
-    if (!dir->isValid()) {
-        done(QStringLiteral("guard %1, transport FAIL (no scratch dir)").arg(guard));
+    auto *server = new QTcpServer(this);
+    if (!server->listen(QHostAddress::LocalHost, 0)) {
+        server->deleteLater();
+        done(QStringLiteral("guard %1, transport FAIL (no loopback listener)").arg(guard));
         return;
     }
-    const QString landed = dir->filePath(QStringLiteral("unisic-test.png"));
+    struct Put {
+        QString path;
+        qint64 bytes = 0;
+        bool replied = false;
+    };
+    auto put = std::make_shared<Put>();
+    connect(server, &QTcpServer::newConnection, server, [server, put] {
+        QTcpSocket *sock = server->nextPendingConnection();
+        auto buf = std::make_shared<QByteArray>();
+        connect(sock, &QTcpSocket::readyRead, sock, [sock, buf, put] {
+            buf->append(sock->readAll());
+            const qsizetype end = buf->indexOf("\r\n\r\n");
+            if (end < 0 || put->replied)
+                return;
+            const QByteArray head = buf->left(end);
+            qint64 len = 0;
+            for (const QByteArray &line : head.split('\n'))
+                if (line.trimmed().toLower().startsWith("content-length:"))
+                    len = line.mid(15).trimmed().toLongLong();
+            if (buf->size() - (end + 4) < len)
+                return;
+            put->replied = true;
+            put->path = QString::fromLatin1(head.split(' ').value(1));
+            put->bytes = len;
+            sock->write("HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            sock->disconnectFromHost();
+        });
+        connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
+    });
     QVariantMap dest;
     dest[QStringLiteral("name")] = QStringLiteral("unisic-dev-test-destination");
     dest[QStringLiteral("type")] = QStringLiteral("curl");
-    dest[QStringLiteral("requestUrl")] = QUrl::fromLocalFile(dir->path()).toString();
+    dest[QStringLiteral("requestUrl")] =
+        QStringLiteral("http://127.0.0.1:%1/unisic-dev").arg(server->serverPort());
     dest[QStringLiteral("publicUrlBase")] = QStringLiteral("https://example.invalid/unisic-dev");
 
     auto answered = std::make_shared<bool>(false);
     QPointer<AppContext> self(this);
-    // Answered on the check's own channel again (see destinationTestCheck), and
-    // the scratch dir rides along in the callback so it outlives a curl that is
-    // still writing into it when the timeout below gives up.
-    m_uploads->testDestination(dest, [self, answered, dir, landed, guard, destsBefore, done]
+    QPointer<QTcpServer> serverGuard(server);
+    // Answered on the check's own channel again (see destinationTestCheck).
+    m_uploads->testDestination(dest, [self, answered, serverGuard, put, guard, destsBefore, done]
                                (bool ok, const QString &url, const QString &err) {
+        if (serverGuard)
+            serverGuard->deleteLater();
         if (!self || *answered)
             return;
         *answered = true;
-        const bool fileOk = QFileInfo(landed).size() > 0;
+        const bool fileOk = put->bytes > 0
+                            && put->path == QLatin1String("/unisic-dev/unisic-test.png");
         const bool urlOk = url.endsWith(QLatin1String("unisic-test.png"));
         const bool cleanOk = self->m_uploads->destinationsJson().size() == destsBefore
                              && self->m_uploads->destination(QStringLiteral("unisic-dev-test-destination")).isEmpty();
         done(QStringLiteral("guard %1, transport %2, no side effects %3")
                  .arg(guard,
                       ok && fileOk && urlOk
-                          ? QStringLiteral("PASS (%1 bytes uploaded, link built)")
-                                .arg(QFileInfo(landed).size())
+                          ? QStringLiteral("PASS (%1 bytes uploaded, link built)").arg(put->bytes)
                           : QStringLiteral("FAIL (%1)")
-                                .arg(err.isEmpty() ? QStringLiteral("no file at the target")
+                                .arg(err.isEmpty() ? QStringLiteral("nothing reached the listener (%1)").arg(put->path)
                                                    : err.left(80)),
                       cleanOk ? QStringLiteral("PASS")
                               : QStringLiteral("FAIL (the test saved the destination)")));
     });
     // A wedged curl must not stall the whole smoke run behind it.
-    QTimer::singleShot(15000, this, [answered, guard, done] {
+    QTimer::singleShot(15000, this, [answered, serverGuard, guard, done] {
+        if (serverGuard)
+            serverGuard->deleteLater();
         if (*answered)
             return;
         *answered = true;
@@ -3103,6 +3161,12 @@ void AppContext::copyLastCapture()
 
 void AppContext::afterUploadActions(const QString &url)
 {
+    // An FTP/SFTP destination with no public URL base succeeds with no link at
+    // all: copying "" would wipe the clipboard and the toast would claim a link.
+    if (url.isEmpty()) {
+        showToast(tr("Uploaded"));
+        return;
+    }
     const auto finish = [this](const QString &finalUrl) {
         if (m_settings->afterUploadCopyLink()) {
             copyText(finalUrl);
@@ -4596,6 +4660,16 @@ QString AppContext::saveImageExact(const QImage &img, const QString &targetPath,
         finalPath = QFileInfo(targetPath).path() + QLatin1Char('/')
                   + QFileInfo(targetPath).completeBaseName() + QLatin1Char('.') + enc.format;
     }
+    // The save dialog / --output already settled whether targetPath may be
+    // replaced. A path the encode changed (no suffix typed, or JPEG -> PNG for
+    // alpha) was never shown to anyone, and QSaveFile would swap a same-named
+    // file in without a word - dedupe it the way saveImageTo does.
+    if (finalPath != targetPath) {
+        const QFileInfo fi(finalPath);
+        for (int n = 1; QFile::exists(finalPath); ++n)
+            finalPath = fi.absolutePath() + QLatin1Char('/') + fi.completeBaseName()
+                        + QStringLiteral("-%1.").arg(n) + fi.suffix();
+    }
 
     QDir().mkpath(QFileInfo(finalPath).absolutePath());
 
@@ -5135,6 +5209,8 @@ QString AppContext::importSettings(const QUrl &file)
 
     const QJsonObject s = root.value(QStringLiteral("settings")).toObject();
     const QMetaObject *mo = m_settings->metaObject();
+    const bool actionArmedBefore = m_settings->externalActionEnabled();
+    const QString actionCommandBefore = m_settings->externalActionCommand();
     for (auto it = s.begin(); it != s.end(); ++it) {
         if (it.key() == QLatin1String("themeName")) {
             if (auto *tc = ThemeController::instance())
@@ -5156,12 +5232,26 @@ QString AppContext::importSettings(const QUrl &file)
     }
     m_settings->raw()->sync();
 
+    // The after-capture command runs a program on every capture, so a settings
+    // file from somebody else must not be able to switch it on, nor to swap the
+    // command under an action that is already on - by property name or by the
+    // legacy raw "actions/*" keys. The file may still turn it off, and a backup
+    // keeps its command; the user reviews it and flips the switch themselves.
+    bool actionDisarmed = false;
+    if (m_settings->externalActionEnabled()
+        && (!actionArmedBefore || m_settings->externalActionCommand() != actionCommandBefore)) {
+        m_settings->setExternalActionEnabled(false);
+        actionDisarmed = true;
+    }
+
     if (root.value(QStringLiteral("destinations")).isArray())
         m_uploads->replaceAllDestinations(root.value(QStringLiteral("destinations")).toArray());
 
     m_settings->notifyAll();
     applyHotkeys();
-    showToast(tr("Settings imported"));
+    showToast(actionDisarmed
+                  ? tr("Settings imported. The external action is off: check its command, then switch it on")
+                  : tr("Settings imported"));
     return {};
 }
 

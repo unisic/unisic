@@ -70,7 +70,7 @@
     <binary>unisic</binary>
   </provides>
   <releases>
-    <release version="0.8.7" date="2026-10-03" type="development">
+    <release version="0.8.7" date="2026-10-10" type="development">
       <description>
         <p>Capture tall pages and long documents in one picture with the new scrolling capture (start it from the main window or with --scroll). The editor draws straight pen lines with Shift or Ctrl, has a zoom control and zooms with Ctrl+wheel; a recording can take sound from several applications at once; the activity log opens inside Settings. The System theme now follows GNOME's dark style, the QR code, file path, Markdown and HTML actions show their icons on every desktop, and the window no longer jumps back up after a capture.</p>
       </description>

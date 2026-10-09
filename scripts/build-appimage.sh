@@ -2,7 +2,8 @@
 # Build a PORTABLE Unisic AppImage - one that runs with NO toolchain and NO
 # recompiling on the target. Normally invoked through `scripts/vm-test.sh
 # appimage`, which runs it inside an ubuntu:24.04 container; you can also run it
-# directly on any Ubuntu-24.04-ish host.
+# directly on any Ubuntu-24.04-ish host. On a host without apt-get (Fedora, Arch,
+# openSUSE) it hands itself to that wrapper instead of failing at step 1.
 #
 # Why the base image matters: an AppImage bundles Qt and libraries but NOT
 # glibc, so it only runs where glibc is >= the BUILD host's. Building on Fedora
@@ -33,6 +34,8 @@
 #   QT_VERSION          Qt to fetch via aqt.              default: 6.8.3 (= CI)
 #   UNISIC_BUILD_NUMBER set -> release flavor (no Developer pane), same as CI.
 set -euo pipefail
+
+command -v apt-get >/dev/null 2>&1 || exec "$(dirname "$0")/vm-test.sh" appimage
 
 QT_VERSION="${QT_VERSION:-6.8.3}"
 SRC="${UNISIC_SRC:-$(cd "$(dirname "$0")/.." && pwd)}"

@@ -8,6 +8,37 @@
 
 using R = ScrollStitcher::Result;
 
+// Stand-in for QPainter::drawText. This suite also runs in a container with NO
+// fonts installed (the Arch package job), where drawText paints nothing and the
+// pages go blank, so the stitcher has nothing to match. Each character becomes
+// a set of 1px anti-aliased strokes (bars, stems, diagonals) chosen from its
+// code, so equal strings give equal pixels, different ones differ, and the edges
+// are smoothed the way real text is.
+static void drawGlyphs(QPainter &p, int x, int baseline, const QString &text)
+{
+    static const QLineF strokes[] = {
+        {0, 0, 5, 0}, {0, 4, 5, 4}, {0, 8, 5, 8}, {0, 0, 0, 4}, {0, 4, 0, 8},
+        {5, 0, 5, 4}, {5, 4, 5, 8}, {0, 0, 5, 8}, {5, 0, 0, 8},
+    };
+    QPen pen(p.pen().color(), 1.0, Qt::SolidLine, Qt::RoundCap);
+    p.save();
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(pen);
+    for (const QChar ch : text) {
+        if (ch != QLatin1Char(' ')) {
+            quint32 bits = (ch.unicode() * 2654435761u) >> 13 & 0x1ff;
+            if (qPopulationCount(bits) < 2)
+                bits |= 0x41;
+            for (int i = 0; i < 9; ++i) {
+                if (bits >> i & 1)
+                    p.drawLine(strokes[i].translated(x + 0.5, baseline - 8 + 0.5));
+            }
+        }
+        x += 8;
+    }
+    p.restore();
+}
+
 class ScrollStitchTest : public QObject
 {
     Q_OBJECT
@@ -47,19 +78,16 @@ QImage ScrollStitchTest::document(int w, int h)
     QImage doc(w, h, QImage::Format_RGB32);
     doc.fill(QColor(250, 250, 250));
     QPainter p(&doc);
-    QFont f = p.font();
-    f.setPixelSize(13);
-    p.setFont(f);
     p.setPen(QColor(20, 20, 20));
     int line = 0;
     for (int y = 16; y < h - 4; y += 18, ++line) {
         if (line % 7 == 3)
             continue;                                   // blank line
         if (line % 5 == 0) {
-            p.drawText(12, y, QStringLiteral("}"));    // repeated identical line
+            drawGlyphs(p, 12, y, QStringLiteral("}"));    // repeated identical line
             continue;
         }
-        p.drawText(12, y, QStringLiteral("%1: the quick brown fox %2 jumps over lazy dog")
+        drawGlyphs(p, 12, y, QStringLiteral("%1: the quick brown fox %2 jumps over lazy dog")
                               .arg(line).arg(line * 37 % 1000));
     }
     p.end();
@@ -127,7 +155,10 @@ void ScrollStitchTest::irregularStepsAreByteExact()
     ScrollStitcher s;
     s.addFrame(doc.copy(0, 0, 420, vh));
     // 1px steps (smooth scrolling), a wheel notch, and near the overlap limit.
-    const int steps[] = {1, 1, 3, 54, 120, 7, 230, 18, 1, 90, 250, 2, 66};
+    // The biggest step stays under the search limit: blank rows at the edge of
+    // both frames count as sticky bands and shrink it (to 246 here), so a step
+    // of 250 only matched when the page happened to have ink on the frame edge.
+    const int steps[] = {1, 1, 3, 54, 120, 7, 230, 18, 1, 90, 240, 2, 66};
     int y = 0;
     for (int d : steps) {
         y += d;
@@ -146,9 +177,9 @@ void ScrollStitchTest::stickyHeaderAndFooterAppearOnce()
         p.drawImage(0, hdr, doc.copy(0, y, w, vh - hdr - ftr));
         p.fillRect(0, 0, w, hdr, QColor(30, 30, 60));
         p.setPen(Qt::white);
-        p.drawText(15, 22, QStringLiteral("Fixed Top Navigation Bar"));
+        drawGlyphs(p, 15, 22, QStringLiteral("Fixed Top Navigation Bar"));
         p.fillRect(0, vh - ftr, w, ftr, QColor(60, 30, 30));
-        p.drawText(15, vh - 9, QStringLiteral("Cookie banner footer"));
+        drawGlyphs(p, 15, vh - 9, QStringLiteral("Cookie banner footer"));
         return f;
     };
     ScrollStitcher s;
@@ -178,7 +209,7 @@ void ScrollStitchTest::staticSidebarAndScrollbarDoNotBreakAlignment()
         p.fillRect(0, 0, side, vh, QColor(40, 44, 52));
         p.setPen(Qt::white);
         for (int i = 0; i < 8; ++i)
-            p.drawText(8, 24 + i * 30, QStringLiteral("Nav %1").arg(i));
+            drawGlyphs(p, 8, 24 + i * 30, QStringLiteral("Nav %1").arg(i));
         p.fillRect(w - bar, 0, bar, vh, QColor(220, 220, 220));
         p.fillRect(w - bar + 2, 10 + y / 6, bar - 4, 50, QColor(90, 90, 90));
         return f;
@@ -214,7 +245,7 @@ void ScrollStitchTest::changingStickySidebarDoesNotBreakAlignment()
         p.fillRect(4, 10 + (y / 90 % 8) * 30 - 14, side - 8, 22, QColor(200, 220, 255));
         p.setPen(Qt::black);
         for (int i = 0; i < 8; ++i)
-            p.drawText(8, 10 + i * 30, QStringLiteral("Section %1").arg(i));
+            drawGlyphs(p, 8, 10 + i * 30, QStringLiteral("Section %1").arg(i));
         return f;
     };
     ScrollStitcher s;
@@ -322,8 +353,8 @@ void ScrollStitchTest::hoverCardOverTheViewDoesNotBlockTheShift()
         QPainter p(&f);
         p.fillRect(30, 90, 280, 72, QColor(235, 235, 250));
         p.setPen(QColor(60, 60, 120));
-        p.drawText(40, 110, QStringLiteral("Phelan, William (2012). What Is Sui Generis"));
-        p.drawText(40, 130, QStringLiteral("About the European Union? Costly Cooperation"));
+        drawGlyphs(p, 40, 110, QStringLiteral("Phelan, William (2012). What Is Sui Generis"));
+        drawGlyphs(p, 40, 130, QStringLiteral("About the European Union? Costly Cooperation"));
         p.end();
         return f;
     };

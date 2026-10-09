@@ -117,8 +117,10 @@ jobs:
           # Pre-releases keep out of the AUR: an AUR package with no explicit
           # channel is understood to be the stable one, and a helper would push
           # a beta onto every user who typed `paru -Syu`. The release job marks
-          # these the same way - a letter anywhere in the version.
-          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+          # these the same way - a letter anywhere in the version, or a metainfo
+          # <release> of type="development" (the plain-number betas).
+          if [[ "$VERSION" =~ [a-zA-Z] ]] \
+             || grep -q "<release version=\"${VERSION}\"[^>]*type=\"development\"" resources/app.unisic.Unisic.metainfo.xml; then
             echo "::notice::${VERSION} is a pre-release - leaving the AUR on the last stable version"
             exit 0
           fi

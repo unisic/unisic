@@ -46,111 +46,120 @@ Popup {
         border.color: Theme.divider
     }
 
-    // Scroller + column, the same shell as UConfirmDialog: short as this prompt
+    // Scroller + pinned footer, the UConfirmDialog shell: short as this prompt
     // is, its two sentences are translated and the window can be 560px tall, so
     // it scrolls rather than pushing "Install now" off the bottom edge
     // (UFlyout rule 3). With room it is inert - contentHeight equals the height
     // and it cannot be flicked.
-    contentItem: Flickable {
-        id: bodyFlick
-        implicitHeight: UFlyout.fitHeight(root.parent, bodyCol.implicitHeight
-                                          + root.topPadding + root.bottomPadding)
-                        - root.topPadding - root.bottomPadding
-        contentWidth: width
-        contentHeight: bodyCol.implicitHeight
-        clip: true
-        interactive: contentHeight > height
-        boundsBehavior: Flickable.StopAtBounds
+    contentItem: Column {
+        id: dialogCol
+        // Everything below the scroller, so the scroller can be given the rest.
+        readonly property real footerHeight: buttonRow.height + spacing
+        spacing: Theme.spacingL
 
-        MiddleScroll { flickable: bodyFlick }
-        WheelBoost { flickable: bodyFlick }
+        // Accessible only attaches to an Item, so the dialog identity lives on
+        // the content column, not on the Popup itself.
+        Accessible.role: Accessible.Dialog
+        Accessible.name: qsTr("Update available")
 
-        Column {
-            id: bodyCol
-            width: bodyFlick.width
-            spacing: Theme.spacingL
+        Flickable {
+            id: bodyFlick
+            width: parent.width
+            height: UFlyout.fitHeight(root.parent, bodyCol.implicitHeight + dialogCol.footerHeight
+                                      + root.topPadding + root.bottomPadding)
+                    - root.topPadding - root.bottomPadding - dialogCol.footerHeight
+            contentWidth: width
+            contentHeight: bodyCol.implicitHeight
+            clip: true
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
 
-            // Accessible only attaches to an Item, so the dialog identity lives on
-            // the content column, not on the Popup itself.
-            Accessible.role: Accessible.Dialog
-            Accessible.name: qsTr("Update available")
+            MiddleScroll { flickable: bodyFlick }
+            WheelBoost { flickable: bodyFlick }
 
-            // Header: icon tile + title + version pill.
-            Row {
-                width: parent.width
-                spacing: Theme.spacingM
+            Column {
+                id: bodyCol
+                width: bodyFlick.width
+                spacing: Theme.spacingL
 
-                Rectangle {
-                    width: 36; height: 36; radius: Theme.radiusM
-                    color: Theme.alpha(Theme.accent, 0.16)
-                    anchors.verticalCenter: parent.verticalCenter
-                    UIcon {
-                        anchors.centerIn: parent
-                        name: "star-filled"
-                        size: 20
-                        color: Theme.accent
+                // Header: icon tile + title + version pill.
+                Row {
+                    width: parent.width
+                    spacing: Theme.spacingM
+
+                    Rectangle {
+                        width: 36; height: 36; radius: Theme.radiusM
+                        color: Theme.alpha(Theme.accent, 0.16)
+                        anchors.verticalCenter: parent.verticalCenter
+                        UIcon {
+                            anchors.centerIn: parent
+                            name: "star-filled"
+                            size: 20
+                            color: Theme.accent
+                        }
                     }
+                    Text {
+                        text: qsTr("Update available")
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontL
+                        font.weight: Font.DemiBold
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Rectangle {
+                        height: 22
+                        width: versionText.implicitWidth + 16
+                        radius: 11
+                        color: Theme.alpha(Theme.accent, 0.14)
+                        border.width: 1
+                        border.color: Theme.alpha(Theme.accent, 0.35)
+                        anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            id: versionText
+                            anchors.centerIn: parent
+                            text: qsTr("v%1").arg(root.version)
+                            color: Theme.accent
+                            font.pixelSize: Theme.fontS
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+
+                Text {
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: qsTr("Unisic %1 is available. Install it now?").arg(root.version)
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontM
                 }
                 Text {
-                    text: qsTr("Update available")
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontL
-                    font.weight: Font.DemiBold
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Rectangle {
-                    height: 22
-                    width: versionText.implicitWidth + 16
-                    radius: 11
-                    color: Theme.alpha(Theme.accent, 0.14)
-                    border.width: 1
-                    border.color: Theme.alpha(Theme.accent, 0.35)
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        id: versionText
-                        anchors.centerIn: parent
-                        text: qsTr("v%1").arg(root.version)
-                        color: Theme.accent
-                        font.pixelSize: Theme.fontS
-                        font.weight: Font.DemiBold
-                    }
+                    width: parent.width
+                    wrapMode: Text.WordWrap
+                    text: qsTr("A terminal window will open and ask for your login password to update the installed package.")
+                    color: Theme.textTertiary
+                    font.pixelSize: Theme.fontS
                 }
             }
+        }
 
-            Text {
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: qsTr("Unisic %1 is available. Install it now?").arg(root.version)
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontM
+        // Footer: Later (dismiss) + Install now.
+        Row {
+            id: buttonRow
+            anchors.right: parent.right
+            spacing: Theme.spacingM
+
+            UButton {
+                text: qsTr("Later")
+                variant: "tonal"
+                compact: true
+                onClicked: root.close()
             }
-            Text {
-                width: parent.width
-                wrapMode: Text.WordWrap
-                text: qsTr("A terminal window will open and ask for your login password to update the installed package.")
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontS
-            }
-
-            // Footer: Later (dismiss) + Install now.
-            Row {
-                anchors.right: parent.right
-                spacing: Theme.spacingM
-
-                UButton {
-                    text: qsTr("Later")
-                    variant: "tonal"
-                    compact: true
-                    onClicked: root.close()
-                }
-                UButton {
-                    text: qsTr("Install now")
-                    variant: "filled"
-                    compact: true
-                    onClicked: {
-                        App.updater.installViaScript()
-                        root.close()
-                    }
+            UButton {
+                text: qsTr("Install now")
+                variant: "filled"
+                compact: true
+                onClicked: {
+                    App.updater.installViaScript()
+                    root.close()
                 }
             }
         }

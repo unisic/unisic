@@ -11,10 +11,12 @@ whole per release (not per individual change).
 ### English
 **Fixed**
 - **The Activity log buttons no longer cover the text above them**: in Settings > General > Activity log, the three buttons stood beside the label, and in every language except English they were wider than the room there and covered the label and its description. They now get their own line under the description, and wrap onto a second one when the window is too narrow.
+- **Dialog buttons stay in view and keep their whole glow**: in the settings "?" help, confirmation dialogs, the system check, the update prompt and the colour picker, the glow around the highlighted button in the bottom-right corner ended in a straight line along its right and bottom edge, and in a short window a long text scrolled the buttons away with it. The buttons now stay put under the text, which scrolls on its own, and the glow fades out evenly on every side.
 
 ### Polski
 **Naprawione**
 - **Przyciski dziennika działania nie zasłaniają już tekstu nad nimi**: w Ustawieniach > Ogólne > Dziennik działania trzy przyciski stały obok nazwy i w każdym języku poza angielskim były szersze niż miejsce, które tam było, więc zasłaniały nazwę i jej opis. Mają teraz własny wiersz pod opisem i przechodzą do drugiego, gdy okno jest za wąskie.
+- **Przyciski okien dialogowych zostają na widoku i mają całą poświatę**: w pomocy "?" w Ustawieniach, oknach potwierdzenia, sprawdzeniu systemu, oknie aktualizacji i próbniku kolorów poświata wokół wyróżnionego przycisku w prawym dolnym rogu kończyła się prostą linią wzdłuż jego prawej i dolnej krawędzi, a w niskim oknie długi tekst przewijał przyciski razem ze sobą. Przyciski stoją teraz na stałe pod tekstem, który przewija się sam, a poświata zanika równo z każdej strony.
 
 ## 0.8.7
 

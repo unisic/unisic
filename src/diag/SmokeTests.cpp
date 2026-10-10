@@ -9,6 +9,7 @@
 // stays a file-static in this file.
 
 #include "AppContext.h"
+#include "capture/ScrollStitcher.h"
 #include "capture/KWinWindowGeometry.h"
 #include "unisic_build_date.h" // generated into the build dir (cmake/BuildDate.cmake)
 #include "Settings.h"
@@ -26,6 +27,7 @@
 #include "diag/DiagLog.h"
 
 #include <csignal>
+#include <QWheelEvent>
 #include <QTemporaryFile>
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
@@ -136,6 +138,14 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
         done(QStringLiteral("SKIP (main window not open)"));
         return;
     }
+    if (!win->isExposed() || win->windowStates().testFlag(Qt::WindowMinimized)) {
+        // Minimized: a capture must leave it where it is, so it must not hide.
+        m_otherWindowFocused = false;
+        done(hideOwnWindowForCapture()
+                 ? QStringLiteral("FAIL (minimized window was hidden and would pop back up)")
+                 : QStringLiteral("PASS (minimized window left alone)"));
+        return;
+    }
     if (!m_settings->hideWindowOnCapture()) {
         // Deliberately does NOT flip the setting to run anyway: this check runs
         // from the smoke test on the user's own configuration, and a check that
@@ -143,17 +153,30 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
         done(QStringLiteral("SKIP (hide while capturing is off)"));
         return;
     }
+    // beginCaptureIsolation() decides "another Unisic window has focus" from the
+    // real focus window, which a smoke test fired by a hotkey cannot arrange, so
+    // the flag is forced to exercise both outcomes. With the editor in front the
+    // main window must not move at all; otherwise it goes down and, on the timer
+    // a real capture uses, comes back - the failure that matters is the window
+    // not coming BACK, and a same-turn hide/show would not exercise that.
+    m_otherWindowFocused = true;
+    if (hideOwnWindowForCapture()) {
+        restoreOwnWindowAfterCapture();
+        done(QStringLiteral("FAIL (window hidden while another Unisic window had focus)"));
+        return;
+    }
+    m_otherWindowFocused = false;
     const bool wentDown = hideOwnWindowForCapture() && !win->isVisible();
-    // Restored a whole event-loop turn later, on the same timer a real capture
-    // uses - the failure that matters here is the window not coming BACK, and a
-    // same-turn hide/show would not exercise that at all.
     QTimer::singleShot(kSelfHideSettleMs, this, [this, win, wentDown, done = std::move(done)] {
         restoreOwnWindowAfterCapture();
-        const bool cameBack = win && win->isVisible();
-        done(wentDown && cameBack
-                 ? QStringLiteral("PASS")
-                 : QStringLiteral("FAIL (hidden=%1, restored=%2)")
-                       .arg(wentDown ? 1 : 0).arg(cameBack ? 1 : 0));
+        const bool back = win && win->isVisible();
+        // The smoke test runs on the user's own session: put the window back
+        // where the user left it whatever the verdict.
+        if (win && !back)
+            win->show();
+        done(wentDown && back
+                 ? QStringLiteral("PASS (left alone while another Unisic window has focus; otherwise down and back)")
+                 : QStringLiteral("FAIL (down=%1 back=%2)").arg(wentDown).arg(back));
     });
 }
 
@@ -561,6 +584,56 @@ static QString shiftSnapCheck()
                : QStringLiteral("FAIL (line not constrained)");
 }
 
+// Shift/Ctrl + click with the pen: a straight line from the last stroke's end.
+static QString penLineCheck()
+{
+    class InputCanvas final : public AnnotationCanvas {
+    public:
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    };
+    InputCanvas canvas;
+    QImage base(100, 100, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    canvas.setImage(base);
+    canvas.setTool(AnnotationCanvas::Pen);
+    canvas.setStrokeColor(Qt::black);
+    canvas.setStrokeWidth(4);
+    const auto send = [&canvas](QEvent::Type t, QPointF at, Qt::KeyboardModifiers mods) {
+        QMouseEvent e(t, at, at, Qt::LeftButton,
+                      t == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, mods);
+        if (t == QEvent::MouseButtonPress)
+            canvas.mousePressEvent(&e);
+        else if (t == QEvent::MouseMove)
+            canvas.mouseMoveEvent(&e);
+        else
+            canvas.mouseReleaseEvent(&e);
+    };
+    send(QEvent::MouseButtonPress, {10, 20}, Qt::NoModifier);
+    send(QEvent::MouseMove, {40, 20}, Qt::NoModifier);
+    send(QEvent::MouseButtonRelease, {40, 20}, Qt::NoModifier);
+    send(QEvent::MouseButtonPress, {40, 80}, Qt::ShiftModifier);
+    send(QEvent::MouseButtonRelease, {40, 80}, Qt::ShiftModifier);
+    if (canvas.rendered().pixelColor(40, 50).lightness() >= 80)
+        return QStringLiteral("FAIL (Shift+click drew no line)");
+    send(QEvent::MouseButtonPress, {80, 80}, Qt::ControlModifier);
+    send(QEvent::MouseButtonRelease, {80, 80}, Qt::ControlModifier);
+    if (canvas.rendered().pixelColor(60, 80).lightness() >= 80)
+        return QStringLiteral("FAIL (Ctrl+click drew no line)");
+    // Dragged with the modifier: from the press, through no freehand detour.
+    send(QEvent::MouseButtonPress, {60, 10}, Qt::ControlModifier);
+    send(QEvent::MouseMove, {90, 10}, Qt::ControlModifier);
+    send(QEvent::MouseMove, {90, 40}, Qt::ControlModifier);
+    send(QEvent::MouseButtonRelease, {90, 40}, Qt::ControlModifier);
+    const QImage out = canvas.rendered();
+    if (out.pixelColor(75, 25).lightness() >= 80)
+        return QStringLiteral("FAIL (Ctrl+drag drew no line from the press)");
+    if (out.pixelColor(85, 10).lightness() < 200)
+        return QStringLiteral("FAIL (Ctrl+drag kept the freehand path)");
+    return QStringLiteral("PASS (Shift+click, Ctrl+click chained, Ctrl+drag)");
+}
+
 static QString externalActionCheck()
 {
     QString program, output, error;
@@ -762,6 +835,14 @@ void AppContext::devTestShiftSnap()
     showToast(tr("Dev: Shift snap: %1").arg(shiftSnapCheck()));
 }
 
+void AppContext::devTestPenLine()
+{
+    if (!devBuild())
+        return;
+    const QString r = penLineCheck();
+    showToast(tr("Dev: pen line click: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 void AppContext::devTestQrPreview()
 {
     if (!devBuild())
@@ -913,7 +994,7 @@ void AppContext::devTestPerAppAudio()
     const QVariantList nodes = audioApplicationNodes();
     showToast(tr("Dev: per-app audio: %1")
                   .arg(!perAppAudioAvailable() ? QStringLiteral("SKIP")
-                                               : QStringLiteral("PASS (%1 nodes)").arg(nodes.size())));
+                                               : QStringLiteral("PASS (%1 applications)").arg(nodes.size())));
 }
 
 void AppContext::devTestInstantReplay()
@@ -2414,6 +2495,193 @@ void AppContext::devTestNotificationOrder()
     QTimer::singleShot(6000, this, [this] { hideCapturePopupPreview(); });
 }
 
+// Drives the editor's bottom-bar zoom control the way clicks do and reads the
+// view zoom back: the percentage toggles fit <-> 100%, + and - step from
+// there. Only the view property is read, so a pass also means nothing here
+// went near the image.
+static QString editorZoomCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *flick = win->findChild<QQuickItem *>(QStringLiteral("editorCanvasFlick"));
+    auto *pct = win->findChild<QQuickItem *>(QStringLiteral("editorZoomPct"));
+    auto *in = win->findChild<QQuickItem *>(QStringLiteral("editorZoomIn"));
+    auto *out = win->findChild<QQuickItem *>(QStringLiteral("editorZoomOut"));
+    if (!flick || !pct || !in || !out)
+        return QStringLiteral("FAIL (zoom control not found)");
+    const auto zoom = [flick] { return flick->property("zoom").toDouble(); };
+    if (zoom() != 0)
+        return QStringLiteral("FAIL (opened at %1, not fit)").arg(zoom());
+    // Ctrl+wheel through the window, the way a real notch arrives: delivery
+    // picks the item under the point, so anything stacked over the canvas
+    // that eats wheel events shows up here and not in the button checks.
+    // Once per device class: Qt on Wayland tags some wheels as TouchPad, and
+    // a handler left at its Mouse-only default declined exactly those.
+    const QPointF at = flick->mapToScene(QPointF(flick->width() / 2, flick->height() / 2));
+    int wheels = 0;
+    for (const QInputDevice *d : QInputDevice::devices()) {
+        if (d->type() != QInputDevice::DeviceType::Mouse
+            && d->type() != QInputDevice::DeviceType::TouchPad)
+            continue;
+        QWheelEvent wheel(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                          static_cast<const QPointingDevice *>(d));
+        QCoreApplication::sendEvent(win, &wheel);
+        if (zoom() == 0)
+            return QStringLiteral("FAIL (Ctrl+wheel from %1 did not zoom)").arg(d->name());
+        flick->setProperty("zoom", 0);
+        ++wheels;
+    }
+    QMetaObject::invokeMethod(pct, "_activate");
+    if (!qFuzzyCompare(zoom(), 1.0))
+        return QStringLiteral("FAIL (percentage gave %1, not 100%)").arg(zoom());
+    QMetaObject::invokeMethod(in, "clicked");
+    const double zoomedIn = zoom();
+    if (!(zoomedIn > 1.0))
+        return QStringLiteral("FAIL (+ gave %1)").arg(zoomedIn);
+    QMetaObject::invokeMethod(out, "clicked");
+    if (!(zoom() < zoomedIn))
+        return QStringLiteral("FAIL (- gave %1 from %2)").arg(zoom()).arg(zoomedIn);
+    QMetaObject::invokeMethod(pct, "_activate");
+    if (zoom() != 0)
+        return QStringLiteral("FAIL (percentage did not return to fit)");
+    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, 100%, +, -, fit)").arg(wheels);
+}
+
+void AppContext::devTestEditorZoom()
+{
+    if (!devBuild())
+        return;
+    QString r;
+    {
+        // Closes the editor it opened once the check is read.
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        r = editorZoomCheck(m_checkWindows.isEmpty() ? nullptr : m_checkWindows.last().data());
+    }
+    showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// Settings > Saving > filename template: a field once entered has to be
+// leavable, by Escape and by a click on nothing (user-reported twice: "can't
+// get out of the filename field"). Real key and mouse events through the
+// window, so whatever eats them on the way shows up here.
+static QString leaveFieldCheck(QQuickWindow *win)
+{
+    if (!win || !win->isVisible())
+        return QStringLiteral("SKIP (main window not open)");
+    const QVariant page0 = win->property("currentPage");
+    win->setProperty("currentPage", 5);
+    QCoreApplication::processEvents();
+    auto *page = win->findChild<QQuickItem *>(QStringLiteral("settingsPage"));
+    if (!page) {
+        win->setProperty("currentPage", page0);
+        return QStringLiteral("FAIL (settings page not found)");
+    }
+    const QVariant tab0 = page->property("tab");
+    page->setProperty("tab", 4);
+    QCoreApplication::processEvents();
+    const auto restore = [&] { page->setProperty("tab", tab0); win->setProperty("currentPage", page0); };
+    auto *field = win->findChild<QQuickItem *>(QStringLiteral("settingsTemplateField"));
+    auto *caption = win->findChild<QQuickItem *>(QStringLiteral("settingsTemplateCaption"));
+    if (!field || !caption) {
+        restore();
+        return QStringLiteral("FAIL (filename field not found)");
+    }
+    const auto focused = [field] { return field->property("inputActiveFocus").toBool(); };
+    // Qt hands no item active focus in an inactive window. Ask for the window
+    // once; the compositor may still say no, which is the SKIP below.
+    if (!win->isActive()) {
+        win->requestActivate();
+        QElapsedTimer t;
+        t.start();
+        while (!win->isActive() && t.elapsed() < 1500)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    }
+    QMetaObject::invokeMethod(field, "forceFocus");
+    if (!focused()) {
+        restore();
+        return QStringLiteral("SKIP (window inactive, the field cannot take focus)");
+    }
+    QKeyEvent escDown(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QKeyEvent escUp(QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &escDown);
+    QCoreApplication::sendEvent(win, &escUp);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (Escape did not leave the field)");
+    }
+    QMetaObject::invokeMethod(field, "forceFocus");
+    QKeyEvent retDown(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QKeyEvent retUp(QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &retDown);
+    QCoreApplication::sendEvent(win, &retUp);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (Enter did not leave the field)");
+    }
+    const auto press = [win](const QPointF &at, const QPointF &releaseAt) {
+        QMouseEvent down(QEvent::MouseButtonPress, at, win->mapToGlobal(at),
+                         Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent up(QEvent::MouseButtonRelease, releaseAt, win->mapToGlobal(releaseAt),
+                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        // The move is what tells a MouseArea the pointer left it; without one
+        // it still thinks it is hovered and calls the release a click.
+        QMouseEvent move(QEvent::MouseMove, releaseAt, win->mapToGlobal(releaseAt),
+                         Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(win, &down);
+        QCoreApplication::sendEvent(win, &move);
+        QCoreApplication::sendEvent(win, &up);
+    };
+    const QPointF beside = caption->mapToScene(QPointF(caption->width() / 2, caption->height() / 2));
+    QMetaObject::invokeMethod(field, "forceFocus");
+    press(beside, beside);
+    if (focused()) {
+        restore();
+        return QStringLiteral("FAIL (a click beside the field did not leave it)");
+    }
+    // A press a control consumes: the switch takes it and takes no focus. The
+    // release lands on the caption, so the switch never sees a click and the
+    // user's setting stays as it was.
+    auto *sw = win->findChild<QQuickItem *>(QStringLiteral("settingsOpenAfterSaveSwitch"));
+    if (!sw) {
+        restore();
+        return QStringLiteral("FAIL (switch not found)");
+    }
+    const bool before = sw->property("checked").toBool();
+    QMetaObject::invokeMethod(field, "forceFocus");
+    press(sw->mapToScene(QPointF(sw->width() / 2, sw->height() / 2)), beside);
+    const bool stuck = focused();
+    const bool flipped = sw->property("checked").toBool() != before;
+    if (flipped)
+        QMetaObject::invokeMethod(sw, "toggled", Q_ARG(bool, before));
+    // And whatever watches presses on the way must still let a real click
+    // through: two clicks flip the switch and flip it back.
+    const QPointF swAt = sw->mapToScene(QPointF(sw->width() / 2, sw->height() / 2));
+    press(swAt, swAt);
+    const bool clickWorks = sw->property("checked").toBool() != before;
+    if (clickWorks)
+        press(swAt, swAt);
+    if (sw->property("checked").toBool() != before)
+        QMetaObject::invokeMethod(sw, "toggled", Q_ARG(bool, before));
+    restore();
+    if (flipped)
+        return QStringLiteral("FAIL (the switch toggled, the test changed a setting)");
+    if (stuck)
+        return QStringLiteral("FAIL (a press on a switch did not leave the field)");
+    if (!clickWorks)
+        return QStringLiteral("FAIL (a click no longer reaches the switch)");
+    return QStringLiteral("PASS (Escape, Enter, click beside, press on a switch, switch still clicks)");
+}
+
+void AppContext::devTestLeaveField()
+{
+    if (!devBuild())
+        return;
+    const QString r = leaveFieldCheck(mainWindow());
+    showToast(tr("Dev: leave filename field %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 void AppContext::devTestEditor()
 {
     if (!devBuild())
@@ -3584,6 +3852,60 @@ QString AppContext::recordPageModeCheck()
         .arg(original == 1 ? QStringLiteral("GIF") : QStringLiteral("video"));
 }
 
+QString AppContext::trayMenuCheck()
+{
+    // Hide two entries plus Open and Quit: the two must leave the menu, the
+    // locked pair must stay, and no separator may lead, trail or double up.
+    // Signals blocked: the live tray must not be torn down and rebuilt twice for a probe.
+    QMenu *menu = nullptr;
+    {
+        const QSignalBlocker quiet(m_settings);
+        const QString original = m_settings->hiddenTrayItems();
+        m_settings->setHiddenTrayItems(QStringLiteral("region,ocr,open,quit"));
+        menu = buildTrayMenu();
+        m_settings->setHiddenTrayItems(original);
+    }
+
+    QStringList texts;
+    bool badSeparator = false;
+    const QList<QAction *> actions = menu->actions();
+    for (int i = 0; i < actions.size(); ++i) {
+        if (actions[i]->isSeparator()) {
+            if (i == 0 || i == actions.size() - 1 || actions[i - 1]->isSeparator())
+                badSeparator = true;
+        } else {
+            texts.append(actions[i]->text());
+        }
+    }
+    delete menu;
+
+    // Every entry's glyph must exist in the bundle, or the menu and the
+    // Settings list silently draw a blank where the icon belongs.
+    QStringList noGlyph;
+    for (const QVariant &v : trayMenuEntries()) {
+        const QString icon = v.toMap().value(QStringLiteral("icon")).toString();
+        if (!QFile::exists(QStringLiteral(":/resources/icons/sym/%1.svg").arg(icon)))
+            noGlyph.append(icon);
+    }
+
+    const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
+    const bool kept = texts.contains(tr("Capture full screen"))
+                      && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
+    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty())
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4)")
+            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')));
+    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked)")
+        .arg(trayMenuEntries().size());
+}
+
+void AppContext::devTestTrayMenu()
+{
+    if (!devBuild())
+        return;
+    const QString result = trayMenuCheck();
+    showToast(tr("Dev: tray menu: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestRecordPageMode()
 {
     if (!devBuild())
@@ -3867,6 +4189,8 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());
         smokeLog(QStringLiteral("image conversion: ") + imageConvertCheck());
+        smokeLog(QStringLiteral("scrolling screenshot stitch: ") + scrollStitchCheck());
+        smokeLog(QStringLiteral("scrolling capture hand-off: ") + scrollHandoffCheck());
         {
             // Notification thumbnail drag: an unsaved image must materialize a
             // real temp file for the drop target (the new dragUri() branch).
@@ -3911,7 +4235,19 @@ void AppContext::runSmokeTest()
         // or the reason it does not is legitimate, (4) the crash report still
         // renders in the shape a user would paste.
         const int before = DiagLog::bufferedLineCount();
+        const double revBefore = logRevision();
         qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
+        // The log viewer's whole data path: the counter it polls moved, and
+        // the text it shows carries the probe, redacted.
+        const QString viewerText = recentLog();
+        smokeLog(QStringLiteral("log viewer feed: %1")
+                     .arg(!(logRevision() > revBefore)
+                              ? QStringLiteral("FAIL (revision did not move)")
+                          : !viewerText.contains(QStringLiteral("smoke: log probe"))
+                              ? QStringLiteral("FAIL (probe line missing)")
+                          : viewerText.contains(QStringLiteral("smoketoken987"))
+                              ? QStringLiteral("FAIL (secret visible)")
+                              : QStringLiteral("PASS")));
         const QString tail = DiagLog::recentLines(3);
         const bool grew = DiagLog::bufferedLineCount() > before;
         const bool clean = !tail.contains(QStringLiteral("smoketoken987"))
@@ -3975,8 +4311,9 @@ void AppContext::runSmokeTest()
         if (!perAppAudioAvailable())
             smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
         else
-            smokeLog(QStringLiteral("per-app audio: PASS (%1 active nodes)")
-                         .arg(audioApplicationNodes().size()));
+            smokeLog(QStringLiteral("per-app audio: PASS (%1 applications playing, %2 ticked)")
+                         .arg(audioApplicationNodes().size())
+                         .arg(m_settings->recordAppAudioApps().size()));
         if (!audioInputListAvailable())
             smokeLog(QStringLiteral("audio input devices: SKIP (pw-dump missing)"));
         else
@@ -4210,6 +4547,15 @@ void AppContext::runSmokeTest()
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        smokeLog(QStringLiteral("editor zoom control: ")
+                 + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
+                                       ? m_smokeWindows.last().data() : nullptr));
+        smokeNext();
+    });
+
+    // 3a) a settings text field can be left again
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
         smokeNext();
     });
 
@@ -4350,6 +4696,12 @@ void AppContext::runSmokeTest()
     // 3e3h) Shift snaps geometry to a grid and constrains line angles/ratios.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("shift snap: ") + shiftSnapCheck());
+        smokeNext();
+    });
+
+    // 3e3h2) Shift/Ctrl + click with the pen joins the last stroke with a line.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("pen line click: ") + penLineCheck());
         smokeNext();
     });
 
@@ -4741,6 +5093,7 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
         smokeLog(QStringLiteral("record page mode: ") + recordPageModeCheck());
+        smokeLog(QStringLiteral("tray menu entries: ") + trayMenuCheck());
         smokeNext();
     });
 
@@ -4869,4 +5222,125 @@ void AppContext::devTestDesktopShortcuts()
     if (!devBuild())
         return;
     showToast(tr("Dev: desktop shortcuts: %1").arg(desktopShortcutsCheck()));
+}
+
+QString AppContext::scrollStitchCheck() const
+{
+    // A text document behind a sticky header, scrolled in irregular steps
+    // down and back up: the stitched image must equal the original pixels.
+    const int w = 320, vh = 200, hdr = 24, docH = 900;
+    QImage doc(w, docH, QImage::Format_RGB32);
+    doc.fill(Qt::white);
+    {
+        QPainter p(&doc);
+        p.setPen(Qt::black);
+        for (int y = 14; y < docH; y += 15)
+            p.drawText(8, y, QStringLiteral("Line %1 of the scrolled page").arg(y / 15));
+    }
+    auto frame = [&](int y) {
+        QImage f(w, vh, QImage::Format_RGB32);
+        QPainter p(&f);
+        p.fillRect(0, 0, w, hdr, QColor(40, 40, 90));
+        p.drawImage(0, hdr, doc.copy(0, y, w, vh - hdr));
+        return f;
+    };
+
+    ScrollStitcher stitcher;
+    int lo = 300, hi = 300;
+    stitcher.addFrame(frame(300));
+    for (int y : {340, 341, 420, 500, 437, 330, 260, 200, 255}) {
+        if (stitcher.addFrame(frame(y)) == ScrollStitcher::Result::Unmatched)
+            return QStringLiteral("FAIL (lost track at y=%1)").arg(y);
+        lo = std::min(lo, y);
+        hi = std::max(hi, y);
+    }
+
+    QImage expect(w, hi - lo + vh, QImage::Format_RGB32);
+    {
+        QPainter p(&expect);
+        p.drawImage(0, 0, frame(lo).copy(0, 0, w, hdr));
+        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh - hdr));
+    }
+    const QImage got = stitcher.stitchedImage();
+    if (got.size() != expect.size())
+        return QStringLiteral("FAIL (%1x%2, expected %3x%4)")
+            .arg(got.width()).arg(got.height()).arg(expect.width()).arg(expect.height());
+    if (got != expect)
+        return QStringLiteral("FAIL (pixels differ)");
+    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
+        .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
+}
+
+// Starting a scrolling capture from the overlay must pay off the overlay's
+// pending callback, or AppContext's capture-in-flight guard stays armed and
+// every later screenshot and recording is refused without a word for the rest
+// of the session. Checks both halves without a frozen screen: the overlay's
+// hand-off calls exactly one callback, and the scroll pick callback disarms
+// the guard (fed an empty rect, so no real stream is opened).
+QString AppContext::scrollHandoffCheck()
+{
+    if (m_captureInFlight || m_overlay->active() || scrollCaptureActive())
+        return QStringLiteral("SKIP (a capture is in progress)");
+
+    const QRect rect(10, 20, 300, 400);
+    int regionCalls = 0;
+    QRect seen;
+    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *) {
+        ++regionCalls;
+        seen = r;
+    };
+    if (OverlayController::handOffScrollPick(regionCb, nullptr, rect, nullptr))
+        return QStringLiteral("FAIL (a scroll pick was started twice)");
+    if (regionCalls != 1 || seen != rect)
+        return QStringLiteral("FAIL (region callback called %1 times)").arg(regionCalls);
+
+    int imageCalls = 0;
+    bool released = false;
+    const OverlayController::ImageCallback imageCb = [&](const QImage &img) {
+        ++imageCalls;
+        released = img.isNull();
+    };
+    if (!OverlayController::handOffScrollPick(nullptr, imageCb, rect, nullptr))
+        return QStringLiteral("FAIL (screenshot overlay did not start the scroll)");
+    if (imageCalls != 1 || !released)
+        return QStringLiteral("FAIL (screenshot callback not released)");
+
+    m_captureInFlight = true;
+    beginCaptureIsolation();
+    onScrollRegionPicked(QRect(), nullptr);
+    if (m_captureInFlight) {
+        m_captureInFlight = false;
+        return QStringLiteral("FAIL (capture guard left armed)");
+    }
+
+    // A selection the stitcher would refuse every frame of must not open a
+    // session that can only end empty, and must drop the one-shot task.
+    m_nextCaptureTask.active = true;
+    startScrollCapture(QRect(10, 20, ScrollStitcher::kMinFrameWidth - 1, 400),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-narrow selection started a scroll)");
+    startScrollCapture(QRect(10, 20, 300, ScrollStitcher::kMinFrameHeight - 1),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-short selection started a scroll)");
+    if (m_nextCaptureTask.active) {
+        m_nextCaptureTask = {};
+        return QStringLiteral("FAIL (refused scroll left its task armed)");
+    }
+    return QStringLiteral("PASS (one callback per path, guard released, tiny selection refused)");
+}
+
+void AppContext::devTestScrollHandoff()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: scrolling hand-off: %1").arg(scrollHandoffCheck()));
+}
+
+void AppContext::devTestScrollStitch()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: scrolling stitch: %1").arg(scrollStitchCheck()));
 }

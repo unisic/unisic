@@ -37,6 +37,7 @@ Window {
             case "ocr":     return qsTr("Read text")
             case "gif":     return qsTr("Record GIF")
             case "video":   return qsTr("Record video")
+            case "scroll":  return qsTr("Scrolling screenshot")
             }
             return qsTr("Screenshot")
         }
@@ -46,6 +47,7 @@ Window {
             case "ocr":     return "ocr"
             case "gif":     return "gif"
             case "video":   return "media-record"
+            case "scroll":  return "chevron-down"
             }
             return "region"
         }
@@ -55,9 +57,10 @@ Window {
         // answers nothing. Measuring still exports an image, so it captures.
         readonly property string confirmLabel: {
             switch (overlayPurpose) {
-            case "ocr":   return qsTr("Read text")
-            case "gif":   return qsTr("Record GIF")
-            case "video": return qsTr("Record video")
+            case "ocr":    return qsTr("Read text")
+            case "gif":    return qsTr("Record GIF")
+            case "video":  return qsTr("Record video")
+            case "scroll": return qsTr("Start scrolling")
             }
             return qsTr("Capture")
         }
@@ -560,6 +563,8 @@ Window {
                         return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter starts the GIF · Esc to cancel")
                     if (overlayPurpose === "video")
                         return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter starts the video · Esc to cancel")
+                    if (overlayPurpose === "scroll")
+                        return drag + win + qsTr(" · Ctrl+drag to move · Space/Enter starts scrolling capture · Esc to cancel")
                     return annotationToolsEnabled
                            ? drag + win + qsTr(" · click for the whole screen · Ctrl+drag to move · annotate with the toolbar · Space/Enter or double-click to capture · Esc to cancel")
                            : drag + win + qsTr(" · Ctrl+drag to move · Space/Enter to start · Esc to cancel")
@@ -757,6 +762,18 @@ Window {
                             width: 1; height: 40
                             Rectangle { anchors.centerIn: parent; width: 1; height: 28; color: Theme.divider }
                         }
+                    }
+
+                    UIconButton {
+                        id: scrollButton
+                        visible: annotationToolsEnabled && canvas.hasSelection && overlayPurpose !== "scroll"
+                        activeFocusOnTab: false
+                        iconName: "chevron-down"
+                        iconSize: 15
+                        accessibleName: qsTr("Scrolling capture")
+                        accessibleDescription: qsTr("Capture long screenshot by scrolling")
+                        anchors.verticalCenter: parent.verticalCenter
+                        onClicked: overlayController.startScrollCapture(overlayWindow)
                     }
 
                     UButton {

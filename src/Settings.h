@@ -49,6 +49,7 @@ class Settings : public QObject
     Q_PROPERTY(QString activeDestination READ activeDestination WRITE setActiveDestination NOTIFY activeDestinationChanged)
     Q_PROPERTY(QString hotkeyFullScreen READ hotkeyFullScreen WRITE setHotkeyFullScreen NOTIFY hotkeyFullScreenChanged)
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
+    Q_PROPERTY(QString hotkeyScroll READ hotkeyScroll WRITE setHotkeyScroll NOTIFY hotkeyScrollChanged)
     Q_PROPERTY(QString hotkeyWindow READ hotkeyWindow WRITE setHotkeyWindow NOTIFY hotkeyWindowChanged)
     Q_PROPERTY(QString hotkeyGif READ hotkeyGif WRITE setHotkeyGif NOTIFY hotkeyGifChanged)
     Q_PROPERTY(QString lastCaptureRegion READ lastCaptureRegion WRITE setLastCaptureRegion NOTIFY lastCaptureRegionChanged)
@@ -138,7 +139,7 @@ class Settings : public QObject
     Q_PROPERTY(int videoMaxDurationSec READ videoMaxDurationSec WRITE setVideoMaxDurationSec NOTIFY videoMaxDurationSecChanged)
     Q_PROPERTY(bool recordSystemAudio READ recordSystemAudio WRITE setRecordSystemAudio NOTIFY recordSystemAudioChanged)
     Q_PROPERTY(bool recordMicrophone READ recordMicrophone WRITE setRecordMicrophone NOTIFY recordMicrophoneChanged)
-    Q_PROPERTY(QString recordAppAudioNode READ recordAppAudioNode WRITE setRecordAppAudioNode NOTIFY recordAppAudioNodeChanged)
+    Q_PROPERTY(QStringList recordAppAudioApps READ recordAppAudioApps WRITE setRecordAppAudioApps NOTIFY recordAppAudioAppsChanged)
     Q_PROPERTY(QString microphoneSource READ microphoneSource WRITE setMicrophoneSource NOTIFY microphoneSourceChanged)
     Q_PROPERTY(bool separateAudioTracks READ separateAudioTracks WRITE setSeparateAudioTracks NOTIFY separateAudioTracksChanged)
     Q_PROPERTY(QString videoEncoder READ videoEncoder WRITE setVideoEncoder NOTIFY videoEncoderChanged)
@@ -162,6 +163,7 @@ class Settings : public QObject
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(int recordPageMode READ recordPageMode WRITE setRecordPageMode NOTIFY recordPageModeChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
+    Q_PROPERTY(QString hiddenTrayItems READ hiddenTrayItems WRITE setHiddenTrayItems NOTIFY hiddenTrayItemsChanged)
     Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
     Q_PROPERTY(QString updateChannel READ updateChannel WRITE setUpdateChannel NOTIFY updateChannelChanged)
     Q_PROPERTY(int recordCountdownSec READ recordCountdownSec WRITE setRecordCountdownSec NOTIFY recordCountdownSecChanged)
@@ -205,7 +207,7 @@ public:
             // physically present in stable's file, but a hotkey left at its code
             // default is never written there, so it would ship BOUND on a fresh
             // dev config and collide with the stable KGlobalAccel component.
-            for (const char *hk : {"fullScreen", "region", "window", "gif", "record",
+            for (const char *hk : {"fullScreen", "region", "scroll", "window", "gif", "record",
                                    "ocrRegion", "copyLast", "instantReplay"})
                 m_s.setValue(QStringLiteral("hotkeys/") + QLatin1String(hk), QString());
             m_s.sync();
@@ -417,6 +419,7 @@ public:
     U_SETTING(QString, activeDestination, setActiveDestination, "upload/activeDestination", QStringLiteral("catbox.moe"))
     U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral("Meta+Shift+1"))
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
+    U_SETTING(QString, hotkeyScroll, setHotkeyScroll, "hotkeys/scroll", QString())
     U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
@@ -582,8 +585,13 @@ public:
     // Video recording audio (never GIF). Both OFF by default.
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
-    U_SETTING(QString, recordAppAudioNode, setRecordAppAudioNode,
-              "audio/recordAppAudioNode", QString())
+    // Applications whose audio is recorded, by PwDump::AppStream::app (the
+    // binary name), resolved to their live streams when a recording starts.
+    // Replaces audio/recordAppAudioNode, which held an object.serial: that
+    // went stale on every app relaunch and pw-record then recorded the mic,
+    // so the old value is deliberately not migrated.
+    U_SETTING(QStringList, recordAppAudioApps, setRecordAppAudioApps,
+              "audio/recordAppAudioApps", QStringList())
     // Pulse/PipeWire source NAME for the microphone; empty means the default
     // input. Stored by node.name, not serial: names survive a reboot.
     U_SETTING(QString, microphoneSource, setMicrophoneSource,
@@ -656,6 +664,12 @@ public:
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
+    // CSV of tray-menu entry ids the menu must NOT show ("measure,gif-region"),
+    // same opt-out shape as hiddenNotifActions: empty = the full menu, and an id
+    // a newer build adds appears on its own. "Open Unisic" and "Quit" are never
+    // hidable (AppContext ignores them here), so the menu always keeps a way in
+    // and a way out.
+    U_SETTING(QString, hiddenTrayItems, setHiddenTrayItems, "ui/hiddenTrayItems", QString())
     // Daily GitHub release check + automatic AppImage self-install
     // (UpdateChecker). Suppressed in dev builds regardless of this value.
     U_SETTING(bool, autoCheckUpdates, setAutoCheckUpdates, "updates/autoCheck", true)
@@ -694,7 +708,7 @@ public:
         emit captureDelayMsChanged(); emit hideWindowOnCaptureChanged();
         emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
         emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
-        emit hotkeyRegionChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
+        emit hotkeyRegionChanged(); emit hotkeyScrollChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
         emit fullScreenTaskDestinationChanged(); emit regionTaskDestinationChanged(); emit windowTaskDestinationChanged();
@@ -731,7 +745,7 @@ public:
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
-        emit recordAppAudioNodeChanged(); emit microphoneSourceChanged();
+        emit recordAppAudioAppsChanged(); emit microphoneSourceChanged();
         emit videoEncoderChanged();
         emit separateAudioTracksChanged();
         emit instantReplaySecondsChanged(); emit hotkeyInstantReplayChanged();
@@ -741,7 +755,7 @@ public:
         emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
-        emit useSystemDecorationChanged(); emit trayIconPathChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
         emit recordPageModeChanged();
         emit autoCheckUpdatesChanged();
         emit updateChannelChanged(); emit recordCountdownSecChanged(); emit soundVolumeChanged();
@@ -774,6 +788,7 @@ signals:
     void activeDestinationChanged();
     void hotkeyFullScreenChanged();
     void hotkeyRegionChanged();
+    void hotkeyScrollChanged();
     void hotkeyWindowChanged();
     void hotkeyGifChanged();
     void lastCaptureRegionChanged();
@@ -849,7 +864,7 @@ signals:
     void videoMaxDurationSecChanged();
     void recordSystemAudioChanged();
     void recordMicrophoneChanged();
-    void recordAppAudioNodeChanged();
+    void recordAppAudioAppsChanged();
     void microphoneSourceChanged();
     void videoEncoderChanged();
     void separateAudioTracksChanged();
@@ -874,6 +889,7 @@ signals:
     void useSystemDecorationChanged();
     void recordPageModeChanged();
     void trayIconPathChanged();
+    void hiddenTrayItemsChanged();
     void autoCheckUpdatesChanged();
     void updateChannelChanged();
     void recordCountdownSecChanged();

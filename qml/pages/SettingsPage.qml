@@ -6,11 +6,28 @@ import Unisic.Kit
 import "../components"
 
 Item {
+    objectName: "settingsPage"  // the smoke test drives panes through it
     id: page
     // paneArea is already inset by spacingXL on both sides, so don't subtract it
     // again here (that left the cards mis-centered with a big right-hand gap).
     readonly property int cardWidth: Math.min(paneArea.width, 694)
     property int tab: 0
+
+    // A text field is left by Enter or by a press anywhere outside it, not
+    // only by Escape or a blank spot. A switch, slider or button consumes its
+    // press and takes no focus, so the field kept every keystroke after the
+    // user had clearly moved on (user-reported three times: "can't get out of
+    // the filename field"). The press side is the MouseArea at the end of
+    // this file.
+    function leaveTextField() {
+        const f = page.Window.activeFocusItem
+        if (f && f.cursorRectangle !== undefined)
+            f.focus = false
+    }
+    // TextInput emits accepted and passes Return on, so it lands here; a
+    // multi-line TextEdit keeps it for the newline and never does.
+    Keys.onReturnPressed: page.leaveTextField()
+    Keys.onEnterPressed: page.leaveTextField()
 
     // { pattern, vars } for the filename template, from the code that expands
     // it. Here rather than at the field because the pane is rebuilt by a Loader
@@ -45,6 +62,7 @@ Item {
     // included, which is the side to err on.
     readonly property bool modalOpen: helpDialog.visible || settingsPatchNotes.visible
                                       || settingsSystemCheck.visible || haloColorPopup.visible
+                                      || logViewer.visible
 
     // Free colour choice for the recording halo. Declared at the page root, not
     // inside the row: the row is inside a Flickable, and a popup parented there
@@ -66,6 +84,9 @@ Item {
         id: settingsSystemCheck
         markSeenOnClose: false
     }
+
+    // General -> Activity log -> View log.
+    ULogViewer { id: logViewer }
 
     // ---- settings search ----
     property string searchQuery: ""
@@ -242,26 +263,19 @@ Item {
         }
         return best
     }
-    property var appAudioNodes: []
     property var micDevices: []
-    // Async: pw-dump runs off the GUI thread and returns via onAudioApplicationNodesReady.
-    function refreshAppAudioNodes() { App.requestAudioApplicationNodes() }
+    // Async: pw-dump runs off the GUI thread and returns via onAudioInputDevicesReady.
     function refreshMicDevices() { App.requestAudioInputDevices() }
     Connections {
         target: App
-        function onAudioApplicationNodesReady(nodes) { page.appAudioNodes = nodes }
         function onAudioInputDevicesReady(devices) { page.micDevices = devices }
     }
     // Load once on open so persisted, non-reactive helper models are ready
     // before their panes are visited.
     Component.onCompleted: {
-        if (App.perAppAudioAvailable)
-            page.refreshAppAudioNodes()
         if (App.audioInputListAvailable)
             page.refreshMicDevices()
     }
-    readonly property var appAudioIds: [""].concat(appAudioNodes.map(function(n) { return n.id }))
-    readonly property var appAudioLabels: [qsTr("Off")].concat(appAudioNodes.map(function(n) { return n.label }))
     readonly property var micDeviceIds: [""].concat(micDevices.map(function(d) { return d.id }))
     readonly property var micDeviceLabels: [qsTr("Default input")].concat(micDevices.map(function(d) { return d.label }))
     readonly property var taskDestinationIds: [""].concat(App.uploads.destinations.map(function(d) { return d.name }))
@@ -337,6 +351,19 @@ Item {
         list = list.filter(function (x) { return x !== id })
         if (hidden) list.push(id)
         App.settings.hiddenTools = list.join(",")
+    }
+    // Tray-menu entries the user hid (CSV of ids in hiddenTrayItems); the same
+    // opt-out shape as hiddenTools, so a new entry in a later build shows up
+    // on its own.
+    function trayItemHidden(id) {
+        var csv = App.settings.hiddenTrayItems
+        return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
+    }
+    function setTrayItemHidden(id, hidden) {
+        var csv = App.settings.hiddenTrayItems
+        var list = csv ? csv.split(",").filter(function (x) { return x.length > 0 && x !== id }) : []
+        if (hidden) list.push(id)
+        App.settings.hiddenTrayItems = list.join(",")
     }
     // Per-tool freedesktop icon-name overrides (JSON map in editorToolIcons).
     // Parsed once per setting change — iconOverride() is called from two
@@ -689,6 +716,16 @@ Item {
             Accessible.focusable: false
         }
         default property alias content: paneCol.data
+        // A click on the pane's background (a caption, a card's padding) takes
+        // focus away from whatever field had it, the way a desktop form does.
+        // Declared before the Column so every control still gets its own
+        // press first; this only sees what lands on nothing. The press is not
+        // accepted, so the Flickable's own drag handling is untouched.
+        MouseArea {
+            width: fl.contentWidth
+            height: Math.max(fl.height, fl.contentHeight)
+            onPressed: (m) => { fl.forceActiveFocus(); m.accepted = false }
+        }
         Column {
             id: paneCol
             width: fl.width
@@ -1335,21 +1372,33 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Activity log")
-                        help: qsTr("Copy the same summary plus what Unisic has been doing this run.")
+                        help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "edit-copy"
-                            text: qsTr("Copy with log")
-                            onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
-                        }
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "folder-open"
-                            text: qsTr("Show log file")
-                            onClicked: App.showLogInFileManager()
+                        // The slot is a plain Item, so loose buttons all land on
+                        // the same spot - lay them out side by side.
+                        Row {
+                            spacing: Theme.spacingS
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "magnify"
+                                text: qsTr("View log")
+                                onClicked: logViewer.open()
+                            }
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "edit-copy"
+                                text: qsTr("Copy with log")
+                                onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
+                            }
+                            UButton {
+                                compact: true
+                                variant: "tonal"
+                                iconName: "folder-open"
+                                text: qsTr("Show log file")
+                                onClicked: App.showLogInFileManager()
+                            }
                         }
                     }
                 }
@@ -1822,20 +1871,10 @@ Item {
                     SettingRow {
                         label: qsTr("Application audio only")
                         help: App.perAppAudioAvailable
-                              ? qsTr("Capture one selected application's PipeWire audio stream.")
+                              ? qsTr("Record only the applications you tick, one or several.")
                               : qsTr("Requires the pw-dump and pw-record helpers.")
-                        helpDetail: qsTr("Start audio playback in the application, press Refresh, then select it. This can be mixed with the microphone or system audio. A kernel FIFO keeps PCM buffering bounded.")
-                        Row {
-                            spacing: Theme.spacingS
-                            UComboBox {
-                                width: 170
-                                enabled: App.perAppAudioAvailable
-                                model: page.appAudioLabels
-                                currentIndex: Math.max(0, page.appAudioIds.indexOf(App.settings.recordAppAudioNode))
-                                onActivated: (i) => App.settings.recordAppAudioNode = page.appAudioIds[i]
-                            }
-                            UButton { compact: true; variant: "tonal"; text: qsTr("Refresh"); enabled: App.perAppAudioAvailable; onClicked: page.refreshAppAudioNodes() }
-                        }
+                        helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
+                        footer: UAppAudioPicker {}
                     }
                     SettingRow {
                         label: qsTr("Separate audio tracks")
@@ -2213,12 +2252,14 @@ Item {
                         spacing: 4
                         Text {
                             id: templateCaption
+                            objectName: "settingsTemplateCaption"
                             text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
                         }
                         UTextField {
                             id: templateField
+                            objectName: "settingsTemplateField"  // smoke: leaving the field
                             width: parent.width
                             // Caption + field, with no placeholder to fall back
                             // on: unnamed before this. The caption is a whole
@@ -2273,7 +2314,7 @@ Item {
                         label: qsTr("Open file after saving")
                         help: qsTr("Opens each capture in your image viewer after saving.")
                         helpDetail: qsTr("Uses the system default application for the file type. Independent from the editor; this only opens the saved file.")
-                        USwitch { checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
+                        USwitch { objectName: "settingsOpenAfterSaveSwitch"; checked: App.settings.openAfterSave; onToggled: (c) => App.settings.openAfterSave = c }
                     }
                     SettingRow {
                         label: qsTr("Ask where to save")
@@ -3196,6 +3237,131 @@ Item {
                     }
                 }
             }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("System tray menu") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Choose which entries the tray menu shows. Open Unisic and Quit always stay.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    // Drawn like the menu it controls: one popup panel, a rule
+                    // between groups, the bundled glyph the menu itself uses.
+                    // A row is the whole control; hidden rows go dim and
+                    // struck through, locked rows carry a lock instead.
+                    Rectangle {
+                        width: Math.min(parent.width, 360)
+                        height: trayPreview.implicitHeight + 2 * Theme.spacingS
+                        radius: Theme.radiusM
+                        color: Theme.surfaceHi
+                        border.width: 1
+                        border.color: Theme.divider
+                        Column {
+                            id: trayPreview
+                            x: Theme.spacingS
+                            y: Theme.spacingS
+                            width: parent.width - 2 * Theme.spacingS
+                            Repeater {
+                                model: App.trayMenuEntries
+                                delegate: Item {
+                                    id: trayRow
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool locked: modelData.locked
+                                    readonly property bool shown: locked || !page.trayItemHidden(modelData.id)
+                                    readonly property bool groupStart: index > 0
+                                        && App.trayMenuEntries[index - 1].group !== modelData.group
+                                    function _activate() {
+                                        if (!locked) page.setTrayItemHidden(modelData.id, shown)
+                                    }
+                                    width: parent.width
+                                    height: 34 + (groupStart ? Theme.spacingS * 2 + 1 : 0)
+                                    Rectangle {
+                                        visible: trayRow.groupStart
+                                        x: Theme.spacingS
+                                        y: Theme.spacingS
+                                        width: parent.width - 2 * Theme.spacingS
+                                        height: 1
+                                        color: Theme.divider
+                                    }
+                                    Rectangle {
+                                        id: rowBody
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width
+                                        height: 34
+                                        radius: Theme.radiusS
+                                        color: !trayRow.locked && rowMouse.containsMouse
+                                               ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                               : "transparent"
+                                        // Forced to the bundled glyph so the
+                                        // preview matches the menu on any
+                                        // desktop icon theme.
+                                        UIcon {
+                                            id: rowIcon
+                                            x: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.modelData.icon
+                                            iconStyle: "custom"
+                                            size: 18
+                                            color: Theme.textPrimary
+                                            opacity: trayRow.shown ? 1 : 0.35
+                                        }
+                                        Text {
+                                            anchors.left: rowIcon.right
+                                            anchors.leftMargin: 10
+                                            anchors.right: rowMark.left
+                                            anchors.rightMargin: Theme.spacingS
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: trayRow.modelData.label
+                                            elide: Text.ElideRight
+                                            color: Theme.textPrimary
+                                            font.pixelSize: Theme.fontM
+                                            font.strikeout: !trayRow.shown
+                                            opacity: trayRow.shown ? 1 : 0.4
+                                        }
+                                        UIcon {
+                                            id: rowMark
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.locked ? "lock" : "checkmark"
+                                            iconStyle: "custom"
+                                            size: 16
+                                            color: trayRow.locked ? Theme.textTertiary : Theme.accent
+                                            visible: trayRow.locked || trayRow.shown
+                                        }
+                                        MouseArea {
+                                            id: rowMouse
+                                            anchors.fill: parent
+                                            enabled: !trayRow.locked
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: trayRow._activate()
+                                        }
+                                        activeFocusOnTab: !trayRow.locked
+                                        Keys.onSpacePressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onReturnPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onEnterPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Accessible.role: Accessible.CheckBox
+                                        Accessible.name: trayRow.modelData.label
+                                        Accessible.focusable: activeFocusOnTab
+                                        Accessible.checkable: !trayRow.locked
+                                        Accessible.checked: trayRow.shown
+                                        Accessible.onPressAction: trayRow._activate()
+                                        UFocusRing { inset: 1 }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         }
 
@@ -3261,6 +3427,13 @@ Item {
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
                         shortcuts: App.settings.hotkeyRegion
                         onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") }
+                    }
+                    HotkeyRow {
+                        label: qsTr("Scrolling region")
+                        help: qsTr("Hotkey: capture a scrolling region (long screenshot).")
+                        helpDetail: qsTr("Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.")
+                        shortcuts: App.settings.hotkeyScroll
+                        onChanged: (t) => { App.settings.hotkeyScroll = t; App.applyHotkey("capture-scroll") }
                     }
                     HotkeyRow {
                         label: qsTr("Window")
@@ -3709,6 +3882,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor zoom"); onClicked: App.devTestEditorZoom() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Leave filename field"); onClicked: App.devTestLeaveField() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -3723,6 +3898,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tray menu entries"); onClicked: App.devTestTrayMenu() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }
@@ -3755,9 +3931,11 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watermark preview"); onClicked: App.devTestWatermarkPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Callout"); onClicked: App.devTestCallout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Pen line click"); onClicked: App.devTestPenLine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Crash report"); onClicked: App.devTestCrashReport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Dependency report"); onClicked: App.devTestSystemCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("System check dialog"); onClicked: settingsSystemCheck.open() }
@@ -3767,6 +3945,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("External action timeout"); onClicked: App.devTestExternalActionTimeout() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Task preset"); onClicked: App.devTestTaskPreset() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("CLI output"); onClicked: App.devTestCliOutput() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Scrolling stitch"); onClicked: App.devTestScrollStitch() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Scrolling hand-off"); onClicked: App.devTestScrollHandoff() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Measure"); onClicked: App.devTestMeasureTools() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Hardware encoder"); onClicked: App.devTestHardwareEncoder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Freeze recorder (watchdog)"); onClicked: App.devTestFreezeRecorder() }
@@ -3818,5 +3998,23 @@ Item {
         // Loader's content, and an id inside one is not visible out here.
         UVarBar { id: varBar }
 
+    }
+
+    // Last child, so it is the first to see every press on the page. It only
+    // looks and refuses the press, which then goes on to whatever is under it
+    // as if this were not here. A TapHandler does not do the job: a control
+    // that takes the press keeps it from a parent's handler. No hover and no
+    // wheel handler, so neither cursors nor scrolling notice it. The variable
+    // bar is exempt: a chip press must reach the field it types into.
+    MouseArea {
+        anchors.fill: parent
+        onPressed: (m) => {
+            m.accepted = false
+            const f = page.Window.activeFocusItem
+            const inside = (it) => !!it && it.visible
+                                   && it.contains(it.mapFromItem(page, m.x, m.y))
+            if (!inside(f) && !inside(varBar))
+                page.leaveTextField()
+        }
     }
 }

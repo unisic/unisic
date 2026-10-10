@@ -46,6 +46,7 @@ class NotificationInhibitor;
 class ExternalActionRunner;
 class PreviewController;
 class LayerShellNotifier;
+class ScrollCaptureController;
 
 // Application facade exposed to QML as the "App" context property.
 // Owns every subsystem and implements the after-capture pipeline
@@ -121,6 +122,7 @@ class AppContext : public QObject
     // QtMultimedia QML module present → the trim editor shows a live video
     // preview; otherwise it degrades to the slider-only range picker.
     Q_PROPERTY(bool capVideoPlayback READ capVideoPlayback CONSTANT)
+    Q_PROPERTY(bool scrollCaptureActive READ scrollCaptureActive NOTIFY scrollCaptureActiveChanged)
     Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
     Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
     // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
@@ -131,6 +133,12 @@ class AppContext : public QObject
     Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
     // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
     Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // The tray-menu entries as {id, label, icon, group, locked} in menu order.
+    // Locked ones (Open, Quit) are included so the Settings preview shows the
+    // whole menu.
+    // Labels are translated here (the same strings the menu shows), so a
+    // property rather than a function: it re-notifies when the language flips.
+    Q_PROPERTY(QVariantList trayMenuEntries READ trayMenuEntries NOTIFY trayMenuEntriesChanged)
     // Contrast colour for the (monochrome) bundled presets: light on a dark
     // system scheme, dark on a light one. Follows the OS light/dark, live.
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
@@ -192,6 +200,13 @@ public:
     CaptureManager *captureManager() const { return m_capture; }
     QQmlEngine *qmlEngine() const { return m_engine; }
 
+    bool scrollCaptureActive() const;
+    // A capture is being prepared or is on screen: another one would be refused.
+    bool captureBusy() const;
+    ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
+    void startScrollCapture(const QRect &physRegion, QScreen *screen);
+    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen);
+
     bool recording() const;
     bool converting() const;
     bool instantReplayActive() const { return m_recorder->instantReplayActive(); }
@@ -251,6 +266,10 @@ public:
     // log. Separate from the plain one so "Copy diagnostics" stays a small,
     // obviously safe paste and the bigger one is an explicit choice.
     Q_INVOKABLE QString diagnosticsWithLog() const;
+    // The in-app log viewer: the redacted ring, and a counter that moves
+    // whenever a line is added (polled, so nothing is emitted per line).
+    Q_INVOKABLE QString recentLog() const;
+    Q_INVOKABLE double logRevision() const;
     Q_INVOKABLE QString logFilePath() const;
     Q_INVOKABLE bool hasPreviousCrash() const;
     // Latched on the report's own content: the same crash never nags twice, a
@@ -289,6 +308,8 @@ public:
     Q_INVOKABLE void devTestActiveWindowGeometry();
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
+    Q_INVOKABLE void devTestEditorZoom();
+    Q_INVOKABLE void devTestLeaveField();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
@@ -327,6 +348,7 @@ public:
     // The Record page's Video/GIF mode segment (a persisted setting, because
     // the page Loader is destroyed on every navigation).
     Q_INVOKABLE void devTestRecordPageMode();
+    Q_INVOKABLE void devTestTrayMenu();
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestInstallChannel();
     Q_INVOKABLE void devTestCaptureSound();
@@ -358,6 +380,7 @@ public:
     Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
     Q_INVOKABLE void devTestShiftSnap();
+    Q_INVOKABLE void devTestPenLine();
     Q_INVOKABLE void devTestQrPreview();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
@@ -391,6 +414,8 @@ public:
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
     Q_INVOKABLE void devTestFilename();
+    Q_INVOKABLE void devTestScrollStitch();
+    Q_INVOKABLE void devTestScrollHandoff();
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
@@ -421,6 +446,7 @@ public:
     void setAutostartEnabled(bool on);
     QStringList trayIconPresets() const;  // image files in trayIconsDir()
     QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QVariantList trayMenuEntries() const;
     QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
@@ -450,6 +476,7 @@ public:
     Q_INVOKABLE void captureFullScreen();
     Q_INVOKABLE void captureRegion();
     Q_INVOKABLE void captureMeasure();
+    Q_INVOKABLE void captureScroll();
     // Single monitor: the screen under the cursor (fallback: primary).
     Q_INVOKABLE void captureScreenUnderCursor();
     // Repeat the last region capture's exact rect without opening the overlay
@@ -728,6 +755,7 @@ signals:
     void hotkeysAvailableChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
+    void scrollCaptureActiveChanged();
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
@@ -735,6 +763,7 @@ signals:
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
+    void trayMenuEntriesChanged();
     void trayContrastColorChanged();
     void recordingCapabilitiesChanged();
 
@@ -754,6 +783,7 @@ private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
         QString name;
@@ -871,11 +901,16 @@ private:
     QString clipboardImportCheck();
     // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
     QString recordPageModeCheck();
+    // Tray menu: hidden entries really leave it, Open/Quit never can, and no
+    // separator is left leading, trailing or doubled.
+    QString trayMenuCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
     // Round-trips the desktop custom-shortcut writer on the real store (touches
     // only Unisic's own entries): install then remove, both must succeed.
     QString desktopShortcutsCheck();
+    QString scrollStitchCheck() const;
+    QString scrollHandoffCheck();
     // Idle gate for the automatic post-update restart: empty = safe to
     // restart, else a comma-joined list of what blocks it (recording, open
     // editors, visible window…).
@@ -1052,6 +1087,7 @@ private:
     X11Hotkeys *m_x11hotkeys = nullptr;
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
     GifRecorder *m_recorder;
+    ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
@@ -1073,6 +1109,10 @@ private:
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.
     QPointer<QQuickWindow> m_hiddenForCapture;
+    // Another window of ours (editor, preview, trim) had focus when this capture
+    // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
+    // then leaves the main window alone.
+    bool m_otherWindowFocused = false;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

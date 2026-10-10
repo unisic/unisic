@@ -167,10 +167,12 @@ jobs:
             exit 1
           fi
 
-          # A letter suffix in the version ("0.3b", "1.0rc1") marks the
-          # GitHub release as a pre-release automatically.
+          # A pre-release is either a letter suffix in the version ("0.3b",
+          # "1.0rc1") or a metainfo <release> of type="development" (the
+          # plain-number betas, e.g. 0.8.7).
           prerelease=()
-          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+          if [[ "$VERSION" =~ [a-zA-Z] ]] \
+             || grep -q "<release version=\"${VERSION}\"[^>]*type=\"development\"" resources/app.unisic.Unisic.metainfo.xml; then
             prerelease=(--prerelease)
           fi
           gh release create "v${VERSION}" "${assets[@]}" \

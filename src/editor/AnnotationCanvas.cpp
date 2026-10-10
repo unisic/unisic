@@ -2608,6 +2608,21 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         return;
     }
 
+    const bool freehandTool = m_tool == Pen
+                              || (m_tool == Highlight && m_highlightMode != HlRect);
+    // Shift or Ctrl with the pen draws straight. Dragged, the line runs from
+    // the press to the cursor; a click without a drag joins the end of the
+    // last stroke to the click instead, as in GIMP and Krita, so a polyline is
+    // a row of clicks (decided on release, see mouseReleaseEvent). Ahead of
+    // the selected-shape checks below, because the stroke just drawn is still
+    // selected and a press on it would otherwise move it.
+    if (freehandTool && (e->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))) {
+        beginDraw(img);
+        update();
+        e->accept();
+        return;
+    }
+
     if (m_tool != None) {
         // Direct shape editing without switching to the Edit tool: a handle or
         // the body of the ALREADY-selected shape starts a resize/move exactly
@@ -2636,8 +2651,7 @@ void AnnotationCanvas::mousePressEvent(QMouseEvent *e)
         // Pen and the freehand-input highlighter modes (marker + text pen)
         // accumulate points from the first press; only the rectangle highlighter
         // and the other tools arm a drag-rect.
-        if (m_tool == Pen
-            || (m_tool == Highlight && m_highlightMode != HlRect)) {
+        if (freehandTool) {
             beginDraw(img);
         } else {
             m_drag = PendingDraw;
@@ -2969,8 +2983,9 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
         QRectF nowB;
         if (isFreehandStroke(m_current)) {
             const qreal pad = m_current.width / 2.0 + 4.0;
-            if ((e->modifiers() & Qt::ShiftModifier) && !m_current.points.isEmpty()) {
-                // Hold Shift mid-stroke to lay a STRAIGHT segment from the last
+            if ((e->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
+                && !m_current.points.isEmpty()) {
+                // Hold Shift or Ctrl mid-stroke to lay a STRAIGHT segment from the last
                 // committed point to the cursor (any angle). Releasing Shift
                 // resumes freehand from that endpoint — chained straight +
                 // freehand segments. A single live tail point is retained and
@@ -3207,6 +3222,17 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             const QPointF releasePoint = toImage(e->position().x(), e->position().y());
             if (QLineF(m_current.points.constLast(), releasePoint).length() > 0.0)
                 m_current.points.append(releasePoint);
+            // Shift/Ctrl + click that never left the press point: a line from
+            // where the last stroke of this tool ended. Read off the item list,
+            // so undoing that stroke moves the start back with it.
+            const qreal threshold = 4.0 / qMax(0.05, renderScale());
+            const bool stayed = std::all_of(m_current.points.cbegin(), m_current.points.cend(),
+                [&](const QPointF &p) { return QLineF(m_dragStart, p).length() < threshold; });
+            if (stayed && (e->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))
+                && !m_items.isEmpty() && m_items.constLast().type == m_current.type
+                && isFreehandStroke(m_items.constLast())
+                && !m_items.constLast().points.isEmpty())
+                m_current.points = {m_items.constLast().points.constLast(), releasePoint};
         }
         m_drawing = false;
         const bool tiny = !isFreehandStroke(m_current) &&

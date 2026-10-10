@@ -54,6 +54,9 @@ QString logFilePath();
 QString logDirPath();
 qint64 logFileSize();
 int bufferedLineCount();
+// Bumped once per line stored. Cheap to poll: the log viewer reads this every
+// second and only re-fetches the lines when it moved.
+quint64 revision();
 
 // Newest last, already redacted.
 QString recentLines(int maxLines = 500);

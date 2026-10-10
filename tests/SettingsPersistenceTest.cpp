@@ -34,6 +34,9 @@ class SettingsPersistenceTest : public QObject
         switch (p.userType()) {
         case QMetaType::Bool: return !cur.toBool();
         case QMetaType::Int:  return cur.toInt() + 7;
+        // One element on purpose: INI stores a one-item list as a bare string,
+        // the case most likely to come back as the wrong type.
+        case QMetaType::QStringList: return QStringList{QStringLiteral("qtest_") + QString::fromLatin1(p.name())};
         default:              return QStringLiteral("qtest_") + QString::fromLatin1(p.name());
         }
     }
@@ -91,6 +94,22 @@ private slots:
         QCOMPARE(QProcess::execute(QCoreApplication::applicationFilePath(),
                                    {QStringLiteral("--verify-child"), expectedPath}),
                  0);
+    }
+
+    void stringListEdgesRoundTrip()
+    {
+        // Unticking every app must read back as empty, not as {""}.
+        for (const QStringList &v : {QStringList(), QStringList{QStringLiteral("firefox")},
+                                     QStringList{QStringLiteral("a, b"), QStringLiteral("c")}}) {
+            wipeConfig();
+            {
+                Settings s;
+                s.setRecordAppAudioApps(v);
+                s.raw()->sync();
+            }
+            Settings fresh;
+            QCOMPARE(fresh.recordAppAudioApps(), v);
+        }
     }
 
     void generalTabKeysStayTopLevel()
@@ -178,7 +197,11 @@ static int verifyChild(const QString &expectedPath)
         }
         const QVariant got = mo->property(idx).read(&s);
         const QVariant want = it.value().toVariant();
-        if (got != want) {
+        // JSON gives a QVariantList back, which never == a QStringList.
+        const bool same = got.userType() == QMetaType::QStringList
+                              ? got.toStringList() == want.toStringList()
+                              : got == want;
+        if (!same) {
             qWarning() << "MISMATCH" << it.key() << "got" << got << "want" << want;
             ++failures;
         }

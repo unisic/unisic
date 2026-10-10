@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
-project(unisic VERSION 0.8.6 LANGUAGES CXX)
+project(unisic VERSION 0.8.7 LANGUAGES CXX)
 # Human-facing version. project(VERSION) only takes numeric tuples, so
 # pre-release suffixes live here (a letter suffix like "0.3b" -> the
 # workflow marks the GitHub release pre-release); this string
 # drives the binary footer, package versions and the GitHub release tag.
-set(UNISIC_VERSION_STRING "0.8.6")
+set(UNISIC_VERSION_STRING "0.8.7")
 
 include(GNUInstallDirs)
 
@@ -150,7 +150,11 @@ qt_add_executable(unisic
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
+    src/capture/ScrollStitcher.h src/capture/ScrollStitcher.cpp
+    src/capture/ScrollCaptureController.h src/capture/ScrollCaptureController.cpp
+    src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
+    src/record/PwDump.h src/record/PwDump.cpp
     src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
@@ -286,6 +290,7 @@ qt_add_qml_module(unisic
         qml/EditorWindow.qml
         qml/NotificationPopup.qml
         qml/RecordBorder.qml
+        qml/ScrollCaptureOverlay.qml
         qml/PreviewWindow.qml
         qml/TrimWindow.qml
         qml/pages/CapturePage.qml
@@ -295,6 +300,8 @@ qt_add_qml_module(unisic
         qml/pages/DestinationsPage.qml
         qml/pages/SettingsPage.qml
         qml/components/USystemCheck.qml
+        qml/components/ULogViewer.qml
+        qml/components/UAppAudioPicker.qml
         qml/components/UWelcome.qml
         qml/components/UNotifPreview.qml
         qml/components/UOverlayPreview.qml
@@ -306,7 +313,7 @@ qt_add_qml_module(unisic
 )
 
 # qmltyperegistrations includes QML_ELEMENT headers by basename
-target_include_directories(unisic PRIVATE src src/editor src/upload src/history src/notify src/update src/record)
+target_include_directories(unisic PRIVATE src src/capture src/editor src/upload src/history src/notify src/update src/record)
 # unisic-kit propagates its src/ include dir (capture/, record/, theme/,
 # media/ headers), Qt6::DBus and, when found, PkgConfig::PIPEWIRE +
 # HAVE_PIPEWIRE - so the app-side guards keep working unchanged.
@@ -594,6 +601,14 @@ if(BUILD_TESTING)
         PRIVATE src/hotkeys external/unisic-kit/src)
     add_test(NAME unisic_shortcut_binder_test COMMAND unisic_shortcut_binder_test)
 
+    qt_add_executable(unisic_pwdump_test
+        tests/PwDumpTest.cpp
+        src/record/PwDump.h src/record/PwDump.cpp
+    )
+    target_link_libraries(unisic_pwdump_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_pwdump_test PRIVATE src/record)
+    add_test(NAME unisic_pwdump_test COMMAND unisic_pwdump_test)
+
     qt_add_executable(unisic_version_compare_test
         tests/VersionCompareTest.cpp
         src/update/VersionCompare.h
@@ -646,6 +661,13 @@ if(BUILD_TESTING)
         PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     add_test(NAME unisic_theme_json_test COMMAND unisic_theme_json_test)
 
+    # Pure file scan: QML icon names against the kit's bundled glyphs.
+    qt_add_executable(unisic_icon_coverage_test tests/IconCoverageTest.cpp)
+    target_link_libraries(unisic_icon_coverage_test PRIVATE Qt6::Core Qt6::Test)
+    target_compile_definitions(unisic_icon_coverage_test
+        PRIVATE UNISIC_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME unisic_icon_coverage_test COMMAND unisic_icon_coverage_test)
+
     qt_add_executable(unisic_theme_seed_test
         tests/ThemeSeedTest.cpp
         external/unisic-kit/src/theme/ThemeController.h
@@ -655,9 +677,10 @@ if(BUILD_TESTING)
     # actually shipped rather than a list written twice.
     qt_add_resources(unisic_theme_seed_test "seedthemes" PREFIX "/" FILES ${UNISIC_THEMES})
     # Qt6::Qml for qqmlregistration.h only (ThemeController is a QML singleton in
-    # the app); the test drives it as a plain QObject.
+    # the app); the test drives it as a plain QObject. Qt6::DBus for the portal
+    # color-scheme read.
     target_link_libraries(unisic_theme_seed_test PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Test)
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::DBus Qt6::Test)
     target_include_directories(unisic_theme_seed_test PRIVATE external/unisic-kit/src)
     add_test(NAME unisic_theme_seed_test COMMAND unisic_theme_seed_test)
     # QGuiApplication (styleHints, palette) without a real display.
@@ -772,5 +795,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_diag_redact_test PRIVATE src)
     add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
+
+    qt_add_executable(unisic_scroll_stitch_test
+        tests/ScrollStitchTest.cpp
+        src/capture/ScrollStitcher.h
+        src/capture/ScrollStitcher.cpp
+    )
+    target_link_libraries(unisic_scroll_stitch_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_scroll_stitch_test PRIVATE src)
+    add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
+    set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 endif()

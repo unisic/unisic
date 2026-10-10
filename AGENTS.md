@@ -287,7 +287,7 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 - **Don't grow `AppContext`.** It's already the largest file and the central facade. New behavior usually belongs in a focused subsystem class that `AppContext` wires up, not another 200 lines in `finishCapture`. Its diagnostics already live in a second translation unit, `src/diag/SmokeTests.cpp`: a new `devTest*`/`*Check()` is declared in `AppContext.h` and DEFINED there, never back in `AppContext.cpp`. A helper both files need loses its `static` and gets a declaration in `src/diag/SmokeSupport.h`.
 - **After-capture actions fire independently and immediately** in `AppContext::finishCapture` - copy/save/upload/editor each run on their own; the editor never blocks the others. Preserve that independence.
 - **Version string is single-sourced** from `project(... VERSION x.y.z)` in `CMakeLists.txt` via `UNISIC_VERSION`. Don't hardcode a version elsewhere.
-- **The user-facing docs are part of the change, not a follow-up.** `README.md` states counts and lists - shipped languages, editor tool count, themes, formats, supported sessions, hotkey defaults - and they rot silently: nothing builds them, no test fails, so a stale line survives until a user is misled by it. Whenever a change adds or removes something the README enumerates, update the README in the SAME commit, and check `CLAUDE.md`/`AGENTS.md`/`docs/dev/**` for the same fact stated a second time. The same claims are duplicated in the sibling `unisic-website` repo (`content/docs/**`, `lib/i18n/dictionaries/**`); update them too when that repo is available, and say plainly that they still need updating when it is not. Do not wait to be asked - "the README says five languages, we ship seven" is a bug report, and the fix belongs with the change that caused it.
+- **The user-facing docs are part of the change, not a follow-up.** `README.md` states lists - shipped languages, formats, supported sessions, hotkey defaults - and they rot silently; it deliberately carries no tool or theme counts, so do not add any back: nothing builds them, no test fails, so a stale line survives until a user is misled by it. Whenever a change adds or removes something the README enumerates, update the README in the SAME commit, and check `CLAUDE.md`/`AGENTS.md`/`docs/dev/**` for the same fact stated a second time. The same claims are duplicated in the sibling `unisic-website` repo (`content/docs/**`, `lib/i18n/dictionaries/**`); update them too when that repo is available, and say plainly that they still need updating when it is not. Do not wait to be asked - "the README says five languages, we ship seven" is a bug report, and the fix belongs with the change that caused it.
 
 ---
 
@@ -364,7 +364,7 @@ Before opening a PR, confirm:
 - ❌ Assume KWin, `kglobalacceld`, Breeze, `grim`, or `curl` is present - detect and degrade.
 - ❌ Report "done" on a runtime change you didn't actually run.
 - ❌ Add features the screenshot/record/share workflow doesn't need.
-- ❌ Ship a language, theme, tool, format or hotkey without updating the counts and lists in `README.md` and the website docs (§9).
+- ❌ Ship a language, theme, tool, format or hotkey without updating the lists in `README.md` and the website docs (§9).
 
 ---
 

@@ -175,7 +175,7 @@ Requires:       qt6-multimedia-imports
 %description
 Unisic covers the whole workflow after you press the hotkey: annotate on the
 selection overlay before the shot is taken, keep editing afterwards (blur,
-pixelate, numbered steps, crop, object cutout), record the same region as
+pixelate, numbered steps, crop, smart eraser), record the same region as
 GIF/MP4/WebM, and push the result to the clipboard, disk or a custom upload
 destination. Built for Wayland on legitimate APIs (xdg-desktop-portal, KWin
 ScreenShot2, PipeWire, KGlobalAccel), with a fully silent native capture path

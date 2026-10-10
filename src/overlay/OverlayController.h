@@ -48,7 +48,7 @@ public:
     // them apart and showed the same chrome and the same "Start" button for all
     // of them (issue #98: you cannot see which capture mode is active). Only
     // the caller knows, so the caller says.
-    enum class Purpose { Shot, Measure, Ocr, Gif, Video };
+    enum class Purpose { Shot, Measure, Ocr, Gif, Video, Scroll };
     // The QML-side name of a purpose. A plain string and not a Q_ENUM because
     // OverlayController reaches QML as a context property, not as a registered
     // type, so QML could not spell the enumerators anyway - and this value is
@@ -57,6 +57,12 @@ public:
 
     void pickAnnotatedImage(ImageCallback cb, Purpose purpose, int initialTool = 0);
     void pickRegion(RegionCallback cb, Purpose purpose); // no annotation tools
+    // Pays off the session's one pending callback when the user starts a
+    // scrolling capture. Returns true when nobody asked for a region, so the
+    // caller must start the scroll itself. Static so the smoke test can check
+    // the contract without a frozen screen.
+    static bool handOffScrollPick(const RegionCallback &regionCb, const ImageCallback &imageCb,
+                                  const QRect &phys, QScreen *screen);
 
     // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
     // Consumed by the capture callback to force a clipboard copy even when
@@ -91,6 +97,7 @@ signals:
 public slots:
     void confirmFromWindow(QQuickWindow *win);   // Enter / double-click
     void confirmAndCopy(QQuickWindow *win);      // Ctrl+C: confirm + force copy
+    void startScrollCapture(QQuickWindow *win);  // Starts scrolling capture for selected region
     void cancel();                               // Esc
     // W: selects the rectangle of the window that was active when the overlay
     // opened (KWin only). Does nothing when nobody could tell us where it was.

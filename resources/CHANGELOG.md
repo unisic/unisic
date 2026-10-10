@@ -6,6 +6,16 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.8
+
+### English
+**Fixed**
+- **The Activity log buttons no longer cover the text above them**: in Settings > General > Activity log, the three buttons stood beside the label, and in every language except English they were wider than the room there and covered the label and its description. They now get their own line under the description, and wrap onto a second one when the window is too narrow.
+
+### Polski
+**Naprawione**
+- **Przyciski dziennika działania nie zasłaniają już tekstu nad nimi**: w Ustawieniach > Ogólne > Dziennik działania trzy przyciski stały obok nazwy i w każdym języku poza angielskim były szersze niż miejsce, które tam było, więc zasłaniały nazwę i jej opis. Mają teraz własny wiersz pod opisem i przechodzą do drugiego, gdy okno jest za wąskie.
+
 ## 0.8.7
 
 ### English

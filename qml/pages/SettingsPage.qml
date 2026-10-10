@@ -1374,9 +1374,14 @@ Item {
                         label: qsTr("Activity log")
                         help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        // The slot is a plain Item, so loose buttons all land on
-                        // the same spot - lay them out side by side.
-                        Row {
+                        // Three buttons side by side are wider than the label
+                        // column can give up once translated (Polish, French,
+                        // German...): in the control slot they squeezed the
+                        // label to nothing and were drawn over it. The footer
+                        // spans the card and Flow wraps them when even that is
+                        // too narrow.
+                        footer: Flow {
+                            width: parent ? parent.width : 0
                             spacing: Theme.spacingS
                             UButton {
                                 compact: true

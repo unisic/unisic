@@ -1992,6 +1992,18 @@ QMimeData *makeForceImageMime(const QImage &img)
     return mime;
 }
 
+QMimeData *makeFileMime(const QString &path)
+{
+    const QUrl url = QUrl::fromLocalFile(path);
+    auto *mime = new QMimeData;
+    mime->setUrls({url});
+    mime->setText(path);
+    // What GTK file managers (Nautilus, Nemo) offer for a copied file.
+    mime->setData(QStringLiteral("x-special/gnome-copied-files"),
+                  QByteArrayLiteral("copy\n") + url.toEncoded());
+    return mime;
+}
+
 QImage ocrBoxTestImage()
 {
     QImage t(400, 120, QImage::Format_ARGB32);
@@ -2989,6 +3001,8 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind, {}, {},
                         fromInstantReplay ? QStringLiteral("replay") : QString());
     showToast(tr("Saved %1").arg(path));
+    if (m_settings->copyToClipboard())
+        copyFileToClipboard(path);
     runExternalAction(thumb, path);
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
@@ -4905,6 +4919,29 @@ void AppContext::copyText(const QString &text)
     }
 }
 
+// A recording goes on the clipboard as the FILE, the offer a file manager's
+// Copy makes: a file manager or chat pastes it as the file, a text field gets
+// the path. Never the bytes: a long GIF or MP4 would then sit whole in memory
+// for as long as it is on the clipboard.
+void AppContext::copyFileToClipboard(const QString &path)
+{
+    // Local first, so a synchronous read (X11, the smoke test) sees it; then
+    // the same KWin re-assert copyImageToClipboard does, which lands without a
+    // focused window - the case at the end of every recording.
+    QGuiApplication::clipboard()->setMimeData(makeFileMime(path));
+    ++m_clipboardSeq; // a stale deferred image mirror must not clobber this
+    if (auto *bus = QDBusConnection::sessionBus().interface();
+        bus && bus->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
+        KSystemClipboard::instance()->setMimeData(makeFileMime(path), QClipboard::Clipboard);
+        return;
+    }
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+        return;
+    if (const QString wlCopy = wlCopyPath(); !wlCopy.isEmpty())
+        spawnWlCopy(this, wlCopy, {QStringLiteral("--type"), QStringLiteral("text/uri-list")},
+                    QUrl::fromLocalFile(path).toEncoded() + "\r\n");
+}
+
 void AppContext::showQr(const QString &url)
 {
     const QUrl parsed(url);
@@ -4938,12 +4975,19 @@ void AppContext::copyImageAs(const QImage &img, const QString &filePath, const Q
             done(false);
     };
 
-    if (format == QLatin1String("path")) {
+    if (format == QLatin1String("path") || format == QLatin1String("file")) {
         if (filePath.isEmpty()) {
             failed(tr("Save the capture first to copy its file path"));
             return;
         }
-        copied(filePath);
+        if (format == QLatin1String("path")) {
+            copied(filePath);
+            return;
+        }
+        copyFileToClipboard(filePath);
+        showToast(tr("Copied to clipboard"));
+        if (done)
+            done(true);
         return;
     }
 

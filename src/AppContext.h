@@ -376,6 +376,7 @@ public:
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
+    Q_INVOKABLE void devTestCopyFile();
     Q_INVOKABLE void devTestWatermark();
     Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
@@ -664,6 +665,8 @@ public:
     // The history tile's one-off "Save as GIF" calls this.
     Q_INVOKABLE QString convertFileTo(const QString &path, const QString &format);
     void copyImageToClipboard(const QImage &img);
+    // Puts a saved file on the clipboard as the file (see makeFileMime).
+    void copyFileToClipboard(const QString &path);
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
@@ -900,6 +903,9 @@ private:
     // real clipboard is neither read nor written - a dev check may not
     // overwrite what the user has on it (see the note in the .cpp).
     QString clipboardImportCheck();
+    // A finished recording's clipboard offer: the file, its path as text and
+    // GTK's list, live on the real clipboard. Shared by F8 and the dev button.
+    QString copyFileCheck();
     // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
     QString recordPageModeCheck();
     // Tray menu: hidden entries really leave it, Open/Quit never can, and no

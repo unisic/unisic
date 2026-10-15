@@ -3925,6 +3925,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tray menu entries"); onClicked: App.devTestTrayMenu() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy recording file"); onClicked: App.devTestCopyFile() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }

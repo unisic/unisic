@@ -78,7 +78,7 @@ Item {
     function copyOne(kind, filePath, url) {
         if (filePath === "") return
         if (kind === "image") App.copyImageFromHistory(filePath)
-        else App.copyAsFromHistory(filePath, url, "path")
+        else App.copyAsFromHistory(filePath, url, "file")
     }
 
     // ---- spoken identity of a tile ----
@@ -804,8 +804,8 @@ Item {
                                             spacing: 2
                                             UIconButton {
                                                 activeFocusOnTab: false
-                                                iconName: kind === "image" ? "content-copy" : "document-open"
-                                                tooltip: kind === "image" ? qsTr("Copy image") : qsTr("Copy file path")
+                                                iconName: "content-copy"
+                                                tooltip: kind === "image" ? qsTr("Copy image") : qsTr("Copy file")
                                                 iconSize: 16; width: 30; height: 30
                                                 enabled: filePath !== ""
                                                 onClicked: page.copyOne(kind, filePath, url)

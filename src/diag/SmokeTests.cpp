@@ -2842,6 +2842,32 @@ void AppContext::devTestCopyLast()
                   .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
 }
 
+QString AppContext::copyFileCheck()
+{
+    // A space and a non-ASCII letter: the uri-list has to carry them encoded.
+    const QString path = QDir::tempPath() + QStringLiteral("/unisic copy ż.gif");
+    const QUrl url = QUrl::fromLocalFile(path);
+    QScopedPointer<QMimeData> mime(makeFileMime(path));
+    const bool built = mime->urls() == QList<QUrl>{url} && mime->text() == path
+                       && mime->data(QStringLiteral("x-special/gnome-copied-files"))
+                              == QByteArrayLiteral("copy\n") + url.toEncoded();
+    copyFileToClipboard(path);
+    const QMimeData *live = QGuiApplication::clipboard()->mimeData();
+    const bool landed = live && live->urls() == QList<QUrl>{url};
+    if (built && landed)
+        return QStringLiteral("PASS (file, path text and GTK list)");
+    return QStringLiteral("FAIL (offer=%1 clipboard=%2)").arg(built).arg(landed);
+}
+
+void AppContext::devTestCopyFile()
+{
+    if (!devBuild())
+        return;
+    const QString status = copyFileCheck();
+    showToast(tr("Dev: copy recording file: %1").arg(status),
+              status.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestClipboardHistory()
 {
     if (!devBuild())
@@ -4677,6 +4703,12 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         copyImageToClipboard(devTestImage());
         smokeLog(QStringLiteral("clipboard history hint: ") + clipboardHistoryHintCheck());
+        smokeNext();
+    });
+
+    // 3c3) a finished recording lands on the clipboard as its file.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("copy recording file: ") + copyFileCheck());
         smokeNext();
     });
 

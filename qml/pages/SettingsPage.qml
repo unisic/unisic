@@ -453,19 +453,28 @@ Item {
             Item {
                 id: head
                 width: parent.width
-                // Deliberately independent of slot.height: every control is ≤44px
-                // and the label column governs the rest, so the head never needs
-                // to grow to the control — and reading slot.height here (slot hugs
-                // its childrenRect and is vCenter-anchored to this head) would be a
-                // size↔position binding loop.
-                height: Math.max(44, labelCol.implicitHeight)
+                // A control wider than the label column it would leave goes
+                // under the label: in an 853 px window (1280x800 at 150%) a
+                // 240 px drop-down left a label 55 px and a wide one 7 px, one
+                // word to a line or nothing at all, in every language.
+                readonly property bool stacked: slot.width > (width - Theme.spacingM) / 2
+                // Side by side, deliberately independent of slot.height: every
+                // control is ≤44px and the label column governs the rest, so the
+                // head never needs to grow to the control, and reading
+                // slot.height here (slot hugs its childrenRect and is
+                // vCenter-anchored to this head) would be a size↔position
+                // binding loop. Stacked, the slot is bottom-anchored instead,
+                // so its height is free to read.
+                height: stacked ? labelCol.implicitHeight + Theme.spacingS + slot.height
+                                : Math.max(44, labelCol.implicitHeight)
 
                 Column {
                     id: labelCol
                     anchors.left: parent.left
-                    anchors.right: slot.left
-                    anchors.rightMargin: Theme.spacingM
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: head.stacked ? parent.right : slot.left
+                    anchors.rightMargin: head.stacked ? 0 : Theme.spacingM
+                    anchors.top: head.stacked ? parent.top : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     spacing: 3
                     Item {
                         width: parent.width
@@ -541,7 +550,8 @@ Item {
                     enabled: settingRow.available
                     opacity: settingRow.available ? 1.0 : 0.5
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.bottom: head.stacked ? parent.bottom : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     // The slot HUGS its control, and is itself centred in the
                     // row - so a control must never anchor itself to the slot's
                     // own centre. childrenRect would then depend on the child's

@@ -4334,7 +4334,7 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <location filename="../qml/pages/SettingsPage.qml" line="289"/>
         <location filename="../qml/pages/SettingsPage.qml" line="1667"/>
         <source>Recording</source>
-        <translation>Aufnahme</translation>
+        <translation>Aufzeichnung</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="290"/>

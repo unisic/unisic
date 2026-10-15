@@ -228,6 +228,17 @@ Window {
             textEditor.inShape = false
             root.forceActiveFocus()
         }
+        // Every confirm goes through here: text still being typed is on screen
+        // but only becomes an annotation on commit, so a capture taken with
+        // the box open would otherwise drop it.
+        function confirm(copy) {
+            if (textEditor.visible)
+                root.commitTextBox()
+            if (copy)
+                overlayController.confirmAndCopy(overlayWindow)
+            else
+                overlayController.confirmFromWindow(overlayWindow)
+        }
         function closeTextBox() {
             // Puts a live-previewed bubble back to the text it had before this
             // edit, undo entry included.
@@ -290,7 +301,7 @@ Window {
                        || e.key === Qt.Key_Space) {
                 // Space confirms too (only reachable here — the text-box branch
                 // above returns first, so typing a space still types a space).
-                overlayController.confirmFromWindow(overlayWindow)
+                root.confirm(false)
             } else if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) {
                 if (canvas.tool === AnnotationCanvas.Measure) {
                     // Ruler: Ctrl+C copies the measured DIMENSIONS (not the image)
@@ -302,7 +313,7 @@ Window {
                     // Spectacle parity: Ctrl+C accepts the selection and copies the
                     // result to the clipboard even when auto-copy is off. Screenshot
                     // flow only — the GIF region picker keeps its Start button.
-                    overlayController.confirmAndCopy(overlayWindow)
+                    root.confirm(true)
                 }
             } else if (e.key === Qt.Key_Tab && canvas.tool === AnnotationCanvas.Measure) {
                 // Toggle the ruler between distance line and size box.
@@ -382,7 +393,7 @@ Window {
                     var mt = canvas.measuresText(App.settings.measureCopyFormat)
                     if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
                 } else if (annotationToolsEnabled) {
-                    overlayController.confirmAndCopy(overlayWindow)
+                    root.confirm(true)
                 }
             }
             // Capture on release: screenshot flow only — the GIF region picker
@@ -438,7 +449,7 @@ Window {
             onTextOutlineColorChanged: if (persistColors) App.settings.editorTextOutlineColor = String(textOutlineColor)
             onTextBackgroundChanged: if (persistTools) App.settings.editorTextBackground = textBackground
             onTextBackgroundColorChanged: if (persistColors) App.settings.editorTextBgColor = String(textBackgroundColor)
-            onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
+            onSelectionConfirmed: root.confirm(false)
             // Screen eyedropper result → reopen the popup that requested it,
             // seeded with the sampled colour.
             onColorPicked: (c) => {
@@ -794,7 +805,7 @@ Window {
                         text: root.confirmLabel
                         accessibleDescription: qsTr("Space or Enter also confirms")
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayController.confirmFromWindow(overlayWindow)
+                        onClicked: root.confirm(false)
                     }
                     UIconButton {
                         id: cancelButton
@@ -961,7 +972,7 @@ Window {
                 // MUST accept Ctrl+Enter/Escape here so they do NOT bubble to
                 // the overlay root: commitTextBox() sets textEditor.visible =
                 // false, and the root handler — re-checking visibility AFTER
-                // that — would then fall through to confirmFromWindow and fire
+                // that — would then fall through to root.confirm() and fire
                 // the capture. Accepting stops that propagation. (onAccepted
                 // alone did not consume the key event, which was the bug.)
                 Keys.onPressed: (e) => {

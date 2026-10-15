@@ -862,10 +862,6 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    // Batch mode above runs without an event loop — the self-pipe notifier
-    // would never fire there; default signal dispositions are correct for it.
-    installSignalHandlers(&app);
-
     const QString serverName = singleInstanceServerName();
     const QByteArray startupCommand = cliCommand(args);
     const bool stdoutCapture = outputArg == QLatin1String("-");
@@ -883,6 +879,10 @@ int main(int argc, char *argv[])
                                    &handedOff, &handoffResult);
     if (handedOff)
         return handoffResult;
+    // Batch mode and a forwarded command above run without an event loop - the
+    // self-pipe notifier would never fire there, and `--output` blocks for as
+    // long as the capture takes, so Ctrl+C has to kill it the default way.
+    installSignalHandlers(&app);
     if (singleInstanceServer) {
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });

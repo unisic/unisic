@@ -229,11 +229,14 @@ Item {
             objectName: "overlayPreviewToolbar"
             readonly property int m: 6
             readonly property string pos: App.settings.overlayToolbarPosition
-            width: Math.min(scene.width - 2 * m, Math.ceil(barRow.implicitWidth) + 16)
-            height: ToolCatalog.overlayIconSize + 12
-            radius: height / 2
-            color: Theme.primary
-            opacity: 0.94
+            width: Math.min(scene.width - 2 * m, Math.ceil(barRow.implicitWidth) + 24)
+            height: Math.ceil(barRow.implicitHeight) + 14
+            radius: 27
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.25) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            opacity: 0.97
             border.width: 1
             border.color: Theme.divider
             function clampX(v) { return Math.max(m, Math.min(v, scene.width - width - m)) }
@@ -260,21 +263,26 @@ Item {
                 if (pos.indexOf("bottom") >= 0) return clampY(scene.height - height - m)
                 return clampY(scene.height / 2 - height / 2)
             }
-            // Real tool icons at the real size, so the icon size setting shows.
+            // The overlay's own chips, built the way OverlayWindow builds them,
+            // so the icons look exactly as they will on the toolbar. Select is
+            // the active one, as it is when a capture starts.
             Row {
                 id: barRow
                 anchors.centerIn: parent
-                spacing: 6
+                spacing: 5
                 Repeater {
                     model: ToolCatalog.tools.filter((t) => ["select", "pen", "smarterase", "magnify"].indexOf(t.id) >= 0)
-                    UIcon {
+                    ToolChip {
                         required property var modelData
                         required property int index
                         objectName: index === 0 ? "overlayPreviewToolbarIcon" : ""
-                        name: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                        activeFocusOnTab: false
+                        Accessible.ignored: true
+                        iconSize: ToolCatalog.overlayIconSize
+                        iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                         iconStyle: App.settings.editorIconStyle
-                        size: ToolCatalog.overlayIconSize
-                        color: index === 0 ? Theme.accent : Theme.textPrimary
+                        label: ToolCatalog.labelWithShortcut(modelData)
+                        active: index === 0
                     }
                 }
             }

@@ -1700,16 +1700,19 @@ QString AppContext::overlayPreviewCheck()
 
     // Icon size: the preview's toolbar icons follow the setting, an odd size
     // snaps to the even step, and a value outside the slider falls back to 24.
+    // The icon is a ToolChip, the overlay's own: the chip stays 40 px and its
+    // iconSize is what the icon inside is drawn at.
     auto *icon = findVisualChild(bar, QStringLiteral("overlayPreviewToolbarIcon"));
     if (!icon)
         return QStringLiteral("FAIL (no icon in the preview toolbar)");
     const int wasIconSize = s->overlayIconSize();
     for (const auto &[stored, shown] : {std::pair{16, 16}, std::pair{24, 24}, std::pair{26, 26}, std::pair{19, 20}, std::pair{7, 24}, std::pair{40, 24}}) {
         s->setOverlayIconSize(stored);
-        if (qRound(icon->width()) != shown) {
+        const int drawn = icon->property("iconSize").toInt();
+        if (drawn != shown) {
             s->setOverlayIconSize(wasIconSize);
             return QStringLiteral("FAIL (icon size %1 draws %2 px, expected %3)")
-                .arg(stored).arg(qRound(icon->width())).arg(shown);
+                .arg(stored).arg(drawn).arg(shown);
         }
     }
     s->setOverlayIconSize(wasIconSize);

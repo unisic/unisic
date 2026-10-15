@@ -19,7 +19,7 @@
 // app self-assign its id BEFORE the first portal call, so permissions are
 // keyed per-app instead of the anonymous "" bucket. Absent on older portals —
 // the async call just fails, harmlessly.
-#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
 static void registerHostAppId(QObject *owner)
 {
     if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
@@ -135,11 +135,14 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_gnome(new GnomeScreenshot(this))
     , m_grim(new GrimScreenshot(this))
 {
-    // Qt 6.11+ performs the same Registry.Register from QDesktopUnixServices
-    // once desktopFileName is available. Registering here too makes Qt's call
-    // report "Connection already associated". Older Qt versions need our call,
-    // and its ordering before other portal traffic remains load-bearing.
-#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+    // Qt 6.10+ performs the same Registry.Register from QDesktopUnixServices,
+    // inside the QApplication constructor because main() names the desktop
+    // file first. Registering here too makes one of the two calls fail with
+    // "Connection already associated" (6.10 already has it: the guard said
+    // 6.11, so 6.10 builds registered twice). Older Qt versions
+    // need our call, and its ordering before other portal traffic remains
+    // load-bearing.
+#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
     registerHostAppId(this);
 #endif
     PortalScreenshot::ensureSilentPermission(this, [] {});

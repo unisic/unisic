@@ -770,20 +770,33 @@ int main(int argc, char *argv[])
     // per-frame memcpy dominates the mmap cost either way).
     mallopt(M_MMAP_THRESHOLD, 1 << 20);
 #endif
+    // The desktop id is named BEFORE the application object exists. Qt 6.10+
+    // registers it with xdg-desktop-portal (host Registry.Register) from its
+    // platform services, which the QApplication constructor builds before the
+    // platform theme. Named afterwards, Qt defers that call to the event loop,
+    // and by then the platform theme and ThemeController have already reached
+    // the portal on the same connection: the portal pins the identity at the
+    // first call, refuses the late Register ("Connection already associated
+    // with an application ID") and Qt prints it as a warning on every start
+    // (#123). The static setter is safe before construction.
+#ifdef UNISIC_DEV_BUILD
+    QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.UnisicDev"));
+#else
+    QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
+#endif
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     // Dev builds are a SEPARATE app: own application name (which moves every
     // QStandardPaths location: cache, history, U-2-Net model), own desktop id,
     // own single-instance socket, own config dir (ConfigPath.h) and own
     // KGlobalAccel component (GlobalHotkeys.h) — so a build-tree binary never
-    // shadows or fights the installed stable Unisic.
+    // shadows or fights the installed stable Unisic. (The desktop id is set
+    // above, before the QApplication.)
 #ifdef UNISIC_DEV_BUILD
     app.setApplicationName(QStringLiteral("unisic-dev"));
     app.setApplicationDisplayName(QStringLiteral("Unisic (dev)"));
-    app.setDesktopFileName(QStringLiteral("app.unisic.UnisicDev"));
 #else
     app.setApplicationName(QStringLiteral("unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
-    app.setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
 #endif
     app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
     app.setOrganizationName(QStringLiteral("Unisic"));

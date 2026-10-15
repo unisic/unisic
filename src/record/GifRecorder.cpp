@@ -141,7 +141,7 @@ void GifRecorder::togglePause()
 }
 
 void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysical, QScreen *screen,
-                        bool holdForCommit)
+                        bool holdForCommit, qreal streamScale)
 {
     if (m_state != Idle)
         return;
@@ -186,6 +186,7 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     m_output = output;
     m_source = source;
     m_crop = (source == Region) ? cropPhysical : QRect();
+    m_streamScale = streamScale;
     m_encodeCrop = {};
     m_encodeSize = {};
     m_targetScreen = screen;
@@ -394,13 +395,16 @@ bool GifRecorder::tryOpenKWinStream()
     if (m_source == Region && m_targetScreen) {
         // The overlay's crop is PHYSICAL pixels local to its screen; the
         // protocol wants GLOBAL logical coordinates. toAlignedRect rounds
-        // OUTWARD so a fractional-scale edge can never shave the selection;
-        // scaling = the screen's DPR renders the stream at native pixels.
+        // OUTWARD so a fractional-scale edge can never shave the selection.
+        // Scaling must be the REAL output scale for native pixels: the
+        // screen's DPR is 2 on a 1.5x output and recorded 459x191 logical as
+        // 918x382 instead of 688x286.
         const qreal dpr = m_targetScreen->devicePixelRatio();
         const QRectF logical(m_targetScreen->geometry().x() + m_crop.x() / dpr,
                              m_targetScreen->geometry().y() + m_crop.y() / dpr,
                              m_crop.width() / dpr, m_crop.height() / dpr);
-        stream = m_kwinCast->createRegionStream(logical.toAlignedRect(), dpr, mode);
+        stream = m_kwinCast->createRegionStream(logical.toAlignedRect(),
+                                                m_streamScale > 0 ? m_streamScale : dpr, mode);
     } else if (m_source == Window) {
         // Interactive pick: KWin's own click-a-window mode resolves the uuid.
         openKWinWindowStream(mode);

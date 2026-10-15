@@ -23,6 +23,7 @@ whole per release (not per individual change).
 - **The overlay hint fits a narrow screen**: the line of key hints on the region overlay stayed one line however long it was, so on a narrow or scaled screen, and sooner in longer languages, both of its ends were cut off. It now wraps onto a second line.
 - **Text you are still typing on the overlay is kept**: clicking Capture while the text box on the region overlay was still open dropped what you had typed from the screenshot. It is now added first, as Ctrl+Enter would.
 - **The saved region is the size the readout shows**: on a scaled screen such as 150%, and in the editor at any zoom but 100%, a selection could end between two pixels, and the saved image came out one pixel wider and taller than the size readout said, with a sliver from outside the selection along its edge. Selections now snap to whole pixels.
+- **A recorded region keeps the screen's own resolution**: on KDE Plasma with fractional scaling such as 150%, a GIF, video or scrolling capture of a region came out at 200%, with about 1.8 times the pixels of the selection. It is now recorded at the screen's real scale.
 
 ### Polski
 **Dodane**
@@ -39,6 +40,7 @@ whole per release (not per individual change).
 - **Podpowiedź nakładki mieści się na wąskim ekranie**: wiersz podpowiedzi klawiszy na nakładce zaznaczenia zostawał jednym wierszem bez względu na długość, więc na wąskim lub skalowanym ekranie, a w dłuższych językach jeszcze szybciej, oba jego końce były ucięte. Teraz przechodzi do drugiego wiersza.
 - **Tekst wpisywany na nakładce trafia do zrzutu**: kliknięcie Przechwyć, gdy pole tekstowe na nakładce zaznaczenia było jeszcze otwarte, gubiło wpisany tekst. Teraz jest najpierw dodawany, tak jak po Ctrl+Enter.
 - **Zapisany obszar ma rozmiar z odczytu**: na skalowanym ekranie, na przykład 150%, i w edytorze przy powiększeniu innym niż 100% zaznaczenie mogło kończyć się między dwoma pikselami, a zapisany obraz wychodził o piksel szerszy i wyższy, niż pokazywał odczyt rozmiaru, z paskiem spoza zaznaczenia przy krawędzi. Zaznaczenie przyciąga się teraz do pełnych pikseli.
+- **Nagrany obszar ma rozdzielczość ekranu**: w KDE Plasma ze skalowaniem ułamkowym, na przykład 150%, GIF, wideo i przechwytywanie przewijania obszaru wychodziły w skali 200%, z około 1,8 raza większą liczbą pikseli niż zaznaczenie. Teraz obszar jest nagrywany w prawdziwej skali ekranu.
 
 ## 0.8.7
 

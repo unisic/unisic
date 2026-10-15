@@ -52,7 +52,7 @@ public:
 
     QImage previewThumbnail(int maxW, int maxH) const;
 
-    void start(const QRect &cropPhysical, QScreen *screen);
+    void start(const QRect &cropPhysical, QScreen *screen, qreal streamScale = 0);
     void stop();
 
     Q_INVOKABLE void finish();
@@ -86,6 +86,7 @@ private:
     AppContext *m_app;
     QQmlEngine *m_engine;
     QPointer<QScreen> m_screen;
+    qreal m_streamScale = 0; // the overlay's real output scale, 0 = unknown
     QRect m_cropPhysical;
     int m_regionX = 0;
     int m_regionY = 0;

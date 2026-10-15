@@ -204,8 +204,8 @@ public:
     // A capture is being prepared or is on screen: another one would be refused.
     bool captureBusy() const;
     ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
-    void startScrollCapture(const QRect &physRegion, QScreen *screen);
-    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen);
+    void startScrollCapture(const QRect &physRegion, QScreen *screen, qreal scale = 0);
+    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen, qreal scale = 0);
 
     bool recording() const;
     bool converting() const;

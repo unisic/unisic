@@ -97,7 +97,7 @@ public:
     // countdown / start cue in between, so nothing (no countdown number, no start
     // sound) lands in the recording.
     void start(Output output, SourceType source = Screen, const QRect &cropPhysical = {},
-               QScreen *screen = nullptr, bool holdForCommit = false);
+               QScreen *screen = nullptr, bool holdForCommit = false, qreal streamScale = 0);
     // Keystroke-badge colors (bg, text) resolved from the ACTIVE theme when key
     // capture starts. The Theme singleton lives in QML and the recorder cannot
     // reach it; a provider dodges the engine-vs-recorder construction order -
@@ -232,6 +232,7 @@ private:
     QSize m_streamSize;
     QSize m_encodeSize;
     QPointer<QScreen> m_targetScreen;
+    qreal m_streamScale = 0; // the overlay's real output scale, 0 = unknown
     bool m_monitorRetryDone = false; // one wrong-monitor self-heal per start()
     // KWin-native screencast (zkde_screencast). m_kwinCast binds the global
     // once and is reused across recordings; m_kwinStream is per-recording.

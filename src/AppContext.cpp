@@ -1175,13 +1175,13 @@ void AppContext::captureScroll()
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
-        m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen) {
-            onScrollRegionPicked(physRegion, screen);
+        m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen, qreal scale) {
+            onScrollRegionPicked(physRegion, screen, scale);
         }, OverlayController::Purpose::Scroll);
     });
 }
 
-void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
+void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen, qreal scale)
 {
     m_captureInFlight = false;
     const bool picked = !physRegion.isEmpty() && screen;
@@ -1189,7 +1189,7 @@ void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
     // the pick's share right after neither brings the main window back over
     // the region nor lets notifications in mid-scroll (#121).
     if (picked)
-        startScrollCapture(physRegion, screen);
+        startScrollCapture(physRegion, screen, scale);
     endCaptureIsolation();
     if (!picked) {
         m_nextCaptureTask = {};
@@ -1197,7 +1197,7 @@ void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
     }
 }
 
-void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
+void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qreal scale)
 {
     // The stitcher refuses frames below this, so the capture would run and end
     // with nothing to show for it.
@@ -1235,7 +1235,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
         beginCaptureIsolation();
         m_scrollHoldsWindow = true;
     }
-    m_scrollCapture->start(physRegion, screen);
+    m_scrollCapture->start(physRegion, screen, scale);
     if (!m_scrollCapture->active())
         endScrollIsolation(); // no screen to capture on: no signal will end it
     emit scrollCaptureActiveChanged();
@@ -1471,12 +1471,12 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
-    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
+    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        startRecorderCountdown([this, phys, screen](bool hold) {
-            m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold);
+        startRecorderCountdown([this, phys, screen, scale](bool hold) {
+            m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold, scale);
         });
     }, OverlayController::Purpose::Gif);
 }
@@ -1510,12 +1510,12 @@ void AppContext::startVideoScreen()
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
-    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
+    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        startRecorderCountdown([this, phys, screen](bool hold) {
-            m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold);
+        startRecorderCountdown([this, phys, screen, scale](bool hold) {
+            m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold, scale);
         });
     }, OverlayController::Purpose::Video);
 }

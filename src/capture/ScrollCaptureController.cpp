@@ -37,7 +37,7 @@ QImage ScrollCaptureController::previewThumbnail(int maxW, int maxH) const
     return m_stitcher.previewThumbnail(maxW, maxH);
 }
 
-void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
+void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, qreal streamScale)
 {
     if (m_active)
         stop();
@@ -45,6 +45,7 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
     m_screen = screen ? screen : QGuiApplication::primaryScreen();
     if (!m_screen)
         return;
+    m_streamScale = streamScale;
 
     m_cropPhysical = cropPhysical;
     m_stitcher.reset();
@@ -186,8 +187,11 @@ void ScrollCaptureController::openGrabber()
         const QRectF logical(m_screen->geometry().x() + m_regionX,
                              m_screen->geometry().y() + m_regionY,
                              m_regionW, m_regionH);
+        // The real output scale (see GifRecorder::tryOpenKWinStream): the
+        // screen's DPR upscales every slice on a fractional output.
         KWinScreencastStream *stream = m_kwinCast->createRegionStream(
-            logical.toAlignedRect(), dpr, KWinScreencasting::CursorMode::Hidden);
+            logical.toAlignedRect(), m_streamScale > 0 ? m_streamScale : dpr,
+            KWinScreencasting::CursorMode::Hidden);
         if (stream) {
             m_isRegionStream = true;
             m_kwinStream = stream;

@@ -316,6 +316,7 @@ void OverlayController::startScrollCapture(QQuickWindow *win)
     const int idx = m_windows.indexOf(win);
     QScreen *screen = (idx >= 0 && idx < m_windowScreens.size()) ? m_windowScreens[idx] : nullptr;
     const QRect phys = physicalSelection(canvas, screen);
+    const qreal scale = win->devicePixelRatio();
 
     auto regionCb = std::move(m_regionCb);
     auto imageCb = std::move(m_imageCb);
@@ -329,20 +330,20 @@ void OverlayController::startScrollCapture(QQuickWindow *win)
     // over the region being scrolled (#121). A scroll pick's callback starts
     // the session itself.
     if (!regionCb)
-        m_app->startScrollCapture(phys, screen);
-    handOffScrollPick(regionCb, imageCb, phys, screen);
+        m_app->startScrollCapture(phys, screen, scale);
+    handOffScrollPick(regionCb, imageCb, phys, screen, scale);
 }
 
 bool OverlayController::handOffScrollPick(const RegionCallback &regionCb,
                                           const ImageCallback &imageCb,
-                                          const QRect &phys, QScreen *screen)
+                                          const QRect &phys, QScreen *screen, qreal scale)
 {
     // Every overlay session owes its caller exactly one callback: that is
     // what clears AppContext's capture-in-flight guard and ends capture
     // isolation. Skipping it left the guard armed and blocked every later
     // capture and recording for the rest of the session.
     if (regionCb) {
-        regionCb(phys, screen);   // a scroll pick: the caller starts it
+        regionCb(phys, screen, scale);   // a scroll pick: the caller starts it
         return false;
     }
     if (imageCb)
@@ -376,8 +377,9 @@ void OverlayController::confirmFromWindow(QQuickWindow *win)
     } else if (m_regionCb) {
         const QRect phys = physicalSelection(canvas, screen);
         auto cb = std::move(m_regionCb);
+        const qreal scale = win->devicePixelRatio();
         closeAll();
-        cb(phys, screen);
+        cb(phys, screen, scale);
     }
 }
 
@@ -399,7 +401,7 @@ void OverlayController::cancel()
     if (imageCb)
         imageCb(QImage());
     else if (regionCb)
-        regionCb(QRect(), nullptr);
+        regionCb(QRect(), nullptr, 0);
 }
 
 void OverlayController::closeAll()

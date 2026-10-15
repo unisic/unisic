@@ -5324,7 +5324,7 @@ QString AppContext::scrollHandoffCheck()
     const QRect rect(10, 20, 300, 400);
     int regionCalls = 0;
     QRect seen;
-    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *) {
+    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *, qreal) {
         ++regionCalls;
         seen = r;
     };

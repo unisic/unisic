@@ -1720,7 +1720,9 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         p.drawLine(to - half, to + half);
         drawLabel(QStringLiteral("%1 px · %2°")
                       .arg(qRound(line.length()))
-                      .arg(qRound(-line.angle())),
+                      // angle() runs 0..360 counter-clockwise; read it as
+                      // -180..180, rising to the right positive.
+                      .arg(qRound(std::remainder(line.angle(), 360.0))),
                   (from + to) / 2.0 - half * 1.8);
         break;
     }

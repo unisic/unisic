@@ -145,10 +145,15 @@ jobs:
       # The in-app "Install now" (UpdateChecker::fetchInstallerScript) downloads
       # THIS copy and refuses to run it unless its sha256 matches the digest
       # GitHub publishes for the asset. That check is only worth anything if the
-      # script travels with the release: raw.githubusercontent's copy follows
-      # main, so its hash changes under the release it is supposed to belong to.
+      # script travels with the release: unisic.app serves whatever was deployed
+      # last, so its hash changes under the release it is supposed to belong to.
+      # The script itself lives in the unisic-website repo (public/install.sh);
+      # this freezes the copy the site serves at release time. The marker check
+      # fails the release on a challenge page or an error body, never ships one.
       - name: Stage the installer script as a release asset
-        run: cp scripts/install.sh dist/install.sh
+        run: |
+          curl -fsSL --retry 3 -o dist/install.sh https://unisic.app/install.sh
+          grep -q 'Unisic universal installer' dist/install.sh
 
       - name: Generate changelog
         run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md

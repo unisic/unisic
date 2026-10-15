@@ -9,7 +9,7 @@ It is an **index, not the manual**. Every subsystem note that used to live here 
 | `src/**` subsystems (capture, editor/canvas, overlay, record, upload, history, notify, diag, theme) | `docs/dev/architecture.md` |
 | `qml/**`, kit components, accessibility, layout rules | `docs/dev/ui-kit.md` |
 | Recording, global hotkeys, clipboard, after-capture pipeline, file routing, CLI, developer mode | `docs/dev/pipelines.md` |
-| `scripts/install.sh`, `packaging/**`, release workflows, `UpdateChecker` | `docs/dev/packaging.md` |
+| the installer (`unisic-website`: `public/install.sh`), `packaging/**`, release workflows, `UpdateChecker` | `docs/dev/packaging.md` |
 | Any user-facing string | `docs/dev/i18n.md` |
 | Repo map, prime directives, correctness landmines, verification + done checklist, commit rules | `AGENTS.md` |
 

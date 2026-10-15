@@ -182,7 +182,7 @@ jobs:
         # signal: a transient KDE-invent clone failure quietly produced an
         # AppImage and a portable tarball without HAVE_LAYERSHELL, HAVE_ZXING,
         # HAVE_KGUIADDONS and HAVE_KWIN_SCREENCAST, and these two artifacts are
-        # what scripts/install.sh hands to every distro with no native package
+        # what install.sh (unisic.app) hands to every distro with no native package
         # and every atomic desktop.
         uses: ./.github/actions/assert-gates
         with:

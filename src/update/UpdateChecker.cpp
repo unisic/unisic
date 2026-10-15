@@ -357,11 +357,6 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     m_assetSha256.clear();
     m_installerAssetUrl.clear();
     m_installerSha256.clear();
-    // The tag pins the installer fallback below to one tree instead of the
-    // branch head. Anything that is not a plain tag name is dropped rather than
-    // pasted into a URL.
-    static const QRegularExpression tagRe(QStringLiteral("^[0-9A-Za-z._-]+$"));
-    m_tag = tagRe.match(tag).hasMatch() ? tag : QString();
     static const QRegularExpression assetRe(QStringLiteral("^Unisic-.*x86_64\\.AppImage$"));
     const QJsonArray assets = obj.value(QLatin1String("assets")).toArray();
     for (const QJsonValue &v : assets) {
@@ -714,15 +709,12 @@ QUrl UpdateChecker::installerScriptUrl() const
     // published sha256 belongs to, and the only route with a checksum at all.
     if (!m_installerAssetUrl.isEmpty())
         return QUrl(m_installerAssetUrl);
-    // Fallback for a release made before install.sh became an asset: the same
-    // script at that release's TAG, whose tree is frozen at what was released,
-    // rather than the branch head, which is whatever was pushed a minute ago.
-    // Neither carries a published checksum, so the marker-line check is all
-    // that is left either way - but a tag does not move under us.
-    const QString ref = m_tag.isEmpty() ? QStringLiteral("main") : m_tag;
-    return QUrl(QStringLiteral("https://raw.githubusercontent.com/unisic/unisic/%1"
-                               "/scripts/install.sh")
-                    .arg(ref));
+    // Fallback for a release made before install.sh became an asset, or no
+    // check yet: the copy unisic.app serves, which is where the script lives
+    // since it left this repo (the old per-tag path is gone from 0.8.8 on). It
+    // carries no published checksum, so the marker-line check is all that is
+    // left.
+    return QUrl(QStringLiteral("https://unisic.app/install.sh"));
 }
 
 QString UpdateChecker::installerCacheDir() const

@@ -104,7 +104,7 @@ Two ways in, and the same script owns both afterwards:
 
 - `flatpak install flathub app.unisic.Unisic` once the listing is live, or the
   software centre, which is the normal Flatpak route.
-- `scripts/install.sh` -> Install or update -> "Install the Flatpak version".
+- `install.sh` (unisic.app) -> Install or update -> "Install the Flatpak version".
   The entry only appears where the `flatpak` command exists.
 
 Updating has to come from outside the sandbox. An app that could update itself

@@ -33,7 +33,7 @@ That name match is what ties the channels together:
   its scriptlet managed to register the OBS repo, the package is no longer
   foreign and plain `pacman -Syu` updates it instead. Either way one channel
   owns it, never both.
-- `scripts/install.sh` prefers a helper on Arch when it finds one, so the
+- `install.sh` (unisic.app) prefers a helper on Arch when it finds one, so the
   common path lands in the AUR channel by itself.
 
 ## The in-app updater must stay out of the way
@@ -52,7 +52,7 @@ Releases before the marker existed cannot read it, so `install.sh` also
 refuses the native path when it finds the marker or an AUR-installed `unisic`,
 and says which helper command to run instead. That guard works on already
 published versions because *Install now* fetches `install.sh` fresh from the
-repository each time.
+newest release (or unisic.app) each time.
 
 ## One-time setup
 

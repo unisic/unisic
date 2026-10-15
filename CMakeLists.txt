@@ -510,15 +510,15 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 #   zip               the diagnostics bundle in Settings shells out to it
 #   grim              reliable capture on niri and other wlroots compositors
 #   qml6-module-qtmultimedia  the trim editor's video preview
-#   qt6-qpa-plugins   the xcb platform plugin: an X11 session, and the XWayland
-#                     helper windows the GNOME path uses
 #   qt6-svg-plugins   the SVG image/icon plugins; libqt6svg6 is only the
 #                     library, so without them every icon renders blank
 #   tesseract-ocr-*   OCR is compiled into every build and had no language data
 #                     on any of them; osd is what the script auto-detection
 #                     (on by default) needs
-# libqt6gui6 pulls the two qt6-* plugin packages in only as a Recommends, so
-# an `apt install --no-install-recommends` used to leave them out (#124).
+# libqt6gui6 pulls qt6-svg-plugins in only as a Recommends, so an
+# `apt install --no-install-recommends` used to leave it out (#124). The xcb
+# platform plugin needs no entry: it ships in libqt6gui6 itself (trixie, Ubuntu
+# 26.04); qt6-qpa-plugins only carries the VNC one.
 # KEEP THIS LIST CHARACTER-IDENTICAL to Depends in packaging/obs/debian.control.
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
@@ -533,7 +533,6 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     qml6-module-qtquick-dialogs
     qml6-module-qtquick-effects
     qml6-module-qtquick-window
-    qt6-qpa-plugins
     qt6-svg-plugins
     qt6-wayland
     tesseract-ocr-eng

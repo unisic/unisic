@@ -532,12 +532,15 @@ Window {
 
         // Hint bar (before first selection)
         Rectangle {
+            id: hintBar
             visible: !canvas.hasSelection
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 42
-            width: hintText.implicitWidth + 40
-            height: 40
+            // Wraps instead of running off a narrow screen (a scaled laptop or a
+            // portrait monitor is narrower than the longest hint).
+            width: hintText.width + 40
+            height: Math.max(40, hintText.height + 20)
             radius: 20
             color: Theme.primary
             opacity: 0.92
@@ -546,6 +549,9 @@ Window {
             Text {
                 id: hintText
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, hintBar.parent.width - 72)
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
                 text: {
                     if (canvas.tool === AnnotationCanvas.Measure)
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")

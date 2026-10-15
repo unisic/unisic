@@ -3012,15 +3012,18 @@ Item {
                         }
                     }
                     SettingRow {
-                        label: qsTr("Toolbar icon size: %1 px").arg(ToolCatalog.overlayIconSize)
+                        label: qsTr("Toolbar icon size")
                         help: qsTr("How big the tool icons on the selection overlay are.")
                         helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
-                        USlider {
-                            width: 200
-                            from: 16; to: 26; stepSize: 2
+                        UValueCombo {
+                            width: 110
+                            values: [16, 18, 20, 22, 24, 26]
+                            from: 16; to: 26
+                            suffix: " px"
                             value: ToolCatalog.overlayIconSize
                             accessibleName: qsTr("Toolbar icon size")
-                            onMoved: (v) => App.settings.overlayIconSize = Math.round(v)
+                            // A typed odd size is stored as the even one it draws at.
+                            onChanged: (v) => App.settings.overlayIconSize = Math.round(v / 2) * 2
                         }
                     }
                     SettingRow {

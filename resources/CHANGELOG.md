@@ -10,7 +10,7 @@ whole per release (not per individual change).
 
 ### English
 **Added**
-- **Toolbar icon size**: Settings > Appearance > Capture overlay has a slider for the size of the tool icons on the selection toolbar, from 16 to 26 px, and the overlay preview next to it shows the real icons at the size you pick. The default goes from 18 to 24 px, the size the icons are drawn for, where diagonal lines such as the eraser's no longer look stepped. Thanks to Tear4Pixelation for this ([#122](https://github.com/unisic/unisic/pull/122)).
+- **Toolbar icon size**: Settings > Appearance > Capture overlay has a drop-down for the size of the tool icons on the selection toolbar, from 16 to 26 px, and the overlay preview next to it shows the real icons at the size you pick. The default goes from 18 to 24 px, the size the icons are drawn for, where diagonal lines such as the eraser's no longer look stepped. Thanks to Tear4Pixelation for this ([#122](https://github.com/unisic/unisic/pull/122)).
 
 **Fixed**
 - **The selection toolbar is sharp again**: the toolbar and the size readout on the region overlay could sit between two pixels, so the whole toolbar, icons included, was drawn slightly blurred. They now always land on whole pixels. Thanks to Tear4Pixelation for the fix ([#122](https://github.com/unisic/unisic/pull/122)).
@@ -21,7 +21,7 @@ whole per release (not per individual change).
 
 ### Polski
 **Dodane**
-- **Rozmiar ikon paska narzędzi**: w Ustawienia > Wygląd > Nakładka przechwytywania jest suwak rozmiaru ikon narzędzi na pasku zaznaczenia, od 16 do 26 px, a podgląd nakładki obok pokazuje prawdziwe ikony w wybranym rozmiarze. Domyślny rozmiar rośnie z 18 do 24 px, czyli do tego, dla którego ikony są rysowane; ukośne linie, na przykład w gumce, nie wyglądają już na schodkowe. Podziękowania dla Tear4Pixelation ([#122](https://github.com/unisic/unisic/pull/122)).
+- **Rozmiar ikon paska narzędzi**: w Ustawienia > Wygląd > Nakładka przechwytywania jest lista rozwijana z rozmiarem ikon narzędzi na pasku zaznaczenia, od 16 do 26 px, a podgląd nakładki obok pokazuje prawdziwe ikony w wybranym rozmiarze. Domyślny rozmiar rośnie z 18 do 24 px, czyli do tego, dla którego ikony są rysowane; ukośne linie, na przykład w gumce, nie wyglądają już na schodkowe. Podziękowania dla Tear4Pixelation ([#122](https://github.com/unisic/unisic/pull/122)).
 
 **Naprawione**
 - **Pasek zaznaczenia znowu jest ostry**: pasek narzędzi i odczyt rozmiaru na nakładce zaznaczenia mogły wypadać między dwoma pikselami, więc cały pasek, razem z ikonami, był lekko rozmyty. Teraz zawsze trafiają w pełne piksele. Podziękowania dla Tear4Pixelation za poprawkę ([#122](https://github.com/unisic/unisic/pull/122)).

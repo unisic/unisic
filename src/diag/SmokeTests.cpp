@@ -209,7 +209,13 @@ void AppContext::externalActionTimeoutCheck(std::function<void(const QString &)>
                 false,
                 [runner, elapsed, ceiling, done = std::move(done)](const QString &output, const QString &error) {
         const qint64 ms = elapsed->elapsed();
-        runner->deleteLater();
+        // The runner owns the killed `sleep`'s QProcess, which is still being
+        // reaped: deleting it now blocks the GUI thread on that child.
+        QProcess *process = runner->findChild<QProcess *>();
+        if (process && process->state() != QProcess::NotRunning)
+            QObject::connect(process, &QProcess::finished, runner, &QObject::deleteLater);
+        else
+            runner->deleteLater();
         if (error.isEmpty() || !output.isEmpty()) {
             done(QStringLiteral("FAIL (hung action reported success)"));
             return;
@@ -4266,7 +4272,6 @@ void AppContext::runSmokeTest()
         // actually removed a secret and the home path, (3) a log file exists
         // or the reason it does not is legitimate, (4) the crash report still
         // renders in the shape a user would paste.
-        const int before = DiagLog::bufferedLineCount();
         const double revBefore = logRevision();
         qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
         // The log viewer's whole data path: the counter it polls moved, and
@@ -4281,7 +4286,9 @@ void AppContext::runSmokeTest()
                               ? QStringLiteral("FAIL (secret visible)")
                               : QStringLiteral("PASS")));
         const QString tail = DiagLog::recentLines(3);
-        const bool grew = DiagLog::bufferedLineCount() > before;
+        // The revision, not the line count: the ring holds 500 lines, so after
+        // a long session (or a second F8) the count stays put while it records.
+        const bool grew = logRevision() > revBefore;
         const bool clean = !tail.contains(QStringLiteral("smoketoken987"))
                            && !tail.contains(QDir::homePath());
         smokeLog(QStringLiteral("diagnostic log: %1")

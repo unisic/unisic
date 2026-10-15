@@ -1605,6 +1605,19 @@ void AppContext::devTestOverlayMode()
     showToast(tr("Dev: overlay mode badge: %1").arg(overlayModeCheck(settings())));
 }
 
+// A Repeater delegate has no QObject parent, so findChild never reaches it;
+// only the visual tree does.
+static QQuickItem *findVisualChild(QQuickItem *root, const QString &name)
+{
+    for (QQuickItem *child : root->childItems()) {
+        if (child->objectName() == name)
+            return child;
+        if (QQuickItem *hit = findVisualChild(child, name))
+            return hit;
+    }
+    return nullptr;
+}
+
 // The overlay-settings preview is the only place those options can be SEEN
 // without starting a capture, so a preview that has drifted from the overlay is
 // worse than none: it teaches the wrong thing. Two ways it can drift, both
@@ -1687,7 +1700,7 @@ QString AppContext::overlayPreviewCheck()
 
     // Icon size: the preview's toolbar icons follow the setting, an odd size
     // snaps to the even step, and a value outside the slider falls back to 24.
-    auto *icon = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewToolbarIcon"));
+    auto *icon = findVisualChild(bar, QStringLiteral("overlayPreviewToolbarIcon"));
     if (!icon)
         return QStringLiteral("FAIL (no icon in the preview toolbar)");
     const int wasIconSize = s->overlayIconSize();

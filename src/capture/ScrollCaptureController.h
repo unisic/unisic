@@ -29,6 +29,7 @@ class ScrollCaptureController : public QObject
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(bool lostTrack READ lostTrack NOTIFY statusChanged)
     Q_PROPERTY(bool full READ full NOTIFY statusChanged)
+    Q_PROPERTY(bool streaming READ streaming NOTIFY streamingChanged)
 
 public:
     explicit ScrollCaptureController(AppContext *app, QQmlEngine *engine, QObject *parent = nullptr);
@@ -46,6 +47,7 @@ public:
     bool active() const { return m_active; }
     bool lostTrack() const { return m_lostTrack; }
     bool full() const { return m_full; }
+    bool streaming() const { return m_streamSize.isValid(); }
 
     // Logical px the floating badge needs above or below the region.
     static constexpr int kBadgeRoom = 58;
@@ -68,6 +70,7 @@ signals:
     void previewRevisionChanged();
     void activeChanged();
     void statusChanged();
+    void streamingChanged();
     void finished(const QImage &image);
     void cancelled();   // ended without an image: cancel(), or finish() with no frames
 

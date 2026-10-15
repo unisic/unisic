@@ -405,6 +405,15 @@ QImage CaptureManager::cropForScreen(const QImage &workspace, const ScreenGeom &
     }
 
     QImage crop = workspace.copy(bounded);
+    // A workspace shot is rendered at the highest scale of any output, so on a
+    // mixed-DPI setup a lower-scale screen arrives enlarged (1280x800 at scale
+    // 1 next to a 1.5 screen comes as 1920x1200) and every capture from it is
+    // that much bigger and soft (#121). Back to the screen's own pixels; the
+    // 1px slack keeps fractional rounding from resampling a native crop.
+    const QSize native(qRound(screen.geometry.width() * screen.dpr),
+                       qRound(screen.geometry.height() * screen.dpr));
+    if (crop.width() > native.width() + 1 || crop.height() > native.height() + 1)
+        crop = crop.scaled(native, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     crop.setDevicePixelRatio(screen.dpr);
     return crop;
 }

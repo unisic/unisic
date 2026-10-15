@@ -52,6 +52,7 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, 
     m_lastSampledSeq = 0;
     m_previewRevision = 0;
     m_streamSize = QSize();
+    emit streamingChanged();
     m_isRegionStream = false;
     m_unmatchedRun = 0;
     setStatus(false, false);
@@ -82,6 +83,10 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, 
     m_active = true;
     emit activeChanged();
 
+    // Mapped now, drawn from the first frame on (`streaming`): on the portal
+    // path a share dialog is still waiting, and a badge saying "scroll down"
+    // with a live Finish over it ends in nothing captured (#121). Mapping it
+    // only when frames arrive put the region frame into the first slices.
     createOverlayWindow();
     openGrabber();
 }
@@ -259,6 +264,7 @@ void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)
                                  .arg(sz.width()).arg(sz.height())
                                  .arg(m_cropPhysical.width()).arg(m_cropPhysical.height());
         m_sampleTimer.start(33); // ~30 fps sampling
+        emit streamingChanged();
     });
 
     connect(grabber, &IScreenGrabber::streamError, this, [this](const QString &e) {

@@ -1374,9 +1374,12 @@ Item {
                         label: qsTr("Activity log")
                         help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        // The slot is a plain Item, so loose buttons all land on
-                        // the same spot - lay them out side by side.
-                        Row {
+                        // In the footer, not the control slot: the three buttons
+                        // are wider than the card leaves the label in every
+                        // language but English, and the label column ran under
+                        // them. A Flow wraps them onto the next line instead.
+                        footer: Flow {
+                            width: parent ? parent.width : 0
                             spacing: Theme.spacingS
                             UButton {
                                 compact: true
@@ -2933,7 +2936,10 @@ Item {
                         label: qsTr("Custom themes")
                         help: qsTr("Drop .json theme files into the themes folder - they appear in the list above and reload live while you edit them.")
                         helpDetail: qsTr("Opening the folder for the first time creates a commented example theme (8 colors are enough; everything else is derived, and any derived color can be overridden). Share the file to share the theme. A broken file is skipped and its reason is listed here.")
-                        Row {
+                        // Footer for the same reason as the activity log's
+                        // buttons: in German the pair outgrows a narrow window.
+                        footer: Flow {
+                            width: parent ? parent.width : 0
                             spacing: Theme.spacingS
                             UButton { compact: true; variant: "tonal"; text: qsTr("Open themes folder"); onClicked: ThemeController.openThemesFolder() }
                             UButton { compact: true; variant: "tonal"; text: qsTr("Reload"); onClicked: ThemeController.reloadCustomThemes() }

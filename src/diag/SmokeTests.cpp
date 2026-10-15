@@ -2600,6 +2600,23 @@ void AppContext::devTestEditorZoom()
     showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
+// Scrolls the Flickable holding item so item is on screen, as a user would
+// before pressing it: a press past the window edge reaches nothing.
+static void scrollIntoView(QQuickItem *item)
+{
+    for (QQuickItem *f = item->parentItem(); f; f = f->parentItem()) {
+        if (!f->property("contentY").isValid())
+            continue;
+        auto *content = f->property("contentItem").value<QQuickItem *>();
+        if (!content)
+            return;
+        const qreal y = item->mapToItem(content, QPointF(0, 0)).y();
+        const qreal maxY = qMax(0.0, f->property("contentHeight").toReal() - f->height());
+        f->setProperty("contentY", qBound(0.0, y - 12, maxY));
+        return;
+    }
+}
+
 // Settings > Saving > filename template: a field once entered has to be
 // leavable, by Escape and by a click on nothing (user-reported twice: "can't
 // get out of the filename field"). Real key and mouse events through the
@@ -2636,6 +2653,10 @@ static QString leaveFieldCheck(QQuickWindow *win)
         while (!win->isActive() && t.elapsed() < 1500)
             QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
     }
+    // Caption, field and switch fit one screen from the caption down. In a
+    // short window (853x533 on a 150% 1280x800 screen) they sat below the
+    // fold and the presses reached nothing, failing though nothing was wrong.
+    scrollIntoView(caption);
     QMetaObject::invokeMethod(field, "forceFocus");
     if (!focused()) {
         restore();
@@ -2668,7 +2689,12 @@ static QString leaveFieldCheck(QQuickWindow *win)
         QMouseEvent move(QEvent::MouseMove, releaseAt, win->mapToGlobal(releaseAt),
                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(win, &down);
-        QCoreApplication::sendEvent(win, &move);
+        // Only when the release is elsewhere. On the first F8 after start the
+        // settings pane took the grab from the switch on a move of 0 px, so
+        // the click never landed (seen with mouseGrabberItem(); later runs
+        // passed).
+        if (releaseAt != at)
+            QCoreApplication::sendEvent(win, &move);
         QCoreApplication::sendEvent(win, &up);
     };
     const QPointF beside = caption->mapToScene(QPointF(caption->width() / 2, caption->height() / 2));

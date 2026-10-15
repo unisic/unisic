@@ -18,7 +18,7 @@ Popup {
 
     property string version: ""
     // Default to the UI language, then the user can switch.
-    property string lang: Qt.locale().name.slice(0, 2) === "pl" ? "pl" : "en"
+    property string lang: Qt.uiLanguage === "pl" ? "pl" : "en"
     readonly property string notes: App.changelog(lang)
     readonly property var parsed: parseNotes(notes)
 

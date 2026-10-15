@@ -314,6 +314,7 @@ AppContext::~AppContext()
 void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
+    engine->setUiLanguage(m_uiLanguage);
     setupTray();
     refreshAutostartIfStale();
     // Re-apply the UI language live when the setting changes (retranslate QML +
@@ -760,6 +761,9 @@ void AppContext::applyLanguage()
         const QString sys = QLocale::system().name().left(2); // e.g. "pl_PL" → "pl"
         code = supported.contains(sys) ? sys : QStringLiteral("en");
     }
+    m_uiLanguage = code;
+    if (m_engine)
+        m_engine->setUiLanguage(code);
 
     if (m_appTranslator) {
         qApp->removeTranslator(m_appTranslator);

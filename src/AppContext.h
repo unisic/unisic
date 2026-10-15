@@ -1080,6 +1080,9 @@ private:
     void scheduleMemoryTrim();
 
     QQmlEngine *m_engine = nullptr;
+    // Resolved UI language ("en", "pl", ...), handed to the engine as
+    // Qt.uiLanguage so QML formats dates in it, not in the system locale.
+    QString m_uiLanguage;
     Settings *m_settings;
     CaptureManager *m_capture;
     OverlayController *m_overlay;

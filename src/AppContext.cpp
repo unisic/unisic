@@ -860,7 +860,7 @@ void AppContext::clearCliCapture(const QString &error)
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
     // or the process that asked for it waits for a capture that is not coming.
     if (filePending)
-        emit cliCaptureFinished(false);
+        emit cliCaptureFinished(false, {});
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -3022,7 +3022,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
         if (!m_nextCaptureOutputPath.isEmpty()) {
             m_nextCaptureOutputPath.clear();
             m_nextCaptureOutputFormat.clear();
-            emit cliCaptureFinished(false);
+            emit cliCaptureFinished(false, {});
         }
         return;
     }
@@ -3059,12 +3059,24 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // %rand% template would otherwise produce two different names).
     const QString fileName = makeFileName();
     QString path;
+    QString cliError;
     if (saveEnabled) {
         if (!cliOutputPath.isEmpty()) {
-            const QFileInfo target(cliOutputPath);
-            path = saveImageTo(output, target.absolutePath(), target.fileName());
+            // --output names one file: replace it, never dedupe to name-1.png or
+            // auto-convert it, or the script that asked reads the previous run's
+            // file. A path without an image suffix takes --format's.
+            QString target = cliOutputPath;
+            const QString suffix = QFileInfo(target).suffix().toLower();
+            if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg")
+                && suffix != QLatin1String("jpeg") && suffix != QLatin1String("webp")
+                && suffix != QLatin1String("gif"))
+                target += QLatin1Char('.') + cliFormat;
+            path = saveImageExact(output, target, false);
+            // A JPEG that had to become a PNG for its alpha went to another name.
+            if (path != target)
+                cliError = tr("Could not save to %1").arg(target);
             if (path.isEmpty())
-                showToast(tr("Could not save to %1").arg(cliOutputPath), true);
+                showToast(cliError, true);
         } else if (m_settings->askWhereToSave()) {
             // Prompt for a destination per capture instead of writing straight
             // into the save folder. A cancelled dialog skips the save silently
@@ -3182,7 +3194,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // so there is nothing left to wait for. The stdout variant has its own exit,
     // once the encoded bytes are on the pipe.
     if (cliMode && !cliStdout)
-        emit cliCaptureFinished(!path.isEmpty());
+        emit cliCaptureFinished(cliError.isEmpty(), cliError);
 
     scheduleMemoryTrim();
 }

@@ -748,10 +748,11 @@ signals:
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     // A `--output PATH` capture reached its end: written (ok), or failed or
-    // cancelled. ONLY the process that parsed --output off argv connects to
-    // this and exits on it - a running instance handed the same command over
-    // the single-instance socket must keep running, it is the user's app.
-    void cliCaptureFinished(bool ok);
+    // cancelled, with `error` for the terminal when there is something to say.
+    // The process that parsed --output off argv exits on it; a running instance
+    // handed the command over the single-instance socket only replies to the
+    // caller and keeps running, it is the user's app.
+    void cliCaptureFinished(bool ok, const QString &error);
     void hotkeysAvailableChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();

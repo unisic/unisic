@@ -304,10 +304,13 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     // destination, output, delay). The capture methods refuse a second one, but
     // only after this function has overwritten them and their refusal then
     // clears them, so the capture in progress would finish with the defaults.
+    // `--output` callers wait for the outcome, the file as much as stdout, so
+    // a script can use the file the moment the command returns.
+    const bool replies = replySocket && isCapture && !outputPath.isEmpty();
     if (isCapture && context.captureBusy()) {
         const QString busy = AppContext::tr("Another capture is already active");
         qWarning().noquote() << busy;
-        if (toStdout && replySocket) {
+        if (replies) {
             replySocket->write("ERR " + busy.toUtf8().toBase64() + "\n");
             replySocket->disconnectFromServer();
         }
@@ -328,6 +331,13 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
                 }
                 replySocket->disconnectFromServer();
             });
+        } else if (replies) {
+            QObject::connect(&context, &AppContext::cliCaptureFinished, replySocket,
+                             [replySocket](bool ok, const QString &error) {
+                replySocket->write(ok ? QByteArray("OK 0\n")
+                                      : "ERR " + error.toUtf8().toBase64() + "\n");
+                replySocket->disconnectFromServer();
+            });
         }
     }
     if (command == "fullscreen") context.captureFullScreen();
@@ -341,11 +351,11 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     else if (command == "hotkey") context.runHotkeyAction(QString::fromUtf8(parts.value(1)));
     else if (command == "tray") { /* already running — stay in tray */ }
     else QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
-    return toStdout;
+    return replies;
 }
 
 // Returns -1 when there is no running peer, otherwise the command's exit code.
-static int requestExistingStdoutCapture(const QString &serverName,
+static int requestExistingCapture(const QString &serverName,
                                         const QByteArray &command)
 {
     QLocalSocket socket;
@@ -368,12 +378,18 @@ static int requestExistingStdoutCapture(const QString &serverName,
             return 1;
     }
     response += socket.readAll();
+    // A peer from before file outputs got a reply hangs up without a word
+    // after taking the command; that is how it always answered.
+    if (response.isEmpty() && !command.split(' ').contains("stdout=1"))
+        return 0;
     const int newline = response.indexOf('\n');
     if (newline < 0)
         return 1;
     const QByteArray header = response.left(newline);
     if (header.startsWith("ERR ")) {
-        qWarning().noquote() << QString::fromUtf8(QByteArray::fromBase64(header.mid(4)));
+        const QString error = QString::fromUtf8(QByteArray::fromBase64(header.mid(4)));
+        if (!error.isEmpty())
+            qWarning().noquote() << error;
         return 1;
     }
     bool sizeOk = false;
@@ -426,7 +442,7 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     // would then fire twice). Otherwise remove the stale socket left by a crash.
     const auto tryHandoff = [&] {
         if (expectsReply) {
-            const int result = requestExistingStdoutCapture(serverName, command);
+            const int result = requestExistingCapture(serverName, command);
             if (result < 0)
                 return false;
             *handoffResult = result;
@@ -726,18 +742,19 @@ int main(int argc, char *argv[])
     }
     const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
                                    || args.contains(QLatin1String("--region"))
+                                   || args.contains(QLatin1String("--scroll"))
                                    || args.contains(QLatin1String("--window"))
                                    || args.contains(QLatin1String("--measure"))
                                    || args.contains(QLatin1String("--monitor"))
                                    || args.contains(QLatin1String("--recapture"));
     if (delayMs >= 0 && !screenshotRequested) {
-        std::fputs("--delay requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--delay requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
     const QString outputArg = cliValue(args, QStringLiteral("--output"));
     if (!outputArg.isEmpty() && !screenshotRequested) {
-        std::fputs("--output requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--output requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
@@ -839,7 +856,7 @@ int main(int argc, char *argv[])
                 qInfo() << "Settings imported - restart a running Unisic instance to apply them.";
         }
         if (!err.isEmpty()) {
-            qWarning() << err;
+            qWarning().noquote() << err;
             return 1;
         }
         return 0;
@@ -852,8 +869,8 @@ int main(int argc, char *argv[])
     const QString serverName = singleInstanceServerName();
     const QByteArray startupCommand = cliCommand(args);
     const bool stdoutCapture = outputArg == QLatin1String("-");
-    if (stdoutCapture) {
-        const int forwarded = requestExistingStdoutCapture(serverName, startupCommand);
+    if (!outputArg.isEmpty()) {
+        const int forwarded = requestExistingCapture(serverName, startupCommand);
         if (forwarded >= 0)
             return forwarded;
     } else if (notifyExistingInstance(serverName, startupCommand)) {
@@ -862,7 +879,7 @@ int main(int argc, char *argv[])
     bool handedOff = false;
     int handoffResult = 0;
     QLocalServer *singleInstanceServer =
-        createSingleInstanceServer(serverName, &app, startupCommand, stdoutCapture,
+        createSingleInstanceServer(serverName, &app, startupCommand, !outputArg.isEmpty(),
                                    &handedOff, &handoffResult);
     if (handedOff)
         return handoffResult;
@@ -1019,7 +1036,11 @@ int main(int argc, char *argv[])
         // running instance handed the same command over the single-instance
         // socket never reaches this line, so it is not the one that exits.
         QObject::connect(&context, &AppContext::cliCaptureFinished, &app,
-                         [&app](bool ok) { app.exit(ok ? 0 : 1); });
+                         [&app](bool ok, const QString &error) {
+            if (!error.isEmpty())
+                qWarning().noquote() << error;
+            app.exit(ok ? 0 : 1);
+        });
     }
     QTimer::singleShot(300, &context, [&context, args, delayMs, outputArg, outputFormat] {
         if (delayMs >= 0)

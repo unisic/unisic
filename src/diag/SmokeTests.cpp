@@ -4604,6 +4604,14 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 2f) a settings text field can be left again. Before the editor opens:
+    // the editor takes the focus, and KWin need not hand it back to the main
+    // window, which left this check a SKIP on most runs.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
+        smokeNext();
+    });
+
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
@@ -4615,12 +4623,6 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("editor zoom control: ")
                  + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
                                        ? m_smokeWindows.last().data() : nullptr));
-        smokeNext();
-    });
-
-    // 3a) a settings text field can be left again
-    m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
         smokeNext();
     });
 

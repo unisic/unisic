@@ -3012,6 +3012,18 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Toolbar icon size: %1 px").arg(ToolCatalog.overlayIconSize)
+                        help: qsTr("How big the tool icons on the selection overlay are.")
+                        helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
+                        USlider {
+                            width: 200
+                            from: 16; to: 26; stepSize: 2
+                            value: ToolCatalog.overlayIconSize
+                            accessibleName: qsTr("Toolbar icon size")
+                            onMoved: (v) => App.settings.overlayIconSize = Math.round(v)
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Show which capture mode is running")
                         help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
                         helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")

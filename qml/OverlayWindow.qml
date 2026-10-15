@@ -514,8 +514,8 @@ Window {
         // alpha, so the numbers themselves are not dimmed with it.
         Rectangle {
             visible: canvas.hasSelection
-            x: Math.min(root.selItem().x, parent.width - width - 8)
-            y: Math.max(4, root.selItem().y - height - 10)
+            x: Math.round(Math.min(root.selItem().x, parent.width - width - 8))
+            y: Math.round(Math.max(4, root.selItem().y - height - 10))
             width: dimText.implicitWidth + 22
             height: 28
             radius: 14
@@ -667,10 +667,11 @@ Window {
             // Capture-on-release confirms the moment the drag ends — the
             // toolbar would only flash mid-drag, so don't show it at all.
             visible: canvas.hasSelection && !canvas.confirmOnRelease
-            x: root.toolbarX()
-            y: root.toolbarY()
-            width: toolColumn.implicitWidth + 24
-            height: toolColumn.implicitHeight + 14
+            // Whole pixels: the layer texture is resampled at any fraction.
+            x: Math.round(root.toolbarX())
+            y: Math.round(root.toolbarY())
+            width: Math.ceil(toolColumn.implicitWidth) + 24
+            height: Math.ceil(toolColumn.implicitHeight) + 14
             radius: 27
             gradient: Gradient {
                 GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.25) }
@@ -725,6 +726,7 @@ Window {
                                 // AT-SPI's Press action works without focus, so
                                 // dropping out of the Tab chain costs nothing.
                                 activeFocusOnTab: false
+                                iconSize: ToolCatalog.overlayIconSize
                                 iconName: modelData.kind === "group"
                                           ? modelData.group.iconName
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
@@ -752,8 +754,8 @@ Window {
                                            : canvas.tool = modelData.tool.tool
                             }
                         }
-                        ToolChip { activeFocusOnTab: false; iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
-                        ToolChip { activeFocusOnTab: false; iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
+                        ToolChip { activeFocusOnTab: false; iconSize: ToolCatalog.overlayIconSize; iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
+                        ToolChip { activeFocusOnTab: false; iconSize: ToolCatalog.overlayIconSize; iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
 
                         // Carried in a chip-tall Item: a Flow positions its
                         // children itself, so a 28 px divider cannot centre
@@ -828,6 +830,7 @@ Window {
                             model: root.shapesActive ? root.shapesTools : []
                             delegate: ToolChip {
                                 activeFocusOnTab: false
+                                iconSize: ToolCatalog.overlayIconSize
                                 iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 iconStyle: App.settings.editorIconStyle
                                 label: ToolCatalog.labelWithShortcut(modelData)
@@ -841,6 +844,7 @@ Window {
                         }
                         ToolChip {
                             activeFocusOnTab: false
+                            iconSize: ToolCatalog.overlayIconSize
                             visible: canvas.hasAnnotSelection
                             iconName: "edit-delete"
                             label: qsTr("Delete shape")

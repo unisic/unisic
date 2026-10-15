@@ -1685,6 +1685,22 @@ QString AppContext::overlayPreviewCheck()
     }
     s->setOverlayToolbarPosition(wasPos);
 
+    // Icon size: the preview's toolbar icons follow the setting, an odd size
+    // snaps to the even step, and a value outside the slider falls back to 24.
+    auto *icon = item->findChild<QQuickItem *>(QStringLiteral("overlayPreviewToolbarIcon"));
+    if (!icon)
+        return QStringLiteral("FAIL (no icon in the preview toolbar)");
+    const int wasIconSize = s->overlayIconSize();
+    for (const auto &[stored, shown] : {std::pair{16, 16}, std::pair{24, 24}, std::pair{26, 26}, std::pair{19, 20}, std::pair{7, 24}, std::pair{40, 24}}) {
+        s->setOverlayIconSize(stored);
+        if (qRound(icon->width()) != shown) {
+            s->setOverlayIconSize(wasIconSize);
+            return QStringLiteral("FAIL (icon size %1 draws %2 px, expected %3)")
+                .arg(stored).arg(qRound(icon->width())).arg(shown);
+        }
+    }
+    s->setOverlayIconSize(wasIconSize);
+
     // The two mode-indicator styles: exactly one indicator is drawn for each,
     // and the glyph one has to be BOTH cut and still standing - the selection
     // is a hole in it, so a mock selection that missed it entirely would show
@@ -1733,7 +1749,7 @@ QString AppContext::overlayPreviewCheck()
         return QStringLiteral("FAIL (the mode indicator survives its own switch)");
     }
     restore();
-    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 2 indicator styles)")
+    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 6 icon sizes, 2 indicator styles)")
         .arg(positions.size());
 }
 

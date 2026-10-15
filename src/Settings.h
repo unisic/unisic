@@ -132,6 +132,7 @@ class Settings : public QObject
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
     Q_PROPERTY(bool overlayModeBadge READ overlayModeBadge WRITE setOverlayModeBadge NOTIFY overlayModeBadgeChanged)
     Q_PROPERTY(QString overlayModeStyle READ overlayModeStyle WRITE setOverlayModeStyle NOTIFY overlayModeStyleChanged)
+    Q_PROPERTY(int overlayIconSize READ overlayIconSize WRITE setOverlayIconSize NOTIFY overlayIconSizeChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
@@ -572,6 +573,9 @@ public:
     // it, so it never sits over the region being framed. The coloured screen
     // frame belongs to neither: it is the mode's colour and stays in both.
     U_SETTING(QString, overlayModeStyle, setOverlayModeStyle, "capture/overlayModeStyle", QStringLiteral("badge"))
+    // Overlay toolbar icon size in px. The icons are drawn on a 24 grid, so 24
+    // is the crisp one; QML reads it through ToolCatalog.overlayIconSize.
+    U_SETTING(int, overlayIconSize, setOverlayIconSize, "capture/overlayIconSize", 24)
     // Replaces the old 2s Ctrl+C grab (it stole ordinary copies right after a
     // capture): a dedicated always-on hotkey that never collides with Ctrl+C.
     U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral("Meta+Shift+C"))
@@ -739,7 +743,7 @@ public:
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
         emit pixelLoupeChanged(); emit pixelLoupeZoomChanged();
         emit captureOnReleaseChanged(); emit overlayModeBadgeChanged();
-        emit overlayModeStyleChanged();
+        emit overlayModeStyleChanged(); emit overlayIconSizeChanged();
         emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityPercentChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
@@ -857,6 +861,7 @@ signals:
     void captureOnReleaseChanged();
     void overlayModeBadgeChanged();
     void overlayModeStyleChanged();
+    void overlayIconSizeChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();
     void videoFormatChanged();

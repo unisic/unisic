@@ -6,6 +6,18 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.8
+
+### English
+**Fixed**
+- **Plasma trusts the Debian, Ubuntu and Fedora packages again**: the 0.8.7 .deb and .rpm installed Unisic in /usr/bin but told the desktop it lived in /usr/local/bin. KWin only trusts the program its desktop entry names, so on every install from those packages it refused the silent screenshot and the direct recording path, and screenshots, recordings and scrolling captures all went through the system's screen sharing dialog instead. The packages now name the file they install, and a package whose entry points anywhere else can no longer be published. Thanks to ryee123123 for reporting this ([#121](https://github.com/unisic/unisic/issues/121)).
+- **Icons appear on a minimal Debian or Ubuntu install**: installing the .deb with `--no-install-recommends` left out the parts of Qt that draw SVG images and open X11 windows, so every icon in the interface was blank, the log filled with "Failed to get image from provider" and some windows stayed black. Both are now required by the package itself, however apt is set up. Thanks to anyend for reporting this ([#124](https://github.com/unisic/unisic/issues/124)).
+
+### Polski
+**Naprawione**
+- **Plasma znowu ufa paczkom dla Debiana, Ubuntu i Fedory**: paczki .deb i .rpm wersji 0.8.7 instalowały Unisic w /usr/bin, ale podawały pulpitowi ścieżkę /usr/local/bin. KWin ufa tylko programowi wskazanemu we wpisie pulpitu, więc przy każdej instalacji z tych paczek odmawiał cichego zrzutu ekranu i bezpośredniego nagrywania, a zrzuty, nagrania i przechwytywanie przewijane szły przez systemowe okno udostępniania ekranu. Paczki wskazują teraz plik, który same instalują, a paczki, której wpis wskazuje coś innego, nie da się już opublikować. Podziękowania dla ryee123123 za zgłoszenie ([#121](https://github.com/unisic/unisic/issues/121)).
+- **Ikony pojawiają się w minimalnej instalacji Debiana lub Ubuntu**: instalacja paczki .deb z `--no-install-recommends` pomijała części Qt, które rysują obrazy SVG i otwierają okna X11, więc każda ikona w interfejsie była pusta, dziennik zapełniał się komunikatami "Failed to get image from provider", a część okien zostawała czarna. Obie są teraz wymagane przez samą paczkę, niezależnie od ustawień apt. Podziękowania dla anyend za zgłoszenie ([#124](https://github.com/unisic/unisic/issues/124)).
+
 ## 0.8.7
 
 ### English

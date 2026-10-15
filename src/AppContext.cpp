@@ -1028,7 +1028,16 @@ void AppContext::endCaptureIsolation()
 {
     if (m_dnd)
         m_dnd->release();
-    restoreOwnWindowAfterCapture();
+    if (!m_scrollHoldsWindow)
+        restoreOwnWindowAfterCapture();
+}
+
+void AppContext::endScrollIsolation()
+{
+    if (!m_scrollHoldsWindow)
+        return;
+    m_scrollHoldsWindow = false;
+    endCaptureIsolation();
 }
 
 bool AppContext::hideOwnWindowForCapture()
@@ -1175,10 +1184,14 @@ void AppContext::captureScroll()
 void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
 {
     m_captureInFlight = false;
-    endCaptureIsolation();
-    if (!physRegion.isEmpty() && screen) {
+    const bool picked = !physRegion.isEmpty() && screen;
+    // Start first: the session takes its own share of the isolation, so ending
+    // the pick's share right after neither brings the main window back over
+    // the region nor lets notifications in mid-scroll (#121).
+    if (picked)
         startScrollCapture(physRegion, screen);
-    } else {
+    endCaptureIsolation();
+    if (!picked) {
         m_nextCaptureTask = {};
         clearCliCapture(tr("Capture cancelled"));
     }
@@ -1201,17 +1214,30 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
                 this, &AppContext::scrollCaptureActiveChanged);
         connect(m_scrollCapture, &ScrollCaptureController::finished,
                 this, [this](const QImage &img) {
+            endScrollIsolation();
             finishCapture(img, nowInhibited());
         });
         // No image is coming: drop the one-shot task/output, or the next
         // capture inherits them and a `--output -` caller waits for a reply
         // that never arrives.
         connect(m_scrollCapture, &ScrollCaptureController::cancelled, this, [this] {
+            endScrollIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Capture cancelled"));
         });
     }
+    // The session is a capture for as long as it runs: our window stays out of
+    // the region and notifications stay silenced until finished/cancelled. The
+    // window itself went down (or deliberately did not) when the selection
+    // was triggered; nothing new is hidden here. One share per session, also
+    // when a second start replaces a running one.
+    if (!m_scrollHoldsWindow) {
+        beginCaptureIsolation();
+        m_scrollHoldsWindow = true;
+    }
     m_scrollCapture->start(physRegion, screen);
+    if (!m_scrollCapture->active())
+        endScrollIsolation(); // no screen to capture on: no signal will end it
     emit scrollCaptureActiveChanged();
 }
 

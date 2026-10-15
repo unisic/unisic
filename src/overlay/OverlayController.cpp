@@ -322,8 +322,15 @@ void OverlayController::startScrollCapture(QQuickWindow *win)
     m_regionCb = nullptr;
     m_imageCb = nullptr;
     closeAll();
-    if (handOffScrollPick(regionCb, imageCb, phys, screen))
+    // When nobody asked for a region (a screenshot overlay switching to
+    // scrolling), the scroll starts here, and BEFORE the shot's callback is
+    // released: the session then already holds the capture isolation when
+    // that callback ends its own share, so the main window does not come back
+    // over the region being scrolled (#121). A scroll pick's callback starts
+    // the session itself.
+    if (!regionCb)
         m_app->startScrollCapture(phys, screen);
+    handOffScrollPick(regionCb, imageCb, phys, screen);
 }
 
 bool OverlayController::handOffScrollPick(const RegionCallback &regionCb,

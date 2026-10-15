@@ -1011,6 +1011,9 @@ private:
     // The window does NOT go down here: see hideOwnWindowForCapture().
     void beginCaptureIsolation();
     void endCaptureIsolation();
+    // Ends the share a running scrolling capture holds (startScrollCapture())
+    // and puts the window back. No-op when the session holds none.
+    void endScrollIsolation();
     // Take our own main window off screen so it cannot land in the shot. False =
     // nothing was hidden (setting off, window already down, no window yet), so
     // the caller need not wait for the compositor. Idempotent per capture.
@@ -1113,6 +1116,12 @@ private:
     // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
     // then leaves the main window alone.
     bool m_otherWindowFocused = false;
+    // A scrolling capture is running and holds one share of the capture
+    // isolation. While it does, endCaptureIsolation() leaves the window down:
+    // the selection and the shot before it end their own shares as the
+    // session starts, and the window must stay out of the region (and out of
+    // every slice) until endScrollIsolation().
+    bool m_scrollHoldsWindow = false;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

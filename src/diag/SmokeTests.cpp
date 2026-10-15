@@ -5328,6 +5328,10 @@ QString AppContext::scrollHandoffCheck()
         m_nextCaptureTask = {};
         return QStringLiteral("FAIL (refused scroll left its task armed)");
     }
+    // A refused selection never opened a session, so nothing may hold the
+    // main window down on its behalf.
+    if (m_scrollHoldsWindow)
+        return QStringLiteral("FAIL (refused scroll kept the window down)");
     return QStringLiteral("PASS (one callback per path, guard released, tiny selection refused)");
 }
 

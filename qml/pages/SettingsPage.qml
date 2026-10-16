@@ -453,19 +453,28 @@ Item {
             Item {
                 id: head
                 width: parent.width
-                // Deliberately independent of slot.height: every control is ≤44px
-                // and the label column governs the rest, so the head never needs
-                // to grow to the control — and reading slot.height here (slot hugs
-                // its childrenRect and is vCenter-anchored to this head) would be a
-                // size↔position binding loop.
-                height: Math.max(44, labelCol.implicitHeight)
+                // A control wider than the label column it would leave goes
+                // under the label: in an 853 px window (1280x800 at 150%) a
+                // 240 px drop-down left a label 55 px and a wide one 7 px, one
+                // word to a line or nothing at all, in every language.
+                readonly property bool stacked: slot.width > (width - Theme.spacingM) / 2
+                // Side by side, deliberately independent of slot.height: every
+                // control is ≤44px and the label column governs the rest, so the
+                // head never needs to grow to the control, and reading
+                // slot.height here (slot hugs its childrenRect and is
+                // vCenter-anchored to this head) would be a size↔position
+                // binding loop. Stacked, the slot is bottom-anchored instead,
+                // so its height is free to read.
+                height: stacked ? labelCol.implicitHeight + Theme.spacingS + slot.height
+                                : Math.max(44, labelCol.implicitHeight)
 
                 Column {
                     id: labelCol
                     anchors.left: parent.left
-                    anchors.right: slot.left
-                    anchors.rightMargin: Theme.spacingM
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: head.stacked ? parent.right : slot.left
+                    anchors.rightMargin: head.stacked ? 0 : Theme.spacingM
+                    anchors.top: head.stacked ? parent.top : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     spacing: 3
                     Item {
                         width: parent.width
@@ -541,7 +550,8 @@ Item {
                     enabled: settingRow.available
                     opacity: settingRow.available ? 1.0 : 0.5
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.bottom: head.stacked ? parent.bottom : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     // The slot HUGS its control, and is itself centred in the
                     // row - so a control must never anchor itself to the slot's
                     // own centre. childrenRect would then depend on the child's
@@ -1374,29 +1384,29 @@ Item {
                         label: qsTr("Activity log")
                         help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        // The slot is a plain Item, so loose buttons all land on
-                        // the same spot - lay them out side by side.
+                        // Icons with their names as tooltips, as on the sound
+                        // rows: three labelled buttons are wider than the card
+                        // leaves the label in every language but English, and
+                        // the label column ran under them. The slot is a plain
+                        // Item, so the buttons need a Row to sit side by side.
                         Row {
                             spacing: Theme.spacingS
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "magnify"
-                                text: qsTr("View log")
+                            UIconButton {
+                                iconName: "magnify"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("View log")
                                 onClicked: logViewer.open()
                             }
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "edit-copy"
-                                text: qsTr("Copy with log")
+                            UIconButton {
+                                iconName: "edit-copy"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Copy with log")
                                 onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
                             }
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "folder-open"
-                                text: qsTr("Show log file")
+                            UIconButton {
+                                iconName: "folder-open"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Show log file")
                                 onClicked: App.showLogInFileManager()
                             }
                         }
@@ -3012,6 +3022,21 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Toolbar icon size")
+                        help: qsTr("How big the tool icons on the selection overlay are.")
+                        helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
+                        UValueCombo {
+                            width: 110
+                            values: [16, 18, 20, 22, 24, 26]
+                            from: 16; to: 26
+                            suffix: " px"
+                            value: ToolCatalog.overlayIconSize
+                            accessibleName: qsTr("Toolbar icon size")
+                            // A typed odd size is stored as the even one it draws at.
+                            onChanged: (v) => App.settings.overlayIconSize = Math.round(v / 2) * 2
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Show which capture mode is running")
                         help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
                         helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
@@ -3900,6 +3925,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tray menu entries"); onClicked: App.devTestTrayMenu() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy recording file"); onClicked: App.devTestCopyFile() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }

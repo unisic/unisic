@@ -1486,7 +1486,8 @@ void AnnotationCanvas::selectAll()
 
 void AnnotationCanvas::setSelectionRect(const QRectF &r)
 {
-    m_selection = r.normalized().intersected(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+    m_selection = r;
+    normalizeSelection();
     emit selectionRectChanged();
     update();
 }
@@ -1500,9 +1501,14 @@ void AnnotationCanvas::clearSelection()
     update();
 }
 
+// Whole image pixels: the readout rounds the size while every crop takes
+// toAlignedRect(), so a fractional edge (a 1.5x screen, any editor zoom) saved
+// a file 1 px bigger than the readout said, with a sliver from outside.
 void AnnotationCanvas::normalizeSelection()
 {
-    m_selection = m_selection.normalized()
+    const QRectF r = m_selection.normalized();
+    m_selection = QRectF(QPointF(qRound(r.left()), qRound(r.top())),
+                         QPointF(qRound(r.right()), qRound(r.bottom())))
                       .intersected(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
 }
 
@@ -1714,7 +1720,9 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
         p.drawLine(to - half, to + half);
         drawLabel(QStringLiteral("%1 px · %2°")
                       .arg(qRound(line.length()))
-                      .arg(qRound(-line.angle())),
+                      // angle() runs 0..360 counter-clockwise; read it as
+                      // -180..180, rising to the right positive.
+                      .arg(qRound(std::remainder(line.angle(), 360.0))),
                   (from + to) / 2.0 - half * 1.8);
         break;
     }
@@ -3066,7 +3074,8 @@ void AnnotationCanvas::mouseMoveEvent(QMouseEvent *e)
     }
     case MoveSelection: {
         const QRectF oldSel = m_selection;
-        QRectF r = m_selStart.translated(img - m_dragStart);
+        const QPointF d = img - m_dragStart;
+        QRectF r = m_selStart.translated(qRound(d.x()), qRound(d.y()));
         r.moveLeft(qBound(0.0, r.left(), qreal(m_base.width()) - r.width()));
         r.moveTop(qBound(0.0, r.top(), qreal(m_base.height()) - r.height()));
         m_selection = r;

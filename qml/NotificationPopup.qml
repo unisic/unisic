@@ -168,7 +168,7 @@ Window {
     }
     function actionTooltip(id) {
         if (id === "edit") return qsTr("Edit")
-        if (id === "copy") return qsTr("Copy image")
+        if (id === "copy") return notif.kind === "image" ? qsTr("Copy image") : qsTr("Copy file")
         if (id === "link") return qsTr("Copy link")
         if (id === "qr") return qsTr("Show QR code")
         if (id === "folder") return qsTr("Show in folder")
@@ -180,7 +180,8 @@ Window {
     }
     function actionAvailable(id) {
         if (!actionShown(id)) return false
-        if (id === "edit" || id === "copy") return notif.kind === "image"
+        if (id === "edit") return notif.kind === "image"
+        if (id === "copy") return notif.kind === "image" || notif.filePath !== ""
         if (id === "link") return notif.url !== ""
         if (id === "qr") return notif.url !== ""
         if (id === "folder") return true
@@ -193,7 +194,11 @@ Window {
     }
     function triggerAction(id) {
         if (id === "edit") notif.edit()
-        else if (id === "copy") { notif.copyImage(); confirmAction("copy-image") }
+        else if (id === "copy") {
+            if (notif.kind === "image") notif.copyImage()
+            else notif.copyAs("file")
+            confirmAction("copy-image")
+        }
         else if (id === "link") { notif.copyUrl(); confirmAction("copy-link") }
         else if (id === "qr") notif.showQr()
         else if (id === "folder") notif.showInFolder()

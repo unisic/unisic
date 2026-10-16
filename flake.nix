@@ -27,7 +27,7 @@
     # HAVE_X11_HOTKEYS, HAVE_KWIN_SCREENCAST) are hard build requirements now,
     # so a stale kit is a configure error rather than a quiet feature loss.
     unisic-kit = {
-      url = "github:unisic/unisic-kit/ec84eade5470395288211be6e01cdf376f74787d";
+      url = "github:unisic/unisic-kit/a6c601eb9256bba25afb294d6f6eb0390de160f9";
       flake = false;
     };
   };

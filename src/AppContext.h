@@ -204,8 +204,8 @@ public:
     // A capture is being prepared or is on screen: another one would be refused.
     bool captureBusy() const;
     ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
-    void startScrollCapture(const QRect &physRegion, QScreen *screen);
-    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen);
+    void startScrollCapture(const QRect &physRegion, QScreen *screen, qreal scale = 0);
+    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen, qreal scale = 0);
 
     bool recording() const;
     bool converting() const;
@@ -376,6 +376,7 @@ public:
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
+    Q_INVOKABLE void devTestCopyFile();
     Q_INVOKABLE void devTestWatermark();
     Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
@@ -664,6 +665,8 @@ public:
     // The history tile's one-off "Save as GIF" calls this.
     Q_INVOKABLE QString convertFileTo(const QString &path, const QString &format);
     void copyImageToClipboard(const QImage &img);
+    // Puts a saved file on the clipboard as the file (see makeFileMime).
+    void copyFileToClipboard(const QString &path);
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
@@ -748,10 +751,11 @@ signals:
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     // A `--output PATH` capture reached its end: written (ok), or failed or
-    // cancelled. ONLY the process that parsed --output off argv connects to
-    // this and exits on it - a running instance handed the same command over
-    // the single-instance socket must keep running, it is the user's app.
-    void cliCaptureFinished(bool ok);
+    // cancelled, with `error` for the terminal when there is something to say.
+    // The process that parsed --output off argv exits on it; a running instance
+    // handed the command over the single-instance socket only replies to the
+    // caller and keeps running, it is the user's app.
+    void cliCaptureFinished(bool ok, const QString &error);
     void hotkeysAvailableChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
@@ -899,6 +903,9 @@ private:
     // real clipboard is neither read nor written - a dev check may not
     // overwrite what the user has on it (see the note in the .cpp).
     QString clipboardImportCheck();
+    // A finished recording's clipboard offer: the file, its path as text and
+    // GTK's list, live on the real clipboard. Shared by F8 and the dev button.
+    QString copyFileCheck();
     // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
     QString recordPageModeCheck();
     // Tray menu: hidden entries really leave it, Open/Quit never can, and no
@@ -1011,6 +1018,9 @@ private:
     // The window does NOT go down here: see hideOwnWindowForCapture().
     void beginCaptureIsolation();
     void endCaptureIsolation();
+    // Ends the share a running scrolling capture holds (startScrollCapture())
+    // and puts the window back. No-op when the session holds none.
+    void endScrollIsolation();
     // Take our own main window off screen so it cannot land in the shot. False =
     // nothing was hidden (setting off, window already down, no window yet), so
     // the caller need not wait for the compositor. Idempotent per capture.
@@ -1076,6 +1086,9 @@ private:
     void scheduleMemoryTrim();
 
     QQmlEngine *m_engine = nullptr;
+    // Resolved UI language ("en", "pl", ...), handed to the engine as
+    // Qt.uiLanguage so QML formats dates in it, not in the system locale.
+    QString m_uiLanguage;
     Settings *m_settings;
     CaptureManager *m_capture;
     OverlayController *m_overlay;
@@ -1113,6 +1126,12 @@ private:
     // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
     // then leaves the main window alone.
     bool m_otherWindowFocused = false;
+    // A scrolling capture is running and holds one share of the capture
+    // isolation. While it does, endCaptureIsolation() leaves the window down:
+    // the selection and the shot before it end their own shares as the
+    // session starts, and the window must stay out of the region (and out of
+    // every slice) until endScrollIsolation().
+    bool m_scrollHoldsWindow = false;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

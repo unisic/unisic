@@ -1,5 +1,6 @@
 #include "OcrEngine.h"
 #include <QtConcurrent>
+#include <QCoreApplication>
 #include <QFutureWatcher>
 #include <QDir>
 #include <QFileInfo>
@@ -40,14 +41,14 @@ QStringList tessdataDirs()
                      QStringLiteral("/usr/share/tessdata"),
                      QStringLiteral("/usr/share/tesseract-ocr/5/tessdata"),
                      QStringLiteral("/usr/share/tesseract-ocr/4.00/tessdata")};
-    // AppImage: the bundle ships eng/pol/osd under $APPDIR/usr/share/tessdata,
-    // because a self-contained image cannot count on the host having ANY
-    // langpack. APPENDED, not TESSDATA_PREFIX: that variable is exclusive (see
-    // above), so setting it would hide every langpack the user installed on the
-    // host behind our three. APPDIR is only set when running from an AppImage.
-    const QByteArray appDir = qgetenv("APPDIR");
-    if (!appDir.isEmpty())
-        dirs << QDir(QString::fromLocal8Bit(appDir)).filePath(QStringLiteral("usr/share/tessdata"));
+    // AppImage and portable tarball: the bundle ships eng/pol/osd in
+    // usr/share/tessdata, because a self-contained image cannot count on the
+    // host having ANY langpack. APPENDED, not TESSDATA_PREFIX: that variable is
+    // exclusive (see above), so setting it would hide every langpack the user
+    // installed on the host behind our three. Found from the binary, not
+    // $APPDIR: the tarball's AppRun is a bare symlink and sets no variable.
+    dirs << QDir::cleanPath(QCoreApplication::applicationDirPath()
+                            + QStringLiteral("/../share/tessdata"));
     return dirs;
 }
 

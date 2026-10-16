@@ -511,6 +511,9 @@ void GlobalHotkeys::unregisterAction(const QString &actionId)
                                                       QStringLiteral("unRegister"));
     msg << QStringList{QString::fromLatin1(COMPONENT), actionId, QString(), QString()};
     QDBusConnection::sessionBus().asyncCall(msg);
+    // The daemon forgot the action, so the next setShortcut must doRegister it
+    // again or the daemon answers with no keys.
+    m_registered.remove(actionId);
 }
 
 void GlobalHotkeys::onShortcutPressed(const QString &componentUnique, const QString &actionUnique,

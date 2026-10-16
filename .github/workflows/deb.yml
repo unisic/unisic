@@ -68,6 +68,7 @@ jobs:
         run: |
           cmake -B build-deb -G Ninja \
             -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+            -DCMAKE_INSTALL_PREFIX=/usr \
             -DCPACK_GENERATOR=DEB
 
       - name: Check every build gate is on
@@ -96,6 +97,14 @@ jobs:
           for tool in ffmpeg ffprobe wl-copy curl zip grim pw-record pw-dump pw-play; do
             command -v "$tool" >/dev/null || { echo "missing packaged runtime helper: $tool"; exit 1; }
           done
+          # KWin trusts the binary its .desktop Exec names and nothing else;
+          # 0.8.7 shipped Exec=/usr/local/bin/unisic beside /usr/bin/unisic.
+          # Compared canonically, like KWin does: on Fedora /usr/sbin is a
+          # symlink to /usr/bin, so `command -v` can answer /usr/sbin/unisic.
+          desktop_exec=$(sed -n 's/^Exec=//p' /usr/share/applications/app.unisic.Unisic.desktop | head -n1)
+          installed=$(readlink -f "$(command -v unisic)")
+          [ -x "$desktop_exec" ] && [ "$(readlink -f "$desktop_exec")" = "$installed" ] \
+            || { echo "desktop Exec '$desktop_exec' is not the installed binary '$installed'"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:

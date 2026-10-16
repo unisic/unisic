@@ -314,6 +314,7 @@ AppContext::~AppContext()
 void AppContext::initialize(QQmlEngine *engine)
 {
     m_engine = engine;
+    engine->setUiLanguage(m_uiLanguage);
     setupTray();
     refreshAutostartIfStale();
     // Re-apply the UI language live when the setting changes (retranslate QML +
@@ -760,6 +761,9 @@ void AppContext::applyLanguage()
         const QString sys = QLocale::system().name().left(2); // e.g. "pl_PL" → "pl"
         code = supported.contains(sys) ? sys : QStringLiteral("en");
     }
+    m_uiLanguage = code;
+    if (m_engine)
+        m_engine->setUiLanguage(code);
 
     if (m_appTranslator) {
         qApp->removeTranslator(m_appTranslator);
@@ -860,7 +864,7 @@ void AppContext::clearCliCapture(const QString &error)
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
     // or the process that asked for it waits for a capture that is not coming.
     if (filePending)
-        emit cliCaptureFinished(false);
+        emit cliCaptureFinished(false, {});
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -1028,7 +1032,16 @@ void AppContext::endCaptureIsolation()
 {
     if (m_dnd)
         m_dnd->release();
-    restoreOwnWindowAfterCapture();
+    if (!m_scrollHoldsWindow)
+        restoreOwnWindowAfterCapture();
+}
+
+void AppContext::endScrollIsolation()
+{
+    if (!m_scrollHoldsWindow)
+        return;
+    m_scrollHoldsWindow = false;
+    endCaptureIsolation();
 }
 
 bool AppContext::hideOwnWindowForCapture()
@@ -1166,25 +1179,29 @@ void AppContext::captureScroll()
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
-        m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen) {
-            onScrollRegionPicked(physRegion, screen);
+        m_overlay->pickRegion([this](const QRect &physRegion, QScreen *screen, qreal scale) {
+            onScrollRegionPicked(physRegion, screen, scale);
         }, OverlayController::Purpose::Scroll);
     });
 }
 
-void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen)
+void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen, qreal scale)
 {
     m_captureInFlight = false;
+    const bool picked = !physRegion.isEmpty() && screen;
+    // Start first: the session takes its own share of the isolation, so ending
+    // the pick's share right after neither brings the main window back over
+    // the region nor lets notifications in mid-scroll (#121).
+    if (picked)
+        startScrollCapture(physRegion, screen, scale);
     endCaptureIsolation();
-    if (!physRegion.isEmpty() && screen) {
-        startScrollCapture(physRegion, screen);
-    } else {
+    if (!picked) {
         m_nextCaptureTask = {};
         clearCliCapture(tr("Capture cancelled"));
     }
 }
 
-void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
+void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qreal scale)
 {
     // The stitcher refuses frames below this, so the capture would run and end
     // with nothing to show for it.
@@ -1201,17 +1218,30 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen)
                 this, &AppContext::scrollCaptureActiveChanged);
         connect(m_scrollCapture, &ScrollCaptureController::finished,
                 this, [this](const QImage &img) {
+            endScrollIsolation();
             finishCapture(img, nowInhibited());
         });
         // No image is coming: drop the one-shot task/output, or the next
         // capture inherits them and a `--output -` caller waits for a reply
         // that never arrives.
         connect(m_scrollCapture, &ScrollCaptureController::cancelled, this, [this] {
+            endScrollIsolation();
             m_nextCaptureTask = {};
             clearCliCapture(tr("Capture cancelled"));
         });
     }
-    m_scrollCapture->start(physRegion, screen);
+    // The session is a capture for as long as it runs: our window stays out of
+    // the region and notifications stay silenced until finished/cancelled. The
+    // window itself went down (or deliberately did not) when the selection
+    // was triggered; nothing new is hidden here. One share per session, also
+    // when a second start replaces a running one.
+    if (!m_scrollHoldsWindow) {
+        beginCaptureIsolation();
+        m_scrollHoldsWindow = true;
+    }
+    m_scrollCapture->start(physRegion, screen, scale);
+    if (!m_scrollCapture->active())
+        endScrollIsolation(); // no screen to capture on: no signal will end it
     emit scrollCaptureActiveChanged();
 }
 
@@ -1445,12 +1475,12 @@ void AppContext::captureWindow()
 void AppContext::startGifRegion()
 {
     if (recording()) return;
-    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
+    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        startRecorderCountdown([this, phys, screen](bool hold) {
-            m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold);
+        startRecorderCountdown([this, phys, screen, scale](bool hold) {
+            m_recorder->start(GifRecorder::Gif, GifRecorder::Region, phys, screen, hold, scale);
         });
     }, OverlayController::Purpose::Gif);
 }
@@ -1484,12 +1514,12 @@ void AppContext::startVideoScreen()
 void AppContext::startVideoRegion()
 {
     if (recording()) return;
-    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen) {
+    m_overlay->pickRegion([this](const QRect &phys, QScreen *screen, qreal scale) {
         if (phys.isEmpty()) return;
         m_pendingRecordRegion = phys;
         m_pendingRecordScreen = screen;
-        startRecorderCountdown([this, phys, screen](bool hold) {
-            m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold);
+        startRecorderCountdown([this, phys, screen, scale](bool hold) {
+            m_recorder->start(videoOutput(), GifRecorder::Region, phys, screen, hold, scale);
         });
     }, OverlayController::Purpose::Video);
 }
@@ -1959,6 +1989,18 @@ QMimeData *makeForceImageMime(const QImage &img)
     auto *mime = new QMimeData;
     mime->setImageData(img);
     mime->setData(QStringLiteral("x-kde-force-image-copy"), QByteArray());
+    return mime;
+}
+
+QMimeData *makeFileMime(const QString &path)
+{
+    const QUrl url = QUrl::fromLocalFile(path);
+    auto *mime = new QMimeData;
+    mime->setUrls({url});
+    mime->setText(path);
+    // What GTK file managers (Nautilus, Nemo) offer for a copied file.
+    mime->setData(QStringLiteral("x-special/gnome-copied-files"),
+                  QByteArrayLiteral("copy\n") + url.toEncoded());
     return mime;
 }
 
@@ -2959,6 +3001,8 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     m_history->addEntry(path, thumb, kind, {}, {},
                         fromInstantReplay ? QStringLiteral("replay") : QString());
     showToast(tr("Saved %1").arg(path));
+    if (m_settings->copyToClipboard())
+        copyFileToClipboard(path);
     runExternalAction(thumb, path);
 
     // Inhibition is sampled NOW, not at recording start: a recording can run
@@ -2996,7 +3040,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
         if (!m_nextCaptureOutputPath.isEmpty()) {
             m_nextCaptureOutputPath.clear();
             m_nextCaptureOutputFormat.clear();
-            emit cliCaptureFinished(false);
+            emit cliCaptureFinished(false, {});
         }
         return;
     }
@@ -3033,12 +3077,24 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // %rand% template would otherwise produce two different names).
     const QString fileName = makeFileName();
     QString path;
+    QString cliError;
     if (saveEnabled) {
         if (!cliOutputPath.isEmpty()) {
-            const QFileInfo target(cliOutputPath);
-            path = saveImageTo(output, target.absolutePath(), target.fileName());
+            // --output names one file: replace it, never dedupe to name-1.png or
+            // auto-convert it, or the script that asked reads the previous run's
+            // file. A path without an image suffix takes --format's.
+            QString target = cliOutputPath;
+            const QString suffix = QFileInfo(target).suffix().toLower();
+            if (suffix != QLatin1String("png") && suffix != QLatin1String("jpg")
+                && suffix != QLatin1String("jpeg") && suffix != QLatin1String("webp")
+                && suffix != QLatin1String("gif"))
+                target += QLatin1Char('.') + cliFormat;
+            path = saveImageExact(output, target, false);
+            // A JPEG that had to become a PNG for its alpha went to another name.
+            if (path != target)
+                cliError = tr("Could not save to %1").arg(target);
             if (path.isEmpty())
-                showToast(tr("Could not save to %1").arg(cliOutputPath), true);
+                showToast(cliError, true);
         } else if (m_settings->askWhereToSave()) {
             // Prompt for a destination per capture instead of writing straight
             // into the save folder. A cancelled dialog skips the save silently
@@ -3156,7 +3212,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // so there is nothing left to wait for. The stdout variant has its own exit,
     // once the encoded bytes are on the pipe.
     if (cliMode && !cliStdout)
-        emit cliCaptureFinished(!path.isEmpty());
+        emit cliCaptureFinished(cliError.isEmpty(), cliError);
 
     scheduleMemoryTrim();
 }
@@ -4863,6 +4919,29 @@ void AppContext::copyText(const QString &text)
     }
 }
 
+// A recording goes on the clipboard as the FILE, the offer a file manager's
+// Copy makes: a file manager or chat pastes it as the file, a text field gets
+// the path. Never the bytes: a long GIF or MP4 would then sit whole in memory
+// for as long as it is on the clipboard.
+void AppContext::copyFileToClipboard(const QString &path)
+{
+    // Local first, so a synchronous read (X11, the smoke test) sees it; then
+    // the same KWin re-assert copyImageToClipboard does, which lands without a
+    // focused window - the case at the end of every recording.
+    QGuiApplication::clipboard()->setMimeData(makeFileMime(path));
+    ++m_clipboardSeq; // a stale deferred image mirror must not clobber this
+    if (auto *bus = QDBusConnection::sessionBus().interface();
+        bus && bus->isServiceRegistered(QStringLiteral("org.kde.KWin"))) {
+        KSystemClipboard::instance()->setMimeData(makeFileMime(path), QClipboard::Clipboard);
+        return;
+    }
+    if (!QGuiApplication::platformName().startsWith(QLatin1String("wayland")))
+        return;
+    if (const QString wlCopy = wlCopyPath(); !wlCopy.isEmpty())
+        spawnWlCopy(this, wlCopy, {QStringLiteral("--type"), QStringLiteral("text/uri-list")},
+                    QUrl::fromLocalFile(path).toEncoded() + "\r\n");
+}
+
 void AppContext::showQr(const QString &url)
 {
     const QUrl parsed(url);
@@ -4896,12 +4975,19 @@ void AppContext::copyImageAs(const QImage &img, const QString &filePath, const Q
             done(false);
     };
 
-    if (format == QLatin1String("path")) {
+    if (format == QLatin1String("path") || format == QLatin1String("file")) {
         if (filePath.isEmpty()) {
             failed(tr("Save the capture first to copy its file path"));
             return;
         }
-        copied(filePath);
+        if (format == QLatin1String("path")) {
+            copied(filePath);
+            return;
+        }
+        copyFileToClipboard(filePath);
+        showToast(tr("Copied to clipboard"));
+        if (done)
+            done(true);
         return;
     }
 

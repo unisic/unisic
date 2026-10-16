@@ -36,8 +36,11 @@ Window {
     readonly property int bw: 3
     readonly property color contrast: Theme.recordFrameContrast
 
+    // Nothing shows until frames arrive: a portal share dialog may still be
+    // up, and the badge must not sit over it offering Finish (#121).
     Item {
         anchors.fill: parent
+        visible: scrollCtl.streaming
 
         // Top border
         Rectangle {
@@ -84,6 +87,7 @@ Window {
     // Floating Control Badge
     Rectangle {
         id: badge
+        visible: scrollCtl.streaming
         readonly property bool roomAbove: scrollCtl.regionY - height - 10 >= 0
         x: Math.max(10, Math.min(overlayWindow.width - width - 10, scrollCtl.regionX))
         y: roomAbove ? (scrollCtl.regionY - height - 10) : (scrollCtl.regionY + scrollCtl.regionH + 10)

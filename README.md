@@ -35,12 +35,12 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
 ## Install in one line
 
 ```sh
-bash -c "$(curl -fsSL https://github.com/unisic/unisic/releases/latest/download/install.sh)"
+bash -c "$(curl -fsSL https://unisic.app/install.sh)"
 ```
 
 An arrow-key menu opens. The recommended entry installs the self-updating AppImage in `~/.local` - no password, no build. The other installs your distro's package (`.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`, the openSUSE repo) and asks for your password. The same menu updates, uninstalls, installs an older version and toggles automatic updates. Every download is checked against the SHA-256 published with the release, and a mismatch is deleted instead of installed.
 
-To read the script before running it: `curl -fsSLO https://github.com/unisic/unisic/releases/latest/download/install.sh`, then `less install.sh && bash install.sh`.
+To read the script before running it: `curl -fsSLO https://unisic.app/install.sh`, then `less install.sh && bash install.sh`.
 
 By hand: grab the **AppImage** or a native package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. Install downloaded packages with `sudo dnf install ./unisic-*.fedora.x86_64.rpm` or `sudo apt install ./unisic_*_amd64.deb` so dependencies get resolved. Repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and Nix: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
 

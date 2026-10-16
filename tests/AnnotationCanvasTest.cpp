@@ -33,6 +33,7 @@ private slots:
     void drawToolClickSelectsAndMoves();
     void rotateGripTurnsShapeAndHitTest();
     void captureOnReleaseConfirms();
+    void selectionSnapsToWholePixels();
     void ocrSelectionCreatesLineBatchedAnnotations();
     void ocrCaretSelectionIsCharacterPrecise();
     void ocrPatternRedactionCoversOnlyMatches();
@@ -442,6 +443,23 @@ void AnnotationCanvasTest::captureOnReleaseConfirms()
     drag(canvas, QPointF(85, 80), QPointF(95, 95));
     QVERIFY(canvas.hasSelection());
     QCOMPARE(confirmed.count(), 1);
+}
+
+// A fractional drag (1.5x screen, editor zoom) used to save a file 1 px bigger
+// than the rounded W x H readout: the crop takes toAlignedRect().
+void AnnotationCanvasTest::selectionSnapsToWholePixels()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(100);
+    canvas.setHeight(100);
+    QImage image(100, 100, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setSelectionMode(true);
+
+    drag(canvas, QPointF(10.4, 10.4), QPointF(40.3, 30.3));
+    QCOMPARE(canvas.selectionRect(), QRectF(10, 10, 30, 20));
+    QCOMPARE(canvas.renderedSelection().size(), QSize(30, 20));
 }
 
 // OCR selection is letter-granular, but exported highlight/redaction must be

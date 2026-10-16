@@ -41,6 +41,10 @@ QImage qrPreviewImage(const QString &url);
 // Ownership passes to KSystemClipboard::setMimeData.
 QMimeData *makeForceImageMime(const QImage &img);
 
+// The clipboard offer for a saved file (a recording): text/uri-list, the path
+// as text and GTK's copied-files list. Ownership passes to the clipboard.
+QMimeData *makeFileMime(const QString &path);
+
 // One process-wide binding of the zkde_screencast global: the answer cannot
 // change without reinstalling the desktop file and restarting anyway, and
 // GifRecorder keeps its own instance for the actual recordings.

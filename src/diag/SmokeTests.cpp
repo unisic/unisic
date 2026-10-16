@@ -209,7 +209,13 @@ void AppContext::externalActionTimeoutCheck(std::function<void(const QString &)>
                 false,
                 [runner, elapsed, ceiling, done = std::move(done)](const QString &output, const QString &error) {
         const qint64 ms = elapsed->elapsed();
-        runner->deleteLater();
+        // The runner owns the killed `sleep`'s QProcess, which is still being
+        // reaped: deleting it now blocks the GUI thread on that child.
+        QProcess *process = runner->findChild<QProcess *>();
+        if (process && process->state() != QProcess::NotRunning)
+            QObject::connect(process, &QProcess::finished, runner, &QObject::deleteLater);
+        else
+            runner->deleteLater();
         if (error.isEmpty() || !output.isEmpty()) {
             done(QStringLiteral("FAIL (hung action reported success)"));
             return;
@@ -1605,6 +1611,19 @@ void AppContext::devTestOverlayMode()
     showToast(tr("Dev: overlay mode badge: %1").arg(overlayModeCheck(settings())));
 }
 
+// A Repeater delegate has no QObject parent, so findChild never reaches it;
+// only the visual tree does.
+static QQuickItem *findVisualChild(QQuickItem *root, const QString &name)
+{
+    for (QQuickItem *child : root->childItems()) {
+        if (child->objectName() == name)
+            return child;
+        if (QQuickItem *hit = findVisualChild(child, name))
+            return hit;
+    }
+    return nullptr;
+}
+
 // The overlay-settings preview is the only place those options can be SEEN
 // without starting a capture, so a preview that has drifted from the overlay is
 // worse than none: it teaches the wrong thing. Two ways it can drift, both
@@ -1685,6 +1704,25 @@ QString AppContext::overlayPreviewCheck()
     }
     s->setOverlayToolbarPosition(wasPos);
 
+    // Icon size: the preview's toolbar icons follow the setting, an odd size
+    // snaps to the even step, and a value outside the slider falls back to 24.
+    // The icon is a ToolChip, the overlay's own: the chip stays 40 px and its
+    // iconSize is what the icon inside is drawn at.
+    auto *icon = findVisualChild(bar, QStringLiteral("overlayPreviewToolbarIcon"));
+    if (!icon)
+        return QStringLiteral("FAIL (no icon in the preview toolbar)");
+    const int wasIconSize = s->overlayIconSize();
+    for (const auto &[stored, shown] : {std::pair{16, 16}, std::pair{24, 24}, std::pair{26, 26}, std::pair{19, 20}, std::pair{7, 24}, std::pair{40, 24}}) {
+        s->setOverlayIconSize(stored);
+        const int drawn = icon->property("iconSize").toInt();
+        if (drawn != shown) {
+            s->setOverlayIconSize(wasIconSize);
+            return QStringLiteral("FAIL (icon size %1 draws %2 px, expected %3)")
+                .arg(stored).arg(drawn).arg(shown);
+        }
+    }
+    s->setOverlayIconSize(wasIconSize);
+
     // The two mode-indicator styles: exactly one indicator is drawn for each,
     // and the glyph one has to be BOTH cut and still standing - the selection
     // is a hole in it, so a mock selection that missed it entirely would show
@@ -1733,7 +1771,7 @@ QString AppContext::overlayPreviewCheck()
         return QStringLiteral("FAIL (the mode indicator survives its own switch)");
     }
     restore();
-    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 2 indicator styles)")
+    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 6 icon sizes, 2 indicator styles)")
         .arg(positions.size());
 }
 
@@ -2562,6 +2600,23 @@ void AppContext::devTestEditorZoom()
     showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
+// Scrolls the Flickable holding item so item is on screen, as a user would
+// before pressing it: a press past the window edge reaches nothing.
+static void scrollIntoView(QQuickItem *item)
+{
+    for (QQuickItem *f = item->parentItem(); f; f = f->parentItem()) {
+        if (!f->property("contentY").isValid())
+            continue;
+        auto *content = f->property("contentItem").value<QQuickItem *>();
+        if (!content)
+            return;
+        const qreal y = item->mapToItem(content, QPointF(0, 0)).y();
+        const qreal maxY = qMax(0.0, f->property("contentHeight").toReal() - f->height());
+        f->setProperty("contentY", qBound(0.0, y - 12, maxY));
+        return;
+    }
+}
+
 // Settings > Saving > filename template: a field once entered has to be
 // leavable, by Escape and by a click on nothing (user-reported twice: "can't
 // get out of the filename field"). Real key and mouse events through the
@@ -2598,6 +2653,10 @@ static QString leaveFieldCheck(QQuickWindow *win)
         while (!win->isActive() && t.elapsed() < 1500)
             QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
     }
+    // Caption, field and switch fit one screen from the caption down. In a
+    // short window (853x533 on a 150% 1280x800 screen) they sat below the
+    // fold and the presses reached nothing, failing though nothing was wrong.
+    scrollIntoView(caption);
     QMetaObject::invokeMethod(field, "forceFocus");
     if (!focused()) {
         restore();
@@ -2630,7 +2689,12 @@ static QString leaveFieldCheck(QQuickWindow *win)
         QMouseEvent move(QEvent::MouseMove, releaseAt, win->mapToGlobal(releaseAt),
                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(win, &down);
-        QCoreApplication::sendEvent(win, &move);
+        // Only when the release is elsewhere. On the first F8 after start the
+        // settings pane took the grab from the switch on a move of 0 px, so
+        // the click never landed (seen with mouseGrabberItem(); later runs
+        // passed).
+        if (releaseAt != at)
+            QCoreApplication::sendEvent(win, &move);
         QCoreApplication::sendEvent(win, &up);
     };
     const QPointF beside = caption->mapToScene(QPointF(caption->width() / 2, caption->height() / 2));
@@ -2776,6 +2840,32 @@ void AppContext::devTestCopyLast()
     const bool ok = !QGuiApplication::clipboard()->image().isNull();
     showToast(tr("Dev: copy last capture: %1")
                   .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
+}
+
+QString AppContext::copyFileCheck()
+{
+    // A space and a non-ASCII letter: the uri-list has to carry them encoded.
+    const QString path = QDir::tempPath() + QStringLiteral("/unisic copy ż.gif");
+    const QUrl url = QUrl::fromLocalFile(path);
+    QScopedPointer<QMimeData> mime(makeFileMime(path));
+    const bool built = mime->urls() == QList<QUrl>{url} && mime->text() == path
+                       && mime->data(QStringLiteral("x-special/gnome-copied-files"))
+                              == QByteArrayLiteral("copy\n") + url.toEncoded();
+    copyFileToClipboard(path);
+    const QMimeData *live = QGuiApplication::clipboard()->mimeData();
+    const bool landed = live && live->urls() == QList<QUrl>{url};
+    if (built && landed)
+        return QStringLiteral("PASS (file, path text and GTK list)");
+    return QStringLiteral("FAIL (offer=%1 clipboard=%2)").arg(built).arg(landed);
+}
+
+void AppContext::devTestCopyFile()
+{
+    if (!devBuild())
+        return;
+    const QString status = copyFileCheck();
+    showToast(tr("Dev: copy recording file: %1").arg(status),
+              status.startsWith(QLatin1String("FAIL")));
 }
 
 void AppContext::devTestClipboardHistory()
@@ -4234,7 +4324,6 @@ void AppContext::runSmokeTest()
         // actually removed a secret and the home path, (3) a log file exists
         // or the reason it does not is legitimate, (4) the crash report still
         // renders in the shape a user would paste.
-        const int before = DiagLog::bufferedLineCount();
         const double revBefore = logRevision();
         qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
         // The log viewer's whole data path: the counter it polls moved, and
@@ -4249,7 +4338,9 @@ void AppContext::runSmokeTest()
                               ? QStringLiteral("FAIL (secret visible)")
                               : QStringLiteral("PASS")));
         const QString tail = DiagLog::recentLines(3);
-        const bool grew = DiagLog::bufferedLineCount() > before;
+        // The revision, not the line count: the ring holds 500 lines, so after
+        // a long session (or a second F8) the count stays put while it records.
+        const bool grew = logRevision() > revBefore;
         const bool clean = !tail.contains(QStringLiteral("smoketoken987"))
                            && !tail.contains(QDir::homePath());
         smokeLog(QStringLiteral("diagnostic log: %1")
@@ -4539,6 +4630,14 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 2f) a settings text field can be left again. Before the editor opens:
+    // the editor takes the focus, and KWin need not hand it back to the main
+    // window, which left this check a SKIP on most runs.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
+        smokeNext();
+    });
+
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
@@ -4550,12 +4649,6 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("editor zoom control: ")
                  + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
                                        ? m_smokeWindows.last().data() : nullptr));
-        smokeNext();
-    });
-
-    // 3a) a settings text field can be left again
-    m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
         smokeNext();
     });
 
@@ -4610,6 +4703,12 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         copyImageToClipboard(devTestImage());
         smokeLog(QStringLiteral("clipboard history hint: ") + clipboardHistoryHintCheck());
+        smokeNext();
+    });
+
+    // 3c3) a finished recording lands on the clipboard as its file.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("copy recording file: ") + copyFileCheck());
         smokeNext();
     });
 
@@ -5285,7 +5384,7 @@ QString AppContext::scrollHandoffCheck()
     const QRect rect(10, 20, 300, 400);
     int regionCalls = 0;
     QRect seen;
-    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *) {
+    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *, qreal) {
         ++regionCalls;
         seen = r;
     };
@@ -5328,6 +5427,10 @@ QString AppContext::scrollHandoffCheck()
         m_nextCaptureTask = {};
         return QStringLiteral("FAIL (refused scroll left its task armed)");
     }
+    // A refused selection never opened a session, so nothing may hold the
+    // main window down on its behalf.
+    if (m_scrollHoldsWindow)
+        return QStringLiteral("FAIL (refused scroll kept the window down)");
     return QStringLiteral("PASS (one callback per path, guard released, tiny selection refused)");
 }
 

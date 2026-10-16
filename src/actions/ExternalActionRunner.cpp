@@ -97,7 +97,12 @@ void ExternalActionRunner::run(const QString &command, const QString &inputPath,
         // never a file the user already had.
         if (out.isEmpty() && QFileInfo::exists(outputPath))
             QFile::remove(outputPath);
-        process->deleteLater();
+        // After the timeout's kill() the child is still being reaped; deleting
+        // the QProcess now makes its destructor block the GUI thread on it.
+        if (process->state() == QProcess::NotRunning)
+            process->deleteLater();
+        else
+            connect(process, &QProcess::finished, process, &QObject::deleteLater);
         (*cb)(out, err);
     };
 

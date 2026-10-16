@@ -78,7 +78,7 @@ Item {
     function copyOne(kind, filePath, url) {
         if (filePath === "") return
         if (kind === "image") App.copyImageFromHistory(filePath)
-        else App.copyAsFromHistory(filePath, url, "path")
+        else App.copyAsFromHistory(filePath, url, "file")
     }
 
     // ---- spoken identity of a tile ----
@@ -118,7 +118,12 @@ Item {
         if (d >= page.dayStart(1)) return qsTr("Yesterday")
         if (d >= page.dayStart(6)) return qsTr("Earlier this week")
         // Same-year captures don't need the year spelled out on every group.
-        return Qt.formatDate(d, d.getFullYear() === new Date().getFullYear() ? "MMMM" : "MMMM yyyy")
+        // The UI language's standalone month name: Qt.formatDate names months
+        // in English whatever the language, and a "MMMM" format gives the
+        // genitive in Polish and Russian ("września", not "wrzesień").
+        var m = Qt.locale(Qt.uiLanguage).standaloneMonthName(d.getMonth(), Locale.LongFormat)
+        m = m.charAt(0).toUpperCase() + m.slice(1)
+        return d.getFullYear() === new Date().getFullYear() ? m : m + " " + d.getFullYear()
     }
 
     // Tile timestamp. A full "yyyy-MM-dd HH:mm" spent most of the tile's one
@@ -134,8 +139,8 @@ Item {
         if (d >= page.dayStart(0)) return Qt.formatTime(d, "HH:mm")
         if (d >= page.dayStart(1)) return qsTr("Yesterday") + " " + Qt.formatTime(d, "HH:mm")
         if (d.getFullYear() === new Date().getFullYear())
-            return Qt.formatDate(d, "d MMM") + " " + Qt.formatTime(d, "HH:mm")
-        return Qt.formatDate(d, "d MMM yyyy")
+            return d.toLocaleDateString(Qt.locale(Qt.uiLanguage), "d MMM") + " " + Qt.formatTime(d, "HH:mm")
+        return d.toLocaleDateString(Qt.locale(Qt.uiLanguage), "d MMM yyyy")
     }
 
     HistoryFilterModel {
@@ -799,8 +804,8 @@ Item {
                                             spacing: 2
                                             UIconButton {
                                                 activeFocusOnTab: false
-                                                iconName: kind === "image" ? "content-copy" : "document-open"
-                                                tooltip: kind === "image" ? qsTr("Copy image") : qsTr("Copy file path")
+                                                iconName: "content-copy"
+                                                tooltip: kind === "image" ? qsTr("Copy image") : qsTr("Copy file")
                                                 iconSize: 16; width: 30; height: 30
                                                 enabled: filePath !== ""
                                                 onClicked: page.copyOne(kind, filePath, url)
@@ -953,15 +958,19 @@ Item {
                 id: datePill
                 anchors.top: parent.top
                 anchors.topMargin: Theme.spacingS
-                // Centered, not cornered: the tiles keep their checkbox in the
-                // top-left corner and their star in the top-right one, and the
-                // pill would sit on top of whichever it shared a corner with.
-                anchors.horizontalCenter: parent.horizontalCenter
+                // Centered on a tile, not cornered: the tiles keep their checkbox
+                // in the top-left corner and their star in the top-right one,
+                // and the pill would sit on top of whichever it shared a corner
+                // with. So over the middle tile, or the one left of centre for
+                // an even column count: there the grid's centre is the gap
+                // where two tiles' corners meet. Capped to the span between
+                // that tile's checkbox and star.
+                x: Math.floor((grid.columns - 1) / 2) * grid.cellWidth + Math.round((grid.cellWidth - width) / 2)
                 readonly property int topRow: grid.count > 0
                     ? grid.indexAt(grid.cellWidth / 2, grid.contentY + 4) : -1
                 readonly property string label: topRow >= 0 ? page.dateGroup(filter.timestampAt(topRow)) : ""
                 visible: datePill.label !== ""
-                width: dateText.implicitWidth + 20
+                width: Math.min(dateText.implicitWidth + 20, grid.cellWidth - 100)
                 height: 24
                 radius: 12
                 color: Theme.alpha(Theme.backgroundDeep, 0.85)
@@ -970,6 +979,9 @@ Item {
                 Text {
                     id: dateText
                     anchors.centerIn: parent
+                    width: parent.width - 20
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
                     text: datePill.label
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontS

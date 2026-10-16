@@ -19,7 +19,7 @@
 // app self-assign its id BEFORE the first portal call, so permissions are
 // keyed per-app instead of the anonymous "" bucket. Absent on older portals —
 // the async call just fails, harmlessly.
-#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
 static void registerHostAppId(QObject *owner)
 {
     if (!qEnvironmentVariable("FLATPAK_ID").isEmpty())
@@ -135,11 +135,14 @@ CaptureManager::CaptureManager(Settings *settings, QObject *parent)
     , m_gnome(new GnomeScreenshot(this))
     , m_grim(new GrimScreenshot(this))
 {
-    // Qt 6.11+ performs the same Registry.Register from QDesktopUnixServices
-    // once desktopFileName is available. Registering here too makes Qt's call
-    // report "Connection already associated". Older Qt versions need our call,
-    // and its ordering before other portal traffic remains load-bearing.
-#if QT_VERSION < QT_VERSION_CHECK(6, 11, 0)
+    // Qt 6.10+ performs the same Registry.Register from QDesktopUnixServices,
+    // inside the QApplication constructor because main() names the desktop
+    // file first. Registering here too makes one of the two calls fail with
+    // "Connection already associated" (6.10 already has it: the guard said
+    // 6.11, so 6.10 builds registered twice). Older Qt versions
+    // need our call, and its ordering before other portal traffic remains
+    // load-bearing.
+#if QT_VERSION < QT_VERSION_CHECK(6, 10, 0)
     registerHostAppId(this);
 #endif
     PortalScreenshot::ensureSilentPermission(this, [] {});
@@ -402,6 +405,15 @@ QImage CaptureManager::cropForScreen(const QImage &workspace, const ScreenGeom &
     }
 
     QImage crop = workspace.copy(bounded);
+    // A workspace shot is rendered at the highest scale of any output, so on a
+    // mixed-DPI setup a lower-scale screen arrives enlarged (1280x800 at scale
+    // 1 next to a 1.5 screen comes as 1920x1200) and every capture from it is
+    // that much bigger and soft (#121). Back to the screen's own pixels; the
+    // 1px slack keeps fractional rounding from resampling a native crop.
+    const QSize native(qRound(screen.geometry.width() * screen.dpr),
+                       qRound(screen.geometry.height() * screen.dpr));
+    if (crop.width() > native.width() + 1 || crop.height() > native.height() + 1)
+        crop = crop.scaled(native, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     crop.setDevicePixelRatio(screen.dpr);
     return crop;
 }

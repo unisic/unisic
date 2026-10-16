@@ -469,6 +469,13 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
 # interfaces anyway (the exe lives on a transient mount or inside /app).
 set(UNISIC_DESKTOP_EXEC "${CMAKE_INSTALL_FULL_BINDIR}/unisic"
     CACHE STRING "Exec= line written into the installed .desktop file")
+# CPack installs the .deb/.rpm payload under CPACK_PACKAGING_INSTALL_PREFIX,
+# which defaults to /usr no matter what CMAKE_INSTALL_PREFIX (default
+# /usr/local) baked into the Exec above. 0.8.7 shipped exactly that split:
+# the binary in /usr/bin, Exec=/usr/local/bin/unisic, and KWin refusing both
+# interfaces on every deb and rpm install (#121). Package where the Exec
+# points, so the two cannot disagree; the workflows pass the prefix.
+set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 configure_file(resources/app.unisic.Unisic.desktop.in
     ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/app.unisic.Unisic.desktop
@@ -503,9 +510,15 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 #   zip               the diagnostics bundle in Settings shells out to it
 #   grim              reliable capture on niri and other wlroots compositors
 #   qml6-module-qtmultimedia  the trim editor's video preview
+#   qt6-svg-plugins   the SVG image/icon plugins; libqt6svg6 is only the
+#                     library, so without them every icon renders blank
 #   tesseract-ocr-*   OCR is compiled into every build and had no language data
 #                     on any of them; osd is what the script auto-detection
 #                     (on by default) needs
+# libqt6gui6 pulls qt6-svg-plugins in only as a Recommends, so an
+# `apt install --no-install-recommends` used to leave it out (#124). The xcb
+# platform plugin needs no entry: it ships in libqt6gui6 itself (trixie, Ubuntu
+# 26.04); qt6-qpa-plugins only carries the VNC one.
 # KEEP THIS LIST CHARACTER-IDENTICAL to Depends in packaging/obs/debian.control.
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
@@ -520,6 +533,7 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     qml6-module-qtquick-dialogs
     qml6-module-qtquick-effects
     qml6-module-qtquick-window
+    qt6-svg-plugins
     qt6-wayland
     tesseract-ocr-eng
     tesseract-ocr-osd

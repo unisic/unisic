@@ -29,7 +29,11 @@ public:
     // Result: annotated cropped image (image mode).
     using ImageCallback = std::function<void(const QImage &img)>;
     // Result: region in *physical* pixels on the chosen screen + the screen.
-    using RegionCallback = std::function<void(const QRect &physRect, QScreen *screen)>;
+    // scale: the overlay window's DPR, the output's REAL scale. On Wayland
+    // QScreen::devicePixelRatio() is wl_output's integer scale (2 on a 1.5x
+    // output); only a window learns the fractional one. physRect stays in
+    // geometry * QScreen DPR space, which every consumer divides back out.
+    using RegionCallback = std::function<void(const QRect &physRect, QScreen *screen, qreal scale)>;
 
     explicit OverlayController(AppContext *app, QObject *parent = nullptr);
 
@@ -59,10 +63,11 @@ public:
     void pickRegion(RegionCallback cb, Purpose purpose); // no annotation tools
     // Pays off the session's one pending callback when the user starts a
     // scrolling capture. Returns true when nobody asked for a region, so the
-    // caller must start the scroll itself. Static so the smoke test can check
+    // caller must start the scroll itself (before calling this - see
+    // startScrollCapture()). Static so the smoke test can check
     // the contract without a frozen screen.
     static bool handOffScrollPick(const RegionCallback &regionCb, const ImageCallback &imageCb,
-                                  const QRect &phys, QScreen *screen);
+                                  const QRect &phys, QScreen *screen, qreal scale = 0);
 
     // One-shot: was this session confirmed with Ctrl+C (confirmAndCopy)?
     // Consumed by the capture callback to force a clipboard copy even when

@@ -5,7 +5,7 @@ name: Flatpak build
 # Flathub reviewers run? Flathub itself builds and publishes from its own
 # repository (flathub/app.unisic.Unisic), so nothing is published from here -
 # but the bundle this produces IS attached to the GitHub release, because
-# scripts/install.sh installs from it until the Flathub listing goes live.
+# install.sh (unisic.app) installs from it until the Flathub listing goes live.
 #
 # The manifest builds from a git TAG, so a plain PR would test the last release
 # rather than the change in front of it. `local: true` (the default on

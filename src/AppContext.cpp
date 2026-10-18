@@ -14,6 +14,7 @@
 #include "hotkeys/ShortcutFormat.h"
 #include "diag/CrashHandler.h"
 #include "diag/DiagLog.h"
+#include "diag/RuntimeTools.h"
 #include "diag/SmokeSupport.h"
 #include "notify/NativeSound.h"
 
@@ -1934,20 +1935,16 @@ QVariantList AppContext::dependencyReport() const
                               : tr("Missing from this install: %1.").arg(missing.join(QStringLiteral(", "))));
     };
 
-    addExecutables(QStringLiteral("ffmpeg / ffprobe"),
-                   {QStringLiteral("ffmpeg"), QStringLiteral("ffprobe")});
-    addExecutables(QStringLiteral("wl-clipboard"), {QStringLiteral("wl-copy")});
-    addExecutables(QStringLiteral("curl"), {QStringLiteral("curl")});
-    addExecutables(QStringLiteral("zip"), {QStringLiteral("zip")});
-    addExecutables(QStringLiteral("grim"), {QStringLiteral("grim")});
-    addExecutables(QStringLiteral("PipeWire tools"),
-                   {QStringLiteral("pw-record"), QStringLiteral("pw-dump"),
-                    QStringLiteral("pw-play")});
+    const QList<RuntimeTools::Group> tools = RuntimeTools::required();
+    for (const RuntimeTools::Group &g : tools)
+        addExecutables(g.label, g.executables);
 
-    const bool multimedia = capVideoPlayback();
-    add(QStringLiteral("QtMultimedia"), multimedia,
-        multimedia ? tr("Found.")
-                   : tr("Missing from this install: %1.").arg(QStringLiteral("QtMultimedia")));
+    if (RuntimeTools::needsVideoPlayback()) {
+        const bool multimedia = capVideoPlayback();
+        add(QStringLiteral("QtMultimedia"), multimedia,
+            multimedia ? tr("Found.")
+                       : tr("Missing from this install: %1.").arg(QStringLiteral("QtMultimedia")));
+    }
 
     const bool haveLangs = ocrHasLanguages();
     add(tr("OCR language pack"), haveLangs,

@@ -19,6 +19,7 @@ set(_unisic_linux_only
     src/record/KeyCapture.cpp
     src/record/InputPermission.cpp
     src/diag/CrashHandler.cpp
+    src/diag/RuntimeTools.cpp
     src/notify/NativeSound.cpp
     src/update/StagedUpdate.cpp)
 set_source_files_properties(${_unisic_linux_only} PROPERTIES HEADER_FILE_ONLY ON SKIP_AUTOMOC ON)
@@ -29,6 +30,7 @@ target_sources(unisic PRIVATE
     src/record/KeyCapture_win.cpp
     src/record/InputPermission_win.cpp
     src/diag/CrashHandler_win.cpp
+    src/diag/RuntimeTools_win.cpp
     src/notify/NativeSound_win.cpp
     src/update/StagedUpdate_win.cpp
     # The exe's icon (Explorer, taskbar, Start menu, the uninstall entry).

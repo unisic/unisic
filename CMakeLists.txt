@@ -195,6 +195,7 @@ qt_add_executable(unisic
     # and runSmokeTest(). Same class, second translation unit.
     src/diag/SmokeSupport.h src/diag/SmokeTests.cpp
     src/diag/CrashHandler.h src/diag/CrashHandler.cpp
+    src/diag/RuntimeTools.h src/diag/RuntimeTools.cpp
     src/update/VersionCompare.h
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp

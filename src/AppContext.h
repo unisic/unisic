@@ -411,6 +411,7 @@ public:
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
     Q_INVOKABLE void devTestInstallerUpdate();
+    Q_INVOKABLE void devTestStagedUpdate();
     Q_INVOKABLE void devTestCountdown();
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();

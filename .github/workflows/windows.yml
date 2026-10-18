@@ -3,16 +3,23 @@ name: Windows build
 # Reusable Windows build: MSYS2 UCRT64 (MinGW-w64 gcc + MSYS2's Qt 6), the same
 # toolchain AGENTS.md documents for local Windows work. Called by build.yml, so
 # a PR that breaks the Windows port goes red even when it was written and
-# tested on Linux only. Not called by release.yml: the port is a preview, and
-# its zip is a CI artifact, not a release asset.
+# tested on Linux only, and by release.yml, which attaches the portable zip to
+# the release.
 #
-# Self-update stays OFF in this build on purpose. The job sets no
-# UNISIC_BUILD_NUMBER, so UNISIC_BUILD is "dev" and UpdateChecker never checks
-# or stages anything; with a run number it would download the Linux AppImage
-# into a Windows install. UNISIC_DEV_BUILD=OFF is passed explicitly so the exe
-# is still a GUI app with no console window and no F8 smoke hotkey.
+# The zip is also what the Windows self-update installs from: UpdateChecker
+# picks Unisic-<ver>-windows-x86_64.zip from the release, checks its sha256
+# and stages it under %APPDATA%. That is why the release passes build-number:
+# a build with no UNISIC_BUILD_NUMBER is "dev", and a dev build never checks
+# or stages anything. The PR check passes none, so its artifact cannot update
+# itself to the last release. UNISIC_DEV_BUILD=OFF is passed explicitly so the
+# exe is a GUI app with no console window and no F8 smoke hotkey either way.
 on:
   workflow_call:
+    inputs:
+      build-number:
+        # The release run's number. Empty = a dev build (no self-update).
+        type: string
+        default: ""
   workflow_dispatch:
 
 permissions:
@@ -26,6 +33,8 @@ jobs:
   windows:
     name: Windows (MSYS2 UCRT64)
     runs-on: windows-2025
+    env:
+      UNISIC_BUILD_NUMBER: ${{ inputs.build-number }}
     steps:
       # Before checkout: git on the runner would otherwise check the sources out
       # with CRLF, and the shell scripts under packaging/ stop parsing.
@@ -73,19 +82,25 @@ jobs:
       - name: Test
         run: ctest --test-dir build-win --output-on-failure --timeout 120
 
-      - name: Stage the portable bundle
-        run: packaging/windows/deploy.sh build-win dist-win
+      - name: Stage the portable bundle and pack the zip
+        run: packaging/windows/deploy.sh build-win dist-win release-win
 
-      # The bundle must start on a machine with no MSYS2: run it with only the
+      # The bundle must start on a machine with no MSYS2: unpack the zip with
+      # System32\tar.exe, exactly as an update does, run it with only the
       # Windows system dirs on PATH and capture one screenshot to a file. The
       # runner has a desktop session, so GDI capture works headless.
-      - name: Capture one screenshot from the bundle
+      - name: Capture one screenshot from the unpacked zip
         shell: pwsh
         timeout-minutes: 3
         run: |
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $zip = Get-ChildItem release-win\Unisic-*-windows-x86_64.zip
+          $dir = Join-Path $env:RUNNER_TEMP 'unpacked'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          tar.exe -x -f $zip.FullName -C $dir
+          if ($LASTEXITCODE -ne 0) { throw "tar.exe could not unpack $($zip.Name)" }
           $out = Join-Path $env:RUNNER_TEMP 'bundle-smoke.png'
-          $p = Start-Process -FilePath dist-win\bin\unisic.exe -ArgumentList '--fullscreen', "--output=$out" -PassThru
+          $p = Start-Process -FilePath (Join-Path $dir 'bin\unisic.exe') -ArgumentList '--fullscreen', "--output=$out" -PassThru
           if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
           if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
           if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
@@ -94,7 +109,17 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           # Deliberately not unisic-*: the release job sweeps up every artifact
-          # matching that prefix, and a preview port must not ride along.
+          # matching that prefix, and it must not wait on this job. The zip
+          # reaches the release through windows-release below instead.
           name: windows-portable
           path: dist-win
+          if-no-files-found: error
+
+      # Only for a numbered (release) build: release.yml's windows-asset job
+      # attaches these two files to the release once it exists.
+      - if: ${{ inputs.build-number != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release-win
           if-no-files-found: error

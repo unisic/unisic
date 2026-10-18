@@ -186,6 +186,7 @@ qt_add_executable(unisic
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    src/update/StagedUpdate.h src/update/StagedUpdate.cpp
     # Diagnostic log + crash report. CrashHandler.cpp is
     # async-signal-safe-only code; see its header before touching it.
     src/diag/DiagLog.h src/diag/DiagLog.cpp

@@ -5,7 +5,7 @@
 #include "theme/IconImageProvider.h"
 #include "editor/WatermarkPreview.h"
 #include "capture/ScrollPreviewProvider.h"
-#include "update/VersionCompare.h"
+#include "update/StagedUpdate.h"
 #include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
 // The kit's own ConfigPath.h shares the basename, so it needs the explicit
 // relative path; provides UnisicKit::setConfigFilePath (wired in main()).
@@ -26,7 +26,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QVarLengthArray>
 #include <QStandardPaths>
 #include <QProcess>
 #include <QTimer>
@@ -656,59 +655,6 @@ static void ensureDesktopFile()
         // falls back to the portal once.
         QProcess::startDetached(sycoca, {});
     }
-}
-
-// Package installs (deb/rpm/arch) can't replace /usr/bin/unisic without root,
-// so UpdateChecker stages a newer version under the user's data dir and this
-// bootstrap execs it — the packaged binary keeps working as a launcher until
-// the distro package catches up. The staged copy runs with UNISIC_STAGED=1 so
-// it never re-redirects; AppImage never stages. Path composition
-// must stay in sync with UpdateChecker::stagingDir() (org "Unisic" + app name
-// under XDG data), computed by hand because this runs before QApplication.
-static void execStagedUpdate(int argc, char *argv[])
-{
-    if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty()
-        // A flatpak never stages: the bundle is read-only, it is updated by
-        // the flatpak client, and exec'ing a downloaded binary inside the
-        // sandbox is exactly what the store forbids.
-        || qEnvironmentVariableIsSet("FLATPAK_ID"))
-        return;
-#ifdef UNISIC_DEV_BUILD
-    const QString appName = QStringLiteral("unisic-dev");
-#else
-    const QString appName = QStringLiteral("unisic");
-#endif
-    QString dataHome = qEnvironmentVariable("XDG_DATA_HOME");
-    if (dataHome.isEmpty())
-        dataHome = QDir::homePath() + QStringLiteral("/.local/share");
-    QFile f(dataHome + QStringLiteral("/Unisic/") + appName + QStringLiteral("/updates/current"));
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
-    f.close();
-    const QString ver = lines.value(0).trimmed();
-    const QString appRun = lines.value(1).trimmed();
-    // Only a strictly NEWER stage wins; a stale pointer (package caught up)
-    // is ignored here and garbage-collected by UpdateChecker at startup.
-    if (appRun.isEmpty() || !UpdateVersion::isNewer(ver, QStringLiteral(UNISIC_VERSION))
-        || !QFileInfo(appRun).isExecutable())
-        return;
-    qputenv("UNISIC_STAGED", "1");
-    // Restarts go through this binary again so they land on the newest stage.
-    qputenv("UNISIC_BOOTSTRAP_EXE",
-            QFile::encodeName(QFileInfo(QStringLiteral("/proc/self/exe")).symLinkTarget()));
-    QList<QByteArray> args;
-    args.append(QFile::encodeName(appRun));
-    for (int i = 1; i < argc; ++i)
-        args.append(QByteArray(argv[i]));
-    QVarLengthArray<char *, 16> execArgv;
-    for (QByteArray &a : args)
-        execArgv.append(a.data());
-    execArgv.append(nullptr);
-    ::execv(execArgv[0], execArgv.data());
-    // exec failed (deleted stage, wrong arch…) — fall through to the
-    // packaged version rather than dying.
 }
 
 int main(int argc, char *argv[])

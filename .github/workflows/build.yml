@@ -63,9 +63,10 @@ jobs:
     name: Nix flake build check
     uses: ./.github/workflows/nix.yml
 
-  # Not a shipped package: the Windows port is a preview with no release asset.
-  # It is here so a change written and tested on Linux cannot break the
-  # Windows build unnoticed. It also runs the QtTest suite, on Windows.
+  # The Windows preview: release.yml attaches its portable zip to every
+  # release. It is here so a change written and tested on Linux cannot break
+  # the Windows build unnoticed. It also runs the QtTest suite, on Windows.
+  # No build-number: the PR artifact is a dev build and never self-updates.
   windows:
     name: Windows build check
     permissions:

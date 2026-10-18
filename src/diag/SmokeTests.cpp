@@ -2196,6 +2196,20 @@ void AppContext::devTestInstallerUpdate()
     });
 }
 
+void AppContext::devTestStagedUpdate()
+{
+    if (!devBuild())
+        return;
+    // Dry-run only: unpacks a generated stand-in package and flips a scratch
+    // pointer under the staging dir, then removes both. The live pointer and
+    // every staged version stay as they are (a dev build never stages).
+    m_updater->verifyStagingReady([this](bool ok, const QString &detail) {
+        showToast(ok ? tr("Dev: staged update: PASS (%1)").arg(detail)
+                     : tr("Dev: staged update: FAIL (%1)").arg(detail),
+                  !ok);
+    });
+}
+
 void AppContext::devTestOcrBoxes()
 {
     if (!devBuild())
@@ -5234,6 +5248,18 @@ void AppContext::runSmokeTest()
             smokeLog(QStringLiteral("installer update: ")
                      + (ok ? QStringLiteral("PASS (%1)").arg(detail)
                            : QStringLiteral("SKIP (%1)").arg(detail)));
+            smokeNext();
+        });
+    });
+
+    // 5e) staged update (deb/rpm outside /usr, Windows portable): the real
+    // unpack command on a stand-in package plus a pointer flip over an
+    // existing pointer, in a scratch dir. Local only, so a failure is a FAIL.
+    m_smokeSteps.append([this] {
+        m_updater->verifyStagingReady([this](bool ok, const QString &detail) {
+            smokeLog(QStringLiteral("staged update: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(detail)
+                           : QStringLiteral("FAIL (%1)").arg(detail)));
             smokeNext();
         });
     });

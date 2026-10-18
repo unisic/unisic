@@ -3,7 +3,10 @@
 # module it loads, plus the OCR language data. Run from an MSYS2 UCRT64 shell
 # after `cmake --build <build-dir>`:
 #
-#   packaging/windows/deploy.sh <build-dir> <out-dir>
+#   packaging/windows/deploy.sh <build-dir> <out-dir> [<zip-dir>]
+#
+# and packs <out-dir> into <zip-dir>/Unisic-<version>-windows-x86_64.zip plus
+# its .sha256 (<zip-dir> defaults to the parent of <out-dir>).
 #
 # Layout of <out-dir>, the same shape as the AppImage's usr/ so OcrEngine finds
 # the language data at <exe dir>/../share/tessdata without a Windows branch:
@@ -15,8 +18,8 @@
 # new /ucrt64 DLL turns up, because plugins pull in libraries the exe does not.
 set -euo pipefail
 
-build_dir="${1:?usage: deploy.sh <build-dir> <out-dir>}"
-out_dir="${2:?usage: deploy.sh <build-dir> <out-dir>}"
+build_dir="${1:?usage: deploy.sh <build-dir> <out-dir> [<zip-dir>]}"
+out_dir="${2:?usage: deploy.sh <build-dir> <out-dir> [<zip-dir>]}"
 repo_dir="$(cd "$(dirname "$0")/../.." && pwd)"
 prefix="${MINGW_PREFIX:-/ucrt64}"
 
@@ -77,3 +80,22 @@ for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls share/tessd
 done
 
 echo "staged $(find "$out_dir" -type f | wc -l) files, $(du -sh "$out_dir" | cut -f1), in $out_dir"
+
+# The release asset the Windows self-update installs from, with bin/ and share/
+# at the zip root so an update unpacks to updates/<version>/bin/unisic.exe.
+# Packed by System32\tar.exe (bsdtar), the same tool UpdateChecker unpacks it
+# with, so the CI round trip below is the one every update takes. The .sha256
+# beside it is for a manual download; the app checks the digest GitHub
+# publishes for the asset itself.
+version="$(grep -m1 '^set(UNISIC_VERSION_STRING' "$repo_dir/CMakeLists.txt" | sed -E 's/.*"([^"]+)".*/\1/')"
+[ -n "$version" ] || { echo "error: no UNISIC_VERSION_STRING in CMakeLists.txt" >&2; exit 1; }
+zip_dir="${3:-$(dirname "$out_dir")}"
+mkdir -p "$zip_dir"
+zip_dir="$(cd "$zip_dir" && pwd)"
+zip_name="Unisic-$version-windows-x86_64.zip"
+rm -f "$zip_dir/$zip_name" "$zip_dir/$zip_name.sha256"
+"$(cygpath -S -u)/tar.exe" -a -c -f "$(cygpath -w "$zip_dir/$zip_name")" \
+    -C "$(cygpath -w "$out_dir")" bin share
+printf '%s  %s\n' "$(sha256sum < "$zip_dir/$zip_name" | cut -d' ' -f1)" "$zip_name" \
+    > "$zip_dir/$zip_name.sha256"
+echo "packed $zip_dir/$zip_name ($(du -h "$zip_dir/$zip_name" | cut -f1))"

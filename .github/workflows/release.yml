@@ -100,6 +100,23 @@ jobs:
     with:
       local: true
 
+  windows:
+    name: Windows portable zip
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    # Not in the release job's `needs` either, for the same reason as the
+    # Flatpak: the Windows port is a preview, and a red Windows build must not
+    # hold back the Linux packages. windows-asset attaches the zip afterwards.
+    #
+    # A reusable workflow does not see this workflow's env, so the build number
+    # goes in as an input. Without it the zip would be a dev build, and a dev
+    # build never updates itself.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows.yml
+    with:
+      build-number: ${{ github.run_number }}
+
   release:
     name: GitHub Release
     needs:
@@ -132,6 +149,8 @@ jobs:
       #   .flatpak  → attached by the flatpak-asset job, which runs after this
       #               one; install.sh installs from it until the Flathub
       #               listing is live, then moves the install to that remote
+      #   Windows .zip → attached by the windows-asset job, which runs after
+      #               this one; the portable build stages it under %APPDATA%
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
@@ -207,6 +226,32 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "v${VERSION}" dist/*.flatpak --clobber
+
+  windows-asset:
+    name: Attach the Windows zip
+    # Both: `release` for the release to attach to, `windows` for the zip.
+    needs:
+      - check
+      - release
+      - windows
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: dist
+
+      # The zip is what UpdateChecker installs from on Windows: it checks the
+      # zip against the sha256 digest GitHub publishes for the asset, not the
+      # .sha256 file. That file is for someone who downloads the zip by hand.
+      - name: Upload it to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${VERSION}" dist/*.zip dist/*.zip.sha256 --clobber
 
   obs:
     name: Trigger OBS rebuild

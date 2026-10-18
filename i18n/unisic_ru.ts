@@ -4,166 +4,166 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="258"/>
+        <location filename="../src/AppContext.cpp" line="265"/>
         <source>Encoding…</source>
         <translation>Кодирование…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="274"/>
+        <location filename="../src/AppContext.cpp" line="281"/>
         <source>Recording failed: %1</source>
         <translation>Не удалось записать: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="280"/>
+        <location filename="../src/AppContext.cpp" line="287"/>
         <source>Could not move %1 to trash; the file is still on disk</source>
         <translation>Не удалось переместить %1 в корзину; файл остался на диске</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3228"/>
-        <location filename="../src/AppContext.cpp" line="4968"/>
-        <location filename="../src/AppContext.cpp" line="4988"/>
+        <location filename="../src/AppContext.cpp" line="3265"/>
+        <location filename="../src/AppContext.cpp" line="5011"/>
+        <location filename="../src/AppContext.cpp" line="5031"/>
         <source>Copied to clipboard</source>
         <translation>Скопировано в буфер обмена</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="715"/>
-        <location filename="../src/AppContext.cpp" line="740"/>
+        <location filename="../src/AppContext.cpp" line="750"/>
+        <location filename="../src/AppContext.cpp" line="775"/>
         <source>Nothing to recognize</source>
         <translation>Нечего распознавать</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="199"/>
+        <location filename="../src/AppContext.cpp" line="206"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 установлен - он запустится при следующем старте</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="718"/>
+        <location filename="../src/AppContext.cpp" line="753"/>
         <source>Recognizing text…</source>
         <translation>Распознавание текста…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="723"/>
+        <location filename="../src/AppContext.cpp" line="758"/>
         <source>No text found</source>
         <translation>Текст не найден</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="726"/>
+        <location filename="../src/AppContext.cpp" line="761"/>
         <source>Text copied</source>
         <translation>Текст скопирован</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="908"/>
+        <location filename="../src/AppContext.cpp" line="943"/>
         <source>Capture failed: %1</source>
         <translation>Не удалось сделать снимок: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="915"/>
+        <location filename="../src/AppContext.cpp" line="950"/>
         <source>. Install Unisic (sudo cmake --install build) and launch it from the application menu so KDE authorizes it, and check that xdg-desktop-portal-kde is running.</source>
         <translation>. Установите Unisic (sudo cmake --install build) и запустите его из меню приложений, чтобы KDE выдал ему права, и проверьте, что xdg-desktop-portal-kde работает.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="928"/>
+        <location filename="../src/AppContext.cpp" line="963"/>
         <source>. Install &apos;grim&apos; (works on sway/niri/Hyprland-style compositors) or an xdg-desktop-portal backend for your desktop.</source>
         <translation>. Установите «grim» (работает в композиторах вроде sway/niri/Hyprland) или бэкенд xdg-desktop-portal для вашего рабочего стола.</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="714"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="712"/>
         <source>Dev: text render: %1</source>
         <translation>Dev: отрисовка текста: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="726"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="724"/>
         <source>Dev: keystroke badge: %1; input access: %2</source>
         <translation>Dev: плашка клавиш: %1; доступ к устройствам ввода: %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1526"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1524"/>
         <source>Dev: shape edit: %1</source>
         <translation>Dev: правка фигуры: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5899"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2133"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3983"/>
+        <location filename="../src/AppContext.cpp" line="5943"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2131"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3995"/>
         <source>Quit</source>
         <translation>Выход</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2145"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2143"/>
         <source>Dev: language: %1</source>
         <translation>Dev: язык: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2207"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2219"/>
         <source>Dev: OCR boxes: FAIL (%1)</source>
         <translation>Dev: рамки OCR: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2209"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2221"/>
         <source>Dev: OCR boxes: %1 (%2 glyphs)</source>
         <translation>Dev: рамки OCR: %1 (глифов: %2)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2320"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2332"/>
         <source>Dev: played capture sound &apos;%1&apos;</source>
         <translation>Dev: воспроизведён звук снимка «%1»</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1569"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1567"/>
         <source>Dev: capture on release: %1</source>
         <translation>Dev: снимок при отпускании: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="188"/>
+        <location filename="../src/AppContext.cpp" line="195"/>
         <source>Opened a terminal to install the update.</source>
         <translation>Открыт терминал для установки обновления.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="189"/>
+        <location filename="../src/AppContext.cpp" line="196"/>
         <source>Couldn&apos;t start the update: %1</source>
         <translation>Не удалось запустить обновление: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="992"/>
+        <location filename="../src/AppContext.cpp" line="1027"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Для чтения нажатий клавиш нужен доступ к устройствам ввода. Выполните «%1», затем выйдите из системы и войдите снова.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1330"/>
-        <location filename="../src/AppContext.cpp" line="1332"/>
-        <location filename="../src/AppContext.cpp" line="1396"/>
-        <location filename="../src/AppContext.cpp" line="1398"/>
-        <location filename="../src/AppContext.cpp" line="1408"/>
+        <location filename="../src/AppContext.cpp" line="1365"/>
+        <location filename="../src/AppContext.cpp" line="1367"/>
+        <location filename="../src/AppContext.cpp" line="1431"/>
+        <location filename="../src/AppContext.cpp" line="1433"/>
+        <location filename="../src/AppContext.cpp" line="1443"/>
         <source>Empty capture</source>
         <translation>Пустой снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1366"/>
+        <location filename="../src/AppContext.cpp" line="1401"/>
         <source>No region to re-capture</source>
         <translation>Нет области для повторного снимка</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1367"/>
+        <location filename="../src/AppContext.cpp" line="1402"/>
         <source>No region to re-capture yet - take a region screenshot first</source>
         <translation>Области для повторного снимка ещё нет - сначала сделайте снимок области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1376"/>
+        <location filename="../src/AppContext.cpp" line="1411"/>
         <source>Region&apos;s screen is no longer connected</source>
         <translation>Экран этой области больше не подключён</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1377"/>
+        <location filename="../src/AppContext.cpp" line="1412"/>
         <source>The screen that region was on is no longer connected</source>
         <translation>Экран, на котором была эта область, больше не подключён</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1409"/>
+        <location filename="../src/AppContext.cpp" line="1444"/>
         <source>The stored region no longer fits that screen</source>
         <translation>Сохранённая область больше не помещается на этом экране</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1534"/>
+        <location filename="../src/AppContext.cpp" line="1569"/>
         <source>Recording a single window needs a window picker this desktop does not provide - record the screen or a region instead.</source>
         <translation>Для записи отдельного окна нужен выбор окна, которого этот рабочий стол не предоставляет - запишите экран или область.</translation>
     </message>
@@ -180,7 +180,7 @@
         <translation type="vanished">нет активного окна</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2469"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2481"/>
         <source>no screen</source>
         <translation>нет экрана</translation>
     </message>
@@ -189,7 +189,7 @@
         <translation type="vanished">Активное окно за пределами экрана - записывать нечего.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1875"/>
+        <location filename="../src/AppContext.cpp" line="1910"/>
         <source>No log file was opened for this run</source>
         <translation>Для этого запуска файл журнала не открывался</translation>
     </message>
@@ -218,27 +218,27 @@
         <translation type="vanished">Необязательно. Установите «wl-clipboard» для самого надёжного копирования в буфер обмена в Wayland.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1918"/>
+        <location filename="../src/AppContext.cpp" line="1953"/>
         <source>OCR language pack</source>
         <translation>Языковой пакет OCR</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1919"/>
+        <location filename="../src/AppContext.cpp" line="1954"/>
         <source>Found - text recognition (OCR) is ready.</source>
         <translation>Найден - распознавание текста (OCR) готово.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1920"/>
+        <location filename="../src/AppContext.cpp" line="1955"/>
         <source>Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. &quot;tesseract-langpack-eng&quot;.</source>
         <translation>Отсутствует. OCR встроен, но не установлен ни один языковой пакет Tesseract. Установите какой-нибудь, например «tesseract-langpack-eng».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1923"/>
+        <location filename="../src/AppContext.cpp" line="1958"/>
         <source>OCR auto-language (osd)</source>
         <translation>Автоопределение языка OCR (osd)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1924"/>
+        <location filename="../src/AppContext.cpp" line="1959"/>
         <source>Found - OCR detects the script of each capture automatically.</source>
         <translation>Найден - OCR сам определяет письменность каждого снимка.</translation>
     </message>
@@ -251,12 +251,12 @@
         <translation type="vanished">Dev: значок нажатия клавиш: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="737"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="735"/>
         <source>Dev: custom theme: %1</source>
         <translation>Dev: своя тема: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="865"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="863"/>
         <source>Dev: diagnostics copied (%1 chars)</source>
         <translation>Dev: диагностика скопирована (символов: %1)</translation>
     </message>
@@ -265,32 +265,32 @@
         <translation type="vanished">Dev: проверка системы: проверок %1, отсутствует %2 (из них основных %3)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2280"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2292"/>
         <source>Dev: OCR auto language: %1 (installed: %2; %3; map: %4)</source>
         <translation>Dev: автоязык OCR: %1 (установлено: %2; %3; карта: %4)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2328"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2340"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: воспроизведён звук записи «%1»</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2400"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2412"/>
         <source>Dev: full-screen countdown finished - recording would start now</source>
         <translation>Dev: полноэкранный отсчёт закончился - запись началась бы сейчас</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2401"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2413"/>
         <source>Dev: full-screen countdown fell back to a toast (no record-border support)</source>
         <translation>Dev: полноэкранный отсчёт заменён всплывающим сообщением (нет поддержки рамки записи)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2447"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2459"/>
         <source>Dev: active-window geometry needs KWin on the session bus</source>
         <translation>Dev: геометрия активного окна требует KWin на шине сеанса</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2457"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2469"/>
         <source>Dev: active-window geometry FAILED - %1</source>
         <translation>Dev: геометрия активного окна НЕ УДАЛАСЬ - %1</translation>
     </message>
@@ -299,1009 +299,1019 @@
         <translation type="vanished">Dev: активное окно %1x%2 в %3,%4 (логические) на %5, DPR %6</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2502"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2514"/>
         <source>Dev: ALL notifications are disabled in Settings (Preferences → Show notifications)</source>
         <translation>Dev: ВСЕ уведомления отключены в настройках (Параметры → Показывать уведомления)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2507"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2519"/>
         <source>Dev: stylized cards are off - falling back to a native desktop notification</source>
         <translation>Dev: стилизованные карточки выключены - используется системное уведомление рабочего стола</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2511"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2523"/>
         <source>Dev: cards are currently muted (fullscreen / Do Not Disturb inhibition is active)</source>
         <translation>Dev: карточки сейчас заглушены (действует запрет полноэкранного режима или режима «Не беспокоить»)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2761"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2773"/>
         <source>Dev: added a test history entry</source>
         <translation>Dev: добавлена тестовая запись в историю</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2770"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2782"/>
         <source>Dev: added a STARRED history entry; try Clear all / delete on it</source>
         <translation>Dev: добавлена ИЗБРАННАЯ запись в историю; попробуйте на ней «Очистить всё» и удаление</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2781"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3013"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2793"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3025"/>
         <source>Dev: couldn&apos;t save the test image</source>
         <translation>Dev: не удалось сохранить тестовое изображение</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3483"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3495"/>
         <source>Dev: template variables: %1</source>
         <translation>Dev: переменные шаблона: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3638"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3650"/>
         <source>Dev: vgy.me support: %1</source>
         <translation>Dev: поддержка vgy.me: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3645"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3657"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev: экспорт и импорт настроек: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3686"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3698"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev: отправка тестового изображения на «%1»…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3689"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3701"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev: отправка успешна: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3691"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3703"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev: не удалось отправить: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4017"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4029"/>
         <source>Alternate hotkey test</source>
         <translation>Проверка запасных горячих клавиш</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4043"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4055"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev: запасные горячие клавиши - %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4051"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4063"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev: KGlobalAccel недоступен (бэкенд: %1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4052"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4064"/>
         <source>none</source>
         <translation>нет</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5688"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4060"/>
+        <location filename="../src/AppContext.cpp" line="5731"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4072"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Горячая клавиша занята другим приложением: %1. Выберите другую клавишу в «Настройки → Горячие клавиши» или освободите её в «Параметры системы → Комбинации клавиш».</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4064"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4076"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Горячие клавиши: все %1 зарегистрированы в службе</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4066"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4078"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Горячие клавиши: %1 из %2 были потеряны и зарегистрированы заново (подробности в журнале)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3003"/>
-        <location filename="../src/AppContext.cpp" line="3186"/>
-        <location filename="../src/AppContext.cpp" line="4563"/>
+        <location filename="../src/AppContext.cpp" line="3040"/>
+        <location filename="../src/AppContext.cpp" line="3223"/>
+        <location filename="../src/AppContext.cpp" line="4606"/>
         <source>Saved %1</source>
         <translation>Сохранено: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3022"/>
-        <location filename="../src/AppContext.cpp" line="3173"/>
-        <location filename="../src/AppContext.cpp" line="4182"/>
-        <location filename="../src/AppContext.cpp" line="4202"/>
-        <location filename="../src/AppContext.cpp" line="4378"/>
-        <location filename="../src/AppContext.cpp" line="4400"/>
+        <location filename="../src/AppContext.cpp" line="3059"/>
+        <location filename="../src/AppContext.cpp" line="3210"/>
+        <location filename="../src/AppContext.cpp" line="4225"/>
+        <location filename="../src/AppContext.cpp" line="4245"/>
+        <location filename="../src/AppContext.cpp" line="4421"/>
+        <location filename="../src/AppContext.cpp" line="4443"/>
         <source>Upload failed: %1</source>
         <translation>Не удалось отправить: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3122"/>
+        <location filename="../src/AppContext.cpp" line="3159"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>Не удалось сохранить в %1. Проверьте папку сохранения в настройках</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3368"/>
+        <location filename="../src/AppContext.cpp" line="3405"/>
         <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</source>
         <translation>Изображения (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3369"/>
+        <location filename="../src/AppContext.cpp" line="3406"/>
         <source>Recordings (*.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Записи (*.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3370"/>
+        <location filename="../src/AppContext.cpp" line="3407"/>
         <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Изображения и записи (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3372"/>
+        <location filename="../src/AppContext.cpp" line="3409"/>
         <source>All files (*)</source>
         <translation>Все файлы (*)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3377"/>
+        <location filename="../src/AppContext.cpp" line="3414"/>
         <source>Open an image to edit</source>
         <translation>Открыть изображение для правки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3380"/>
+        <location filename="../src/AppContext.cpp" line="3417"/>
         <source>Open a recording to trim</source>
         <translation>Открыть запись для обрезки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5142"/>
-        <location filename="../src/AppContext.cpp" line="5177"/>
+        <location filename="../src/AppContext.cpp" line="5185"/>
+        <location filename="../src/AppContext.cpp" line="5220"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Ни один из выбранных снимков не сохранён на диске.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5146"/>
+        <location filename="../src/AppContext.cpp" line="5189"/>
         <source>Export captures to ZIP</source>
         <translation>Экспорт снимков в ZIP</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5148"/>
+        <location filename="../src/AppContext.cpp" line="5191"/>
         <source>ZIP archive (*.zip)</source>
         <translation>Архив ZIP (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5151"/>
+        <location filename="../src/AppContext.cpp" line="5194"/>
         <source>Exporting %1 captures…</source>
         <translation>Экспорт снимков (%1)…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5168"/>
+        <location filename="../src/AppContext.cpp" line="5211"/>
         <source>The “zip” program is not installed - install it and try again.</source>
         <translation>Программа «zip» не установлена - установите её и попробуйте снова.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5194"/>
+        <location filename="../src/AppContext.cpp" line="5237"/>
         <source>Could not create a temporary folder: %1</source>
         <translation>Не удалось создать временную папку: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5221"/>
+        <location filename="../src/AppContext.cpp" line="5264"/>
         <source>Exported %1 captures to %2</source>
         <translation>Экспортировано снимков: %1 в %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5225"/>
+        <location filename="../src/AppContext.cpp" line="5268"/>
         <source>Export failed: %1</source>
         <translation>Не удалось экспортировать: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5226"/>
+        <location filename="../src/AppContext.cpp" line="5269"/>
         <source>zip exited with code %1</source>
         <translation>zip завершился с кодом %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5235"/>
+        <location filename="../src/AppContext.cpp" line="5278"/>
         <source>Could not run the “zip” program.</source>
         <translation>Не удалось запустить программу «zip».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5369"/>
-        <location filename="../src/AppContext.cpp" line="5638"/>
-        <location filename="../src/AppContext.cpp" line="5897"/>
+        <location filename="../src/AppContext.cpp" line="5412"/>
+        <location filename="../src/AppContext.cpp" line="5681"/>
+        <location filename="../src/AppContext.cpp" line="5941"/>
         <source>Copy last capture</source>
         <translation>Копировать последний снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3242"/>
+        <location filename="../src/AppContext.cpp" line="3279"/>
         <source>Uploaded, link copied</source>
         <translation>Отправлено, ссылка скопирована</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="182"/>
+        <location filename="../src/AppContext.cpp" line="189"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Доступен Unisic %1 - обновление выполняется автоматически</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="183"/>
+        <location filename="../src/AppContext.cpp" line="190"/>
         <source>Unisic %1 is available</source>
         <translation>Доступен Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="262"/>
+        <location filename="../src/AppContext.cpp" line="269"/>
         <source>Instant replay failed: %1</source>
         <translation>Не удалось сохранить мгновенный повтор: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="886"/>
-        <location filename="../src/AppContext.cpp" line="891"/>
+        <location filename="../src/AppContext.cpp" line="921"/>
+        <location filename="../src/AppContext.cpp" line="926"/>
         <source>Capture in %1…</source>
         <translation>Снимок через %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="922"/>
+        <location filename="../src/AppContext.cpp" line="957"/>
         <source>. GNOME is blocking silent screenshots for Unisic - run &quot;flatpak permission-reset screenshot&quot; and retry, and check that xdg-desktop-portal-gnome is running.</source>
         <translation>. GNOME блокирует тихие снимки экрана для Unisic - выполните «flatpak permission-reset screenshot», повторите попытку и проверьте, что xdg-desktop-portal-gnome работает.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="980"/>
+        <location filename="../src/AppContext.cpp" line="1015"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Для чтения щелчков мыши нужен доступ к устройствам ввода. Выполните «%1», затем выйдите из системы и войдите снова.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1124"/>
-        <location filename="../src/AppContext.cpp" line="1137"/>
-        <location filename="../src/AppContext.cpp" line="1169"/>
-        <location filename="../src/AppContext.cpp" line="1179"/>
-        <location filename="../src/AppContext.cpp" line="1262"/>
-        <location filename="../src/AppContext.cpp" line="1273"/>
-        <location filename="../src/AppContext.cpp" line="1305"/>
-        <location filename="../src/AppContext.cpp" line="1316"/>
-        <location filename="../src/AppContext.cpp" line="1344"/>
-        <location filename="../src/AppContext.cpp" line="1388"/>
-        <location filename="../src/AppContext.cpp" line="1444"/>
-        <location filename="../src/AppContext.cpp" line="1455"/>
-        <location filename="../src/main.cpp" line="311"/>
+        <location filename="../src/AppContext.cpp" line="1159"/>
+        <location filename="../src/AppContext.cpp" line="1172"/>
+        <location filename="../src/AppContext.cpp" line="1204"/>
+        <location filename="../src/AppContext.cpp" line="1214"/>
+        <location filename="../src/AppContext.cpp" line="1297"/>
+        <location filename="../src/AppContext.cpp" line="1308"/>
+        <location filename="../src/AppContext.cpp" line="1340"/>
+        <location filename="../src/AppContext.cpp" line="1351"/>
+        <location filename="../src/AppContext.cpp" line="1379"/>
+        <location filename="../src/AppContext.cpp" line="1423"/>
+        <location filename="../src/AppContext.cpp" line="1479"/>
+        <location filename="../src/AppContext.cpp" line="1490"/>
+        <location filename="../src/main.cpp" line="347"/>
         <source>Another capture is already active</source>
         <translation>Другой снимок уже выполняется</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1200"/>
-        <location filename="../src/AppContext.cpp" line="1230"/>
-        <location filename="../src/AppContext.cpp" line="1293"/>
+        <location filename="../src/AppContext.cpp" line="1235"/>
+        <location filename="../src/AppContext.cpp" line="1265"/>
+        <location filename="../src/AppContext.cpp" line="1328"/>
         <source>Capture cancelled</source>
         <translation>Снимок отменён</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1574"/>
+        <location filename="../src/AppContext.cpp" line="1609"/>
         <source>Start instant replay first</source>
         <translation>Сначала запустите мгновенный повтор</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1578"/>
+        <location filename="../src/AppContext.cpp" line="1613"/>
         <source>Saving instant replay…</source>
         <translation>Сохранение мгновенного повтора…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1646"/>
-        <location filename="../src/AppContext.cpp" line="1656"/>
+        <location filename="../src/AppContext.cpp" line="1681"/>
+        <location filename="../src/AppContext.cpp" line="1691"/>
         <source>Recording in %1…</source>
         <translation>Запись через %1…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="744"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="742"/>
         <source>Dev: clipboard paste: %1</source>
         <translation>Dev: вставка из буфера обмена: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="755"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="753"/>
         <source>Dev: capture delay: %1</source>
         <translation>Dev: задержка снимка: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="774"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="772"/>
         <source>Dev: copy as: %1</source>
         <translation>Dev: копировать как: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="783"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="781"/>
         <source>Dev: watermark: %1</source>
         <translation>Dev: водяной знак: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="827"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="825"/>
         <source>Dev: watermark preview: %1</source>
         <translation>Dev: предпросмотр водяного знака: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="834"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="832"/>
         <source>Dev: callout: %1</source>
         <translation>Dev: выноска: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="841"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="839"/>
         <source>Dev: Shift snap: %1</source>
         <translation>Dev: привязка по Shift: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="849"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="847"/>
         <source>Dev: pen line click: %1</source>
         <translation>Dev: линия пером по щелчку: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="878"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="876"/>
         <source>Dev: system check: %1 checks, %2 missing</source>
         <translation>Dev: проверка системы: проверок %1, отсутствует %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="894"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="892"/>
         <source>Dev: do not disturb: unsupported on this desktop</source>
         <translation>Dev: «Не беспокоить»: не поддерживается этим рабочим столом</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="901"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="899"/>
         <source>Dev: do not disturb: %1</source>
         <translation>Dev: «Не беспокоить»: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="918"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="916"/>
         <source>Dev: external action: %1</source>
         <translation>Dev: внешнее действие: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="926"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="924"/>
         <source>Dev: external action timeout: %1</source>
         <translation>Dev: тайм-аут внешнего действия: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="937"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="935"/>
         <source>Dev: task preset: %1</source>
         <translation>Dev: набор задач: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="954"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="952"/>
         <source>Dev: CLI output: %1</source>
         <translation>Dev: вывод из командной строки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="962"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="960"/>
         <source>Dev: measure tools: %1</source>
         <translation>Dev: инструменты измерения: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1001"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="999"/>
         <source>Dev: per-app audio: %1</source>
         <translation>Dev: звук по приложениям: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1010"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1008"/>
         <source>Dev: instant replay: recording unavailable</source>
         <translation>Dev: мгновенный повтор: запись недоступна</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1043"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1041"/>
         <source>Dev: trim recording: ffmpeg unavailable</source>
         <translation>Dev: обрезка записи: ffmpeg недоступен</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1054"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1062"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1052"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1060"/>
         <source>Dev: trim recording: FAIL</source>
         <translation>Dev: обрезка записи: FAIL</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1079"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1077"/>
         <source>Dev: trim cut: %1</source>
         <translation>Dev: вырезка при обрезке: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1161"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1159"/>
         <source>Dev: pause excise: %1</source>
         <translation>Dev: вырезание пауз: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1457"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1455"/>
         <source>Dev: screenshot cursor: %1</source>
         <translation>Dev: курсор на снимке: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1611"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1609"/>
         <source>Dev: overlay mode badge: %1</source>
         <translation>Dev: значок режима оверлея: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1782"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1780"/>
         <source>Dev: overlay preview: %1</source>
         <translation>Dev: предпросмотр слоя: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1831"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1829"/>
         <source>Dev: magnifier: %1</source>
         <translation>Dev: лупа: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1866"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1864"/>
         <source>Dev: eyedropper: %1</source>
         <translation>Dev: пипетка: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1928"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1926"/>
         <source>Dev: pixel loupe: %1</source>
         <translation>Dev: пиксельная лупа: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2154"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2152"/>
         <source>Dev: update check: %1</source>
         <translation>Dev: проверка обновлений: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2181"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2179"/>
         <source>Dev: auto-restart gate: idle - an installed update would restart now</source>
         <translation>Dev: условие автоперезапуска: простой - установленное обновление перезапустилось бы сейчас</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2182"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2180"/>
         <source>Dev: auto-restart gate: deferred (%1)</source>
         <translation>Dev: условие автоперезапуска: отложено (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2867"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2207"/>
+        <source>Dev: staged update: PASS (%1)</source>
+        <translation>Dev: подготовленное обновление: PASS (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="2208"/>
+        <source>Dev: staged update: FAIL (%1)</source>
+        <translation>Dev: подготовленное обновление: FAIL (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="2879"/>
         <source>Dev: copy recording file: %1</source>
         <translation>Dev: копировать файл записи: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3996"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4008"/>
         <source>Dev: tray menu: %1</source>
         <translation>Dev: меню в трее: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5441"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5465"/>
         <source>Dev: scrolling hand-off: %1</source>
         <translation>Dev: передача прокрутки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5448"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5472"/>
         <source>Dev: scrolling stitch: %1</source>
         <translation>Dev: объединение при прокрутке: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2026"/>
+        <location filename="../src/AppContext.cpp" line="2063"/>
         <source>recording</source>
         <translation>идёт запись</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2028"/>
+        <location filename="../src/AppContext.cpp" line="2065"/>
         <source>capture in progress</source>
         <translation>выполняется снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2030"/>
+        <location filename="../src/AppContext.cpp" line="2067"/>
         <source>selection overlay open</source>
         <translation>открыт слой выделения</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2032"/>
+        <location filename="../src/AppContext.cpp" line="2069"/>
         <source>editor windows open</source>
         <translation>открыты окна редактора</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2034"/>
+        <location filename="../src/AppContext.cpp" line="2071"/>
         <source>main window visible</source>
         <translation>главное окно на экране</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2220"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2232"/>
         <source>Dev: OCR highlight + redact: FAIL (%1)</source>
         <translation>Dev: подсветка и скрытие через OCR: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2221"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2233"/>
         <source>Dev: OCR highlight + redact: %1</source>
         <translation>Dev: подсветка и скрытие через OCR: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2230"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2242"/>
         <source>Dev: cursor overlay: %1</source>
         <translation>Dev: слой курсора: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2237"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2249"/>
         <source>Dev: style presets: %1</source>
         <translation>Dev: наборы стилей: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2245"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2257"/>
         <source>Dev: auto-redact pattern: FAIL (%1)</source>
         <translation>Dev: шаблон автоскрытия: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2246"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2258"/>
         <source>Dev: auto-redact pattern: %1</source>
         <translation>Dev: шаблон автоскрытия: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2292"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2304"/>
         <source>Dev: ZIP export: SKIP (zip not installed)</source>
         <translation>Dev: экспорт в ZIP: SKIP (zip не установлен)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2306"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2318"/>
         <source>Dev: ZIP export: %1</source>
         <translation>Dev: экспорт в ZIP: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2307"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2319"/>
         <source>PASS (%1)</source>
         <translation>PASS (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2307"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2319"/>
         <source>FAIL (%1)</source>
         <translation>FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2336"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2348"/>
         <source>Dev: played record-start sound &apos;%1&apos;</source>
         <translation>Dev: воспроизведён звук начала записи «%1»</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2344"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2356"/>
         <source>Dev: played the fixed trash sound</source>
         <translation>Dev: воспроизведён стандартный звук удаления</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2352"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2384"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2364"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2396"/>
         <source>Dev: countdown is 0s (off) - set it in Recording settings</source>
         <translation>Dev: обратный отсчёт равен 0 с (выключен) - задайте его в настройках записи</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2375"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2387"/>
         <source>Dev: countdown finished - recording would start now</source>
         <translation>Dev: обратный отсчёт закончился - запись началась бы сейчас</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2413"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2425"/>
         <source>Save capture (dev test)</source>
         <translation>Сохранить снимок (тест разработчика)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3110"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2415"/>
+        <location filename="../src/AppContext.cpp" line="3147"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2427"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>Изображения (*.png *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2417"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2429"/>
         <source>Dev: save dialog cancelled</source>
         <translation>Dev: диалог сохранения отменён</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2422"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2434"/>
         <source>Dev: save FAILED</source>
         <translation>Dev: сохранить НЕ УДАЛОСЬ</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2423"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2435"/>
         <source>Dev: saved to %1</source>
         <translation>Dev: сохранено в %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2435"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2447"/>
         <source>Dev: next file = %1/%2 (counter=%3, subfolders=%4, stripMeta=%5)</source>
         <translation>Dev: следующий файл = %1/%2 (счётчик=%3, подпапки=%4, stripMeta=%5)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2438"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2439"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2450"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2451"/>
         <source>on</source>
         <translation>вкл</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2438"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="2439"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2450"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2451"/>
         <source>off</source>
         <translation>выкл</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2467"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2479"/>
         <source>Dev: active window %1x%2 at %3,%4 (logical) on %5, DPR %6; overlay selects %7x%8 at %9,%10</source>
         <translation>Dev: активное окно %1x%2 в %3,%4 (логические) на %5, DPR %6; наложение выделяет %7x%8 в %9,%10</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2481"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2493"/>
         <source>Dev: card preview needs the stylized card enabled (Preferences → Show notifications / capture card)</source>
         <translation>Dev: для предпросмотра карточки нужна включённая стилизованная карточка (Параметры → Показывать уведомления / карточку снимка)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2487"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2499"/>
         <source>Dev: card preview FAILED (no card was created)</source>
         <translation>Dev: предпросмотр карточки НЕ УДАЛСЯ (карточка не создана)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2490"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2502"/>
         <source>Dev: card preview - withdrawing in 3 s</source>
         <translation>Dev: предпросмотр карточки - закроется через 3 с</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2600"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2612"/>
         <source>Dev: editor zoom %1</source>
         <translation>Dev: масштаб редактора: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2746"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2758"/>
         <source>Dev: leave filename field %1</source>
         <translation>Dev: выход из поля имени файла: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2798"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2810"/>
         <source>Dev: history drag payload: %1</source>
         <translation>Dev: содержимое перетаскивания из истории: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2823"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2835"/>
         <source>Dev: notification drag payload: %1</source>
         <translation>Dev: содержимое перетаскивания из уведомления: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2841"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2853"/>
         <source>Dev: copy last capture: %1</source>
         <translation>Dev: копировать последний снимок: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2879"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2891"/>
         <source>Dev: Klipper clipboard history: %1</source>
         <translation>Dev: история буфера обмена Klipper: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2985"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2997"/>
         <source>Dev: record border: unsupported on this compositor</source>
         <translation>Dev: рамка записи: не поддерживается этим композитором</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2998"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3010"/>
         <source>Dev: record border shown for 4 s</source>
         <translation>Dev: рамка записи показана на 4 с</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2999"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3011"/>
         <source>Dev: record border FAILED to show</source>
         <translation>Dev: рамку записи показать НЕ УДАЛОСЬ</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3624"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3636"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev: поиск и фильтры в истории: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3631"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3643"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev: защита от встроенного Imgur Client-ID: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3108"/>
+        <location filename="../src/AppContext.cpp" line="3145"/>
         <source>Save capture</source>
         <translation>Сохранить снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3095"/>
-        <location filename="../src/AppContext.cpp" line="3114"/>
+        <location filename="../src/AppContext.cpp" line="3132"/>
+        <location filename="../src/AppContext.cpp" line="3151"/>
         <source>Could not save to %1</source>
         <translation>Не удалось сохранить в %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="911"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="909"/>
         <source>Dev: hide while capturing: %1</source>
         <translation>Dev: скрывать во время снимка: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3224"/>
+        <location filename="../src/AppContext.cpp" line="3261"/>
         <source>No capture to copy yet</source>
         <translation>Пока нечего копировать</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3244"/>
+        <location filename="../src/AppContext.cpp" line="3281"/>
         <source>Uploaded: %1</source>
         <translation>Отправлено: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3930"/>
+        <location filename="../src/AppContext.cpp" line="3967"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>Не удалось открыть %1 для правки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3940"/>
+        <location filename="../src/AppContext.cpp" line="3977"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>Не удалось открыть %1 для предпросмотра</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4101"/>
+        <location filename="../src/AppContext.cpp" line="4144"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Звуки (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4102"/>
+        <location filename="../src/AppContext.cpp" line="4145"/>
         <source>Sounds (*.wav)</source>
         <translation>Звуки (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4104"/>
+        <location filename="../src/AppContext.cpp" line="4147"/>
         <source>Add capture sound</source>
         <translation>Добавить звук снимка</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4111"/>
+        <location filename="../src/AppContext.cpp" line="4154"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Неподдерживаемый формат звука (нужен WAV или OGG)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4120"/>
+        <location filename="../src/AppContext.cpp" line="4163"/>
         <source>Could not copy the sound file</source>
         <translation>Не удалось скопировать звуковой файл</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4124"/>
+        <location filename="../src/AppContext.cpp" line="4167"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Добавлен звук снимка «%1»</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4132"/>
+        <location filename="../src/AppContext.cpp" line="4175"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>Не удалось открыть %1 для копирования</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4136"/>
+        <location filename="../src/AppContext.cpp" line="4179"/>
         <source>Image copied</source>
         <translation>Изображение скопировано</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4143"/>
-        <location filename="../src/AppContext.cpp" line="4980"/>
+        <location filename="../src/AppContext.cpp" line="4186"/>
+        <location filename="../src/AppContext.cpp" line="5023"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Сначала сохраните снимок, чтобы скопировать путь к файлу</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4157"/>
+        <location filename="../src/AppContext.cpp" line="4200"/>
         <source>Uploading %1…</source>
         <translation>Отправка %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3236"/>
-        <location filename="../src/AppContext.cpp" line="4189"/>
-        <location filename="../src/AppContext.cpp" line="4207"/>
+        <location filename="../src/AppContext.cpp" line="3273"/>
+        <location filename="../src/AppContext.cpp" line="4232"/>
+        <location filename="../src/AppContext.cpp" line="4250"/>
         <source>Uploaded</source>
         <translation>Отправлено</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4316"/>
+        <location filename="../src/AppContext.cpp" line="4359"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Не удалось открыть предпросмотр</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4718"/>
-        <location filename="../src/AppContext.cpp" line="4804"/>
+        <location filename="../src/AppContext.cpp" line="4761"/>
+        <location filename="../src/AppContext.cpp" line="4847"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Сохранено в PNG, чтобы сохранить прозрачность</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4949"/>
+        <location filename="../src/AppContext.cpp" line="4992"/>
         <source>No valid link to turn into a QR code</source>
         <translation>Нет подходящей ссылки для QR-кода</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4956"/>
+        <location filename="../src/AppContext.cpp" line="4999"/>
         <source>Could not create QR code</source>
         <translation>Не удалось создать QR-код</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4960"/>
+        <location filename="../src/AppContext.cpp" line="5003"/>
         <source>QR code preview</source>
         <translation>Предпросмотр QR-кода</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5000"/>
+        <location filename="../src/AppContext.cpp" line="5043"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Сначала сохраните или отправьте снимок, чтобы скопировать ссылку на него</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3196"/>
+        <location filename="../src/AppContext.cpp" line="3233"/>
         <source>Could not encode the capture</source>
         <translation>Не удалось закодировать снимок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1211"/>
-        <location filename="../src/AppContext.cpp" line="1212"/>
+        <location filename="../src/AppContext.cpp" line="1246"/>
+        <location filename="../src/AppContext.cpp" line="1247"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>Область слишком мала для захвата с прокруткой</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1898"/>
-        <location filename="../src/AppContext.cpp" line="1914"/>
+        <location filename="../src/AppContext.cpp" line="1933"/>
+        <location filename="../src/AppContext.cpp" line="1949"/>
         <source>Found.</source>
         <translation>Найдено.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1899"/>
-        <location filename="../src/AppContext.cpp" line="1915"/>
+        <location filename="../src/AppContext.cpp" line="1934"/>
+        <location filename="../src/AppContext.cpp" line="1950"/>
         <source>Missing from this install: %1.</source>
         <translation>Отсутствует в этой установке: %1.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3292"/>
+        <location filename="../src/AppContext.cpp" line="3329"/>
         <source>Choose watermark image</source>
         <translation>Выберите изображение водяного знака</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3293"/>
+        <location filename="../src/AppContext.cpp" line="3330"/>
         <source>Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</source>
         <translation>Изображения (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3301"/>
+        <location filename="../src/AppContext.cpp" line="3338"/>
         <source>The watermark image is invalid or too large</source>
         <translation>Изображение водяного знака повреждено или слишком велико</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3306"/>
+        <location filename="../src/AppContext.cpp" line="3343"/>
         <source>Could not load the watermark image</source>
         <translation>Не удалось загрузить изображение водяного знака</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3384"/>
+        <location filename="../src/AppContext.cpp" line="3421"/>
         <source>Open image or recording</source>
         <translation>Открыть изображение или запись</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3418"/>
-        <location filename="../src/AppContext.cpp" line="3461"/>
+        <location filename="../src/AppContext.cpp" line="3455"/>
+        <location filename="../src/AppContext.cpp" line="3498"/>
         <source>Unisic cannot edit this file type</source>
         <translation>Unisic не умеет править файлы этого типа</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3554"/>
+        <location filename="../src/AppContext.cpp" line="3591"/>
         <source>Recording file not found</source>
         <translation>Файл записи не найден</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3559"/>
-        <location filename="../src/AppContext.cpp" line="3610"/>
+        <location filename="../src/AppContext.cpp" line="3596"/>
+        <location filename="../src/AppContext.cpp" line="3647"/>
         <source>Trimming requires ffprobe from the ffmpeg package</source>
         <translation>Для обрезки нужен ffprobe из пакета ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3599"/>
+        <location filename="../src/AppContext.cpp" line="3636"/>
         <source>Could not read the recording duration</source>
         <translation>Не удалось определить длительность записи</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3747"/>
+        <location filename="../src/AppContext.cpp" line="3784"/>
         <source>Invalid trim range</source>
         <translation>Неверный диапазон обрезки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3656"/>
-        <location filename="../src/AppContext.cpp" line="3677"/>
-        <location filename="../src/AppContext.cpp" line="3751"/>
+        <location filename="../src/AppContext.cpp" line="3693"/>
+        <location filename="../src/AppContext.cpp" line="3714"/>
+        <location filename="../src/AppContext.cpp" line="3788"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Для обрезки нужен ffmpeg</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="976"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="974"/>
         <source>Dev: hardware encoder: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</source>
         <translation>Dev: аппаратный кодировщик: %1 (auto→%2, nvenc=%3, vaapi=%4, av1-nvenc=%5)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="993"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="991"/>
         <source>Dev: recording encoder frozen (SIGSTOP) - press Stop to exercise the watchdog</source>
         <translation>Dev: кодировщик записи заморожен (SIGSTOP) - нажмите «Стоп», чтобы проверить сторожевой таймер</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="994"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="992"/>
         <source>Dev: no live recording encoder to freeze - start a recording first</source>
         <translation>Dev: нет работающего кодировщика записи для заморозки - сначала начните запись</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1240"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1238"/>
         <source>Dev: video quality scale: %1</source>
         <translation>Dev: шкала качества видео: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1247"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1245"/>
         <source>Dev: separate audio tracks: %1</source>
         <translation>Dev: раздельные звуковые дорожки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1260"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1258"/>
         <source>System audio</source>
         <translation>Системный звук</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1260"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1258"/>
         <source>Microphone</source>
         <translation>Микрофон</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3783"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1260"/>
+        <location filename="../src/AppContext.cpp" line="3820"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1258"/>
         <source>Mix</source>
         <translation>Микс</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1341"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="1348"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1339"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1346"/>
         <source>Dev: audio inputs: %1</source>
         <translation>Dev: аудиовходы: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="1358"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="1356"/>
         <source>Dev: trim audio edit: %1</source>
         <translation>Dev: правка звука в обрезке: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2193"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2191"/>
         <source>Dev: installer update: checking…</source>
         <translation>Dev: обновление через установщик: проверка…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2195"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2193"/>
         <source>Dev: installer update: PASS (%1)</source>
         <translation>Dev: обновление через установщик: PASS (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2196"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2194"/>
         <source>Dev: installer update: FAIL (%1)</source>
         <translation>Dev: обновление через установщик: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2896"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2908"/>
         <source>memory only</source>
         <translation>только в памяти</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2898"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2910"/>
         <source>Dev: log FAILED to redact a secret</source>
         <translation>Dev: журнал НЕ скрыл секрет</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2899"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2911"/>
         <source>Dev: log OK (%1 lines) - %2</source>
         <translation>Dev: журнал в порядке (строк: %1) - %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2915"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2927"/>
         <source>Dev: crash report: could not open a temp file</source>
         <translation>Dev: отчёт о сбое: не удалось открыть временный файл</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2927"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2939"/>
         <source>Dev: crash report renders - opened it in the file manager</source>
         <translation>Dev: отчёт о сбое формируется - открыт в файловом менеджере</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2928"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2940"/>
         <source>Dev: crash report is malformed</source>
         <translation>Dev: отчёт о сбое повреждён</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2950"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2962"/>
         <source>Dev: show in folder: check the file is selected in the file manager</source>
         <translation>Dev: показать в папке: проверьте, что файл выделен в файловом менеджере</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2958"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2970"/>
         <source>Dev: KWin record: interface not granted (desktop file / not KWin)</source>
         <translation>Dev: запись через KWin: интерфейс не выдан (файл .desktop или это не KWin)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2967"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2979"/>
         <source>Dev: KWin record: stream request failed</source>
         <translation>Dev: запись через KWin: не удалось запросить поток</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2971"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2983"/>
         <source>Dev: KWin record OK - PipeWire node %1, no portal dialog</source>
         <translation>Dev: запись через KWin в порядке - узел PipeWire %1, без диалога портала</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2975"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2987"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev: запись через KWin не удалась: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3368"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3380"/>
         <source>Dev: curl destination: %1</source>
         <translation>Dev: назначение curl: %1</translation>
     </message>
@@ -1310,269 +1320,269 @@
         <translation type="vanished">Dev: переменные загрузки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3534"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3546"/>
         <source>Dev: still GIF: %1</source>
         <translation>Dev: статичный GIF: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3617"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3629"/>
         <source>Dev: image conversion: %1</source>
         <translation>Dev: конвертация изображения: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3679"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3691"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev: канал установки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3743"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3755"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev: тестовая отправка на сервер: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3841"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3853"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev: импорт перетаскиванием: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3924"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3936"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev: импорт вставкой: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4004"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4016"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev: режим страницы записи: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4150"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev: захват записи в X11: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4146"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4158"/>
         <source>Dev: X11 hotkeys: %1</source>
         <translation>Dev: горячие клавиши X11: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3400"/>
-        <location filename="../src/AppContext.cpp" line="4526"/>
+        <location filename="../src/AppContext.cpp" line="3437"/>
+        <location filename="../src/AppContext.cpp" line="4569"/>
         <source>Can&apos;t find %1</source>
         <translation>Не удалось найти %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3407"/>
-        <location filename="../src/AppContext.cpp" line="3460"/>
+        <location filename="../src/AppContext.cpp" line="3444"/>
+        <location filename="../src/AppContext.cpp" line="3497"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic открывает файлы, а не папки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3437"/>
+        <location filename="../src/AppContext.cpp" line="3474"/>
         <source>Unisic can only open files from this computer</source>
         <translation>Unisic может открывать файлы только с этого компьютера</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3438"/>
+        <location filename="../src/AppContext.cpp" line="3475"/>
         <source>Nothing to open in that drop</source>
         <translation>В перетащенном нет ничего, что можно открыть</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3481"/>
+        <location filename="../src/AppContext.cpp" line="3518"/>
         <source>Opened %1. Drop one file at a time to open the others.</source>
         <translation>Открыт %1. Перетаскивайте по одному файлу, чтобы открыть остальные.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3483"/>
+        <location filename="../src/AppContext.cpp" line="3520"/>
         <source>Opened %1. Nothing else in that drop is a file Unisic can open.</source>
         <translation>Открыт %1. Больше в перетащенном нет файлов, которые Unisic может открыть.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3513"/>
+        <location filename="../src/AppContext.cpp" line="3550"/>
         <source>The clipboard is empty</source>
         <translation>Буфер обмена пуст</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3548"/>
+        <location filename="../src/AppContext.cpp" line="3585"/>
         <source>The clipboard holds no image to paste</source>
         <translation>В буфере обмена нет изображения для вставки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3720"/>
-        <location filename="../src/AppContext.cpp" line="3735"/>
-        <location filename="../src/AppContext.cpp" line="3869"/>
+        <location filename="../src/AppContext.cpp" line="3757"/>
+        <location filename="../src/AppContext.cpp" line="3772"/>
+        <location filename="../src/AppContext.cpp" line="3906"/>
         <source>Trim failed: %1</source>
         <translation>Не удалось обрезать: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3761"/>
+        <location filename="../src/AppContext.cpp" line="3798"/>
         <source>Trimming recording…</source>
         <translation>Обрезка записи…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3890"/>
+        <location filename="../src/AppContext.cpp" line="3927"/>
         <source>External action failed: %1</source>
         <translation>Внешнее действие не выполнено: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3896"/>
+        <location filename="../src/AppContext.cpp" line="3933"/>
         <source>External action created %1</source>
         <translation>Внешнее действие создало %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3898"/>
+        <location filename="../src/AppContext.cpp" line="3935"/>
         <source>External action finished</source>
         <translation>Внешнее действие завершено</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3916"/>
+        <location filename="../src/AppContext.cpp" line="3953"/>
         <source>Could not prepare the external action input</source>
         <translation>Не удалось подготовить данные для внешнего действия</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4173"/>
+        <location filename="../src/AppContext.cpp" line="4216"/>
         <source>Could not encode %1 for upload</source>
         <translation>Не удалось закодировать %1 для отправки</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4530"/>
+        <location filename="../src/AppContext.cpp" line="4573"/>
         <source>Already a %1 file</source>
         <translation>Это уже файл %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4539"/>
+        <location filename="../src/AppContext.cpp" line="4582"/>
         <source>%1 is animated. Trim it instead</source>
         <translation>%1 анимирован. Обрежьте его вместо этого</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4544"/>
+        <location filename="../src/AppContext.cpp" line="4587"/>
         <source>Can&apos;t read %1</source>
         <translation>Не удалось прочитать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4557"/>
+        <location filename="../src/AppContext.cpp" line="4600"/>
         <source>Couldn&apos;t convert %1</source>
         <translation>Не удалось преобразовать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4652"/>
+        <location filename="../src/AppContext.cpp" line="4695"/>
         <source>Over %1 MB, so it was converted to %2 (%3 instead of %4)</source>
         <translation>Больше %1 МБ, поэтому файл сконвертирован в %2 (%3 вместо %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4671"/>
+        <location filename="../src/AppContext.cpp" line="4714"/>
         <source>GIF needs ffmpeg. Use Save as to write another format</source>
         <translation>Для GIF нужен ffmpeg. Используйте Сохранить как, чтобы записать другой формат</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4672"/>
+        <location filename="../src/AppContext.cpp" line="4715"/>
         <source>Can&apos;t write %1 back as %2. Use Save as</source>
         <translation>Не удаётся записать %1 обратно как %2. Используйте Сохранить как</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4682"/>
-        <location filename="../src/AppContext.cpp" line="4687"/>
-        <location filename="../src/AppContext.cpp" line="4747"/>
-        <location filename="../src/AppContext.cpp" line="4752"/>
+        <location filename="../src/AppContext.cpp" line="4725"/>
+        <location filename="../src/AppContext.cpp" line="4730"/>
+        <location filename="../src/AppContext.cpp" line="4790"/>
+        <location filename="../src/AppContext.cpp" line="4795"/>
         <source>Can&apos;t write %1</source>
         <translation>Не удаётся записать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4720"/>
-        <location filename="../src/AppContext.cpp" line="4806"/>
+        <location filename="../src/AppContext.cpp" line="4763"/>
+        <location filename="../src/AppContext.cpp" line="4849"/>
         <source>GIF needs ffmpeg. Saved as PNG</source>
         <translation>GIF требует ffmpeg. Сохранено как PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4722"/>
-        <location filename="../src/AppContext.cpp" line="4808"/>
+        <location filename="../src/AppContext.cpp" line="4765"/>
+        <location filename="../src/AppContext.cpp" line="4851"/>
         <source>%1 could not hold this image. Saved as PNG</source>
         <translation>%1 не смог вместить это изображение. Сохранено в PNG</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5010"/>
+        <location filename="../src/AppContext.cpp" line="5053"/>
         <source>Unknown copy format</source>
         <translation>Неизвестный формат копирования</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5110"/>
+        <location filename="../src/AppContext.cpp" line="5153"/>
         <source>Export Unisic settings</source>
         <translation>Экспорт настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5112"/>
-        <location filename="../src/AppContext.cpp" line="5123"/>
+        <location filename="../src/AppContext.cpp" line="5155"/>
+        <location filename="../src/AppContext.cpp" line="5166"/>
         <source>Unisic settings (*.json)</source>
         <translation>Настройки Unisic (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5116"/>
+        <location filename="../src/AppContext.cpp" line="5159"/>
         <source>Settings exported</source>
         <translation>Настройки экспортированы</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5122"/>
+        <location filename="../src/AppContext.cpp" line="5165"/>
         <source>Import Unisic settings</source>
         <translation>Импорт настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5127"/>
-        <location filename="../src/AppContext.cpp" line="5353"/>
+        <location filename="../src/AppContext.cpp" line="5170"/>
+        <location filename="../src/AppContext.cpp" line="5396"/>
         <source>Settings imported</source>
         <translation>Настройки импортированы</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5250"/>
+        <location filename="../src/AppContext.cpp" line="5293"/>
         <source>No file selected</source>
         <translation>Файл не выбран</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5281"/>
-        <location filename="../src/AppContext.cpp" line="5292"/>
+        <location filename="../src/AppContext.cpp" line="5324"/>
+        <location filename="../src/AppContext.cpp" line="5335"/>
         <source>Cannot write %1</source>
         <translation>Не удалось записать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5295"/>
+        <location filename="../src/AppContext.cpp" line="5338"/>
         <source>Settings exported to %1</source>
         <translation>Настройки экспортированы в %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5304"/>
+        <location filename="../src/AppContext.cpp" line="5347"/>
         <source>Cannot read %1</source>
         <translation>Не удалось прочитать %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5307"/>
+        <location filename="../src/AppContext.cpp" line="5350"/>
         <source>Not a Unisic settings file</source>
         <translation>Это не файл настроек Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5352"/>
+        <location filename="../src/AppContext.cpp" line="5395"/>
         <source>Settings imported. The external action is off: check its command, then switch it on</source>
         <translation>Настройки импортированы. Внешнее действие выключено: проверьте его команду и включите</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5362"/>
-        <location filename="../src/AppContext.cpp" line="5882"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3982"/>
+        <location filename="../src/AppContext.cpp" line="5405"/>
+        <location filename="../src/AppContext.cpp" line="5926"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3994"/>
         <source>Capture full screen</source>
         <translation>Снимок всего экрана</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5363"/>
-        <location filename="../src/AppContext.cpp" line="5881"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3981"/>
+        <location filename="../src/AppContext.cpp" line="5406"/>
+        <location filename="../src/AppContext.cpp" line="5925"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3993"/>
         <source>Capture region</source>
         <translation>Снимок области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5364"/>
-        <location filename="../src/AppContext.cpp" line="5885"/>
+        <location filename="../src/AppContext.cpp" line="5407"/>
+        <location filename="../src/AppContext.cpp" line="5929"/>
         <source>Capture scrolling region</source>
         <translation>Снимок прокручиваемой области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5365"/>
+        <location filename="../src/AppContext.cpp" line="5408"/>
         <source>Capture active window</source>
         <translation>Снимок активного окна</translation>
     </message>
@@ -1581,17 +1591,17 @@
         <translation type="vanished">Запись активного окна (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5413"/>
+        <location filename="../src/AppContext.cpp" line="5456"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Этот рабочий стол нельзя настроить автоматически - используйте команды ниже.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5418"/>
+        <location filename="../src/AppContext.cpp" line="5461"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Не удалось добавить сочетания клавиш: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="5422"/>
+        <location filename="../src/AppContext.cpp" line="5465"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>Добавлено %n сочетание для %1</numerusform>
@@ -1600,64 +1610,64 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5426"/>
+        <location filename="../src/AppContext.cpp" line="5469"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(пропущено, нет подходящей клавиши: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5433"/>
+        <location filename="../src/AppContext.cpp" line="5476"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 уже использует эти клавиши - измените их в разделе «Горячие клавиши»: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5444"/>
+        <location filename="../src/AppContext.cpp" line="5487"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Не удалось удалить сочетания клавиш: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5447"/>
+        <location filename="../src/AppContext.cpp" line="5490"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Сочетания клавиш Unisic удалены из %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5323"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5347"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: сочетания клавиш рабочего стола: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5651"/>
-        <location filename="../src/AppContext.cpp" line="5883"/>
+        <location filename="../src/AppContext.cpp" line="5694"/>
+        <location filename="../src/AppContext.cpp" line="5927"/>
         <source>Capture screen under cursor</source>
         <translation>Снимок экрана под курсором</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5653"/>
-        <location filename="../src/AppContext.cpp" line="5886"/>
+        <location filename="../src/AppContext.cpp" line="5696"/>
+        <location filename="../src/AppContext.cpp" line="5930"/>
         <source>Re-capture last region</source>
         <translation>Повторить снимок последней области</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5366"/>
+        <location filename="../src/AppContext.cpp" line="5409"/>
         <source>Record GIF (start/stop)</source>
         <translation>Запись GIF (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5367"/>
+        <location filename="../src/AppContext.cpp" line="5410"/>
         <source>Record video (start/stop)</source>
         <translation>Запись видео (старт/стоп)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5368"/>
+        <location filename="../src/AppContext.cpp" line="5411"/>
         <source>OCR region (copy text)</source>
         <translation>OCR области (копировать текст)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5644"/>
+        <location filename="../src/AppContext.cpp" line="5687"/>
         <source>Open quick task chooser</source>
         <translation>Открыть быстрый выбор задачи</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5370"/>
+        <location filename="../src/AppContext.cpp" line="5413"/>
         <source>Start/save instant replay</source>
         <translation>Запустить/сохранить мгновенный повтор</translation>
     </message>
@@ -1666,166 +1676,166 @@
         <translation type="vanished">Отсутствует в этой установке. Пакет «wl-clipboard» необходим для надёжного копирования в буфер обмена Wayland.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1925"/>
+        <location filename="../src/AppContext.cpp" line="1960"/>
         <source>Missing from this install. The Tesseract &quot;osd&quot; pack is required for OCR script detection.</source>
         <translation>Отсутствует в этой установке. Пакет Tesseract «osd» необходим для определения письменности с помощью OCR.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5620"/>
-        <location filename="../src/AppContext.cpp" line="5740"/>
+        <location filename="../src/AppContext.cpp" line="5663"/>
+        <location filename="../src/AppContext.cpp" line="5783"/>
         <source>Stop recording (emergency)</source>
         <translation>Остановить запись (аварийно)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5626"/>
+        <location filename="../src/AppContext.cpp" line="5669"/>
         <source>Ctrl+Esc emergency stop unavailable: the key is taken by the system (System Settings → Shortcuts to free it)</source>
         <translation>Аварийная остановка по Ctrl+Esc недоступна: клавиша занята системой (освободите её в «Параметры системы → Комбинации клавиш»)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5632"/>
+        <location filename="../src/AppContext.cpp" line="5675"/>
         <source>Developer smoke test</source>
         <translation>Проверочный тест разработчика</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5763"/>
+        <location filename="../src/AppContext.cpp" line="5807"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys.</source>
         <translation>Горячая клавиша занята другим приложением: %1. Выберите другую клавишу в «Настройки → Горячие клавиши».</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5793"/>
+        <location filename="../src/AppContext.cpp" line="5837"/>
         <source>Could not bind %1; the key is taken by another shortcut</source>
         <translation>Не удалось назначить %1; клавиша занята другим сочетанием</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5834"/>
+        <location filename="../src/AppContext.cpp" line="5878"/>
         <source>Some hotkeys could not be bound (keys taken); showing the actual state</source>
         <translation>Некоторые горячие клавиши назначить не удалось (клавиши заняты); показано фактическое состояние</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5884"/>
+        <location filename="../src/AppContext.cpp" line="5928"/>
         <source>Capture window</source>
         <translation>Снимок окна</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5887"/>
+        <location filename="../src/AppContext.cpp" line="5931"/>
         <source>Measure</source>
         <translation>Измерить</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5888"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3981"/>
+        <location filename="../src/AppContext.cpp" line="5932"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3993"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5889"/>
+        <location filename="../src/AppContext.cpp" line="5933"/>
         <source>Record video (region)</source>
         <translation>Запись видео (область)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5890"/>
+        <location filename="../src/AppContext.cpp" line="5934"/>
         <source>Record video (full screen)</source>
         <translation>Запись видео (весь экран)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5891"/>
+        <location filename="../src/AppContext.cpp" line="5935"/>
         <source>Record video (window)</source>
         <translation>Запись видео (окно)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5892"/>
+        <location filename="../src/AppContext.cpp" line="5936"/>
         <source>Record GIF (region)</source>
         <translation>Запись GIF (область)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5893"/>
+        <location filename="../src/AppContext.cpp" line="5937"/>
         <source>Record GIF (full screen)</source>
         <translation>Запись GIF (весь экран)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5894"/>
+        <location filename="../src/AppContext.cpp" line="5938"/>
         <source>Start instant replay</source>
         <translation>Запустить мгновенный повтор</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5895"/>
+        <location filename="../src/AppContext.cpp" line="5939"/>
         <source>Save instant replay</source>
         <translation>Сохранить мгновенный повтор</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5896"/>
+        <location filename="../src/AppContext.cpp" line="5940"/>
         <source>Stop recording</source>
         <translation>Остановить запись</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5965"/>
+        <location filename="../src/AppContext.cpp" line="6009"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Перезапустить для обновления до Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5971"/>
+        <location filename="../src/AppContext.cpp" line="6015"/>
         <source>Install update to Unisic %1</source>
         <translation>Установить обновление до Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5975"/>
+        <location filename="../src/AppContext.cpp" line="6019"/>
         <source>Update available - Unisic %1</source>
         <translation>Доступно обновление - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5898"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3983"/>
+        <location filename="../src/AppContext.cpp" line="5942"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3995"/>
         <source>Open Unisic</source>
         <translation>Открыть Unisic</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6202"/>
+        <location filename="../src/AppContext.cpp" line="6246"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Изображения (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6201"/>
+        <location filename="../src/AppContext.cpp" line="6245"/>
         <source>Add a tray icon</source>
         <translation>Добавить значок в трей</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6207"/>
-        <location filename="../src/AppContext.cpp" line="6246"/>
+        <location filename="../src/AppContext.cpp" line="6251"/>
+        <location filename="../src/AppContext.cpp" line="6290"/>
         <source>Could not load that image as an icon</source>
         <translation>Не удалось загрузить это изображение как значок</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6227"/>
+        <location filename="../src/AppContext.cpp" line="6271"/>
         <source>Could not copy the icon into %1</source>
         <translation>Не удалось скопировать значок в %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6233"/>
+        <location filename="../src/AppContext.cpp" line="6277"/>
         <source>Icon added to your tray icons</source>
         <translation>Значок добавлен к вашим значкам в трее</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6404"/>
+        <location filename="../src/AppContext.cpp" line="6448"/>
         <source>Unisic starts hidden in the tray so its capture shortcuts work right after you log in.</source>
         <translation>Unisic запускается скрытым в трее, чтобы его горячие клавиши работали сразу после входа в систему.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6412"/>
+        <location filename="../src/AppContext.cpp" line="6456"/>
         <source>The desktop refused the autostart request</source>
         <translation>Рабочий стол отклонил запрос на автозапуск</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6420"/>
+        <location filename="../src/AppContext.cpp" line="6464"/>
         <source>Autostart was not granted</source>
         <translation>Автозапуск не разрешён</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6436"/>
+        <location filename="../src/AppContext.cpp" line="6480"/>
         <source>Could not disable autostart: cannot remove %1</source>
         <translation>Не удалось отключить автозапуск: не получается удалить %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6441"/>
+        <location filename="../src/AppContext.cpp" line="6485"/>
         <source>Could not enable autostart: cannot write %1</source>
         <translation>Не удалось включить автозапуск: не получается записать %1</translation>
     </message>
@@ -7137,31 +7147,36 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="4007"/>
+        <source>Staged update (dry-run)</source>
+        <translation>Подготовленное обновление (вхолостую)</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4008"/>
         <source>Filename + save routing</source>
         <translation>Имя файла и маршрут сохранения</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4008"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4009"/>
         <source>Save-as dialog</source>
         <translation>Диалог «Сохранить как»</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4009"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4010"/>
         <source>Active window geometry</source>
         <translation>Геометрия активного окна</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4010"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4011"/>
         <source>Record countdown</source>
         <translation>Обратный отсчёт записи</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4011"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4012"/>
         <source>Full-screen countdown</source>
         <translation>Обратный отсчёт для всего экрана</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4012"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4013"/>
         <source>Toggle autostart</source>
         <translation>Переключить автозапуск</translation>
     </message>
@@ -9068,189 +9083,194 @@ Applies to the next capture.</source>
 <context>
     <name>UpdateChecker</name>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="268"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="265"/>
         <source>a check is already running</source>
         <translation>проверка уже идёт</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="272"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="269"/>
         <source>Checking for updates…</source>
         <translation>Проверка обновлений…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="302"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="329"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="393"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="299"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="326"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="384"/>
         <source>Checked at %1 - up to date</source>
         <translation>Проверено в %1 - обновление не нужно</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="310"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="307"/>
         <source>GitHub rate limit reached - try again later</source>
         <translation>Достигнут предел запросов GitHub - попробуйте позже</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="315"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="340"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="312"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="337"/>
         <source>Update check failed: %1</source>
         <translation>Проверка обновлений не удалась: %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="338"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="335"/>
         <source>malformed release feed</source>
         <translation>испорченная лента выпусков</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="392"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="383"/>
         <source>Checked at %1 - version %2 is available</source>
         <translation>Проверено в %1 - доступна версия %2</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="422"/>
+        <location filename="../src/update/StagedUpdate.cpp" line="86"/>
         <source>This release has no AppImage - it can&apos;t be installed in place</source>
         <translation>В этом выпуске нет AppImage - установить его на месте нельзя</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="423"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="413"/>
         <source>This install can&apos;t update itself</source>
         <translation>Эта установка не может обновить себя сама</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="434"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="562"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="424"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="550"/>
         <source>Update failed: cannot create %1</source>
         <translation>Обновление не удалось: не удаётся создать %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="441"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="871"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="893"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="431"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="857"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="879"/>
         <source>Update failed: cannot write %1</source>
         <translation>Обновление не удалось: не удаётся записать %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="448"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="438"/>
         <source>Downloading version %1…</source>
         <translation>Загрузка версии %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="480"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="927"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="470"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="913"/>
         <source>Update failed: %1</source>
         <translation>Обновление не удалось: %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="491"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="481"/>
         <source>cannot write the file</source>
         <translation>не удаётся записать файл</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="498"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="488"/>
         <source>download looks truncated</source>
         <translation>загрузка выглядит оборванной</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="513"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="503"/>
         <source>the download does not match the checksum published with the release - nothing was installed</source>
         <translation>загруженный файл не совпадает с контрольной суммой, опубликованной вместе с выпуском - ничего не устанавливалось</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="533"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="522"/>
         <source>cannot replace %1</source>
         <translation>не удаётся заменить %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="539"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="620"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="528"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="594"/>
         <source>Update installed - restart to run version %1</source>
         <translation>Обновление установлено - перезапустите, чтобы работать в версии %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="549"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="537"/>
         <source>cannot move the download into place</source>
         <translation>не удаётся переместить загруженный файл на место</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="566"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="554"/>
         <source>Installing version %1…</source>
         <translation>Установка версии %1…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="587"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="562"/>
         <source>Update failed: could not unpack the new version</source>
         <translation>Обновление не удалось: не получилось распаковать новую версию</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="602"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="612"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="577"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="586"/>
         <source>Update failed: could not write the update pointer</source>
         <translation>Обновление не удалось: не получилось записать указатель обновления</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="696"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="685"/>
         <source>Simulated: version %1 is available</source>
         <translation>Имитация: доступна версия %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="739"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="725"/>
         <source>cannot create the cache folder</source>
         <translation>не удаётся создать папку кеша</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="762"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="748"/>
         <source>the downloaded file is not the Unisic installer</source>
         <translation>загруженный файл не является установщиком Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="778"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="764"/>
         <source>the installer does not match the checksum published with the release - nothing was run</source>
         <translation>установщик не совпадает с контрольной суммой, опубликованной вместе с выпуском - ничего не запускалось</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="791"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="777"/>
         <source>cannot write %1</source>
         <translation>не удаётся записать %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="854"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="840"/>
         <source>No terminal program was found to run the installer.</source>
         <translation>Не найдено ни одной программы терминала, чтобы запустить установщик.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="856"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="842"/>
         <source>no terminal found</source>
         <translation>терминал не найден</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="873"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="895"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="859"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="881"/>
         <source>cannot write the helper script</source>
         <translation>не удаётся записать вспомогательный скрипт</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="902"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="888"/>
         <source>A terminal opened to install the update - restart Unisic when it finishes.</source>
         <translation>Открылся терминал для установки обновления - перезапустите Unisic, когда он закончит.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="906"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="892"/>
         <source>Could not open a terminal to run the installer.</source>
         <translation>Не удалось открыть терминал, чтобы запустить установщик.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="908"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="894"/>
         <source>the terminal failed to start</source>
         <translation>терминал не запустился</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="915"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="901"/>
         <source>this install can&apos;t be updated this way</source>
         <translation>эту установку нельзя обновить таким способом</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="921"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="907"/>
         <source>Fetching the installer…</source>
         <translation>Получение установщика…</translation>
+    </message>
+    <message>
+        <location filename="../src/update/StagedUpdate_win.cpp" line="207"/>
+        <source>This release has no Windows build - it can&apos;t be installed in place</source>
+        <translation>В этом выпуске нет сборки для Windows - установить его на месте нельзя</translation>
     </message>
 </context>
 <context>

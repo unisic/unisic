@@ -4004,6 +4004,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Installer update (dry-run)"); onClicked: App.devTestInstallerUpdate() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Staged update (dry-run)"); onClicked: App.devTestStagedUpdate() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Active window geometry"); onClicked: App.devTestActiveWindowGeometry() }

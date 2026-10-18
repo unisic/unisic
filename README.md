@@ -87,7 +87,7 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 
 <br />
 
-Screenshots (full screen, region, active window), the overlay, the editor, saving, the clipboard, OCR, the tray and global hotkeys work on Windows 11. Screen recording does not, and automatic updates are off. There is no release download yet: build it with MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)) or take the `windows-portable` artifact from a CI run.
+Screenshots (full screen, region, active window), the overlay, the editor, saving, the clipboard, OCR, the tray and global hotkeys work on Windows 11. Screen recording does not. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries `Unisic-<version>-windows-x86_64.zip`: unpack it anywhere and run `bin\unisic.exe`, no installer and no administrator rights. It updates itself: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the `unisic.exe` you unpacked starts that copy from then on, so keep the folder where it is. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
 
 Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
 

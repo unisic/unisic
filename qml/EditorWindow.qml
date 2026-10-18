@@ -20,7 +20,12 @@ Window {
                      Screen.height * 0.9)
     minimumWidth: 820
     minimumHeight: 480
-    visible: true
+    // AppContext::openEditor centres and shows the window once it exists. Shown from here,
+    // it would map before Component.onCompleted hands the canvas its image, at
+    // the 820x480 minimum: the platform centres THAT size, then the window
+    // grows to fit the image with its top-left corner pinned, which leaves it
+    // hanging off towards the bottom-right corner.
+    visible: false
     title: editorSession.overwriteMode ? qsTr("Unisic Editor (editing saved image)")
                                        : qsTr("Unisic Editor")
     color: Theme.background

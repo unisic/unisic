@@ -4280,6 +4280,20 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath, qui
                 emit editorWindowsOpenChanged();
             }
         });
+        // Centred on the screen the user is working on. Windows and X11 would
+        // otherwise drop it at the system's default spot, the top-left corner.
+        // A Wayland compositor ignores the position and places the window
+        // itself, which centres it only because it maps at its final size
+        // (see visible: false in EditorWindow.qml). setScreen first: the
+        // window's size binding reads Screen.width, so the size is final only
+        // once the screen is.
+        if (QScreen *s = QGuiApplication::screenAt(QCursor::pos()))
+            win->setScreen(s);
+        if (QScreen *s = win->screen()) {
+            const QRect area = s->availableGeometry();
+            win->setPosition(area.x() + (area.width() - win->width()) / 2,
+                             area.y() + (area.height() - win->height()) / 2);
+        }
         win->show();
         win->requestActivate();
     } else {

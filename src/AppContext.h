@@ -1116,7 +1116,7 @@ private:
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     NotificationInhibitor *m_dnd = nullptr;
     ExternalActionRunner *m_actionRunner = nullptr;
-    LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
+    LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     // Set only between hideOwnWindowForCapture() and restoreOwnWindowAfterCapture():

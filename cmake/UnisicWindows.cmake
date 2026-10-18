@@ -5,8 +5,8 @@
 #  1. A Linux-only .cpp stays in the source list but is not compiled; its
 #     *_win.cpp sibling implements the same header instead.
 #  2. src/platform/win/include holds stand-in headers for libraries MSYS2 does
-#     not ship (LayerShellQt, KSystemClipboard, wayland-client, the evdev key
-#     codes). Each one is the no-op the Linux code already falls back to.
+#     not ship (LayerShellQt, KSystemClipboard, the evdev key codes). Each one
+#     is the no-op the Linux code already falls back to.
 #  3. The kit force-includes a POSIX compat header (fsync, O_CLOEXEC, fcntl...)
 #     into every C/C++ file, this target included.
 #
@@ -20,6 +20,7 @@ set(_unisic_linux_only
     src/record/InputPermission.cpp
     src/diag/CrashHandler.cpp
     src/diag/RuntimeTools.cpp
+    src/notify/CardSurface.cpp
     src/notify/NativeSound.cpp
     src/update/StagedUpdate.cpp)
 set_source_files_properties(${_unisic_linux_only} PROPERTIES HEADER_FILE_ONLY ON SKIP_AUTOMOC ON)
@@ -31,6 +32,7 @@ target_sources(unisic PRIVATE
     src/record/InputPermission_win.cpp
     src/diag/CrashHandler_win.cpp
     src/diag/RuntimeTools_win.cpp
+    src/notify/CardSurface_win.cpp
     src/notify/NativeSound_win.cpp
     src/update/StagedUpdate_win.cpp
     # The exe's icon (Explorer, taskbar, Start menu, the uninstall entry).

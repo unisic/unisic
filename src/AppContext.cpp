@@ -357,7 +357,9 @@ void AppContext::initialize(QQmlEngine *engine)
     m_layerShellAvailable = !cosmicLayerShellBroken
                             && QGuiApplication::platformName().startsWith(QLatin1String("wayland"))
                             && LayerShellNotifier::compositorSupportsLayerShell();
-    if (m_layerShellAvailable)
+    // On Windows the card host needs no layer-shell, and m_layerShellAvailable
+    // stays false there so the overlay and record border keep their own paths.
+    if (m_layerShellAvailable || LayerShellNotifier::placesCardItself())
         m_layerNotifier = new LayerShellNotifier(this, this);
 
     // Drop-in tray-icon folder: create it so it's discoverable and watch it so
@@ -2571,7 +2573,7 @@ bool AppContext::capNotificationHelper() const
 
 bool AppContext::capCustomNotification() const
 {
-    return m_layerShellAvailable || capNotificationHelper();
+    return m_layerNotifier != nullptr || capNotificationHelper();
 }
 
 // Why the styled card is unavailable, for the diagnostics report and the smoke

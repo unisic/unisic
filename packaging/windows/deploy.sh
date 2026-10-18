@@ -74,6 +74,9 @@ for lang in eng pol osd; do
     cp "$data" "$out_dir/share/tessdata/"
 done
 
+# The bundle redistributes Unisic and Qt, so it carries the GPL text with it.
+cp "$repo_dir/LICENSE" "$out_dir/"
+
 # Runtime-loaded pieces the linker cannot vouch for.
 for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls share/tessdata/eng.traineddata; do
     [ -e "$out_dir/$f" ] || { echo "error: $f went missing from the bundle" >&2; exit 1; }

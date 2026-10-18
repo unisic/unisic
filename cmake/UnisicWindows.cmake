@@ -30,7 +30,9 @@ target_sources(unisic PRIVATE
     src/record/InputPermission_win.cpp
     src/diag/CrashHandler_win.cpp
     src/notify/NativeSound_win.cpp
-    src/update/StagedUpdate_win.cpp)
+    src/update/StagedUpdate_win.cpp
+    # The exe's icon (Explorer, taskbar, Start menu, the uninstall entry).
+    src/platform/win/unisic.rc)
 
 target_include_directories(unisic BEFORE PRIVATE src/platform/win/include)
 # The test executables are created after this file runs and compile some of the

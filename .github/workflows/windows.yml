@@ -4,7 +4,7 @@ name: Windows build
 # toolchain AGENTS.md documents for local Windows work. Called by build.yml, so
 # a PR that breaks the Windows port goes red even when it was written and
 # tested on Linux only, and by release.yml, which attaches the portable zip to
-# the release.
+# the release. The per-user installer stays a CI artifact.
 #
 # The zip is also what the Windows self-update installs from: UpdateChecker
 # picks Unisic-<ver>-windows-x86_64.zip from the release, checks its sha256
@@ -106,6 +106,58 @@ jobs:
           if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
           "screenshot: $((Get-Item $out).Length) bytes"
 
+      # The per-user setup wizard around the same folder. pwsh, not msys2: MSYS2
+      # would rewrite iscc's /D switches as paths. The runner image ships Inno
+      # Setup 6.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $m = Select-String -Path CMakeLists.txt -Pattern '^set\(UNISIC_VERSION_STRING "([^"]+)"\)'
+          if (-not $m) { throw 'UNISIC_VERSION_STRING not found in CMakeLists.txt' }
+          $version = $m.Matches[0].Groups[1].Value
+          $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe' }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 not found (looked on PATH and at $iscc)" }
+          & $iscc /Q "/DAppVersion=$version" "/DBundleDir=$PWD\dist-win" "/DOutputDir=$PWD\installer" packaging\windows\unisic.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc exited with $LASTEXITCODE" }
+          Get-ChildItem installer | Format-Table Name, Length
+
+      # Install silently for this user, capture from the installed copy, then
+      # uninstall and check that nothing is left: not the folder, not the
+      # Start menu shortcut, not the uninstall entry.
+      - name: Install, capture, uninstall
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $setup = (Get-ChildItem installer\*-setup.exe).FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'unisic-installed'
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{E5B31D14-31A5-4639-800D-2E19950EFEC3}_is1'
+          $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Unisic.lnk'
+          $p = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+          foreach ($f in "$dir\bin\unisic.exe", "$dir\unins000.exe", $lnk, $key) {
+            if (-not (Test-Path $f)) { throw "$f missing after install" }
+          }
+
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $out = Join-Path $env:RUNNER_TEMP 'installed-smoke.png'
+          $p = Start-Process -FilePath "$dir\bin\unisic.exe" -ArgumentList '--fullscreen', "--output=$out" -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
+          if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
+          if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
+          "screenshot: $((Get-Item $out).Length) bytes"
+
+          # unins000.exe copies itself to %TEMP% and returns at once, so wait
+          # for the folder to go instead of for the process.
+          $p = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "uninstaller exited with $($p.ExitCode)" }
+          $deadline = (Get-Date).AddSeconds(60)
+          while ((Test-Path $dir) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          foreach ($f in $dir, $lnk, $key) {
+            if (Test-Path $f) { throw "$f left behind after uninstall" }
+          }
+          'uninstall left nothing behind'
+
       - uses: actions/upload-artifact@v4
         with:
           # Deliberately not unisic-*: the release job sweeps up every artifact
@@ -113,6 +165,12 @@ jobs:
           # reaches the release through windows-release below instead.
           name: windows-portable
           path: dist-win
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: installer/*-setup.exe
           if-no-files-found: error
 
       # Only for a numbered (release) build: release.yml's windows-asset job

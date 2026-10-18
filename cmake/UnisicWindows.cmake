@@ -18,6 +18,7 @@ set(_unisic_linux_only
     src/record/ClickCapture.cpp
     src/record/KeyCapture.cpp
     src/record/InputPermission.cpp
+    src/record/RecordBorderController.cpp
     src/diag/CrashHandler.cpp
     src/diag/RuntimeTools.cpp
     src/notify/CardSurface.cpp
@@ -30,6 +31,7 @@ target_sources(unisic PRIVATE
     src/record/ClickCapture_win.cpp
     src/record/KeyCapture_win.cpp
     src/record/InputPermission_win.cpp
+    src/record/RecordBorderController_win.cpp
     src/diag/CrashHandler_win.cpp
     src/diag/RuntimeTools_win.cpp
     src/notify/CardSurface_win.cpp

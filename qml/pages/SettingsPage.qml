@@ -3792,9 +3792,9 @@ Item {
                                color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
-                        label: qsTr("X11 screen capture")
-                        help: qsTr("Whether recording can grab frames directly from the X server.")
-                        helpDetail: qsTr("Needs an X11 session (xcb platform). On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
+                        label: qsTr("Direct screen capture")
+                        help: qsTr("Whether recording can grab frames straight from the screen, without the ScreenCast portal.")
+                        helpDetail: qsTr("On an X11 session (xcb platform) the frames come from XShm, on Windows from DXGI Desktop Duplication, so recording works without any ScreenCast portal backend - which is also how Cinnamon, MATE and XFCE on Xorg record. Recording a single window still needs the portal's window picker and stays unavailable there.")
                         Text { text: App.capX11Capture ? "✓" : "-"
                                color: App.capX11Capture ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }

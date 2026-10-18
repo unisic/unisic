@@ -197,10 +197,11 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 
     // BOTH grabbers are compiled in; which one runs is a per-SESSION choice, not
     // a build one. X11 session: the ScreenCast portal has no working path there,
-    // so grab the monitor directly with XShm. Window source is not offered on
-    // X11 (v1), so it still falls through to the portal (which will just fail
-    // on X11).
-    if (m_source != Window && QGuiApplication::platformName() == QLatin1String("xcb")) {
+    // so grab the monitor directly with XShm; Windows has no portal at all and
+    // grabs the same way (DXGI, X11ShmGrabber_win.cpp). Window source is not
+    // offered on either, so it still falls through to the portal (which will
+    // just fail there).
+    if (m_source != Window && X11ShmGrabber::isAvailable()) {
         openX11Session();
         return;
     }
@@ -649,13 +650,8 @@ void GifRecorder::openX11Session()
     m_cursorOverlayActive = m_settings->includeCursor();
     // Grab the WHOLE monitor and let beginEncoding apply m_crop, exactly as the
     // Wayland monitor stream - so the region crop, cursor offset and rescale
-    // logic downstream are unchanged. QScreen geometry is logical; X server
-    // pixels are physical, so scale by the device pixel ratio (they coincide on
-    // the common dpr==1 X11 setup).
-    const qreal dpr = scr->devicePixelRatio();
-    const QRect g = scr->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    // logic downstream are unchanged.
+    const QRect rootRect = X11ShmGrabber::screenRect(scr);
     auto *x = new X11ShmGrabber(this);
     m_grabber = x;
     wireGrabber(x);

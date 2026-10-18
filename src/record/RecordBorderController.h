@@ -1,8 +1,10 @@
 #pragma once
 #include <QObject>
 #include <QPointer>
+#include <QRect>
 
 class QQuickWindow;
+class QTimer;
 
 // Masks the record-border window's pointer input to just the badge rect, so the
 // stop/pause controls painted on the badge are clickable while the rest of the
@@ -27,4 +29,8 @@ public:
 
 private:
     QPointer<QQuickWindow> m_win;
+    // Windows only (RecordBorderController_win.cpp): a window mask there clips
+    // painting too, so the badge rect is hit-tested against a cursor poll.
+    QRect m_inputRect;
+    QTimer *m_inputPoll = nullptr;
 };

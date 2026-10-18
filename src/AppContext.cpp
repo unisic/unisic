@@ -419,7 +419,7 @@ void AppContext::initialize(QQmlEngine *engine)
         if (m_screenCastPortalPresent != present) {
             m_screenCastPortalPresent = present;
             emit recordingAvailableChanged();
-            if (!present)
+            if (!present && !capX11Capture())
                 qWarning() << "No ScreenCast portal backend on this desktop - recording disabled"
                               " (install a backend such as xdg-desktop-portal-wlr/-kde/-gnome)";
         }
@@ -512,14 +512,15 @@ bool AppContext::recordingAvailable() const
     // D-Bus error.
     // On an X11 session the portal is not the only way in: XShm grabs the
     // monitor directly, which is exactly how those portal-less desktops record.
+    // Windows has no portal at all and grabs the same way (DXGI).
     return m_screenCastPortalPresent || capX11Capture();
 }
 
 bool AppContext::capX11Capture() const
 {
     // Both grabbers are always compiled in; which one runs is decided per
-    // session. XShm only applies on an actual X11 session.
-    return QGuiApplication::platformName() == QLatin1String("xcb");
+    // session. The direct grab applies on an actual X11 session, and on Windows.
+    return X11ShmGrabber::isAvailable();
 }
 
 bool AppContext::capRecordWindowSource() const
@@ -1812,7 +1813,7 @@ QString AppContext::systemDiagnostics() const
     L << QStringLiteral("Recording (ScreenCast): %1").arg(yn(recordingAvailable()));
     L << QStringLiteral("ScreenCast portal backend: %1").arg(yn(capScreenCastPortal()));
     L << QStringLiteral("KWin-native screencast: %1").arg(yn(capKWinRecord()));
-    L << QStringLiteral("X11 (XShm) capture: %1").arg(yn(capX11Capture()));
+    L << QStringLiteral("Direct capture (XShm/DXGI): %1").arg(yn(capX11Capture()));
     L << QStringLiteral("Native notifications: %1").arg(yn(capNativeNotification()));
     L << QStringLiteral("Custom notification card: %1%2").arg(
              yn(capCustomNotification()),

@@ -1301,8 +1301,12 @@ void AppContext::audioTracksCheck(std::function<void(const QString &)> done)
                           QStringLiteral("stream_tags=%1").arg(tag),
                           QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), file});
         p.waitForFinished(4000);
-        return QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'),
-                                                                 Qt::SkipEmptyParts);
+        // ffprobe on Windows ends its lines in CRLF.
+        QStringList tags;
+        for (const QString &line : QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n')))
+            if (!line.trimmed().isEmpty())
+                tags << line.trimmed();
+        return tags;
     };
 
     QProcess::execute(ffmpeg, GifRecorder::pauseExciseArgs(source, excised, {{500, 1000}}, true));
@@ -2545,6 +2549,33 @@ void AppContext::devTestNotificationOrder()
     QTimer::singleShot(6000, this, [this] { hideCapturePopupPreview(); });
 }
 
+// A window shown this turn is not laid out on every platform yet: on Windows
+// its content item stays 0x0 until the native window is exposed, so an event
+// sent before then reaches no item at all. Runs `then` once win is exposed and
+// sized, or after 3 s, so a window that never shows still gets its check.
+static void whenLaidOut(QQuickWindow *win, QObject *ctx, std::function<void()> then)
+{
+    const auto ready = [](QQuickWindow *w) {
+        return !w || (w->isExposed() && w->contentItem()->width() > 0);
+    };
+    if (ready(win)) {
+        then();
+        return;
+    }
+    auto *poll = new QTimer(ctx);
+    poll->setInterval(25);
+    QObject::connect(poll, &QTimer::timeout, ctx,
+                     [poll, ready, w = QPointer<QQuickWindow>(win), ticks = 0,
+                      then = std::move(then)]() mutable {
+                         if (!ready(w) && ++ticks < 120)
+                             return;
+                         poll->stop();
+                         poll->deleteLater();
+                         then();
+                     });
+    poll->start();
+}
+
 // Drives the editor's bottom-bar zoom control the way clicks do and reads the
 // view zoom back: the percentage toggles fit <-> 100%, + and - step from
 // there. Only the view property is read, so a pass also means nothing here
@@ -2602,14 +2633,21 @@ void AppContext::devTestEditorZoom()
 {
     if (!devBuild())
         return;
-    QString r;
+    QPointer<QQuickWindow> win;
     {
-        // Closes the editor it opened once the check is read.
         CheckWindowCollector collect(this);
         openEditor(devTestImage());
-        r = editorZoomCheck(m_checkWindows.isEmpty() ? nullptr : m_checkWindows.last().data());
+        // Taken back from the collector, which would close the editor before
+        // the check below gets to run on it.
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
     }
-    showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    whenLaidOut(win, this, [this, win] {
+        const QString r = editorZoomCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
 }
 
 // Scrolls the Flickable holding item so item is on screen, as a user would
@@ -4093,20 +4131,18 @@ static QString fileManager1Check()
     return QStringLiteral("SKIP (no FileManager1 host - falls back to opening the folder)");
 }
 
-// Dev/smoke: exercise the X11 XShm grabber directly - construct it on the
-// primary monitor, grab one frame and verify the tight-packed size. No ffmpeg,
-// so it isolates the new frame source. English status (like the other *Check()).
+// Dev/smoke: exercise the direct grabber (XShm on X11, DXGI/GDI on Windows) -
+// construct it on the primary monitor, grab one frame and verify the
+// tight-packed size. No ffmpeg, so it isolates the frame source. English
+// status (like the other *Check()).
 static QString x11RecordCheck()
 {
-    if (QGuiApplication::platformName() != QLatin1String("xcb"))
-        return QStringLiteral("SKIP (not an X11 session)");
+    if (!X11ShmGrabber::isAvailable())
+        return QStringLiteral("SKIP (not an X11 or Windows session)");
     QScreen *scr = QGuiApplication::primaryScreen();
     if (!scr)
         return QStringLiteral("FAIL (no screen)");
-    const qreal dpr = scr->devicePixelRatio();
-    const QRect g = scr->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    const QRect rootRect = X11ShmGrabber::screenRect(scr);
     X11ShmGrabber grab;
     if (!grab.start(rootRect, 10, false))
         return QStringLiteral("FAIL (grabber start)");
@@ -4199,7 +4235,7 @@ void AppContext::runSmokeTest()
                  + (recordingAvailable()
                         ? QStringLiteral("PASS (%1)").arg(m_screenCastPortalPresent
                               ? QStringLiteral("ScreenCast portal")
-                              : QStringLiteral("X11 XShm - no portal needed"))
+                              : QStringLiteral("direct grab (XShm/DXGI) - no portal needed"))
                     : QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")));
         smokeLog(QStringLiteral("window record source: ")
                  + (capRecordWindowSource() ? QStringLiteral("PASS")
@@ -4658,10 +4694,12 @@ void AppContext::runSmokeTest()
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
-        smokeLog(QStringLiteral("editor zoom control: ")
-                 + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
-                                       ? m_smokeWindows.last().data() : nullptr));
-        smokeNext();
+        const QPointer<QQuickWindow> win = m_editorWindows > before && !m_smokeWindows.isEmpty()
+                                               ? m_smokeWindows.last().data() : nullptr;
+        whenLaidOut(win, this, [this, win] {
+            smokeLog(QStringLiteral("editor zoom control: ") + editorZoomCheck(win));
+            smokeNext();
+        });
     });
 
     // 3b) edit an existing capture from history (overwrite editor path)

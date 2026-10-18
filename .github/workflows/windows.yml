@@ -13,12 +13,10 @@ name: Windows build
 # is still a GUI app with no console window and no F8 smoke hotkey.
 on:
   workflow_call:
-    inputs:
-      ref:
-        type: string
-        required: false
-        default: ""
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -37,7 +35,6 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
           submodules: recursive
 
       - uses: msys2/setup-msys2@v2

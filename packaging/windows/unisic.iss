@@ -6,10 +6,12 @@
 ;        /DOutputDir=<abs dir> packaging\windows\unisic.iss
 ;
 ; It installs for the current user only, into %LOCALAPPDATA%\Programs\Unisic,
-; and never asks for admin rights: the folder stays writable by the user who
-; runs Unisic, which is what an in-app updater needs, and nothing outside the
-; user's profile is touched. The layout is the bundle's (bin\ + share\), so the
-; installed copy and the windows-portable artifact are the same files.
+; and never asks for admin rights, so nothing outside the user's profile is
+; touched. The layout is the bundle's (bin\ + share\), so the installed copy and
+; the windows-portable artifact are the same files, and the installed copy
+; updates itself the way the zip does: a newer release is staged under
+; %APPDATA%\Unisic\unisic\updates and the installed unisic.exe starts it, while
+; {app} itself is only ever written by this installer.
 ;
 ; Every wizard string comes from Inno Setup's own translations, one per
 ; language Unisic ships, so the installer adds nothing to i18n/.
@@ -80,6 +82,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; the new version no longer ships must not be left behind for Qt to load.
 Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\share"
+
+[UninstallDelete]
+; The staged self-updates live outside {app}, a few hundred MB per version, and
+; are useless once the launcher is gone. Settings and capture history next to
+; them stay: they are the user's data, not this installer's.
+Type: filesandordirs; Name: "{userappdata}\Unisic\unisic\updates"
 
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stage a portable Windows build: unisic.exe with every DLL, Qt plugin and QML
-# module it loads, plus the OCR language data. Run from an MSYS2 UCRT64 shell
-# after `cmake --build <build-dir>`:
+# module it loads, ffmpeg and ffprobe, plus the OCR language data. Run from an
+# MSYS2 UCRT64 shell after `cmake --build <build-dir>`:
 #
 #   packaging/windows/deploy.sh <build-dir> <out-dir> [<zip-dir>]
 #
@@ -10,12 +10,13 @@
 #
 # Layout of <out-dir>, the same shape as the AppImage's usr/ so OcrEngine finds
 # the language data at <exe dir>/../share/tessdata without a Windows branch:
-#   bin/    unisic.exe, DLLs, Qt plugins, qml/, qt.conf
+#   bin/    unisic.exe, ffmpeg.exe, ffprobe.exe, DLLs, Qt plugins, qml/, qt.conf
 #   share/tessdata/{eng,pol,osd}.traineddata
 #
 # windeployqt only knows Qt. Everything else (zxing, tesseract, leptonica and
-# their image codecs, the gcc runtime) is collected by walking ldd until no
-# new /ucrt64 DLL turns up, because plugins pull in libraries the exe does not.
+# their image codecs, ffmpeg's codec libraries, the gcc runtime) is collected
+# by walking ldd until no new /ucrt64 DLL turns up, because plugins pull in
+# libraries the exe does not.
 set -euo pipefail
 
 build_dir="${1:?usage: deploy.sh <build-dir> <out-dir> [<zip-dir>]}"
@@ -49,6 +50,12 @@ QmlImports = qml
 Translations = translations
 EOF
 
+# Windows has no ffmpeg of its own, and GIF export runs it as a program, as it
+# does on Linux. main.cpp puts bin/ on PATH when ffmpeg is found there. Copied
+# before the ldd walk so its codec DLLs come along. The MSYS2 build is
+# configured with --enable-gpl, which GPLv3 Unisic may ship.
+cp "$prefix/bin/ffmpeg.exe" "$prefix/bin/ffprobe.exe" "$out_dir/bin/"
+
 declare -A seen=()
 while :; do
     added=0
@@ -78,7 +85,8 @@ done
 cp "$repo_dir/LICENSE" "$out_dir/"
 
 # Runtime-loaded pieces the linker cannot vouch for.
-for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls share/tessdata/eng.traineddata; do
+for f in bin/platforms/qwindows.dll bin/qml/QtQuick/Controls bin/tls bin/ffmpeg.exe bin/ffprobe.exe \
+         share/tessdata/eng.traineddata; do
     [ -e "$out_dir/$f" ] || { echo "error: $f went missing from the bundle" >&2; exit 1; }
 done
 

@@ -54,13 +54,15 @@ jobs:
           # here backs a gate the configure refuses to run without, and the
           # assert-gates step below checks the result. qt6-translations is what
           # windeployqt copies the Qt catalogs from; tesseract-ocr already
-          # carries osd.traineddata, the data packages add eng and pol.
+          # carries osd.traineddata, the data packages add eng and pol. ffmpeg
+          # backs no gate: deploy.sh bundles it for GIF export, and with it on
+          # PATH the StillGif test runs instead of skipping.
           pacboy: >-
             cmake:p ninja:p gcc:p pkgconf:p
             qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
             qt6-tools:p qt6-translations:p
             tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
-            leptonica:p zxing-cpp:p
+            leptonica:p zxing-cpp:p ffmpeg:p
 
       - name: Configure
         run: cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
@@ -87,9 +89,12 @@ jobs:
 
       # The bundle must start on a machine with no MSYS2: unpack the zip with
       # System32\tar.exe, exactly as an update does, run it with only the
-      # Windows system dirs on PATH and capture one screenshot to a file. The
-      # runner has a desktop session, so GDI capture works headless.
-      - name: Capture one screenshot from the unpacked zip
+      # Windows system dirs on PATH and capture one screenshot to a PNG, then
+      # one to a GIF. The GIF goes through the bundled ffmpeg; were it missing
+      # or short of a DLL, Unisic would write a PNG instead, so the check reads
+      # the GIF signature and not just the file. The runner has a desktop
+      # session, so GDI capture works headless.
+      - name: Capture screenshots from the unpacked zip
         shell: pwsh
         timeout-minutes: 3
         run: |
@@ -99,12 +104,16 @@ jobs:
           New-Item -ItemType Directory -Force $dir | Out-Null
           tar.exe -x -f $zip.FullName -C $dir
           if ($LASTEXITCODE -ne 0) { throw "tar.exe could not unpack $($zip.Name)" }
-          $out = Join-Path $env:RUNNER_TEMP 'bundle-smoke.png'
-          $p = Start-Process -FilePath (Join-Path $dir 'bin\unisic.exe') -ArgumentList '--fullscreen', "--output=$out" -PassThru
-          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
-          if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
-          if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
-          "screenshot: $((Get-Item $out).Length) bytes"
+          foreach ($ext in 'png', 'gif') {
+            $out = Join-Path $env:RUNNER_TEMP "bundle-smoke.$ext"
+            $p = Start-Process -FilePath (Join-Path $dir 'bin\unisic.exe') -ArgumentList '--fullscreen', "--output=$out" -PassThru
+            if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
+            if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
+            if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
+            "$ext screenshot: $((Get-Item $out).Length) bytes"
+          }
+          $magic = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes((Join-Path $env:RUNNER_TEMP 'bundle-smoke.gif'))[0..5])
+          if ($magic -notmatch '^GIF8[79]a$') { throw "bundle-smoke.gif is not a GIF (starts with '$magic')" }
 
       # The per-user setup wizard around the same folder. pwsh, not msys2: MSYS2
       # would rewrite iscc's /D switches as paths. The runner image ships Inno

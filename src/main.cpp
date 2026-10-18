@@ -809,17 +809,19 @@ int main(int argc, char *argv[])
 #endif
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 
-    // The AppImage and the portable tarball ship ffmpeg, wl-copy, grim and the
-    // other helpers beside the binary, but their AppRun is a bare symlink that
-    // sets no PATH, so every lookup went to the host: a helper the host lacked
-    // counted as missing (#121) and a present one replaced the bundled copy CI
-    // checked. The bundle goes first; an install already on PATH is untouched.
+    // The AppImage, the portable tarball and the Windows bundle ship ffmpeg (and
+    // on Linux wl-copy, grim and the other helpers) beside the binary, but
+    // nothing puts that folder on PATH: AppRun is a bare symlink and Windows
+    // never searches it. Every lookup went to the host, so a helper the host
+    // lacked counted as missing (#121) and a present one replaced the bundled
+    // copy CI checked. The bundle goes first; an install already on PATH is
+    // untouched.
     {
-        const QString binDir = QCoreApplication::applicationDirPath();
+        const QString binDir = QDir::toNativeSeparators(QCoreApplication::applicationDirPath());
         const QByteArray path = qgetenv("PATH");
-        if (QFileInfo::exists(binDir + QStringLiteral("/wl-copy"))
-            && !QString::fromLocal8Bit(path).split(QLatin1Char(':')).contains(binDir))
-            qputenv("PATH", QFile::encodeName(binDir) + ':' + path);
+        if (!QStandardPaths::findExecutable(QStringLiteral("ffmpeg"), {binDir}).isEmpty()
+            && !QString::fromLocal8Bit(path).split(QDir::listSeparator()).contains(binDir))
+            qputenv("PATH", QFile::encodeName(binDir) + QDir::listSeparator().toLatin1() + path);
     }
 
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))

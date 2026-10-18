@@ -850,4 +850,14 @@ if(BUILD_TESTING)
     add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
     set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+    if(WIN32)
+        # Windows has no session bus. A test that asks for one (the theme seed
+        # test reads the portal) makes libdbus autolaunch dbus-daemon.exe, which
+        # inherits the test's handles and outlives it, so ctest waits on the
+        # still-open output pipe until the 120 s timeout. With an address of a
+        # transport libdbus does not know, every bus call fails at once instead.
+        get_property(_unisic_tests DIRECTORY PROPERTY TESTS)
+        set_property(TEST ${_unisic_tests} APPEND PROPERTY ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=disabled:")
+    endif()
+
 endif()

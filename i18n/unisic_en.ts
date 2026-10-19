@@ -9325,11 +9325,6 @@ Applies to the next capture.</translation>
         <translation>the downloaded file is not the Unisic installer</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="764"/>
-        <source>the installer does not match the checksum published with the release - nothing was run</source>
-        <translation>the installer does not match the checksum published with the release - nothing was run</translation>
-    </message>
-    <message>
         <location filename="../src/update/UpdateChecker.cpp" line="777"/>
         <source>cannot write %1</source>
         <translation>cannot write %1</translation>

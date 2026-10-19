@@ -203,10 +203,4 @@ private:
     // replaces the running app. Empty for a release made before the API
     // carried digests - the size check is then the only guard.
     QString m_assetSha256;
-    // The release's own copy of install.sh and the sha256 GitHub computed for
-    // it. Both empty until a check has run, and for releases made before the
-    // script became an asset - fetchInstallerScript() then has nothing to
-    // verify against and says so.
-    QString m_installerAssetUrl;
-    QString m_installerSha256;
 };

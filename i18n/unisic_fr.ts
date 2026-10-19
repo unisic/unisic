@@ -9325,11 +9325,6 @@ S’applique à la prochaine capture.</translation>
         <translation>le fichier téléchargé n&apos;est pas l&apos;installateur d&apos;Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="764"/>
-        <source>the installer does not match the checksum published with the release - nothing was run</source>
-        <translation>l&apos;installateur ne correspond pas à la somme de contrôle publiée avec la version - rien n&apos;a été exécuté</translation>
-    </message>
-    <message>
         <location filename="../src/update/UpdateChecker.cpp" line="777"/>
         <source>cannot write %1</source>
         <translation>impossible d&apos;écrire %1</translation>

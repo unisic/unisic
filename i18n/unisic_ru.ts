@@ -9328,11 +9328,6 @@ Applies to the next capture.</source>
         <translation>загруженный файл не является установщиком Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="764"/>
-        <source>the installer does not match the checksum published with the release - nothing was run</source>
-        <translation>установщик не совпадает с контрольной суммой, опубликованной вместе с выпуском - ничего не запускалось</translation>
-    </message>
-    <message>
         <location filename="../src/update/UpdateChecker.cpp" line="777"/>
         <source>cannot write %1</source>
         <translation>не удаётся записать %1</translation>

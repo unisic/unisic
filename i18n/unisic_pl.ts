@@ -9328,11 +9328,6 @@ Dotyczy następnego przechwycenia.</translation>
         <translation>pobrany plik nie jest instalatorem Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="764"/>
-        <source>the installer does not match the checksum published with the release - nothing was run</source>
-        <translation>instalator nie zgadza się z sumą kontrolną opublikowaną razem z wydaniem - nic nie zostało uruchomione</translation>
-    </message>
-    <message>
         <location filename="../src/update/UpdateChecker.cpp" line="777"/>
         <source>cannot write %1</source>
         <translation>nie można zapisać %1</translation>

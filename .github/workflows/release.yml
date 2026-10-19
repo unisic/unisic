@@ -245,16 +245,14 @@ jobs:
           path: dist
 
       # The zip is what UpdateChecker installs from on Windows: it checks the
-      # zip against the sha256 digest GitHub publishes for the asset, not the
-      # .sha256 file. That file is for someone who downloads the zip by hand.
+      # zip against the sha256 digest GitHub publishes for the asset, which the
+      # release page also shows by each file, so neither carries a .sha256.
       # The installer is only ever downloaded by hand, for a first install.
       - name: Upload them to the release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          gh release upload "v${VERSION}" dist/*.zip dist/*.zip.sha256 \
-            dist/*-setup.exe dist/*-setup.exe.sha256 --clobber
+        run: gh release upload "v${VERSION}" dist/*.zip dist/*-setup.exe --clobber
 
   obs:
     name: Trigger OBS rebuild

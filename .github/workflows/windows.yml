@@ -196,18 +196,12 @@ jobs:
           path: installer/*-setup.exe
           if-no-files-found: error
 
-      # A numbered build ships the installer beside the zip, with a .sha256 of
-      # the same shape, once the step above has installed and uninstalled it.
-      # The app never downloads it: an installed copy updates from the zip.
+      # A numbered build ships the installer beside the zip, once the step above
+      # has installed and uninstalled it. The app never downloads it: an
+      # installed copy updates from the zip.
       - name: Add the installer to the release files
         if: ${{ inputs.build-number != '' }}
-        run: |
-          for f in installer/*-setup.exe; do
-            name="$(basename "$f")"
-            cp "$f" release-win/
-            printf '%s  %s\n' "$(sha256sum < "$f" | cut -d' ' -f1)" "$name" \
-                > "release-win/$name.sha256"
-          done
+        run: cp installer/*-setup.exe release-win/
 
       # Only for a numbered (release) build: release.yml's windows-asset job
       # attaches these files to the release once it exists.

@@ -15,6 +15,7 @@
 #include "diag/CrashHandler.h"
 #include "diag/DiagLog.h"
 #include "diag/SmokeSupport.h"
+#include "notify/NativeSound.h"
 
 #include <csignal>
 #include <QTemporaryFile>
@@ -55,8 +56,14 @@
 #include "ImageEncode.h"
 #include <QSaveFile>
 #include "ocr/OcrEngine.h"
+// zxing-cpp 3 removed MultiFormatWriter/BitMatrix in favour of CreateBarcode.
+#if __has_include(<ZXing/MultiFormatWriter.h>)
 #include <ZXing/BitMatrix.h>
 #include <ZXing/MultiFormatWriter.h>
+#else
+#include <ZXing/CreateBarcode.h>
+#include <ZXing/Barcode.h>
+#endif
 // Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
 // payloads all speak QMimeData; KSystemClipboard consumes the same objects.
 #include <QMimeData>
@@ -607,6 +614,7 @@ QImage qrPreviewImage(const QString &url)
     if (utf8.isEmpty() || utf8.size() > 2048)
         return {};
     try {
+#if __has_include(<ZXing/MultiFormatWriter.h>)
         ZXing::MultiFormatWriter writer(ZXing::BarcodeFormat::QRCode);
         writer.setMargin(2).setEccLevel(2);
         const ZXing::BitMatrix bits = writer.encode(utf8.toStdString(), 360, 360);
@@ -619,6 +627,33 @@ QImage qrPreviewImage(const QString &url)
                 row[x] = bits.get(x, y) ? qRgba(0, 0, 0, 255) : qRgba(255, 255, 255, 255);
         }
         return image;
+#else
+        // symbol() is the bare module matrix (no quiet zone), Lum, dark = 0.
+        // Scale it by a whole factor and centre it on the same 360 px canvas
+        // with the same 2 px minimum margin the old writer produced.
+        const ZXing::Barcode code = ZXing::CreateBarcodeFromText(
+            utf8.toStdString(), ZXing::CreatorOptions(ZXing::BarcodeFormat::QRCode, "ecLevel=M"));
+        const ZXing::ImageView sym = code.symbol();
+        constexpr int side = 360, margin = 2;
+        if (!code.isValid() || sym.width() <= 0 || sym.height() <= 0
+            || sym.width() > side - 2 * margin || sym.height() > side - 2 * margin)
+            return {};
+        const int scale = std::min((side - 2 * margin) / sym.width(), (side - 2 * margin) / sym.height());
+        const int left = (side - sym.width() * scale) / 2;
+        const int top = (side - sym.height() * scale) / 2;
+        QImage image(side, side, QImage::Format_ARGB32_Premultiplied);
+        image.fill(qRgba(255, 255, 255, 255));
+        for (int y = 0; y < side; ++y) {
+            const int my = (y - top) / scale;
+            if (y < top || my >= sym.height())
+                continue;
+            QRgb *row = reinterpret_cast<QRgb *>(image.scanLine(y));
+            for (int x = left; x < left + sym.width() * scale; ++x)
+                if (*sym.data((x - left) / scale, my) < 128)
+                    row[x] = qRgba(0, 0, 0, 255);
+        }
+        return image;
+#endif
     } catch (const std::exception &) {
         return {};
     }
@@ -1937,8 +1972,8 @@ bool AppContext::hasDependencyWarnings() const
     return false;
 }
 
-// Detect the player once (PipeWire → Pulse → ALSA); shelling out keeps
-// QtMultimedia off the dependency list.
+// Detect the player once (PipeWire → Pulse → ALSA → the OS's own, which
+// only Windows has); shelling out keeps QtMultimedia off the dependency list.
 static QString soundPlayer()
 {
     static const QString player = [] {
@@ -1948,7 +1983,7 @@ static QString soundPlayer()
             if (!found.isEmpty())
                 return found;
         }
-        return QString();
+        return NativeSound::playerName();
     }();
     return player;
 }
@@ -1963,10 +1998,12 @@ const QStringList &bundledSoundIds()
     return ids;
 }
 
-// aplay decodes WAV only; OGG needs pw-play/paplay.
+// aplay and the OS's own player decode WAV only; OGG needs pw-play/paplay.
 static bool soundPlayerTakesOgg()
 {
-    return QFileInfo(soundPlayer()).fileName() != QLatin1String("aplay");
+    const QString player = soundPlayer();
+    return QFileInfo(player).fileName() != QLatin1String("aplay")
+           && (player.isEmpty() || player != NativeSound::playerName());
 }
 
 QImage devTestImage()
@@ -4010,6 +4047,12 @@ void AppContext::playSoundId(const QString &id)
     if (vol == 0)
         return; // muted
 
+    if (player == NativeSound::playerName()) {
+        if (!NativeSound::playWav(file))
+            qWarning().noquote() << "[cue] FAILED native play id=" << id;
+        return;
+    }
+
     const QString base = QFileInfo(player).fileName();
     QStringList args{file};
     // Classify the cue as a short event/notification sound rather than the
@@ -5755,8 +5798,9 @@ void AppContext::bindX11Hotkeys()
     const auto acts = hotkeyActions();
     for (const HotkeyAction &a : acts)
         list.append({a.id, a.keys});
-    // Fixed emergency stop, same key the other backends reserve.
-    list.append({QStringLiteral("stop-recording"), QStringLiteral("Ctrl+Escape")});
+    // Fixed emergency stop, same key the other backends reserve (Windows,
+    // whose Start menu owns Ctrl+Esc, gets its own: HotkeyDefaults.h).
+    list.append({QStringLiteral("stop-recording"), QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP)});
     const QStringList conflicts = m_x11hotkeys->bind(list);
     if (!conflicts.isEmpty()) {
         qWarning().noquote() << "X11 hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));

@@ -82,6 +82,25 @@ cmake --build build
 
 **Flatpak / Flathub (`packaging/flatpak/`).** `app.unisic.Unisic.yml` is the manifest the Flathub submission repository holds verbatim; `build.sh` builds, installs, runs and lints it locally (`--local` swaps the git-tag source for the working tree - never submit that variant); `README.md` is the submission checklist. Runtime is `org.kde.Platform` (Qt 6, KF6, PipeWire); the manifest builds x264 + ffmpeg (the runtime's ffmpeg has no software H.264 encoder at all), leptonica + tesseract + `eng`/`pol`/`osd` data, zxing-cpp, grim, wl-clipboard, an SFTP-capable curl, layer-shell-qt and the libinput stack (libevdev + mtdev + libinput), and its `finish-args` carry `--device=input` plus `--filesystem=/run/udev:ro` so the pressed-key badge and the click ripple can actually read the devices. **The manifest is the proof of the no-optional-dependencies policy, not an exception to it**: whatever it does not build, the sandbox can never borrow from the host, so a dependency Flatpak cannot carry is a dependency Unisic does not take. Everything the manifest fetches must be pinned with a checksum: the build machines have **no network**. Six code paths branch on `FLATPAK_ID` (KWin fast path off, the two portal app-id registrations skipped, the screenshot permission granted to the flatpak id only, no update staging, `installKind() == "flatpak"` with the Updates pane turned into an explanation, and autostart through `org.freedesktop.portal.Background`) - each is a sandbox limitation, so removing one silently breaks the flatpak while every other channel keeps working. `.github/workflows/flatpak.yml` builds and lints it; `build.yml` calls it on every PR (`local: true`) and `release.yml` calls it (`local: true`, because the `v<version>` tag does not exist yet) to attach `unisic-<version>-x86_64.flatpak` to the release - the asset `install.sh` installs from until Flathub is live. That job is deliberately outside the release job's `needs` (slowest build in the pipeline; a broken Flatpak must not block the packages), so the bundle is uploaded afterwards by `flatpak-asset` and the release job's artifact sweep is pinned to `pattern: unisic-*`. A release bump means: tag, `<release>` entry in `resources/app.unisic.Unisic.metainfo.xml`, then `tag:` + `commit:` in the manifest.
 
+**Windows port (preview, MSYS2 UCRT64).** Screenshots (full screen, region, window), the overlay, the editor, saving, the clipboard, OCR, the tray and global hotkeys were checked by hand on Windows 11; recording does not work (the kit's grabbers are stubs that report "unavailable", so the shared code links and takes its existing failure path). There is no release asset: `.github/workflows/windows.yml` builds it, runs `ctest`, stages a portable folder and uploads it as the `windows-portable` CI artifact, and `build.yml` calls it on every PR. The point of that job is that **Linux stays the place the code is written**: a change made and tested on Linux that breaks Windows goes red there, and the fix is almost always one of the lines below, not a Windows session. Toolchain: MSYS2's UCRT64 gcc and Qt 6, packages exactly as the `pacboy:` list in `windows.yml`. In a UCRT64 shell:
+
+```sh
+cmake -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-win
+ctest --test-dir build-win --output-on-failure
+packaging/windows/deploy.sh build-win dist-win   # self-contained folder, runs without MSYS2
+```
+
+How Linux code keeps compiling there, so shared sources stay free of `#ifdef`:
+- **Every Linux desktop library probe in `CMakeLists.txt` sits inside `if(NOT WIN32)`** (PipeWire, libinput, LayerShellQt, wayland-client, KF6GuiAddons; the kit does the same for its own). A new Linux-only dependency goes inside such a block or the Windows job stops at configure. The no-optional-dependencies rule still holds per platform: Windows has its own five gates (`HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS` + `HAVE_WIN32_GDI_CAPTURE` from the app + `HAVE_WIN32_HOTKEYS` from the kit), checked by `assert-gates` with `platform: windows`.
+- **A Linux-only `.cpp` keeps its header and gets a `*_win.cpp` sibling** that implements the same class. `cmake/UnisicWindows.cmake` lists both (`_unisic_linux_only` + `target_sources`), `external/unisic-kit/cmake/UnisicKitWindows.cmake` does it for the kit. Today: `KWinScreenShot2_win.cpp` (the four silent capture calls served by GDI `BitBlt`, so `CaptureManager` needs no Windows branch), `X11Hotkeys_win.cpp` (`RegisterHotKey` behind the X11 class), `NativeSound_win.cpp` (winmm `PlaySoundW`), and stubs for ClickCapture/KeyCapture/InputPermission/CrashHandler and the kit's grabbers.
+- **Headers MSYS2 does not ship have stand-ins** in `src/platform/win/include/` (LayerShellQt, KSystemClipboard, wayland-client, `linux/input-event-codes.h`), each the no-op the Linux code already falls back to. Including a new Linux-only header from a shared file means a stand-in there.
+- **POSIX calls MinGW lacks** (`fsync`, `O_CLOEXEC`, `fcntl`...) are shimmed in `external/unisic-kit/src/platform/win/unisic_posix_compat.h`, force-included into every C/C++ file. A shared file starting to use a new POSIX call means one line there.
+- **Defaults that must differ** are macros in `src/hotkeys/HotkeyDefaults.h`: Windows reserves Win+Shift+digits, most Win+Shift+letters and Ctrl+Esc, so its capture keys sit on Print Screen. README lists both sets.
+- `main.cpp` carries the only real `#ifdef _WIN32` blocks (console control handler in place of the self-pipe, `USERNAME` in place of the UID in the single-instance name). Keep it that way: a new platform difference goes into a sibling file, not an `#ifdef` in shared code.
+
+**Self-update is OFF on Windows, deliberately.** `windows.yml` sets no `UNISIC_BUILD_NUMBER`, so `UNISIC_BUILD` is `dev` and `UpdateChecker` neither checks nor stages. Do not give the job a build number until the updater has a Windows path: as written, `canSelfUpdate()` is true for any path outside `/usr/`, the asset regex picks the AppImage, and `execStagedUpdate()` in `main.cpp` uses `execv`, `/proc/self/exe` and the XDG data dir, so it would download the Linux AppImage into a Windows install and fail at `--appimage-extract` every day. `-DUNISIC_DEV_BUILD=OFF` is passed explicitly instead, so the exe is a GUI app (`WIN32_EXECUTABLE`) with no console window and no F8 hotkey.
+
 ---
 
 ## 4. Repository map
@@ -156,11 +175,17 @@ external/unisic-kit/   GIT SUBMODULE, module `Unisic.Kit` - the shared design sy
                         UValueCombo, UShortcutRecorder/List, UFocusRing, UNameBridge,
                         SidebarItem, ToolChip, ColorDot, MiddleScroll, …
 
+src/platform/win/include/  Windows-only stand-in headers (LayerShellQt, KSystemClipboard,
+                       wayland-client, evdev key codes). With cmake/UnisicWindows.cmake and the
+                       src/**/*_win.cpp siblings, the whole Windows port (§3).
+
 resources/icons/sym/   Bundled monochrome SVGs recolored by IconImageProvider.
-packaging/             Arch PKGBUILD (+ Debian/RPM via CPack in CMakeLists).
+packaging/             Arch PKGBUILD (+ Debian/RPM via CPack in CMakeLists); windows/deploy.sh
+                       stages the portable Windows folder.
 .github/               release.yml + one reusable workflow per package format
                        (deb/rpm/arch/appimage/flatpak/nix), which build.yml also calls
-                       so every PR test-builds all of them. Issue templates.
+                       so every PR test-builds all of them, plus windows.yml (the port,
+                       PR-only, no release asset). Issue templates.
 scripts/               build-appimage.sh, gen-changelog.sh, vm-test.sh. The END-USER installer
                        (install.sh, served at unisic.app/install.sh) is NOT here: it lives in
                        the unisic-website repo as public/install.sh since 0.8.8 (see §3).
@@ -245,6 +270,16 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 ### QML singleton trap
 
 - **Do NOT `qmlRegisterSingletonInstance` `ThemeController` into the `Unisic` URI.** It clobbers the module's other `QML_ELEMENT` C++ types (e.g. `AnnotationCanvas` becomes "not a type"). `ThemeController` is a module QML singleton; `IconImageProvider` shares the one engine-created instance via `ThemeController::instance()`.
+
+### Windows port
+
+Each of these passes every Linux build and test and breaks only on Windows, so only the `windows` CI job can catch it.
+
+- **Close a `QFile` before a `QSaveFile` commits over the same path.** Windows refuses to rename over a file that still has an open handle, so `commit()` returns false. `ShortcutBinder`'s COSMIC and labwc installers read the config, then rewrote it with the reader still open: on Linux that is fine, on Windows all eight of their tests failed. Call `in.close()` once the read is done.
+- **The test binaries are GUI apps on Windows** (`qt_add_executable` sets the subsystem), so a failing test prints nothing and `ctest` only reports an exit code. Rerun the binary with `-o out.txt,txt` and read the file.
+- **`DiagLog`'s message handler is uninstalled by a static destructor declared last in `DiagLog.cpp`.** On Windows every DLL's static destructors run at process detach, Qt6DBus logs from there, and without the uninstaller that log reaches a handler whose ring buffer is already destroyed. Keep it the last object in that file.
+- **`WIN32_LEAN_AND_MEAN` is not optional.** Without it `<windows.h>` pulls in `ole2.h`, whose `interface` macro breaks `QDBusConnection::interface()` in `main.cpp`. `NOMINMAX` keeps its `min`/`max` macros off `std::` and Qt.
+- **Win+Shift+letter defaults do not work.** `RegisterHotKey` fails with error 1409 (already registered) for Win+Shift+F/S/W/R/T and the digits, all owned by the shell. A bare Print Screen registers fine but goes to the Snipping Tool until the user turns off "Use the Print screen key to open screen capture"; `X11Hotkeys_win.cpp` reads that switch from the registry and reports the key as a conflict while keeping it registered, which is why region also defaults to Ctrl+Print.
 
 ---
 

@@ -65,8 +65,6 @@
 #include "FilenameTemplate.h"
 #include "ImageEncode.h"
 #include "ocr/OcrEngine.h"
-#include <ZXing/BitMatrix.h>
-#include <ZXing/MultiFormatWriter.h>
 // Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
 // payloads all speak QMimeData; KSystemClipboard consumes the same objects.
 #include <QMimeData>

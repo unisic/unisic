@@ -1,0 +1,103 @@
+name: Windows build
+
+# Reusable Windows build: MSYS2 UCRT64 (MinGW-w64 gcc + MSYS2's Qt 6), the same
+# toolchain AGENTS.md documents for local Windows work. Called by build.yml, so
+# a PR that breaks the Windows port goes red even when it was written and
+# tested on Linux only. Not called by release.yml: the port is a preview, and
+# its zip is a CI artifact, not a release asset.
+#
+# Self-update stays OFF in this build on purpose. The job sets no
+# UNISIC_BUILD_NUMBER, so UNISIC_BUILD is "dev" and UpdateChecker never checks
+# or stages anything; with a run number it would download the Linux AppImage
+# into a Windows install. UNISIC_DEV_BUILD=OFF is passed explicitly so the exe
+# is still a GUI app with no console window and no F8 smoke hotkey.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: msys2 {0}
+
+jobs:
+  windows:
+    name: Windows (MSYS2 UCRT64)
+    runs-on: windows-2025
+    steps:
+      # Before checkout: git on the runner would otherwise check the sources out
+      # with CRLF, and the shell scripts under packaging/ stop parsing.
+      - name: Keep LF line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          # Unisic has no optional dependencies on Windows either: every package
+          # here backs a gate the configure refuses to run without, and the
+          # assert-gates step below checks the result. qt6-translations is what
+          # windeployqt copies the Qt catalogs from; tesseract-ocr already
+          # carries osd.traineddata, the data packages add eng and pol.
+          pacboy: >-
+            cmake:p ninja:p gcc:p pkgconf:p
+            qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
+            qt6-tools:p qt6-translations:p
+            tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
+            leptonica:p zxing-cpp:p
+
+      - name: Configure
+        run: cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
+
+      - name: Assert every build gate is on
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build-win
+          platform: windows
+
+      - name: Build
+        run: cmake --build build-win
+
+      # The QtTest suite the Nix job runs on Linux. On Windows it catches the
+      # POSIX assumptions a Linux run cannot see (renaming over a file that is
+      # still open, for one). qt_add_executable makes the test binaries GUI
+      # apps, so a failure prints nothing here: rerun the binary with
+      # `-o out.txt,txt` to read it.
+      - name: Test
+        run: ctest --test-dir build-win --output-on-failure --timeout 120
+
+      - name: Stage the portable bundle
+        run: packaging/windows/deploy.sh build-win dist-win
+
+      # The bundle must start on a machine with no MSYS2: run it with only the
+      # Windows system dirs on PATH and capture one screenshot to a file. The
+      # runner has a desktop session, so GDI capture works headless.
+      - name: Capture one screenshot from the bundle
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $out = Join-Path $env:RUNNER_TEMP 'bundle-smoke.png'
+          $p = Start-Process -FilePath dist-win\bin\unisic.exe -ArgumentList '--fullscreen', "--output=$out" -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
+          if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
+          if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
+          "screenshot: $((Get-Item $out).Length) bytes"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # Deliberately not unisic-*: the release job sweeps up every artifact
+          # matching that prefix, and a preview port must not ride along.
+          name: windows-portable
+          path: dist-win
+          if-no-files-found: error

@@ -83,6 +83,26 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 </details>
 
 <details>
+<summary><b>Windows preview</b></summary>
+
+<br />
+
+Screenshots (full screen, region, active window), the overlay, the editor, saving, the clipboard, OCR, the tray and global hotkeys work on Windows 11. Screen recording does not, and automatic updates are off. There is no release download yet: build it with MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)) or take the `windows-portable` artifact from a CI run.
+
+Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
+
+| Keys | Description |
+| --- | --- |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Print</kbd> | Capture the full screen |
+| <kbd>Print</kbd> or <kbd>Ctrl</kbd> + <kbd>Print</kbd> | Capture a region |
+| <kbd>Alt</kbd> + <kbd>Print</kbd> | Capture the active window |
+| <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> | OCR - copy text out of a region |
+
+A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> works either way.
+
+</details>
+
+<details>
 <summary><b>Build from source</b></summary>
 
 <br />

@@ -159,6 +159,17 @@ QString crashFilePath()
 DiagLog::PreviousRun g_previous;
 bool g_previousComputed = false;
 
+// Declared last, so destroyed first. A library whose static destructors run
+// after this file's (on Windows every DLL's, at process detach: Qt6DBus logs
+// from there) would otherwise reach messageHandler with g_ring already gone.
+struct HandlerUninstaller {
+    ~HandlerUninstaller()
+    {
+        if (g_installed)
+            qInstallMessageHandler(g_previousHandler);
+    }
+} g_handlerUninstaller;
+
 } // namespace
 
 namespace DiagLog {

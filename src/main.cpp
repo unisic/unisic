@@ -37,7 +37,11 @@
 #include <algorithm>
 #include <csignal>
 #include <cstdio>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <unistd.h>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -122,6 +126,32 @@ static const char *unexpectedArgument(int argc, char *argv[])
     return nullptr;
 }
 
+#ifdef _WIN32
+// Windows has no socketpair or sigaction. Ctrl+C, Ctrl+Break and closing the
+// console arrive on a thread the system starts for the handler; a queued quit
+// is safe from there, and the destructors run on the main thread as on Linux.
+static BOOL WINAPI consoleCtrlHandler(DWORD type)
+{
+    const char *name = type == CTRL_C_EVENT ? "CTRL_C"
+                     : type == CTRL_BREAK_EVENT ? "CTRL_BREAK"
+                     : type == CTRL_CLOSE_EVENT ? "CTRL_CLOSE"
+                                                : "other";
+    QMetaObject::invokeMethod(qApp, [name] {
+        DiagLog::setQuitReason(QStringLiteral("console %1").arg(QLatin1String(name)));
+        QCoreApplication::quit();
+    }, Qt::QueuedConnection);
+    // The process is killed as soon as a CLOSE handler returns; wait out the
+    // system's grace period so the event loop can finish. main() returning
+    // ends the process, and this thread with it.
+    if (type == CTRL_CLOSE_EVENT)
+        Sleep(5000);
+    return TRUE;
+}
+static void installSignalHandlers(QCoreApplication *)
+{
+    SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
+}
+#else
 // SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
 // cleanup, tray teardown) — the default handlers kill the process cold and
 // every settings change since launch is lost. Self-pipe pattern: the handler
@@ -160,6 +190,7 @@ static void installSignalHandlers(QCoreApplication *app)
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
 }
+#endif
 
 static QString singleInstanceServerName()
 {
@@ -173,10 +204,16 @@ static QString singleInstanceServerName()
     // sessions of the same user (rare) sharing one instance is the far smaller
     // cost. Dev builds use their own socket so stable and dev can run (and be
     // CLI-targeted) side by side.
-#ifdef UNISIC_DEV_BUILD
-    return QStringLiteral("app.unisic.UnisicDev.%1").arg(getuid());
+#ifdef _WIN32
+    // No UIDs on Windows; the account name is the per-user key there.
+    const QString user = qEnvironmentVariable("USERNAME");
 #else
-    return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
+    const uint user = getuid();
+#endif
+#ifdef UNISIC_DEV_BUILD
+    return QStringLiteral("app.unisic.UnisicDev.%1").arg(user);
+#else
+    return QStringLiteral("app.unisic.Unisic.%1").arg(user);
 #endif
 }
 

@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include "ConfigPath.h"
+#include "hotkeys/HotkeyDefaults.h"
 // For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
 // to be the same number, and only one of them gets to define it.
 #include "actions/ExternalActionRunner.h"
@@ -418,10 +419,10 @@ public:
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
     U_SETTING(QString, activeDestination, setActiveDestination, "upload/activeDestination", QStringLiteral("catbox.moe"))
-    U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral("Meta+Shift+1"))
-    U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
+    U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral(UNISIC_HOTKEY_FULLSCREEN))
+    U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral(UNISIC_HOTKEY_REGION))
     U_SETTING(QString, hotkeyScroll, setHotkeyScroll, "hotkeys/scroll", QString())
-    U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
+    U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral(UNISIC_HOTKEY_WINDOW))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
     // persisted so re-capture survives restarts like ShareX's repeat capture.
@@ -578,7 +579,7 @@ public:
     U_SETTING(int, overlayIconSize, setOverlayIconSize, "capture/overlayIconSize", 24)
     // Replaces the old 2s Ctrl+C grab (it stole ordinary copies right after a
     // capture): a dedicated always-on hotkey that never collides with Ctrl+C.
-    U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral("Meta+Shift+C"))
+    U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral(UNISIC_HOTKEY_COPY_LAST))
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     // Quality as a percent, 0 (CRF 40) to 100 (CRF 0); the ffmpeg CRF is
@@ -609,8 +610,8 @@ public:
               "video/instantReplaySeconds", 30)
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
-    U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
-    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
+    U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
+    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral(UNISIC_HOTKEY_OCR))
     // Deliberately NOT a Q_PROPERTY: machine-local state ("the user installed
     // desktop custom shortcuts here"), must not travel via settings export.
     // Read on startup to re-assert stores the desktop itself rewrites

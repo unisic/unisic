@@ -125,8 +125,10 @@ class AppContext : public QObject
     Q_PROPERTY(bool scrollCaptureActive READ scrollCaptureActive NOTIFY scrollCaptureActiveChanged)
     Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
     Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
-    // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
-    // or removes that file (Exec carries --tray-only so login starts hidden).
+    // Reflects an XDG autostart .desktop in ~/.config/autostart (the Background
+    // portal in a Flatpak, a value under HKCU's Run key on Windows). WRITE
+    // creates or removes it; the command carries --tray-only so login starts
+    // hidden. Defined per platform in src/platform/DesktopShell*.cpp.
     Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
     // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
     // the settings gallery lists these as pickable presets (live via a watcher).
@@ -161,6 +163,8 @@ class AppContext : public QObject
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
     Q_PROPERTY(bool audioInputListAvailable READ audioInputListAvailable CONSTANT)
+    // "pipewire" | "wasapi" - lets the audio settings word their hints.
+    Q_PROPERTY(QString audioBackend READ audioBackend CONSTANT)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -403,6 +407,7 @@ public:
     Q_INVOKABLE void devTestVideoQuality();
     Q_INVOKABLE void devTestAudioTracks();
     Q_INVOKABLE void devTestAudioInputs();
+    Q_INVOKABLE void devTestAudioCapture();
     Q_INVOKABLE void devTestTrimAudio();
     Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
@@ -427,6 +432,7 @@ public:
     bool vaapiAvailable() const { return m_vaapiAvailable; }
     bool nvencAvailable() const { return m_nvencAvailable; }
     bool perAppAudioAvailable() const;
+    QString audioBackend() const;
     Q_INVOKABLE QVariantList audioApplicationNodes() const; // synchronous (dev/smoke only)
     // Async variant for the UI: enumerates off-thread and emits
     // audioApplicationNodesReady so opening the audio dropdown never blocks.
@@ -565,7 +571,8 @@ public:
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
     // Opens the containing folder with the file pre-selected
-    // (org.freedesktop.FileManager1.ShowItems; falls back to openDirectory).
+    // (org.freedesktop.FileManager1.ShowItems, explorer /select on Windows;
+    // falls back to openDirectory).
     Q_INVOKABLE void showInFileManager(const QString &path);
     // Reopens the first-run welcome card (Settings → General → Diagnostics).
     // Main.qml answers with an instance that does NOT consume the one-shot
@@ -607,8 +614,9 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     // Export the selected history entries (by id) to a ZIP: resolve to on-disk
-    // files, open a native save dialog, then archive. No zip library is linked,
-    // so this shells out to Info-ZIP (`zip`); missing → an actionable toast.
+    // files, open a native save dialog, then archive. Linux shells out to
+    // Info-ZIP (`zip`; missing → an actionable toast), Windows writes the
+    // archive with the linked libarchive (see writeZip).
     Q_INVOKABLE void exportEntriesToZipDialog(const QVariantList &ids);
     // Archive `files` into destPath.zip asynchronously. `done` (if set) receives
     // (ok, message); otherwise the outcome is toasted. Used by the history export
@@ -780,11 +788,17 @@ private:
     void pasteMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
-    QString autostartFilePath() const;
-    QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
-    bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
+    // The members below up to showInFolderCheck() are defined per platform in
+    // src/platform/DesktopShell.cpp and DesktopShell_win.cpp.
     void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
-    void requestPortalAutostart(bool on); // sandboxed path: org.freedesktop.portal.Background
+    void requestPortalAutostart(bool on); // Flatpak only: org.freedesktop.portal.Background
+    // The archiver half of exportFilesToZip. `members` are (name in the
+    // archive, file on disk) with the names already unique; `done` gets
+    // (true, "") or (false, the message to show).
+    void writeZip(const QList<QPair<QString, QString>> &members, const QString &dest,
+                  std::function<void(bool, const QString &)> done);
+    QString zipUnavailableReason() const; // why ZIP export cannot run, translated; "" when it can
+    QString showInFolderCheck() const;    // smoke: can showInFileManager select the file?
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
@@ -1071,6 +1085,10 @@ private:
     // ffmpeg run with one track dropped and one attenuated, asserting the
     // output keeps exactly the surviving track.
     void trimAudioCheck(std::function<void(const QString &)> done);
+    // Live audio, end to end: the system output and the microphone are each
+    // opened the way a recording opens them and read by ffmpeg for one second,
+    // asserting a one-second file that took real time to fill.
+    void audioCaptureCheck(std::function<void(const QString &)> done);
     struct CaptureTask {
         bool active = false;
         bool save = false;
@@ -1099,7 +1117,7 @@ private:
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     X11Hotkeys *m_x11hotkeys = nullptr;
-    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
+    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | "win32" | ""
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;

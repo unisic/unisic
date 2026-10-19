@@ -163,6 +163,7 @@ qt_add_executable(unisic
     src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/PwDump.h src/record/PwDump.cpp
+    src/record/AudioCapture.h src/record/AudioCapture.cpp
     src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
@@ -203,6 +204,9 @@ qt_add_executable(unisic
     src/notify/NotificationHelper.h src/notify/NotificationHelper.cpp
     src/notify/NotificationInhibitor.h src/notify/NotificationInhibitor.cpp
     src/notify/NativeSound.h src/notify/NativeSound.cpp
+    # AppContext's desktop-integration half: autostart, "show in folder" and
+    # the ZIP writer. Same class, separate translation unit per platform.
+    src/platform/DesktopShell.cpp
 )
 
 # qt_standard_project_setup bakes an $ORIGIN install-RPATH into the binary;

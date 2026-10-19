@@ -15,6 +15,7 @@
 
 set(_unisic_linux_only
     src/capture/KWinScreenShot2.cpp
+    src/record/AudioCapture.cpp
     src/record/ClickCapture.cpp
     src/record/KeyCapture.cpp
     src/record/InputPermission.cpp
@@ -23,11 +24,13 @@ set(_unisic_linux_only
     src/diag/RuntimeTools.cpp
     src/notify/CardSurface.cpp
     src/notify/NativeSound.cpp
+    src/platform/DesktopShell.cpp
     src/update/StagedUpdate.cpp)
 set_source_files_properties(${_unisic_linux_only} PROPERTIES HEADER_FILE_ONLY ON SKIP_AUTOMOC ON)
 
 target_sources(unisic PRIVATE
     src/capture/KWinScreenShot2_win.cpp
+    src/record/AudioCapture_win.cpp
     src/record/ClickCapture_win.cpp
     src/record/KeyCapture_win.cpp
     src/record/InputPermission_win.cpp
@@ -36,6 +39,7 @@ target_sources(unisic PRIVATE
     src/diag/RuntimeTools_win.cpp
     src/notify/CardSurface_win.cpp
     src/notify/NativeSound_win.cpp
+    src/platform/DesktopShell_win.cpp
     src/update/StagedUpdate_win.cpp
     # The exe's icon (Explorer, taskbar, Start menu, the uninstall entry).
     src/platform/win/unisic.rc)
@@ -45,9 +49,24 @@ target_include_directories(unisic BEFORE PRIVATE src/platform/win/include)
 # same sources (KeystrokeOverlayPainter.cpp reads the evdev key codes), so the
 # stand-ins go on the directory too, which every later target inherits.
 include_directories(BEFORE src/platform/win/include)
+# Windows ships no `zip` program, and its tar.exe crashes on non-ASCII names,
+# so ZIP export writes the archive itself with libarchive (DesktopShell_win.cpp).
+# Required like every other dependency: without it the export button is dead.
+find_package(LibArchive QUIET)
+if(NOT LibArchive_FOUND)
+    message(FATAL_ERROR
+        "libarchive not found.\n"
+        "  What would be missing: exporting captures to a ZIP archive.\n"
+        "  MSYS2 UCRT64: pacman -S mingw-w64-ucrt-x86_64-libarchive\n")
+endif()
+
 # gdi32: BitBlt capture. dwmapi: window frame bounds. shcore: per-monitor DPI.
-# winmm: PlaySoundW for the capture cues.
-target_link_libraries(unisic PRIVATE gdi32 user32 dwmapi shcore winmm)
+# winmm: PlaySoundW for the capture cues. ole32: COM for the WASAPI audio
+# capture. advapi32: the security descriptor of its pipe, and the HKCU Run key
+# behind autostart. mmdevapi: ActivateAudioInterfaceAsync (application audio).
+# version: an application's display name from its version resource.
+target_link_libraries(unisic PRIVATE gdi32 user32 dwmapi shcore winmm ole32 advapi32 mmdevapi
+                      version LibArchive::LibArchive)
 # NOMINMAX keeps <windows.h> from defining min/max over std:: and Qt's.
 # WIN32_LEAN_AND_MEAN keeps it from pulling in ole2.h, whose `interface` macro
 # breaks QDBusConnection::interface() in main.cpp.

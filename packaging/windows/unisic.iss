@@ -89,6 +89,15 @@ Type: filesandordirs; Name: "{app}\share"
 ; them stay: they are the user's data, not this installer's.
 Type: filesandordirs; Name: "{userappdata}\Unisic\unisic\updates"
 
+[Registry]
+; "Start at login" is a value Unisic itself writes under the Run key (named
+; after its desktop file name, DesktopShell_win.cpp), plus the one Windows adds
+; under StartupApproved when Task Manager toggles it. Install leaves both alone,
+; so an upgrade keeps the user's choice; uninstall deletes them, or Windows
+; would try to start a deleted exe at every login. ValueType none writes nothing.
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "app.unisic.Unisic"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"; ValueType: none; ValueName: "app.unisic.Unisic"; Flags: uninsdeletevalue
+
 [Files]
 Source: "{#BundleDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 

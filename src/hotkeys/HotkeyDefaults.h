@@ -10,7 +10,11 @@
 // where Windows users look for them. A bare Print goes to the Snipping Tool
 // until the user turns that off in Windows Settings, so region also takes
 // Ctrl+Print, which works out of the box.
+//
+// UNISIC_HOTKEY_NATIVE_BACKEND is the AppContext::hotkeyBackend id of the
+// X11Hotkeys class, which Windows backs with RegisterHotKey instead of XGrabKey.
 #ifdef _WIN32
+#define UNISIC_HOTKEY_NATIVE_BACKEND "win32"
 #define UNISIC_HOTKEY_FULLSCREEN "Ctrl+Shift+Print"
 #define UNISIC_HOTKEY_REGION "Print, Ctrl+Print"
 #define UNISIC_HOTKEY_WINDOW "Alt+Print"
@@ -19,6 +23,7 @@
 #define UNISIC_HOTKEY_COPY_LAST "Meta+Shift+L"
 #define UNISIC_HOTKEY_EMERGENCY_STOP "Ctrl+Alt+Escape"
 #else
+#define UNISIC_HOTKEY_NATIVE_BACKEND "x11"
 #define UNISIC_HOTKEY_FULLSCREEN "Meta+Shift+1"
 #define UNISIC_HOTKEY_REGION "Meta+Shift+2"
 #define UNISIC_HOTKEY_WINDOW "Meta+Shift+3"

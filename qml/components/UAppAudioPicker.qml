@@ -90,7 +90,9 @@ Flow {
         width: root.width
         text: App.perAppAudioAvailable
               ? qsTr("No application is playing audio. Start playback and it appears here.")
-              : qsTr("Requires the pw-dump and pw-record helpers.")
+              : App.audioBackend === "wasapi"
+                ? qsTr("Requires Windows 10 version 2004 or later.")
+                : qsTr("Requires the pw-dump and pw-record helpers.")
         color: Theme.textTertiary
         font.pixelSize: Theme.fontS
         wrapMode: Text.WordWrap

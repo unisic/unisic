@@ -1851,7 +1851,9 @@ Item {
                     SettingRow {
                         label: qsTr("Record system audio")
                         help: qsTr("Captures what you hear (system output) into video recordings.")
-                        helpDetail: qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                                    : qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
                     }
                     SettingRow {
@@ -1865,7 +1867,9 @@ Item {
                         help: App.audioInputListAvailable
                               ? qsTr("Which input device the microphone track records from.")
                               : qsTr("Requires the pw-dump helper to list input devices.")
-                        helpDetail: qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Default input follows the system's default recording device. Pick a specific device to pin the microphone to it - including virtual devices such as a noise-suppressed microphone. Press Refresh after plugging a device in.")
+                                    : qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -1882,7 +1886,9 @@ Item {
                         label: qsTr("Application audio only")
                         help: App.perAppAudioAvailable
                               ? qsTr("Record only the applications you tick, one or several.")
-                              : qsTr("Requires the pw-dump and pw-record helpers.")
+                              : App.audioBackend === "wasapi"
+                                ? qsTr("Requires Windows 10 version 2004 or later.")
+                                : qsTr("Requires the pw-dump and pw-record helpers.")
                         helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
                         footer: UAppAudioPicker {}
                     }
@@ -3435,6 +3441,8 @@ Item {
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
                               : App.hotkeyBackend === "x11"
                               ? qsTr("Registered directly with the X server (XGrabKey) for this X11 session. Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Registered directly with Windows (RegisterHotKey). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                               : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -3470,7 +3478,9 @@ Item {
                     HotkeyRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
-                        helpDetail: qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
+                        helpDetail: App.hotkeyBackend === "win32"
+                                    ? qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).")
+                                    : qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
                         shortcuts: App.settings.hotkeyRecord
                         onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") }
                     }
@@ -3536,6 +3546,8 @@ Item {
                               ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
                               : App.hotkeyBackend === "x11"
                               ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -3902,7 +3914,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("KWin native record probe"); onClicked: App.devTestKWinRecord() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("X11 record grab"); onClicked: App.devTestX11Record() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("X11 hotkeys probe"); onClicked: App.devTestX11Hotkeys() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Native hotkeys probe"); onClicked: App.devTestX11Hotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
@@ -3984,6 +3996,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Video quality scale"); onClicked: App.devTestVideoQuality() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Separate audio tracks"); onClicked: App.devTestAudioTracks() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Audio input devices"); onClicked: App.devTestAudioInputs() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Live audio capture"); onClicked: App.devTestAudioCapture() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim audio edit"); onClicked: App.devTestTrimAudio() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }

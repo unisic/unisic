@@ -591,7 +591,8 @@ public:
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     // Applications whose audio is recorded, by PwDump::AppStream::app (the
-    // binary name), resolved to their live streams when a recording starts.
+    // binary name; on Windows the .exe name without the suffix), resolved to
+    // their live streams or processes when a recording starts.
     // Replaces audio/recordAppAudioNode, which held an object.serial: that
     // went stale on every app relaunch and pw-record then recorded the mic,
     // so the old value is deliberately not migrated.

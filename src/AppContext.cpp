@@ -3,7 +3,6 @@
 #include "Settings.h"
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
-#include "capture/PortalRequest.h"
 #include "capture/ScrollCaptureController.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
@@ -26,8 +25,8 @@
 #include "hotkeys/X11Hotkeys.h"
 #include "record/X11ShmGrabber.h"
 #include <QThread>
+#include "record/AudioCapture.h"
 #include "record/GifRecorder.h"
-#include "record/PwDump.h"
 #include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
 #include "record/InputPermission.h"
@@ -111,7 +110,6 @@
 #include <QTemporaryFile>
 #include <QTcpServer>
 #include <QTcpSocket>
-#include <QTemporaryDir>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -558,18 +556,22 @@ bool AppContext::ffmpegAvailable() const
 
 bool AppContext::perAppAudioAvailable() const
 {
-    return !QStandardPaths::findExecutable(QStringLiteral("pw-record")).isEmpty()
-           && !QStandardPaths::findExecutable(QStringLiteral("pw-dump")).isEmpty();
+    return AudioCapture::applicationListAvailable();
+}
+
+QString AppContext::audioBackend() const
+{
+    return AudioCapture::backend();
 }
 
 static QVariantList queryAudioApplicationNodesImpl()
 {
-    return PwDump::applications(PwDump::appStreams(PwDump::nodes()));
+    return AudioCapture::applications();
 }
 
 static QVariantList queryAudioInputDevicesImpl()
 {
-    return PwDump::inputDevices(PwDump::nodes());
+    return AudioCapture::inputDevices();
 }
 
 QVariantList AppContext::audioApplicationNodes() const
@@ -592,7 +594,7 @@ void AppContext::requestAudioApplicationNodes()
 
 bool AppContext::audioInputListAvailable() const
 {
-    return !QStandardPaths::findExecutable(QStringLiteral("pw-dump")).isEmpty();
+    return AudioCapture::inputListAvailable();
 }
 
 QVariantList AppContext::audioInputDevices() const
@@ -5121,31 +5123,6 @@ void AppContext::openDirectory(const QString &path)
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
-void AppContext::showInFileManager(const QString &path)
-{
-    if (path.isEmpty() || !QFileInfo::exists(path)) {
-        openDirectory(path.isEmpty() ? QString() : QFileInfo(path).absolutePath());
-        return;
-    }
-    // ShowItems opens the folder with the file selected (Dolphin, Nautilus,
-    // Nemo, Thunar all serve it). Async: the service is D-Bus-activatable, so
-    // a cold start could stall a blocking call on the GUI thread.
-    auto msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.freedesktop.FileManager1"),
-        QStringLiteral("/org/freedesktop/FileManager1"),
-        QStringLiteral("org.freedesktop.FileManager1"),
-        QStringLiteral("ShowItems"));
-    msg << QStringList{QUrl::fromLocalFile(path).toString(QUrl::FullyEncoded)}
-        << QString();
-    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(msg), this);
-    const QString dir = QFileInfo(path).absolutePath();
-    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this, dir](QDBusPendingCallWatcher *w) {
-        if (w->isError())
-            openDirectory(dir);
-        w->deleteLater();
-    });
-}
-
 void AppContext::showWelcome()
 {
     emit showWelcomeRequested();
@@ -5219,10 +5196,9 @@ void AppContext::exportFilesToZip(const QStringList &files, const QString &destP
             showToast(msg, !ok);
     };
 
-    // No zip library is linked (see the header note): shell out to Info-ZIP.
-    const QString zipBin = QStandardPaths::findExecutable(QStringLiteral("zip"));
-    if (zipBin.isEmpty()) {
-        report(false, tr("The “zip” program is not installed - install it and try again."));
+    const QString unavailable = zipUnavailableReason();
+    if (!unavailable.isEmpty()) {
+        report(false, unavailable);
         return;
     }
 
@@ -5238,66 +5214,34 @@ void AppContext::exportFilesToZip(const QStringList &files, const QString &destP
     QString dest = destPath;
     if (!dest.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive))
         dest += QLatin1String(".zip");
-    QFile::remove(dest); // zip *appends* to an existing archive; we want a fresh one
 
-    // Stage uniquely-named symlinks in a temp dir. Duplicate basenames (e.g. two
-    // imported files called screenshot.png) would otherwise overwrite each other
-    // inside the archive; default zip (no -y) follows each link and stores the
-    // real content under the staged name.
-    auto *staging = new QTemporaryDir;
-    if (!staging->isValid()) {
-        const QString e = staging->errorString();
-        delete staging;
-        report(false, tr("Could not create a temporary folder: %1").arg(e));
-        return;
-    }
-    QStringList members;
+    // Unique names inside the archive. Duplicate basenames (e.g. two imported
+    // files called screenshot.png) would otherwise overwrite each other; the
+    // comparison ignores case because Windows and macOS unpack Shot.png and
+    // shot.png onto the same file.
+    QList<QPair<QString, QString>> members; // (name in the archive, file on disk)
     QSet<QString> used;
     for (const QString &f : real) {
         const QFileInfo fi(f);
         const QString base = fi.completeBaseName();
         const QString suf = fi.suffix();
         QString name = fi.fileName();
-        for (int n = 2; used.contains(name); ++n)
+        for (int n = 2; used.contains(name.toCaseFolded()); ++n)
             name = suf.isEmpty() ? QStringLiteral("%1-%2").arg(base).arg(n)
                                  : QStringLiteral("%1-%2.%3").arg(base).arg(n).arg(suf);
-        used.insert(name);
-        QFile::link(f, staging->filePath(name));
-        members << name;
+        used.insert(name.toCaseFolded());
+        members.append({name, f});
     }
 
-    auto *proc = new QProcess(this);
-    proc->setWorkingDirectory(staging->path());
     const int count = members.size();
-    connect(proc, &QProcess::finished, this,
-            [this, proc, staging, dest, count, report](int code, QProcess::ExitStatus st) {
-                const QString errOut = QString::fromLocal8Bit(proc->readAllStandardError()).trimmed();
-                proc->deleteLater();
-                delete staging; // removes the staged symlinks
-                if (st == QProcess::NormalExit && code == 0 && QFileInfo::exists(dest))
-                    report(true, tr("Exported %1 captures to %2")
-                                     .arg(count)
-                                     .arg(QDir::toNativeSeparators(dest)));
-                else
-                    report(false, tr("Export failed: %1")
-                                      .arg(errOut.isEmpty() ? tr("zip exited with code %1").arg(code)
-                                                            : errOut));
-            });
-    connect(proc, &QProcess::errorOccurred, this,
-            [this, proc, staging, report](QProcess::ProcessError e) {
-                if (e != QProcess::FailedToStart)
-                    return; // a crash after start still emits finished(), which cleans up
-                proc->deleteLater();
-                delete staging;
-                report(false, tr("Could not run the “zip” program."));
-            });
-    // "./" prefix so a staged name starting with '-' is a path, not a zip flag
-    // (Info-ZIP parses leading-dash argv anywhere as options); -j still stores
-    // just the basename, so the archive entries are unchanged.
-    QStringList zipArgs{QStringLiteral("-j"), QStringLiteral("-q"), dest};
-    for (const QString &m : std::as_const(members))
-        zipArgs << (QStringLiteral("./") + m);
-    proc->start(zipBin, zipArgs);
+    writeZip(members, dest, [this, dest, count, report](bool ok, const QString &failure) {
+        if (ok)
+            report(true, tr("Exported %1 captures to %2")
+                             .arg(count)
+                             .arg(QDir::toNativeSeparators(dest)));
+        else
+            report(false, failure);
+    });
 }
 
 QString AppContext::exportSettings(const QUrl &file)
@@ -5653,7 +5597,7 @@ void AppContext::defineHotkeys()
         if (wantX11) {
             m_x11hotkeys = new X11Hotkeys(this);
             connect(m_x11hotkeys, &X11Hotkeys::activated, this, &AppContext::dispatchHotkey);
-            m_hotkeyBackend = QStringLiteral("x11");
+            m_hotkeyBackend = QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND);
             bindX11Hotkeys();
             emit hotkeysAvailableChanged();
             return;
@@ -5815,9 +5759,15 @@ void AppContext::bindX11Hotkeys()
     // Fixed emergency stop, same key the other backends reserve (Windows,
     // whose Start menu owns Ctrl+Esc, gets its own: HotkeyDefaults.h).
     list.append({QStringLiteral("stop-recording"), QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP)});
+#ifdef UNISIC_DEV_BUILD
+    // Dev-only F8 smoke test, the key the KGlobalAccel branch binds.
+    list.append({QStringLiteral("smoke-test"), QStringLiteral("F8")});
+#endif
     const QStringList conflicts = m_x11hotkeys->bind(list);
     if (!conflicts.isEmpty()) {
-        qWarning().noquote() << "X11 hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
+        qWarning().noquote() << QStringLiteral("Hotkey conflicts (%1):\n")
+                                        .arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
+                                    + conflicts.join(QLatin1Char('\n'));
         showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
                      "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
     }
@@ -5829,7 +5779,7 @@ void AppContext::bindX11Hotkeys()
 // no per-shortcut rebind; unchanged sets don't re-prompt on KDE/GNOME).
 void AppContext::applyHotkey(const QString &actionId)
 {
-    if (m_hotkeyBackend == QLatin1String("x11")) {
+    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
         bindX11Hotkeys();
         return;
     }
@@ -5867,7 +5817,7 @@ void AppContext::applyHotkey(const QString &actionId)
 // stored keys are the user's intent here, so all five are asserted.
 void AppContext::applyHotkeys()
 {
-    if (m_hotkeyBackend == QLatin1String("x11")) {
+    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
         bindX11Hotkeys();
         return;
     }
@@ -6346,158 +6296,4 @@ QStringList AppContext::bundledTrayIcons() const
     for (const QString &f : files)
         out << QStringLiteral(":/resources/icons/tray/") + f;
     return out;
-}
-
-QString AppContext::autostartFilePath() const
-{
-    // XDG autostart: $XDG_CONFIG_HOME/autostart (ConfigLocation == ~/.config).
-    // Keyed on the desktop id, so the dev build (app.unisic.UnisicDev) keeps
-    // its own autostart entry and never overwrites the stable one.
-    return QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-           + QStringLiteral("/autostart/") + QGuiApplication::desktopFileName()
-           + QStringLiteral(".desktop");
-}
-
-// Sandboxed autostart goes through the Background portal, not through a file:
-// $XDG_CONFIG_HOME inside the sandbox is ~/.var/app/<id>/config, which the
-// host session never reads, so a .desktop written there would leave the switch
-// saying "on" while nothing starts at login. The portal writes the host-side
-// entry itself (and, on some backends, asks the user first).
-static bool sandboxed()
-{
-    return qEnvironmentVariableIsSet("FLATPAK_ID");
-}
-
-bool AppContext::autostartEnabled() const
-{
-    // The portal exposes no getter, so the last answer it gave is the state.
-    // It is the ANSWER that is stored, never the request: a backend that
-    // refuses (or a user who says no) leaves this false and the switch snaps
-    // back, which is the honest reading.
-    if (sandboxed())
-        return m_settings && m_settings->portalAutostartGranted();
-    return QFile::exists(autostartFilePath());
-}
-
-QByteArray AppContext::autostartExecLine() const
-{
-    // Exec must point at a STABLE path. For an AppImage that is $APPIMAGE (the
-    // outer file), not applicationFilePath() (the transient FUSE mount, gone on
-    // the next run). --tray-only makes the login launch start hidden in the tray.
-    QString execPath = qEnvironmentVariable("APPIMAGE");
-    if (execPath.isEmpty())
-        execPath = QCoreApplication::applicationFilePath();
-    // Desktop Entry spec: backslash and quote need escaping inside a quoted arg;
-    // '%' is a field-code introducer and must be doubled.
-    execPath.replace(QLatin1Char('\\'), QLatin1String("\\\\"))
-            .replace(QLatin1Char('"'), QLatin1String("\\\""))
-            .replace(QLatin1Char('%'), QLatin1String("%%"));
-    return "Exec=\"" + execPath.toUtf8() + "\" --tray-only\n";
-}
-
-bool AppContext::writeAutostartFile()
-{
-    const QString path = autostartFilePath();
-    QDir().mkpath(QFileInfo(path).absolutePath());
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return false;
-    f.write("[Desktop Entry]\n"
-            "Type=Application\n"
-            "Name=" + QGuiApplication::applicationDisplayName().toUtf8() + "\n"
-            "Comment=Screenshots, annotations, uploads and GIF recording\n"
-            + autostartExecLine() +
-            "Icon=" + QGuiApplication::desktopFileName().toUtf8() + "\n"
-            "Terminal=false\n"
-            "Categories=Utility;Graphics;\n"
-            "X-GNOME-Autostart-enabled=true\n");
-    f.close();
-    return true;
-}
-
-void AppContext::refreshAutostartIfStale()
-{
-    // Nothing to keep fresh in a sandbox: the entry lives host-side and is the
-    // portal's to write, and the exec path inside /app never moves.
-    if (sandboxed())
-        return;
-    // Pre-rename installs wrote org.unisic.Unisic.desktop; migrate it or the
-    // old entry keeps autostarting alongside (and ignores the toggle).
-    const QString legacy = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation)
-                           + QStringLiteral("/autostart/org.unisic.Unisic.desktop");
-    if (QFile::remove(legacy) && !QFile::exists(autostartFilePath()))
-        writeAutostartFile();
-
-    // Self-heal a stale Exec (binary rebuilt to a new path / AppImage moved),
-    // mirroring ensureDesktopFile() - otherwise the toggle reads "on" while
-    // login autostart silently launches nothing.
-    const QString path = autostartFilePath();
-    if (!QFile::exists(path))
-        return;
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QByteArray data = f.readAll();
-    f.close();
-    if (!data.contains(autostartExecLine()))
-        writeAutostartFile();
-}
-
-void AppContext::requestPortalAutostart(bool on)
-{
-    const QString token = PortalRequest::nextToken();
-    QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.freedesktop.portal.Desktop"),
-        QStringLiteral("/org/freedesktop/portal/desktop"),
-        QStringLiteral("org.freedesktop.portal.Background"),
-        QStringLiteral("RequestBackground"));
-    QVariantMap options{
-        {QStringLiteral("handle_token"), token},
-        {QStringLiteral("autostart"), on},
-        // Without this the portal grants "may run in the background" but writes
-        // no autostart entry; with it the entry runs the same tray-only launch
-        // the native autostart file does. `unisic` resolves inside the sandbox.
-        {QStringLiteral("commandline"), QStringList{QStringLiteral("unisic"),
-                                                    QStringLiteral("--tray-only")}},
-        {QStringLiteral("reason"), tr("Unisic starts hidden in the tray so its capture "
-                                      "shortcuts work right after you log in.")},
-    };
-    msg << QString() << options; // parent_window: empty (no exported handle on Wayland)
-
-    PortalRequest::send(msg, token, [this, on](uint code, const QVariantMap &results) {
-        if (code != 0) {
-            if (code != 1) // 1 = the user cancelled; not worth a toast
-                showToast(tr("The desktop refused the autostart request"), true);
-            emit autostartEnabledChanged(); // snap the switch back to reality
-            return;
-        }
-        const bool granted = results.value(QStringLiteral("autostart"), false).toBool();
-        if (m_settings)
-            m_settings->setPortalAutostartGranted(granted);
-        if (on && !granted)
-            showToast(tr("Autostart was not granted"), true);
-        emit autostartEnabledChanged();
-    }, this, 0); // a portal that asks the user must be allowed to wait for them
-}
-
-void AppContext::setAutostartEnabled(bool on)
-{
-    if (on == autostartEnabled())
-        return;
-    if (sandboxed()) {
-        requestPortalAutostart(on);
-        return;
-    }
-    const QString path = autostartFilePath();
-    if (!on) {
-        if (!QFile::remove(path) && QFile::exists(path))
-            showToast(tr("Could not disable autostart: cannot remove %1").arg(path), true);
-        emit autostartEnabledChanged(); // reflect the real (post-remove) state
-        return;
-    }
-    if (!writeAutostartFile()) {
-        showToast(tr("Could not enable autostart: cannot write %1").arg(path), true);
-        return; // state unchanged; the switch snaps back on the next read
-    }
-    emit autostartEnabledChanged();
 }

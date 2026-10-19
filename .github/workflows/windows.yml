@@ -55,14 +55,15 @@ jobs:
           # assert-gates step below checks the result. qt6-translations is what
           # windeployqt copies the Qt catalogs from; tesseract-ocr already
           # carries osd.traineddata, the data packages add eng and pol. ffmpeg
-          # backs no gate: deploy.sh bundles it for GIF export, and with it on
-          # PATH the StillGif test runs instead of skipping.
+          # backs no gate: deploy.sh bundles it for GIF export and recording,
+          # and with it on PATH the StillGif test runs instead of skipping.
+          # libarchive writes ZIP exports; the configure stops without it.
           pacboy: >-
             cmake:p ninja:p gcc:p pkgconf:p
             qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
             qt6-tools:p qt6-translations:p
             tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
-            leptonica:p zxing-cpp:p ffmpeg:p
+            leptonica:p zxing-cpp:p ffmpeg:p libarchive:p
 
       - name: Configure
         run: cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
@@ -160,6 +161,10 @@ jobs:
           # delete although it lives outside the install folder.
           $staged = Join-Path $env:APPDATA 'Unisic\unisic\updates'
           New-Item -ItemType Directory -Force (Join-Path $staged 'ci-stand-in') | Out-Null
+          # And for "Start at login": the Run value Unisic writes must not
+          # outlive the exe it points at.
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          New-ItemProperty -Path $run -Name 'app.unisic.Unisic' -Value "`"$dir\bin\unisic.exe`" --tray-only" -Force | Out-Null
 
           # unins000.exe copies itself to %TEMP% and returns at once, so wait
           # for the folders to go instead of for the process.
@@ -169,6 +174,9 @@ jobs:
           while (((Test-Path $dir) -or (Test-Path $staged)) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
           foreach ($f in $dir, $staged, $lnk, $key) {
             if (Test-Path $f) { throw "$f left behind after uninstall" }
+          }
+          if ($null -ne (Get-ItemProperty -Path $run -Name 'app.unisic.Unisic' -ErrorAction SilentlyContinue)) {
+            throw "the Run value app.unisic.Unisic was left behind after uninstall"
           }
           'uninstall left nothing behind'
 

@@ -61,7 +61,8 @@ SetupMutex=UnisicSetup
 CloseApplications=yes
 RestartApplications=no
 OutputDir={#OutputDir}
-OutputBaseFilename=unisic-{#AppVersion}-windows-x64-setup
+; "experimental" while the Windows port is a preview, like the release zip.
+OutputBaseFilename=unisic-{#AppVersion}-windows-x64-experimental-setup
 Compression=lzma2/max
 SolidCompression=yes
 

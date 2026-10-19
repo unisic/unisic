@@ -46,14 +46,20 @@ function(unisic_require_failed HUMAN_NAME WHAT_BREAKS FEDORA DEBIAN ARCH SUSE)
         "  openSUSE: sudo zypper install ${SUSE}\n")
 endfunction()
 
+# Every probe wrapped in if(NOT WIN32) below is a Linux desktop library that
+# Windows replaces with its own code (cmake/UnisicWindows.cmake). A new Linux
+# dependency goes inside such a block, or the Windows CI job stops at configure.
+
 # Screen and region recording. The grabber itself lives in the kit, which
 # probes for the same module and fails the same way; this copy is what the
 # app-side code links against.
-pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
-if(NOT PIPEWIRE_FOUND)
-    unisic_require_failed("libpipewire-0.3"
-        "screen and region recording on a Wayland session"
-        "pipewire-devel" "libpipewire-0.3-dev" "libpipewire" "pipewire-devel")
+if(NOT WIN32)
+    pkg_check_modules(PIPEWIRE IMPORTED_TARGET libpipewire-0.3)
+    if(NOT PIPEWIRE_FOUND)
+        unisic_require_failed("libpipewire-0.3"
+            "screen and region recording on a Wayland session"
+            "pipewire-devel" "libpipewire-0.3-dev" "libpipewire" "pipewire-devel")
+    endif()
 endif()
 
 # OCR: copy the text out of a captured region.
@@ -76,46 +82,48 @@ if(NOT ZXing_FOUND)
         "zxing-cpp-devel" "libzxing-dev" "zxing-cpp" "zxing-cpp-devel")
 endif()
 
-# Global pointer-button and key capture for recordings (the click ripple and
-# the pressed-key badge), via libinput's udev backend. CMake needs BOTH
-# pkg-config modules, and on Fedora libudev.pc ships in systemd-devel rather
-# than in anything called libudev-*.
-pkg_check_modules(LIBINPUT IMPORTED_TARGET libinput)
-pkg_check_modules(LIBUDEV IMPORTED_TARGET libudev)
-if(NOT LIBINPUT_FOUND OR NOT LIBUDEV_FOUND)
-    unisic_require_failed("libinput + libudev (both)"
-        "the click ripple and the pressed-key badge in recordings"
-        "libinput-devel systemd-devel" "libinput-dev libudev-dev"
-        "libinput systemd-libs" "libinput-devel systemd-devel")
-endif()
+if(NOT WIN32)
+    # Global pointer-button and key capture for recordings (the click ripple and
+    # the pressed-key badge), via libinput's udev backend. CMake needs BOTH
+    # pkg-config modules, and on Fedora libudev.pc ships in systemd-devel rather
+    # than in anything called libudev-*.
+    pkg_check_modules(LIBINPUT IMPORTED_TARGET libinput)
+    pkg_check_modules(LIBUDEV IMPORTED_TARGET libudev)
+    if(NOT LIBINPUT_FOUND OR NOT LIBUDEV_FOUND)
+        unisic_require_failed("libinput + libudev (both)"
+            "the click ripple and the pressed-key badge in recordings"
+            "libinput-devel systemd-devel" "libinput-dev libudev-dev"
+            "libinput systemd-libs" "libinput-devel systemd-devel")
+    endif()
 
-# On-top custom capture card via wlr-layer-shell (KWin/wlroots). Needs both
-# LayerShellQt (to make the window a layer surface) and wayland-client (to
-# probe at runtime whether the compositor actually exposes zwlr_layer_shell_v1;
-# GNOME/Mutter don't, and there we fall back to the native desktop
-# notification). That fallback stays: it answers a RUNTIME question about the
-# compositor, which is a different thing from the code being absent.
-find_package(LayerShellQt QUIET)
-if(NOT LayerShellQt_FOUND)
-    unisic_require_failed("LayerShellQt"
-        "the styled capture card, the overlay above fullscreen windows and the pinned preview"
-        "layer-shell-qt-devel" "liblayershellqtinterface-dev"
-        "layer-shell-qt" "layer-shell-qt6-devel")
-endif()
-pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
-if(NOT WAYLAND_CLIENT_FOUND)
-    unisic_require_failed("wayland-client"
-        "the runtime probe for zwlr_layer_shell_v1, and with it the styled capture card"
-        "wayland-devel" "libwayland-dev" "wayland" "wayland-devel")
-endif()
+    # On-top custom capture card via wlr-layer-shell (KWin/wlroots). Needs both
+    # LayerShellQt (to make the window a layer surface) and wayland-client (to
+    # probe at runtime whether the compositor actually exposes zwlr_layer_shell_v1;
+    # GNOME/Mutter don't, and there we fall back to the native desktop
+    # notification). That fallback stays: it answers a RUNTIME question about the
+    # compositor, which is a different thing from the code being absent.
+    find_package(LayerShellQt QUIET)
+    if(NOT LayerShellQt_FOUND)
+        unisic_require_failed("LayerShellQt"
+            "the styled capture card, the overlay above fullscreen windows and the pinned preview"
+            "layer-shell-qt-devel" "liblayershellqtinterface-dev"
+            "layer-shell-qt" "layer-shell-qt6-devel")
+    endif()
+    pkg_check_modules(WAYLAND_CLIENT IMPORTED_TARGET wayland-client)
+    if(NOT WAYLAND_CLIENT_FOUND)
+        unisic_require_failed("wayland-client"
+            "the runtime probe for zwlr_layer_shell_v1, and with it the styled capture card"
+            "wayland-devel" "libwayland-dev" "wayland" "wayland-devel")
+    endif()
 
-# KDE Plasma clipboard-history integration (KSystemClipboard). See the long
-# note at the link step for why plain image/png is not enough.
-find_package(KF6GuiAddons QUIET)
-if(NOT KF6GuiAddons_FOUND)
-    unisic_require_failed("KF6GuiAddons"
-        "screenshots entering Plasma's Klipper clipboard history (they would paste now but vanish on the next copy)"
-        "kf6-kguiaddons-devel" "libkf6guiaddons-dev" "kguiaddons" "kf6-kguiaddons-devel")
+    # KDE Plasma clipboard-history integration (KSystemClipboard). See the long
+    # note at the link step for why plain image/png is not enough.
+    find_package(KF6GuiAddons QUIET)
+    if(NOT KF6GuiAddons_FOUND)
+        unisic_require_failed("KF6GuiAddons"
+            "screenshots entering Plasma's Klipper clipboard history (they would paste now but vanish on the next copy)"
+            "kf6-kguiaddons-devel" "libkf6guiaddons-dev" "kguiaddons" "kf6-kguiaddons-devel")
+    endif()
 endif()
 
 qt_standard_project_setup(REQUIRES 6.5)
@@ -155,6 +163,7 @@ qt_add_executable(unisic
     src/capture/ScrollPreviewProvider.h src/capture/ScrollPreviewProvider.cpp
     src/record/GifRecorder.h src/record/GifRecorder.cpp
     src/record/PwDump.h src/record/PwDump.cpp
+    src/record/AudioCapture.h src/record/AudioCapture.cpp
     src/record/VideoQuality.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
@@ -178,6 +187,7 @@ qt_add_executable(unisic
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
+    src/update/StagedUpdate.h src/update/StagedUpdate.cpp
     # Diagnostic log + crash report. CrashHandler.cpp is
     # async-signal-safe-only code; see its header before touching it.
     src/diag/DiagLog.h src/diag/DiagLog.cpp
@@ -186,12 +196,17 @@ qt_add_executable(unisic
     # and runSmokeTest(). Same class, second translation unit.
     src/diag/SmokeSupport.h src/diag/SmokeTests.cpp
     src/diag/CrashHandler.h src/diag/CrashHandler.cpp
+    src/diag/RuntimeTools.h src/diag/RuntimeTools.cpp
     src/update/VersionCompare.h
     src/notify/CaptureNotification.h src/notify/CaptureNotification.cpp
     src/notify/DesktopNotifier.h src/notify/DesktopNotifier.cpp
     src/notify/NotifCard.h
     src/notify/NotificationHelper.h src/notify/NotificationHelper.cpp
     src/notify/NotificationInhibitor.h src/notify/NotificationInhibitor.cpp
+    src/notify/NativeSound.h src/notify/NativeSound.cpp
+    # AppContext's desktop-integration half: autostart, "show in folder" and
+    # the ZIP writer. Same class, separate translation unit per platform.
+    src/platform/DesktopShell.cpp
 )
 
 # qt_standard_project_setup bakes an $ORIGIN install-RPATH into the binary;
@@ -244,8 +259,10 @@ endif()
 # Click and keystroke capture. The kit carries the frame grabbers; these two
 # pkg-config modules are the app's own, for ClickCapture/KeyCapture reading
 # /dev/input through libinput's udev backend.
-target_link_libraries(unisic PRIVATE PkgConfig::LIBINPUT PkgConfig::LIBUDEV)
-target_compile_definitions(unisic PRIVATE HAVE_LIBINPUT)
+if(NOT WIN32)
+    target_link_libraries(unisic PRIVATE PkgConfig::LIBINPUT PkgConfig::LIBUDEV)
+    target_compile_definitions(unisic PRIVATE HAVE_LIBINPUT)
+endif()
 
 # Native X11 global hotkeys (X11Hotkeys) live in unisic-kit next to the X11 frame
 # grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
@@ -255,9 +272,12 @@ target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
 target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT ZXing::ZXing)
 target_compile_definitions(unisic PRIVATE HAVE_TESSERACT HAVE_ZXING)
 
-target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp)
-target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
-target_compile_definitions(unisic PRIVATE HAVE_LAYERSHELL)
+target_sources(unisic PRIVATE src/notify/LayerShellNotifier.h src/notify/LayerShellNotifier.cpp
+                              src/notify/CardSurface.cpp)
+if(NOT WIN32)
+    target_link_libraries(unisic PRIVATE LayerShellQt::Interface PkgConfig::WAYLAND_CLIENT)
+    target_compile_definitions(unisic PRIVATE HAVE_LAYERSHELL)
+endif()
 
 # KDE Plasma clipboard-history (Klipper) integration. Klipper only
 # copies an image into its HISTORY (the tray applet, paste-it-later) when the
@@ -269,8 +289,16 @@ target_compile_definitions(unisic PRIVATE HAVE_LAYERSHELL)
 # thing the wl-copy fallback papers over. NOT KDE-only to build: the library is
 # an ordinary Qt dependency and on a non-KDE desktop KSystemClipboard just
 # behaves like the plain clipboard, which is why it can be required everywhere.
-target_link_libraries(unisic PRIVATE KF6::GuiAddons)
-target_compile_definitions(unisic PRIVATE HAVE_KGUIADDONS)
+if(NOT WIN32)
+    target_link_libraries(unisic PRIVATE KF6::GuiAddons)
+    target_compile_definitions(unisic PRIVATE HAVE_KGUIADDONS)
+endif()
+
+# Windows: *_win.cpp files swapped in for the Linux-only sources, and shim
+# headers standing in for the libraries MSYS2 does not ship. Details there.
+if(WIN32)
+    include(cmake/UnisicWindows.cmake)
+endif()
 
 set_source_files_properties(qml/ToolCatalog.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
@@ -409,17 +437,26 @@ message(STATUS "Translations: enabled (English, Polish, Spanish, Italian, French
 # succeeded. The list is written out anyway so that .github/actions/assert-gates
 # fails loudly on an OLD build directory, on a gate someone adds here and
 # forgets to add there, and on a kit whose UNISIC_KIT_FEATURES went missing.
-set(UNISIC_ALL_FEATURES
-    HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
-    HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS
-    ${UNISIC_KIT_FEATURES})
+if(WIN32)
+    # UNISIC_WINDOWS_FEATURES comes from cmake/UnisicWindows.cmake.
+    set(UNISIC_ALL_FEATURES
+        HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
+        ${UNISIC_WINDOWS_FEATURES} ${UNISIC_KIT_FEATURES})
+    set(_unisic_expected_features 5)
+else()
+    set(UNISIC_ALL_FEATURES
+        HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
+        HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS
+        ${UNISIC_KIT_FEATURES})
+    set(_unisic_expected_features 10)
+endif()
 # HAVE_PIPEWIRE is defined on both sides (the app links it, the kit builds the
 # grabber), so it would otherwise appear twice.
 list(REMOVE_DUPLICATES UNISIC_ALL_FEATURES)
 list(LENGTH UNISIC_ALL_FEATURES UNISIC_FEATURE_COUNT)
-if(UNISIC_FEATURE_COUNT LESS 10)
+if(UNISIC_FEATURE_COUNT LESS _unisic_expected_features)
     message(FATAL_ERROR
-        "Only ${UNISIC_FEATURE_COUNT} build features were collected, expected 10.\n"
+        "Only ${UNISIC_FEATURE_COUNT} build features were collected, expected ${_unisic_expected_features}.\n"
         "  UNISIC_KIT_FEATURES is empty or short, which means external/unisic-kit\n"
         "  is out of date with this tree. Run: git submodule update --init --recursive")
 endif()
@@ -819,5 +856,15 @@ if(BUILD_TESTING)
     target_include_directories(unisic_scroll_stitch_test PRIVATE src)
     add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
     set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    if(WIN32)
+        # Windows has no session bus. A test that asks for one (the theme seed
+        # test reads the portal) makes libdbus autolaunch dbus-daemon.exe, which
+        # inherits the test's handles and outlives it, so ctest waits on the
+        # still-open output pipe until the 120 s timeout. With an address of a
+        # transport libdbus does not know, every bus call fails at once instead.
+        get_property(_unisic_tests DIRECTORY PROPERTY TESTS)
+        set_property(TEST ${_unisic_tests} APPEND PROPERTY ENVIRONMENT "DBUS_SESSION_BUS_ADDRESS=disabled:")
+    endif()
 
 endif()

@@ -176,7 +176,10 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
     // start(), so the global pool never holds process exit for the probe.
     if (!m_probeWarmed) {
         m_probeWarmed = true;
-        m_probeWatcher.setFuture(QtConcurrent::run([] { (void)FfmpegUtil::encoders(); }));
+        m_probeWatcher.setFuture(QtConcurrent::run([] {
+            (void)FfmpegUtil::encoders();
+            (void)FfmpegUtil::supportsShortestBufDuration();
+        }));
     }
     m_state = Starting;
     m_holdForCommit = holdForCommit;
@@ -197,10 +200,11 @@ void GifRecorder::start(Output output, SourceType source, const QRect &cropPhysi
 
     // BOTH grabbers are compiled in; which one runs is a per-SESSION choice, not
     // a build one. X11 session: the ScreenCast portal has no working path there,
-    // so grab the monitor directly with XShm. Window source is not offered on
-    // X11 (v1), so it still falls through to the portal (which will just fail
-    // on X11).
-    if (m_source != Window && QGuiApplication::platformName() == QLatin1String("xcb")) {
+    // so grab the monitor directly with XShm; Windows has no portal at all and
+    // grabs the same way (DXGI, X11ShmGrabber_win.cpp). Window source is not
+    // offered on either, so it still falls through to the portal (which will
+    // just fail there).
+    if (m_source != Window && X11ShmGrabber::isAvailable()) {
         openX11Session();
         return;
     }
@@ -649,13 +653,8 @@ void GifRecorder::openX11Session()
     m_cursorOverlayActive = m_settings->includeCursor();
     // Grab the WHOLE monitor and let beginEncoding apply m_crop, exactly as the
     // Wayland monitor stream - so the region crop, cursor offset and rescale
-    // logic downstream are unchanged. QScreen geometry is logical; X server
-    // pixels are physical, so scale by the device pixel ratio (they coincide on
-    // the common dpr==1 X11 setup).
-    const qreal dpr = scr->devicePixelRatio();
-    const QRect g = scr->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    // logic downstream are unchanged.
+    const QRect rootRect = X11ShmGrabber::screenRect(scr);
     auto *x = new X11ShmGrabber(this);
     m_grabber = x;
     wireGrabber(x);
@@ -799,36 +798,40 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     // Audio inputs are added after raw screen input 0.
     int nextInput = 1;
 
-    // Optional audio - video output only (GIF has none). Pulse sources are
-    // followed by an optional PipeWire application node captured through a
-    // bounded kernel FIFO (pw-record writes raw PCM; no audio accumulates in RAM).
+    // Optional audio - video output only (GIF has none). The system output and
+    // the microphone (AudioCapture) are followed by an optional PipeWire
+    // application node captured through a bounded kernel FIFO (pw-record
+    // writes raw PCM; no audio accumulates in RAM).
     m_hasAudio = false;
     m_audioTrackTitles.clear();
-    QStringList audioSources;
+    m_audioCaptures.clear();
     // The names travel INTO the file (Matroska title, MP4 handler_name), so an
     // editor shows "Microphone" rather than "Track 2". Indexed together with
-    // audioSources/audioInputs everywhere below.
+    // audioInputs everywhere below.
     QStringList audioLabels;
     QVector<int> audioInputs;
     if (m_output != Gif) {
-        if (m_settings->recordSystemAudio()) {
-            audioSources << QStringLiteral("@DEFAULT_MONITOR@");
-            audioLabels << tr("System audio");
+        struct Wanted {
+            AudioCapture::Source source;
+            QString label;
+        };
+        QList<Wanted> wanted;
+        if (m_settings->recordSystemAudio())
+            wanted.append({AudioCapture::Source::System, tr("System audio")});
+        if (m_settings->recordMicrophone())
+            wanted.append({AudioCapture::Source::Microphone, tr("Microphone")});
+        for (const Wanted &w : wanted) {
+            QString error;
+            auto capture = AudioCapture::open(w.source, m_settings->microphoneSource(), &error);
+            if (!capture) {
+                fail(error);
+                return;
+            }
+            args << capture->ffmpegInput();
+            audioInputs << nextInput++;
+            audioLabels << w.label;
+            m_audioCaptures.push_back(std::move(capture));
         }
-        if (m_settings->recordMicrophone()) {
-            // A chosen source is its pipewire-pulse node.name; empty means the
-            // system default input. A stale name (unplugged mic) makes ffmpeg
-            // fail with a visible error rather than silently recording nothing.
-            const QString micSource = m_settings->microphoneSource().trimmed();
-            audioSources << (micSource.isEmpty() ? QStringLiteral("default") : micSource);
-            audioLabels << tr("Microphone");
-        }
-    }
-    for (const QString &dev : audioSources) {
-        args << QStringLiteral("-f") << QStringLiteral("pulse")
-             << QStringLiteral("-thread_queue_size") << QStringLiteral("1024")
-             << QStringLiteral("-i") << dev;
-        audioInputs << nextInput++;
     }
     // ffmpeg input indices of the app-audio FIFOs. The only audio inputs that
     // can end before the recording does.
@@ -871,15 +874,43 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         if (appSerials.isEmpty())
             qWarning() << "unisic: none of the selected applications is playing audio:" << apps;
     }
+    // Where AudioCapture records applications itself (Windows process
+    // loopback). These never end before the recording does, so they are plain
+    // audio inputs, not FIFOs. An application that cannot be captured costs
+    // its track, not the recording, the same as a quiet one above.
+    for (const AudioCapture::AppTarget &target : AudioCapture::applicationTargets(apps)) {
+        QString error;
+        auto capture = AudioCapture::open(AudioCapture::Source::Application, target.device, &error);
+        if (!capture) {
+            qWarning() << "unisic: could not capture the audio of" << target.label << error;
+            continue;
+        }
+        args << capture->ffmpegInput();
+        audioInputs << nextInput++;
+        audioLabels << target.label;
+        m_audioCaptures.push_back(std::move(capture));
+    }
 
     // Lossless RGB intermediate: libx264rgb (fastest) when the ffmpeg has GPL
     // x264, else utvideo (fast intra-only RGB), else FFV1 - fallbacks for an
     // ffmpeg built without GPL x264.
+    //
+    // Both x264 paths use -tune zerolatency, which swaps x264's frame threads
+    // for sliced threads. Frame threads (~1.5 per core, 24 on a 16-thread box)
+    // hold the first packet back by that many frames, and with audio under
+    // -shortest that deadlocks ffmpeg 7+ at the start: its scheduler pauses the
+    // audio inputs until the video stream has a packet, while the -shortest
+    // sync queue keeps the video frames from the encoder until the audio
+    // catches up. Measured with ffmpeg 9.0.2: a 7 s test got its first video
+    // packet at 6.8 s, a live recording never got one (0-byte temp after
+    // 7 min) and its audio was lost. Throughput is unchanged (98 fps at
+    // 2560x1440 both ways) and the frame timestamps pass through untouched.
     const QSet<QString> &encoders = FfmpegUtil::encoders();
     if (m_output == Replay) {
         if (encoders.contains(QStringLiteral("libx264")) || encoders.isEmpty()) {
             args << QStringLiteral("-c:v") << QStringLiteral("libx264")
                  << QStringLiteral("-preset") << QStringLiteral("ultrafast")
+                 << QStringLiteral("-tune") << QStringLiteral("zerolatency")
                  << QStringLiteral("-crf")
                  << QString::number(UnisicVideo::crfFromPercent(m_settings->videoQualityPercent()));
         } else if (encoders.contains(QStringLiteral("libopenh264"))) {
@@ -893,6 +924,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
     } else if (encoders.contains(QStringLiteral("libx264rgb")) || encoders.isEmpty()) {
         args << QStringLiteral("-c:v") << QStringLiteral("libx264rgb")
              << QStringLiteral("-preset") << QStringLiteral("ultrafast")
+             << QStringLiteral("-tune") << QStringLiteral("zerolatency")
              << QStringLiteral("-qp") << QStringLiteral("0");
     } else if (encoders.contains(QStringLiteral("utvideo"))) {
         args << QStringLiteral("-c:v") << QStringLiteral("utvideo");
@@ -978,8 +1010,18 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         // duration=longest stops at the last one to close. Separate tracks
         // are the exception - every FIFO there is apad-ed and never ends, so
         // without -shortest the encode would run forever.
-        if (separateTracks || audioInputs.size() > fifoInputs.size())
+        //
+        // -shortest_buf_duration caps how much the -shortest sync queue holds
+        // (default 10 s of RAW frames, ~4.4 GB at 2560x1440@30) and so bounds
+        // the start deadlock described above for every encoder that delays
+        // its first packet, not just x264: utvideo's frame threads hit it too
+        // (7 s test: 12.5 s total at the default, 6.8 s at 0.5). It drops
+        // nothing, the queue still outputs every frame it was given.
+        if (separateTracks || audioInputs.size() > fifoInputs.size()) {
             args << QStringLiteral("-shortest");
+            if (FfmpegUtil::supportsShortestBufDuration())
+                args << QStringLiteral("-shortest_buf_duration") << QStringLiteral("0.5");
+        }
         m_hasAudio = true;
         // Mixed sources have no name to carry - the one stream is all of them.
         if (separateTracks || audioInputs.size() == 1)
@@ -1018,6 +1060,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         const QByteArray out = rec->readAll();
         m_ffmpeg = nullptr;
         rec->deleteLater();
+        m_audioCaptures.clear();
         m_stopWatchdog.stop();
 
         if (m_state == Recording || m_state == Starting) {
@@ -1349,6 +1392,7 @@ void GifRecorder::stopWatchdogTick()
     QProcess *orphan = m_ffmpeg;
     m_ffmpeg = nullptr;
     orphan->disconnect(this);
+    m_audioCaptures.clear();
     if (m_output == Replay || QFileInfo(m_tempPath).size() <= 0) {
         fail(tr("Recording encoder hung and nothing could be salvaged"));
         return;
@@ -1973,6 +2017,7 @@ void GifRecorder::abort()
     }
     m_nativeStream = false;
     FfmpegUtil::stopProcess(m_ffmpeg);
+    m_audioCaptures.clear();
     FfmpegUtil::stopProcess(m_converter);
     for (QProcess *&pw : m_appAudio)
         FfmpegUtil::stopProcess(pw);

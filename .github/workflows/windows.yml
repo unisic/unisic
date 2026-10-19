@@ -1,0 +1,205 @@
+name: Windows build
+
+# Reusable Windows build: MSYS2 UCRT64 (MinGW-w64 gcc + MSYS2's Qt 6), the same
+# toolchain AGENTS.md documents for local Windows work. Called by build.yml, so
+# a PR that breaks the Windows port goes red even when it was written and
+# tested on Linux only, and by release.yml, which attaches the portable zip to
+# the release. The per-user installer stays a CI artifact.
+#
+# The zip is also what the Windows self-update installs from: UpdateChecker
+# picks Unisic-<ver>-windows-x86_64.zip from the release, checks its sha256
+# and stages it under %APPDATA%. That is why the release passes build-number:
+# a build with no UNISIC_BUILD_NUMBER is "dev", and a dev build never checks
+# or stages anything. The PR check passes none, so its artifact cannot update
+# itself to the last release. UNISIC_DEV_BUILD=OFF is passed explicitly so the
+# exe is a GUI app with no console window and no F8 smoke hotkey either way.
+on:
+  workflow_call:
+    inputs:
+      build-number:
+        # The release run's number. Empty = a dev build (no self-update).
+        type: string
+        default: ""
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: msys2 {0}
+
+jobs:
+  windows:
+    name: Windows (MSYS2 UCRT64)
+    runs-on: windows-2025
+    env:
+      UNISIC_BUILD_NUMBER: ${{ inputs.build-number }}
+    steps:
+      # Before checkout: git on the runner would otherwise check the sources out
+      # with CRLF, and the shell scripts under packaging/ stop parsing.
+      - name: Keep LF line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          # Unisic has no optional dependencies on Windows either: every package
+          # here backs a gate the configure refuses to run without, and the
+          # assert-gates step below checks the result. qt6-translations is what
+          # windeployqt copies the Qt catalogs from; tesseract-ocr already
+          # carries osd.traineddata, the data packages add eng and pol. ffmpeg
+          # backs no gate: deploy.sh bundles it for GIF export and recording,
+          # and with it on PATH the StillGif test runs instead of skipping.
+          # libarchive writes ZIP exports; the configure stops without it.
+          pacboy: >-
+            cmake:p ninja:p gcc:p pkgconf:p
+            qt6-base:p qt6-declarative:p qt6-svg:p qt6-imageformats:p
+            qt6-tools:p qt6-translations:p
+            tesseract-ocr:p tesseract-data-eng:p tesseract-data-pol:p
+            leptonica:p zxing-cpp:p ffmpeg:p libarchive:p
+
+      - name: Configure
+        run: cmake -S . -B build-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DUNISIC_DEV_BUILD=OFF
+
+      - name: Assert every build gate is on
+        uses: ./.github/actions/assert-gates
+        with:
+          build-dir: build-win
+          platform: windows
+
+      - name: Build
+        run: cmake --build build-win
+
+      # The QtTest suite the Nix job runs on Linux. On Windows it catches the
+      # POSIX assumptions a Linux run cannot see (renaming over a file that is
+      # still open, for one). qt_add_executable makes the test binaries GUI
+      # apps, so a failure prints nothing here: rerun the binary with
+      # `-o out.txt,txt` to read it.
+      - name: Test
+        run: ctest --test-dir build-win --output-on-failure --timeout 120
+
+      - name: Stage the portable bundle and pack the zip
+        run: packaging/windows/deploy.sh build-win dist-win release-win
+
+      # The bundle must start on a machine with no MSYS2: unpack the zip with
+      # System32\tar.exe, exactly as an update does, run it with only the
+      # Windows system dirs on PATH and capture one screenshot to a PNG, then
+      # one to a GIF. The GIF goes through the bundled ffmpeg; were it missing
+      # or short of a DLL, Unisic would write a PNG instead, so the check reads
+      # the GIF signature and not just the file. The runner has a desktop
+      # session, so GDI capture works headless.
+      - name: Capture screenshots from the unpacked zip
+        shell: pwsh
+        timeout-minutes: 3
+        run: |
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $zip = Get-ChildItem release-win\Unisic-*-windows-x86_64.zip
+          $dir = Join-Path $env:RUNNER_TEMP 'unpacked'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          tar.exe -x -f $zip.FullName -C $dir
+          if ($LASTEXITCODE -ne 0) { throw "tar.exe could not unpack $($zip.Name)" }
+          foreach ($ext in 'png', 'gif') {
+            $out = Join-Path $env:RUNNER_TEMP "bundle-smoke.$ext"
+            $p = Start-Process -FilePath (Join-Path $dir 'bin\unisic.exe') -ArgumentList '--fullscreen', "--output=$out" -PassThru
+            if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
+            if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
+            if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
+            "$ext screenshot: $((Get-Item $out).Length) bytes"
+          }
+          $magic = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes((Join-Path $env:RUNNER_TEMP 'bundle-smoke.gif'))[0..5])
+          if ($magic -notmatch '^GIF8[79]a$') { throw "bundle-smoke.gif is not a GIF (starts with '$magic')" }
+
+      # The per-user setup wizard around the same folder. pwsh, not msys2: MSYS2
+      # would rewrite iscc's /D switches as paths. The runner image ships Inno
+      # Setup 6.
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $m = Select-String -Path CMakeLists.txt -Pattern '^set\(UNISIC_VERSION_STRING "([^"]+)"\)'
+          if (-not $m) { throw 'UNISIC_VERSION_STRING not found in CMakeLists.txt' }
+          $version = $m.Matches[0].Groups[1].Value
+          $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe' }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 not found (looked on PATH and at $iscc)" }
+          & $iscc /Q "/DAppVersion=$version" "/DBundleDir=$PWD\dist-win" "/DOutputDir=$PWD\installer" packaging\windows\unisic.iss
+          if ($LASTEXITCODE -ne 0) { throw "iscc exited with $LASTEXITCODE" }
+          Get-ChildItem installer | Format-Table Name, Length
+
+      # Install silently for this user, capture from the installed copy, then
+      # uninstall and check that nothing is left: not the folder, not the staged
+      # updates, not the Start menu shortcut, not the uninstall entry.
+      - name: Install, capture, uninstall
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $setup = (Get-ChildItem installer\*-setup.exe).FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'unisic-installed'
+          $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{E5B31D14-31A5-4639-800D-2E19950EFEC3}_is1'
+          $lnk = Join-Path ([Environment]::GetFolderPath('Programs')) 'Unisic.lnk'
+          $p = Start-Process -FilePath $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "setup exited with $($p.ExitCode)" }
+          foreach ($f in "$dir\bin\unisic.exe", "$dir\unins000.exe", $lnk, $key) {
+            if (-not (Test-Path $f)) { throw "$f missing after install" }
+          }
+
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          $out = Join-Path $env:RUNNER_TEMP 'installed-smoke.png'
+          $p = Start-Process -FilePath "$dir\bin\unisic.exe" -ArgumentList '--fullscreen', "--output=$out" -PassThru
+          if (-not $p.WaitForExit(60000)) { $p.Kill(); throw 'unisic.exe did not exit within 60 s' }
+          if ($p.ExitCode -ne 0) { throw "unisic.exe exited with $($p.ExitCode)" }
+          if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) { throw "no screenshot at $out" }
+          "screenshot: $((Get-Item $out).Length) bytes"
+
+          # A stand-in for a staged self-update, which the uninstaller must
+          # delete although it lives outside the install folder.
+          $staged = Join-Path $env:APPDATA 'Unisic\unisic\updates'
+          New-Item -ItemType Directory -Force (Join-Path $staged 'ci-stand-in') | Out-Null
+          # And for "Start at login": the Run value Unisic writes must not
+          # outlive the exe it points at.
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          New-ItemProperty -Path $run -Name 'app.unisic.Unisic' -Value "`"$dir\bin\unisic.exe`" --tray-only" -Force | Out-Null
+
+          # unins000.exe copies itself to %TEMP% and returns at once, so wait
+          # for the folders to go instead of for the process.
+          $p = Start-Process -FilePath "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "uninstaller exited with $($p.ExitCode)" }
+          $deadline = (Get-Date).AddSeconds(60)
+          while (((Test-Path $dir) -or (Test-Path $staged)) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          foreach ($f in $dir, $staged, $lnk, $key) {
+            if (Test-Path $f) { throw "$f left behind after uninstall" }
+          }
+          if ($null -ne (Get-ItemProperty -Path $run -Name 'app.unisic.Unisic' -ErrorAction SilentlyContinue)) {
+            throw "the Run value app.unisic.Unisic was left behind after uninstall"
+          }
+          'uninstall left nothing behind'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          # Deliberately not unisic-*: the release job sweeps up every artifact
+          # matching that prefix, and it must not wait on this job. The zip
+          # reaches the release through windows-release below instead.
+          name: windows-portable
+          path: dist-win
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: installer/*-setup.exe
+          if-no-files-found: error
+
+      # Only for a numbered (release) build: release.yml's windows-asset job
+      # attaches these two files to the release once it exists.
+      - if: ${{ inputs.build-number != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release-win
+          if-no-files-found: error

@@ -7,6 +7,11 @@ To-Do
 .claude/settings.json
 .claude/settings.local.json
 dist/
+dist-win/
+# packaging/windows/deploy.sh: the release zip (next to dist-win/ by default, release-win/ in CI)
+/Unisic-*-windows-x86_64.zip
+/Unisic-*-windows-x86_64.zip.sha256
+release-win/
 
 # Editor swap/backup files
 .*.kate-swp

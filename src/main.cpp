@@ -5,7 +5,7 @@
 #include "theme/IconImageProvider.h"
 #include "editor/WatermarkPreview.h"
 #include "capture/ScrollPreviewProvider.h"
-#include "update/VersionCompare.h"
+#include "update/StagedUpdate.h"
 #include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
 // The kit's own ConfigPath.h shares the basename, so it needs the explicit
 // relative path; provides UnisicKit::setConfigFilePath (wired in main()).
@@ -26,7 +26,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QVarLengthArray>
 #include <QStandardPaths>
 #include <QProcess>
 #include <QTimer>
@@ -37,7 +36,11 @@
 #include <algorithm>
 #include <csignal>
 #include <cstdio>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <unistd.h>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -122,6 +125,32 @@ static const char *unexpectedArgument(int argc, char *argv[])
     return nullptr;
 }
 
+#ifdef _WIN32
+// Windows has no socketpair or sigaction. Ctrl+C, Ctrl+Break and closing the
+// console arrive on a thread the system starts for the handler; a queued quit
+// is safe from there, and the destructors run on the main thread as on Linux.
+static BOOL WINAPI consoleCtrlHandler(DWORD type)
+{
+    const char *name = type == CTRL_C_EVENT ? "CTRL_C"
+                     : type == CTRL_BREAK_EVENT ? "CTRL_BREAK"
+                     : type == CTRL_CLOSE_EVENT ? "CTRL_CLOSE"
+                                                : "other";
+    QMetaObject::invokeMethod(qApp, [name] {
+        DiagLog::setQuitReason(QStringLiteral("console %1").arg(QLatin1String(name)));
+        QCoreApplication::quit();
+    }, Qt::QueuedConnection);
+    // The process is killed as soon as a CLOSE handler returns; wait out the
+    // system's grace period so the event loop can finish. main() returning
+    // ends the process, and this thread with it.
+    if (type == CTRL_CLOSE_EVENT)
+        Sleep(5000);
+    return TRUE;
+}
+static void installSignalHandlers(QCoreApplication *)
+{
+    SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
+}
+#else
 // SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
 // cleanup, tray teardown) — the default handlers kill the process cold and
 // every settings change since launch is lost. Self-pipe pattern: the handler
@@ -160,6 +189,7 @@ static void installSignalHandlers(QCoreApplication *app)
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
 }
+#endif
 
 static QString singleInstanceServerName()
 {
@@ -173,10 +203,16 @@ static QString singleInstanceServerName()
     // sessions of the same user (rare) sharing one instance is the far smaller
     // cost. Dev builds use their own socket so stable and dev can run (and be
     // CLI-targeted) side by side.
-#ifdef UNISIC_DEV_BUILD
-    return QStringLiteral("app.unisic.UnisicDev.%1").arg(getuid());
+#ifdef _WIN32
+    // No UIDs on Windows; the account name is the per-user key there.
+    const QString user = qEnvironmentVariable("USERNAME");
 #else
-    return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
+    const uint user = getuid();
+#endif
+#ifdef UNISIC_DEV_BUILD
+    return QStringLiteral("app.unisic.UnisicDev.%1").arg(user);
+#else
+    return QStringLiteral("app.unisic.Unisic.%1").arg(user);
 #endif
 }
 
@@ -621,59 +657,6 @@ static void ensureDesktopFile()
     }
 }
 
-// Package installs (deb/rpm/arch) can't replace /usr/bin/unisic without root,
-// so UpdateChecker stages a newer version under the user's data dir and this
-// bootstrap execs it — the packaged binary keeps working as a launcher until
-// the distro package catches up. The staged copy runs with UNISIC_STAGED=1 so
-// it never re-redirects; AppImage never stages. Path composition
-// must stay in sync with UpdateChecker::stagingDir() (org "Unisic" + app name
-// under XDG data), computed by hand because this runs before QApplication.
-static void execStagedUpdate(int argc, char *argv[])
-{
-    if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty()
-        // A flatpak never stages: the bundle is read-only, it is updated by
-        // the flatpak client, and exec'ing a downloaded binary inside the
-        // sandbox is exactly what the store forbids.
-        || qEnvironmentVariableIsSet("FLATPAK_ID"))
-        return;
-#ifdef UNISIC_DEV_BUILD
-    const QString appName = QStringLiteral("unisic-dev");
-#else
-    const QString appName = QStringLiteral("unisic");
-#endif
-    QString dataHome = qEnvironmentVariable("XDG_DATA_HOME");
-    if (dataHome.isEmpty())
-        dataHome = QDir::homePath() + QStringLiteral("/.local/share");
-    QFile f(dataHome + QStringLiteral("/Unisic/") + appName + QStringLiteral("/updates/current"));
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
-    f.close();
-    const QString ver = lines.value(0).trimmed();
-    const QString appRun = lines.value(1).trimmed();
-    // Only a strictly NEWER stage wins; a stale pointer (package caught up)
-    // is ignored here and garbage-collected by UpdateChecker at startup.
-    if (appRun.isEmpty() || !UpdateVersion::isNewer(ver, QStringLiteral(UNISIC_VERSION))
-        || !QFileInfo(appRun).isExecutable())
-        return;
-    qputenv("UNISIC_STAGED", "1");
-    // Restarts go through this binary again so they land on the newest stage.
-    qputenv("UNISIC_BOOTSTRAP_EXE",
-            QFile::encodeName(QFileInfo(QStringLiteral("/proc/self/exe")).symLinkTarget()));
-    QList<QByteArray> args;
-    args.append(QFile::encodeName(appRun));
-    for (int i = 1; i < argc; ++i)
-        args.append(QByteArray(argv[i]));
-    QVarLengthArray<char *, 16> execArgv;
-    for (QByteArray &a : args)
-        execArgv.append(a.data());
-    execArgv.append(nullptr);
-    ::execv(execArgv[0], execArgv.data());
-    // exec failed (deleted stage, wrong arch…) — fall through to the
-    // packaged version rather than dying.
-}
-
 int main(int argc, char *argv[])
 {
     // FIRST statement, before QApplication and before the helper dispatch
@@ -826,17 +809,19 @@ int main(int argc, char *argv[])
 #endif
     app.setQuitOnLastWindowClosed(false); // lives in the tray
 
-    // The AppImage and the portable tarball ship ffmpeg, wl-copy, grim and the
-    // other helpers beside the binary, but their AppRun is a bare symlink that
-    // sets no PATH, so every lookup went to the host: a helper the host lacked
-    // counted as missing (#121) and a present one replaced the bundled copy CI
-    // checked. The bundle goes first; an install already on PATH is untouched.
+    // The AppImage, the portable tarball and the Windows bundle ship ffmpeg (and
+    // on Linux wl-copy, grim and the other helpers) beside the binary, but
+    // nothing puts that folder on PATH: AppRun is a bare symlink and Windows
+    // never searches it. Every lookup went to the host, so a helper the host
+    // lacked counted as missing (#121) and a present one replaced the bundled
+    // copy CI checked. The bundle goes first; an install already on PATH is
+    // untouched.
     {
-        const QString binDir = QCoreApplication::applicationDirPath();
+        const QString binDir = QDir::toNativeSeparators(QCoreApplication::applicationDirPath());
         const QByteArray path = qgetenv("PATH");
-        if (QFileInfo::exists(binDir + QStringLiteral("/wl-copy"))
-            && !QString::fromLocal8Bit(path).split(QLatin1Char(':')).contains(binDir))
-            qputenv("PATH", QFile::encodeName(binDir) + ':' + path);
+        if (!QStandardPaths::findExecutable(QStringLiteral("ffmpeg"), {binDir}).isEmpty()
+            && !QString::fromLocal8Bit(path).split(QDir::listSeparator()).contains(binDir))
+            qputenv("PATH", QFile::encodeName(binDir) + QDir::listSeparator().toLatin1() + path);
     }
 
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))

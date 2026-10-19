@@ -83,6 +83,29 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 </details>
 
 <details>
+<summary><b>Windows preview</b></summary>
+
+<br />
+
+Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries `Unisic-<version>-windows-x86_64.zip`: unpack it anywhere and run `bin\unisic.exe`, no administrator rights needed. It updates itself: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the `unisic.exe` you unpacked starts that copy from then on, so keep the folder where it is. Each CI run of the Build workflow also has a `windows-installer` artifact, a setup wizard that installs the same files for your user only, with a Start menu entry and an uninstaller; it is not on the release page yet. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
+
+Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
+
+| Keys | Description |
+| --- | --- |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Print</kbd> | Capture the full screen |
+| <kbd>Print</kbd> or <kbd>Ctrl</kbd> + <kbd>Print</kbd> | Capture a region |
+| <kbd>Alt</kbd> + <kbd>Print</kbd> | Capture the active window |
+| <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> | Record a GIF (region) |
+| <kbd>Shift</kbd> + <kbd>Print</kbd> | Record video (region) |
+| <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> | OCR - copy text out of a region |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop; <kbd>Ctrl</kbd> + <kbd>Esc</kbd> is the Start menu) |
+
+A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> works either way.
+
+</details>
+
+<details>
 <summary><b>Build from source</b></summary>
 
 <br />

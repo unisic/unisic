@@ -178,7 +178,8 @@ void ScrollCaptureController::setInputRects(int x1, int y1, int w1, int h1,
 
 void ScrollCaptureController::openGrabber()
 {
-    if (QGuiApplication::platformName() == QLatin1String("xcb")) {
+    // X11 and Windows have no ScreenCast portal: grab the monitor directly.
+    if (X11ShmGrabber::isAvailable()) {
         openX11Session();
         return;
     }
@@ -244,15 +245,10 @@ void ScrollCaptureController::openX11Session()
     if (!m_screen)
         return;
 
-    const qreal dpr = m_screen->devicePixelRatio() > 0 ? m_screen->devicePixelRatio() : 1.0;
-    const QRect g = m_screen->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
-
     auto *x = new X11ShmGrabber(this);
     m_grabber = x;
     wireGrabber(x);
-    x->start(rootRect, 30, false);
+    x->start(X11ShmGrabber::screenRect(m_screen), 30, false);
 }
 
 void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)

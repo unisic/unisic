@@ -201,8 +201,11 @@ bool UpdateChecker::isInstallAsset(const QString &name)
 {
     // The portable zip windows.yml builds, never the AppImage: that is a
     // Linux ELF file with nothing in it Windows can run. The ".sha256" file
-    // beside the zip must not match.
-    static const QRegularExpression assetRe(QStringLiteral("^Unisic-.*-windows-x86_64\\.zip$"));
+    // beside the zip must not match. The "-experimental" suffix the preview
+    // port ships under is optional, so the release that drops it is still
+    // found by every copy installed before then.
+    static const QRegularExpression assetRe(
+        QStringLiteral("^Unisic-.*-windows-x86_64(-experimental)?\\.zip$"));
     return assetRe.match(name).hasMatch();
 }
 

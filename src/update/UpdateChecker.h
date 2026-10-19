@@ -20,8 +20,8 @@ class QTimer;
 //    becomes a bootstrap until the distro package catches up, then the staging
 //    area is cleaned. No root, no package manager involved.
 //  - Windows portable zip: the same staging, with the release's
-//    Unisic-<ver>-windows-x86_64.zip unpacked by System32 tar.exe; the
-//    installed unisic.exe starts the staged copy and waits for it.
+//    Unisic-<ver>-windows-x86_64-experimental.zip unpacked by System32
+//    tar.exe; the installed unisic.exe starts the staged copy and waits for it.
 // The platform halves (which asset, how to unpack, where the staged exe lives,
 // how to replace a file, how to restart) are in StagedUpdate.cpp and
 // StagedUpdate_win.cpp.

@@ -42,7 +42,7 @@ An arrow-key menu opens. The recommended entry installs the self-updating AppIma
 
 To read the script before running it: `curl -fsSLO https://unisic.app/install.sh`, then `less install.sh && bash install.sh`.
 
-By hand: grab the **AppImage** or a native package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. Install downloaded packages with `sudo dnf install ./unisic-*.fedora.x86_64.rpm` or `sudo apt install ./unisic_*_amd64.deb` so dependencies get resolved. Repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and Nix: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
+By hand: grab the **AppImage** or a native package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. Install downloaded packages with `sudo dnf install ./unisic-*.fedora.x86_64.rpm` or `sudo apt install ./unisic_*_amd64.deb` so dependencies get resolved. Windows 11 takes `Unisic-<version>-windows-x86_64-experimental.zip` from the same page (see Windows below). Repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and Nix: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
 
 ## Press a hotkey, go
 
@@ -83,11 +83,13 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 </details>
 
 <details>
-<summary><b>Windows preview</b></summary>
+<summary><b>Windows (experimental)</b></summary>
 
 <br />
 
-Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries `Unisic-<version>-windows-x86_64.zip`: unpack it anywhere and run `bin\unisic.exe`, no administrator rights needed. It updates itself: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the `unisic.exe` you unpacked starts that copy from then on, so keep the folder where it is. Each CI run of the Build workflow also has a `windows-installer` artifact, a setup wizard that installs the same files for your user only, with a Start menu entry and an uninstaller; it is not on the release page yet. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
+The Windows port is written entirely by AI. The author will not touch the code it takes to port Unisic to a system this poorly thought out, so everything Windows-specific, from the capture and recording paths to the installer and the CI that tests it, was written by an AI model and checked by running it, not written by hand.
+
+Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries `Unisic-<version>-windows-x86_64-experimental.zip`, named so because the port is a preview, checked by hand on Windows 11 rather than used every day like the Linux build: unpack it anywhere and run `bin\unisic.exe`, no administrator rights needed. It updates itself: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the `unisic.exe` you unpacked starts that copy from then on, so keep the folder where it is. Each CI run of the Build workflow also has a `windows-installer` artifact, a setup wizard that installs the same files for your user only, with a Start menu entry and an uninstaller; it is not on the release page yet. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
 
 Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
 

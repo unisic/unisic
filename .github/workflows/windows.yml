@@ -7,12 +7,13 @@ name: Windows build
 # the release. The per-user installer stays a CI artifact.
 #
 # The zip is also what the Windows self-update installs from: UpdateChecker
-# picks Unisic-<ver>-windows-x86_64.zip from the release, checks its sha256
-# and stages it under %APPDATA%. That is why the release passes build-number:
-# a build with no UNISIC_BUILD_NUMBER is "dev", and a dev build never checks
-# or stages anything. The PR check passes none, so its artifact cannot update
-# itself to the last release. UNISIC_DEV_BUILD=OFF is passed explicitly so the
-# exe is a GUI app with no console window and no F8 smoke hotkey either way.
+# picks Unisic-<ver>-windows-x86_64-experimental.zip from the release, checks
+# its sha256 and stages it under %APPDATA%. That is why the release passes
+# build-number: a build with no UNISIC_BUILD_NUMBER is "dev", and a dev build
+# never checks or stages anything. The PR check passes none, so its artifact
+# cannot update itself to the last release. UNISIC_DEV_BUILD=OFF is passed
+# explicitly so the exe is a GUI app with no console window and no F8 smoke
+# hotkey either way.
 on:
   workflow_call:
     inputs:
@@ -100,7 +101,7 @@ jobs:
         timeout-minutes: 3
         run: |
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
-          $zip = Get-ChildItem release-win\Unisic-*-windows-x86_64.zip
+          $zip = Get-ChildItem release-win\Unisic-*-windows-x86_64-experimental.zip
           $dir = Join-Path $env:RUNNER_TEMP 'unpacked'
           New-Item -ItemType Directory -Force $dir | Out-Null
           tar.exe -x -f $zip.FullName -C $dir

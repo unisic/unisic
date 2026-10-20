@@ -35,7 +35,7 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
 ## Install in one line
 
 ```sh
-bash -c "$(curl -fsSL https://unisic.app/install.sh)"
+curl -fsSL https://unisic.app/install.sh | bash
 ```
 
 An arrow-key menu opens. The recommended entry installs the self-updating AppImage in `~/.local` - no password, no build. The other installs your distro's package (`.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`, the openSUSE repo) and asks for your password. The same menu updates, uninstalls, installs an older version and toggles automatic updates. Every download is checked against the SHA-256 published with the release, and a mismatch is deleted instead of installed.

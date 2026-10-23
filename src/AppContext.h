@@ -1036,6 +1036,12 @@ private:
     // Ends the share a running scrolling capture holds (startScrollCapture())
     // and puts the window back. No-op when the session holds none.
     void endScrollIsolation();
+    // A full-screen transparent overlay (scroll frame, record frame) is about
+    // to map: remember whether Better Blur will blur the screen under it
+    // (KWinForceBlur). The toast lives in the main window, which is down for
+    // the capture, so it is shown by warnForceBlur() once the result is in.
+    void noteForceBlur();
+    void warnForceBlur();
     // Take our own main window off screen so it cannot land in the shot. False =
     // nothing was hidden (setting off, window already down, no window yet), so
     // the caller need not wait for the compositor. Idempotent per capture.
@@ -1151,6 +1157,8 @@ private:
     // session starts, and the window must stay out of the region (and out of
     // every slice) until endScrollIsolation().
     bool m_scrollHoldsWindow = false;
+    QString m_forceBlurWarning;     // noteForceBlur() -> warnForceBlur()
+    bool m_forceBlurWarned = false; // once per session is enough
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

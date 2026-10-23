@@ -155,6 +155,7 @@ qt_add_executable(unisic
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/KWinWindowGeometry.h src/capture/KWinWindowGeometry.cpp
+    src/capture/KWinForceBlur.h src/capture/KWinForceBlur.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
@@ -860,7 +861,17 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_scroll_stitch_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_scroll_stitch_test PRIVATE src)
     add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
+
     set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_kwin_force_blur_test
+        tests/KWinForceBlurTest.cpp
+        src/capture/KWinForceBlur.h
+        src/capture/KWinForceBlur.cpp
+    )
+    target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
+    target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
+    add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

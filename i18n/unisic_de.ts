@@ -4,65 +4,65 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="264"/>
+        <location filename="../src/AppContext.cpp" line="265"/>
         <source>Encoding…</source>
         <translation>Wird kodiert…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="280"/>
+        <location filename="../src/AppContext.cpp" line="281"/>
         <source>Recording failed: %1</source>
         <translation>Aufnahme fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="286"/>
+        <location filename="../src/AppContext.cpp" line="287"/>
         <source>Could not move %1 to trash; the file is still on disk</source>
         <translation>%1 konnte nicht in den Papierkorb verschoben werden; die Datei liegt weiterhin auf der Festplatte</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3267"/>
-        <location filename="../src/AppContext.cpp" line="5027"/>
-        <location filename="../src/AppContext.cpp" line="5047"/>
+        <location filename="../src/AppContext.cpp" line="3299"/>
+        <location filename="../src/AppContext.cpp" line="5059"/>
+        <location filename="../src/AppContext.cpp" line="5079"/>
         <source>Copied to clipboard</source>
         <translation>In die Zwischenablage kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="756"/>
-        <location filename="../src/AppContext.cpp" line="781"/>
+        <location filename="../src/AppContext.cpp" line="757"/>
+        <location filename="../src/AppContext.cpp" line="782"/>
         <source>Nothing to recognize</source>
         <translation>Nichts zu erkennen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="205"/>
+        <location filename="../src/AppContext.cpp" line="206"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 wurde installiert - es startet beim nächsten Start</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="759"/>
+        <location filename="../src/AppContext.cpp" line="760"/>
         <source>Recognizing text…</source>
         <translation>Text wird erkannt…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="764"/>
+        <location filename="../src/AppContext.cpp" line="765"/>
         <source>No text found</source>
         <translation>Kein Text gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="767"/>
+        <location filename="../src/AppContext.cpp" line="768"/>
         <source>Text copied</source>
         <translation>Text kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="949"/>
+        <location filename="../src/AppContext.cpp" line="950"/>
         <source>Capture failed: %1</source>
         <translation>Aufnahme fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="956"/>
+        <location filename="../src/AppContext.cpp" line="957"/>
         <source>. Install Unisic (sudo cmake --install build) and launch it from the application menu so KDE authorizes it, and check that xdg-desktop-portal-kde is running.</source>
         <translation>. Installieren Sie Unisic (sudo cmake --install build) und starten Sie es aus dem Anwendungsmenü, damit KDE ihm die Rechte erteilt, und prüfen Sie, ob xdg-desktop-portal-kde läuft.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="969"/>
+        <location filename="../src/AppContext.cpp" line="970"/>
         <source>. Install &apos;grim&apos; (works on sway/niri/Hyprland-style compositors) or an xdg-desktop-portal backend for your desktop.</source>
         <translation>. Installieren Sie „grim“ (für Compositors wie sway/niri/Hyprland) oder das xdg-desktop-portal-Backend Ihrer Arbeitsumgebung.</translation>
     </message>
@@ -82,7 +82,7 @@
         <translation>Dev: Form bearbeiten: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5907"/>
+        <location filename="../src/AppContext.cpp" line="5939"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2241"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4140"/>
         <source>Quit</source>
@@ -114,56 +114,56 @@
         <translation>Dev: Aufnahme beim Loslassen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="194"/>
+        <location filename="../src/AppContext.cpp" line="195"/>
         <source>Opened a terminal to install the update.</source>
         <translation>Ein Terminal zur Installation der Aktualisierung wurde geöffnet.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="195"/>
+        <location filename="../src/AppContext.cpp" line="196"/>
         <source>Couldn&apos;t start the update: %1</source>
         <translation>Die Aktualisierung konnte nicht gestartet werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1033"/>
+        <location filename="../src/AppContext.cpp" line="1034"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Zum Mitlesen von Tastendrücken wird Zugriff auf die Eingabegeräte benötigt. Führen Sie „%1“ aus und melden Sie sich danach ab und wieder an.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1371"/>
-        <location filename="../src/AppContext.cpp" line="1373"/>
-        <location filename="../src/AppContext.cpp" line="1437"/>
-        <location filename="../src/AppContext.cpp" line="1439"/>
-        <location filename="../src/AppContext.cpp" line="1449"/>
+        <location filename="../src/AppContext.cpp" line="1374"/>
+        <location filename="../src/AppContext.cpp" line="1376"/>
+        <location filename="../src/AppContext.cpp" line="1440"/>
+        <location filename="../src/AppContext.cpp" line="1442"/>
+        <location filename="../src/AppContext.cpp" line="1452"/>
         <source>Empty capture</source>
         <translation>Leere Aufnahme</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1407"/>
+        <location filename="../src/AppContext.cpp" line="1410"/>
         <source>No region to re-capture</source>
         <translation>Kein Bereich zum erneuten Aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1408"/>
+        <location filename="../src/AppContext.cpp" line="1411"/>
         <source>No region to re-capture yet - take a region screenshot first</source>
         <translation>Es gibt noch keinen Bereich zum erneuten Aufnehmen - nehmen Sie zuerst einen Bereich auf</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1417"/>
+        <location filename="../src/AppContext.cpp" line="1420"/>
         <source>Region&apos;s screen is no longer connected</source>
         <translation>Der Bildschirm dieses Bereichs ist nicht mehr angeschlossen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1418"/>
+        <location filename="../src/AppContext.cpp" line="1421"/>
         <source>The screen that region was on is no longer connected</source>
         <translation>Der Bildschirm, auf dem dieser Bereich lag, ist nicht mehr angeschlossen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1450"/>
+        <location filename="../src/AppContext.cpp" line="1453"/>
         <source>The stored region no longer fits that screen</source>
         <translation>Der gespeicherte Bereich passt nicht mehr auf diesen Bildschirm</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1575"/>
+        <location filename="../src/AppContext.cpp" line="1578"/>
         <source>Recording a single window needs a window picker this desktop does not provide - record the screen or a region instead.</source>
         <translation>Das Aufzeichnen eines einzelnen Fensters setzt eine Fensterauswahl voraus, die diese Arbeitsumgebung nicht anbietet - nehmen Sie stattdessen den Bildschirm oder einen Bereich auf.</translation>
     </message>
@@ -189,7 +189,7 @@
         <translation type="vanished">Das aktive Fenster liegt außerhalb des Bildschirms - nichts aufzunehmen.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1916"/>
+        <location filename="../src/AppContext.cpp" line="1926"/>
         <source>No log file was opened for this run</source>
         <translation>Für diesen Start wurde keine Protokolldatei geöffnet</translation>
     </message>
@@ -218,27 +218,27 @@
         <translation type="vanished">Optional. Installieren Sie „wl-clipboard“ für das zuverlässigste Kopieren in die Zwischenablage unter Wayland.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1955"/>
+        <location filename="../src/AppContext.cpp" line="1965"/>
         <source>OCR language pack</source>
         <translation>OCR-Sprachpaket</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1956"/>
+        <location filename="../src/AppContext.cpp" line="1966"/>
         <source>Found - text recognition (OCR) is ready.</source>
         <translation>Gefunden - die Texterkennung (OCR) ist einsatzbereit.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1957"/>
+        <location filename="../src/AppContext.cpp" line="1967"/>
         <source>Missing. OCR is built in but no Tesseract language pack is installed. Install one, e.g. &quot;tesseract-langpack-eng&quot;.</source>
         <translation>Fehlt. OCR ist eingebaut, aber es ist kein Tesseract-Sprachpaket installiert. Installieren Sie eines, zum Beispiel „tesseract-langpack-eng“.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1960"/>
+        <location filename="../src/AppContext.cpp" line="1970"/>
         <source>OCR auto-language (osd)</source>
         <translation>OCR-Sprachautomatik (osd)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1961"/>
+        <location filename="../src/AppContext.cpp" line="1971"/>
         <source>Found - OCR detects the script of each capture automatically.</source>
         <translation>Gefunden - OCR erkennt die Schrift jeder Aufnahme selbst.</translation>
     </message>
@@ -380,7 +380,7 @@
         <translation>keines</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5689"/>
+        <location filename="../src/AppContext.cpp" line="5721"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4217"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Das Tastenkürzel ist von einer anderen Anwendung belegt: %1. Wählen Sie in „Einstellungen → Tastenkürzel“ eine andere Taste oder geben Sie sie in den „Systemeinstellungen → Kurzbefehle“ frei.</translation>
@@ -396,75 +396,75 @@
         <translation>Tastenkürzel: %1 von %2 waren verloren und wurden neu registriert (Einzelheiten im Protokoll)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3042"/>
-        <location filename="../src/AppContext.cpp" line="3225"/>
-        <location filename="../src/AppContext.cpp" line="4622"/>
+        <location filename="../src/AppContext.cpp" line="3053"/>
+        <location filename="../src/AppContext.cpp" line="3257"/>
+        <location filename="../src/AppContext.cpp" line="4654"/>
         <source>Saved %1</source>
         <translation>Gespeichert: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3061"/>
-        <location filename="../src/AppContext.cpp" line="3212"/>
-        <location filename="../src/AppContext.cpp" line="4227"/>
-        <location filename="../src/AppContext.cpp" line="4247"/>
-        <location filename="../src/AppContext.cpp" line="4437"/>
-        <location filename="../src/AppContext.cpp" line="4459"/>
+        <location filename="../src/AppContext.cpp" line="3072"/>
+        <location filename="../src/AppContext.cpp" line="3244"/>
+        <location filename="../src/AppContext.cpp" line="4259"/>
+        <location filename="../src/AppContext.cpp" line="4279"/>
+        <location filename="../src/AppContext.cpp" line="4469"/>
+        <location filename="../src/AppContext.cpp" line="4491"/>
         <source>Upload failed: %1</source>
         <translation>Hochladen fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3161"/>
+        <location filename="../src/AppContext.cpp" line="3193"/>
         <source>Could not save to %1. Check the save folder in Settings</source>
         <translation>Speichern unter %1 nicht möglich. Prüfen Sie den Speicherordner in den Einstellungen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3407"/>
+        <location filename="../src/AppContext.cpp" line="3439"/>
         <source>Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</source>
         <translation>Bilder (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3408"/>
+        <location filename="../src/AppContext.cpp" line="3440"/>
         <source>Recordings (*.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Aufnahmen (*.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3409"/>
+        <location filename="../src/AppContext.cpp" line="3441"/>
         <source>Images and recordings (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</source>
         <translation>Bilder und Aufnahmen (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.avif *.mp4 *.webm *.gif *.mkv *.mov)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3411"/>
+        <location filename="../src/AppContext.cpp" line="3443"/>
         <source>All files (*)</source>
         <translation>Alle Dateien (*)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3416"/>
+        <location filename="../src/AppContext.cpp" line="3448"/>
         <source>Open an image to edit</source>
         <translation>Bild zum Bearbeiten öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3419"/>
+        <location filename="../src/AppContext.cpp" line="3451"/>
         <source>Open a recording to trim</source>
         <translation>Aufnahme zum Zuschneiden öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5176"/>
-        <location filename="../src/AppContext.cpp" line="5210"/>
+        <location filename="../src/AppContext.cpp" line="5208"/>
+        <location filename="../src/AppContext.cpp" line="5242"/>
         <source>None of the selected captures are saved on disk.</source>
         <translation>Keine der ausgewählten Aufnahmen liegt auf der Festplatte.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5180"/>
+        <location filename="../src/AppContext.cpp" line="5212"/>
         <source>Export captures to ZIP</source>
         <translation>Aufnahmen als ZIP exportieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5182"/>
+        <location filename="../src/AppContext.cpp" line="5214"/>
         <source>ZIP archive (*.zip)</source>
         <translation>ZIP-Archiv (*.zip)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5185"/>
+        <location filename="../src/AppContext.cpp" line="5217"/>
         <source>Exporting %1 captures…</source>
         <translation>%1 Aufnahmen werden exportiert…</translation>
     </message>
@@ -479,7 +479,7 @@
         <translation>Temporärer Ordner konnte nicht angelegt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5239"/>
+        <location filename="../src/AppContext.cpp" line="5271"/>
         <source>Exported %1 captures to %2</source>
         <translation>%1 Aufnahmen nach %2 exportiert</translation>
     </message>
@@ -500,85 +500,85 @@
         <translation>Das Programm „zip“ konnte nicht gestartet werden.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5370"/>
-        <location filename="../src/AppContext.cpp" line="5639"/>
-        <location filename="../src/AppContext.cpp" line="5905"/>
+        <location filename="../src/AppContext.cpp" line="5402"/>
+        <location filename="../src/AppContext.cpp" line="5671"/>
+        <location filename="../src/AppContext.cpp" line="5937"/>
         <source>Copy last capture</source>
         <translation>Letzte Aufnahme kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3281"/>
+        <location filename="../src/AppContext.cpp" line="3313"/>
         <source>Uploaded, link copied</source>
         <translation>Hochgeladen, Link kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="188"/>
+        <location filename="../src/AppContext.cpp" line="189"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Unisic %1 ist verfügbar - die Aktualisierung läuft automatisch</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="189"/>
+        <location filename="../src/AppContext.cpp" line="190"/>
         <source>Unisic %1 is available</source>
         <translation>Unisic %1 ist verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="268"/>
+        <location filename="../src/AppContext.cpp" line="269"/>
         <source>Instant replay failed: %1</source>
         <translation>Die Sofortwiedergabe konnte nicht gespeichert werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="927"/>
-        <location filename="../src/AppContext.cpp" line="932"/>
+        <location filename="../src/AppContext.cpp" line="928"/>
+        <location filename="../src/AppContext.cpp" line="933"/>
         <source>Capture in %1…</source>
         <translation>Aufnahme in %1…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="963"/>
+        <location filename="../src/AppContext.cpp" line="964"/>
         <source>. GNOME is blocking silent screenshots for Unisic - run &quot;flatpak permission-reset screenshot&quot; and retry, and check that xdg-desktop-portal-gnome is running.</source>
         <translation>. GNOME blockiert stille Bildschirmfotos für Unisic - führen Sie „flatpak permission-reset screenshot“ aus, versuchen Sie es erneut und prüfen Sie, ob xdg-desktop-portal-gnome läuft.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1021"/>
+        <location filename="../src/AppContext.cpp" line="1022"/>
         <source>Reading mouse clicks needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>Zum Mitlesen von Mausklicks wird Zugriff auf die Eingabegeräte benötigt. Führen Sie „%1“ aus und melden Sie sich danach ab und wieder an.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1165"/>
-        <location filename="../src/AppContext.cpp" line="1178"/>
-        <location filename="../src/AppContext.cpp" line="1210"/>
-        <location filename="../src/AppContext.cpp" line="1220"/>
-        <location filename="../src/AppContext.cpp" line="1303"/>
-        <location filename="../src/AppContext.cpp" line="1314"/>
-        <location filename="../src/AppContext.cpp" line="1346"/>
-        <location filename="../src/AppContext.cpp" line="1357"/>
-        <location filename="../src/AppContext.cpp" line="1385"/>
-        <location filename="../src/AppContext.cpp" line="1429"/>
-        <location filename="../src/AppContext.cpp" line="1485"/>
-        <location filename="../src/AppContext.cpp" line="1496"/>
+        <location filename="../src/AppContext.cpp" line="1166"/>
+        <location filename="../src/AppContext.cpp" line="1179"/>
+        <location filename="../src/AppContext.cpp" line="1211"/>
+        <location filename="../src/AppContext.cpp" line="1221"/>
+        <location filename="../src/AppContext.cpp" line="1306"/>
+        <location filename="../src/AppContext.cpp" line="1317"/>
+        <location filename="../src/AppContext.cpp" line="1349"/>
+        <location filename="../src/AppContext.cpp" line="1360"/>
+        <location filename="../src/AppContext.cpp" line="1388"/>
+        <location filename="../src/AppContext.cpp" line="1432"/>
+        <location filename="../src/AppContext.cpp" line="1488"/>
+        <location filename="../src/AppContext.cpp" line="1499"/>
         <location filename="../src/main.cpp" line="347"/>
         <source>Another capture is already active</source>
         <translation>Es läuft bereits eine andere Aufnahme</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1241"/>
-        <location filename="../src/AppContext.cpp" line="1271"/>
-        <location filename="../src/AppContext.cpp" line="1334"/>
+        <location filename="../src/AppContext.cpp" line="1242"/>
+        <location filename="../src/AppContext.cpp" line="1273"/>
+        <location filename="../src/AppContext.cpp" line="1337"/>
         <source>Capture cancelled</source>
         <translation>Aufnahme abgebrochen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1615"/>
+        <location filename="../src/AppContext.cpp" line="1618"/>
         <source>Start instant replay first</source>
         <translation>Starten Sie zuerst die Sofortwiedergabe</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1619"/>
+        <location filename="../src/AppContext.cpp" line="1622"/>
         <source>Saving instant replay…</source>
         <translation>Sofortwiedergabe wird gespeichert…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1687"/>
-        <location filename="../src/AppContext.cpp" line="1697"/>
+        <location filename="../src/AppContext.cpp" line="1690"/>
+        <location filename="../src/AppContext.cpp" line="1700"/>
         <source>Recording in %1…</source>
         <translation>Aufnahme in %1…</translation>
     </message>
@@ -779,27 +779,27 @@
         <translation>Dev: Scroll-Zusammenfügung: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2065"/>
+        <location filename="../src/AppContext.cpp" line="2075"/>
         <source>recording</source>
         <translation>Aufnahme läuft</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2067"/>
+        <location filename="../src/AppContext.cpp" line="2077"/>
         <source>capture in progress</source>
         <translation>Aufnahme wird erstellt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2069"/>
+        <location filename="../src/AppContext.cpp" line="2079"/>
         <source>selection overlay open</source>
         <translation>Auswahlebene offen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2071"/>
+        <location filename="../src/AppContext.cpp" line="2081"/>
         <source>editor windows open</source>
         <translation>Editorfenster offen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="2073"/>
+        <location filename="../src/AppContext.cpp" line="2083"/>
         <source>main window visible</source>
         <translation>Hauptfenster sichtbar</translation>
     </message>
@@ -880,7 +880,7 @@
         <translation>Aufnahme speichern (Entwicklertest)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3149"/>
+        <location filename="../src/AppContext.cpp" line="3181"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2537"/>
         <source>Images (*.png *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.jpg *.jpeg *.webp)</translation>
@@ -993,13 +993,13 @@
         <translation>Dev: Schutz vor eingebauter Imgur-Client-ID: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3147"/>
+        <location filename="../src/AppContext.cpp" line="3179"/>
         <source>Save capture</source>
         <translation>Aufnahme speichern</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3134"/>
-        <location filename="../src/AppContext.cpp" line="3153"/>
+        <location filename="../src/AppContext.cpp" line="3166"/>
+        <location filename="../src/AppContext.cpp" line="3185"/>
         <source>Could not save to %1</source>
         <translation>Speichern unter %1 nicht möglich</translation>
     </message>
@@ -1009,193 +1009,193 @@
         <translation>Dev: während der Aufnahme ausblenden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3263"/>
+        <location filename="../src/AppContext.cpp" line="3295"/>
         <source>No capture to copy yet</source>
         <translation>Noch keine Aufnahme zum Kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3283"/>
+        <location filename="../src/AppContext.cpp" line="3315"/>
         <source>Uploaded: %1</source>
         <translation>Hochgeladen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3969"/>
+        <location filename="../src/AppContext.cpp" line="4001"/>
         <source>Can&apos;t open %1 for editing</source>
         <translation>%1 kann nicht zum Bearbeiten geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3979"/>
+        <location filename="../src/AppContext.cpp" line="4011"/>
         <source>Can&apos;t open %1 for preview</source>
         <translation>%1 kann nicht für die Vorschau geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4146"/>
+        <location filename="../src/AppContext.cpp" line="4178"/>
         <source>Sounds (*.wav *.ogg *.oga)</source>
         <translation>Klänge (*.wav *.ogg *.oga)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4147"/>
+        <location filename="../src/AppContext.cpp" line="4179"/>
         <source>Sounds (*.wav)</source>
         <translation>Klänge (*.wav)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4149"/>
+        <location filename="../src/AppContext.cpp" line="4181"/>
         <source>Add capture sound</source>
         <translation>Aufnahmeklang hinzufügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4156"/>
+        <location filename="../src/AppContext.cpp" line="4188"/>
         <source>Unsupported sound format (use WAV or OGG)</source>
         <translation>Nicht unterstütztes Klangformat (WAV oder OGG verwenden)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4165"/>
+        <location filename="../src/AppContext.cpp" line="4197"/>
         <source>Could not copy the sound file</source>
         <translation>Die Klangdatei konnte nicht kopiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4169"/>
+        <location filename="../src/AppContext.cpp" line="4201"/>
         <source>Added capture sound &quot;%1&quot;</source>
         <translation>Aufnahmeklang „%1“ hinzugefügt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4177"/>
+        <location filename="../src/AppContext.cpp" line="4209"/>
         <source>Can&apos;t open %1 to copy</source>
         <translation>%1 kann nicht zum Kopieren geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4181"/>
+        <location filename="../src/AppContext.cpp" line="4213"/>
         <source>Image copied</source>
         <translation>Bild kopiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4188"/>
-        <location filename="../src/AppContext.cpp" line="5039"/>
+        <location filename="../src/AppContext.cpp" line="4220"/>
+        <location filename="../src/AppContext.cpp" line="5071"/>
         <source>Save the capture first to copy its file path</source>
         <translation>Speichern Sie die Aufnahme zuerst, um ihren Dateipfad zu kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4202"/>
+        <location filename="../src/AppContext.cpp" line="4234"/>
         <source>Uploading %1…</source>
         <translation>%1 wird hochgeladen…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3275"/>
-        <location filename="../src/AppContext.cpp" line="4234"/>
-        <location filename="../src/AppContext.cpp" line="4252"/>
+        <location filename="../src/AppContext.cpp" line="3307"/>
+        <location filename="../src/AppContext.cpp" line="4266"/>
+        <location filename="../src/AppContext.cpp" line="4284"/>
         <source>Uploaded</source>
         <translation>Hochgeladen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4375"/>
+        <location filename="../src/AppContext.cpp" line="4407"/>
         <source>Couldn&apos;t open preview</source>
         <translation>Die Vorschau konnte nicht geöffnet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4777"/>
-        <location filename="../src/AppContext.cpp" line="4863"/>
+        <location filename="../src/AppContext.cpp" line="4809"/>
+        <location filename="../src/AppContext.cpp" line="4895"/>
         <source>Saved as PNG to keep transparency</source>
         <translation>Als PNG gespeichert, um die Transparenz zu erhalten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5008"/>
+        <location filename="../src/AppContext.cpp" line="5040"/>
         <source>No valid link to turn into a QR code</source>
         <translation>Kein gültiger Link für einen QR-Code</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5015"/>
+        <location filename="../src/AppContext.cpp" line="5047"/>
         <source>Could not create QR code</source>
         <translation>Der QR-Code konnte nicht erstellt werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5019"/>
+        <location filename="../src/AppContext.cpp" line="5051"/>
         <source>QR code preview</source>
         <translation>QR-Code-Vorschau</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5059"/>
+        <location filename="../src/AppContext.cpp" line="5091"/>
         <source>Save or upload the capture first to copy it as a link</source>
         <translation>Speichern Sie die Aufnahme zuerst oder laden Sie sie hoch, um sie als Link zu kopieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3235"/>
+        <location filename="../src/AppContext.cpp" line="3267"/>
         <source>Could not encode the capture</source>
         <translation>Die Aufnahme konnte nicht kodiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1252"/>
         <location filename="../src/AppContext.cpp" line="1253"/>
+        <location filename="../src/AppContext.cpp" line="1254"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>Die Auswahl ist zu klein für die Aufnahme mit Scrollen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1939"/>
-        <location filename="../src/AppContext.cpp" line="1950"/>
+        <location filename="../src/AppContext.cpp" line="1949"/>
+        <location filename="../src/AppContext.cpp" line="1960"/>
         <source>Found.</source>
         <translation>Gefunden.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1940"/>
-        <location filename="../src/AppContext.cpp" line="1951"/>
+        <location filename="../src/AppContext.cpp" line="1950"/>
+        <location filename="../src/AppContext.cpp" line="1961"/>
         <source>Missing from this install: %1.</source>
         <translation>In dieser Installation fehlt: %1.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3331"/>
+        <location filename="../src/AppContext.cpp" line="3363"/>
         <source>Choose watermark image</source>
         <translation>Bild für das Wasserzeichen wählen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3332"/>
+        <location filename="../src/AppContext.cpp" line="3364"/>
         <source>Images (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.svg *.svgz *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3340"/>
+        <location filename="../src/AppContext.cpp" line="3372"/>
         <source>The watermark image is invalid or too large</source>
         <translation>Das Wasserzeichenbild ist ungültig oder zu groß</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3345"/>
+        <location filename="../src/AppContext.cpp" line="3377"/>
         <source>Could not load the watermark image</source>
         <translation>Das Wasserzeichenbild konnte nicht geladen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3423"/>
+        <location filename="../src/AppContext.cpp" line="3455"/>
         <source>Open image or recording</source>
         <translation>Bild oder Aufnahme öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3457"/>
-        <location filename="../src/AppContext.cpp" line="3500"/>
+        <location filename="../src/AppContext.cpp" line="3489"/>
+        <location filename="../src/AppContext.cpp" line="3532"/>
         <source>Unisic cannot edit this file type</source>
         <translation>Unisic kann diesen Dateityp nicht bearbeiten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3593"/>
+        <location filename="../src/AppContext.cpp" line="3625"/>
         <source>Recording file not found</source>
         <translation>Aufnahmedatei nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3598"/>
-        <location filename="../src/AppContext.cpp" line="3649"/>
+        <location filename="../src/AppContext.cpp" line="3630"/>
+        <location filename="../src/AppContext.cpp" line="3681"/>
         <source>Trimming requires ffprobe from the ffmpeg package</source>
         <translation>Zum Zuschneiden wird ffprobe aus dem Paket ffmpeg benötigt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3638"/>
+        <location filename="../src/AppContext.cpp" line="3670"/>
         <source>Could not read the recording duration</source>
         <translation>Die Länge der Aufnahme konnte nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3786"/>
+        <location filename="../src/AppContext.cpp" line="3818"/>
         <source>Invalid trim range</source>
         <translation>Ungültiger Zuschneidebereich</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3695"/>
-        <location filename="../src/AppContext.cpp" line="3716"/>
-        <location filename="../src/AppContext.cpp" line="3790"/>
+        <location filename="../src/AppContext.cpp" line="3727"/>
+        <location filename="../src/AppContext.cpp" line="3748"/>
+        <location filename="../src/AppContext.cpp" line="3822"/>
         <source>Trimming requires ffmpeg</source>
         <translation>Zum Zuschneiden wird ffmpeg benötigt</translation>
     </message>
@@ -1235,7 +1235,7 @@
         <translation>Mikrofon</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3822"/>
+        <location filename="../src/AppContext.cpp" line="3854"/>
         <location filename="../src/diag/SmokeTests.cpp" line="1262"/>
         <source>Mix</source>
         <translation>Mix</translation>
@@ -1375,224 +1375,224 @@
         <translation type="vanished">Dev: X11-Tastenkürzel: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3439"/>
-        <location filename="../src/AppContext.cpp" line="4585"/>
+        <location filename="../src/AppContext.cpp" line="3471"/>
+        <location filename="../src/AppContext.cpp" line="4617"/>
         <source>Can&apos;t find %1</source>
         <translation>%1 wurde nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3446"/>
-        <location filename="../src/AppContext.cpp" line="3499"/>
+        <location filename="../src/AppContext.cpp" line="3478"/>
+        <location filename="../src/AppContext.cpp" line="3531"/>
         <source>Unisic opens files, not folders</source>
         <translation>Unisic öffnet Dateien, keine Ordner</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3476"/>
+        <location filename="../src/AppContext.cpp" line="3508"/>
         <source>Unisic can only open files from this computer</source>
         <translation>Unisic kann nur Dateien von diesem Rechner öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3477"/>
+        <location filename="../src/AppContext.cpp" line="3509"/>
         <source>Nothing to open in that drop</source>
         <translation>In dem Abgelegten gibt es nichts zu öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3520"/>
+        <location filename="../src/AppContext.cpp" line="3552"/>
         <source>Opened %1. Drop one file at a time to open the others.</source>
         <translation>%1 geöffnet. Legen Sie die Dateien einzeln ab, um die übrigen zu öffnen.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3522"/>
+        <location filename="../src/AppContext.cpp" line="3554"/>
         <source>Opened %1. Nothing else in that drop is a file Unisic can open.</source>
         <translation>%1 geöffnet. Sonst ist in dem Abgelegten keine Datei, die Unisic öffnen kann.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3552"/>
+        <location filename="../src/AppContext.cpp" line="3584"/>
         <source>The clipboard is empty</source>
         <translation>Die Zwischenablage ist leer</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3587"/>
+        <location filename="../src/AppContext.cpp" line="3619"/>
         <source>The clipboard holds no image to paste</source>
         <translation>In der Zwischenablage ist kein Bild zum Einfügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3759"/>
-        <location filename="../src/AppContext.cpp" line="3774"/>
-        <location filename="../src/AppContext.cpp" line="3908"/>
+        <location filename="../src/AppContext.cpp" line="3791"/>
+        <location filename="../src/AppContext.cpp" line="3806"/>
+        <location filename="../src/AppContext.cpp" line="3940"/>
         <source>Trim failed: %1</source>
         <translation>Zuschneiden fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3800"/>
+        <location filename="../src/AppContext.cpp" line="3832"/>
         <source>Trimming recording…</source>
         <translation>Aufnahme wird zugeschnitten…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3929"/>
+        <location filename="../src/AppContext.cpp" line="3961"/>
         <source>External action failed: %1</source>
         <translation>Externe Aktion fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3935"/>
+        <location filename="../src/AppContext.cpp" line="3967"/>
         <source>External action created %1</source>
         <translation>Externe Aktion hat %1 erstellt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3937"/>
+        <location filename="../src/AppContext.cpp" line="3969"/>
         <source>External action finished</source>
         <translation>Externe Aktion beendet</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="3955"/>
+        <location filename="../src/AppContext.cpp" line="3987"/>
         <source>Could not prepare the external action input</source>
         <translation>Die Eingabe für die externe Aktion konnte nicht vorbereitet werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4218"/>
+        <location filename="../src/AppContext.cpp" line="4250"/>
         <source>Could not encode %1 for upload</source>
         <translation>%1 konnte für den Upload nicht kodiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4589"/>
+        <location filename="../src/AppContext.cpp" line="4621"/>
         <source>Already a %1 file</source>
         <translation>Ist bereits eine %1-Datei</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4598"/>
+        <location filename="../src/AppContext.cpp" line="4630"/>
         <source>%1 is animated. Trim it instead</source>
         <translation>%1 ist animiert. Schneide es stattdessen zu</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4603"/>
+        <location filename="../src/AppContext.cpp" line="4635"/>
         <source>Can&apos;t read %1</source>
         <translation>%1 kann nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4616"/>
+        <location filename="../src/AppContext.cpp" line="4648"/>
         <source>Couldn&apos;t convert %1</source>
         <translation>%1 konnte nicht konvertiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4711"/>
+        <location filename="../src/AppContext.cpp" line="4743"/>
         <source>Over %1 MB, so it was converted to %2 (%3 instead of %4)</source>
         <translation>Über %1 MB, deshalb nach %2 konvertiert (%3 statt %4)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4730"/>
+        <location filename="../src/AppContext.cpp" line="4762"/>
         <source>GIF needs ffmpeg. Use Save as to write another format</source>
         <translation>GIF braucht ffmpeg. Nutze Speichern unter für ein anderes Format</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4731"/>
+        <location filename="../src/AppContext.cpp" line="4763"/>
         <source>Can&apos;t write %1 back as %2. Use Save as</source>
         <translation>%1 lässt sich nicht wieder als %2 schreiben. Nutze Speichern unter</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4741"/>
-        <location filename="../src/AppContext.cpp" line="4746"/>
-        <location filename="../src/AppContext.cpp" line="4806"/>
-        <location filename="../src/AppContext.cpp" line="4811"/>
+        <location filename="../src/AppContext.cpp" line="4773"/>
+        <location filename="../src/AppContext.cpp" line="4778"/>
+        <location filename="../src/AppContext.cpp" line="4838"/>
+        <location filename="../src/AppContext.cpp" line="4843"/>
         <source>Can&apos;t write %1</source>
         <translation>%1 lässt sich nicht schreiben</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4779"/>
-        <location filename="../src/AppContext.cpp" line="4865"/>
+        <location filename="../src/AppContext.cpp" line="4811"/>
+        <location filename="../src/AppContext.cpp" line="4897"/>
         <source>GIF needs ffmpeg. Saved as PNG</source>
         <translation>GIF braucht ffmpeg. Als PNG gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="4781"/>
-        <location filename="../src/AppContext.cpp" line="4867"/>
+        <location filename="../src/AppContext.cpp" line="4813"/>
+        <location filename="../src/AppContext.cpp" line="4899"/>
         <source>%1 could not hold this image. Saved as PNG</source>
         <translation>%1 konnte dieses Bild nicht aufnehmen. Als PNG gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5069"/>
+        <location filename="../src/AppContext.cpp" line="5101"/>
         <source>Unknown copy format</source>
         <translation>Unbekanntes Kopierformat</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5144"/>
+        <location filename="../src/AppContext.cpp" line="5176"/>
         <source>Export Unisic settings</source>
         <translation>Unisic-Einstellungen exportieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5146"/>
-        <location filename="../src/AppContext.cpp" line="5157"/>
+        <location filename="../src/AppContext.cpp" line="5178"/>
+        <location filename="../src/AppContext.cpp" line="5189"/>
         <source>Unisic settings (*.json)</source>
         <translation>Unisic-Einstellungen (*.json)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5150"/>
+        <location filename="../src/AppContext.cpp" line="5182"/>
         <source>Settings exported</source>
         <translation>Einstellungen exportiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5156"/>
+        <location filename="../src/AppContext.cpp" line="5188"/>
         <source>Import Unisic settings</source>
         <translation>Unisic-Einstellungen importieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5161"/>
-        <location filename="../src/AppContext.cpp" line="5354"/>
+        <location filename="../src/AppContext.cpp" line="5193"/>
+        <location filename="../src/AppContext.cpp" line="5386"/>
         <source>Settings imported</source>
         <translation>Einstellungen importiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5251"/>
+        <location filename="../src/AppContext.cpp" line="5283"/>
         <source>No file selected</source>
         <translation>Keine Datei ausgewählt</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5282"/>
-        <location filename="../src/AppContext.cpp" line="5293"/>
+        <location filename="../src/AppContext.cpp" line="5314"/>
+        <location filename="../src/AppContext.cpp" line="5325"/>
         <source>Cannot write %1</source>
         <translation>%1 kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5296"/>
+        <location filename="../src/AppContext.cpp" line="5328"/>
         <source>Settings exported to %1</source>
         <translation>Einstellungen nach %1 exportiert</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5305"/>
+        <location filename="../src/AppContext.cpp" line="5337"/>
         <source>Cannot read %1</source>
         <translation>%1 kann nicht gelesen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5308"/>
+        <location filename="../src/AppContext.cpp" line="5340"/>
         <source>Not a Unisic settings file</source>
         <translation>Keine Unisic-Einstellungsdatei</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5353"/>
+        <location filename="../src/AppContext.cpp" line="5385"/>
         <source>Settings imported. The external action is off: check its command, then switch it on</source>
         <translation>Einstellungen importiert. Die externe Aktion ist aus: Befehl prüfen und dann einschalten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5363"/>
-        <location filename="../src/AppContext.cpp" line="5890"/>
+        <location filename="../src/AppContext.cpp" line="5395"/>
+        <location filename="../src/AppContext.cpp" line="5922"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4139"/>
         <source>Capture full screen</source>
         <translation>Ganzen Bildschirm aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5364"/>
-        <location filename="../src/AppContext.cpp" line="5889"/>
+        <location filename="../src/AppContext.cpp" line="5396"/>
+        <location filename="../src/AppContext.cpp" line="5921"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4138"/>
         <source>Capture region</source>
         <translation>Bereich aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5365"/>
-        <location filename="../src/AppContext.cpp" line="5893"/>
+        <location filename="../src/AppContext.cpp" line="5397"/>
+        <location filename="../src/AppContext.cpp" line="5925"/>
         <source>Capture scrolling region</source>
         <translation>Scrollenden Bereich aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5366"/>
+        <location filename="../src/AppContext.cpp" line="5398"/>
         <source>Capture active window</source>
         <translation>Aktives Fenster aufnehmen</translation>
     </message>
@@ -1601,17 +1601,17 @@
         <translation type="vanished">Aktives Fenster aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5414"/>
+        <location filename="../src/AppContext.cpp" line="5446"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>Diese Arbeitsumgebung lässt sich nicht automatisch einrichten - verwenden Sie die Befehle unten.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5419"/>
+        <location filename="../src/AppContext.cpp" line="5451"/>
         <source>Could not add shortcuts: %1</source>
         <translation>Tastenkürzel konnten nicht hinzugefügt werden: %1</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/AppContext.cpp" line="5423"/>
+        <location filename="../src/AppContext.cpp" line="5455"/>
         <source>Added %n shortcut(s) to %1</source>
         <translation>
             <numerusform>%n Tastenkürzel zu %1 hinzugefügt</numerusform>
@@ -1619,22 +1619,22 @@
         </translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5427"/>
+        <location filename="../src/AppContext.cpp" line="5459"/>
         <source>(skipped, no mappable key: %1)</source>
         <translation>(übersprungen, keine passende Taste: %1)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5434"/>
+        <location filename="../src/AppContext.cpp" line="5466"/>
         <source>%1 already uses these keys - change them in Hotkeys: %2</source>
         <translation>%1 belegt diese Tasten bereits - ändern Sie sie unter Tastenkürzel: %2</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5445"/>
+        <location filename="../src/AppContext.cpp" line="5477"/>
         <source>Could not remove shortcuts: %1</source>
         <translation>Tastenkürzel konnten nicht entfernt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5448"/>
+        <location filename="../src/AppContext.cpp" line="5480"/>
         <source>Removed Unisic shortcuts from %1</source>
         <translation>Unisic-Tastenkürzel aus %1 entfernt</translation>
     </message>
@@ -1644,39 +1644,39 @@
         <translation>Dev: Tastenkürzel der Arbeitsumgebung: %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5652"/>
-        <location filename="../src/AppContext.cpp" line="5891"/>
+        <location filename="../src/AppContext.cpp" line="5684"/>
+        <location filename="../src/AppContext.cpp" line="5923"/>
         <source>Capture screen under cursor</source>
         <translation>Bildschirm unter dem Mauszeiger aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5654"/>
-        <location filename="../src/AppContext.cpp" line="5894"/>
+        <location filename="../src/AppContext.cpp" line="5686"/>
+        <location filename="../src/AppContext.cpp" line="5926"/>
         <source>Re-capture last region</source>
         <translation>Letzten Bereich erneut aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5367"/>
+        <location filename="../src/AppContext.cpp" line="5399"/>
         <source>Record GIF (start/stop)</source>
         <translation>GIF aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5368"/>
+        <location filename="../src/AppContext.cpp" line="5400"/>
         <source>Record video (start/stop)</source>
         <translation>Video aufnehmen (Start/Stopp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5369"/>
+        <location filename="../src/AppContext.cpp" line="5401"/>
         <source>OCR region (copy text)</source>
         <translation>Bereich per OCR lesen (Text kopieren)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5645"/>
+        <location filename="../src/AppContext.cpp" line="5677"/>
         <source>Open quick task chooser</source>
         <translation>Schnellauswahl für Aufgaben öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5371"/>
+        <location filename="../src/AppContext.cpp" line="5403"/>
         <source>Start/save instant replay</source>
         <translation>Sofortwiedergabe starten/speichern</translation>
     </message>
@@ -1685,141 +1685,146 @@
         <translation type="vanished">Fehlt in dieser Installation. Das Paket „wl-clipboard“ ist für zuverlässiges Kopieren in die Zwischenablage unter Wayland erforderlich.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="1962"/>
+        <location filename="../src/AppContext.cpp" line="1972"/>
         <source>Missing from this install. The Tesseract &quot;osd&quot; pack is required for OCR script detection.</source>
         <translation>Fehlt in dieser Installation. Das Tesseract-Paket „osd“ ist für die OCR-Schrifterkennung erforderlich.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5621"/>
-        <location filename="../src/AppContext.cpp" line="5741"/>
+        <location filename="../src/AppContext.cpp" line="3097"/>
+        <source>Better Blur blurs the screen under Unisic&apos;s capture frame, so this capture came out blurred. Exclude Unisic in Better Blur&apos;s window list (System Settings › Desktop Effects) or turn the effect off.</source>
+        <translation>Better Blur verwischt den Bildschirm unter dem Aufnahmerahmen von Unisic, deshalb ist diese Aufnahme unscharf. Schließe Unisic in der Fensterliste von Better Blur aus (Systemeinstellungen › Arbeitsflächen-Effekte) oder schalte den Effekt ab.</translation>
+    </message>
+    <message>
+        <location filename="../src/AppContext.cpp" line="5653"/>
+        <location filename="../src/AppContext.cpp" line="5773"/>
         <source>Stop recording (emergency)</source>
         <translation>Aufnahme stoppen (Notfall)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5627"/>
+        <location filename="../src/AppContext.cpp" line="5659"/>
         <source>Ctrl+Esc emergency stop unavailable: the key is taken by the system (System Settings → Shortcuts to free it)</source>
         <translation>Der Notfall-Stopp mit Ctrl+Esc ist nicht verfügbar: die Taste ist vom System belegt (Systemeinstellungen → Kurzbefehle, um sie freizugeben)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5633"/>
+        <location filename="../src/AppContext.cpp" line="5665"/>
         <source>Developer smoke test</source>
         <translation>Entwickler-Testlauf</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5771"/>
+        <location filename="../src/AppContext.cpp" line="5803"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys.</source>
         <translation>Tastenkürzel von einer anderen Anwendung belegt: %1. Wählen Sie unter Einstellungen → Tastenkürzel eine andere Taste.</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5801"/>
+        <location filename="../src/AppContext.cpp" line="5833"/>
         <source>Could not bind %1; the key is taken by another shortcut</source>
         <translation>%1 konnte nicht belegt werden; die Taste gehört zu einem anderen Kurzbefehl</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5842"/>
+        <location filename="../src/AppContext.cpp" line="5874"/>
         <source>Some hotkeys could not be bound (keys taken); showing the actual state</source>
         <translation>Einige Tastenkürzel konnten nicht belegt werden (Tasten belegt); angezeigt wird der tatsächliche Stand</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5892"/>
+        <location filename="../src/AppContext.cpp" line="5924"/>
         <source>Capture window</source>
         <translation>Fenster aufnehmen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5895"/>
+        <location filename="../src/AppContext.cpp" line="5927"/>
         <source>Measure</source>
         <translation>Messen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5896"/>
+        <location filename="../src/AppContext.cpp" line="5928"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4138"/>
         <source>Select text…</source>
         <translation>Text auswählen…</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5897"/>
+        <location filename="../src/AppContext.cpp" line="5929"/>
         <source>Record video (region)</source>
         <translation>Video aufnehmen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5898"/>
+        <location filename="../src/AppContext.cpp" line="5930"/>
         <source>Record video (full screen)</source>
         <translation>Video aufnehmen (Vollbild)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5899"/>
+        <location filename="../src/AppContext.cpp" line="5931"/>
         <source>Record video (window)</source>
         <translation>Video aufnehmen (Fenster)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5900"/>
+        <location filename="../src/AppContext.cpp" line="5932"/>
         <source>Record GIF (region)</source>
         <translation>GIF aufnehmen (Bereich)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5901"/>
+        <location filename="../src/AppContext.cpp" line="5933"/>
         <source>Record GIF (full screen)</source>
         <translation>GIF aufnehmen (Vollbild)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5902"/>
+        <location filename="../src/AppContext.cpp" line="5934"/>
         <source>Start instant replay</source>
         <translation>Sofortwiedergabe starten</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5903"/>
+        <location filename="../src/AppContext.cpp" line="5935"/>
         <source>Save instant replay</source>
         <translation>Sofortwiedergabe speichern</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5904"/>
+        <location filename="../src/AppContext.cpp" line="5936"/>
         <source>Stop recording</source>
         <translation>Aufnahme stoppen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5973"/>
+        <location filename="../src/AppContext.cpp" line="6005"/>
         <source>Restart to update to Unisic %1</source>
         <translation>Neu starten, um auf Unisic %1 zu aktualisieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5979"/>
+        <location filename="../src/AppContext.cpp" line="6011"/>
         <source>Install update to Unisic %1</source>
         <translation>Aktualisierung auf Unisic %1 installieren</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5983"/>
+        <location filename="../src/AppContext.cpp" line="6015"/>
         <source>Update available - Unisic %1</source>
         <translation>Aktualisierung verfügbar - Unisic %1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="5906"/>
+        <location filename="../src/AppContext.cpp" line="5938"/>
         <location filename="../src/diag/SmokeTests.cpp" line="4140"/>
         <source>Open Unisic</source>
         <translation>Unisic öffnen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6210"/>
+        <location filename="../src/AppContext.cpp" line="6242"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>Bilder (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6209"/>
+        <location filename="../src/AppContext.cpp" line="6241"/>
         <source>Add a tray icon</source>
         <translation>Symbol für den Systembereich hinzufügen</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6215"/>
-        <location filename="../src/AppContext.cpp" line="6254"/>
+        <location filename="../src/AppContext.cpp" line="6247"/>
+        <location filename="../src/AppContext.cpp" line="6286"/>
         <source>Could not load that image as an icon</source>
         <translation>Dieses Bild konnte nicht als Symbol geladen werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6235"/>
+        <location filename="../src/AppContext.cpp" line="6267"/>
         <source>Could not copy the icon into %1</source>
         <translation>Das Symbol konnte nicht nach %1 kopiert werden</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="6241"/>
+        <location filename="../src/AppContext.cpp" line="6273"/>
         <source>Icon added to your tray icons</source>
         <translation>Symbol zu Ihren Symbolen im Systembereich hinzugefügt</translation>
     </message>
@@ -9203,7 +9208,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../src/update/UpdateChecker.cpp" line="299"/>
         <location filename="../src/update/UpdateChecker.cpp" line="326"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="384"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="373"/>
         <source>Checked at %1 - up to date</source>
         <translation>Geprüft um %1 - alles aktuell</translation>
     </message>
@@ -9224,7 +9229,7 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>fehlerhafter Feed der Veröffentlichungen</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="383"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="372"/>
         <source>Checked at %1 - version %2 is available</source>
         <translation>Geprüft um %1 - Version %2 ist verfügbar</translation>
     </message>
@@ -9234,144 +9239,144 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Diese Veröffentlichung hat kein AppImage - sie kann nicht an Ort und Stelle installiert werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="413"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="402"/>
         <source>This install can&apos;t update itself</source>
         <translation>Diese Installation kann sich nicht selbst aktualisieren</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="424"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="550"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="413"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="539"/>
         <source>Update failed: cannot create %1</source>
         <translation>Aktualisierung fehlgeschlagen: %1 kann nicht angelegt werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="431"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="857"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="879"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="420"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="821"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="843"/>
         <source>Update failed: cannot write %1</source>
         <translation>Aktualisierung fehlgeschlagen: %1 kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="438"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="427"/>
         <source>Downloading version %1…</source>
         <translation>Version %1 wird heruntergeladen…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="470"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="913"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="459"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="877"/>
         <source>Update failed: %1</source>
         <translation>Aktualisierung fehlgeschlagen: %1</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="481"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="470"/>
         <source>cannot write the file</source>
         <translation>die Datei kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="488"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="477"/>
         <source>download looks truncated</source>
         <translation>der Download wirkt abgeschnitten</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="503"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="492"/>
         <source>the download does not match the checksum published with the release - nothing was installed</source>
         <translation>die heruntergeladene Datei stimmt nicht mit der zur Veröffentlichung veröffentlichten Prüfsumme überein - es wurde nichts installiert</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="522"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="511"/>
         <source>cannot replace %1</source>
         <translation>%1 kann nicht ersetzt werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="528"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="594"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="517"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="583"/>
         <source>Update installed - restart to run version %1</source>
         <translation>Aktualisierung installiert - starten Sie neu, um Version %1 auszuführen</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="537"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="526"/>
         <source>cannot move the download into place</source>
         <translation>der Download kann nicht an seinen Platz verschoben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="554"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="543"/>
         <source>Installing version %1…</source>
         <translation>Version %1 wird installiert…</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="562"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="551"/>
         <source>Update failed: could not unpack the new version</source>
         <translation>Aktualisierung fehlgeschlagen: die neue Fassung konnte nicht entpackt werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="577"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="586"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="566"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="575"/>
         <source>Update failed: could not write the update pointer</source>
         <translation>Aktualisierung fehlgeschlagen: der Zeiger auf die Aktualisierung konnte nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="685"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="674"/>
         <source>Simulated: version %1 is available</source>
         <translation>Simuliert: Version %1 ist verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="725"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="710"/>
         <source>cannot create the cache folder</source>
         <translation>der Zwischenspeicherordner kann nicht angelegt werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="748"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="733"/>
         <source>the downloaded file is not the Unisic installer</source>
         <translation>die heruntergeladene Datei ist nicht das Installationsprogramm von Unisic</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="777"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="741"/>
         <source>cannot write %1</source>
         <translation>%1 kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="840"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="804"/>
         <source>No terminal program was found to run the installer.</source>
         <translation>Es wurde kein Terminalprogramm gefunden, um das Installationsprogramm auszuführen.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="842"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="806"/>
         <source>no terminal found</source>
         <translation>kein Terminal gefunden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="859"/>
-        <location filename="../src/update/UpdateChecker.cpp" line="881"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="823"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="845"/>
         <source>cannot write the helper script</source>
         <translation>das Hilfsskript kann nicht geschrieben werden</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="888"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="852"/>
         <source>A terminal opened to install the update - restart Unisic when it finishes.</source>
         <translation>Ein Terminal hat sich geöffnet, um die Aktualisierung zu installieren - starten Sie Unisic neu, wenn es fertig ist.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="892"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="856"/>
         <source>Could not open a terminal to run the installer.</source>
         <translation>Es konnte kein Terminal geöffnet werden, um das Installationsprogramm auszuführen.</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="894"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="858"/>
         <source>the terminal failed to start</source>
         <translation>das Terminal konnte nicht starten</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="901"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="865"/>
         <source>this install can&apos;t be updated this way</source>
         <translation>diese Installation lässt sich so nicht aktualisieren</translation>
     </message>
     <message>
-        <location filename="../src/update/UpdateChecker.cpp" line="907"/>
+        <location filename="../src/update/UpdateChecker.cpp" line="871"/>
         <source>Fetching the installer…</source>
         <translation>Das Installationsprogramm wird geholt…</translation>
     </message>
     <message>
-        <location filename="../src/update/StagedUpdate_win.cpp" line="211"/>
+        <location filename="../src/update/StagedUpdate_win.cpp" line="214"/>
         <source>This release has no Windows build - it can&apos;t be installed in place</source>
         <translation>Diese Veröffentlichung hat keinen Windows-Build - sie kann nicht an Ort und Stelle installiert werden</translation>
     </message>

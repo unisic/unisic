@@ -4,6 +4,7 @@
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
 #include "capture/ScrollCaptureController.h"
+#include "capture/KWinForceBlur.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -1261,6 +1262,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
                 this, [this](const QImage &img) {
             endScrollIsolation();
             finishCapture(img, nowInhibited());
+            warnForceBlur(); // after finishCapture: its toast must not cover this one
         });
         // No image is coming: drop the one-shot task/output, or the next
         // capture inherits them and a `--output -` caller waits for a reply
@@ -1280,6 +1282,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
         beginCaptureIsolation();
         m_scrollHoldsWindow = true;
     }
+    noteForceBlur();
     m_scrollCapture->start(physRegion, screen, scale);
     if (!m_scrollCapture->active())
         endScrollIsolation(); // no screen to capture on: no signal will end it
@@ -1801,8 +1804,15 @@ QString AppContext::systemDiagnostics() const
              .arg(qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") ? QStringLiteral("(none)")
                                                                  : QStringLiteral("yes"));
     auto *bi = QDBusConnection::sessionBus().interface();
-    L << QStringLiteral("KWin on bus: %1")
-             .arg(yn(bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"))));
+    const bool kwinOnBus = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+    L << QStringLiteral("KWin on bus: %1").arg(yn(kwinOnBus));
+    if (kwinOnBus) {
+        const QString blur = KWinForceBlur::blursThisApp();
+        L << QStringLiteral("Force blur (Better Blur): %1")
+                 .arg(!blur.isEmpty() ? blur
+                      : KWinForceBlur::loaded() ? QStringLiteral("loaded, leaves Unisic alone")
+                                                : QStringLiteral("not loaded"));
+    }
 
     // There is no [Build features] section any more: every gate is a HARD build
     // requirement (CMake stops at configure time naming the missing package), so
@@ -2736,6 +2746,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
         return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
     m_recordBorderCountdownOnly = countdownOnly;
+    noteForceBlur();
 
     // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
     // sink below the next window the user raises - mutter has no keep-above
@@ -3065,6 +3076,27 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     }
 
     scheduleMemoryTrim();
+    warnForceBlur();
+}
+
+void AppContext::noteForceBlur()
+{
+    if (m_forceBlurWarned)
+        return;
+    m_forceBlurWarning = KWinForceBlur::blursThisApp();
+    if (!m_forceBlurWarning.isEmpty())
+        qWarning().noquote() << "Capture overlay is force-blurred:" << m_forceBlurWarning;
+}
+
+void AppContext::warnForceBlur()
+{
+    if (m_forceBlurWarning.isEmpty())
+        return;
+    m_forceBlurWarning.clear();
+    m_forceBlurWarned = true;
+    showToast(tr("Better Blur blurs the screen under Unisic's capture frame, so this capture came out blurred. "
+                 "Exclude Unisic in Better Blur's window list (System Settings \u203A Desktop Effects) or turn the effect off."),
+              true);
 }
 
 // ----------------------------------------------------------- after-capture

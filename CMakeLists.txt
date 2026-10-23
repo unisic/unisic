@@ -555,7 +555,11 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 # libqt6gui6 pulls qt6-svg-plugins in only as a Recommends, so an
 # `apt install --no-install-recommends` used to leave it out (#124). The xcb
 # platform plugin needs no entry: it ships in libqt6gui6 itself (trixie, Ubuntu
-# 26.04); qt6-qpa-plugins only carries the VNC one.
+# 26.04); qt6-qpa-plugins only carries the VNC one. The portal platform theme
+# is its own package on Debian/Ubuntu (qt6-xdgdesktopportal-platformtheme):
+# main.cpp selects it on GNOME so the file dialogs follow the dark style
+# (#118); without the plugin Qt falls back to gtk3 and the fix is silently
+# absent.
 # KEEP THIS LIST CHARACTER-IDENTICAL to Depends in packaging/obs/debian.control.
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
@@ -572,6 +576,7 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     qml6-module-qtquick-window
     qt6-svg-plugins
     qt6-wayland
+    qt6-xdgdesktopportal-platformtheme
     tesseract-ocr-eng
     tesseract-ocr-osd
     tesseract-ocr-pol

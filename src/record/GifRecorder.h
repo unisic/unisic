@@ -8,7 +8,10 @@
 #include <QFutureWatcher>
 #include <QList>
 #include <functional>
+#include <memory>
+#include <vector>
 
+#include "AudioCapture.h"
 #include "CursorOverlayPainter.h"
 #include "CursorSmoother.h"
 #include "KeystrokeOverlayPainter.h"
@@ -97,7 +100,7 @@ public:
     // countdown / start cue in between, so nothing (no countdown number, no start
     // sound) lands in the recording.
     void start(Output output, SourceType source = Screen, const QRect &cropPhysical = {},
-               QScreen *screen = nullptr, bool holdForCommit = false);
+               QScreen *screen = nullptr, bool holdForCommit = false, qreal streamScale = 0);
     // Keystroke-badge colors (bg, text) resolved from the ACTIVE theme when key
     // capture starts. The Theme singleton lives in QML and the recorder cannot
     // reach it; a provider dodges the engine-vs-recorder construction order -
@@ -201,6 +204,10 @@ private:
     // One pw-record per application stream, each into its own FIFO (paths
     // below, same order). At most kMaxAppStreams of each.
     QList<QProcess *> m_appAudio;
+    // System audio and microphone inputs of m_ffmpeg. Released once that
+    // ffmpeg has exited, never at stop(): the encoder still reads them while
+    // it drains, and an input ending early would cut the file (-shortest).
+    std::vector<std::unique_ptr<AudioCapture>> m_audioCaptures;
     QTimer m_sampler;
     QTimer m_maxTimer;
     QElapsedTimer m_elapsed;
@@ -216,7 +223,7 @@ private:
     State m_state = Idle;
     Output m_output = Gif;
     SourceType m_source = Screen;
-    bool m_hasAudio = false; // pulse audio captured into the temp (video only)
+    bool m_hasAudio = false; // audio captured into the temp (video only)
     // One name per recorded audio track, in stream order; empty when the
     // sources were mixed into one stream (which no single name describes).
     QStringList m_audioTrackTitles;
@@ -234,6 +241,7 @@ private:
     QSize m_streamSize;
     QSize m_encodeSize;
     QPointer<QScreen> m_targetScreen;
+    qreal m_streamScale = 0; // the overlay's real output scale, 0 = unknown
     bool m_monitorRetryDone = false; // one wrong-monitor self-heal per start()
     // KWin-native screencast (zkde_screencast). m_kwinCast binds the global
     // once and is reused across recordings; m_kwinStream is per-recording.

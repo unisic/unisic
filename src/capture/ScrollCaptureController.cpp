@@ -37,7 +37,7 @@ QImage ScrollCaptureController::previewThumbnail(int maxW, int maxH) const
     return m_stitcher.previewThumbnail(maxW, maxH);
 }
 
-void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
+void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, qreal streamScale)
 {
     if (m_active)
         stop();
@@ -45,12 +45,14 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
     m_screen = screen ? screen : QGuiApplication::primaryScreen();
     if (!m_screen)
         return;
+    m_streamScale = streamScale;
 
     m_cropPhysical = cropPhysical;
     m_stitcher.reset();
     m_lastSampledSeq = 0;
     m_previewRevision = 0;
     m_streamSize = QSize();
+    emit streamingChanged();
     m_isRegionStream = false;
     m_unmatchedRun = 0;
     setStatus(false, false);
@@ -81,6 +83,10 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen)
     m_active = true;
     emit activeChanged();
 
+    // Mapped now, drawn from the first frame on (`streaming`): on the portal
+    // path a share dialog is still waiting, and a badge saying "scroll down"
+    // with a live Finish over it ends in nothing captured (#121). Mapping it
+    // only when frames arrive put the region frame into the first slices.
     createOverlayWindow();
     openGrabber();
 }
@@ -126,9 +132,10 @@ void ScrollCaptureController::finish()
     m_stitcher.reset();   // the canvas can be hundreds of MB
     closeOverlayWindow();
 
-    if (!result.isNull()) {
+    if (!result.isNull())
         emit finished(result);
-    }
+    else
+        emit cancelled();
 }
 
 void ScrollCaptureController::cancel()
@@ -142,6 +149,7 @@ void ScrollCaptureController::cancel()
     stop();
     m_stitcher.reset();
     closeOverlayWindow();
+    emit cancelled();
 }
 
 void ScrollCaptureController::setInputRect(int x, int y, int w, int h)
@@ -170,7 +178,8 @@ void ScrollCaptureController::setInputRects(int x1, int y1, int w1, int h1,
 
 void ScrollCaptureController::openGrabber()
 {
-    if (QGuiApplication::platformName() == QLatin1String("xcb")) {
+    // X11 and Windows have no ScreenCast portal: grab the monitor directly.
+    if (X11ShmGrabber::isAvailable()) {
         openX11Session();
         return;
     }
@@ -184,8 +193,11 @@ void ScrollCaptureController::openGrabber()
         const QRectF logical(m_screen->geometry().x() + m_regionX,
                              m_screen->geometry().y() + m_regionY,
                              m_regionW, m_regionH);
+        // The real output scale (see GifRecorder::tryOpenKWinStream): the
+        // screen's DPR upscales every slice on a fractional output.
         KWinScreencastStream *stream = m_kwinCast->createRegionStream(
-            logical.toAlignedRect(), dpr, KWinScreencasting::CursorMode::Hidden);
+            logical.toAlignedRect(), m_streamScale > 0 ? m_streamScale : dpr,
+            KWinScreencasting::CursorMode::Hidden);
         if (stream) {
             m_isRegionStream = true;
             m_kwinStream = stream;
@@ -233,15 +245,10 @@ void ScrollCaptureController::openX11Session()
     if (!m_screen)
         return;
 
-    const qreal dpr = m_screen->devicePixelRatio() > 0 ? m_screen->devicePixelRatio() : 1.0;
-    const QRect g = m_screen->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
-
     auto *x = new X11ShmGrabber(this);
     m_grabber = x;
     wireGrabber(x);
-    x->start(rootRect, 30, false);
+    x->start(X11ShmGrabber::screenRect(m_screen), 30, false);
 }
 
 void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)
@@ -253,6 +260,7 @@ void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)
                                  .arg(sz.width()).arg(sz.height())
                                  .arg(m_cropPhysical.width()).arg(m_cropPhysical.height());
         m_sampleTimer.start(33); // ~30 fps sampling
+        emit streamingChanged();
     });
 
     connect(grabber, &IScreenGrabber::streamError, this, [this](const QString &e) {

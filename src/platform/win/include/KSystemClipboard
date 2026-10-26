@@ -1,0 +1,24 @@
+#pragma once
+// Windows build only: stands in for KF6GuiAddons' <KSystemClipboard>, which
+// MSYS2 does not package. The Linux code reaches it only after finding KWin on
+// the session bus, which never happens here, so forwarding to QClipboard is
+// enough for it to compile and to behave if it is ever called.
+#include <QClipboard>
+#include <QGuiApplication>
+#include <QMimeData>
+
+class KSystemClipboard
+{
+public:
+    static KSystemClipboard *instance()
+    {
+        static KSystemClipboard self;
+        return &self;
+    }
+
+    // Ownership of `mime` passes to the clipboard, as with KSystemClipboard.
+    void setMimeData(QMimeData *mime, QClipboard::Mode mode)
+    {
+        QGuiApplication::clipboard()->setMimeData(mime, mode);
+    }
+};

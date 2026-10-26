@@ -7,6 +7,7 @@
 class Settings;
 class QNetworkAccessManager;
 class QNetworkReply;
+class QProcess;
 class QTimer;
 
 // Polls the GitHub releases feed for a newer version and installs it with no
@@ -18,6 +19,12 @@ class QTimer;
 //    bootstrap in main() exec that copy on the next start. The package binary
 //    becomes a bootstrap until the distro package catches up, then the staging
 //    area is cleaned. No root, no package manager involved.
+//  - Windows portable zip: the same staging, with the release's
+//    Unisic-<ver>-windows-x86_64-experimental.zip unpacked by System32
+//    tar.exe; the installed unisic.exe starts the staged copy and waits for it.
+// The platform halves (which asset, how to unpack, where the staged exe lives,
+// how to replace a file, how to restart) are in StagedUpdate.cpp and
+// StagedUpdate_win.cpp.
 // Owned by AppContext, reached from QML as App.updater.
 class UpdateChecker : public QObject
 {
@@ -89,6 +96,11 @@ public:
     // Dev/smoke dry-run: fetch + validate install.sh and detect a terminal, but
     // never launch anything. done(ok, humanDetail).
     void verifyInstallerReady(std::function<void(bool ok, const QString &detail)> done);
+    // Dev/smoke dry-run of the staging half, in a scratch dir under the real
+    // staging dir: unpack a generated stand-in package with the real unpack
+    // command and flip a scratch pointer over an existing one. Touches neither
+    // the live "current" pointer nor any staged version. done(ok, humanDetail).
+    void verifyStagingReady(std::function<void(bool ok, const QString &detail)> done);
 
     // manual=true keeps failures visible in statusText and never toasts;
     // an automatic check additionally emits updateFound (once per version).
@@ -117,15 +129,35 @@ private:
     // variable at a symlink — the real file is what must be replaced.
     QString appImageTarget() const;
     // <AppData>/updates — staged versions for package installs. The path
-    // composition must stay in sync with execStagedUpdate() in main.cpp.
+    // composition must stay in sync with execStagedUpdate() in
+    // StagedUpdate.cpp and StagedUpdate_win.cpp.
     QString stagingDir() const;
     void applyAutoPolicy();
     void handleCheckReply(QNetworkReply *reply, bool manual,
                           const std::function<void(const Result &)> &done);
     void setAvailable(bool available);
-    // Package-install second half: extract the downloaded AppImage into the
+    // Package-install second half: unpack the downloaded package into the
     // staging dir and flip the "current" pointer the bootstrap reads.
-    void extractStagedAppImage(const QString &pkg);
+    void extractStage(const QString &pkg);
+    // Run the platform unpack command for pkg inside verDir; done(ok) once it
+    // exited and left an executable stagedExe(verDir) behind.
+    void unpackPackage(const QString &pkg, const QString &verDir,
+                       std::function<void(bool ok)> done);
+
+    // --- platform halves (StagedUpdate.cpp / StagedUpdate_win.cpp) ---
+    // The release asset this platform installs from.
+    static bool isInstallAsset(const QString &name);
+    // Status line for a release that carries no such asset.
+    static QString noInstallAssetStatus();
+    // Program + arguments that unpack pkg into the working directory.
+    static void setUnpackCommand(QProcess *proc, const QString &pkg);
+    // Where the unpacked package keeps the exe the bootstrap starts.
+    static QString stagedExe(const QString &verDir);
+    // Rename from over to, replacing an existing file in one step.
+    static bool replaceFile(const QString &from, const QString &to);
+    // A tiny stand-in for the release package in dir, for the dry run; its
+    // path, or "" when it could not be written.
+    static QString writeTestPackage(const QString &dir);
     // Remove stage dirs other than keepVersion (never the one we run from).
     void pruneStages(const QString &keepVersion);
     // Startup: drop stages the package version has caught up with.
@@ -164,16 +196,13 @@ private:
     qreal m_progress = 0.0;
     QString m_latest;
     QString m_status;
-    QString m_assetName; // matching AppImage asset of the latest release
+    QString m_assetName; // this platform's install asset of the latest release
     QString m_assetUrl;
     qint64 m_assetSize = 0;
     // The sha256 GitHub published for that asset, checked before the download
     // replaces the running app. Empty for a release made before the API
     // carried digests - the size check is then the only guard.
     QString m_assetSha256;
-    // The latest release's tag, kept only when it is a plain tag name: it pins
-    // the installer fallback URL to that tree instead of the branch head.
-    QString m_tag;
     // The release's own copy of install.sh and the sha256 GitHub computed for
     // it. Both empty until a check has run, and for releases made before the
     // script became an asset - fetchInstallerScript() then has nothing to

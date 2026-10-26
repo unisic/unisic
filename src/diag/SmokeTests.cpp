@@ -25,6 +25,7 @@
 #include "hotkeys/ShortcutFormat.h"
 #include "diag/CrashHandler.h"
 #include "diag/DiagLog.h"
+#include "notify/NativeSound.h"
 
 #include <csignal>
 #include <QWheelEvent>
@@ -35,6 +36,7 @@
 #include "hotkeys/X11Hotkeys.h"
 #include "record/X11ShmGrabber.h"
 #include <QThread>
+#include "record/AudioCapture.h"
 #include "record/GifRecorder.h"
 #include "record/VideoQuality.h"
 #include "media/FfmpegUtil.h"
@@ -65,8 +67,6 @@
 #include "FilenameTemplate.h"
 #include "ImageEncode.h"
 #include "ocr/OcrEngine.h"
-#include <ZXing/BitMatrix.h>
-#include <ZXing/MultiFormatWriter.h>
 // Clipboard offers (the KDE force-image-copy hint), clipboard reads and drop
 // payloads all speak QMimeData; KSystemClipboard consumes the same objects.
 #include <QMimeData>
@@ -118,6 +118,7 @@
 #include <QStandardPaths>
 #include <QMouseEvent>
 #include <QtConcurrentRun>
+#include <QtEndian>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
@@ -125,6 +126,7 @@
 #include <QDBusConnectionInterface>
 #include <QDBusReply>
 #include <QDebug>
+#include <algorithm>
 #include <memory>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -140,6 +142,7 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
     }
     if (!win->isExposed() || win->windowStates().testFlag(Qt::WindowMinimized)) {
         // Minimized: a capture must leave it where it is, so it must not hide.
+        m_otherWindowFocused = false;
         done(hideOwnWindowForCapture()
                  ? QStringLiteral("FAIL (minimized window was hidden and would pop back up)")
                  : QStringLiteral("PASS (minimized window left alone)"));
@@ -152,24 +155,30 @@ void AppContext::hideOnCaptureCheck(std::function<void(const QString &)> done)
         done(QStringLiteral("SKIP (hide while capturing is off)"));
         return;
     }
+    // beginCaptureIsolation() decides "another Unisic window has focus" from the
+    // real focus window, which a smoke test fired by a hotkey cannot arrange, so
+    // the flag is forced to exercise both outcomes. With the editor in front the
+    // main window must not move at all; otherwise it goes down and, on the timer
+    // a real capture uses, comes back - the failure that matters is the window
+    // not coming BACK, and a same-turn hide/show would not exercise that.
+    m_otherWindowFocused = true;
+    if (hideOwnWindowForCapture()) {
+        restoreOwnWindowAfterCapture();
+        done(QStringLiteral("FAIL (window hidden while another Unisic window had focus)"));
+        return;
+    }
+    m_otherWindowFocused = false;
     const bool wentDown = hideOwnWindowForCapture() && !win->isVisible();
-    // Restored a whole event-loop turn later, on the same timer a real capture
-    // uses - the failure that matters here is the window not coming BACK, and a
-    // same-turn hide/show would not exercise that at all.
     QTimer::singleShot(kSelfHideSettleMs, this, [this, win, wentDown, done = std::move(done)] {
         restoreOwnWindowAfterCapture();
-        // With a tray the window must stay down; without one it must come back.
-        const bool stayDown = trayAvailable();
-        const bool visible = win && win->isVisible();
-        const bool ok = wentDown && visible != stayDown;
+        const bool back = win && win->isVisible();
         // The smoke test runs on the user's own session: put the window back
         // where the user left it whatever the verdict.
-        if (win && !visible)
+        if (win && !back)
             win->show();
-        done(ok ? QStringLiteral("PASS (%1)").arg(stayDown ? QStringLiteral("stays in the tray")
-                                                           : QStringLiteral("no tray, came back"))
-                : QStringLiteral("FAIL (hidden=%1, visible after=%2, tray=%3)")
-                      .arg(wentDown ? 1 : 0).arg(visible ? 1 : 0).arg(stayDown ? 1 : 0));
+        done(wentDown && back
+                 ? QStringLiteral("PASS (left alone while another Unisic window has focus; otherwise down and back)")
+                 : QStringLiteral("FAIL (down=%1 back=%2)").arg(wentDown).arg(back));
     });
 }
 
@@ -202,7 +211,13 @@ void AppContext::externalActionTimeoutCheck(std::function<void(const QString &)>
                 false,
                 [runner, elapsed, ceiling, done = std::move(done)](const QString &output, const QString &error) {
         const qint64 ms = elapsed->elapsed();
-        runner->deleteLater();
+        // The runner owns the killed `sleep`'s QProcess, which is still being
+        // reaped: deleting it now blocks the GUI thread on that child.
+        QProcess *process = runner->findChild<QProcess *>();
+        if (process && process->state() != QProcess::NotRunning)
+            QObject::connect(process, &QProcess::finished, runner, &QObject::deleteLater);
+        else
+            runner->deleteLater();
         if (error.isEmpty() || !output.isEmpty()) {
             done(QStringLiteral("FAIL (hung action reported success)"));
             return;
@@ -1290,8 +1305,12 @@ void AppContext::audioTracksCheck(std::function<void(const QString &)> done)
                           QStringLiteral("stream_tags=%1").arg(tag),
                           QStringLiteral("-of"), QStringLiteral("default=nw=1:nk=1"), file});
         p.waitForFinished(4000);
-        return QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n'),
-                                                                 Qt::SkipEmptyParts);
+        // ffprobe on Windows ends its lines in CRLF.
+        QStringList tags;
+        for (const QString &line : QString::fromUtf8(p.readAllStandardOutput()).split(QLatin1Char('\n')))
+            if (!line.trimmed().isEmpty())
+                tags << line.trimmed();
+        return tags;
     };
 
     QProcess::execute(ffmpeg, GifRecorder::pauseExciseArgs(source, excised, {{500, 1000}}, true));
@@ -1336,6 +1355,108 @@ void AppContext::devTestAudioInputs()
                   .arg(QStringLiteral("PASS (%1: %2)")
                            .arg(devices.size())
                            .arg(labels.join(QStringLiteral(", ")))));
+}
+
+void AppContext::devTestAudioCapture()
+{
+    if (!devBuild()) return;
+    audioCaptureCheck([this](const QString &result) {
+        showToast(tr("Dev: audio capture: %1").arg(result), result.contains(QLatin1String("FAIL")));
+    });
+}
+
+void AppContext::audioCaptureCheck(std::function<void(const QString &)> done)
+{
+    const QString ffmpeg = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
+    const QString ffprobe = QStandardPaths::findExecutable(QStringLiteral("ffprobe"));
+    if (ffmpeg.isEmpty() || ffprobe.isEmpty()) {
+        done(QStringLiteral("SKIP (ffmpeg/ffprobe missing)"));
+        return;
+    }
+    struct Source {
+        AudioCapture::Source source;
+        QString name;
+    };
+    QList<Source> sources{{AudioCapture::Source::System, QStringLiteral("system")}};
+    QStringList results;
+    if (audioInputListAvailable() && audioInputDevices().isEmpty())
+        results << QStringLiteral("microphone SKIP (no input device)");
+    else
+        sources.append({AudioCapture::Source::Microphone, QStringLiteral("microphone")});
+
+    // One ffmpeg per source, one after the other, so a source that floods the
+    // pipe faster than real time cannot hide behind one that does not.
+    struct State {
+        QList<Source> sources;
+        QStringList results;
+        std::function<void()> next;
+    };
+    auto state = std::make_shared<State>();
+    state->sources = sources;
+    state->results = results;
+    state->next = [this, state, ffmpeg, ffprobe, done] {
+        if (state->sources.isEmpty()) {
+            done(state->results.join(QStringLiteral(", ")));
+            state->next = nullptr; // breaks the self-reference
+            return;
+        }
+        const Source s = state->sources.takeFirst();
+        QString error;
+        std::shared_ptr<AudioCapture> capture =
+            AudioCapture::open(s.source, m_settings->microphoneSource(), &error);
+        if (!capture) {
+            state->results << QStringLiteral("%1 FAIL (%2)").arg(s.name, error);
+            QTimer::singleShot(0, this, state->next);
+            return;
+        }
+        const QString out = QDir::temp().filePath(QStringLiteral("unisic-audiocapture-%1.wav").arg(s.name));
+        QFile::remove(out);
+        QStringList args{QStringLiteral("-y"), QStringLiteral("-nostats"),
+                         QStringLiteral("-loglevel"), QStringLiteral("error")};
+        args << capture->ffmpegInput() << QStringLiteral("-t") << QStringLiteral("1") << out;
+        auto *proc = new QProcess(this);
+        proc->setProcessChannelMode(QProcess::MergedChannels);
+        auto clock = std::make_shared<QElapsedTimer>();
+        // A source that delivers nothing at all would hold ffmpeg forever.
+        QTimer::singleShot(10000, proc, [proc] { proc->kill(); });
+        connect(proc, &QProcess::errorOccurred, this, [this, proc, state, s](QProcess::ProcessError e) {
+            if (e != QProcess::FailedToStart)
+                return;
+            proc->deleteLater();
+            state->results << QStringLiteral("%1 FAIL (ffmpeg did not start)").arg(s.name);
+            QTimer::singleShot(0, this, state->next);
+        });
+        connect(proc, &QProcess::finished, this,
+                [this, proc, state, s, out, ffprobe, clock, capture](int code, QProcess::ExitStatus status) mutable {
+            const qint64 ms = clock->elapsed();
+            const QString log = QString::fromUtf8(proc->readAll()).trimmed();
+            proc->deleteLater();
+            capture.reset();
+            QProcess probe;
+            probe.start(ffprobe, {QStringLiteral("-v"), QStringLiteral("error"),
+                                  QStringLiteral("-show_entries"), QStringLiteral("format=duration"),
+                                  QStringLiteral("-of"), QStringLiteral("csv=p=0"), out});
+            probe.waitForFinished(4000);
+            bool parsed = false;
+            const double seconds = QString::fromUtf8(probe.readAllStandardOutput()).trimmed().toDouble(&parsed);
+            QFile::remove(out);
+            // ffmpeg stops after one second of samples: a file that is a second
+            // long but filled faster than that would be silence pulled forward.
+            const bool ok = status == QProcess::NormalExit && code == 0 && parsed
+                            && seconds > 0.95 && seconds < 1.05 && ms >= 900;
+            state->results << QStringLiteral("%1 %2 (%3 s in %4 ms%5)")
+                                  .arg(s.name, ok ? QStringLiteral("PASS") : QStringLiteral("FAIL"),
+                                       parsed ? QString::number(seconds, 'f', 3) : QStringLiteral("?"))
+                                  .arg(ms)
+                                  .arg(ok || log.isEmpty() ? QString() : QStringLiteral(": ") + log.left(160));
+            QTimer::singleShot(0, this, state->next);
+        });
+        clock->start();
+        proc->start(ffmpeg, args);
+    };
+    // Never state->next() directly: its last run clears state->next, which
+    // must not be the object executing.
+    QTimer::singleShot(0, this, state->next);
 }
 
 void AppContext::devTestTrimAudio()
@@ -1598,6 +1719,19 @@ void AppContext::devTestOverlayMode()
     showToast(tr("Dev: overlay mode badge: %1").arg(overlayModeCheck(settings())));
 }
 
+// A Repeater delegate has no QObject parent, so findChild never reaches it;
+// only the visual tree does.
+static QQuickItem *findVisualChild(QQuickItem *root, const QString &name)
+{
+    for (QQuickItem *child : root->childItems()) {
+        if (child->objectName() == name)
+            return child;
+        if (QQuickItem *hit = findVisualChild(child, name))
+            return hit;
+    }
+    return nullptr;
+}
+
 // The overlay-settings preview is the only place those options can be SEEN
 // without starting a capture, so a preview that has drifted from the overlay is
 // worse than none: it teaches the wrong thing. Two ways it can drift, both
@@ -1678,6 +1812,25 @@ QString AppContext::overlayPreviewCheck()
     }
     s->setOverlayToolbarPosition(wasPos);
 
+    // Icon size: the preview's toolbar icons follow the setting, an odd size
+    // snaps to the even step, and a value outside the slider falls back to 24.
+    // The icon is a ToolChip, the overlay's own: the chip stays 40 px and its
+    // iconSize is what the icon inside is drawn at.
+    auto *icon = findVisualChild(bar, QStringLiteral("overlayPreviewToolbarIcon"));
+    if (!icon)
+        return QStringLiteral("FAIL (no icon in the preview toolbar)");
+    const int wasIconSize = s->overlayIconSize();
+    for (const auto &[stored, shown] : {std::pair{16, 16}, std::pair{24, 24}, std::pair{26, 26}, std::pair{19, 20}, std::pair{7, 24}, std::pair{40, 24}}) {
+        s->setOverlayIconSize(stored);
+        const int drawn = icon->property("iconSize").toInt();
+        if (drawn != shown) {
+            s->setOverlayIconSize(wasIconSize);
+            return QStringLiteral("FAIL (icon size %1 draws %2 px, expected %3)")
+                .arg(stored).arg(drawn).arg(shown);
+        }
+    }
+    s->setOverlayIconSize(wasIconSize);
+
     // The two mode-indicator styles: exactly one indicator is drawn for each,
     // and the glyph one has to be BOTH cut and still standing - the selection
     // is a hole in it, so a mock selection that missed it entirely would show
@@ -1726,7 +1879,7 @@ QString AppContext::overlayPreviewCheck()
         return QStringLiteral("FAIL (the mode indicator survives its own switch)");
     }
     restore();
-    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 2 indicator styles)")
+    return QStringLiteral("PASS (5 modes, %1 toolbar positions on screen, 6 icon sizes, 2 indicator styles)")
         .arg(positions.size());
 }
 
@@ -2153,6 +2306,20 @@ void AppContext::devTestInstallerUpdate()
     });
 }
 
+void AppContext::devTestStagedUpdate()
+{
+    if (!devBuild())
+        return;
+    // Dry-run only: unpacks a generated stand-in package and flips a scratch
+    // pointer under the staging dir, then removes both. The live pointer and
+    // every staged version stay as they are (a dev build never stages).
+    m_updater->verifyStagingReady([this](bool ok, const QString &detail) {
+        showToast(ok ? tr("Dev: staged update: PASS (%1)").arg(detail)
+                     : tr("Dev: staged update: FAIL (%1)").arg(detail),
+                  !ok);
+    });
+}
+
 void AppContext::devTestOcrBoxes()
 {
     if (!devBuild())
@@ -2243,7 +2410,7 @@ void AppContext::devTestZipExport()
 {
     if (!devBuild())
         return;
-    if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+    if (!zipUnavailableReason().isEmpty()) {
         showToast(tr("Dev: ZIP export: SKIP (zip not installed)"));
         return;
     }
@@ -2488,6 +2655,33 @@ void AppContext::devTestNotificationOrder()
     QTimer::singleShot(6000, this, [this] { hideCapturePopupPreview(); });
 }
 
+// A window shown this turn is not laid out on every platform yet: on Windows
+// its content item stays 0x0 until the native window is exposed, so an event
+// sent before then reaches no item at all. Runs `then` once win is exposed and
+// sized, or after 3 s, so a window that never shows still gets its check.
+static void whenLaidOut(QQuickWindow *win, QObject *ctx, std::function<void()> then)
+{
+    const auto ready = [](QQuickWindow *w) {
+        return !w || (w->isExposed() && w->contentItem()->width() > 0);
+    };
+    if (ready(win)) {
+        then();
+        return;
+    }
+    auto *poll = new QTimer(ctx);
+    poll->setInterval(25);
+    QObject::connect(poll, &QTimer::timeout, ctx,
+                     [poll, ready, w = QPointer<QQuickWindow>(win), ticks = 0,
+                      then = std::move(then)]() mutable {
+                         if (!ready(w) && ++ticks < 120)
+                             return;
+                         poll->stop();
+                         poll->deleteLater();
+                         then();
+                     });
+    poll->start();
+}
+
 // Drives the editor's bottom-bar zoom control the way clicks do and reads the
 // view zoom back: the percentage toggles fit <-> 100%, + and - step from
 // there. Only the view property is read, so a pass also means nothing here
@@ -2545,14 +2739,38 @@ void AppContext::devTestEditorZoom()
 {
     if (!devBuild())
         return;
-    QString r;
+    QPointer<QQuickWindow> win;
     {
-        // Closes the editor it opened once the check is read.
         CheckWindowCollector collect(this);
         openEditor(devTestImage());
-        r = editorZoomCheck(m_checkWindows.isEmpty() ? nullptr : m_checkWindows.last().data());
+        // Taken back from the collector, which would close the editor before
+        // the check below gets to run on it.
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
     }
-    showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    whenLaidOut(win, this, [this, win] {
+        const QString r = editorZoomCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: editor zoom %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+// Scrolls the Flickable holding item so item is on screen, as a user would
+// before pressing it: a press past the window edge reaches nothing.
+static void scrollIntoView(QQuickItem *item)
+{
+    for (QQuickItem *f = item->parentItem(); f; f = f->parentItem()) {
+        if (!f->property("contentY").isValid())
+            continue;
+        auto *content = f->property("contentItem").value<QQuickItem *>();
+        if (!content)
+            return;
+        const qreal y = item->mapToItem(content, QPointF(0, 0)).y();
+        const qreal maxY = qMax(0.0, f->property("contentHeight").toReal() - f->height());
+        f->setProperty("contentY", qBound(0.0, y - 12, maxY));
+        return;
+    }
 }
 
 // Settings > Saving > filename template: a field once entered has to be
@@ -2591,6 +2809,10 @@ static QString leaveFieldCheck(QQuickWindow *win)
         while (!win->isActive() && t.elapsed() < 1500)
             QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
     }
+    // Caption, field and switch fit one screen from the caption down. In a
+    // short window (853x533 on a 150% 1280x800 screen) they sat below the
+    // fold and the presses reached nothing, failing though nothing was wrong.
+    scrollIntoView(caption);
     QMetaObject::invokeMethod(field, "forceFocus");
     if (!focused()) {
         restore();
@@ -2623,7 +2845,12 @@ static QString leaveFieldCheck(QQuickWindow *win)
         QMouseEvent move(QEvent::MouseMove, releaseAt, win->mapToGlobal(releaseAt),
                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
         QCoreApplication::sendEvent(win, &down);
-        QCoreApplication::sendEvent(win, &move);
+        // Only when the release is elsewhere. On the first F8 after start the
+        // settings pane took the grab from the switch on a move of 0 px, so
+        // the click never landed (seen with mouseGrabberItem(); later runs
+        // passed).
+        if (releaseAt != at)
+            QCoreApplication::sendEvent(win, &move);
         QCoreApplication::sendEvent(win, &up);
     };
     const QPointF beside = caption->mapToScene(QPointF(caption->width() / 2, caption->height() / 2));
@@ -2771,6 +2998,32 @@ void AppContext::devTestCopyLast()
                   .arg(ok ? QStringLiteral("PASS") : QStringLiteral("FAIL (clipboard empty)")), !ok);
 }
 
+QString AppContext::copyFileCheck()
+{
+    // A space and a non-ASCII letter: the uri-list has to carry them encoded.
+    const QString path = QDir::tempPath() + QStringLiteral("/unisic copy ż.gif");
+    const QUrl url = QUrl::fromLocalFile(path);
+    QScopedPointer<QMimeData> mime(makeFileMime(path));
+    const bool built = mime->urls() == QList<QUrl>{url} && mime->text() == path
+                       && mime->data(QStringLiteral("x-special/gnome-copied-files"))
+                              == QByteArrayLiteral("copy\n") + url.toEncoded();
+    copyFileToClipboard(path);
+    const QMimeData *live = QGuiApplication::clipboard()->mimeData();
+    const bool landed = live && live->urls() == QList<QUrl>{url};
+    if (built && landed)
+        return QStringLiteral("PASS (file, path text and GTK list)");
+    return QStringLiteral("FAIL (offer=%1 clipboard=%2)").arg(built).arg(landed);
+}
+
+void AppContext::devTestCopyFile()
+{
+    if (!devBuild())
+        return;
+    const QString status = copyFileCheck();
+    showToast(tr("Dev: copy recording file: %1").arg(status),
+              status.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestClipboardHistory()
 {
     if (!devBuild())
@@ -2844,7 +3097,8 @@ void AppContext::devTestShowInFolder()
     if (!devBuild())
         return;
     // Hand-checkable: the file manager should open the cache folder with this
-    // file SELECTED (FileManager1), not merely show the folder (the fallback).
+    // file SELECTED (FileManager1, Explorer on Windows), not merely show the
+    // folder (the fallback).
     const QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
     QDir().mkpath(dir);
     const QString path = dir + QStringLiteral("/unisic-dev-show-in-folder.png");
@@ -3838,6 +4092,60 @@ QString AppContext::recordPageModeCheck()
         .arg(original == 1 ? QStringLiteral("GIF") : QStringLiteral("video"));
 }
 
+QString AppContext::trayMenuCheck()
+{
+    // Hide two entries plus Open and Quit: the two must leave the menu, the
+    // locked pair must stay, and no separator may lead, trail or double up.
+    // Signals blocked: the live tray must not be torn down and rebuilt twice for a probe.
+    QMenu *menu = nullptr;
+    {
+        const QSignalBlocker quiet(m_settings);
+        const QString original = m_settings->hiddenTrayItems();
+        m_settings->setHiddenTrayItems(QStringLiteral("region,ocr,open,quit"));
+        menu = buildTrayMenu();
+        m_settings->setHiddenTrayItems(original);
+    }
+
+    QStringList texts;
+    bool badSeparator = false;
+    const QList<QAction *> actions = menu->actions();
+    for (int i = 0; i < actions.size(); ++i) {
+        if (actions[i]->isSeparator()) {
+            if (i == 0 || i == actions.size() - 1 || actions[i - 1]->isSeparator())
+                badSeparator = true;
+        } else {
+            texts.append(actions[i]->text());
+        }
+    }
+    delete menu;
+
+    // Every entry's glyph must exist in the bundle, or the menu and the
+    // Settings list silently draw a blank where the icon belongs.
+    QStringList noGlyph;
+    for (const QVariant &v : trayMenuEntries()) {
+        const QString icon = v.toMap().value(QStringLiteral("icon")).toString();
+        if (!QFile::exists(QStringLiteral(":/resources/icons/sym/%1.svg").arg(icon)))
+            noGlyph.append(icon);
+    }
+
+    const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
+    const bool kept = texts.contains(tr("Capture full screen"))
+                      && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
+    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty())
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4)")
+            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')));
+    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked)")
+        .arg(trayMenuEntries().size());
+}
+
+void AppContext::devTestTrayMenu()
+{
+    if (!devBuild())
+        return;
+    const QString result = trayMenuCheck();
+    showToast(tr("Dev: tray menu: %1").arg(result), result.startsWith(QLatin1String("FAIL")));
+}
+
 void AppContext::devTestRecordPageMode()
 {
     if (!devBuild())
@@ -3909,34 +4217,81 @@ void AppContext::devTestHotkeyBinds()
                       .arg(bad).arg(lines.size()), true);
 }
 
-// showInFileManager's select-the-file path needs a FileManager1 host on the
-// bus; without one the action still works via the plain open-folder fallback.
-static QString fileManager1Check()
+// The cue steps play through a command-line player on Linux and through the
+// OS's own player where it has one (NativeSound, winmm on Windows).
+static bool soundPlayerPresent()
 {
-    auto *bus = QDBusConnection::sessionBus().interface();
-    const QString svc = QStringLiteral("org.freedesktop.FileManager1");
-    if (bus->isServiceRegistered(svc))
-        return QStringLiteral("PASS (service live)");
-    const QDBusReply<QStringList> act = bus->activatableServiceNames();
-    if (act.isValid() && act.value().contains(svc))
-        return QStringLiteral("PASS (activatable)");
-    return QStringLiteral("SKIP (no FileManager1 host - falls back to opening the folder)");
+    return !NativeSound::playerName().isEmpty()
+           || !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
+           || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
+           || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
 }
 
-// Dev/smoke: exercise the X11 XShm grabber directly - construct it on the
-// primary monitor, grab one frame and verify the tight-packed size. No ffmpeg,
-// so it isolates the new frame source. English status (like the other *Check()).
+// Reads a ZIP export back from its central directory: "" when it holds
+// exactly `names` (compared as UTF-8 bytes), else what is wrong. `utf8Flag`
+// says whether every non-ASCII name carries general-purpose bit 11, which is
+// what Windows Explorer decodes names by. Info-ZIP marks them with a Unicode
+// Path extra field instead, so the flag is reported, not required.
+static QString zipEntriesCheck(const QString &path, const QStringList &names, bool *utf8Flag)
+{
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return QStringLiteral("cannot read %1").arg(path);
+    const QByteArray z = f.readAll();
+    const auto u16 = [&z](qsizetype at) { return qFromLittleEndian<quint16>(z.constData() + at); };
+    const auto u32 = [&z](qsizetype at) { return qFromLittleEndian<quint32>(z.constData() + at); };
+    // The end record is the last 22 bytes, followed by a comment of up to 64 KiB.
+    qsizetype eocd = -1;
+    for (qsizetype at = z.size() - 22; at >= 0 && at >= z.size() - 22 - 0xffff; --at) {
+        if (u32(at) == 0x06054b50u) {
+            eocd = at;
+            break;
+        }
+    }
+    if (eocd < 0)
+        return QStringLiteral("no end-of-central-directory record");
+    const quint16 count = u16(eocd + 10);
+    qsizetype at = u32(eocd + 16);
+    QList<QByteArray> found;
+    *utf8Flag = true;
+    for (quint16 i = 0; i < count; ++i) {
+        if (at < 0 || at + 46 > eocd || u32(at) != 0x02014b50u)
+            return QStringLiteral("central directory entry %1 is damaged").arg(i);
+        const quint16 flags = u16(at + 8);
+        const quint16 nameLen = u16(at + 28);
+        const qsizetype next = at + 46 + nameLen + u16(at + 30) + u16(at + 32);
+        if (next > eocd)
+            return QStringLiteral("central directory entry %1 is damaged").arg(i);
+        const QByteArray name = z.mid(at + 46, nameLen);
+        if (std::any_of(name.cbegin(), name.cend(), [](char c) { return uchar(c) >= 0x80; })
+            && !(flags & 0x0800))
+            *utf8Flag = false;
+        found << name;
+        at = next;
+    }
+    QList<QByteArray> want;
+    for (const QString &n : names)
+        want << n.toUtf8();
+    std::sort(found.begin(), found.end());
+    std::sort(want.begin(), want.end());
+    if (found != want)
+        return QStringLiteral("holds [%1], expected [%2]")
+            .arg(QString::fromUtf8(found.join(", ")), QString::fromUtf8(want.join(", ")));
+    return {};
+}
+
+// Dev/smoke: exercise the direct grabber (XShm on X11, DXGI/GDI on Windows) -
+// construct it on the primary monitor, grab one frame and verify the
+// tight-packed size. No ffmpeg, so it isolates the frame source. English
+// status (like the other *Check()).
 static QString x11RecordCheck()
 {
-    if (QGuiApplication::platformName() != QLatin1String("xcb"))
-        return QStringLiteral("SKIP (not an X11 session)");
+    if (!X11ShmGrabber::isAvailable())
+        return QStringLiteral("SKIP (not an X11 or Windows session)");
     QScreen *scr = QGuiApplication::primaryScreen();
     if (!scr)
         return QStringLiteral("FAIL (no screen)");
-    const qreal dpr = scr->devicePixelRatio();
-    const QRect g = scr->geometry();
-    const QRect rootRect(qRound(g.x() * dpr), qRound(g.y() * dpr),
-                         qRound(g.width() * dpr), qRound(g.height() * dpr));
+    const QRect rootRect = X11ShmGrabber::screenRect(scr);
     X11ShmGrabber grab;
     if (!grab.start(rootRect, 10, false))
         return QStringLiteral("FAIL (grabber start)");
@@ -3966,7 +4321,7 @@ static QString x11HotkeysCheck(const QString &backend)
     const QVector<X11Hotkeys::Shortcut> one{
         {QStringLiteral("dev-x11-probe"), QStringLiteral("Ctrl+Alt+Shift+F12")}};
     probe.bind(one); // conflict on the scratch combo is not our failure
-    return backend == QLatin1String("x11")
+    return backend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)
                ? QStringLiteral("PASS (active backend)")
                : QStringLiteral("PASS (available; active backend: %1)")
                      .arg(backend.isEmpty() ? QStringLiteral("none") : backend);
@@ -3985,7 +4340,7 @@ void AppContext::devTestX11Hotkeys()
     if (!devBuild())
         return;
     const QString r = x11HotkeysCheck(m_hotkeyBackend);
-    showToast(tr("Dev: X11 hotkeys: %1").arg(r), r.startsWith(QLatin1String("FAIL")));
+    showToast(tr("Dev: native hotkeys: %1").arg(r), r.startsWith(QLatin1String("FAIL")));
 }
 
 void AppContext::runSmokeTest()
@@ -4029,7 +4384,7 @@ void AppContext::runSmokeTest()
                  + (recordingAvailable()
                         ? QStringLiteral("PASS (%1)").arg(m_screenCastPortalPresent
                               ? QStringLiteral("ScreenCast portal")
-                              : QStringLiteral("X11 XShm - no portal needed"))
+                              : QStringLiteral("direct grab (XShm/DXGI) - no portal needed"))
                     : QStringLiteral("SKIP (no ScreenCast portal backend on this desktop)")));
         smokeLog(QStringLiteral("window record source: ")
                  + (capRecordWindowSource() ? QStringLiteral("PASS")
@@ -4082,7 +4437,7 @@ void AppContext::runSmokeTest()
                             ? QStringLiteral("PASS (override reached card host)")
                             : QStringLiteral("FAIL")));
         }
-        smokeLog(QStringLiteral("show in folder (FileManager1): ") + fileManager1Check());
+        smokeLog(QStringLiteral("show in folder: ") + showInFolderCheck());
         smokeLog(QStringLiteral("tray: ") + (trayAvailable() ? QStringLiteral("PASS") : QStringLiteral("SKIP (no tray host)")));
         smokeLog(QStringLiteral("hotkeys: %1 (%2)").arg(hotkeysAvailable() ? "PASS" : "SKIP", hotkeyBackend()));
         if (m_hotkeys->available()) {
@@ -4100,7 +4455,8 @@ void AppContext::runSmokeTest()
                             : bad == 0 ? QStringLiteral("PASS")
                                        : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
         }
-        smokeLog(QStringLiteral("X11 hotkeys: ") + x11HotkeysCheck(hotkeyBackend()));
+        smokeLog(QStringLiteral("native hotkeys (%1): ").arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
+                 + x11HotkeysCheck(hotkeyBackend()));
         smokeLog(QStringLiteral("desktop shortcuts: ") + desktopShortcutsCheck());
         // tesseract and zxing-cpp are hard build requirements, so the only
         // question left is the one no build flag answers: is any traineddata
@@ -4166,7 +4522,6 @@ void AppContext::runSmokeTest()
         // actually removed a secret and the home path, (3) a log file exists
         // or the reason it does not is legitimate, (4) the crash report still
         // renders in the shape a user would paste.
-        const int before = DiagLog::bufferedLineCount();
         const double revBefore = logRevision();
         qWarning() << "smoke: log probe, token=smoketoken987 under" << QDir::homePath();
         // The log viewer's whole data path: the counter it polls moved, and
@@ -4181,7 +4536,9 @@ void AppContext::runSmokeTest()
                               ? QStringLiteral("FAIL (secret visible)")
                               : QStringLiteral("PASS")));
         const QString tail = DiagLog::recentLines(3);
-        const bool grew = DiagLog::bufferedLineCount() > before;
+        // The revision, not the line count: the ring holds 500 lines, so after
+        // a long session (or a second F8) the count stays put while it records.
+        const bool grew = logRevision() > revBefore;
         const bool clean = !tail.contains(QStringLiteral("smoketoken987"))
                            && !tail.contains(QDir::homePath());
         smokeLog(QStringLiteral("diagnostic log: %1")
@@ -4241,7 +4598,10 @@ void AppContext::runSmokeTest()
                           FfmpegUtil::hardwareEncoderWorks(QStringLiteral("nvenc")) ? "y" : "n",
                           FfmpegUtil::hardwareEncoderWorks(QStringLiteral("vaapi")) ? "y" : "n"));
         if (!perAppAudioAvailable())
-            smokeLog(QStringLiteral("per-app audio: SKIP (pw-dump/pw-record missing)"));
+            smokeLog(QStringLiteral("per-app audio: SKIP (%1)")
+                         .arg(AudioCapture::backend() == QLatin1String("wasapi")
+                                  ? QStringLiteral("needs Windows 10 2004+")
+                                  : QStringLiteral("pw-dump/pw-record missing")));
         else
             smokeLog(QStringLiteral("per-app audio: PASS (%1 applications playing, %2 ticked)")
                          .arg(audioApplicationNodes().size())
@@ -4300,6 +4660,15 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         trimAudioCheck([this](const QString &result) {
             smokeLog(QStringLiteral("trim audio edit: ") + result);
+            smokeNext();
+        });
+    });
+
+    // 1a6) live audio: what a recording with system audio and the microphone
+    // on actually reads, one second of each.
+    m_smokeSteps.append([this] {
+        audioCaptureCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("audio capture: ") + result);
             smokeNext();
         });
     });
@@ -4447,7 +4816,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("keystroke badge: ") + keystrokeBadgeCheck());
         smokeLog(QStringLiteral("keystroke capture access: ")
                  + (keystrokeCaptureBlockedReason().isEmpty()
-                        ? QStringLiteral("PASS (/dev/input readable)")
+                        ? QStringLiteral("PASS (input devices readable)")
                         : QStringLiteral("SKIP (%1)").arg(keystrokeCaptureBlockedReason())));
         // The Settings row offers its fix button off this string, and it must be
         // offered ONLY where joining the input group would help. A working setup
@@ -4471,6 +4840,14 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 2f) a settings text field can be left again. Before the editor opens:
+    // the editor takes the focus, and KWin need not hand it back to the main
+    // window, which left this check a SKIP on most runs.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
+        smokeNext();
+    });
+
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
@@ -4479,16 +4856,12 @@ void AppContext::runSmokeTest()
         openEditor(t);
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
-        smokeLog(QStringLiteral("editor zoom control: ")
-                 + editorZoomCheck(m_editorWindows > before && !m_smokeWindows.isEmpty()
-                                       ? m_smokeWindows.last().data() : nullptr));
-        smokeNext();
-    });
-
-    // 3a) a settings text field can be left again
-    m_smokeSteps.append([this] {
-        smokeLog(QStringLiteral("leave filename field: ") + leaveFieldCheck(mainWindow()));
-        smokeNext();
+        const QPointer<QQuickWindow> win = m_editorWindows > before && !m_smokeWindows.isEmpty()
+                                               ? m_smokeWindows.last().data() : nullptr;
+        whenLaidOut(win, this, [this, win] {
+            smokeLog(QStringLiteral("editor zoom control: ") + editorZoomCheck(win));
+            smokeNext();
+        });
     });
 
     // 3b) edit an existing capture from history (overwrite editor path)
@@ -4542,6 +4915,12 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         copyImageToClipboard(devTestImage());
         smokeLog(QStringLiteral("clipboard history hint: ") + clipboardHistoryHintCheck());
+        smokeNext();
+    });
+
+    // 3c3) a finished recording lands on the clipboard as its file.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("copy recording file: ") + copyFileCheck());
         smokeNext();
     });
 
@@ -4693,8 +5072,9 @@ void AppContext::runSmokeTest()
     });
 
     // 3e3d3) ZIP export: archive two fixture PNGs and confirm the zip lands.
+    // The second name is non-ASCII: the archive must carry it as UTF-8.
     m_smokeSteps.append([this] {
-        if (QStandardPaths::findExecutable(QStringLiteral("zip")).isEmpty()) {
+        if (!zipUnavailableReason().isEmpty()) {
             smokeLog(QStringLiteral("zip export: SKIP (zip not installed)"));
             smokeNext();
             return;
@@ -4704,15 +5084,27 @@ void AppContext::runSmokeTest()
         for (int i = 1; i <= 2; ++i) {
             QImage im(48, 48, QImage::Format_ARGB32);
             im.fill(i == 1 ? Qt::green : Qt::magenta);
-            const QString p = dir + QStringLiteral("/unisic-smoke-zip-%1.png").arg(i);
+            const QString p = dir + QStringLiteral("/unisic-smoke-zip-%1.png")
+                                        .arg(i == 1 ? QStringLiteral("1") : QStringLiteral("żółw"));
             im.save(p, "PNG");
             files << p;
         }
         const QString dest = dir + QStringLiteral("/unisic-smoke-zip.zip");
         exportFilesToZip(files, dest, [this, files, dest](bool ok, const QString &msg) {
-            smokeLog(QStringLiteral("zip export: ")
-                     + (ok ? QStringLiteral("PASS (%1)").arg(msg)
-                           : QStringLiteral("FAIL (%1)").arg(msg)));
+            QString verdict = QStringLiteral("FAIL (%1)").arg(msg);
+            if (ok) {
+                QStringList names;
+                for (const QString &f : files)
+                    names << QFileInfo(f).fileName();
+                bool utf8Flag = false;
+                const QString wrong = zipEntriesCheck(dest, names, &utf8Flag);
+                verdict = wrong.isEmpty()
+                              ? QStringLiteral("PASS (%1 entries, UTF-8 name flag: %2)")
+                                    .arg(names.size())
+                                    .arg(utf8Flag ? QStringLiteral("yes") : QStringLiteral("no"))
+                              : QStringLiteral("FAIL (%1)").arg(wrong);
+            }
+            smokeLog(QStringLiteral("zip export: ") + verdict);
             for (const QString &f : files)
                 QFile::remove(f);
             QFile::remove(dest);
@@ -4728,10 +5120,7 @@ void AppContext::runSmokeTest()
 
     // 3e4) capture sound: a player must exist and the WAV must extract.
     m_smokeSteps.append([this] {
-        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
-        if (!player) {
+        if (!soundPlayerPresent()) {
             smokeLog(QStringLiteral("capture sound: SKIP (no pw-play/paplay/aplay)"));
         } else {
             const QString id = m_settings->captureSound();
@@ -4746,10 +5135,7 @@ void AppContext::runSmokeTest()
 
     // 3e5) recording sound: same player requirement, separate setting/cue.
     m_smokeSteps.append([this] {
-        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
-        if (!player) {
+        if (!soundPlayerPresent()) {
             smokeLog(QStringLiteral("recording sound: SKIP (no pw-play/paplay/aplay)"));
         } else {
             const QString id = m_settings->recordingSound();
@@ -4764,10 +5150,7 @@ void AppContext::runSmokeTest()
 
     // 3e5b) trash sound: fixed cue — the qrc WAV must extract and play.
     m_smokeSteps.append([this] {
-        const bool player = !QStandardPaths::findExecutable(QStringLiteral("pw-play")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("paplay")).isEmpty()
-                            || !QStandardPaths::findExecutable(QStringLiteral("aplay")).isEmpty();
-        if (!player) {
+        if (!soundPlayerPresent()) {
             smokeLog(QStringLiteral("trash sound: SKIP (no pw-play/paplay/aplay)"));
         } else {
             playTrashSound();
@@ -5025,6 +5408,7 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("settings round-trip: ") + settingsRoundTripCheck());
         smokeLog(QStringLiteral("record page mode: ") + recordPageModeCheck());
+        smokeLog(QStringLiteral("tray menu entries: ") + trayMenuCheck());
         smokeNext();
     });
 
@@ -5068,6 +5452,18 @@ void AppContext::runSmokeTest()
             smokeLog(QStringLiteral("installer update: ")
                      + (ok ? QStringLiteral("PASS (%1)").arg(detail)
                            : QStringLiteral("SKIP (%1)").arg(detail)));
+            smokeNext();
+        });
+    });
+
+    // 5e) staged update (deb/rpm outside /usr, Windows portable): the real
+    // unpack command on a stand-in package plus a pointer flip over an
+    // existing pointer, in a scratch dir. Local only, so a failure is a FAIL.
+    m_smokeSteps.append([this] {
+        m_updater->verifyStagingReady([this](bool ok, const QString &detail) {
+            smokeLog(QStringLiteral("staged update: ")
+                     + (ok ? QStringLiteral("PASS (%1)").arg(detail)
+                           : QStringLiteral("FAIL (%1)").arg(detail)));
             smokeNext();
         });
     });
@@ -5216,7 +5612,7 @@ QString AppContext::scrollHandoffCheck()
     const QRect rect(10, 20, 300, 400);
     int regionCalls = 0;
     QRect seen;
-    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *) {
+    const OverlayController::RegionCallback regionCb = [&](const QRect &r, QScreen *, qreal) {
         ++regionCalls;
         seen = r;
     };
@@ -5243,7 +5639,27 @@ QString AppContext::scrollHandoffCheck()
         m_captureInFlight = false;
         return QStringLiteral("FAIL (capture guard left armed)");
     }
-    return QStringLiteral("PASS (one callback per path, guard released)");
+
+    // A selection the stitcher would refuse every frame of must not open a
+    // session that can only end empty, and must drop the one-shot task.
+    m_nextCaptureTask.active = true;
+    startScrollCapture(QRect(10, 20, ScrollStitcher::kMinFrameWidth - 1, 400),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-narrow selection started a scroll)");
+    startScrollCapture(QRect(10, 20, 300, ScrollStitcher::kMinFrameHeight - 1),
+                       QGuiApplication::primaryScreen());
+    if (scrollCaptureActive())
+        return QStringLiteral("FAIL (a too-short selection started a scroll)");
+    if (m_nextCaptureTask.active) {
+        m_nextCaptureTask = {};
+        return QStringLiteral("FAIL (refused scroll left its task armed)");
+    }
+    // A refused selection never opened a session, so nothing may hold the
+    // main window down on its behalf.
+    if (m_scrollHoldsWindow)
+        return QStringLiteral("FAIL (refused scroll kept the window down)");
+    return QStringLiteral("PASS (one callback per path, guard released, tiny selection refused)");
 }
 
 void AppContext::devTestScrollHandoff()

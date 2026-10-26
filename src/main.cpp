@@ -5,7 +5,7 @@
 #include "theme/IconImageProvider.h"
 #include "editor/WatermarkPreview.h"
 #include "capture/ScrollPreviewProvider.h"
-#include "update/VersionCompare.h"
+#include "update/StagedUpdate.h"
 #include "ConfigPath.h" // app-side UnisicConfig (same-dir include always wins)
 // The kit's own ConfigPath.h shares the basename, so it needs the explicit
 // relative path; provides UnisicKit::setConfigFilePath (wired in main()).
@@ -26,7 +26,6 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QVarLengthArray>
 #include <QStandardPaths>
 #include <QProcess>
 #include <QTimer>
@@ -37,7 +36,11 @@
 #include <algorithm>
 #include <csignal>
 #include <cstdio>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/socket.h>
+#endif
 #include <unistd.h>
 #if defined(__GLIBC__)
 #include <malloc.h>
@@ -122,6 +125,32 @@ static const char *unexpectedArgument(int argc, char *argv[])
     return nullptr;
 }
 
+#ifdef _WIN32
+// Windows has no socketpair or sigaction. Ctrl+C, Ctrl+Break and closing the
+// console arrive on a thread the system starts for the handler; a queued quit
+// is safe from there, and the destructors run on the main thread as on Linux.
+static BOOL WINAPI consoleCtrlHandler(DWORD type)
+{
+    const char *name = type == CTRL_C_EVENT ? "CTRL_C"
+                     : type == CTRL_BREAK_EVENT ? "CTRL_BREAK"
+                     : type == CTRL_CLOSE_EVENT ? "CTRL_CLOSE"
+                                                : "other";
+    QMetaObject::invokeMethod(qApp, [name] {
+        DiagLog::setQuitReason(QStringLiteral("console %1").arg(QLatin1String(name)));
+        QCoreApplication::quit();
+    }, Qt::QueuedConnection);
+    // The process is killed as soon as a CLOSE handler returns; wait out the
+    // system's grace period so the event loop can finish. main() returning
+    // ends the process, and this thread with it.
+    if (type == CTRL_CLOSE_EVENT)
+        Sleep(5000);
+    return TRUE;
+}
+static void installSignalHandlers(QCoreApplication *)
+{
+    SetConsoleCtrlHandler(consoleCtrlHandler, TRUE);
+}
+#else
 // SIGINT/SIGTERM/SIGHUP must run destructors (QSettings flush, temp-file
 // cleanup, tray teardown) — the default handlers kill the process cold and
 // every settings change since launch is lost. Self-pipe pattern: the handler
@@ -160,6 +189,7 @@ static void installSignalHandlers(QCoreApplication *app)
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
 }
+#endif
 
 static QString singleInstanceServerName()
 {
@@ -173,10 +203,16 @@ static QString singleInstanceServerName()
     // sessions of the same user (rare) sharing one instance is the far smaller
     // cost. Dev builds use their own socket so stable and dev can run (and be
     // CLI-targeted) side by side.
-#ifdef UNISIC_DEV_BUILD
-    return QStringLiteral("app.unisic.UnisicDev.%1").arg(getuid());
+#ifdef _WIN32
+    // No UIDs on Windows; the account name is the per-user key there.
+    const QString user = qEnvironmentVariable("USERNAME");
 #else
-    return QStringLiteral("app.unisic.Unisic.%1").arg(getuid());
+    const uint user = getuid();
+#endif
+#ifdef UNISIC_DEV_BUILD
+    return QStringLiteral("app.unisic.UnisicDev.%1").arg(user);
+#else
+    return QStringLiteral("app.unisic.Unisic.%1").arg(user);
 #endif
 }
 
@@ -296,10 +332,27 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
             toStdout = true;
         }
     }
-    if (delayMs >= 0 && (command == "fullscreen" || command == "region"
-                         || command == "scroll"
-                         || command == "window" || command == "measure"
-                         || command == "monitor" || command == "recapture"))
+    const bool isCapture = command == "fullscreen" || command == "region"
+                           || command == "scroll"
+                           || command == "window" || command == "measure"
+                           || command == "monitor" || command == "recapture";
+    // A capture already open owns the shared one-shot members (task, upload
+    // destination, output, delay). The capture methods refuse a second one, but
+    // only after this function has overwritten them and their refusal then
+    // clears them, so the capture in progress would finish with the defaults.
+    // `--output` callers wait for the outcome, the file as much as stdout, so
+    // a script can use the file the moment the command returns.
+    const bool replies = replySocket && isCapture && !outputPath.isEmpty();
+    if (isCapture && context.captureBusy()) {
+        const QString busy = AppContext::tr("Another capture is already active");
+        qWarning().noquote() << busy;
+        if (replies) {
+            replySocket->write("ERR " + busy.toUtf8().toBase64() + "\n");
+            replySocket->disconnectFromServer();
+        }
+        return false;
+    }
+    if (delayMs >= 0 && isCapture)
         context.setNextCaptureDelayMs(delayMs);
     if (!outputPath.isEmpty()) {
         context.setNextCaptureOutput(toStdout ? QString() : outputPath, format, toStdout);
@@ -312,6 +365,13 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
                     replySocket->write("OK " + QByteArray::number(data.size()) + "\n");
                     replySocket->write(data);
                 }
+                replySocket->disconnectFromServer();
+            });
+        } else if (replies) {
+            QObject::connect(&context, &AppContext::cliCaptureFinished, replySocket,
+                             [replySocket](bool ok, const QString &error) {
+                replySocket->write(ok ? QByteArray("OK 0\n")
+                                      : "ERR " + error.toUtf8().toBase64() + "\n");
                 replySocket->disconnectFromServer();
             });
         }
@@ -327,11 +387,11 @@ static bool dispatchCliCommand(const QByteArray &wireCommand, AppContext &contex
     else if (command == "hotkey") context.runHotkeyAction(QString::fromUtf8(parts.value(1)));
     else if (command == "tray") { /* already running — stay in tray */ }
     else QMetaObject::invokeMethod(&context, "showMainWindowRequested", Qt::QueuedConnection);
-    return toStdout;
+    return replies;
 }
 
 // Returns -1 when there is no running peer, otherwise the command's exit code.
-static int requestExistingStdoutCapture(const QString &serverName,
+static int requestExistingCapture(const QString &serverName,
                                         const QByteArray &command)
 {
     QLocalSocket socket;
@@ -340,8 +400,10 @@ static int requestExistingStdoutCapture(const QString &serverName,
         return -1;
     socket.write(command + '\n');
     socket.flush();
-    if (!socket.waitForBytesWritten(1000))
-        return 1;
+    // flush() has already written the whole command, so this returns false at
+    // once on an empty buffer; treating that as failure dropped every reply. A
+    // real write failure still shows below as an empty response.
+    socket.waitForBytesWritten(1000);
     QByteArray response;
     while (socket.state() != QLocalSocket::UnconnectedState) {
         if (!socket.waitForReadyRead(10 * 60 * 1000)
@@ -352,12 +414,18 @@ static int requestExistingStdoutCapture(const QString &serverName,
             return 1;
     }
     response += socket.readAll();
+    // A peer from before file outputs got a reply hangs up without a word
+    // after taking the command; that is how it always answered.
+    if (response.isEmpty() && !command.split(' ').contains("stdout=1"))
+        return 0;
     const int newline = response.indexOf('\n');
     if (newline < 0)
         return 1;
     const QByteArray header = response.left(newline);
     if (header.startsWith("ERR ")) {
-        qWarning().noquote() << QString::fromUtf8(QByteArray::fromBase64(header.mid(4)));
+        const QString error = QString::fromUtf8(QByteArray::fromBase64(header.mid(4)));
+        if (!error.isEmpty())
+            qWarning().noquote() << error;
         return 1;
     }
     bool sizeOk = false;
@@ -410,7 +478,7 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     // would then fire twice). Otherwise remove the stale socket left by a crash.
     const auto tryHandoff = [&] {
         if (expectsReply) {
-            const int result = requestExistingStdoutCapture(serverName, command);
+            const int result = requestExistingCapture(serverName, command);
             if (result < 0)
                 return false;
             *handoffResult = result;
@@ -589,59 +657,6 @@ static void ensureDesktopFile()
     }
 }
 
-// Package installs (deb/rpm/arch) can't replace /usr/bin/unisic without root,
-// so UpdateChecker stages a newer version under the user's data dir and this
-// bootstrap execs it — the packaged binary keeps working as a launcher until
-// the distro package catches up. The staged copy runs with UNISIC_STAGED=1 so
-// it never re-redirects; AppImage never stages. Path composition
-// must stay in sync with UpdateChecker::stagingDir() (org "Unisic" + app name
-// under XDG data), computed by hand because this runs before QApplication.
-static void execStagedUpdate(int argc, char *argv[])
-{
-    if (qEnvironmentVariableIsSet("UNISIC_STAGED")
-        || !qEnvironmentVariable("APPIMAGE").isEmpty()
-        // A flatpak never stages: the bundle is read-only, it is updated by
-        // the flatpak client, and exec'ing a downloaded binary inside the
-        // sandbox is exactly what the store forbids.
-        || qEnvironmentVariableIsSet("FLATPAK_ID"))
-        return;
-#ifdef UNISIC_DEV_BUILD
-    const QString appName = QStringLiteral("unisic-dev");
-#else
-    const QString appName = QStringLiteral("unisic");
-#endif
-    QString dataHome = qEnvironmentVariable("XDG_DATA_HOME");
-    if (dataHome.isEmpty())
-        dataHome = QDir::homePath() + QStringLiteral("/.local/share");
-    QFile f(dataHome + QStringLiteral("/Unisic/") + appName + QStringLiteral("/updates/current"));
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QStringList lines = QString::fromUtf8(f.readAll()).split(QLatin1Char('\n'));
-    f.close();
-    const QString ver = lines.value(0).trimmed();
-    const QString appRun = lines.value(1).trimmed();
-    // Only a strictly NEWER stage wins; a stale pointer (package caught up)
-    // is ignored here and garbage-collected by UpdateChecker at startup.
-    if (appRun.isEmpty() || !UpdateVersion::isNewer(ver, QStringLiteral(UNISIC_VERSION))
-        || !QFileInfo(appRun).isExecutable())
-        return;
-    qputenv("UNISIC_STAGED", "1");
-    // Restarts go through this binary again so they land on the newest stage.
-    qputenv("UNISIC_BOOTSTRAP_EXE",
-            QFile::encodeName(QFileInfo(QStringLiteral("/proc/self/exe")).symLinkTarget()));
-    QList<QByteArray> args;
-    args.append(QFile::encodeName(appRun));
-    for (int i = 1; i < argc; ++i)
-        args.append(QByteArray(argv[i]));
-    QVarLengthArray<char *, 16> execArgv;
-    for (QByteArray &a : args)
-        execArgv.append(a.data());
-    execArgv.append(nullptr);
-    ::execv(execArgv[0], execArgv.data());
-    // exec failed (deleted stage, wrong arch…) — fall through to the
-    // packaged version rather than dying.
-}
-
 int main(int argc, char *argv[])
 {
     // FIRST statement, before QApplication and before the helper dispatch
@@ -710,18 +725,19 @@ int main(int argc, char *argv[])
     }
     const bool screenshotRequested = args.contains(QLatin1String("--fullscreen"))
                                    || args.contains(QLatin1String("--region"))
+                                   || args.contains(QLatin1String("--scroll"))
                                    || args.contains(QLatin1String("--window"))
                                    || args.contains(QLatin1String("--measure"))
                                    || args.contains(QLatin1String("--monitor"))
                                    || args.contains(QLatin1String("--recapture"));
     if (delayMs >= 0 && !screenshotRequested) {
-        std::fputs("--delay requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--delay requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
     const QString outputArg = cliValue(args, QStringLiteral("--output"));
     if (!outputArg.isEmpty() && !screenshotRequested) {
-        std::fputs("--output requires --fullscreen, --region, --window, --measure, --monitor, or --recapture\n\n", stderr);
+        std::fputs("--output requires --fullscreen, --region, --scroll, --window, --measure, --monitor, or --recapture\n\n", stderr);
         printHelp(stderr);
         return 2;
     }
@@ -754,20 +770,33 @@ int main(int argc, char *argv[])
     // per-frame memcpy dominates the mmap cost either way).
     mallopt(M_MMAP_THRESHOLD, 1 << 20);
 #endif
+    // The desktop id is named BEFORE the application object exists. Qt 6.10+
+    // registers it with xdg-desktop-portal (host Registry.Register) from its
+    // platform services, which the QApplication constructor builds before the
+    // platform theme. Named afterwards, Qt defers that call to the event loop,
+    // and by then the platform theme and ThemeController have already reached
+    // the portal on the same connection: the portal pins the identity at the
+    // first call, refuses the late Register ("Connection already associated
+    // with an application ID") and Qt prints it as a warning on every start
+    // (#123). The static setter is safe before construction.
+#ifdef UNISIC_DEV_BUILD
+    QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.UnisicDev"));
+#else
+    QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
+#endif
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     // Dev builds are a SEPARATE app: own application name (which moves every
     // QStandardPaths location: cache, history, U-2-Net model), own desktop id,
     // own single-instance socket, own config dir (ConfigPath.h) and own
     // KGlobalAccel component (GlobalHotkeys.h) — so a build-tree binary never
-    // shadows or fights the installed stable Unisic.
+    // shadows or fights the installed stable Unisic. (The desktop id is set
+    // above, before the QApplication.)
 #ifdef UNISIC_DEV_BUILD
     app.setApplicationName(QStringLiteral("unisic-dev"));
     app.setApplicationDisplayName(QStringLiteral("Unisic (dev)"));
-    app.setDesktopFileName(QStringLiteral("app.unisic.UnisicDev"));
 #else
     app.setApplicationName(QStringLiteral("unisic"));
     app.setApplicationDisplayName(QStringLiteral("Unisic"));
-    app.setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
 #endif
     app.setApplicationVersion(QStringLiteral(UNISIC_VERSION));
     app.setOrganizationName(QStringLiteral("Unisic"));
@@ -779,6 +808,21 @@ int main(int argc, char *argv[])
     app.setWindowIcon(QIcon(QStringLiteral(":/resources/icons/unisic.svg")));
 #endif
     app.setQuitOnLastWindowClosed(false); // lives in the tray
+
+    // The AppImage, the portable tarball and the Windows bundle ship ffmpeg (and
+    // on Linux wl-copy, grim and the other helpers) beside the binary, but
+    // nothing puts that folder on PATH: AppRun is a bare symlink and Windows
+    // never searches it. Every lookup went to the host, so a helper the host
+    // lacked counted as missing (#121) and a present one replaced the bundled
+    // copy CI checked. The bundle goes first; an install already on PATH is
+    // untouched.
+    {
+        const QString binDir = QDir::toNativeSeparators(QCoreApplication::applicationDirPath());
+        const QByteArray path = qgetenv("PATH");
+        if (!QStandardPaths::findExecutable(QStringLiteral("ffmpeg"), {binDir}).isEmpty()
+            && !QString::fromLocal8Bit(path).split(QDir::listSeparator()).contains(binDir))
+            qputenv("PATH", QFile::encodeName(binDir) + QDir::listSeparator().toLatin1() + path);
+    }
 
     const bool settingsBatchMode = args.contains(QLatin1String("--export-settings"))
                                    || args.contains(QLatin1String("--import-settings"));
@@ -810,21 +854,17 @@ int main(int argc, char *argv[])
                 qInfo() << "Settings imported - restart a running Unisic instance to apply them.";
         }
         if (!err.isEmpty()) {
-            qWarning() << err;
+            qWarning().noquote() << err;
             return 1;
         }
         return 0;
     }
 
-    // Batch mode above runs without an event loop — the self-pipe notifier
-    // would never fire there; default signal dispositions are correct for it.
-    installSignalHandlers(&app);
-
     const QString serverName = singleInstanceServerName();
     const QByteArray startupCommand = cliCommand(args);
     const bool stdoutCapture = outputArg == QLatin1String("-");
-    if (stdoutCapture) {
-        const int forwarded = requestExistingStdoutCapture(serverName, startupCommand);
+    if (!outputArg.isEmpty()) {
+        const int forwarded = requestExistingCapture(serverName, startupCommand);
         if (forwarded >= 0)
             return forwarded;
     } else if (notifyExistingInstance(serverName, startupCommand)) {
@@ -833,10 +873,14 @@ int main(int argc, char *argv[])
     bool handedOff = false;
     int handoffResult = 0;
     QLocalServer *singleInstanceServer =
-        createSingleInstanceServer(serverName, &app, startupCommand, stdoutCapture,
+        createSingleInstanceServer(serverName, &app, startupCommand, !outputArg.isEmpty(),
                                    &handedOff, &handoffResult);
     if (handedOff)
         return handoffResult;
+    // Batch mode and a forwarded command above run without an event loop - the
+    // self-pipe notifier would never fire there, and `--output` blocks for as
+    // long as the capture takes, so Ctrl+C has to kill it the default way.
+    installSignalHandlers(&app);
     if (singleInstanceServer) {
         QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
                          [serverName] { QLocalServer::removeServer(serverName); });
@@ -990,7 +1034,11 @@ int main(int argc, char *argv[])
         // running instance handed the same command over the single-instance
         // socket never reaches this line, so it is not the one that exits.
         QObject::connect(&context, &AppContext::cliCaptureFinished, &app,
-                         [&app](bool ok) { app.exit(ok ? 0 : 1); });
+                         [&app](bool ok, const QString &error) {
+            if (!error.isEmpty())
+                qWarning().noquote() << error;
+            app.exit(ok ? 0 : 1);
+        });
     }
     QTimer::singleShot(300, &context, [&context, args, delayMs, outputArg, outputFormat] {
         if (delayMs >= 0)

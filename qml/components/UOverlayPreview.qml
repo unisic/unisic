@@ -229,23 +229,28 @@ Item {
             objectName: "overlayPreviewToolbar"
             readonly property int m: 6
             readonly property string pos: App.settings.overlayToolbarPosition
-            width: Math.min(scene.width - 2 * m, 96)
-            height: 18
-            radius: 9
-            color: Theme.primary
-            opacity: 0.94
+            width: Math.min(scene.width - 2 * m, Math.ceil(barRow.implicitWidth) + 24)
+            height: Math.ceil(barRow.implicitHeight) + 14
+            radius: 27
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.25) }
+                GradientStop { position: 1.0; color: Theme.primary }
+            }
+            opacity: 0.97
             border.width: 1
             border.color: Theme.divider
             function clampX(v) { return Math.max(m, Math.min(v, scene.width - width - m)) }
             function clampY(v) { return Math.max(m, Math.min(v, scene.height - height - m)) }
-            x: {
+            x: Math.round(placeX())
+            function placeX() {
                 if (pos === "follow")
                     return clampX(scene.sel.x + scene.sel.width / 2 - width / 2)
                 if (pos.indexOf("left") >= 0) return clampX(m)
                 if (pos.indexOf("right") >= 0) return clampX(scene.width - width - m)
                 return clampX(scene.width / 2 - width / 2)
             }
-            y: {
+            y: Math.round(placeY())
+            function placeY() {
                 if (pos === "follow") {
                     const below = scene.sel.y + scene.sel.height + m
                     if (below + height <= scene.height - m)
@@ -258,16 +263,26 @@ Item {
                 if (pos.indexOf("bottom") >= 0) return clampY(scene.height - height - m)
                 return clampY(scene.height / 2 - height / 2)
             }
+            // The overlay's own chips, built the way OverlayWindow builds them,
+            // so the icons look exactly as they will on the toolbar. Select is
+            // the active one, as it is when a capture starts.
             Row {
+                id: barRow
                 anchors.centerIn: parent
                 spacing: 5
                 Repeater {
-                    model: 6
-                    Rectangle {
+                    model: ToolCatalog.tools.filter((t) => ["select", "pen", "smarterase", "magnify"].indexOf(t.id) >= 0)
+                    ToolChip {
+                        required property var modelData
                         required property int index
-                        width: 8; height: 8
-                        radius: 2
-                        color: index === 0 ? Theme.accent : Theme.alpha(Theme.textSecondary, 0.55)
+                        objectName: index === 0 ? "overlayPreviewToolbarIcon" : ""
+                        activeFocusOnTab: false
+                        Accessible.ignored: true
+                        iconSize: ToolCatalog.overlayIconSize
+                        iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                        iconStyle: App.settings.editorIconStyle
+                        label: ToolCatalog.labelWithShortcut(modelData)
+                        active: index === 0
                     }
                 }
             }

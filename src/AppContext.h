@@ -125,14 +125,22 @@ class AppContext : public QObject
     Q_PROPERTY(bool scrollCaptureActive READ scrollCaptureActive NOTIFY scrollCaptureActiveChanged)
     Q_PROPERTY(QString smokeTestLog READ smokeTestLog NOTIFY smokeTestChanged)
     Q_PROPERTY(bool smokeTestRunning READ smokeTestRunning NOTIFY smokeTestChanged)
-    // Reflects an XDG autostart .desktop in ~/.config/autostart. WRITE creates
-    // or removes that file (Exec carries --tray-only so login starts hidden).
+    // Reflects an XDG autostart .desktop in ~/.config/autostart (the Background
+    // portal in a Flatpak, a value under HKCU's Run key on Windows). WRITE
+    // creates or removes it; the command carries --tray-only so login starts
+    // hidden. Defined per platform in src/platform/DesktopShell*.cpp.
     Q_PROPERTY(bool autostartEnabled READ autostartEnabled WRITE setAutostartEnabled NOTIFY autostartEnabledChanged)
     // Absolute paths of user-supplied tray icons dropped into trayIconsDir();
     // the settings gallery lists these as pickable presets (live via a watcher).
     Q_PROPERTY(QStringList trayIconPresets READ trayIconPresets NOTIFY trayIconPresetsChanged)
     // App-shipped tray icons (qrc ":/resources/icons/tray/*"), fixed at build.
     Q_PROPERTY(QStringList bundledTrayIcons READ bundledTrayIcons CONSTANT)
+    // The tray-menu entries as {id, label, icon, group, locked} in menu order.
+    // Locked ones (Open, Quit) are included so the Settings preview shows the
+    // whole menu.
+    // Labels are translated here (the same strings the menu shows), so a
+    // property rather than a function: it re-notifies when the language flips.
+    Q_PROPERTY(QVariantList trayMenuEntries READ trayMenuEntries NOTIFY trayMenuEntriesChanged)
     // Contrast colour for the (monochrome) bundled presets: light on a dark
     // system scheme, dark on a light one. Follows the OS light/dark, live.
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
@@ -155,6 +163,8 @@ class AppContext : public QObject
     Q_PROPERTY(bool nvencAvailable READ nvencAvailable NOTIFY recordingCapabilitiesChanged)
     Q_PROPERTY(bool perAppAudioAvailable READ perAppAudioAvailable CONSTANT)
     Q_PROPERTY(bool audioInputListAvailable READ audioInputListAvailable CONSTANT)
+    // "pipewire" | "wasapi" - lets the audio settings word their hints.
+    Q_PROPERTY(QString audioBackend READ audioBackend CONSTANT)
     // A working global-hotkey backend? KGlobalAccel on KDE, the GlobalShortcuts
     // portal elsewhere; false (niri/sway…) switches the Hotkeys settings tab
     // to the compositor-binds explanation instead of dead recorders.
@@ -195,9 +205,11 @@ public:
     QQmlEngine *qmlEngine() const { return m_engine; }
 
     bool scrollCaptureActive() const;
+    // A capture is being prepared or is on screen: another one would be refused.
+    bool captureBusy() const;
     ScrollCaptureController *scrollCaptureController() const { return m_scrollCapture; }
-    void startScrollCapture(const QRect &physRegion, QScreen *screen);
-    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen);
+    void startScrollCapture(const QRect &physRegion, QScreen *screen, qreal scale = 0);
+    void onScrollRegionPicked(const QRect &physRegion, QScreen *screen, qreal scale = 0);
 
     bool recording() const;
     bool converting() const;
@@ -340,6 +352,7 @@ public:
     // The Record page's Video/GIF mode segment (a persisted setting, because
     // the page Loader is destroyed on every navigation).
     Q_INVOKABLE void devTestRecordPageMode();
+    Q_INVOKABLE void devTestTrayMenu();
     Q_INVOKABLE void devTestSettingsRoundTrip();
     Q_INVOKABLE void devTestInstallChannel();
     Q_INVOKABLE void devTestCaptureSound();
@@ -367,6 +380,7 @@ public:
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
+    Q_INVOKABLE void devTestCopyFile();
     Q_INVOKABLE void devTestWatermark();
     Q_INVOKABLE void devTestWatermarkPreview();
     Q_INVOKABLE void devTestCallout();
@@ -393,6 +407,7 @@ public:
     Q_INVOKABLE void devTestVideoQuality();
     Q_INVOKABLE void devTestAudioTracks();
     Q_INVOKABLE void devTestAudioInputs();
+    Q_INVOKABLE void devTestAudioCapture();
     Q_INVOKABLE void devTestTrimAudio();
     Q_INVOKABLE void devTestCursorCapability();
     Q_INVOKABLE void devTestLanguage();
@@ -401,6 +416,7 @@ public:
     Q_INVOKABLE void devTestUpdateAvailable();
     Q_INVOKABLE void devTestAutoRestart();
     Q_INVOKABLE void devTestInstallerUpdate();
+    Q_INVOKABLE void devTestStagedUpdate();
     Q_INVOKABLE void devTestCountdown();
     Q_INVOKABLE void devTestFullscreenCountdown();
     Q_INVOKABLE void devTestSaveDialog();
@@ -416,6 +432,7 @@ public:
     bool vaapiAvailable() const { return m_vaapiAvailable; }
     bool nvencAvailable() const { return m_nvencAvailable; }
     bool perAppAudioAvailable() const;
+    QString audioBackend() const;
     Q_INVOKABLE QVariantList audioApplicationNodes() const; // synchronous (dev/smoke only)
     // Async variant for the UI: enumerates off-thread and emits
     // audioApplicationNodesReady so opening the audio dropdown never blocks.
@@ -437,6 +454,7 @@ public:
     void setAutostartEnabled(bool on);
     QStringList trayIconPresets() const;  // image files in trayIconsDir()
     QStringList bundledTrayIcons() const; // qrc-bundled preset icons
+    QVariantList trayMenuEntries() const;
     QColor trayContrastColor() const;
     QString toastText() const { return m_toast; }
     QString appVersion() const { return QStringLiteral(UNISIC_VERSION); }
@@ -553,7 +571,8 @@ public:
     Q_INVOKABLE void openFile(const QString &path);
     Q_INVOKABLE void openDirectory(const QString &path);
     // Opens the containing folder with the file pre-selected
-    // (org.freedesktop.FileManager1.ShowItems; falls back to openDirectory).
+    // (org.freedesktop.FileManager1.ShowItems, explorer /select on Windows;
+    // falls back to openDirectory).
     Q_INVOKABLE void showInFileManager(const QString &path);
     // Reopens the first-run welcome card (Settings → General → Diagnostics).
     // Main.qml answers with an instance that does NOT consume the one-shot
@@ -595,8 +614,9 @@ public:
     Q_INVOKABLE void exportSettingsDialog();
     Q_INVOKABLE void importSettingsDialog();
     // Export the selected history entries (by id) to a ZIP: resolve to on-disk
-    // files, open a native save dialog, then archive. No zip library is linked,
-    // so this shells out to Info-ZIP (`zip`); missing → an actionable toast.
+    // files, open a native save dialog, then archive. Linux shells out to
+    // Info-ZIP (`zip`; missing → an actionable toast), Windows writes the
+    // archive with the linked libarchive (see writeZip).
     Q_INVOKABLE void exportEntriesToZipDialog(const QVariantList &ids);
     // Archive `files` into destPath.zip asynchronously. `done` (if set) receives
     // (ok, message); otherwise the outcome is toasted. Used by the history export
@@ -654,6 +674,8 @@ public:
     // The history tile's one-off "Save as GIF" calls this.
     Q_INVOKABLE QString convertFileTo(const QString &path, const QString &format);
     void copyImageToClipboard(const QImage &img);
+    // Puts a saved file on the clipboard as the file (see makeFileMime).
+    void copyFileToClipboard(const QString &path);
     // Play the selected capture-sound cue (General > Capture sound). No-op
     // when "off" or no player (pw-play/paplay/aplay) is present.
     void playCaptureSound();
@@ -738,10 +760,11 @@ signals:
     void showWelcomeRequested();
     void cliCaptureReady(const QByteArray &data, const QString &error);
     // A `--output PATH` capture reached its end: written (ok), or failed or
-    // cancelled. ONLY the process that parsed --output off argv connects to
-    // this and exits on it - a running instance handed the same command over
-    // the single-instance socket must keep running, it is the user's app.
-    void cliCaptureFinished(bool ok);
+    // cancelled, with `error` for the terminal when there is something to say.
+    // The process that parsed --output off argv exits on it; a running instance
+    // handed the command over the single-instance socket only replies to the
+    // caller and keeps running, it is the user's app.
+    void cliCaptureFinished(bool ok, const QString &error);
     void hotkeysAvailableChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
@@ -753,6 +776,7 @@ signals:
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
     void trayIconPresetsChanged();
+    void trayMenuEntriesChanged();
     void trayContrastColorChanged();
     void recordingCapabilitiesChanged();
 
@@ -764,14 +788,21 @@ private:
     void pasteMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
-    QString autostartFilePath() const;
-    QByteArray autostartExecLine() const; // the "Exec=..." line for the .desktop
-    bool writeAutostartFile();            // (re)write the autostart .desktop, false on I/O error
+    // The members below up to showInFolderCheck() are defined per platform in
+    // src/platform/DesktopShell.cpp and DesktopShell_win.cpp.
     void refreshAutostartIfStale();       // rewrite if the binary/AppImage path moved
-    void requestPortalAutostart(bool on); // sandboxed path: org.freedesktop.portal.Background
+    void requestPortalAutostart(bool on); // Flatpak only: org.freedesktop.portal.Background
+    // The archiver half of exportFilesToZip. `members` are (name in the
+    // archive, file on disk) with the names already unique; `done` gets
+    // (true, "") or (false, the message to show).
+    void writeZip(const QList<QPair<QString, QString>> &members, const QString &dest,
+                  std::function<void(bool, const QString &)> done);
+    QString zipUnavailableReason() const; // why ZIP export cannot run, translated; "" when it can
+    QString showInFolderCheck() const;    // smoke: can showInFileManager select the file?
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
         QString name;
@@ -887,8 +918,14 @@ private:
     // real clipboard is neither read nor written - a dev check may not
     // overwrite what the user has on it (see the note in the .cpp).
     QString clipboardImportCheck();
+    // A finished recording's clipboard offer: the file, its path as text and
+    // GTK's list, live on the real clipboard. Shared by F8 and the dev button.
+    QString copyFileCheck();
     // Record page Video/GIF mode: persisted, or the choice dies with the Loader.
     QString recordPageModeCheck();
+    // Tray menu: hidden entries really leave it, Open/Quit never can, and no
+    // separator is left leading, trailing or doubled.
+    QString trayMenuCheck();
     // Multi-binding daemon round-trip on a scratch action ("F9, Meta+F9").
     QString altHotkeysCheck();
     // Round-trips the desktop custom-shortcut writer on the real store (touches
@@ -996,6 +1033,9 @@ private:
     // The window does NOT go down here: see hideOwnWindowForCapture().
     void beginCaptureIsolation();
     void endCaptureIsolation();
+    // Ends the share a running scrolling capture holds (startScrollCapture())
+    // and puts the window back. No-op when the session holds none.
+    void endScrollIsolation();
     // Take our own main window off screen so it cannot land in the shot. False =
     // nothing was hidden (setting off, window already down, no window yet), so
     // the caller need not wait for the compositor. Idempotent per capture.
@@ -1045,6 +1085,10 @@ private:
     // ffmpeg run with one track dropped and one attenuated, asserting the
     // output keeps exactly the surviving track.
     void trimAudioCheck(std::function<void(const QString &)> done);
+    // Live audio, end to end: the system output and the microphone are each
+    // opened the way a recording opens them and read by ffmpeg for one second,
+    // asserting a one-second file that took real time to fill.
+    void audioCaptureCheck(std::function<void(const QString &)> done);
     struct CaptureTask {
         bool active = false;
         bool save = false;
@@ -1061,6 +1105,9 @@ private:
     void scheduleMemoryTrim();
 
     QQmlEngine *m_engine = nullptr;
+    // Resolved UI language ("en", "pl", ...), handed to the engine as
+    // Qt.uiLanguage so QML formats dates in it, not in the system locale.
+    QString m_uiLanguage;
     Settings *m_settings;
     CaptureManager *m_capture;
     OverlayController *m_overlay;
@@ -1070,7 +1117,7 @@ private:
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     X11Hotkeys *m_x11hotkeys = nullptr;
-    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | ""
+    QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | "win32" | ""
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
@@ -1087,13 +1134,23 @@ private:
     DesktopNotifier *m_notifier = nullptr; // native desktop-notification sender
     NotificationInhibitor *m_dnd = nullptr;
     ExternalActionRunner *m_actionRunner = nullptr;
-    LayerShellNotifier *m_layerNotifier = nullptr; // set only when layer-shell is usable
+    LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
     // Set only between hideOwnWindowForCapture() and restoreOwnWindowAfterCapture():
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.
     QPointer<QQuickWindow> m_hiddenForCapture;
+    // Another window of ours (editor, preview, trim) had focus when this capture
+    // was triggered. Set by beginCaptureIsolation(); hideOwnWindowForCapture()
+    // then leaves the main window alone.
+    bool m_otherWindowFocused = false;
+    // A scrolling capture is running and holds one share of the capture
+    // isolation. While it does, endCaptureIsolation() leaves the window down:
+    // the selection and the shot before it end their own shares as the
+    // session starts, and the window must stay out of the region (and out of
+    // every slice) until endScrollIsolation().
+    bool m_scrollHoldsWindow = false;
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

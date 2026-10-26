@@ -8,6 +8,7 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include "ConfigPath.h"
+#include "hotkeys/HotkeyDefaults.h"
 // For kDefaultTimeoutMs: the shipped default and the runner's own fallback have
 // to be the same number, and only one of them gets to define it.
 #include "actions/ExternalActionRunner.h"
@@ -132,6 +133,7 @@ class Settings : public QObject
     Q_PROPERTY(bool captureOnRelease READ captureOnRelease WRITE setCaptureOnRelease NOTIFY captureOnReleaseChanged)
     Q_PROPERTY(bool overlayModeBadge READ overlayModeBadge WRITE setOverlayModeBadge NOTIFY overlayModeBadgeChanged)
     Q_PROPERTY(QString overlayModeStyle READ overlayModeStyle WRITE setOverlayModeStyle NOTIFY overlayModeStyleChanged)
+    Q_PROPERTY(int overlayIconSize READ overlayIconSize WRITE setOverlayIconSize NOTIFY overlayIconSizeChanged)
     Q_PROPERTY(QString hotkeyCopyLast READ hotkeyCopyLast WRITE setHotkeyCopyLast NOTIFY hotkeyCopyLastChanged)
     Q_PROPERTY(int videoFps READ videoFps WRITE setVideoFps NOTIFY videoFpsChanged)
     Q_PROPERTY(QString videoFormat READ videoFormat WRITE setVideoFormat NOTIFY videoFormatChanged)
@@ -163,6 +165,7 @@ class Settings : public QObject
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
     Q_PROPERTY(int recordPageMode READ recordPageMode WRITE setRecordPageMode NOTIFY recordPageModeChanged)
     Q_PROPERTY(QString trayIconPath READ trayIconPath WRITE setTrayIconPath NOTIFY trayIconPathChanged)
+    Q_PROPERTY(QString hiddenTrayItems READ hiddenTrayItems WRITE setHiddenTrayItems NOTIFY hiddenTrayItemsChanged)
     Q_PROPERTY(bool autoCheckUpdates READ autoCheckUpdates WRITE setAutoCheckUpdates NOTIFY autoCheckUpdatesChanged)
     Q_PROPERTY(QString updateChannel READ updateChannel WRITE setUpdateChannel NOTIFY updateChannelChanged)
     Q_PROPERTY(int recordCountdownSec READ recordCountdownSec WRITE setRecordCountdownSec NOTIFY recordCountdownSecChanged)
@@ -416,10 +419,10 @@ public:
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
     U_SETTING(QString, activeDestination, setActiveDestination, "upload/activeDestination", QStringLiteral("catbox.moe"))
-    U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral("Meta+Shift+1"))
-    U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral("Meta+Shift+2"))
+    U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral(UNISIC_HOTKEY_FULLSCREEN))
+    U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral(UNISIC_HOTKEY_REGION))
     U_SETTING(QString, hotkeyScroll, setHotkeyScroll, "hotkeys/scroll", QString())
-    U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral("Meta+Shift+3"))
+    U_SETTING(QString, hotkeyWindow, setHotkeyWindow, "hotkeys/window", QStringLiteral(UNISIC_HOTKEY_WINDOW))
     U_SETTING(QString, hotkeyGif, setHotkeyGif, "hotkeys/gif", QStringLiteral("Meta+Shift+G"))
     // Last confirmed region capture ("<screen>|<x>,<y>,<w>,<h>", logical px) —
     // persisted so re-capture survives restarts like ShareX's repeat capture.
@@ -571,9 +574,12 @@ public:
     // it, so it never sits over the region being framed. The coloured screen
     // frame belongs to neither: it is the mode's colour and stays in both.
     U_SETTING(QString, overlayModeStyle, setOverlayModeStyle, "capture/overlayModeStyle", QStringLiteral("badge"))
+    // Overlay toolbar icon size in px. The icons are drawn on a 24 grid, so 24
+    // is the crisp one; QML reads it through ToolCatalog.overlayIconSize.
+    U_SETTING(int, overlayIconSize, setOverlayIconSize, "capture/overlayIconSize", 24)
     // Replaces the old 2s Ctrl+C grab (it stole ordinary copies right after a
     // capture): a dedicated always-on hotkey that never collides with Ctrl+C.
-    U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral("Meta+Shift+C"))
+    U_SETTING(QString, hotkeyCopyLast, setHotkeyCopyLast, "hotkeys/copyLast", QStringLiteral(UNISIC_HOTKEY_COPY_LAST))
     U_SETTING(int, videoFps, setVideoFps, "video/fps", 30)
     U_SETTING(QString, videoFormat, setVideoFormat, "video/format", QStringLiteral("mp4"))
     // Quality as a percent, 0 (CRF 40) to 100 (CRF 0); the ffmpeg CRF is
@@ -585,7 +591,8 @@ public:
     U_SETTING(bool, recordSystemAudio, setRecordSystemAudio, "audio/recordSystemAudio", false)
     U_SETTING(bool, recordMicrophone, setRecordMicrophone, "audio/recordMicrophone", false)
     // Applications whose audio is recorded, by PwDump::AppStream::app (the
-    // binary name), resolved to their live streams when a recording starts.
+    // binary name; on Windows the .exe name without the suffix), resolved to
+    // their live streams or processes when a recording starts.
     // Replaces audio/recordAppAudioNode, which held an object.serial: that
     // went stale on every app relaunch and pw-record then recorded the mic,
     // so the old value is deliberately not migrated.
@@ -604,8 +611,8 @@ public:
               "video/instantReplaySeconds", 30)
     U_SETTING(QString, hotkeyInstantReplay, setHotkeyInstantReplay,
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
-    U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral("Meta+Shift+R"))
-    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral("Meta+Shift+T"))
+    U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
+    U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral(UNISIC_HOTKEY_OCR))
     // Deliberately NOT a Q_PROPERTY: machine-local state ("the user installed
     // desktop custom shortcuts here"), must not travel via settings export.
     // Read on startup to re-assert stores the desktop itself rewrites
@@ -663,6 +670,12 @@ public:
     // Custom system-tray icon (absolute path to a .png/.svg, or a bundled qrc
     // preset). Empty = bundled default. Applied live via QSystemTrayIcon::setIcon.
     U_SETTING(QString, trayIconPath, setTrayIconPath, "ui/trayIconPath", QString())
+    // CSV of tray-menu entry ids the menu must NOT show ("measure,gif-region"),
+    // same opt-out shape as hiddenNotifActions: empty = the full menu, and an id
+    // a newer build adds appears on its own. "Open Unisic" and "Quit" are never
+    // hidable (AppContext ignores them here), so the menu always keeps a way in
+    // and a way out.
+    U_SETTING(QString, hiddenTrayItems, setHiddenTrayItems, "ui/hiddenTrayItems", QString())
     // Daily GitHub release check + automatic AppImage self-install
     // (UpdateChecker). Suppressed in dev builds regardless of this value.
     U_SETTING(bool, autoCheckUpdates, setAutoCheckUpdates, "updates/autoCheck", true)
@@ -732,7 +745,7 @@ public:
         emit hiddenToolsChanged(); emit overlayToolbarPositionChanged(); emit selectionGuidesChanged();
         emit pixelLoupeChanged(); emit pixelLoupeZoomChanged();
         emit captureOnReleaseChanged(); emit overlayModeBadgeChanged();
-        emit overlayModeStyleChanged();
+        emit overlayModeStyleChanged(); emit overlayIconSizeChanged();
         emit hotkeyCopyLastChanged();
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityPercentChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
@@ -748,7 +761,7 @@ public:
         emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
         emit editorIconStyleChanged(); emit editorToolIconsChanged();
         emit uiLanguageChanged();
-        emit useSystemDecorationChanged(); emit trayIconPathChanged();
+        emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
         emit recordPageModeChanged();
         emit autoCheckUpdatesChanged();
         emit updateChannelChanged(); emit recordCountdownSecChanged(); emit soundVolumeChanged();
@@ -850,6 +863,7 @@ signals:
     void captureOnReleaseChanged();
     void overlayModeBadgeChanged();
     void overlayModeStyleChanged();
+    void overlayIconSizeChanged();
     void hotkeyCopyLastChanged();
     void videoFpsChanged();
     void videoFormatChanged();
@@ -882,6 +896,7 @@ signals:
     void useSystemDecorationChanged();
     void recordPageModeChanged();
     void trayIconPathChanged();
+    void hiddenTrayItemsChanged();
     void autoCheckUpdatesChanged();
     void updateChannelChanged();
     void recordCountdownSecChanged();

@@ -1,7 +1,8 @@
 name: Assert every build gate is on
 description: >
-  Fail the job unless all ten of Unisic's compile-time gates are ON in
-  <build-dir>/unisic-features.txt, the manifest CMake writes at configure time.
+  Fail the job unless every one of Unisic's compile-time gates (ten on Linux,
+  five in the Windows port) is ON in <build-dir>/unisic-features.txt, the
+  manifest CMake writes at configure time.
 
 # WHY THIS EXISTS. Unisic has no optional dependencies: every gate is a hard
 # build requirement and CMakeLists.txt stops the configure naming the package to
@@ -29,6 +30,12 @@ inputs:
     description: >
       The CMake binary dir that holds unisic-features.txt (what -B was given).
     required: true
+  platform:
+    description: >
+      linux (every package Unisic ships) or windows (the MSYS2 port, whose
+      Linux desktop gates are replaced by cmake/UnisicWindows.cmake).
+    required: false
+    default: linux
 
 runs:
   using: composite
@@ -39,6 +46,7 @@ runs:
       # body: a build dir is a path, and a path is not shell source.
       env:
         UNISIC_BUILD_DIR: ${{ inputs.build-dir }}
+        UNISIC_PLATFORM: ${{ inputs.platform }}
       run: |
         # No `set -e`: every problem in the manifest is collected and reported
         # in one run, so a broken build tells the whole truth at once instead of
@@ -51,9 +59,24 @@ runs:
         # app's own, the last four arrive from external/unisic-kit through
         # UNISIC_KIT_FEATURES (HAVE_PIPEWIRE is defined on both sides and is
         # de-duplicated there, which is why this is ten names and not eleven).
-        expected=(HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
-                  HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS
-                  HAVE_X11 HAVE_X11_HOTKEYS HAVE_KWIN_SCREENCAST)
+        #
+        # Windows has five: the three portable ones, then GDI capture from
+        # cmake/UnisicWindows.cmake and RegisterHotKey from the kit.
+        case "$UNISIC_PLATFORM" in
+          linux)
+            expected=(HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
+                      HAVE_LAYERSHELL HAVE_KGUIADDONS HAVE_TRANSLATIONS
+                      HAVE_X11 HAVE_X11_HOTKEYS HAVE_KWIN_SCREENCAST)
+            ;;
+          windows)
+            expected=(HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
+                      HAVE_WIN32_GDI_CAPTURE HAVE_WIN32_HOTKEYS)
+            ;;
+          *)
+            echo "::error::platform '${UNISIC_PLATFORM}' is neither linux nor windows"
+            exit 1
+            ;;
+        esac
 
         if [ ! -f "$manifest" ]; then
           echo "::error::${manifest} does not exist, so this build's gates cannot be checked."

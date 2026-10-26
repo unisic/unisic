@@ -228,6 +228,17 @@ Window {
             textEditor.inShape = false
             root.forceActiveFocus()
         }
+        // Every confirm goes through here: text still being typed is on screen
+        // but only becomes an annotation on commit, so a capture taken with
+        // the box open would otherwise drop it.
+        function confirm(copy) {
+            if (textEditor.visible)
+                root.commitTextBox()
+            if (copy)
+                overlayController.confirmAndCopy(overlayWindow)
+            else
+                overlayController.confirmFromWindow(overlayWindow)
+        }
         function closeTextBox() {
             // Puts a live-previewed bubble back to the text it had before this
             // edit, undo entry included.
@@ -290,7 +301,7 @@ Window {
                        || e.key === Qt.Key_Space) {
                 // Space confirms too (only reachable here — the text-box branch
                 // above returns first, so typing a space still types a space).
-                overlayController.confirmFromWindow(overlayWindow)
+                root.confirm(false)
             } else if (e.key === Qt.Key_C && (e.modifiers & Qt.ControlModifier)) {
                 if (canvas.tool === AnnotationCanvas.Measure) {
                     // Ruler: Ctrl+C copies the measured DIMENSIONS (not the image)
@@ -302,7 +313,7 @@ Window {
                     // Spectacle parity: Ctrl+C accepts the selection and copies the
                     // result to the clipboard even when auto-copy is off. Screenshot
                     // flow only — the GIF region picker keeps its Start button.
-                    overlayController.confirmAndCopy(overlayWindow)
+                    root.confirm(true)
                 }
             } else if (e.key === Qt.Key_Tab && canvas.tool === AnnotationCanvas.Measure) {
                 // Toggle the ruler between distance line and size box.
@@ -382,7 +393,7 @@ Window {
                     var mt = canvas.measuresText(App.settings.measureCopyFormat)
                     if (mt !== "") { App.copyText(mt); App.showToast(qsTr("Measurements copied")) }
                 } else if (annotationToolsEnabled) {
-                    overlayController.confirmAndCopy(overlayWindow)
+                    root.confirm(true)
                 }
             }
             // Capture on release: screenshot flow only — the GIF region picker
@@ -438,7 +449,7 @@ Window {
             onTextOutlineColorChanged: if (persistColors) App.settings.editorTextOutlineColor = String(textOutlineColor)
             onTextBackgroundChanged: if (persistTools) App.settings.editorTextBackground = textBackground
             onTextBackgroundColorChanged: if (persistColors) App.settings.editorTextBgColor = String(textBackgroundColor)
-            onSelectionConfirmed: overlayController.confirmFromWindow(overlayWindow)
+            onSelectionConfirmed: root.confirm(false)
             // Screen eyedropper result → reopen the popup that requested it,
             // seeded with the sampled colour.
             onColorPicked: (c) => {
@@ -514,8 +525,8 @@ Window {
         // alpha, so the numbers themselves are not dimmed with it.
         Rectangle {
             visible: canvas.hasSelection
-            x: Math.min(root.selItem().x, parent.width - width - 8)
-            y: Math.max(4, root.selItem().y - height - 10)
+            x: Math.round(Math.min(root.selItem().x, parent.width - width - 8))
+            y: Math.round(Math.max(4, root.selItem().y - height - 10))
             width: dimText.implicitWidth + 22
             height: 28
             radius: 14
@@ -532,12 +543,15 @@ Window {
 
         // Hint bar (before first selection)
         Rectangle {
+            id: hintBar
             visible: !canvas.hasSelection
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 42
-            width: hintText.implicitWidth + 40
-            height: 40
+            // Wraps instead of running off a narrow screen (a scaled laptop or a
+            // portrait monitor is narrower than the longest hint).
+            width: hintText.width + 40
+            height: Math.max(40, hintText.height + 20)
             radius: 20
             color: Theme.primary
             opacity: 0.92
@@ -546,6 +560,9 @@ Window {
             Text {
                 id: hintText
                 anchors.centerIn: parent
+                width: Math.min(implicitWidth, hintBar.parent.width - 72)
+                wrapMode: Text.WordWrap
+                horizontalAlignment: Text.AlignHCenter
                 text: {
                     if (canvas.tool === AnnotationCanvas.Measure)
                         return qsTr("Drag to measure · Tab: distance/size · Ctrl+C copies the sizes · Esc to close")
@@ -667,10 +684,11 @@ Window {
             // Capture-on-release confirms the moment the drag ends — the
             // toolbar would only flash mid-drag, so don't show it at all.
             visible: canvas.hasSelection && !canvas.confirmOnRelease
-            x: root.toolbarX()
-            y: root.toolbarY()
-            width: toolColumn.implicitWidth + 24
-            height: toolColumn.implicitHeight + 14
+            // Whole pixels: the layer texture is resampled at any fraction.
+            x: Math.round(root.toolbarX())
+            y: Math.round(root.toolbarY())
+            width: Math.ceil(toolColumn.implicitWidth) + 24
+            height: Math.ceil(toolColumn.implicitHeight) + 14
             radius: 27
             gradient: Gradient {
                 GradientStop { position: 0.0; color: Qt.lighter(Theme.primary, 1.25) }
@@ -725,6 +743,7 @@ Window {
                                 // AT-SPI's Press action works without focus, so
                                 // dropping out of the Tab chain costs nothing.
                                 activeFocusOnTab: false
+                                iconSize: ToolCatalog.overlayIconSize
                                 iconName: modelData.kind === "group"
                                           ? modelData.group.iconName
                                           : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
@@ -752,8 +771,8 @@ Window {
                                            : canvas.tool = modelData.tool.tool
                             }
                         }
-                        ToolChip { activeFocusOnTab: false; iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
-                        ToolChip { activeFocusOnTab: false; iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
+                        ToolChip { activeFocusOnTab: false; iconSize: ToolCatalog.overlayIconSize; iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
+                        ToolChip { activeFocusOnTab: false; iconSize: ToolCatalog.overlayIconSize; iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
 
                         // Carried in a chip-tall Item: a Flow positions its
                         // children itself, so a 28 px divider cannot centre
@@ -786,7 +805,7 @@ Window {
                         text: root.confirmLabel
                         accessibleDescription: qsTr("Space or Enter also confirms")
                         anchors.verticalCenter: parent.verticalCenter
-                        onClicked: overlayController.confirmFromWindow(overlayWindow)
+                        onClicked: root.confirm(false)
                     }
                     UIconButton {
                         id: cancelButton
@@ -828,6 +847,7 @@ Window {
                             model: root.shapesActive ? root.shapesTools : []
                             delegate: ToolChip {
                                 activeFocusOnTab: false
+                                iconSize: ToolCatalog.overlayIconSize
                                 iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 iconStyle: App.settings.editorIconStyle
                                 label: ToolCatalog.labelWithShortcut(modelData)
@@ -841,6 +861,7 @@ Window {
                         }
                         ToolChip {
                             activeFocusOnTab: false
+                            iconSize: ToolCatalog.overlayIconSize
                             visible: canvas.hasAnnotSelection
                             iconName: "edit-delete"
                             label: qsTr("Delete shape")
@@ -951,7 +972,7 @@ Window {
                 // MUST accept Ctrl+Enter/Escape here so they do NOT bubble to
                 // the overlay root: commitTextBox() sets textEditor.visible =
                 // false, and the root handler — re-checking visibility AFTER
-                // that — would then fall through to confirmFromWindow and fire
+                // that — would then fall through to root.confirm() and fire
                 // the capture. Accepting stops that propagation. (onAccepted
                 // alone did not consume the key event, which was the bug.)
                 Keys.onPressed: (e) => {

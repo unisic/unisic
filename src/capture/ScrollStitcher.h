@@ -19,6 +19,11 @@
 class ScrollStitcher
 {
 public:
+    // Smaller frames are refused outright (addFrame returns Unchanged), so a
+    // capture region below this can never produce an image.
+    static constexpr int kMinFrameWidth = 8;
+    static constexpr int kMinFrameHeight = 32;
+
     enum class Result {
         Started,    // first frame, or a replacement before the first scroll
         Stitched,   // new rows were added

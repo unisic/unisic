@@ -100,6 +100,23 @@ jobs:
     with:
       local: true
 
+  windows:
+    name: Windows portable zip
+    needs: check
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    # Not in the release job's `needs` either, for the same reason as the
+    # Flatpak: the Windows port is a preview, and a red Windows build must not
+    # hold back the Linux packages. windows-asset attaches the zip afterwards.
+    #
+    # A reusable workflow does not see this workflow's env, so the build number
+    # goes in as an input. Without it the zip would be a dev build, and a dev
+    # build never updates itself.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/windows.yml
+    with:
+      build-number: ${{ github.run_number }}
+
   release:
     name: GitHub Release
     needs:
@@ -132,6 +149,8 @@ jobs:
       #   .flatpak  → attached by the flatpak-asset job, which runs after this
       #               one; install.sh installs from it until the Flathub
       #               listing is live, then moves the install to that remote
+      #   Windows .zip → attached by the windows-asset job, which runs after
+      #               this one; the portable build stages it under %APPDATA%
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
@@ -145,10 +164,15 @@ jobs:
       # The in-app "Install now" (UpdateChecker::fetchInstallerScript) downloads
       # THIS copy and refuses to run it unless its sha256 matches the digest
       # GitHub publishes for the asset. That check is only worth anything if the
-      # script travels with the release: raw.githubusercontent's copy follows
-      # main, so its hash changes under the release it is supposed to belong to.
+      # script travels with the release: unisic.app serves whatever was deployed
+      # last, so its hash changes under the release it is supposed to belong to.
+      # The script itself lives in the unisic-website repo (public/install.sh);
+      # this freezes the copy the site serves at release time. The marker check
+      # fails the release on a challenge page or an error body, never ships one.
       - name: Stage the installer script as a release asset
-        run: cp scripts/install.sh dist/install.sh
+        run: |
+          curl -fsSL --retry 3 -o dist/install.sh https://unisic.app/install.sh
+          grep -q 'Unisic universal installer' dist/install.sh
 
       - name: Generate changelog
         run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md
@@ -167,10 +191,12 @@ jobs:
             exit 1
           fi
 
-          # A letter suffix in the version ("0.3b", "1.0rc1") marks the
-          # GitHub release as a pre-release automatically.
+          # A pre-release is either a letter suffix in the version ("0.3b",
+          # "1.0rc1") or a metainfo <release> of type="development" (the
+          # plain-number betas, e.g. 0.8.6).
           prerelease=()
-          if [[ "$VERSION" =~ [a-zA-Z] ]]; then
+          if [[ "$VERSION" =~ [a-zA-Z] ]] \
+             || grep -q "<release version=\"${VERSION}\"[^>]*type=\"development\"" resources/app.unisic.Unisic.metainfo.xml; then
             prerelease=(--prerelease)
           fi
           gh release create "v${VERSION}" "${assets[@]}" \
@@ -200,6 +226,33 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh release upload "v${VERSION}" dist/*.flatpak --clobber
+
+  windows-asset:
+    name: Attach the Windows zip and installer
+    # Both: `release` for the release to attach to, `windows` for the files.
+    needs:
+      - check
+      - release
+      - windows
+    if: ${{ needs.check.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: dist
+
+      # The zip is what UpdateChecker installs from on Windows: it checks the
+      # zip against the sha256 digest GitHub publishes for the asset, which the
+      # release page also shows by each file, so neither carries a .sha256.
+      # The installer is only ever downloaded by hand, for a first install.
+      - name: Upload them to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "v${VERSION}" dist/*.zip dist/*-setup.exe --clobber
 
   obs:
     name: Trigger OBS rebuild

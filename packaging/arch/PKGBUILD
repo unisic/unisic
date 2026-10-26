@@ -6,7 +6,7 @@ pkgname=unisic
 # makepkg by hand in this directory - which is exactly why it must track
 # CMakeLists.txt's project(VERSION): left stale it builds 0.8.x sources into a
 # package named after a release from a year ago. Bump it with the project.
-pkgver=0.8.6
+pkgver=0.8.8
 pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
@@ -74,6 +74,10 @@ makedepends=('cmake' 'ninja' 'pkgconf' 'qt6-tools' 'plasma-wayland-protocols' 't
 optdepends=('xdg-desktop-portal-kde: KDE portal backend for screenshots and screen recording'
             'xdg-desktop-portal-gtk: generic portal backend on non-KDE desktops')
 install=unisic.install
+# No unisic-debug split package: the Release build has no debug info for it to
+# carry, so makepkg's default `debug` option only put a 7 KB package with
+# nothing useful in it on the release page.
+options=('!debug')
 source=("${pkgname}-${pkgver}.tar.gz")
 sha256sums=('SKIP')
 

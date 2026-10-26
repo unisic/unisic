@@ -1,0 +1,4 @@
+// The exe's own icon: Explorer, the taskbar, the Start menu shortcut and the
+// installer's uninstall entry all read it from here. unisic.ico is generated
+// from resources/icons/unisic.svg by packaging/windows/make-icon.py.
+IDI_ICON1 ICON "unisic.ico"

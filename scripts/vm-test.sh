@@ -102,7 +102,8 @@ need_bin() {
 # UNISIC_BUILD != "dev", i.e. the normal stable app, same as CI packages.
 configure_pkg() {
     UNISIC_BUILD_NUMBER="${UNISIC_BUILD_NUMBER:-vm}" \
-        cmake -B "$PKG_BUILD_DIR" -S "$REPO_ROOT" -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake -B "$PKG_BUILD_DIR" -S "$REPO_ROOT" -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=/usr
     cmake --build "$PKG_BUILD_DIR" --parallel
 }
 

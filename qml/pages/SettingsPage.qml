@@ -352,6 +352,19 @@ Item {
         if (hidden) list.push(id)
         App.settings.hiddenTools = list.join(",")
     }
+    // Tray-menu entries the user hid (CSV of ids in hiddenTrayItems); the same
+    // opt-out shape as hiddenTools, so a new entry in a later build shows up
+    // on its own.
+    function trayItemHidden(id) {
+        var csv = App.settings.hiddenTrayItems
+        return csv ? ("," + csv + ",").indexOf("," + id + ",") >= 0 : false
+    }
+    function setTrayItemHidden(id, hidden) {
+        var csv = App.settings.hiddenTrayItems
+        var list = csv ? csv.split(",").filter(function (x) { return x.length > 0 && x !== id }) : []
+        if (hidden) list.push(id)
+        App.settings.hiddenTrayItems = list.join(",")
+    }
     // Per-tool freedesktop icon-name overrides (JSON map in editorToolIcons).
     // Parsed once per setting change — iconOverride() is called from two
     // bindings on every tool row, and each keystroke in an override field used
@@ -440,19 +453,28 @@ Item {
             Item {
                 id: head
                 width: parent.width
-                // Deliberately independent of slot.height: every control is ≤44px
-                // and the label column governs the rest, so the head never needs
-                // to grow to the control — and reading slot.height here (slot hugs
-                // its childrenRect and is vCenter-anchored to this head) would be a
-                // size↔position binding loop.
-                height: Math.max(44, labelCol.implicitHeight)
+                // A control wider than the label column it would leave goes
+                // under the label: in an 853 px window (1280x800 at 150%) a
+                // 240 px drop-down left a label 55 px and a wide one 7 px, one
+                // word to a line or nothing at all, in every language.
+                readonly property bool stacked: slot.width > (width - Theme.spacingM) / 2
+                // Side by side, deliberately independent of slot.height: every
+                // control is ≤44px and the label column governs the rest, so the
+                // head never needs to grow to the control, and reading
+                // slot.height here (slot hugs its childrenRect and is
+                // vCenter-anchored to this head) would be a size↔position
+                // binding loop. Stacked, the slot is bottom-anchored instead,
+                // so its height is free to read.
+                height: stacked ? labelCol.implicitHeight + Theme.spacingS + slot.height
+                                : Math.max(44, labelCol.implicitHeight)
 
                 Column {
                     id: labelCol
                     anchors.left: parent.left
-                    anchors.right: slot.left
-                    anchors.rightMargin: Theme.spacingM
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: head.stacked ? parent.right : slot.left
+                    anchors.rightMargin: head.stacked ? 0 : Theme.spacingM
+                    anchors.top: head.stacked ? parent.top : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     spacing: 3
                     Item {
                         width: parent.width
@@ -528,7 +550,8 @@ Item {
                     enabled: settingRow.available
                     opacity: settingRow.available ? 1.0 : 0.5
                     anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.bottom: head.stacked ? parent.bottom : undefined
+                    anchors.verticalCenter: head.stacked ? undefined : parent.verticalCenter
                     // The slot HUGS its control, and is itself centred in the
                     // row - so a control must never anchor itself to the slot's
                     // own centre. childrenRect would then depend on the child's
@@ -1361,29 +1384,29 @@ Item {
                         label: qsTr("Activity log")
                         help: qsTr("See, filter or copy what Unisic has been doing this run.")
                         helpDetail: qsTr("Unisic keeps the last few hundred log lines and writes them to a file, so a crash still leaves something to attach. Passwords, upload tokens and your home folder are removed before anything is stored, and nothing is ever sent anywhere - you paste it into an issue yourself. The file is kept for this run and the one before it.")
-                        // The slot is a plain Item, so loose buttons all land on
-                        // the same spot - lay them out side by side.
+                        // Icons with their names as tooltips, as on the sound
+                        // rows: three labelled buttons are wider than the card
+                        // leaves the label in every language but English, and
+                        // the label column ran under them. The slot is a plain
+                        // Item, so the buttons need a Row to sit side by side.
                         Row {
                             spacing: Theme.spacingS
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "magnify"
-                                text: qsTr("View log")
+                            UIconButton {
+                                iconName: "magnify"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("View log")
                                 onClicked: logViewer.open()
                             }
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "edit-copy"
-                                text: qsTr("Copy with log")
+                            UIconButton {
+                                iconName: "edit-copy"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Copy with log")
                                 onClicked: { App.copyText(App.diagnosticsWithLog()); App.showToast(qsTr("Diagnostics and log copied")) }
                             }
-                            UButton {
-                                compact: true
-                                variant: "tonal"
-                                iconName: "folder-open"
-                                text: qsTr("Show log file")
+                            UIconButton {
+                                iconName: "folder-open"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Show log file")
                                 onClicked: App.showLogInFileManager()
                             }
                         }
@@ -1442,7 +1465,7 @@ Item {
                     SettingRow {
                         label: qsTr("Hide Unisic while capturing")
                         help: qsTr("Takes the Unisic window off screen so it never lands in the shot.")
-                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. Afterwards the window stays in the tray; open it again from there. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
+                        helpDetail: qsTr("Applies to every capture started while the window is open, and to recordings. The window comes back as soon as the capture ends. Turn this off only when Unisic itself is the subject, for example when taking documentation screenshots.")
                         USwitch { checked: App.settings.hideWindowOnCapture; onToggled: (c) => App.settings.hideWindowOnCapture = c }
                     }
                     SettingRow {
@@ -1828,7 +1851,9 @@ Item {
                     SettingRow {
                         label: qsTr("Record system audio")
                         help: qsTr("Captures what you hear (system output) into video recordings.")
-                        helpDetail: qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Taken from the default playback device through Windows loopback capture. Mixed with the microphone when both are enabled. GIFs have no audio.")
+                                    : qsTr("Taken from the default output monitor via PipeWire/Pulse. Mixed with the microphone when both are enabled. GIFs have no audio.")
                         USwitch { checked: App.settings.recordSystemAudio; onToggled: (c) => App.settings.recordSystemAudio = c }
                     }
                     SettingRow {
@@ -1842,7 +1867,9 @@ Item {
                         help: App.audioInputListAvailable
                               ? qsTr("Which input device the microphone track records from.")
                               : qsTr("Requires the pw-dump helper to list input devices.")
-                        helpDetail: qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
+                        helpDetail: App.audioBackend === "wasapi"
+                                    ? qsTr("Default input follows the system's default recording device. Pick a specific device to pin the microphone to it - including virtual devices such as a noise-suppressed microphone. Press Refresh after plugging a device in.")
+                                    : qsTr("Default input follows the system's default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.")
                         Row {
                             spacing: Theme.spacingS
                             UComboBox {
@@ -1859,7 +1886,9 @@ Item {
                         label: qsTr("Application audio only")
                         help: App.perAppAudioAvailable
                               ? qsTr("Record only the applications you tick, one or several.")
-                              : qsTr("Requires the pw-dump and pw-record helpers.")
+                              : App.audioBackend === "wasapi"
+                                ? qsTr("Requires Windows 10 version 2004 or later.")
+                                : qsTr("Requires the pw-dump and pw-record helpers.")
                         helpDetail: qsTr("Applications appear here while they play audio and the list updates by itself. A ticked application is remembered by name, so it stays ticked after it restarts, and every stream it has open is recorded. This can be mixed with the microphone or system audio.")
                         footer: UAppAudioPicker {}
                     }
@@ -2999,6 +3028,21 @@ Item {
                         }
                     }
                     SettingRow {
+                        label: qsTr("Toolbar icon size")
+                        help: qsTr("How big the tool icons on the selection overlay are.")
+                        helpDetail: qsTr("The icons are drawn for 24 px, where their lines are cleanest. At other sizes thin diagonal lines can look a little softer or jagged.")
+                        UValueCombo {
+                            width: 110
+                            values: [16, 18, 20, 22, 24, 26]
+                            from: 16; to: 26
+                            suffix: " px"
+                            value: ToolCatalog.overlayIconSize
+                            accessibleName: qsTr("Toolbar icon size")
+                            // A typed odd size is stored as the even one it draws at.
+                            onChanged: (v) => App.settings.overlayIconSize = Math.round(v / 2) * 2
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Show which capture mode is running")
                         help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
                         helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
@@ -3224,6 +3268,131 @@ Item {
                     }
                 }
             }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("System tray menu") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Choose which entries the tray menu shows. Open Unisic and Quit always stay.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    // Drawn like the menu it controls: one popup panel, a rule
+                    // between groups, the bundled glyph the menu itself uses.
+                    // A row is the whole control; hidden rows go dim and
+                    // struck through, locked rows carry a lock instead.
+                    Rectangle {
+                        width: Math.min(parent.width, 360)
+                        height: trayPreview.implicitHeight + 2 * Theme.spacingS
+                        radius: Theme.radiusM
+                        color: Theme.surfaceHi
+                        border.width: 1
+                        border.color: Theme.divider
+                        Column {
+                            id: trayPreview
+                            x: Theme.spacingS
+                            y: Theme.spacingS
+                            width: parent.width - 2 * Theme.spacingS
+                            Repeater {
+                                model: App.trayMenuEntries
+                                delegate: Item {
+                                    id: trayRow
+                                    required property var modelData
+                                    required property int index
+                                    readonly property bool locked: modelData.locked
+                                    readonly property bool shown: locked || !page.trayItemHidden(modelData.id)
+                                    readonly property bool groupStart: index > 0
+                                        && App.trayMenuEntries[index - 1].group !== modelData.group
+                                    function _activate() {
+                                        if (!locked) page.setTrayItemHidden(modelData.id, shown)
+                                    }
+                                    width: parent.width
+                                    height: 34 + (groupStart ? Theme.spacingS * 2 + 1 : 0)
+                                    Rectangle {
+                                        visible: trayRow.groupStart
+                                        x: Theme.spacingS
+                                        y: Theme.spacingS
+                                        width: parent.width - 2 * Theme.spacingS
+                                        height: 1
+                                        color: Theme.divider
+                                    }
+                                    Rectangle {
+                                        id: rowBody
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width
+                                        height: 34
+                                        radius: Theme.radiusS
+                                        color: !trayRow.locked && rowMouse.containsMouse
+                                               ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.18)
+                                               : "transparent"
+                                        // Forced to the bundled glyph so the
+                                        // preview matches the menu on any
+                                        // desktop icon theme.
+                                        UIcon {
+                                            id: rowIcon
+                                            x: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.modelData.icon
+                                            iconStyle: "custom"
+                                            size: 18
+                                            color: Theme.textPrimary
+                                            opacity: trayRow.shown ? 1 : 0.35
+                                        }
+                                        Text {
+                                            anchors.left: rowIcon.right
+                                            anchors.leftMargin: 10
+                                            anchors.right: rowMark.left
+                                            anchors.rightMargin: Theme.spacingS
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: trayRow.modelData.label
+                                            elide: Text.ElideRight
+                                            color: Theme.textPrimary
+                                            font.pixelSize: Theme.fontM
+                                            font.strikeout: !trayRow.shown
+                                            opacity: trayRow.shown ? 1 : 0.4
+                                        }
+                                        UIcon {
+                                            id: rowMark
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: Theme.spacingM
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: trayRow.locked ? "lock" : "checkmark"
+                                            iconStyle: "custom"
+                                            size: 16
+                                            color: trayRow.locked ? Theme.textTertiary : Theme.accent
+                                            visible: trayRow.locked || trayRow.shown
+                                        }
+                                        MouseArea {
+                                            id: rowMouse
+                                            anchors.fill: parent
+                                            enabled: !trayRow.locked
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: trayRow._activate()
+                                        }
+                                        activeFocusOnTab: !trayRow.locked
+                                        Keys.onSpacePressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onReturnPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Keys.onEnterPressed: (e) => UKeys.activate(e, trayRow._activate)
+                                        Accessible.role: Accessible.CheckBox
+                                        Accessible.name: trayRow.modelData.label
+                                        Accessible.focusable: activeFocusOnTab
+                                        Accessible.checkable: !trayRow.locked
+                                        Accessible.checked: trayRow.shown
+                                        Accessible.onPressAction: trayRow._activate()
+                                        UFocusRing { inset: 1 }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
         }
 
@@ -3272,6 +3441,8 @@ Item {
                               ? qsTr("Registered through the system GlobalShortcuts portal. Your desktop may show a one-time confirmation dialog; the binding it decides on is final (on Hyprland bind the ids in hyprland.conf).")
                               : App.hotkeyBackend === "x11"
                               ? qsTr("Registered directly with the X server (XGrabKey) for this X11 session. Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Registered directly with Windows (RegisterHotKey). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                               : qsTr("Registered through KDE global shortcuts (KGlobalAccel). Each action can hold several bindings: record one, then use the small chip to add alternatives (up to 4). Remove a binding with its ×.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -3307,7 +3478,9 @@ Item {
                     HotkeyRow {
                         label: qsTr("Video start/stop")
                         help: qsTr("Hotkey: toggle video recording.")
-                        helpDetail: qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
+                        helpDetail: App.hotkeyBackend === "win32"
+                                    ? qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).")
+                                    : qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
                         shortcuts: App.settings.hotkeyRecord
                         onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") }
                     }
@@ -3373,6 +3546,8 @@ Item {
                               ? qsTr("Keys recorded here are suggestions passed to the portal; the system dialog confirms or adjusts them.")
                               : App.hotkeyBackend === "x11"
                               ? qsTr("Shortcuts apply immediately on this X11 session (grabbed straight from the X server).")
+                              : App.hotkeyBackend === "win32"
+                              ? qsTr("Shortcuts apply immediately. A key another app already registered is reported as taken.")
                               : qsTr("Shortcuts apply immediately and stay in sync with KDE System Settings; an edit made there shows up here too.")
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
@@ -3629,9 +3804,9 @@ Item {
                                color: App.capScreenCastPortal ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
                     SettingRow {
-                        label: qsTr("X11 screen capture")
-                        help: qsTr("Whether recording can grab frames directly from the X server.")
-                        helpDetail: qsTr("Needs an X11 session (xcb platform). On X11 the frames come from XShm instead of the ScreenCast portal, so recording also works on desktops that ship no portal backend at all - Cinnamon, MATE and XFCE on Xorg. Recording a single window still needs the portal's window picker and stays unavailable there.")
+                        label: qsTr("Direct screen capture")
+                        help: qsTr("Whether recording can grab frames straight from the screen, without the ScreenCast portal.")
+                        helpDetail: qsTr("On an X11 session (xcb platform) the frames come from XShm, on Windows from DXGI Desktop Duplication, so recording works without any ScreenCast portal backend - which is also how Cinnamon, MATE and XFCE on Xorg record. Recording a single window still needs the portal's window picker and stays unavailable there.")
                         Text { text: App.capX11Capture ? "✓" : "-"
                                color: App.capX11Capture ? Theme.accent : Theme.textTertiary; font.pixelSize: Theme.fontL }
                     }
@@ -3739,7 +3914,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record border (4 s)"); onClicked: App.devTestRecordBorder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("KWin native record probe"); onClicked: App.devTestKWinRecord() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("X11 record grab"); onClicked: App.devTestX11Record() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("X11 hotkeys probe"); onClicked: App.devTestX11Hotkeys() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Native hotkeys probe"); onClicked: App.devTestX11Hotkeys() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Test notification"); onClicked: App.devTestNotification() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Card preview (3 s)"); onClicked: App.devTestCardPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
@@ -3760,7 +3935,9 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Tray menu entries"); onClicked: App.devTestTrayMenu() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy last capture"); onClicked: App.devTestCopyLast() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Copy recording file"); onClicked: App.devTestCopyFile() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Klipper clipboard history"); onClicked: App.devTestClipboardHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
@@ -3819,6 +3996,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Video quality scale"); onClicked: App.devTestVideoQuality() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Separate audio tracks"); onClicked: App.devTestAudioTracks() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Audio input devices"); onClicked: App.devTestAudioInputs() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Live audio capture"); onClicked: App.devTestAudioCapture() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trim audio edit"); onClicked: App.devTestTrimAudio() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
@@ -3839,6 +4017,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Auto-restart gate"); onClicked: App.devTestAutoRestart() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Installer update (dry-run)"); onClicked: App.devTestInstallerUpdate() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Staged update (dry-run)"); onClicked: App.devTestStagedUpdate() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Filename + save routing"); onClicked: App.devTestFilename() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Save-as dialog"); onClicked: App.devTestSaveDialog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Active window geometry"); onClicked: App.devTestActiveWindowGeometry() }

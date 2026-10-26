@@ -1,5 +1,6 @@
 pragma Singleton
 import QtQuick
+import Unisic
 
 // Single source of truth for the annotation tool set. Both the editor and the
 // overlay build their toolbars from this, filtered by context and by the
@@ -11,6 +12,13 @@ import QtQuick
 // (ToolPropsBar) renders only those: "stroke" (color), "width" (stroke
 // slider), "fill" (fill toggle + color), "font" (text styling).
 QtObject {
+    // 16-26 in even steps (an even icon centres exactly in a 40 px chip);
+    // anything else in the config file reads as the default.
+    readonly property int overlayIconSize: {
+        const size = App.settings.overlayIconSize
+        return size >= 16 && size <= 26 ? Math.round(size / 2) * 2 : 24
+    }
+
     readonly property var tools: [
         { id: "select",     tool: 0,  iconName: "select-rectangular", label: qsTr("Select"),       overlay: true,  editor: false, hideable: false, props: [] },
         { id: "edit",       tool: 14, iconName: "hand-pointing",      label: qsTr("Edit shapes"),  shortcut: "V", shortcutKey: Qt.Key_V, overlay: true,  editor: true, hideable: true, props: [] },

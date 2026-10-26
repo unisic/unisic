@@ -150,6 +150,9 @@ Result cosmicInstall(const QList<Binding> &bindings)
     QFile in(cosmicCustomPath());
     if (in.exists() && in.open(QIODevice::ReadOnly))
         text = QString::fromUtf8(in.readAll());
+    // Closed before the QSaveFile below renames over it: Windows refuses to
+    // replace a file that still has an open handle.
+    in.close();
     text = cosmicStripOurs(text);
 
     QStringList lines;
@@ -613,6 +616,9 @@ Result singularityInstall(const QList<Binding> &bindings)
     QFile in(labwcRcPath());
     if (in.exists() && in.open(QIODevice::ReadOnly))
         text = QString::fromUtf8(in.readAll());
+    // Closed before the QSaveFile below renames over it: Windows refuses to
+    // replace a file that still has an open handle.
+    in.close();
     text = labwcStripOurs(text);
 
     QString entries;

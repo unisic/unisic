@@ -29,6 +29,7 @@ class ScrollCaptureController : public QObject
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(bool lostTrack READ lostTrack NOTIFY statusChanged)
     Q_PROPERTY(bool full READ full NOTIFY statusChanged)
+    Q_PROPERTY(bool streaming READ streaming NOTIFY streamingChanged)
 
 public:
     explicit ScrollCaptureController(AppContext *app, QQmlEngine *engine, QObject *parent = nullptr);
@@ -46,13 +47,14 @@ public:
     bool active() const { return m_active; }
     bool lostTrack() const { return m_lostTrack; }
     bool full() const { return m_full; }
+    bool streaming() const { return m_streamSize.isValid(); }
 
     // Logical px the floating badge needs above or below the region.
     static constexpr int kBadgeRoom = 58;
 
     QImage previewThumbnail(int maxW, int maxH) const;
 
-    void start(const QRect &cropPhysical, QScreen *screen);
+    void start(const QRect &cropPhysical, QScreen *screen, qreal streamScale = 0);
     void stop();
 
     Q_INVOKABLE void finish();
@@ -68,7 +70,9 @@ signals:
     void previewRevisionChanged();
     void activeChanged();
     void statusChanged();
+    void streamingChanged();
     void finished(const QImage &image);
+    void cancelled();   // ended without an image: cancel(), or finish() with no frames
 
 private slots:
     void sampleTick();
@@ -85,6 +89,7 @@ private:
     AppContext *m_app;
     QQmlEngine *m_engine;
     QPointer<QScreen> m_screen;
+    qreal m_streamScale = 0; // the overlay's real output scale, 0 = unknown
     QRect m_cropPhysical;
     int m_regionX = 0;
     int m_regionY = 0;

@@ -1,7 +1,6 @@
 #include "UpdateChecker.h"
 #include "VersionCompare.h"
 #include "Settings.h"
-#include "diag/DiagLog.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -17,13 +16,11 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QProcess>
-#include <QProcessEnvironment>
-#include <QRegularExpression>
 #include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTime>
 #include <QTimer>
 
-#include <cstdio>
 #include <memory>
 
 static const char *kFeedUrl = "https://api.github.com/repos/unisic/unisic/releases/latest";
@@ -349,25 +346,19 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
         version.remove(0, 1);
     m_latest = version;
 
-    // The release's AppImage asset (self-update download). ".zsync" must not
-    // match — it satisfies the same prefix.
+    // The release asset this platform installs from (self-update download):
+    // the AppImage on Linux, the portable zip on Windows (isInstallAsset).
     m_assetName.clear();
     m_assetUrl.clear();
     m_assetSize = 0;
     m_assetSha256.clear();
     m_installerAssetUrl.clear();
     m_installerSha256.clear();
-    // The tag pins the installer fallback below to one tree instead of the
-    // branch head. Anything that is not a plain tag name is dropped rather than
-    // pasted into a URL.
-    static const QRegularExpression tagRe(QStringLiteral("^[0-9A-Za-z._-]+$"));
-    m_tag = tagRe.match(tag).hasMatch() ? tag : QString();
-    static const QRegularExpression assetRe(QStringLiteral("^Unisic-.*x86_64\\.AppImage$"));
     const QJsonArray assets = obj.value(QLatin1String("assets")).toArray();
     for (const QJsonValue &v : assets) {
         const QJsonObject a = v.toObject();
         const QString name = a.value(QLatin1String("name")).toString();
-        if (m_assetUrl.isEmpty() && assetRe.match(name).hasMatch()) {
+        if (m_assetUrl.isEmpty() && isInstallAsset(name)) {
             m_assetName = name;
             m_assetUrl = a.value(QLatin1String("browser_download_url")).toString();
             m_assetSize = static_cast<qint64>(a.value(QLatin1String("size")).toDouble());
@@ -418,9 +409,8 @@ void UpdateChecker::downloadAndInstall()
     if (busy() || !m_available || m_restartPending)
         return;
     if (!canSelfUpdate() || m_assetUrl.isEmpty()) {
-        m_status = m_assetUrl.isEmpty()
-                       ? tr("This release has no AppImage - it can't be installed in place")
-                       : tr("This install can't update itself");
+        m_status = m_assetUrl.isEmpty() ? noInstallAssetStatus()
+                                        : tr("This install can't update itself");
         emit stateChanged();
         return;
     }
@@ -528,8 +518,7 @@ void UpdateChecker::downloadAndInstall()
             // remove-then-rename would leave exactly that on a crash between
             // the two). The running instance is unaffected — its mount holds
             // the old inode.
-            if (std::rename(QFile::encodeName(part).constData(),
-                            QFile::encodeName(target).constData()) != 0) {
+            if (!replaceFile(part, target)) {
                 fail(tr("cannot replace %1").arg(target));
                 return;
             }
@@ -544,16 +533,15 @@ void UpdateChecker::downloadAndInstall()
         // Package install: keep the image under its real name and unpack it.
         const QString pkg = stagingDir() + QLatin1Char('/') + m_assetName;
         QFile::remove(pkg); // leftover from an interrupted earlier attempt
-        if (std::rename(QFile::encodeName(part).constData(),
-                        QFile::encodeName(pkg).constData()) != 0) {
+        if (!replaceFile(part, pkg)) {
             fail(tr("cannot move the download into place"));
             return;
         }
-        extractStagedAppImage(pkg);
+        extractStage(pkg);
     });
 }
 
-void UpdateChecker::extractStagedAppImage(const QString &pkg)
+void UpdateChecker::extractStage(const QString &pkg)
 {
     const QString verDir = stagingDir() + QLatin1Char('/') + m_latest;
     QDir(verDir).removeRecursively(); // half-extracted leftovers
@@ -566,32 +554,19 @@ void UpdateChecker::extractStagedAppImage(const QString &pkg)
     m_status = tr("Installing version %1…").arg(m_latest);
     emit stateChanged();
 
-    // --appimage-extract works without FUSE (a package install can't assume
-    // libfuse2) and costs the extraction once — every later start execs the
-    // unpacked AppRun directly.
-    auto *proc = new QProcess(this);
-    proc->setWorkingDirectory(verDir);
-    proc->setProgram(pkg);
-    proc->setArguments({QStringLiteral("--appimage-extract")});
-    proc->setStandardOutputFile(QProcess::nullDevice()); // lists every file
-    proc->setStandardErrorFile(QProcess::nullDevice());
-    const auto finish = [this, proc, pkg, verDir](bool started, int code,
-                                                  QProcess::ExitStatus st) {
-        proc->deleteLater();
-        QFile::remove(pkg); // the unpacked tree is what runs; the image is dead weight
-        const QString appRun = verDir + QStringLiteral("/squashfs-root/AppRun");
-        if (!started || st != QProcess::NormalExit || code != 0
-            || !QFileInfo(appRun).isExecutable()) {
+    unpackPackage(pkg, verDir, [this, pkg, verDir](bool ok) {
+        QFile::remove(pkg); // the unpacked tree is what runs; the package is dead weight
+        if (!ok) {
             QDir(verDir).removeRecursively();
             m_downloading = false;
             m_status = tr("Update failed: could not unpack the new version");
             emit stateChanged();
             return;
         }
-        // Atomic pointer flip — execStagedUpdate() in main() follows this.
+        // Atomic pointer flip - execStagedUpdate() follows this.
         const QString ptr = stagingDir() + QStringLiteral("/current");
         QFile f(ptr + QStringLiteral(".part"));
-        const QByteArray body = (m_latest + QLatin1Char('\n') + appRun
+        const QByteArray body = (m_latest + QLatin1Char('\n') + stagedExe(verDir)
                                  + QLatin1Char('\n')).toUtf8();
         if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)
             || f.write(body) != body.size() || !f.flush()) {
@@ -604,8 +579,7 @@ void UpdateChecker::extractStagedAppImage(const QString &pkg)
             return;
         }
         f.close();
-        if (std::rename(QFile::encodeName(f.fileName()).constData(),
-                        QFile::encodeName(ptr).constData()) != 0) {
+        if (!replaceFile(f.fileName(), ptr)) {
             QFile::remove(f.fileName());
             QDir(verDir).removeRecursively();
             m_downloading = false;
@@ -620,6 +594,21 @@ void UpdateChecker::extractStagedAppImage(const QString &pkg)
         m_status = tr("Update installed - restart to run version %1").arg(m_latest);
         emit stateChanged();
         emit installed(m_latest);
+    });
+}
+
+void UpdateChecker::unpackPackage(const QString &pkg, const QString &verDir,
+                                  std::function<void(bool)> done)
+{
+    auto *proc = new QProcess(this);
+    proc->setWorkingDirectory(verDir);
+    setUnpackCommand(proc, pkg);
+    proc->setStandardOutputFile(QProcess::nullDevice()); // lists every file
+    proc->setStandardErrorFile(QProcess::nullDevice());
+    const auto finish = [proc, verDir, done](bool started, int code, QProcess::ExitStatus st) {
+        proc->deleteLater();
+        done(started && st == QProcess::NormalExit && code == 0
+             && QFileInfo(stagedExe(verDir)).isExecutable());
     };
     connect(proc, &QProcess::finished, this,
             [finish](int code, QProcess::ExitStatus st) { finish(true, code, st); });
@@ -631,62 +620,62 @@ void UpdateChecker::extractStagedAppImage(const QString &pkg)
     proc->start();
 }
 
-void UpdateChecker::restartNow(bool trayOnly)
+void UpdateChecker::verifyStagingReady(std::function<void(bool, const QString &)> done)
 {
-    QString exe = appImageTarget();
-    if (exe.isEmpty()) {
-        // Package install: always relaunch through the BOOTSTRAP binary so the
-        // exec in main() lands on the newest staged version (a staged copy
-        // relaunching itself would pin its own, now-old, version).
-        exe = qEnvironmentVariable("UNISIC_BOOTSTRAP_EXE");
-        if (exe.isEmpty())
-            exe = QCoreApplication::applicationFilePath();
-    }
-    if (exe.isEmpty())
+    if (!done)
         return;
-    // The 1 s shim lets this instance's single-instance socket disappear
-    // first — a fresh process that still finds it would hand off "show" to
-    // the exiting old version and quit itself.
-    const QString shim = trayOnly ? QStringLiteral("sleep 1; exec \"$0\" --tray-only")
-                                  : QStringLiteral("sleep 1; exec \"$0\"");
-    // The child must NOT inherit the staged-copy markers, or the fresh
-    // bootstrap would skip its redirect and run the old packaged version.
-    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-    env.remove(QStringLiteral("UNISIC_STAGED"));
-    env.remove(QStringLiteral("UNISIC_BOOTSTRAP_EXE"));
-    const auto spawn = [&env](const QString &program, const QStringList &arguments) {
-        QProcess proc;
-        proc.setProgram(program);
-        proc.setArguments(arguments);
-        proc.setProcessEnvironment(env);
-        return proc.startDetached();
+    // A scratch dir INSIDE the real staging dir, not the temp dir: the staged
+    // exe has to run from where a real stage sits (a noexec /tmp would fail a
+    // test the real path passes), and the pointer flip has to be the same
+    // same-volume rename the real one is.
+    const QString base = stagingDir();
+    if (!QDir().mkpath(base)) {
+        done(false, QStringLiteral("cannot create %1").arg(base));
+        return;
+    }
+    auto scratch = std::make_shared<QTemporaryDir>(base + QStringLiteral("/dry-run-XXXXXX"));
+    if (!scratch->isValid()) {
+        done(false, QStringLiteral("cannot create a scratch dir in %1").arg(base));
+        return;
+    }
+    const QString dir = scratch->path();
+    const auto writeFile = [](const QString &path, const QByteArray &body) {
+        QFile f(path);
+        return f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(body) == body.size()
+               && f.flush();
     };
-
-    // startDetached does NOT escape the cgroup, and every desktop launch on a
-    // systemd session runs the app inside a unit (app-app.unisic.Unisic@*.service
-    // for the autostart entry and for a menu click alike). Units default to
-    // KillMode=control-group, so the moment this process quits systemd SIGTERMs
-    // everything left in the cgroup - including the sleeping shim, which is
-    // killed a second before it can exec. Measured: the replacement never
-    // started, and the app simply disappeared from the tray until launched by
-    // hand. systemd-run puts the relaunch in a unit of its own, outside the
-    // dying one. Fall back to the bare shim where there is no systemd-run
-    // (non-systemd session): there the old behaviour was already correct.
-    bool started = false;
-    const QString systemdRun = QStandardPaths::findExecutable(QStringLiteral("systemd-run"));
-    if (!systemdRun.isEmpty())
-        started = spawn(systemdRun, {QStringLiteral("--user"), QStringLiteral("--collect"),
-                                     QStringLiteral("--quiet"), QStringLiteral("--"),
-                                     QStringLiteral("/bin/sh"), QStringLiteral("-c"), shim, exe});
-    if (!started)
-        started = spawn(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), shim, exe});
-    if (!started) {
-        // Staying up beats vanishing: the tray still offers "Restart to update".
-        qWarning() << "Update restart aborted - could not spawn the replacement process";
+    // Over an EXISTING pointer: the second update is the one a plain rename
+    // gets wrong on Windows, where it refuses to replace a file.
+    const QString ptr = dir + QStringLiteral("/current");
+    const QString part = ptr + QStringLiteral(".part");
+    if (!writeFile(ptr, "old\n") || !writeFile(part, "new\n") || !replaceFile(part, ptr)) {
+        done(false, QStringLiteral("could not replace an existing pointer file"));
         return;
     }
-    DiagLog::setQuitReason(QStringLiteral("update restart"));
-    QCoreApplication::quit();
+    {
+        QFile f(ptr);
+        if (!f.open(QIODevice::ReadOnly) || f.readAll() != "new\n" || QFileInfo::exists(part)) {
+            done(false, QStringLiteral("the pointer flip left the wrong file behind"));
+            return;
+        }
+    }
+    const QString pkg = writeTestPackage(dir);
+    const QString stage = dir + QStringLiteral("/stage");
+    if (pkg.isEmpty() || !QDir().mkpath(stage)) {
+        done(false, QStringLiteral("cannot write the test package in %1").arg(dir));
+        return;
+    }
+    const QString exe = QDir(stage).relativeFilePath(stagedExe(stage));
+    // scratch rides along until the unpack is over; its destructor then
+    // removes the whole dry run.
+    unpackPackage(pkg, stage, [scratch, exe, base, done](bool ok) {
+        if (!ok) {
+            done(false, QStringLiteral("the test package did not unpack to %1").arg(exe));
+            return;
+        }
+        done(true, QStringLiteral("%1 unpacked, pointer replaced, in %2")
+                       .arg(exe, QDir::toNativeSeparators(base)));
+    });
 }
 
 void UpdateChecker::simulateAvailable(const QString &version)
@@ -714,15 +703,12 @@ QUrl UpdateChecker::installerScriptUrl() const
     // published sha256 belongs to, and the only route with a checksum at all.
     if (!m_installerAssetUrl.isEmpty())
         return QUrl(m_installerAssetUrl);
-    // Fallback for a release made before install.sh became an asset: the same
-    // script at that release's TAG, whose tree is frozen at what was released,
-    // rather than the branch head, which is whatever was pushed a minute ago.
-    // Neither carries a published checksum, so the marker-line check is all
-    // that is left either way - but a tag does not move under us.
-    const QString ref = m_tag.isEmpty() ? QStringLiteral("main") : m_tag;
-    return QUrl(QStringLiteral("https://raw.githubusercontent.com/unisic/unisic/%1"
-                               "/scripts/install.sh")
-                    .arg(ref));
+    // Fallback for a release made before install.sh became an asset, or no
+    // check yet: the copy unisic.app serves, which is where the script lives
+    // since it left this repo (the old per-tag path is gone from 0.8.8 on). It
+    // carries no published checksum, so the marker-line check is all that is
+    // left.
+    return QUrl(QStringLiteral("https://unisic.app/install.sh"));
 }
 
 QString UpdateChecker::installerCacheDir() const

@@ -352,8 +352,6 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
     m_assetUrl.clear();
     m_assetSize = 0;
     m_assetSha256.clear();
-    m_installerAssetUrl.clear();
-    m_installerSha256.clear();
     const QJsonArray assets = obj.value(QLatin1String("assets")).toArray();
     for (const QJsonValue &v : assets) {
         const QJsonObject a = v.toObject();
@@ -363,15 +361,6 @@ void UpdateChecker::handleCheckReply(QNetworkReply *reply, bool manual,
             m_assetUrl = a.value(QLatin1String("browser_download_url")).toString();
             m_assetSize = static_cast<qint64>(a.value(QLatin1String("size")).toDouble());
             m_assetSha256 = assetSha256(a);
-            continue;
-        }
-        // The release's own install.sh, plus the checksum GitHub computed when
-        // it was uploaded ("sha256:<hex>"). This is what makes "Install now"
-        // verifiable: the script and the hash come from the release, not from a
-        // branch head that moves under it.
-        if (name == QLatin1String("install.sh")) {
-            m_installerAssetUrl = a.value(QLatin1String("browser_download_url")).toString();
-            m_installerSha256 = assetSha256(a);
         }
     }
 
@@ -699,15 +688,11 @@ QUrl UpdateChecker::installerScriptUrl() const
     const QString env = qEnvironmentVariable("UNISIC_INSTALLER_URL");
     if (!env.isEmpty())
         return QUrl(env);
-    // The release's own asset once a check has seen one: that is the copy the
-    // published sha256 belongs to, and the only route with a checksum at all.
-    if (!m_installerAssetUrl.isEmpty())
-        return QUrl(m_installerAssetUrl);
-    // Fallback for a release made before install.sh became an asset, or no
-    // check yet: the copy unisic.app serves, which is where the script lives
-    // since it left this repo (the old per-tag path is gone from 0.8.8 on). It
-    // carries no published checksum, so the marker-line check is all that is
-    // left.
+    // The only copy: the script lives in the unisic-website repo, and from
+    // 0.8.8 on no release carries it as an asset, so there is no published
+    // checksum for it. TLS and the marker-line check below are what it stands
+    // on; the script body is one { ... } group closed on its last line, so a
+    // truncated download fails to parse instead of running half of it.
     return QUrl(QStringLiteral("https://unisic.app/install.sh"));
 }
 
@@ -732,7 +717,7 @@ void UpdateChecker::fetchInstallerScript(
                      QNetworkRequest::NoLessSafeRedirectPolicy);
     req.setTransferTimeout(30000);
     QNetworkReply *reply = nam()->get(req);
-    connect(reply, &QNetworkReply::finished, this, [this, reply, cacheFile, done] {
+    connect(reply, &QNetworkReply::finished, this, [reply, cacheFile, done] {
         reply->deleteLater();
         if (reply->error() != QNetworkReply::NoError) {
             if (done)
@@ -747,27 +732,6 @@ void UpdateChecker::fetchInstallerScript(
             if (done)
                 done(false, tr("the downloaded file is not the Unisic installer"));
             return;
-        }
-        // And it must be the exact file the release published. This script is
-        // run with sudo, so "looks like the installer" is not a standard to
-        // install by. Both ends are GitHub, so this is no defence against
-        // GitHub itself; it does catch a truncated or resumed-wrong download, a
-        // caching proxy serving a stale copy, and a script tampered with at one
-        // endpoint but not the other.
-        if (!m_installerSha256.isEmpty()) {
-            const QString got = QString::fromLatin1(
-                QCryptographicHash::hash(body, QCryptographicHash::Sha256).toHex());
-            if (got != m_installerSha256) {
-                qWarning() << "Installer checksum mismatch: expected" << m_installerSha256
-                           << "got" << got;
-                if (done)
-                    done(false, tr("the installer does not match the checksum published "
-                                   "with the release - nothing was run"));
-                return;
-            }
-        } else {
-            qWarning() << "Installer fetched with no published checksum to check it against:"
-                       << installerScriptUrl().toString();
         }
         QFile f(cacheFile);
         if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)
@@ -926,7 +890,7 @@ void UpdateChecker::verifyInstallerReady(
     // terminal detection, but launches nothing and needs no native install.
     const QString term = detectTerminal();
     const QString cacheFile = installerCacheDir() + QStringLiteral("/install.sh");
-    fetchInstallerScript(cacheFile, [this, term, done](bool ok, const QString &err) {
+    fetchInstallerScript(cacheFile, [term, done](bool ok, const QString &err) {
         if (!done)
             return;
         if (!ok) {
@@ -937,12 +901,6 @@ void UpdateChecker::verifyInstallerReady(
             done(false, QStringLiteral("no terminal emulator found"));
             return;
         }
-        // Which of the two paths ran is the whole point of the step: a PASS that
-        // does not say "sha256" only means the file downloaded and parsed.
-        done(true, QStringLiteral("installer %1, terminal: %2")
-                       .arg(m_installerSha256.isEmpty()
-                                ? QStringLiteral("OK (no published checksum)")
-                                : QStringLiteral("sha256 verified"),
-                            term));
+        done(true, QStringLiteral("installer OK, terminal: %1").arg(term));
     });
 }

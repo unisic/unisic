@@ -1,10 +1,13 @@
 #pragma once
 #include <QJsonObject>
+#include <QMenu>
 #include <QQmlPropertyMap>
 #include <QSize>
 #include <QVariantMap>
 #include <QString>
 #include <QStringList>
+#include <QWindow>
+#include <functional>
 #include "../Settings.h"
 
 // The one description of the capture card, shared by BOTH hosts:
@@ -118,6 +121,35 @@ inline QQmlPropertyMap *makeSettingsMap(const QJsonObject &settings, QObject *pa
         if (!map->contains(k))
             map->insert(k, QVariant());
     return map;
+}
+
+// Right-click on the card's Upload button: the servers as a plain menu, the
+// same kind the tray opens. A popup of the card window (an xdg_popup of the
+// layer surface; an override-redirect menu on the xcb helper), so it may hang
+// past the card's edge. `closed` runs once when it goes away, picked or not,
+// before `pick`, so the card can hold its auto-hide while the menu is up.
+// Both callbacks die with `context`.
+inline void popUploadMenu(QWindow *card, const QPointF &at, const QStringList &servers,
+                          QObject *context, const std::function<void(const QString &)> &pick,
+                          const std::function<void()> &closed)
+{
+    auto *menu = new QMenu;
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    for (const QString &name : servers) {
+        // '&' would turn the next letter into a mnemonic and vanish.
+        QAction *a = menu->addAction(QString(name).replace(QLatin1Char('&'), QLatin1String("&&")));
+        QObject::connect(a, &QAction::triggered, context, [pick, name] { pick(name); });
+    }
+    QObject::connect(menu, &QMenu::aboutToHide, context, closed);
+    // A popup must not outlive the surface it hangs from.
+    QObject::connect(card, &QWindow::visibleChanged, menu, [menu](bool on) {
+        if (!on)
+            menu->close();
+    });
+    QObject::connect(context, &QObject::destroyed, menu, &QWidget::close);
+    menu->winId(); // creates the window handle, so it can name its parent
+    menu->windowHandle()->setTransientParent(card);
+    menu->popup(card->mapToGlobal(at.toPoint()));
 }
 
 } // namespace NotifCard

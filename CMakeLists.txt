@@ -155,6 +155,7 @@ qt_add_executable(unisic
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/KWinWindowGeometry.h src/capture/KWinWindowGeometry.cpp
+    src/capture/KWinForceBlur.h src/capture/KWinForceBlur.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
@@ -555,7 +556,11 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 # libqt6gui6 pulls qt6-svg-plugins in only as a Recommends, so an
 # `apt install --no-install-recommends` used to leave it out (#124). The xcb
 # platform plugin needs no entry: it ships in libqt6gui6 itself (trixie, Ubuntu
-# 26.04); qt6-qpa-plugins only carries the VNC one.
+# 26.04); qt6-qpa-plugins only carries the VNC one. The portal platform theme
+# is its own package on Debian/Ubuntu (qt6-xdgdesktopportal-platformtheme):
+# main.cpp selects it on GNOME so the file dialogs follow the dark style
+# (#118); without the plugin Qt falls back to gtk3 and the fix is silently
+# absent.
 # KEEP THIS LIST CHARACTER-IDENTICAL to Depends in packaging/obs/debian.control.
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
@@ -572,6 +577,7 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     qml6-module-qtquick-window
     qt6-svg-plugins
     qt6-wayland
+    qt6-xdgdesktopportal-platformtheme
     tesseract-ocr-eng
     tesseract-ocr-osd
     tesseract-ocr-pol
@@ -800,8 +806,9 @@ if(BUILD_TESTING)
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # Where a curl destination puts the file and what it makes of the answer -
-    # pure string work, so it needs neither a server nor a compositor. The rest
-    # of UploadManager is network transport and stays with the smoke test.
+    # pure string work, so it needs neither a server nor a compositor - plus the
+    # failure chain over servers that refuse before any request. The rest of
+    # UploadManager is network transport and stays with the smoke test.
     qt_add_executable(unisic_upload_url_test
         tests/UploadUrlTest.cpp
         src/upload/UploadManager.h src/upload/UploadManager.cpp
@@ -855,7 +862,17 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_scroll_stitch_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_scroll_stitch_test PRIVATE src)
     add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
+
     set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_kwin_force_blur_test
+        tests/KWinForceBlurTest.cpp
+        src/capture/KWinForceBlur.h
+        src/capture/KWinForceBlur.cpp
+    )
+    target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
+    target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
+    add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

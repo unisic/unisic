@@ -52,6 +52,14 @@ public:
     // Small preview of the stitched body (nearest-neighbour, cheap at any height).
     QImage previewThumbnail(int maxW, int maxH) const;
 
+    // Document rows: the frame the image started from is at row 0.
+    int framePos() const { return m_pos; }      // of the newest aligned frame
+    const QImage &lastFrame() const { return m_prev; }
+    // Rows that lie right below the frame at document row `pos` on screen but
+    // were never in a frame (the capture controls covered them). Added only
+    // when that frame reaches the bottom of the image, where they belong.
+    bool appendBelow(int pos, const QImage &rows);
+
     int stitchedWidth() const { return m_prev.width(); }
     int stitchedHeight() const;
     int frameCount() const { return m_frameCount; }

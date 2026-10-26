@@ -29,7 +29,8 @@ class ScrollCaptureController : public QObject
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(bool lostTrack READ lostTrack NOTIFY statusChanged)
     Q_PROPERTY(bool full READ full NOTIFY statusChanged)
-    Q_PROPERTY(bool streaming READ streaming NOTIFY streamingChanged)
+    Q_PROPERTY(int coveredRows READ coveredRows NOTIFY regionChanged)
+    Q_PROPERTY(bool controlsShown READ controlsShown NOTIFY controlsShownChanged)
 
 public:
     explicit ScrollCaptureController(AppContext *app, QQmlEngine *engine, QObject *parent = nullptr);
@@ -39,6 +40,8 @@ public:
     int regionY() const { return m_regionY; }
     int regionW() const { return m_regionW; }
     int regionH() const { return m_regionH; }
+    // Bottom rows of the region under the controls (no room outside it).
+    int coveredRows() const { return m_coveredRows; }
 
     int stitchedWidth() const { return m_stitcher.stitchedWidth(); }
     int stitchedHeight() const { return m_stitcher.stitchedHeight(); }
@@ -47,7 +50,7 @@ public:
     bool active() const { return m_active; }
     bool lostTrack() const { return m_lostTrack; }
     bool full() const { return m_full; }
-    bool streaming() const { return m_streamSize.isValid(); }
+    bool controlsShown() const { return m_controlsShown; }
 
     // Logical px the floating badge needs above or below the region.
     static constexpr int kBadgeRoom = 58;
@@ -70,7 +73,7 @@ signals:
     void previewRevisionChanged();
     void activeChanged();
     void statusChanged();
-    void streamingChanged();
+    void controlsShownChanged();
     void finished(const QImage &image);
     void cancelled();   // ended without an image: cancel(), or finish() with no frames
 
@@ -85,6 +88,9 @@ private:
     void createOverlayWindow();
     void closeOverlayWindow();
     void setStatus(bool lostTrack, bool full);
+    void setControlsShown(bool shown);
+    void finishTick(const QImage &screen, const QRect &sel, int cut);
+    void completeFinish(bool coveredRowsAdded);
 
     AppContext *m_app;
     QQmlEngine *m_engine;
@@ -95,6 +101,7 @@ private:
     int m_regionY = 0;
     int m_regionW = 0;
     int m_regionH = 0;
+    int m_coveredRows = 0;
 
     bool m_active = false;
     bool m_lostTrack = false;
@@ -104,6 +111,12 @@ private:
     quint64 m_lastSampledSeq = 0;
     int m_previewRevision = 0;
     QSize m_streamSize;
+    bool m_controlsShown = false;
+    int m_waitTicks = 0;
+    int m_startTick = 0;    // m_waitTicks at the latest start frame
+    QImage m_startRows;     // covered rows of the frame the image started from
+    bool m_finishing = false;
+    QImage m_finishRows;    // the covered rows of the last finishing sample
 
     ScrollStitcher m_stitcher;
     QTimer m_sampleTimer;

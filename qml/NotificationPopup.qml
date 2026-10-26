@@ -41,6 +41,9 @@ Window {
     // it starts — without this the 8s auto-hide would fire mid-drag and destroy
     // the drag's origin surface. Pauses auto-hide + the countdown drain.
     property bool dragging: false
+    // True while the Upload button's server menu is up: the menu takes the
+    // pointer, so the card reads as unhovered and would time out under it.
+    property bool menuOpen: false
     // A tiny exit grace avoids pause/resume flicker when the pointer only grazes
     // the card edge. It is state, rather than a continuously-running timer, so
     // an indefinitely hovered card still costs nothing while paused.
@@ -52,7 +55,7 @@ Window {
                                          "upload", "ocr", "trim", "delete"]
     property var orderedActions: allActionIds
     readonly property bool autoHidePaused: autoHideSec > 0
-                                           && (hover.hovered || hoverGraceActive || dragging)
+                                           && (hover.hovered || hoverGraceActive || dragging || menuOpen)
 
     // Filter unknown/duplicate ids from imported or hand-edited settings, then
     // append actions introduced by a newer build. An old config can therefore
@@ -82,7 +85,7 @@ Window {
 
     function syncAutoHide() {
         const shouldRun = autoHideSec > 0 && !hover.hovered
-                          && !hoverGraceActive && !dragging
+                          && !hoverGraceActive && !dragging && !menuOpen
         if (shouldRun === dismissTimer.running)
             return
 
@@ -103,6 +106,11 @@ Window {
     }
 
     onDraggingChanged: syncAutoHide()
+    onMenuOpenChanged: syncAutoHide()
+    Connections {
+        target: notif
+        function onMenuClosed() { popup.menuOpen = false }
+    }
     Component.onCompleted: {
         if (["casual", "compact", "small", "minimal", "thumbnail"].indexOf(popupStyle) >= 0)
             style = popupStyle
@@ -172,7 +180,9 @@ Window {
         if (id === "link") return qsTr("Copy link")
         if (id === "qr") return qsTr("Show QR code")
         if (id === "folder") return qsTr("Show in folder")
-        if (id === "upload") return qsTr("Upload")
+        if (id === "upload") return notif.destinations.length > 1
+                                    ? qsTr("Upload (right-click to choose the server)")
+                                    : qsTr("Upload")
         if (id === "ocr") return qsTr("Copy text (OCR)")
         if (id === "trim") return qsTr("Trim recording")
         if (id === "delete") return qsTr("Delete")
@@ -218,7 +228,10 @@ Window {
         Repeater {
             model: popup.orderedActions
             delegate: UIconButton {
+                id: actionBtn
                 required property string modelData
+                readonly property bool canPick: modelData === "upload"
+                                                && notif.destinations.length > 1
                 iconName: popup.actionIcon(modelData)
                 iconSize: parent.icon
                 width: parent.btn
@@ -226,6 +239,16 @@ Window {
                 tooltip: popup.actionTooltip(modelData)
                 visible: popup.actionAvailable(modelData)
                 onClicked: popup.triggerAction(modelData)
+                // Right-click: the servers as a menu; the one picked gets the
+                // capture, with no failure chain behind it.
+                TapHandler {
+                    enabled: actionBtn.canPick
+                    acceptedButtons: Qt.RightButton
+                    onTapped: (eventPoint) => {
+                        popup.menuOpen = true
+                        notif.showUploadMenu(popup, actionBtn.mapToItem(null, eventPoint.position))
+                    }
+                }
             }
         }
     }
@@ -290,9 +313,12 @@ Window {
     component StatusText: Text {
         text: notif.uploading ? qsTr("Uploading…")
               : notif.url !== "" ? notif.url
+              : notif.uploadError !== "" ? qsTr("Upload failed: %1").arg(notif.uploadError)
               : notif.fileName !== "" ? notif.fileName
               : qsTr("Not saved")
-        color: notif.url !== "" ? Theme.accent : Theme.textSecondary
+        color: notif.url !== "" ? Theme.accent
+             : notif.uploadError !== "" ? Theme.danger
+             : Theme.textSecondary
         font.pixelSize: Theme.fontS
         elide: Text.ElideMiddle
         maximumLineCount: 1
@@ -309,6 +335,7 @@ Window {
         Accessible.role: Accessible.Notification
         Accessible.name: notif.uploading ? qsTr("Uploading a capture")
                          : notif.url !== "" ? qsTr("Capture uploaded: %1").arg(notif.url)
+                         : notif.uploadError !== "" ? qsTr("Upload failed: %1").arg(notif.uploadError)
                          : notif.fileName !== "" ? qsTr("Capture ready: %1").arg(notif.fileName)
                          : qsTr("Capture ready")
 

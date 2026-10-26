@@ -48,6 +48,7 @@ class Settings : public QObject
     Q_PROPERTY(int gifMaxDurationSec READ gifMaxDurationSec WRITE setGifMaxDurationSec NOTIFY gifMaxDurationSecChanged)
     Q_PROPERTY(int gifQuality READ gifQuality WRITE setGifQuality NOTIFY gifQualityChanged)
     Q_PROPERTY(QString activeDestination READ activeDestination WRITE setActiveDestination NOTIFY activeDestinationChanged)
+    Q_PROPERTY(bool uploadFailureChain READ uploadFailureChain WRITE setUploadFailureChain NOTIFY uploadFailureChainChanged)
     Q_PROPERTY(QString hotkeyFullScreen READ hotkeyFullScreen WRITE setHotkeyFullScreen NOTIFY hotkeyFullScreenChanged)
     Q_PROPERTY(QString hotkeyRegion READ hotkeyRegion WRITE setHotkeyRegion NOTIFY hotkeyRegionChanged)
     Q_PROPERTY(QString hotkeyScroll READ hotkeyScroll WRITE setHotkeyScroll NOTIFY hotkeyScrollChanged)
@@ -419,6 +420,10 @@ public:
     U_SETTING(int, gifMaxDurationSec, setGifMaxDurationSec, "gif/maxDurationSec", 30)
     U_SETTING(int, gifQuality, setGifQuality, "gif/quality", 2)
     U_SETTING(QString, activeDestination, setActiveDestination, "upload/activeDestination", QStringLiteral("catbox.moe"))
+    // The failure chain: when the active server (the top of the Servers list)
+    // fails, the next one down gets the upload. Off = the active server only,
+    // the pre-0.8.9 behaviour.
+    U_SETTING(bool, uploadFailureChain, setUploadFailureChain, "upload/failureChain", true)
     U_SETTING(QString, hotkeyFullScreen, setHotkeyFullScreen, "hotkeys/fullScreen", QStringLiteral(UNISIC_HOTKEY_FULLSCREEN))
     U_SETTING(QString, hotkeyRegion, setHotkeyRegion, "hotkeys/region", QStringLiteral(UNISIC_HOTKEY_REGION))
     U_SETTING(QString, hotkeyScroll, setHotkeyScroll, "hotkeys/scroll", QString())
@@ -713,7 +718,8 @@ public:
         emit measureCopyFormatChanged();
         emit captureDelayMsChanged(); emit hideWindowOnCaptureChanged();
         emit captureSoundChanged(); emit recordingSoundChanged(); emit recordStartSoundChanged(); emit gifFpsChanged(); emit gifMaxDurationSecChanged();
-        emit gifQualityChanged(); emit activeDestinationChanged(); emit hotkeyFullScreenChanged();
+        emit gifQualityChanged(); emit activeDestinationChanged(); emit uploadFailureChainChanged();
+        emit hotkeyFullScreenChanged();
         emit hotkeyRegionChanged(); emit hotkeyScrollChanged(); emit hotkeyWindowChanged(); emit hotkeyGifChanged();
         emit lastCaptureRegionChanged(); emit rememberRegionChanged(); emit fullscreenScopeChanged();
         emit fullScreenTaskChanged(); emit regionTaskChanged(); emit windowTaskChanged();
@@ -792,6 +798,7 @@ signals:
     void gifMaxDurationSecChanged();
     void gifQualityChanged();
     void activeDestinationChanged();
+    void uploadFailureChainChanged();
     void hotkeyFullScreenChanged();
     void hotkeyRegionChanged();
     void hotkeyScrollChanged();

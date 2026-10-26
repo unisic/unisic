@@ -1808,11 +1808,11 @@ QString AppContext::systemDiagnostics() const
     const bool kwinOnBus = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     L << QStringLiteral("KWin on bus: %1").arg(yn(kwinOnBus));
     if (kwinOnBus) {
-        const QString blur = KWinForceBlur::blursThisApp();
+        const QString blur = KWinForceBlur::blursThisApp(m_layerShellAvailable);
         L << QStringLiteral("Force blur (Better Blur): %1")
                  .arg(!blur.isEmpty() ? blur
-                      : KWinForceBlur::loaded() ? QStringLiteral("loaded, leaves Unisic alone")
-                                                : QStringLiteral("not loaded"));
+                      : !KWinForceBlur::loadedGroup().isEmpty() ? QStringLiteral("loaded, leaves Unisic alone")
+                                                                : QStringLiteral("not loaded"));
     }
 
     // There is no [Build features] section any more: every gate is a HARD build
@@ -2936,7 +2936,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         if (auto *ls = LayerShellQt::Window::get(win)) {
             using LW = LayerShellQt::Window;
             ls->setLayer(LW::LayerOverlay);
-            ls->setScope(QStringLiteral("unisic-record-border"));
+            ls->setScope(QStringLiteral("dock")); // not our own name: see ScrollCaptureController::createOverlayWindow (#121)
             ls->setExclusiveZone(-1); // cover the whole output, ignore panels
             ls->setKeyboardInteractivity(LW::KeyboardInteractivityNone);
             ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
@@ -3092,7 +3092,7 @@ void AppContext::noteForceBlur()
 {
     if (m_forceBlurWarned)
         return;
-    m_forceBlurWarning = KWinForceBlur::blursThisApp();
+    m_forceBlurWarning = KWinForceBlur::blursThisApp(m_layerShellAvailable);
     if (!m_forceBlurWarning.isEmpty())
         qWarning().noquote() << "Capture overlay is force-blurred:" << m_forceBlurWarning;
 }

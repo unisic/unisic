@@ -475,7 +475,12 @@ void ScrollCaptureController::createOverlayWindow()
         if (auto *ls = LayerShellQt::Window::get(win)) {
             using LW = LayerShellQt::Window;
             ls->setLayer(LW::LayerOverlay);
-            ls->setScope(QStringLiteral("unisic-scroll-overlay"));
+            // KWin types a layer surface by its scope, and both Better Blur
+            // forks skip a dock unless "Blur docks" is on. Under any other
+            // scope this is a normal window, which their "blur all except"
+            // mode blurs, and with it the whole output under this transparent
+            // frame, on screen and in the stream we stitch (#121).
+            ls->setScope(QStringLiteral("dock"));
             ls->setExclusiveZone(-1);
             ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
                                        | LW::AnchorLeft | LW::AnchorRight));

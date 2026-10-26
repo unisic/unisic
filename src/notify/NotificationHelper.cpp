@@ -1,10 +1,11 @@
 #include "NotificationHelper.h"
 #include "NotifCard.h"
+#include <QJsonArray>
 #include <QJsonDocument>
 #include "theme/IconImageProvider.h"
 
 #include <QFileInfo>
-#include <QGuiApplication>
+#include <QApplication>
 #include <QIcon>
 #include <QLibraryInfo>
 #include <QLocale>
@@ -46,7 +47,8 @@ public:
 // Stub `notif` (mirrors CaptureNotification's QML surface). Every action button
 // prints a one-word token on stdout; the parent maps it back onto the real
 // CaptureNotification. State the buttons key off (url/uploading/filePath) is
-// pushed from the parent over stdin as "state:<uploading>|<url>|<filePath>".
+// pushed from the parent over stdin as
+// "state:<uploading>|<url>|<percent-encoded uploadError>|<filePath>".
 class NotifBridge : public QObject
 {
     Q_OBJECT
@@ -56,12 +58,16 @@ class NotifBridge : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY stateChanged)
     Q_PROPERTY(QString url READ url NOTIFY stateChanged)
     Q_PROPERTY(bool uploading READ uploading NOTIFY stateChanged)
+    Q_PROPERTY(QString uploadError READ uploadError NOTIFY stateChanged)
+    Q_PROPERTY(QStringList destinations READ destinations CONSTANT)
 public:
     using QObject::QObject;
     QString m_thumbSource;
     QString m_kind;
     QString m_filePath;
     QString m_url;
+    QString m_uploadError;
+    QStringList m_destinations;
     bool m_uploading = false;
 
     QString thumbSource() const { return m_thumbSource; }
@@ -70,11 +76,15 @@ public:
     QString fileName() const { return m_filePath.isEmpty() ? QString() : QFileInfo(m_filePath).fileName(); }
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    QString uploadError() const { return m_uploadError; }
+    QStringList destinations() const { return m_destinations; }
 
-    void setState(bool uploading, const QString &url, const QString &filePath)
+    void setState(bool uploading, const QString &url, const QString &uploadError,
+                  const QString &filePath)
     {
         m_uploading = uploading;
         m_url = url;
+        m_uploadError = uploadError;
         m_filePath = filePath;
         emit stateChanged();
     }
@@ -96,6 +106,21 @@ public:
     Q_INVOKABLE void showQr() { emit action(QStringLiteral("qr")); }
     Q_INVOKABLE void showInFolder() { emit action(QStringLiteral("folder")); }
     Q_INVOKABLE void upload() { emit action(QStringLiteral("upload")); }
+    // A server name is the user's free text: the newline that ends a token
+    // must not get through.
+    Q_INVOKABLE void uploadTo(const QString &destination)
+    {
+        if (!destination.contains(QLatin1Char('\n')))
+            emit action(QStringLiteral("upload-to:") + destination);
+    }
+    Q_INVOKABLE void showUploadMenu(QWindow *card, const QPointF &at)
+    {
+        if (!card)
+            return;
+        NotifCard::popUploadMenu(card, at, m_destinations, this,
+                                 [this](const QString &name) { uploadTo(name); },
+                                 [this] { emit menuClosed(); });
+    }
     Q_INVOKABLE void ocr() { emit action(QStringLiteral("ocr")); }
     Q_INVOKABLE void deleteCapture() { emit action(QStringLiteral("delete")); }
     Q_INVOKABLE void trim() { emit action(QStringLiteral("trim")); }
@@ -111,6 +136,7 @@ signals:
     void stateChanged();
     void closeRequested();
     void action(const QString &token);
+    void menuClosed();
 };
 
 void emitToken(const QString &token)
@@ -125,13 +151,13 @@ void emitToken(const QString &token)
 
 int runNotificationHelper(int argc, char *argv[])
 {
-    // xcb BEFORE QGuiApplication: an XWayland override-redirect window is the only
+    // xcb BEFORE QApplication: an XWayland override-redirect window is the only
     // surface mutter keeps above every application window (one process can't host
     // two QPA platforms, so this is a child process, not the Wayland main one).
     qputenv("QT_QPA_PLATFORM", "xcb");
     // Same custom look as the main window (UButton/UIcon assume the Basic style).
     QQuickStyle::setStyle(QStringLiteral("Basic"));
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv); // QApplication: the Upload button's server menu is a QMenu
     // A dev build is a SEPARATE app; match its name so QSettings/ThemeController
     // read the same persisted theme (ui/theme) as the parent.
 #ifdef UNISIC_DEV_BUILD
@@ -201,6 +227,8 @@ int runNotificationHelper(int argc, char *argv[])
     bridge->m_filePath = filePath;
     bridge->m_url = url;
     bridge->m_uploading = uploading;
+    for (const QJsonValue &v : config.value(QStringLiteral("destinations")).toArray())
+        bridge->m_destinations << v.toString();
     if (!thumbPath.isEmpty())
         bridge->m_thumbSource = QUrl::fromLocalFile(thumbPath).toString();
     QObject::connect(bridge, &NotifBridge::action, &app, [](const QString &t) { emitToken(t); });
@@ -320,10 +348,11 @@ int runNotificationHelper(int argc, char *argv[])
             }
             if (line.startsWith(QLatin1String("state:"))) {
                 const QStringList parts = line.mid(6).split(QLatin1Char('|'));
-                if (parts.size() >= 3)
+                if (parts.size() >= 4)
                     // filePath may itself contain '|' - rejoin the tail.
                     bridge->setState(parts[0] == QLatin1String("1"), parts[1],
-                                     QStringList(parts.mid(2)).join(QLatin1Char('|')));
+                                     QUrl::fromPercentEncoding(parts[2].toLatin1()),
+                                     QStringList(parts.mid(3)).join(QLatin1Char('|')));
             }
         }
     });

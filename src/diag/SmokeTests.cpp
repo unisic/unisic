@@ -3372,7 +3372,7 @@ QString AppContext::imgurSetupCheck()
     });
     QString error;
     bool called = false;
-    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
                             QStringLiteral("smoke.png"), QStringLiteral("image/png"),
                             [&](const QString &, const QString &, const QString &err) {
         called = true;
@@ -3439,7 +3439,7 @@ QString AppContext::vgyMeCheck() const
     });
     QString guardError;
     bool guardCalled = false;
-    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
                             QStringLiteral("smoke.png"), QStringLiteral("image/png"),
                             [&](const QString &, const QString &, const QString &err) {
         guardCalled = true;
@@ -3480,6 +3480,72 @@ QString AppContext::vgyMeCheck() const
     return fails.isEmpty()
         ? QStringLiteral("PASS (host match, user key extraction, response parsing, missing key guard, builtin present)")
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+QString AppContext::uploadChainCheck()
+{
+    QStringList fails;
+    const QStringList order{QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c")};
+    if (UploadManager::uploadChain(QStringLiteral("b"), order, order, true)
+        != QStringList{QStringLiteral("b"), QStringLiteral("a"), QStringLiteral("c")})
+        fails << QStringLiteral("per-hotkey server first, then the list");
+    if (UploadManager::uploadChain(QStringLiteral("gone"), order, {QStringLiteral("c")}, true)
+        != QStringList{QStringLiteral("a"), QStringLiteral("c")})
+        fails << QStringLiteral("unknown hotkey server or a server that needs setup");
+    if (UploadManager::uploadChain({}, order, order, false) != QStringList{QStringLiteral("a")})
+        fails << QStringLiteral("chain switched off");
+    if (!UploadManager::uploadChain({}, {}, {}, true).isEmpty())
+        fails << QStringLiteral("no servers");
+
+    // A real chain over two scratch servers that refuse before any request
+    // (Imgur with no Client-ID, vgy.me with no key): nothing leaves the
+    // machine, and the user's own list and active server are not touched.
+    const QString first = QStringLiteral("unisic-smoke-chain-imgur");
+    const QString second = QStringLiteral("unisic-smoke-chain-vgy");
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), first},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://api.imgur.com/3/image")},
+    });
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), second},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+    });
+
+    const bool busyBefore = m_uploads->busy(); // a real upload may be in flight
+    bool called = false;
+    QString chainErr;
+    m_uploads->uploadDataTo({first, second}, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        called = true;
+        chainErr = err;
+    });
+    const bool busyAfter = m_uploads->busy();
+    bool pickCalled = false;
+    QString pickErr;
+    m_uploads->uploadDataTo({first}, QByteArray("not a real upload"), QStringLiteral("smoke.png"),
+                            QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        pickCalled = true;
+        pickErr = err;
+    });
+
+    m_uploads->removeDestination(first);
+    m_uploads->removeDestination(second);
+
+    const int at1 = chainErr.indexOf(first + QLatin1Char(':'));
+    const int at2 = chainErr.indexOf(second + QLatin1Char(':'));
+    if (!called)
+        fails << QStringLiteral("chain never answered");
+    else if (at1 < 0 || at2 < at1)
+        fails << QStringLiteral("chain did not try both servers in order: ") + chainErr.left(80);
+    if (busyAfter && !busyBefore)
+        fails << QStringLiteral("busy stuck after the chain");
+    if (!pickCalled || pickErr.isEmpty() || pickErr.contains(second))
+        fails << QStringLiteral("hand-picked server fell through to the chain");
+
+    return fails.isEmpty() ? QStringLiteral("PASS (order, chain off, fall-through, hand-pick stays put)")
+                           : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral(", ")));
 }
 
 QString AppContext::curlDestinationCheck() const
@@ -3793,6 +3859,13 @@ void AppContext::devTestVgyMe()
     if (!devBuild())
         return;
     showToast(tr("Dev: vgy.me support: %1").arg(vgyMeCheck()));
+}
+
+void AppContext::devTestUploadChain()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: Failure Chain: %1").arg(uploadChainCheck()));
 }
 
 void AppContext::devTestSettingsRoundTrip()
@@ -4480,6 +4553,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
         smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
+        smokeLog(QStringLiteral("Failure Chain: ") + uploadChainCheck());
         smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());

@@ -322,6 +322,7 @@ public:
     Q_INVOKABLE void devTestHistoryFilter();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestVgyMe();
+    Q_INVOKABLE void devTestUploadChain();
     Q_INVOKABLE void devTestCurlDestination();
     Q_INVOKABLE void devTestTemplateVars();
     Q_INVOKABLE void devTestStaticGif();
@@ -742,7 +743,10 @@ public:
     QString effectiveOcrLanguages() const;
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
-    void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path);
+    // Empty `destination` runs the failure chain; a name (the Upload button's
+    // right-click picker) goes to exactly that server.
+    void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path,
+                                const QString &destination = {});
     // Desktop-aware "what to do about it" suffix for capture failures.
     QString captureErrorGuidance(const QString &err);
 
@@ -874,6 +878,11 @@ private:
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
     QString vgyMeCheck() const;
+    // The failure chain: uploadChain() ordering, then a real chain over two
+    // scratch servers that refuse before any request (Imgur with no Client-ID,
+    // vgy.me with no key), so nothing leaves the machine. A hand-picked server
+    // must not fall through to the next one.
+    QString uploadChainCheck();
     // The two pieces of a curl destination that used to need a real server to
     // see: where the file is PUT (the %file% token, and the legacy append when
     // it is absent, with a file name that must not be able to climb out of the

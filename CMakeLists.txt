@@ -806,8 +806,9 @@ if(BUILD_TESTING)
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # Where a curl destination puts the file and what it makes of the answer -
-    # pure string work, so it needs neither a server nor a compositor. The rest
-    # of UploadManager is network transport and stays with the smoke test.
+    # pure string work, so it needs neither a server nor a compositor - plus the
+    # failure chain over servers that refuse before any request. The rest of
+    # UploadManager is network transport and stays with the smoke test.
     qt_add_executable(unisic_upload_url_test
         tests/UploadUrlTest.cpp
         src/upload/UploadManager.h src/upload/UploadManager.cpp

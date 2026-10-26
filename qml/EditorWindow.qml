@@ -973,8 +973,11 @@ Window {
                 y: toolPill.y + toolPill.height + Theme.spacingS
                 width: ctxFlow.width + 2 * Theme.spacingS
                 height: Math.max(editorWindow.pillHeight, ctxFlow.height + 2 * Theme.spacingS)
+                // Fades in, but hides at once: everything inside is bound to
+                // the same state and is already gone, so a fade-out only
+                // showed the empty 12 px shell in the middle of the stage.
                 opacity: shown ? 1 : 0
-                visible: opacity > 0
+                visible: shown
                 Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
                 Accessible.role: Accessible.ToolBar
                 Accessible.name: qsTr("Tool options")

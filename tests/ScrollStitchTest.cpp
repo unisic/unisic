@@ -54,6 +54,7 @@ private slots:
     void scrollingUpExtendsTheTop();
     void scrollingBackAndForthDoesNotDuplicate();
     void tooFastScrollIsUnmatched();
+    void coveredRowsJoinTheBottom();
     void localAnimationIsUnchanged();
     void scatteredSmallChangesAreUnchanged();
     void hoverCardOverTheViewDoesNotBlockTheShift();
@@ -287,6 +288,41 @@ void ScrollStitchTest::scrollingBackAndForthDoesNotDuplicate()
         hi = std::max(hi, y);
     }
     QCOMPARE(s.stitchedImage(), doc.copy(0, lo, 350, hi + vh - lo));
+}
+
+// A full-height region whose bottom rows sit under the capture controls: the
+// frames leave them out, and the clean rows go in below the frame at the
+// bottom of the image, never below one that is not.
+void ScrollStitchTest::coveredRowsJoinTheBottom()
+{
+    const QImage doc = document(350, 1400);
+    const int vh = 250, cut = 40;
+    auto part = [&](int y) { return doc.copy(0, y, 350, vh - cut); };
+    auto rows = [&](int y) { return doc.copy(0, y + vh - cut, 350, cut); };
+
+    // Scrolled down: the last frame ends the image.
+    ScrollStitcher down;
+    down.addFrame(part(0));
+    int y = 0;
+    for (int d : {60, 90, 45}) {
+        y += d;
+        QCOMPARE(down.addFrame(part(y)), R::Stitched);
+    }
+    QVERIFY(!down.appendBelow(0, rows(0)));      // the first frame is far up
+    QVERIFY(down.appendBelow(down.framePos(), rows(y)));
+    QCOMPARE(down.stitchedImage(), doc.copy(0, 0, 350, y + vh));
+
+    // Scrolled up from the bottom: the first frame ends the image.
+    ScrollStitcher up;
+    up.addFrame(part(900));
+    y = 900;
+    for (int d : {70, 30, 110}) {
+        y -= d;
+        QCOMPARE(up.addFrame(part(y)), R::Stitched);
+    }
+    QVERIFY(!up.appendBelow(up.framePos(), rows(y)));
+    QVERIFY(up.appendBelow(0, rows(900)));
+    QCOMPARE(up.stitchedImage(), doc.copy(0, y, 350, 900 + vh - y));
 }
 
 void ScrollStitchTest::tooFastScrollIsUnmatched()

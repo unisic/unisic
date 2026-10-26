@@ -5663,11 +5663,20 @@ QString AppContext::scrollStitchCheck() const
         hi = std::max(hi, y);
     }
 
-    QImage expect(w, hi - lo + vh, QImage::Format_RGB32);
+    // The rows a full-height region's badge covered join below the frame at
+    // the bottom of the image (y=500, row 200 from the start), never below
+    // the last one (y=255).
+    const int below = 20;
+    if (stitcher.appendBelow(stitcher.framePos(), doc.copy(0, 255 + vh - hdr, w, below)))
+        return QStringLiteral("FAIL (covered rows placed mid-image)");
+    if (!stitcher.appendBelow(hi - 300, doc.copy(0, hi + vh - hdr, w, below)))
+        return QStringLiteral("FAIL (covered rows refused)");
+
+    QImage expect(w, hi - lo + vh + below, QImage::Format_RGB32);
     {
         QPainter p(&expect);
         p.drawImage(0, 0, frame(lo).copy(0, 0, w, hdr));
-        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh - hdr));
+        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh + below - hdr));
     }
     const QImage got = stitcher.stitchedImage();
     if (got.size() != expect.size())

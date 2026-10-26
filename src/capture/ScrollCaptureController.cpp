@@ -52,7 +52,11 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, 
     m_lastSampledSeq = 0;
     m_previewRevision = 0;
     m_streamSize = QSize();
-    emit streamingChanged();
+    m_waitTicks = 0;
+    m_startRows = QImage();
+    m_finishing = false;
+    m_finishRows = QImage();
+    setControlsShown(false);
     m_isRegionStream = false;
     m_unmatchedRun = 0;
     setStatus(false, false);
@@ -64,13 +68,14 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, 
     const int right  = qCeil((cropPhysical.x() + cropPhysical.width()) / dpr);
     const int bottom = qCeil((cropPhysical.y() + cropPhysical.height()) / dpr);
 
-    // The badge must sit outside the captured area: anything of ours inside
-    // it would be stitched into every slice. With no room above or below
-    // (a full-height selection), the bottom of the region gives way.
+    // The badge must stay out of the stitched rows: anything of ours in them
+    // would be stitched into every slice. With no room above or below (a
+    // full-height selection) it covers the bottom rows of the region, which
+    // the frames leave out until the badge is gone (finishTick).
     const int screenH = m_screen->geometry().height();
-    int capBottom = std::min(bottom, screenH);
-    if (top < kBadgeRoom && screenH - capBottom < kBadgeRoom)
-        capBottom = screenH - kBadgeRoom;
+    const int capBottom = std::min(bottom, screenH);
+    m_coveredRows = (top < kBadgeRoom && screenH - capBottom < kBadgeRoom)
+                    ? capBottom - (screenH - kBadgeRoom) : 0;
 
     m_regionX = left;
     m_regionY = top;
@@ -83,7 +88,7 @@ void ScrollCaptureController::start(const QRect &cropPhysical, QScreen *screen, 
     m_active = true;
     emit activeChanged();
 
-    // Mapped now, drawn from the first frame on (`streaming`): on the portal
+    // Mapped now, drawn from the first frame on (`controlsShown`): on the portal
     // path a share dialog is still waiting, and a badge saying "scroll down"
     // with a live Finish over it ends in nothing captured (#121). Mapping it
     // only when frames arrive put the region frame into the first slices.
@@ -121,9 +126,31 @@ void ScrollCaptureController::stop()
 
 void ScrollCaptureController::finish()
 {
-    if (!m_active)
+    if (!m_active || m_finishing)
         return;
 
+    // The rows under the badge show only once it is gone: hide it, and the
+    // sample ticks finish on a frame without it (finishTick).
+    if (m_coveredRows > 0 && m_window && m_grabber && !m_stitcher.isEmpty()) {
+        m_finishing = true;
+        m_waitTicks = 0;
+        m_window->hide();
+        return;
+    }
+    completeFinish(false);
+}
+
+void ScrollCaptureController::completeFinish(bool coveredRowsAdded)
+{
+    // Scrolled up, the image ends with the frame it started from.
+    if (m_coveredRows > 0 && !coveredRowsAdded
+        && !m_stitcher.appendBelow(0, m_startRows))
+        qWarning() << "Scroll capture: the rows under the badge are missing"
+                      " (finished away from the bottom of the image)";
+
+    m_finishing = false;
+    m_startRows = QImage();
+    m_finishRows = QImage();
     m_active = false;
     emit activeChanged();
 
@@ -148,6 +175,9 @@ void ScrollCaptureController::cancel()
 
     stop();
     m_stitcher.reset();
+    m_finishing = false;
+    m_startRows = QImage();
+    m_finishRows = QImage();
     closeOverlayWindow();
     emit cancelled();
 }
@@ -260,7 +290,10 @@ void ScrollCaptureController::wireGrabber(IScreenGrabber *grabber)
                                  .arg(sz.width()).arg(sz.height())
                                  .arg(m_cropPhysical.width()).arg(m_cropPhysical.height());
         m_sampleTimer.start(33); // ~30 fps sampling
-        emit streamingChanged();
+        // A badge over the region waits for the first frame, so the rows
+        // under it are clean in that one (sampleTick).
+        if (m_coveredRows == 0)
+            setControlsShown(true);
     });
 
     connect(grabber, &IScreenGrabber::streamError, this, [this](const QString &e) {
@@ -273,12 +306,26 @@ void ScrollCaptureController::sampleTick()
     if (!m_grabber)
         return;
 
+    // A badge over the region waits until the start frame has stood for
+    // ~0.15 s (before the first scroll a restart replaces it, e.g. while the
+    // region overlay fades out), or a second without one; the capture can
+    // then still be finished or cancelled, only the rows under it are lost.
+    if (!m_controlsShown && !m_finishing && (++m_waitTicks >= 30
+                                             || (!m_startRows.isNull() && m_waitTicks - m_startTick >= 5)))
+        setControlsShown(true);
+    if (m_finishing && ++m_waitTicks >= 45) {
+        qWarning() << "Scroll capture: no frame after hiding the badge";
+        completeFinish(false);
+        return;
+    }
+
     QByteArray buf;
     quint64 seq = 0;
     if (!m_grabber->latestFrame(buf, &seq))
         return;
 
-    if (seq == m_lastSampledSeq)
+    // Finishing reads every tick: the frame may never change.
+    if (seq == m_lastSampledSeq && !m_finishing)
         return;
     m_lastSampledSeq = seq;
 
@@ -299,26 +346,40 @@ void ScrollCaptureController::sampleTick()
     const QImage fullImg(reinterpret_cast<const uchar *>(buf.constData()),
                          m_streamSize.width(), m_streamSize.height(), fmt);
 
-    QImage frameImg;
-    if (m_isRegionStream) {
-        frameImg = fullImg.copy();
-    } else {
+    QRect sel = fullImg.rect();
+    if (!m_isRegionStream) {
         // A monitor stream should be the output's physical size; if the
         // compositor scaled it, scale the crop with it.
-        QRect crop = m_cropPhysical;
+        sel = m_cropPhysical;
         const QSize phys = m_screen ? m_screen->geometry().size() * m_screen->devicePixelRatio() : QSize();
         if (!phys.isEmpty() && phys != m_streamSize) {
             const double sx = double(m_streamSize.width()) / phys.width();
             const double sy = double(m_streamSize.height()) / phys.height();
-            crop = QRectF(crop.x() * sx, crop.y() * sy, crop.width() * sx, crop.height() * sy).toAlignedRect();
+            sel = QRectF(sel.x() * sx, sel.y() * sy, sel.width() * sx, sel.height() * sy).toAlignedRect();
         }
-        crop = crop.intersected(QRect(QPoint(0, 0), m_streamSize));
-        if (crop.width() < 10 || crop.height() < 10)
+        sel = sel.intersected(fullImg.rect());
+        if (sel.width() < 10 || sel.height() < 10)
             return;
-        frameImg = fullImg.copy(crop);
+    }
+    // Stream rows under the badge, rounded up so none of it is stitched.
+    const int cut = (sel.height() * m_coveredRows + m_regionH - 1) / m_regionH;
+
+    if (m_finishing) {
+        finishTick(fullImg, sel, cut);
+        return;
     }
 
-    switch (m_stitcher.addFrame(frameImg)) {
+    const ScrollStitcher::Result result = m_stitcher.addFrame(fullImg.copy(sel.adjusted(0, 0, 0, -cut)));
+    if (cut > 0 && result == ScrollStitcher::Result::Started) {
+        // The rows under the badge of the frame the image starts from, for a
+        // capture scrolled upwards. Clean only while the badge is not drawn
+        // yet: a restart later may have it in them.
+        m_startRows = m_controlsShown ? QImage()
+                                      : fullImg.copy(sel.x(), sel.bottom() - cut + 1, sel.width(), cut);
+        m_startTick = m_waitTicks;
+    }
+
+    switch (result) {
     case ScrollStitcher::Result::Started:
     case ScrollStitcher::Result::Stitched:
         m_unmatchedRun = 0;
@@ -342,6 +403,35 @@ void ScrollCaptureController::sampleTick()
         setStatus(false, true);
         break;
     }
+}
+
+// Finishing a capture whose badge covers the bottom of the region: the badge
+// is hidden (finish), and a settled frame without it gives the rows it covered.
+void ScrollCaptureController::finishTick(const QImage &screen, const QRect &sel, int cut)
+{
+    const QImage rows = screen.copy(sel.x(), sel.bottom() - cut + 1, sel.width(), cut);
+    const bool settled = rows == m_finishRows;
+    m_finishRows = rows;
+    // A stream that shows the badge drops it a frame or two after the hide,
+    // or fades it out over a few (KWin); one it was never in (the KWin
+    // region stream) sends no new frame at all. So: ~0.3 s, then two samples
+    // that agree, or whatever is there after a second.
+    if (m_waitTicks < 10 || (!settled && m_waitTicks < 30))
+        return;
+
+    // Below the newest stitched frame, if the page has not moved since.
+    const bool added = !ScrollStitcher::findShift(m_stitcher.lastFrame(),
+                                                  screen.copy(sel.adjusted(0, 0, 0, -cut))).changed
+                       && m_stitcher.appendBelow(m_stitcher.framePos(), rows);
+    completeFinish(added);
+}
+
+void ScrollCaptureController::setControlsShown(bool shown)
+{
+    if (shown == m_controlsShown)
+        return;
+    m_controlsShown = shown;
+    emit controlsShownChanged();
 }
 
 void ScrollCaptureController::setStatus(bool lostTrack, bool full)

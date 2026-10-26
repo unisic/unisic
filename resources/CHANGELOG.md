@@ -6,6 +6,16 @@ within it, the `### English` / `### Polski` block for the toggled language is
 displayed. Keep the newest version at the top; each version is translated as a
 whole per release (not per individual change).
 
+## 0.8.9
+
+### English
+**Changed**
+- **The editor works like a photo viewer**: the image now fills the whole window, with the tools in a floating bar at the top, the options of the current tool in a second bar under it, the zoom bottom left and Copy, Save, Upload and More bottom right. It opens fitted to the window. The mouse wheel zooms in and out at the pointer, a pinch on the touchpad zooms too, and two fingers on the touchpad move the image. Drag the image to move it when no tool is picked: click the active tool again to put it down. Hold Space to move the image with any tool, or drag with the middle button. A double-click, or a click on the zoom percentage, switches between fitted and 100%. Ctrl+wheel and Shift+wheel still zoom and scroll sideways. In a narrow window the tool options wrap into balanced rows instead of leaving a control or two alone on the last row, and the top of the image can be dragged out from under them. The text recognition buttons now wrap onto a second row instead of running off a narrow window. Esc still closes the editor, so the Close button on the bar is gone.
+
+### Polski
+**Zmienione**
+- **Edytor działa jak przeglądarka zdjęć**: obraz wypełnia teraz całe okno, narzędzia są na pływającym pasku u góry, opcje bieżącego narzędzia na drugim pasku pod nim, powiększenie w lewym dolnym rogu, a Kopiuj, Zapisz, Wyślij i Więcej w prawym dolnym. Edytor otwiera się z obrazem dopasowanym do okna. Kółko myszy powiększa i pomniejsza w miejscu wskaźnika, rozsunięcie palców na touchpadzie też powiększa, a dwa palce na touchpadzie przesuwają obraz. Gdy żadne narzędzie nie jest wybrane, obraz przesuwa się przeciąganiem: kliknij aktywne narzędzie jeszcze raz, żeby je odłożyć. Z wciśniętą spacją obraz przesuwa się przy każdym narzędziu, tak samo przeciąganie środkowym przyciskiem. Dwuklik albo kliknięcie procentu powiększenia przełącza między dopasowaniem a 100%. Ctrl+kółko i Shift+kółko dalej powiększają i przewijają w bok. W wąskim oknie opcje narzędzia zawijają się w wyrównane wiersze, zamiast zostawiać jedną czy dwie kontrolki samotnie w ostatnim wierszu, a górę obrazu można spod nich wyciągnąć przeciąganiem. Przyciski rozpoznawania tekstu zawijają się teraz do drugiego wiersza, zamiast wychodzić poza wąskie okno. Esc nadal zamyka edytor, więc przycisk Zamknij zniknął z paska.
+
 ## 0.8.8
 
 ### English

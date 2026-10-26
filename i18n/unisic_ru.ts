@@ -84,7 +84,7 @@
     <message>
         <location filename="../src/AppContext.cpp" line="5907"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2241"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4140"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4186"/>
         <source>Quit</source>
         <translation>Выход</translation>
     </message>
@@ -314,84 +314,84 @@
         <translation>Dev: карточки сейчас заглушены (действует запрет полноэкранного режима или режима «Не беспокоить»)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2917"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2963"/>
         <source>Dev: added a test history entry</source>
         <translation>Dev: добавлена тестовая запись в историю</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2926"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2972"/>
         <source>Dev: added a STARRED history entry; try Clear all / delete on it</source>
         <translation>Dev: добавлена ИЗБРАННАЯ запись в историю; попробуйте на ней «Очистить всё» и удаление</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2937"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="3170"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2983"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3216"/>
         <source>Dev: couldn&apos;t save the test image</source>
         <translation>Dev: не удалось сохранить тестовое изображение</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3640"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3686"/>
         <source>Dev: template variables: %1</source>
         <translation>Dev: переменные шаблона: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3795"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3841"/>
         <source>Dev: vgy.me support: %1</source>
         <translation>Dev: поддержка vgy.me: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3802"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3848"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev: экспорт и импорт настроек: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3843"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3889"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev: отправка тестового изображения на «%1»…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3846"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3892"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev: отправка успешна: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3848"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3894"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev: не удалось отправить: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4174"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4220"/>
         <source>Alternate hotkey test</source>
         <translation>Проверка запасных горячих клавиш</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4200"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4246"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev: запасные горячие клавиши - %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4208"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4254"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev: KGlobalAccel недоступен (бэкенд: %1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4209"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4255"/>
         <source>none</source>
         <translation>нет</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5689"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4217"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4263"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Горячая клавиша занята другим приложением: %1. Выберите другую клавишу в «Настройки → Горячие клавиши» или освободите её в «Параметры системы → Комбинации клавиш».</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4221"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4267"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Горячие клавиши: все %1 зарегистрированы в службе</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4223"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4269"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Горячие клавиши: %1 из %2 были потеряны и зарегистрированы заново (подробности в журнале)</translation>
     </message>
@@ -754,27 +754,27 @@
         <translation>Dev: подготовленное обновление: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3023"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3069"/>
         <source>Dev: copy recording file: %1</source>
         <translation>Dev: копировать файл записи: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4153"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4199"/>
         <source>Dev: tray menu: %1</source>
         <translation>Dev: меню в трее: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4350"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4396"/>
         <source>Dev: native hotkeys: %1</source>
         <translation>Dev: системные горячие клавиши: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5676"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5722"/>
         <source>Dev: scrolling hand-off: %1</source>
         <translation>Dev: передача прокрутки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5683"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5729"/>
         <source>Dev: scrolling stitch: %1</source>
         <translation>Dev: объединение при прокрутке: %1</translation>
     </message>
@@ -938,57 +938,57 @@
         <translation>Dev: предпросмотр карточки - закроется через 3 с</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2755"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2801"/>
         <source>Dev: editor zoom %1</source>
         <translation>Dev: масштаб редактора: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2902"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="2948"/>
         <source>Dev: leave filename field %1</source>
         <translation>Dev: выход из поля имени файла: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2954"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3000"/>
         <source>Dev: history drag payload: %1</source>
         <translation>Dev: содержимое перетаскивания из истории: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2979"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3025"/>
         <source>Dev: notification drag payload: %1</source>
         <translation>Dev: содержимое перетаскивания из уведомления: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="2997"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
         <source>Dev: copy last capture: %1</source>
         <translation>Dev: копировать последний снимок: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3035"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3081"/>
         <source>Dev: Klipper clipboard history: %1</source>
         <translation>Dev: история буфера обмена Klipper: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3142"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3188"/>
         <source>Dev: record border: unsupported on this compositor</source>
         <translation>Dev: рамка записи: не поддерживается этим композитором</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3155"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3201"/>
         <source>Dev: record border shown for 4 s</source>
         <translation>Dev: рамка записи показана на 4 с</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3156"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3202"/>
         <source>Dev: record border FAILED to show</source>
         <translation>Dev: рамку записи показать НЕ УДАЛОСЬ</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3781"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3827"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev: поиск и фильтры в истории: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3788"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3834"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev: защита от встроенного Imgur Client-ID: %1</translation>
     </message>
@@ -1267,62 +1267,62 @@
         <translation>Dev: обновление через установщик: FAIL (%1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3052"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3098"/>
         <source>memory only</source>
         <translation>только в памяти</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3054"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3100"/>
         <source>Dev: log FAILED to redact a secret</source>
         <translation>Dev: журнал НЕ скрыл секрет</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3055"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3101"/>
         <source>Dev: log OK (%1 lines) - %2</source>
         <translation>Dev: журнал в порядке (строк: %1) - %2</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3071"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3117"/>
         <source>Dev: crash report: could not open a temp file</source>
         <translation>Dev: отчёт о сбое: не удалось открыть временный файл</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3083"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3129"/>
         <source>Dev: crash report renders - opened it in the file manager</source>
         <translation>Dev: отчёт о сбое формируется - открыт в файловом менеджере</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3084"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3130"/>
         <source>Dev: crash report is malformed</source>
         <translation>Dev: отчёт о сбое повреждён</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3107"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3153"/>
         <source>Dev: show in folder: check the file is selected in the file manager</source>
         <translation>Dev: показать в папке: проверьте, что файл выделен в файловом менеджере</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3115"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3161"/>
         <source>Dev: KWin record: interface not granted (desktop file / not KWin)</source>
         <translation>Dev: запись через KWin: интерфейс не выдан (файл .desktop или это не KWin)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3124"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3170"/>
         <source>Dev: KWin record: stream request failed</source>
         <translation>Dev: запись через KWin: не удалось запросить поток</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3128"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3174"/>
         <source>Dev: KWin record OK - PipeWire node %1, no portal dialog</source>
         <translation>Dev: запись через KWin в порядке - узел PipeWire %1, без диалога портала</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3132"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3178"/>
         <source>Dev: KWin record failed: %1</source>
         <translation>Dev: запись через KWin не удалась: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3525"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3571"/>
         <source>Dev: curl destination: %1</source>
         <translation>Dev: назначение curl: %1</translation>
     </message>
@@ -1331,42 +1331,42 @@
         <translation type="vanished">Dev: переменные загрузки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3691"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3737"/>
         <source>Dev: still GIF: %1</source>
         <translation>Dev: статичный GIF: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3774"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3820"/>
         <source>Dev: image conversion: %1</source>
         <translation>Dev: конвертация изображения: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3836"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3882"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev: канал установки: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3900"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3946"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev: тестовая отправка на сервер: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3998"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4044"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev: импорт перетаскиванием: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4081"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4127"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev: импорт вставкой: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4161"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4207"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev: режим страницы записи: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4342"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4388"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev: захват записи в X11: %1</translation>
     </message>
@@ -1574,14 +1574,14 @@
     <message>
         <location filename="../src/AppContext.cpp" line="5363"/>
         <location filename="../src/AppContext.cpp" line="5890"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4139"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4185"/>
         <source>Capture full screen</source>
         <translation>Снимок всего экрана</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5364"/>
         <location filename="../src/AppContext.cpp" line="5889"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4184"/>
         <source>Capture region</source>
         <translation>Снимок области</translation>
     </message>
@@ -1640,7 +1640,7 @@
         <translation>Сочетания клавиш Unisic удалены из %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5558"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5604"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: сочетания клавиш рабочего стола: %1</translation>
     </message>
@@ -1733,7 +1733,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5896"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4138"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4184"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
@@ -1794,7 +1794,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5906"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4140"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4186"/>
         <source>Open Unisic</source>
         <translation>Открыть Unisic</translation>
     </message>
@@ -2611,112 +2611,122 @@
         <translation>Редактор Unisic</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="121"/>
+        <location filename="../qml/EditorWindow.qml" line="175"/>
         <source>Overwrite file?</source>
         <translation>Перезаписать файл?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="122"/>
+        <location filename="../qml/EditorWindow.qml" line="176"/>
         <source>This replaces the original saved image with your edited version. This can&apos;t be undone.</source>
         <translation>Это заменит исходное сохранённое изображение вашей изменённой версией. Отменить это нельзя.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="228"/>
+        <location filename="../qml/EditorWindow.qml" line="282"/>
         <source>Discard annotations?</source>
         <translation>Отбросить разметку?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="229"/>
+        <location filename="../qml/EditorWindow.qml" line="283"/>
         <source>You have unsaved annotations. Close the editor and discard them?</source>
         <translation>У вас есть несохранённая разметка. Закрыть редактор и отбросить её?</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="230"/>
+        <location filename="../qml/EditorWindow.qml" line="284"/>
         <source>Discard</source>
         <translation>Отбросить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="350"/>
+        <location filename="../qml/EditorWindow.qml" line="413"/>
         <source>Minimize</source>
         <translation>Свернуть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="355"/>
+        <location filename="../qml/EditorWindow.qml" line="418"/>
         <source>Maximize</source>
         <translation>Развернуть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="361"/>
+        <location filename="../qml/EditorWindow.qml" line="424"/>
         <source>Close</source>
         <translation>Закрыть</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="389"/>
+        <location filename="../qml/EditorWindow.qml" line="900"/>
         <source>Annotation tools</source>
         <translation>Инструменты разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="449"/>
+        <location filename="../qml/EditorWindow.qml" line="933"/>
         <source>%1 tool group</source>
         <translation>Группа инструментов «%1»</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="452"/>
+        <location filename="../qml/EditorWindow.qml" line="936"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
         <translation>Открывает эти инструменты на панели ниже: %1. У самой группы нет сочетания клавиш.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="466"/>
+        <location filename="../qml/EditorWindow.qml" line="954"/>
         <source>Undo</source>
         <translation>Отменить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="467"/>
+        <location filename="../qml/EditorWindow.qml" line="955"/>
         <source>Redo</source>
         <translation>Повторить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="472"/>
+        <location filename="../qml/EditorWindow.qml" line="980"/>
+        <source>Tool options</source>
+        <translation>Параметры инструмента</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1058"/>
         <source>Apply crop</source>
         <translation>Применить обрезку</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="538"/>
+        <location filename="../qml/EditorWindow.qml" line="1024"/>
         <source>Delete shape</source>
         <translation>Удалить фигуру</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="708"/>
+        <location filename="../qml/EditorWindow.qml" line="640"/>
         <source>Annotation canvas</source>
         <translation>Холст разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="709"/>
+        <location filename="../qml/EditorWindow.qml" line="641"/>
         <source>%1 by %2 pixels</source>
         <translation>%1 на %2 пикселей</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="862"/>
+        <location filename="../qml/EditorWindow.qml" line="794"/>
         <source>Annotation text</source>
         <translation>Текст разметки</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="863"/>
+        <location filename="../qml/EditorWindow.qml" line="795"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Enter завершает, Escape отменяет</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="920"/>
+        <location filename="../qml/EditorWindow.qml" line="852"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Текст… (Ctrl+Enter завершает)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="935"/>
+        <location filename="../qml/EditorWindow.qml" line="1136"/>
         <source>Click a line · double-click a word · drag for letters</source>
         <translation>Щелчок по строке · двойной щелчок по слову · протягивание для букв</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="957"/>
+        <location filename="../qml/EditorWindow.qml" line="1153"/>
+        <source>Zoom</source>
+        <translation>Масштаб</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="1257"/>
         <source>Editor actions</source>
         <translation>Действия редактора</translation>
     </message>
@@ -2725,177 +2735,176 @@
         <translation type="vanished"> (вписать)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1069"/>
+        <location filename="../qml/EditorWindow.qml" line="1265"/>
         <source>Copy</source>
         <translation>Копировать</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1075"/>
+        <location filename="../qml/EditorWindow.qml" line="1270"/>
         <source>Overwrite</source>
         <translation>Перезаписать</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1075"/>
+        <location filename="../qml/EditorWindow.qml" line="1270"/>
         <source>Save</source>
         <translation>Сохранить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1076"/>
+        <location filename="../qml/EditorWindow.qml" line="1271"/>
         <source>Overwrite (Ctrl+S)</source>
         <translation>Перезаписать (Ctrl+S)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1076"/>
+        <location filename="../qml/EditorWindow.qml" line="1271"/>
         <source>Save (Ctrl+S)</source>
         <translation>Сохранить (Ctrl+S)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1077"/>
+        <location filename="../qml/EditorWindow.qml" line="1272"/>
         <source>More save options</source>
         <translation>Другие варианты сохранения</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1085"/>
+        <location filename="../qml/EditorWindow.qml" line="1280"/>
         <source>Save as PNG</source>
         <translation>Сохранить как PNG</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1087"/>
-        <location filename="../qml/EditorWindow.qml" line="1093"/>
-        <location filename="../qml/EditorWindow.qml" line="1099"/>
-        <location filename="../qml/EditorWindow.qml" line="1107"/>
+        <location filename="../qml/EditorWindow.qml" line="1282"/>
+        <location filename="../qml/EditorWindow.qml" line="1288"/>
+        <location filename="../qml/EditorWindow.qml" line="1294"/>
+        <location filename="../qml/EditorWindow.qml" line="1302"/>
         <source>Default</source>
         <translation>По умолчанию</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1092"/>
+        <location filename="../qml/EditorWindow.qml" line="1287"/>
         <source>Save as JPEG</source>
         <translation>Сохранить как JPEG</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1098"/>
+        <location filename="../qml/EditorWindow.qml" line="1293"/>
         <source>Save as WebP</source>
         <translation>Сохранить как WebP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1116"/>
+        <location filename="../qml/EditorWindow.qml" line="1310"/>
         <source>Uploading…</source>
         <translation>Отправка…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1116"/>
+        <location filename="../qml/EditorWindow.qml" line="1310"/>
         <source>Upload</source>
         <translation>Отправить</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1129"/>
+        <location filename="../qml/EditorWindow.qml" line="1321"/>
         <source>More</source>
         <translation>Ещё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1131"/>
+        <location filename="../qml/EditorWindow.qml" line="1323"/>
         <source>Copy all text</source>
         <translation>Копировать весь текст</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1133"/>
+        <location filename="../qml/EditorWindow.qml" line="1325"/>
         <source>Select text…</source>
         <translation>Выбрать текст…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1080"/>
+        <location filename="../qml/EditorWindow.qml" line="1275"/>
         <source>Save as…</source>
         <translation>Сохранить как…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="993"/>
+        <location filename="../qml/EditorWindow.qml" line="1163"/>
         <source>Zoom out (Ctrl+-)</source>
         <translation>Уменьшить (Ctrl+-)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1030"/>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1194"/>
+        <location filename="../qml/EditorWindow.qml" line="1203"/>
         <source>Fit to window (Ctrl+0)</source>
         <translation>По размеру окна (Ctrl+0)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1030"/>
-        <location filename="../qml/EditorWindow.qml" line="1039"/>
+        <location filename="../qml/EditorWindow.qml" line="1194"/>
+        <location filename="../qml/EditorWindow.qml" line="1203"/>
         <source>Actual size (100%)</source>
         <translation>Реальный размер (100%)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1038"/>
+        <location filename="../qml/EditorWindow.qml" line="1202"/>
         <source>Zoom %1%</source>
         <translation>Масштаб %1%</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1048"/>
+        <location filename="../qml/EditorWindow.qml" line="1212"/>
         <source>Zoom in (Ctrl++)</source>
         <translation>Увеличить (Ctrl++)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1104"/>
+        <location filename="../qml/EditorWindow.qml" line="1299"/>
         <source>Save as GIF</source>
         <translation>Сохранить как GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1106"/>
+        <location filename="../qml/EditorWindow.qml" line="1301"/>
         <source>Needs ffmpeg</source>
         <translation>Требуется ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1140"/>
         <source>Close (Esc)</source>
-        <translation>Закрыть (Esc)</translation>
+        <translation type="vanished">Закрыть (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1149"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>Recognizing…</source>
         <translation>Распознавание…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1149"/>
+        <location filename="../qml/EditorWindow.qml" line="1067"/>
         <source>Copy selection</source>
         <translation>Копировать выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1156"/>
+        <location filename="../qml/EditorWindow.qml" line="1075"/>
         <source>Highlight selection</source>
         <translation>Подсветить выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1166"/>
+        <location filename="../qml/EditorWindow.qml" line="1086"/>
         <source>Redact selection</source>
         <translation>Скрыть выделенное</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1177"/>
+        <location filename="../qml/EditorWindow.qml" line="1097"/>
         <source>Auto-redact</source>
         <translation>Автоскрытие</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1180"/>
+        <location filename="../qml/EditorWindow.qml" line="1100"/>
         <source>E-mail addresses</source>
         <translation>Адреса эл. почты</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1184"/>
+        <location filename="../qml/EditorWindow.qml" line="1104"/>
         <source>IP addresses</source>
         <translation>IP-адреса</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1188"/>
+        <location filename="../qml/EditorWindow.qml" line="1108"/>
         <source>Long numbers</source>
         <translation>Длинные числа</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1196"/>
+        <location filename="../qml/EditorWindow.qml" line="1117"/>
         <source>Select all</source>
         <translation>Выделить всё</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1202"/>
+        <location filename="../qml/EditorWindow.qml" line="1124"/>
         <source>Done</source>
         <translation>Готово</translation>
     </message>
@@ -7955,178 +7964,178 @@ Applies to the next capture.</source>
 <context>
     <name>ToolPropsBar</name>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="352"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="377"/>
         <source>Freehand</source>
         <translation>От руки</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="359"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="384"/>
         <source>Rectangle</source>
         <translation>Прямоугольник</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="366"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="391"/>
         <source>Text</source>
         <translation>Текст</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="452"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="475"/>
         <source>More colors</source>
         <translation>Больше цветов</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="473"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="494"/>
         <source>Stroke</source>
         <translation>Толщина</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="502"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
         <source>Filled head</source>
         <translation>Закрашенный</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="502"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
         <source>Open head</source>
         <translation>Открытый</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="502"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
         <source>Double head</source>
         <translation>Двойной</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="330"/>
-        <location filename="../qml/components/ToolPropsBar.qml" line="527"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="357"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="545"/>
         <source>Size</source>
         <translation>Размер</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="323"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="350"/>
         <source>Distance</source>
         <translation>Расстояние</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="396"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="419"/>
         <source>Stroke colour</source>
         <translation>Цвет линии</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="397"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="420"/>
         <source>Left and right arrows move between the swatches, Space picks one</source>
         <translation>Стрелки влево и вправо переключают образцы, Пробел выбирает</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="425"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="448"/>
         <source>Stroke colour %1</source>
         <translation>Цвет линии %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="438"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="461"/>
         <source>Recent stroke colour %1</source>
         <translation>Недавний цвет линии %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="482"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="503"/>
         <source>Stroke width</source>
         <translation>Толщина линии</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="495"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="516"/>
         <source>Arrow head</source>
         <translation>Наконечник стрелки</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="536"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="554"/>
         <source>Step marker size</source>
         <translation>Размер номера шага</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="555"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="573"/>
         <source>Fill shapes</source>
         <translation>Заливать фигуры</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="562"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="580"/>
         <source>Shape fill colour %1</source>
         <translation>Цвет заливки фигуры %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="581"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="598"/>
         <source>Font</source>
         <translation>Шрифт</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="587"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="604"/>
         <source>Default font</source>
         <translation>Шрифт по умолчанию</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="598"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="615"/>
         <source>Font size</source>
         <translation>Размер шрифта</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="614"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="631"/>
         <source>Bold</source>
         <translation>Полужирный</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="622"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="639"/>
         <source>Italic</source>
         <translation>Курсив</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="630"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="647"/>
         <source>Underline</source>
         <translation>Подчёркнутый</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="647"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="662"/>
         <source>Text outline</source>
         <translation>Обводка текста</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="654"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="669"/>
         <source>Text outline colour %1</source>
         <translation>Цвет обводки текста %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="665"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="680"/>
         <source>Text background</source>
         <translation>Фон текста</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="672"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="687"/>
         <source>Text background colour %1</source>
         <translation>Цвет фона текста %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="700"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="714"/>
         <source>Style presets</source>
         <translation>Наборы стилей</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="701"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="715"/>
         <source>Left and right arrows move between the presets, Space applies one</source>
         <translation>Стрелки влево и вправо переключают наборы, Пробел применяет</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="718"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="732"/>
         <source>Style preset %1, %2 px</source>
         <translation>Набор стилей %1, %2 px</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="722"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="736"/>
         <source>Middle-click to delete this preset</source>
         <translation>Средний щелчок удаляет этот набор</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="738"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="752"/>
         <source>%1 px - middle-click to delete</source>
         <translation>%1 px - средний щелчок удаляет</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="758"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="772"/>
         <source>Save current style as a preset</source>
         <translation>Сохранить текущий стиль как набор</translation>
     </message>
@@ -9379,7 +9388,7 @@ Applies to the next capture.</source>
         <translation>Получение установщика…</translation>
     </message>
     <message>
-        <location filename="../src/update/StagedUpdate_win.cpp" line="211"/>
+        <location filename="../src/update/StagedUpdate_win.cpp" line="214"/>
         <source>This release has no Windows build - it can&apos;t be installed in place</source>
         <translation>В этом выпуске нет сборки для Windows - установить его на месте нельзя</translation>
     </message>

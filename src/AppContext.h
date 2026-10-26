@@ -340,6 +340,7 @@ public:
     Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
+    Q_INVOKABLE void devTestPreviewScreenHop();
     Q_INVOKABLE void devTestHotkeyBinds();
     Q_INVOKABLE void devTestUpload();
     // The server editor's "Test upload": guard + a real curl transport against
@@ -720,8 +721,9 @@ public:
     void uploadImage(const QImage &img, UploadDone done, quint64 historyId = 0);
     void openEditor(const QImage &img, const QString &overwritePath = {}, quint64 historyId = 0);
     // Floating, pinnable, translucent preview of a capture. Returns false when
-    // the window could not be created.
-    bool openPreview(const QImage &img);
+    // the window could not be created. `sourcePath` is the file the image came
+    // from (history); the preview then offers edit/copy/upload/OCR on it.
+    bool openPreview(const QImage &img, const QString &sourcePath = {});
     // Re-open a saved capture from history; editor save() overwrites it in place.
     Q_INVOKABLE void editFromHistory(const QString &filePath);
     // Open a saved capture from history in the floating pinned preview.
@@ -904,6 +906,11 @@ private:
     // check stays offline), and neither may persist anything. Async - `done`
     // gets one summary line, shared by the smoke step and the dev button.
     void destinationTestCheck(std::function<void(const QString &)> done);
+    // Layer-shell preview moved to another monitor: opens a preview, hands
+    // PreviewController::hopTo() the next screen's centre and checks the
+    // window now lives there and survived the hide/show. Async, SKIP on one
+    // screen or without layer-shell (the compositor moves a normal window).
+    void previewHopCheck(std::function<void(const QString &)> done);
     // Second half of destinationTestCheck(), chained off the guard's answer.
     // Split out precisely so the guard can WAIT for its answer instead of
     // assuming an empty form is refused synchronously.
@@ -1023,7 +1030,8 @@ private:
     // that turned out bigger). Never leaves both files behind.
     QString autoConvertIfLarge(const QString &path, const QImage &img);
     // Continuation of openPreview after the worker-thread PNG save.
-    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
+    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
+                           const QString &sourcePath);
     void afterUploadActions(const QString &url);
     // Everything that has to be kept off the screen while a capture or a
     // recording is running, and put back afterwards: the desktop's other
@@ -1137,6 +1145,7 @@ private:
     LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QPointer<PreviewController> m_lastPreview;   // newest preview, for previewHopCheck
     // Set only between hideOwnWindowForCapture() and restoreOwnWindowAfterCapture():
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.

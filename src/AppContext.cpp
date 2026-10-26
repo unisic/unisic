@@ -3979,7 +3979,7 @@ void AppContext::previewFromHistory(const QString &filePath)
         showToast(tr("Can't open %1 for preview").arg(QFileInfo(filePath).fileName()), true);
         return;
     }
-    openPreview(img);
+    openPreview(img, filePath);
 }
 
 void AppContext::playCaptureSound()
@@ -4304,7 +4304,7 @@ void AppContext::openEditor(const QImage &img, const QString &overwritePath, qui
     }
 }
 
-bool AppContext::openPreview(const QImage &img)
+bool AppContext::openPreview(const QImage &img, const QString &sourcePath)
 {
     if (!m_engine || img.isNull())
         return false;
@@ -4347,12 +4347,12 @@ bool AppContext::openPreview(const QImage &img)
     auto *watcher = new QFutureWatcher<QPair<bool, QSize>>(qApp);
     QPointer<AppContext> self(this); // created, read and destroyed on the GUI thread
     connect(watcher, &QFutureWatcher<QPair<bool, QSize>>::finished, qApp,
-            [watcher, self, cleanup] {
+            [watcher, self, cleanup, sourcePath] {
         const auto result = watcher->result();
         watcher->deleteLater();
         if (self) {
             cleanup->handedOff = result.first;
-            self->finishOpenPreview(result.first, cleanup->path, result.second);
+            self->finishOpenPreview(result.first, cleanup->path, result.second, sourcePath);
         }
     });
     watcher->setFuture(QtConcurrent::run([img, cleanup] {
@@ -4368,7 +4368,8 @@ bool AppContext::openPreview(const QImage &img)
     return true;
 }
 
-void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize)
+void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
+                                   const QString &sourcePath)
 {
     if (!saved || !m_engine) {
         QFile::remove(tmp);
@@ -4388,12 +4389,14 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
     auto *ctx = new QQmlContext(m_engine->rootContext(), this);
     ctx->setContextProperty(QStringLiteral("previewImagePath"), QUrl::fromLocalFile(tmp).toString());
     ctx->setContextProperty(QStringLiteral("previewImageSize"), imgSize);
+    ctx->setContextProperty(QStringLiteral("previewSourcePath"), sourcePath);
     ctx->setContextProperty(QStringLiteral("previewCtl"), ctl);
     QObject *obj = component.create(ctx);
     if (auto *win = qobject_cast<QQuickWindow *>(obj)) {
         ctx->setParent(win);
         ctl->setParent(win);
         ctl->setWindow(win);
+        m_lastPreview = ctl;
         // Bind the surface to the monitor the user is working on BEFORE the
         // layer-shell configure - without this the fullscreen preview surface
         // lands on whatever output the compositor defaults to (usually the
@@ -4402,8 +4405,8 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
         if (QScreen *s = QGuiApplication::screenAt(QCursor::pos()))
             win->setScreen(s);
         ctl->attach();   // configure layer-shell / flags before the window shows
-        connect(win, &QQuickWindow::visibleChanged, win, [win, tmp](bool v) {
-            if (!v) {
+        connect(win, &QQuickWindow::visibleChanged, win, [win, tmp, ctl](bool v) {
+            if (!v && !ctl->hopping()) { // a screen hop hides and re-shows
                 QFile::remove(tmp);
                 win->deleteLater();
             }

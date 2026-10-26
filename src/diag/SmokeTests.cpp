@@ -3220,6 +3220,43 @@ void AppContext::devTestPreviewFromHistory()
     previewFromHistory(p);
 }
 
+void AppContext::previewHopCheck(std::function<void(const QString &)> done)
+{
+    if (!m_layerShellAvailable)
+        return done(QStringLiteral("SKIP (no layer-shell, the compositor moves the window)"));
+    if (QGuiApplication::screens().size() < 2)
+        return done(QStringLiteral("SKIP (one screen)"));
+    if (!openPreview(devTestImage()))
+        return done(QStringLiteral("FAIL (preview did not open)"));
+    // The PNG encode runs on a worker and the surface maps after it; wait.
+    QTimer::singleShot(1500, this, [this, done] {
+        auto *win = m_lastPreview ? qobject_cast<QQuickWindow *>(m_lastPreview->parent()) : nullptr;
+        if (!win || !win->screen())
+            return done(QStringLiteral("FAIL (no preview window)"));
+        QScreen *from = win->screen();
+        QScreen *to = nullptr;
+        for (QScreen *s : QGuiApplication::screens())
+            if (s != from) { to = s; break; }
+        if (!m_lastPreview->hopTo(to->geometry().center()))
+            return done(QStringLiteral("FAIL (hopTo refused %1 -> %2)").arg(from->name(), to->name()));
+        if (!win->isVisible())
+            return done(QStringLiteral("FAIL (hop closed the preview)"));
+        done(win->screen() == to
+             ? QStringLiteral("PASS (%1 -> %2)").arg(from->name(), to->name())
+             : QStringLiteral("FAIL (still on %1)").arg(win->screen()->name()));
+    });
+}
+
+void AppContext::devTestPreviewScreenHop()
+{
+    if (!devBuild())
+        return;
+    previewHopCheck([this](const QString &result) {
+        showToast(tr("Dev: preview screen hop: %1").arg(result),
+                  result.startsWith(QLatin1String("FAIL")));
+    });
+}
+
 QString AppContext::settingsRoundTripCheck()
 {
     // Export -> parse -> verify every writable Settings property serialized ->
@@ -4983,6 +5020,14 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("preview window: ") + (ok
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
+    });
+
+    // 3d2) preview dropped onto another monitor re-maps there (layer-shell)
+    m_smokeSteps.append([this] {
+        previewHopCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("preview screen hop: ") + result);
+            smokeNext();
+        });
     });
 
     // 3e) history favorite round-trip (star -> role reads back -> unstar)

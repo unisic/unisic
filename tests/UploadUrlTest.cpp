@@ -12,6 +12,7 @@ private slots:
     void responseTemplate();
     void offeredVariablesResolve();
     void vgyMeSupport();
+    void uploadChain();
     void liveBuzzheavierUpload();
     void liveVgyMeUpload();
 };
@@ -183,6 +184,71 @@ void UploadUrlTest::vgyMeSupport()
         QVERIFY(err.contains(QStringLiteral("user key")));
     });
     QVERIFY(testDone);
+}
+
+// The failure chain's order: hotkey server (or the top of the list when it is
+// gone), then the rest of the list, minus servers that need setup; chain off =
+// the first one only. The top of the list is the active server, whichever way
+// it changes. Then real chains over servers that refuse before any request
+// (Imgur with no Client-ID, vgy.me with no key), so nothing leaves the machine.
+void UploadUrlTest::uploadChain()
+{
+    const QStringList order{"a", "b", "c"};
+    QCOMPARE(UploadManager::uploadChain("b", order, order, true), (QStringList{"b", "a", "c"}));
+    QCOMPARE(UploadManager::uploadChain("gone", order, {"c"}, true), (QStringList{"a", "c"}));
+    QCOMPARE(UploadManager::uploadChain("c", order, order, false), QStringList{"c"});
+    QVERIFY(UploadManager::uploadChain("a", {}, {}, true).isEmpty());
+
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+    Settings settings;
+    UploadManager uploads(&settings);
+    QVERIFY(settings.uploadFailureChain());
+    QCOMPARE(uploads.destinationNames().value(0), settings.activeDestination());
+    uploads.saveDestination({{"name", "first"}, {"requestUrl", "https://api.imgur.com/3/image"}});
+    uploads.saveDestination({{"name", "second"}, {"requestUrl", "https://vgy.me/upload"}});
+
+    // Naming a server moves it to the top; dragging one there names it.
+    settings.setActiveDestination("second");
+    QCOMPARE(uploads.destinationNames().value(0), QString("second"));
+    uploads.moveDestination(uploads.destinationNames().indexOf("first"), 0);
+    QCOMPARE(settings.activeDestination(), QString("first"));
+    QCOMPARE(uploads.destinationNames().mid(0, 2), (QStringList{"first", "second"}));
+    // A rename keeps the place, and with it the active server.
+    uploads.saveDestination({{"name", "renamed"}, {"requestUrl", "https://api.imgur.com/3/image"}}, "first");
+    QCOMPARE(uploads.destinationNames().value(0), QString("renamed"));
+    QCOMPARE(settings.activeDestination(), QString("renamed"));
+    QVERIFY(!uploads.destinationNames().contains("first"));
+    // Both scratch servers need setup: only the first one is ever tried.
+    QCOMPARE(uploads.uploadChainFor({}).value(0), QString("renamed"));
+    QVERIFY(!uploads.uploadChainFor({}).contains("second"));
+
+    int calls = 0;
+    QString err;
+    const auto cb = [&](const QString &, const QString &, const QString &e) { ++calls; err = e; };
+    uploads.uploadDataTo({"renamed", "second"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 1);
+    QVERIFY2(err.startsWith("renamed: ") && err.contains("; second: "), qPrintable(err));
+    QVERIFY(!uploads.busy());
+    QVERIFY(uploads.fallbackFrom().isEmpty());
+
+    // A hand-picked server reports its own failure and stops there.
+    uploads.uploadDataTo({"renamed"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 2);
+    QVERIFY2(err.contains("Client-ID") && !err.contains("second"), qPrintable(err));
+    uploads.uploadDataTo({"gone"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 3);
+    QVERIFY(err.contains("gone"));
+
+    // A failure that arrives later, from the network (port 1 refuses), still
+    // moves on, and the chain stays busy until the last server answers.
+    uploads.saveDestination({{"name", "local"}, {"requestUrl", "http://127.0.0.1:1/"}});
+    uploads.uploadDataTo({"local", "second"}, "x", "x.png", "image/png", cb);
+    QVERIFY(uploads.busy());
+    QTRY_COMPARE_WITH_TIMEOUT(calls, 4, 10000);
+    QVERIFY2(err.startsWith("local: ") && err.contains("; second: "), qPrintable(err));
+    QVERIFY(!uploads.busy());
 }
 
 // The whole curl path against the real host it was built for: the %file% token

@@ -784,6 +784,19 @@ int main(int argc, char *argv[])
 #else
     QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
 #endif
+    // GNOME: Qt's gtk3 platform theme opens the Open/Save dialogs as GTK3
+    // dialogs, and GNOME's dark style never reaches GTK3 - it is a libadwaita
+    // preference, the legacy GTK theme stays light unless the user flips it in
+    // Tweaks. So a dark Unisic got a light file dialog (#118). The portal theme
+    // keeps gtk3 as its base (fonts, icons, palette) and routes only the file
+    // dialog to xdg-desktop-portal-gnome, which does follow the style. One
+    // portal round-trip in the QApplication constructor; a user-set theme and
+    // the sandbox (Qt picks the portal theme there itself) are left alone.
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORMTHEME")
+        && qEnvironmentVariableIsEmpty("FLATPAK_ID")
+        && qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("GNOME"),
+                                                                Qt::CaseInsensitive))
+        qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     // Dev builds are a SEPARATE app: own application name (which moves every
     // QStandardPaths location: cache, history, U-2-Net model), own desktop id,

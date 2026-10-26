@@ -524,6 +524,27 @@ ScrollStitcher::Result ScrollStitcher::addFrame(const QImage &frameIn)
     return clamped ? Result::Full : Result::Unchanged;
 }
 
+bool ScrollStitcher::appendBelow(int pos, const QImage &rowsIn)
+{
+    if (m_frameCount == 0 || rowsIn.isNull() || rowsIn.width() != m_prev.width()
+        || pos + m_prev.height() != m_tailEnd)
+        return false;
+    QImage rows = as32(rowsIn);
+    if (rows.format() != m_prev.format())
+        rows = rows.convertToFormat(m_prev.format());
+    QImage tail(m_prev.width(), m_tail.height() + rows.height(), m_prev.format());
+    if (tail.isNull())
+        return false;
+    const qsizetype rowBytes = qsizetype(m_prev.width()) * 4;
+    for (int r = 0; r < m_tail.height(); ++r)
+        std::memcpy(tail.scanLine(r), m_tail.constScanLine(r), rowBytes);
+    for (int r = 0; r < rows.height(); ++r)
+        std::memcpy(tail.scanLine(m_tail.height() + r), rows.constScanLine(r), rowBytes);
+    m_tail = tail;
+    m_tailEnd += rows.height();
+    return true;
+}
+
 int ScrollStitcher::stitchedHeight() const
 {
     return m_frameCount == 0 ? 0 : m_head.height() + (m_bottom - m_top) + m_tail.height();

@@ -57,7 +57,3 @@ Core features (in rough build-priority order):
 5. **GIF screen recording** (distinct from normal video recording): record region/full screen, convert to .gif via ffmpeg; options for FPS, area, max duration.
 
 Lower priority: tray icon + quick menu, configurable global hotkeys per capture mode, capture history with thumbnails.
-
-## Planning Workflow
-
-`.claude/workflows/unisic-plan-research.js` (invocable as the `unisic-plan-research` workflow/skill) runs a three-phase multi-agent plan: 7 parallel research agents (portals, KWin/hotkeys, PipeWire, overlay selection, capture-tool parity, upload stack, GIF encoding) → 2 independent architecture designs (pragmatic vs KDE-native lens) → a synthesis into one final architecture + milestone plan. Its `REQ` constant is the canonical requirements statement for the project.

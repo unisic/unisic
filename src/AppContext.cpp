@@ -4,6 +4,7 @@
 #include "capture/CaptureManager.h"
 #include "capture/KWinScreenShot2.h"
 #include "capture/ScrollCaptureController.h"
+#include "capture/KWinForceBlur.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
@@ -110,6 +111,7 @@
 #include <QTemporaryFile>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -1261,6 +1263,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
                 this, [this](const QImage &img) {
             endScrollIsolation();
             finishCapture(img, nowInhibited());
+            warnForceBlur(); // after finishCapture: its toast must not cover this one
         });
         // No image is coming: drop the one-shot task/output, or the next
         // capture inherits them and a `--output -` caller waits for a reply
@@ -1280,6 +1283,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
         beginCaptureIsolation();
         m_scrollHoldsWindow = true;
     }
+    noteForceBlur();
     m_scrollCapture->start(physRegion, screen, scale);
     if (!m_scrollCapture->active())
         endScrollIsolation(); // no screen to capture on: no signal will end it
@@ -1801,8 +1805,15 @@ QString AppContext::systemDiagnostics() const
              .arg(qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") ? QStringLiteral("(none)")
                                                                  : QStringLiteral("yes"));
     auto *bi = QDBusConnection::sessionBus().interface();
-    L << QStringLiteral("KWin on bus: %1")
-             .arg(yn(bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"))));
+    const bool kwinOnBus = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
+    L << QStringLiteral("KWin on bus: %1").arg(yn(kwinOnBus));
+    if (kwinOnBus) {
+        const QString blur = KWinForceBlur::blursThisApp();
+        L << QStringLiteral("Force blur (Better Blur): %1")
+                 .arg(!blur.isEmpty() ? blur
+                      : KWinForceBlur::loaded() ? QStringLiteral("loaded, leaves Unisic alone")
+                                                : QStringLiteral("not loaded"));
+    }
 
     // There is no [Build features] section any more: every gate is a HARD build
     // requirement (CMake stops at configure time naming the missing package), so
@@ -2627,9 +2638,12 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
     // metaobject by NotifCard - the same values the layer-shell host reads
     // straight from Settings. Adding a card setting means adding it to
     // NotifCard::settingKeys(); this call site does not change.
-    const QString config = QString::fromUtf8(
-        QJsonDocument(NotifCard::encodeConfig(m_settings, overrides))
-            .toJson(QJsonDocument::Compact));
+    QJsonObject configJson = NotifCard::encodeConfig(m_settings, overrides);
+    // The Upload button's right-click picker lists these (names only - the
+    // server configs hold credentials and never leave this process).
+    configJson.insert(QStringLiteral("destinations"),
+                      QJsonArray::fromStringList(n->destinations()));
+    const QString config = QString::fromUtf8(QJsonDocument(configJson).toJson(QJsonDocument::Compact));
     proc->setArguments({QStringLiteral("--notification-helper"),
                         screen->name(),
                         QString::number(lg.x()), QString::number(lg.y()),
@@ -2666,6 +2680,7 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
             else if (tok == QLatin1String("qr"))           n->showQr();
             else if (tok == QLatin1String("folder"))       n->showInFolder();
             else if (tok == QLatin1String("upload"))       n->upload();
+            else if (tok.startsWith(QLatin1String("upload-to:"))) n->uploadTo(tok.mid(10));
             else if (tok == QLatin1String("ocr"))          n->ocr();
             else if (tok == QLatin1String("delete"))       n->deleteCapture();
             // "dismiss": the card is already closing itself; proc-finished cleans up.
@@ -2677,9 +2692,13 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
     connect(n, &CaptureNotification::stateChanged, proc, [proc, n] {
         if (proc->state() != QProcess::Running)
             return;
-        const QString msg = QStringLiteral("state:%1|%2|%3\n")
+        // The error is percent-encoded: a server's message may carry the '|'
+        // or the newline this line protocol splits on.
+        const QString msg = QStringLiteral("state:%1|%2|%3|%4\n")
                                 .arg(n->uploading() ? QStringLiteral("1") : QStringLiteral("0"),
-                                     n->url(), n->filePath());
+                                     n->url(),
+                                     QString::fromLatin1(QUrl::toPercentEncoding(n->uploadError())),
+                                     n->filePath());
         proc->write(msg.toUtf8());
     });
     // edit()/delete()/dismiss() on `n` emit this - tell the card to close.
@@ -2736,6 +2755,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
     if (!m_engine || !screen || physRegion.isEmpty() || !capRecordBorder())
         return; // capRecordBorder(): layer-shell, KWin trick, X11 or XWayland helper
     m_recordBorderCountdownOnly = countdownOnly;
+    noteForceBlur();
 
     // GNOME (Wayland, no layer-shell, no KWin): an in-process toplevel would
     // sink below the next window the user raises - mutter has no keep-above
@@ -3059,12 +3079,33 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
                 if (np) np->setUrl(url);
             } else {
                 showToast(tr("Upload failed: %1").arg(err), true);
-                if (np) np->setUploading(false);
+                if (np) np->setUploadFailed(err);
             }
         });
     }
 
     scheduleMemoryTrim();
+    warnForceBlur();
+}
+
+void AppContext::noteForceBlur()
+{
+    if (m_forceBlurWarned)
+        return;
+    m_forceBlurWarning = KWinForceBlur::blursThisApp();
+    if (!m_forceBlurWarning.isEmpty())
+        qWarning().noquote() << "Capture overlay is force-blurred:" << m_forceBlurWarning;
+}
+
+void AppContext::warnForceBlur()
+{
+    if (m_forceBlurWarning.isEmpty())
+        return;
+    m_forceBlurWarning.clear();
+    m_forceBlurWarned = true;
+    showToast(tr("Better Blur blurs the screen under Unisic's capture frame, so this capture came out blurred. "
+                 "Exclude Unisic in Better Blur's window list (System Settings \u203A Desktop Effects) or turn the effect off."),
+              true);
 }
 
 // ----------------------------------------------------------- after-capture
@@ -3204,13 +3245,14 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                 upFmt.isEmpty() ? fileName
                                 : FilenameTemplate::withExtension(
                                       fileName, FilenameTemplate::extensionForMime(mime));
-            m_uploads->uploadDataTo(uploadDestination, data, upName, mime,
+            // The per-hotkey destination goes first, then the failure chain.
+            m_uploads->uploadData(data, upName, mime,
                 [this, path, historyId, np](const QString &url, const QString &del, const QString &err) {
                     if (!err.isEmpty()) {
                         // The capture already lives in history (added before the
                         // upload) - a failure just leaves it there without a URL.
                         showToast(tr("Upload failed: %1").arg(err), true);
-                        if (np) np->setUploading(false);
+                        if (np) np->setUploadFailed(err);
                         return;
                     }
                     // Attach the URL to the pre-created entry by id; fall back to a
@@ -3219,7 +3261,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                         m_history->addEntry(path, {}, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
-                });
+                }, uploadDestination);
         }, upFmt);
     } else if (!path.isEmpty() && !cliMode) {
         showToast(tr("Saved %1").arg(path));
@@ -3275,12 +3317,22 @@ void AppContext::afterUploadActions(const QString &url)
         showToast(tr("Uploaded"));
         return;
     }
-    const auto finish = [this](const QString &finalUrl) {
+    // Read now: both are only set while the chain's callback runs (this one).
+    const QString fellBackFrom = m_uploads->fallbackFrom();
+    const QString fellBackTo = m_uploads->fallbackTo();
+    const auto finish = [this, fellBackFrom, fellBackTo](const QString &finalUrl) {
         if (m_settings->afterUploadCopyLink()) {
             copyText(finalUrl);
-            showToast(tr("Uploaded, link copied"));
-        } else {
+            // Important when a fallback took over: the link lives on another
+            // host than the one picked, with its own retention.
+            if (fellBackFrom.isEmpty())
+                showToast(tr("Uploaded, link copied"));
+            else
+                showToast(tr("%1 failed, uploaded to %2, link copied").arg(fellBackFrom, fellBackTo), true);
+        } else if (fellBackFrom.isEmpty()) {
             showToast(tr("Uploaded: %1").arg(finalUrl));
+        } else {
+            showToast(tr("%1 failed, uploaded to %2: %3").arg(fellBackFrom, fellBackTo, finalUrl), true);
         }
         if (!m_settings->afterUploadOpenInBrowser())
             return;
@@ -4423,53 +4475,67 @@ void AppContext::finishOpenPreview(bool saved, const QString &tmp, const QSize &
     QFile::remove(tmp);
 }
 
-void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path)
+void AppContext::uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path,
+                                        const QString &destination)
 {
     QPointer<CaptureNotification> np(n);
     if (n)
         n->setUploading(true);
+    // Said on the card AND as a toast: the card is what is on screen, the
+    // toast is what an open main window shows.
+    const auto failed = [this, np, destination](const QString &err) {
+        showToast(destination.isEmpty() ? tr("Upload failed: %1").arg(err)
+                                        : tr("Upload to %1 failed: %2").arg(destination, err),
+                  true);
+        if (np) np->setUploadFailed(err);
+    };
     // A recording's card carries the POSTER FRAME as its image - uploading
     // that would ship a still PNG instead of the GIF/video. Upload the media
     // file itself, exactly like finishRecordingEntry's auto-upload does.
     if (n && n->kind() != QLatin1String("image") && !path.isEmpty()) {
-        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
+        auto cb = [this, path, np, failed](const QString &url, const QString &del, const QString &err) {
             if (!err.isEmpty()) {
-                showToast(tr("Upload failed: %1").arg(err), true);
-                if (np) np->setUploading(false);
+                failed(err);
                 return;
             }
             m_history->setUrl(path, url, del);
             afterUploadActions(url);
             if (np) np->setUrl(url);
-        });
+        };
+        if (destination.isEmpty())
+            m_uploads->uploadFile(path, cb);
+        else
+            m_uploads->uploadFileTo({destination}, path, cb);
         return;
     }
     const QString upFmt = uploadImageFormat();
     const QString baseName = path.isEmpty() ? makeFileName() : QFileInfo(path).fileName();
     // Same off-thread encode + conditional image retention as finishCapture.
-    encodeImageAsync(img, [this, path, np, baseName, upFmt,
+    encodeImageAsync(img, [this, path, np, baseName, upFmt, destination, failed,
                            img = path.isEmpty() ? img : QImage()](const QByteArray &data, const QString &mime) {
         const QString fileName =
             upFmt.isEmpty() ? baseName
                             : FilenameTemplate::withExtension(
                                   baseName, FilenameTemplate::extensionForMime(mime));
-        m_uploads->uploadData(data, fileName, mime,
-            [this, img, path, np](const QString &url, const QString &del, const QString &err) {
-                if (!err.isEmpty()) {
-                    showToast(tr("Upload failed: %1").arg(err), true);
-                    if (np) np->setUploading(false);
-                    return;
-                }
-                if (!path.isEmpty())
-                    m_history->setUrl(path, url, del);
-                // Unsaved capture: finishCapture already added a pathless
-                // entry for it - attach the URL to exactly that entry (by the
-                // card's history id). Fallback add only if it was evicted.
-                else if (!np || !m_history->setUrlById(np->historyId(), url, del))
-                    m_history->addEntry({}, img, QStringLiteral("image"), url, del);
-                afterUploadActions(url);
-                if (np) np->setUrl(url);
-            });
+        auto cb = [this, img, path, np, failed](const QString &url, const QString &del, const QString &err) {
+            if (!err.isEmpty()) {
+                failed(err);
+                return;
+            }
+            if (!path.isEmpty())
+                m_history->setUrl(path, url, del);
+            // Unsaved capture: finishCapture already added a pathless
+            // entry for it - attach the URL to exactly that entry (by the
+            // card's history id). Fallback add only if it was evicted.
+            else if (!np || !m_history->setUrlById(np->historyId(), url, del))
+                m_history->addEntry({}, img, QStringLiteral("image"), url, del);
+            afterUploadActions(url);
+            if (np) np->setUrl(url);
+        };
+        if (destination.isEmpty())
+            m_uploads->uploadData(data, fileName, mime, cb);
+        else
+            m_uploads->uploadDataTo({destination}, data, fileName, mime, cb);
     }, upFmt);
 }
 

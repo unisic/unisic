@@ -1,5 +1,6 @@
 #include "CaptureNotification.h"
 #include "AppContext.h"
+#include "NotifCard.h"
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
@@ -86,9 +87,10 @@ void CaptureNotification::setUrl(const QString &url)
     // (an FTP/SFTP destination with no public URL completes with an empty url) —
     // DesktopNotifier::retire() frees this object on that very transition, so a
     // dropped signal here leaks the notification and its cached thumbnail.
-    const bool changed = (m_url != url) || m_uploading;
+    const bool changed = (m_url != url) || m_uploading || !m_uploadError.isEmpty();
     m_uploading = false;
     m_url = url;
+    m_uploadError.clear();
     if (changed)
         emit stateChanged();
 }
@@ -98,7 +100,21 @@ void CaptureNotification::setUploading(bool on)
     if (m_uploading == on)
         return;
     m_uploading = on;
+    if (on)
+        m_uploadError.clear();
     emit stateChanged();
+}
+
+void CaptureNotification::setUploadFailed(const QString &error)
+{
+    m_uploading = false;
+    m_uploadError = error;
+    emit stateChanged();
+}
+
+QStringList CaptureNotification::destinations() const
+{
+    return m_app->uploads()->destinationNames();
 }
 
 void CaptureNotification::edit()
@@ -182,6 +198,20 @@ void CaptureNotification::openCapture()
 void CaptureNotification::upload()
 {
     m_app->uploadFromNotification(this, m_image, m_filePath);
+}
+
+void CaptureNotification::uploadTo(const QString &destination)
+{
+    m_app->uploadFromNotification(this, m_image, m_filePath, destination);
+}
+
+void CaptureNotification::showUploadMenu(QWindow *card, const QPointF &at)
+{
+    if (!card)
+        return;
+    NotifCard::popUploadMenu(card, at, destinations(), this,
+                             [this](const QString &name) { uploadTo(name); },
+                             [this] { emit menuClosed(); });
 }
 
 void CaptureNotification::deleteCapture()

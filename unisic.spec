@@ -166,10 +166,13 @@ Requires:       qt6-qtmultimedia
 # Verified on Tumbleweed (2026-07): the SVG imageformat plugin ships inside
 # libQt6Svg6 (no qt6-svg-imageformat package), and libQt6Svg6 arrives via the
 # linked-soname autodeps - only the dlopened QML imports and the wayland
-# platform plugin need explicit names.
+# platform plugin need explicit names. The portal platform theme is split out
+# too (Fedora keeps it inside qt6-qtbase-gui, which the soname autodeps pull):
+# main.cpp selects it on GNOME so the file dialogs follow the dark style (#118).
 Requires:       qt6-declarative-imports
 Requires:       qt6-wayland
 Requires:       qt6-multimedia-imports
+Requires:       qt6-platformtheme-xdgdesktopportal
 %endif
 
 %description

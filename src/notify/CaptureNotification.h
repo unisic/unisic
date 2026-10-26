@@ -1,7 +1,10 @@
 #pragma once
 #include <QObject>
 #include <QImage>
+#include <QPointF>
+#include <QWindow>
 #include <QString>
+#include <QStringList>
 #include <qqmlregistration.h>
 
 class AppContext;
@@ -22,6 +25,11 @@ class CaptureNotification : public QObject
     Q_PROPERTY(QString fileName READ fileName NOTIFY stateChanged)
     Q_PROPERTY(QString url READ url NOTIFY stateChanged)
     Q_PROPERTY(bool uploading READ uploading NOTIFY stateChanged)
+    // Why the last upload failed; empty while none has. The card says so in
+    // place - the main window, where toasts live, is usually hidden by then.
+    Q_PROPERTY(QString uploadError READ uploadError NOTIFY stateChanged)
+    // Server names for the Upload button's right-click menu.
+    Q_PROPERTY(QStringList destinations READ destinations CONSTANT)
 
 public:
     CaptureNotification(AppContext *app, const QImage &img, const QString &filePath,
@@ -34,6 +42,8 @@ public:
     QString fileName() const;
     QString url() const { return m_url; }
     bool uploading() const { return m_uploading; }
+    QString uploadError() const { return m_uploadError; }
+    QStringList destinations() const;
     QString thumbFilePath() const { return m_thumbFile; } // local path for the notification image
     // The history entry created for this capture (0 = none). Save/upload use
     // it to address exactly this entry — never "the newest pathless one".
@@ -42,6 +52,7 @@ public:
 
     void setUrl(const QString &url);
     void setUploading(bool on);
+    void setUploadFailed(const QString &error);
 
     // A file URL the drop target can copy when the thumbnail is dragged out to
     // another app. Saved captures/recordings hand over their real file; an
@@ -61,6 +72,10 @@ public:
     Q_INVOKABLE void trim();          // recordings only: open the trim window on this file
     Q_INVOKABLE void save();
     Q_INVOKABLE void upload();
+    // Exactly this server, no failure chain: it was picked by hand.
+    Q_INVOKABLE void uploadTo(const QString &destination);
+    // The server menu, at `at` in `card`'s coordinates; menuClosed() follows.
+    Q_INVOKABLE void showUploadMenu(QWindow *card, const QPointF &at);
     Q_INVOKABLE void deleteCapture();
     Q_INVOKABLE void ocr();
     Q_INVOKABLE void dismiss();
@@ -68,6 +83,7 @@ public:
 signals:
     void stateChanged();
     void closeRequested();
+    void menuClosed();
 
 private:
     AppContext *m_app;
@@ -75,6 +91,7 @@ private:
     QString m_filePath;
     QString m_kind;
     QString m_url;
+    QString m_uploadError;
     QString m_thumbSource;
     QString m_thumbFile;
     QString m_dragFile;         // temp full-res PNG for dragging an unsaved capture

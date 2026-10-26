@@ -112,7 +112,33 @@ UploadManager::UploadManager(Settings *settings, QObject *parent)
     // finished handler. (int overload: the chrono one needs Qt 6.7.)
     m_nam->setTransferTimeout(kCaptureStallMs);
     loadDestinations();
+    // Before anything persists: a save makes the top server the active one,
+    // and up to 0.8.8 the active one could sit anywhere in the list.
+    const bool moved = moveActiveToTop();
     ensureBuiltins();
+    // The save also points the setting at the top: a 0.8.8 config may name a
+    // server that was deleted, or none.
+    if (moved || (m_settings && m_settings->activeDestination() != destinationNames().value(0)))
+        persistDestinations();
+    if (m_settings)
+        connect(m_settings, &Settings::activeDestinationChanged, this, [this] {
+            if (moveActiveToTop())
+                persistDestinations();
+        });
+}
+
+// The top of the list IS the active server. The Servers page picks it by
+// dragging; everything else (the Capture page's combo, an sxcu import, a
+// settings import) names it, and the named one moves up. Memory only.
+bool UploadManager::moveActiveToTop()
+{
+    if (!m_settings)
+        return false;
+    const int at = destinationNames().indexOf(m_settings->activeDestination());
+    if (at <= 0)
+        return false;
+    m_destinations.prepend(m_destinations.takeAt(at));
+    return true;
 }
 
 QString UploadManager::configPath() const
@@ -184,6 +210,10 @@ void UploadManager::persistDestinations()
     } else {
         qWarning() << "could not open" << configPath() << f.errorString();
     }
+    // A reorder, a delete or a rename can change the top; the setting follows.
+    if (m_settings && !m_destinations.isEmpty())
+        m_settings->setActiveDestination(
+            m_destinations.first().toObject().value(QStringLiteral("name")).toString());
     emit destinationsChanged();
 }
 
@@ -222,11 +252,13 @@ void UploadManager::ensureBuiltins()
             changed = true;
         }
     }
-    // The pruned host may still be the selected one; destinationNamed() would
-    // silently fall back to the first destination while the UI shows a dead
-    // name. Point the setting at the default instead.
-    if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st"))
+    // The pruned host may still be the selected one; uploads would silently
+    // go to the first destination while the UI shows a dead name. Point the
+    // setting at the default instead.
+    if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st")) {
         m_settings->setActiveDestination(QStringLiteral("catbox.moe"));
+        moveActiveToTop();
+    }
     // The Imgur builtin ships WITHOUT an Authorization header: the user pastes
     // their own Client-ID (Destinations → Imgur). Until then startUpload() fails
     // it fast with an actionable message instead of letting Imgur reject it.
@@ -347,27 +379,42 @@ QVariantList UploadManager::destinationsVariant() const
     return m_destinations.toVariantList();
 }
 
-QVariantMap UploadManager::destination(const QString &name) const
+QStringList UploadManager::destinationNames() const
 {
+    QStringList names;
     for (const QJsonValue &v : std::as_const(m_destinations))
-        if (v.toObject().value(QStringLiteral("name")).toString() == name)
-            return v.toObject().toVariantMap();
-    return {};
+        names << v.toObject().value(QStringLiteral("name")).toString();
+    return names;
 }
 
-void UploadManager::saveDestination(const QVariantMap &dest)
+QVariantMap UploadManager::destination(const QString &name) const
+{
+    return findDestination(name).toVariantMap();
+}
+
+void UploadManager::saveDestination(const QVariantMap &dest, const QString &replacing)
 {
     const QString name = dest.value(QStringLiteral("name")).toString();
     if (name.isEmpty()) return;
+    const QString target = replacing.isEmpty() ? name : replacing;
     QJsonObject obj = QJsonObject::fromVariantMap(dest);
     for (int i = 0; i < m_destinations.size(); ++i) {
-        if (m_destinations[i].toObject().value(QStringLiteral("name")).toString() == name) {
+        if (m_destinations[i].toObject().value(QStringLiteral("name")).toString() == target) {
             m_destinations[i] = obj;
             persistDestinations();
             return;
         }
     }
     m_destinations.append(obj);
+    persistDestinations();
+}
+
+void UploadManager::moveDestination(int from, int to)
+{
+    if (from == to || from < 0 || to < 0 || from >= m_destinations.size()
+        || to >= m_destinations.size())
+        return;
+    m_destinations.insert(to, m_destinations.takeAt(from));
     persistDestinations();
 }
 
@@ -385,6 +432,9 @@ void UploadManager::removeDestination(const QString &name)
 void UploadManager::replaceAllDestinations(const QJsonArray &arr)
 {
     m_destinations = arr;
+    // The imported settings named the active server; an older export did not
+    // keep it on top.
+    moveActiveToTop();
     ensureBuiltins(); // guarantees the defaults survive a foreign import
     persistDestinations();
 }
@@ -592,17 +642,12 @@ QString UploadManager::importSxcu(const QString &pathOrUrl)
     return dest.value(QStringLiteral("name")).toString();
 }
 
-QJsonObject UploadManager::activeDestination() const
-{
-    return destinationNamed(m_settings->activeDestination());
-}
-
-QJsonObject UploadManager::destinationNamed(const QString &name) const
+QJsonObject UploadManager::findDestination(const QString &name) const
 {
     for (const QJsonValue &v : std::as_const(m_destinations))
         if (v.toObject().value(QStringLiteral("name")).toString() == name)
             return v.toObject();
-    return m_destinations.isEmpty() ? QJsonObject{} : m_destinations.first().toObject();
+    return {};
 }
 
 void UploadManager::setBusy(bool b)
@@ -612,10 +657,27 @@ void UploadManager::setBusy(bool b)
     emit busyChanged();
 }
 
-void UploadManager::uploadFile(const QString &filePath, Callback cb)
+void UploadManager::uploadFile(const QString &filePath, Callback cb, const QString &primary)
+{
+    uploadFileTo(uploadChainFor(primary), filePath, std::move(cb));
+}
+
+void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
+                               const QString &mime, Callback cb, const QString &primary)
+{
+    startUpload(uploadChainFor(primary), data, {}, fileName, mime, std::move(cb));
+}
+
+void UploadManager::uploadDataTo(const QStringList &servers, const QByteArray &data,
+                                 const QString &fileName, const QString &mime, Callback cb)
+{
+    startUpload(servers, data, {}, fileName, mime, std::move(cb));
+}
+
+void UploadManager::uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb)
 {
     {
-        // Early readability check only — the payload itself is streamed from
+        // Early readability check only - the payload itself is streamed from
         // disk (a saved recording can be hundreds of MB; readAll() used to pin
         // it in RAM for the whole transfer, twice on the curl path).
         QFile f(filePath);
@@ -624,28 +686,96 @@ void UploadManager::uploadFile(const QString &filePath, Callback cb)
             return;
         }
     }
-    const QString mime = QMimeDatabase().mimeTypeForFile(filePath).name();
-    startUpload({}, filePath, QFileInfo(filePath).fileName(), mime, {}, std::move(cb));
+    startUpload(servers, {}, filePath, QFileInfo(filePath).fileName(),
+                QMimeDatabase().mimeTypeForFile(filePath).name(), std::move(cb));
 }
 
-void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
-                               const QString &mime, Callback cb)
+QStringList UploadManager::uploadChain(const QString &primary, const QStringList &order,
+                                       const QStringList &ready, bool chain)
 {
-    startUpload(data, {}, fileName, mime, {}, std::move(cb));
+    const QString first = order.contains(primary) ? primary : order.value(0);
+    if (first.isEmpty())
+        return {};
+    QStringList names{first};
+    if (chain)
+        for (const QString &n : order)
+            if (ready.contains(n) && !names.contains(n))
+                names << n;
+    return names;
 }
 
-void UploadManager::uploadDataTo(const QString &destination, const QByteArray &data,
-                                 const QString &fileName, const QString &mime, Callback cb)
+QStringList UploadManager::uploadChainFor(const QString &primary) const
 {
-    startUpload(data, {}, fileName, mime, destination, std::move(cb));
+    QStringList ready;
+    for (const QJsonValue &v : std::as_const(m_destinations)) {
+        const QJsonObject d = v.toObject();
+        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty()))
+            ready << d.value(QStringLiteral("name")).toString();
+    }
+    return uploadChain(primary, destinationNames(), ready,
+                       m_settings && m_settings->uploadFailureChain());
 }
 
-void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
-                                const QString &fileName, const QString &mime,
-                                const QString &destination, Callback cb)
+// One upload in flight, over one server or a chain of them. The payload rides
+// along until it ends: `data` is the implicitly shared capture buffer (no
+// copy), a recording stays on disk as `srcPath`.
+struct UploadManager::Chain {
+    QByteArray data;
+    QString srcPath, fileName, mime;
+    QStringList names;  // servers to try, in order (uploadChain())
+    QStringList errors; // "name: error" per failed server; size() = next index
+    Callback cb;
+};
+
+void UploadManager::startUpload(const QStringList &servers, const QByteArray &data,
+                                const QString &srcPath, const QString &fileName,
+                                const QString &mime, Callback cb)
 {
-    startUploadTo(destination.isEmpty() ? activeDestination() : destinationNamed(destination),
-                  data, srcPath, fileName, mime, Purpose::Capture, std::move(cb));
+    if (servers.isEmpty()) {
+        cb({}, {}, tr("No upload server configured"));
+        return;
+    }
+    // Hold busy across the gap between one server failing and the next one
+    // starting, or the editor's Upload button would flicker back on.
+    ++m_active;
+    setBusy(true);
+    runChain(std::make_shared<Chain>(Chain{data, srcPath, fileName, mime, servers, {}, std::move(cb)}));
+}
+
+void UploadManager::runChain(const std::shared_ptr<Chain> &c)
+{
+    const QString name = c->names.at(c->errors.size());
+    auto done = [this, c, name](const QString &url, const QString &del, const QString &err) {
+        if (!err.isEmpty()) {
+            c->errors << tr("%1: %2").arg(name, err);
+            if (c->errors.size() < c->names.size()) {
+                // Names only: an error can echo the server's response body.
+                qInfo() << "upload:" << name << "failed, trying" << c->names.at(c->errors.size());
+                runChain(c); // a synchronous refusal recurses at most names.size() deep
+                return;
+            }
+        }
+        setBusy(--m_active > 0);
+        if (!err.isEmpty()) {
+            // A lone server's error reaches the caller untouched, as it always has.
+            c->cb({}, {}, c->names.size() == 1 ? err : c->errors.join(QStringLiteral("; ")));
+            return;
+        }
+        if (!c->errors.isEmpty()) {
+            m_fallbackFrom = c->names.mid(0, c->errors.size()).join(QStringLiteral(", "));
+            m_fallbackTo = name;
+        }
+        c->cb(url, del, {});
+        m_fallbackFrom.clear();
+        m_fallbackTo.clear();
+    };
+    // Deleted since the list was built: it fails its turn instead of being
+    // swapped for another server.
+    const QJsonObject dest = findDestination(name);
+    if (dest.isEmpty())
+        done({}, {}, tr("Upload server \"%1\" no longer exists").arg(name));
+    else
+        startUploadTo(dest, c->data, c->srcPath, c->fileName, c->mime, Purpose::Capture, done);
 }
 
 void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &data,

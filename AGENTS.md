@@ -122,7 +122,9 @@ src/
                         GNOME), GrimScreenshot (wlroots), PortalRequest (portal handle pattern),
                         ScreenCastSession (ScreenCast portal for recording), CaptureManager
                         (backend selection + per-desktop fallback chain), KWinWindowGeometry
-                        (active-window rect via a throwaway KWin script, KDE only).
+                        (active-window rect via a throwaway KWin script, KDE only),
+                        KWinForceBlur (is the third-party Better Blur effect set to blur the
+                        screen under our transparent scroll/record frame? #121).
   editor/              AnnotationCanvas (the core QQuickPaintedItem drawing surface - all tools,
                         selection, undo/redo, compositing in IMAGE-PIXEL space, DPR forced 1.0;
                         used by BOTH overlay and editor), EditorSession.

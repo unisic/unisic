@@ -67,6 +67,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 - **Read pixels** - OCR any region or scan a QR/barcode, and copy the result.
 - **Share** - custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP and built-in hosts; the link auto-copies.
 - **Remember** - thumbnail history of every capture; deleting moves the file to the trash.
+- **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
 - **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.
 
 Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: the only request Unisic makes on its own is a release check against GitHub ([details](https://unisic.app/docs/introduction#privacy)).

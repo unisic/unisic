@@ -9,6 +9,7 @@
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
+#include "history/CaptureStats.h"
 #include "history/HistoryFilterModel.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
@@ -1930,6 +1931,18 @@ void AppContext::showLogInFileManager()
     showInFileManager(p);
 }
 
+QVariantMap AppContext::captureStats() const
+{
+    const QString path = CaptureStats::filePath();
+    const CaptureStats::Counts c = CaptureStats::read(path, QDate::currentDate());
+    return {{QStringLiteral("today"), c.today},
+            {QStringLiteral("month"), c.month},
+            {QStringLiteral("year"), c.year},
+            {QStringLiteral("total"), c.total},
+            {QStringLiteral("readable"), c.readable},
+            {QStringLiteral("path"), path}};
+}
+
 QVariantList AppContext::dependencyReport() const
 {
     QVariantList out;
@@ -3218,6 +3231,10 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // links the file to THIS entry instead of stranding it (setFilePathById(0)
     // silently missed). The thumbnail is generated now from `output`, so the
     // full image no longer stays pinned across the whole network transfer.
+    // Counted before the history entry: the Statistics row re-reads the file
+    // when the history model grows, so the count must already be on disk.
+    if (!cliMode)
+        CaptureStats::record(CaptureStats::filePath(), QDate::currentDate());
     quint64 historyId = cliMode ? 0
                                 : m_history->addEntry(path, output, QStringLiteral("image"));
 

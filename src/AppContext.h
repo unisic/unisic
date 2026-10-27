@@ -281,6 +281,9 @@ public:
     Q_INVOKABLE bool hasUnseenCrash() const;
     Q_INVOKABLE void markCrashNoticeSeen();
     Q_INVOKABLE void showLogInFileManager();
+    // Screenshots counted in unisic.stats (today, month, year, total, readable,
+    // path), for the Statistics row. Read from disk on each call.
+    Q_INVOKABLE QVariantMap captureStats() const;
     // Runtime dependencies and whether each is satisfied, as a list of
     // {label, ok, detail} maps for the first-run system check to render.
     // Package recipes require them; a missing one means the install was altered
@@ -320,6 +323,7 @@ public:
     Q_INVOKABLE void devTestHistoryDrag();
     Q_INVOKABLE void devTestNotificationDrag();
     Q_INVOKABLE void devTestHistoryFilter();
+    Q_INVOKABLE void devTestCaptureStats();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestVgyMe();
     Q_INVOKABLE void devTestUploadChain();
@@ -872,6 +876,9 @@ private:
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
+    // unisic.stats: counts into a scratch file (never the user's), asserts the
+    // day/month/year totals, and that the real file, if any, still parses.
+    QString captureStatsCheck();
     // Imgur is unusable without a per-user Client-ID: assert no stored
     // destination kept the old shipped placeholder, and that an Imgur
     // destination without an ID fails fast with a message that says what to do

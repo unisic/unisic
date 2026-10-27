@@ -21,6 +21,8 @@
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
 #include "history/HistoryFilterModel.h"
+#include "history/CaptureStats.h"
+#include "history/CaptureStats.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
 #include "diag/CrashHandler.h"
@@ -3281,6 +3283,26 @@ QtObject {
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
+QString AppContext::captureStatsCheck()
+{
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("SKIP (no scratch directory)");
+    const QString scratch = dir.filePath(QStringLiteral("unisic.stats"));
+    const QDate day(2026, 3, 1);
+    if (!CaptureStats::record(scratch, day) || !CaptureStats::record(scratch, day)
+        || !CaptureStats::record(scratch, day.addYears(-1)))
+        return QStringLiteral("FAIL (scratch file not written)");
+    const CaptureStats::Counts c = CaptureStats::read(scratch, day);
+    if (c.today != 2 || c.month != 2 || c.year != 2 || c.total != 3)
+        return QStringLiteral("FAIL (counted %1/%2/%3/%4, want 2/2/2/3)")
+            .arg(c.today).arg(c.month).arg(c.year).arg(c.total);
+    const CaptureStats::Counts real = CaptureStats::read(CaptureStats::filePath(), QDate::currentDate());
+    if (!real.readable)
+        return QStringLiteral("FAIL (%1 does not parse)").arg(CaptureStats::filePath());
+    return QStringLiteral("PASS (%1 screenshots counted so far)").arg(real.total);
+}
+
 QString AppContext::historyFilterCheck()
 {
     HistoryFilterModel f;
@@ -3845,6 +3867,13 @@ void AppContext::devTestHistoryFilter()
     if (!devBuild())
         return;
     showToast(tr("Dev: history search + filters: %1").arg(historyFilterCheck()));
+}
+
+void AppContext::devTestCaptureStats()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: screenshot statistics: %1").arg(captureStatsCheck()));
 }
 
 void AppContext::devTestImgurSetup()
@@ -4551,6 +4580,7 @@ void AppContext::runSmokeTest()
                             == QStringLiteral("file:///tmp/a%20b.png")
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
+        smokeLog(QStringLiteral("screenshot statistics: ") + captureStatsCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
         smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
         smokeLog(QStringLiteral("Failure Chain: ") + uploadChainCheck());

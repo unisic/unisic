@@ -184,6 +184,7 @@ qt_add_executable(unisic
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
+    src/history/CaptureStats.h src/history/CaptureStats.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
@@ -853,6 +854,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_diag_redact_test PRIVATE src)
     add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
+
+    qt_add_executable(unisic_capture_stats_test
+        tests/CaptureStatsTest.cpp
+        src/history/CaptureStats.h
+        src/history/CaptureStats.cpp
+    )
+    target_link_libraries(unisic_capture_stats_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_capture_stats_test PRIVATE src)
+    add_test(NAME unisic_capture_stats_test COMMAND unisic_capture_stats_test)
 
     qt_add_executable(unisic_scroll_stitch_test
         tests/ScrollStitchTest.cpp

@@ -655,7 +655,7 @@ public:
     // default so OCR works without the user knowing Tesseract language codes;
     // turn it off to pin a specific, faster spec.
     U_SETTING(bool, ocrAutoLanguage, setOcrAutoLanguage, "ocr/autoLanguage", true)
-    U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("pol+eng"))
+    U_SETTING(QString, ocrLanguages, setOcrLanguages, "ocr/languages", QStringLiteral("eng"))
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))

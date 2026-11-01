@@ -1135,7 +1135,7 @@ Item {
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
-                            placeholder: "pol+eng"
+                            placeholder: "eng"
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
                     }

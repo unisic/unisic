@@ -43,8 +43,10 @@ private slots:
         // so it must survive every write.
         const QString id = root.value(QStringLiteral("id")).toString();
         QCOMPARE(id.size(), 36);
-        QVERIFY(CaptureStats::record(path, QDate(2026, 3, 2)));
+        // Closed before the next write: QSaveFile commits by renaming over
+        // the file, and Windows refuses that while a handle is still open.
         f.close();
+        QVERIFY(CaptureStats::record(path, QDate(2026, 3, 2)));
         QVERIFY(f.open(QIODevice::ReadOnly));
         QCOMPARE(QJsonDocument::fromJson(f.readAll()).object().value(QStringLiteral("id")).toString(), id);
     }

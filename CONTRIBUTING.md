@@ -14,7 +14,7 @@ Issues and pull requests welcome. Bug reports are the most valuable thing you ca
 
 ## Building
 
-Needs **Qt 6.5+**, CMake, Ninja and the full dependency set below. Copy the block for your distro whole: every package in it is required, and a missing one stops `cmake -B build` at configure time with the package name in the error rather than producing a Unisic with a feature quietly absent.
+Needs **Qt 6.5+**, CMake, Ninja and the full dependency set below. Each block is two commands. The first installs the build libraries: every one is required, and a missing one stops `cmake -B build` at configure time with the package name in the error rather than producing a Unisic with a feature quietly absent. The second installs what the built binary calls at run time: the CLI tools, the portal and the OCR language data. The build does not check those, but they are the same set the native packages depend on, so run both. Out of the box OCR reads with every installed langpack, so `eng` + `osd` is enough for it; `pol` is listed because the manual OCR language field defaults to `pol+eng` and every Unisic package ships it. Add the langpack for any further language you want OCR to read.
 
 Set `PORTAL_BACKEND` to the package for your desktop (`-kde`, `-gnome`, or `-wlr`) before running the matching block.
 
@@ -22,45 +22,54 @@ Set `PORTAL_BACKEND` to the package for your desktop (`-kde`, `-gnome`, or `-wlr
 
 ```sh
 PORTAL_BACKEND=xdg-desktop-portal-kde
+# build
 sudo dnf install -y cmake ninja-build gcc-c++ pkgconf-pkg-config \
-    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qtwayland \
+    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
     qt6-qtwayland-devel qt6-qtbase-private-devel qt6-qttools-devel \
     plasma-wayland-protocols-devel \
     pipewire-devel tesseract-devel leptonica-devel zxing-cpp-devel \
     layer-shell-qt-devel wayland-devel kf6-kguiaddons-devel \
     libinput-devel systemd-devel \
-    libX11-devel libXext-devel libXfixes-devel libxcb-devel \
-    ffmpeg-free curl grim pipewire-utils zip wl-clipboard xdg-desktop-portal \
-    "$PORTAL_BACKEND" tesseract-langpack-eng tesseract-langpack-pol tesseract-osd
+    libX11-devel libXext-devel libXfixes-devel libxcb-devel
+# run time
+sudo dnf install -y qt6-qtwayland ffmpeg-free curl grim pipewire-utils zip \
+    wl-clipboard xdg-desktop-portal "$PORTAL_BACKEND" \
+    tesseract-langpack-eng tesseract-langpack-pol tesseract-osd
 ```
 
 **Debian / Ubuntu** (trixie / 24.10+ for Qt 6.5+)
 
 ```sh
 PORTAL_BACKEND=xdg-desktop-portal-kde
+# build
 sudo apt install cmake ninja-build g++ pkg-config \
-    qt6-base-dev qt6-declarative-dev qt6-svg-dev qt6-wayland \
+    qt6-base-dev qt6-declarative-dev qt6-svg-dev \
     qt6-wayland-dev qt6-base-private-dev qt6-tools-dev qt6-l10n-tools \
     plasma-wayland-protocols \
     libpipewire-0.3-dev libtesseract-dev libleptonica-dev libzxing-dev \
     liblayershellqtinterface-dev libwayland-dev libkf6guiaddons-dev \
     libinput-dev libudev-dev \
-    libx11-dev libxext-dev libxfixes-dev libxcb1-dev \
-    ffmpeg curl grim pipewire-bin zip wl-clipboard xdg-desktop-portal \
-    "$PORTAL_BACKEND" tesseract-ocr-eng tesseract-ocr-pol tesseract-ocr-osd
+    libx11-dev libxext-dev libxfixes-dev libxcb1-dev
+# run time
+sudo apt install qt6-wayland ffmpeg curl grim pipewire-bin zip \
+    wl-clipboard xdg-desktop-portal "$PORTAL_BACKEND" \
+    tesseract-ocr-eng tesseract-ocr-pol tesseract-ocr-osd
 ```
 
 **Arch**
 
 ```sh
 PORTAL_BACKEND=xdg-desktop-portal-kde
+# build
 sudo pacman -S --needed base-devel cmake ninja pkgconf \
     qt6-base qt6-declarative qt6-svg qt6-wayland qt6-tools \
     plasma-wayland-protocols \
-    pipewire pipewire-audio tesseract leptonica zxing-cpp \
+    pipewire tesseract leptonica zxing-cpp \
     layer-shell-qt wayland kguiaddons libinput \
-    libx11 libxext libxfixes libxcb \
-    ffmpeg curl grim zip wl-clipboard xdg-desktop-portal "$PORTAL_BACKEND" \
+    libx11 libxext libxfixes libxcb
+# run time
+sudo pacman -S --needed pipewire-audio ffmpeg curl grim zip \
+    wl-clipboard xdg-desktop-portal "$PORTAL_BACKEND" \
     tesseract-data-eng tesseract-data-pol tesseract-data-osd
 ```
 

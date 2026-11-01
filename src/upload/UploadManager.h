@@ -97,6 +97,7 @@ public:
     // the one that took the upload.
     QString fallbackFrom() const { return m_fallbackFrom; }
     QString fallbackTo() const { return m_fallbackTo; }
+    QString fallbackReason() const { return m_fallbackReason; } // "name: error" of the first server
 
     QVariantList destinationsVariant() const;
     QStringList destinationNames() const;
@@ -271,7 +272,7 @@ private:
     bool m_busy = false;
     QString m_lastImportError;
     int m_active = 0; // in-flight CAPTURE uploads; busy = m_active > 0
-    QString m_fallbackFrom, m_fallbackTo;
+    QString m_fallbackFrom, m_fallbackTo, m_fallbackReason;
     // Correlates a testFinished() emission with the QML test that asked for it
     // (see the QML overload in the .cpp): only the newest one may speak.
     quint64 m_qmlTestGen = 0;

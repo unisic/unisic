@@ -3337,7 +3337,8 @@ void AppContext::afterUploadActions(const QString &url)
     // Read now: both are only set while the chain's callback runs (this one).
     const QString fellBackFrom = m_uploads->fallbackFrom();
     const QString fellBackTo = m_uploads->fallbackTo();
-    const auto finish = [this, fellBackFrom, fellBackTo](const QString &finalUrl) {
+    const QString fellBackWhy = m_uploads->fallbackReason();
+    const auto finish = [this, fellBackFrom, fellBackTo, fellBackWhy](const QString &finalUrl) {
         if (m_settings->afterUploadCopyLink()) {
             copyText(finalUrl);
             // Important when a fallback took over: the link lives on another
@@ -3345,11 +3346,11 @@ void AppContext::afterUploadActions(const QString &url)
             if (fellBackFrom.isEmpty())
                 showToast(tr("Uploaded, link copied"));
             else
-                showToast(tr("%1 failed, uploaded to %2, link copied").arg(fellBackFrom, fellBackTo), true);
+                showToast(tr("%1 failed, uploaded to %2, link copied. %3").arg(fellBackFrom, fellBackTo, fellBackWhy), true);
         } else if (fellBackFrom.isEmpty()) {
             showToast(tr("Uploaded: %1").arg(finalUrl));
         } else {
-            showToast(tr("%1 failed, uploaded to %2: %3").arg(fellBackFrom, fellBackTo, finalUrl), true);
+            showToast(tr("%1 failed, uploaded to %2: %3. %4").arg(fellBackFrom, fellBackTo, finalUrl, fellBackWhy), true);
         }
         if (!m_settings->afterUploadOpenInBrowser())
             return;

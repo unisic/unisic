@@ -925,10 +925,15 @@ void UploadManager::runChain(const std::shared_ptr<Chain> &c)
         if (!c->errors.isEmpty()) {
             m_fallbackFrom = c->names.mid(0, c->errors.size()).join(QStringLiteral(", "));
             m_fallbackTo = name;
+            // Why the server the user picked failed: the toast names it,
+            // or a wrong repository/token on a personal host looks like
+            // the app quietly choosing another server.
+            m_fallbackReason = c->errors.first();
         }
         c->cb(url, del, {});
         m_fallbackFrom.clear();
         m_fallbackTo.clear();
+        m_fallbackReason.clear();
     };
     // Deleted since the list was built: it fails its turn instead of being
     // swapped for another server.
@@ -1297,14 +1302,22 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
             // overwrite), 404 is a wrong repository or a token without access.
             if (isGitHub(dest)) {
                 const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                QString hint;
                 if (status == 401)
-                    serverMsg = tr("GitHub did not accept the token (%1)").arg(serverMsg);
+                    hint = tr("GitHub did not accept the token (%1)").arg(serverMsg);
                 else if (status == 404)
-                    serverMsg = tr("GitHub found no such repository, or the token cannot write to it (%1)").arg(serverMsg);
+                    hint = tr("GitHub found no such repository, or the token cannot write to it (%1)").arg(serverMsg);
                 else if (status == 409)
-                    serverMsg = tr("GitHub reports a conflict; check that the branch exists (%1)").arg(serverMsg);
+                    hint = tr("GitHub reports a conflict; check that the branch exists (%1)").arg(serverMsg);
                 else if (status == 422)
-                    serverMsg = tr("GitHub rejected the commit; a file with this name is probably already in the repository (%1)").arg(serverMsg);
+                    hint = tr("GitHub rejected the commit; a file with this name is probably already in the repository (%1)").arg(serverMsg);
+                // The hint is the whole message: Qt's "Error transferring
+                // <url> - server replied: Not Found" in front of it only
+                // pushes the part the user can act on out of a toast.
+                if (!hint.isEmpty()) {
+                    cb({}, {}, hint);
+                    return;
+                }
             }
             cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
             return;

@@ -326,6 +326,7 @@ public:
     Q_INVOKABLE void devTestCaptureStats();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestVgyMe();
+    Q_INVOKABLE void devTestGitHubPages();
     Q_INVOKABLE void devTestUploadChain();
     Q_INVOKABLE void devTestCurlDestination();
     Q_INVOKABLE void devTestTemplateVars();
@@ -885,6 +886,11 @@ private:
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
     QString vgyMeCheck() const;
+    // GitHub Pages: the editor's five fields compose an http destination that
+    // reads back unchanged, the link is the public address plus the committed
+    // file's name, and the shipped preset (no repository, no token) is refused
+    // before any request. Nothing leaves the machine.
+    QString gitHubPagesCheck();
     // The failure chain: uploadChain() ordering, then a real chain over two
     // scratch servers that refuse before any request (Imgur with no Client-ID,
     // vgy.me with no key), so nothing leaves the machine. A hand-picked server

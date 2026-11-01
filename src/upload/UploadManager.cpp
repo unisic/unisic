@@ -37,6 +37,13 @@
 static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
 static const char kImgurHost[] = "api.imgur.com";
 static const char kVgyMeHost[] = "vgy.me";
+static const char kGitHubApiHost[] = "api.github.com";
+// The preset ships with this in place of owner/name: it keeps the request URL
+// recognisable as GitHub, and gitHubSetup() reads it back as "no repository".
+static const char kGitHubPlaceholderRepo[] = "OWNER/REPO";
+// The tail of a GitHub Pages urlPath: the public address plus the name the
+// API confirms it committed.
+static const char kGitHubNameToken[] = "/$json:content.name$";
 
 // The two squares of the checkerboard testDestination() uploads: the mandatory
 // palette's Secondary (#2E236C) and Accent (#C8ACD6), i.e. the `secondary` and
@@ -99,6 +106,150 @@ QString UploadManager::vgyMeUserKey(const QJsonObject &dest)
             return it.value().toString().trimmed();
     }
     return {};
+}
+
+bool UploadManager::isGitHub(const QJsonObject &dest)
+{
+    const QUrl url(dest.value(QStringLiteral("requestUrl")).toString());
+    return url.host().compare(QLatin1String(kGitHubApiHost), Qt::CaseInsensitive) == 0
+           && url.path().contains(QLatin1String("/contents/"));
+}
+
+// "owner/name" out of whatever was pasted: the repository's github.com page,
+// a clone URL, a trailing slash or .git. Empty when there is no owner/name.
+static QString gitHubRepoName(QString repo)
+{
+    static const QRegularExpression site(
+        QStringLiteral("^(?:https?://)?(?:www\\.)?github\\.com[/:]"),
+        QRegularExpression::CaseInsensitiveOption);
+    repo = repo.trimmed();
+    repo.remove(site);
+    if (repo.endsWith(QLatin1String(".git"), Qt::CaseInsensitive))
+        repo.chop(4);
+    const QStringList parts = repo.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    if (parts.size() < 2)
+        return {};
+    return parts.at(0).trimmed() + QLatin1Char('/') + parts.at(1).trimmed();
+}
+
+// A folder path the way the Contents API wants it: no slash at either end.
+static QString gitHubFolder(QString folder)
+{
+    folder = folder.trimmed().replace(QLatin1Char('\\'), QLatin1Char('/'));
+    const QStringList parts = folder.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    return parts.join(QLatin1Char('/'));
+}
+
+QString UploadManager::gitHubPagesUrl(const QString &repoIn, const QString &folderIn)
+{
+    const QString repo = gitHubRepoName(repoIn);
+    if (repo.isEmpty())
+        return {};
+    const QString owner = repo.section(QLatin1Char('/'), 0, 0).toLower();
+    const QString name = repo.section(QLatin1Char('/'), 1, 1);
+    QString url = QStringLiteral("https://") + owner + QStringLiteral(".github.io");
+    if (name.compare(owner + QLatin1String(".github.io"), Qt::CaseInsensitive) != 0)
+        url += QLatin1Char('/') + name;
+    const QString folder = gitHubFolder(folderIn);
+    if (!folder.isEmpty())
+        url += QLatin1Char('/') + folder;
+    return url;
+}
+
+QJsonObject UploadManager::gitHubDestination(const GitHubSetup &s)
+{
+    QString repo = gitHubRepoName(s.repo);
+    if (repo.isEmpty())
+        repo = QLatin1String(kGitHubPlaceholderRepo);
+    const QString folder = gitHubFolder(s.folder);
+    const QString branch = s.branch.trimmed().isEmpty() ? QStringLiteral("main") : s.branch.trimmed();
+    QString publicUrl = s.publicUrl.trimmed();
+    if (publicUrl.isEmpty())
+        publicUrl = gitHubPagesUrl(repo, folder);
+    while (publicUrl.endsWith(QLatin1Char('/')))
+        publicUrl.chop(1);
+    QJsonObject headers{
+        {QStringLiteral("Accept"), QStringLiteral("application/vnd.github+json")},
+        {QStringLiteral("X-GitHub-Api-Version"), QStringLiteral("2022-11-28")},
+    };
+    if (!s.token.trimmed().isEmpty())
+        headers.insert(QStringLiteral("Authorization"), QStringLiteral("Bearer ") + s.token.trimmed());
+    // PUT /repos/{owner}/{repo}/contents/{path}: the file goes base64 inside a
+    // JSON body, and the commit message names it so the repository's log
+    // reads like an upload log. Built as JSON so the branch is escaped.
+    const QJsonObject data{
+        {QStringLiteral("message"), QStringLiteral("unisic: $filename$")},
+        {QStringLiteral("branch"), branch},
+        {QStringLiteral("content"), QStringLiteral("$base64$")},
+    };
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("http")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://api.github.com/repos/") + repo
+                                           + QStringLiteral("/contents/")
+                                           + (folder.isEmpty() ? QString() : folder + QLatin1Char('/'))
+                                           + QStringLiteral("%file%")},
+        {QStringLiteral("method"), QStringLiteral("PUT")},
+        {QStringLiteral("headers"), headers},
+        {QStringLiteral("body"), QStringLiteral("json")},
+        {QStringLiteral("data"), QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact))},
+        {QStringLiteral("responseType"), QStringLiteral("json")},
+        {QStringLiteral("urlPath"), publicUrl + QLatin1String(kGitHubNameToken)},
+        // The file's page on GitHub, where it can be deleted.
+        {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:content.html_url$")},
+    };
+}
+
+UploadManager::GitHubSetup UploadManager::gitHubSetup(const QJsonObject &dest)
+{
+    GitHubSetup s;
+    if (!isGitHub(dest))
+        return s;
+    static const QRegularExpression re(
+        QStringLiteral("^https://api\\.github\\.com/repos/([^/]+/[^/]+)/contents/(?:(.*)/)?%file%$"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch m = re.match(dest.value(QStringLiteral("requestUrl")).toString().trimmed());
+    const QString storedRepo = m.captured(1);
+    if (storedRepo != QLatin1String(kGitHubPlaceholderRepo))
+        s.repo = storedRepo;
+    s.folder = m.captured(2);
+    s.branch = QJsonDocument::fromJson(dest.value(QStringLiteral("data")).toString().toUtf8())
+                   .object().value(QStringLiteral("branch")).toString();
+    const QString auth = dest.value(QStringLiteral("headers")).toObject()
+                             .value(QStringLiteral("Authorization")).toString().trimmed();
+    if (auth.startsWith(QLatin1String("Bearer "), Qt::CaseInsensitive))
+        s.token = auth.mid(7).trimmed();
+    else if (auth.startsWith(QLatin1String("token "), Qt::CaseInsensitive))
+        s.token = auth.mid(6).trimmed();
+    QString urlPath = dest.value(QStringLiteral("urlPath")).toString().trimmed();
+    if (urlPath.endsWith(QLatin1String(kGitHubNameToken))) {
+        urlPath.chop(int(qstrlen(kGitHubNameToken)));
+        if (urlPath != gitHubPagesUrl(storedRepo, s.folder))
+            s.publicUrl = urlPath;
+    }
+    return s;
+}
+
+bool UploadManager::gitHubReady(const QJsonObject &dest)
+{
+    const GitHubSetup s = gitHubSetup(dest);
+    return !s.repo.isEmpty() && !s.token.isEmpty();
+}
+
+QVariantMap UploadManager::gitHubSetupOf(const QVariantMap &dest) const
+{
+    const GitHubSetup s = gitHubSetup(QJsonObject::fromVariantMap(dest));
+    return {{QStringLiteral("repo"), s.repo},
+            {QStringLiteral("branch"), s.branch},
+            {QStringLiteral("folder"), s.folder},
+            {QStringLiteral("token"), s.token},
+            {QStringLiteral("publicUrl"), s.publicUrl}};
+}
+
+QVariantMap UploadManager::gitHubDestinationFor(const QString &repo, const QString &branch,
+                                                const QString &folder, const QString &token,
+                                                const QString &publicUrl) const
+{
+    return gitHubDestination({repo, branch, folder, token, publicUrl}).toVariantMap();
 }
 
 UploadManager::UploadManager(Settings *settings, QObject *parent)
@@ -368,6 +519,15 @@ void UploadManager::ensureBuiltins()
             {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:delete$")},
             {QStringLiteral("builtin"), true},
         });
+        changed = true;
+    }
+    // Ships without a repository or token (both are the user's), so it sits
+    // in the list as "needs setup" until the editor fills it in.
+    if (!has(QStringLiteral("GitHub Pages"))) {
+        QJsonObject gh = gitHubDestination({});
+        gh.insert(QStringLiteral("name"), QStringLiteral("GitHub Pages"));
+        gh.insert(QStringLiteral("builtin"), true);
+        m_destinations.append(gh);
         changed = true;
     }
     if (changed)
@@ -709,7 +869,8 @@ QStringList UploadManager::uploadChainFor(const QString &primary) const
     QStringList ready;
     for (const QJsonValue &v : std::as_const(m_destinations)) {
         const QJsonObject d = v.toObject();
-        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty()))
+        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty())
+            && !(isGitHub(d) && !gitHubReady(d)))
             ready << d.value(QStringLiteral("name")).toString();
     }
     return uploadChain(primary, destinationNames(), ready,
@@ -802,6 +963,12 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
                       "then paste it into Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
+    if (isGitHub(dest) && !gitHubReady(dest)) {
+        cb({}, {}, tr("GitHub Pages needs a repository and a token. Open Destinations → %1 → "
+                      "Edit, enter the repository (owner/name) and paste a personal access "
+                      "token that can write its contents.").arg(dest.value(QStringLiteral("name")).toString()));
+        return;
+    }
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
     // `busy` means "a capture is on its way to a server": it greys the editor's
     // Upload button out and relabels it "Uploading…". A configuration test is
@@ -858,6 +1025,11 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
     if (isVgyMe(dest) && vgyMeUserKey(dest).isEmpty()) {
         cb(false, {}, tr("vgy.me requires a user key. Paste it into the "
                          "field above, then test again."));
+        return;
+    }
+    if (isGitHub(dest) && !gitHubReady(dest)) {
+        cb(false, {}, tr("GitHub Pages needs a repository and a token. Fill in the "
+                         "fields above, then test again."));
         return;
     }
 
@@ -1036,7 +1208,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         QByteArray payload;
         for (int i = 0; i < parts.size(); ++i) {
             QString part = parts[i];
-            part.replace(QLatin1String("$filename$"), fileName);
+            part.replace(QLatin1String("$filename$"), sanitizeFileName(fileName));
             part.replace(QLatin1String("$mime$"), mime);
             if (i > 0)
                 payload += b64;
@@ -1119,6 +1291,21 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
             }
             if (serverMsg.isEmpty())
                 serverMsg = QString::fromUtf8(body.left(300));
+            // The Contents API's answers name the symptom, not the cause a
+            // Pages user can act on: 422 is almost always "that file name is
+            // already in the repository" (it wants the old blob's sha to
+            // overwrite), 404 is a wrong repository or a token without access.
+            if (isGitHub(dest)) {
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (status == 401)
+                    serverMsg = tr("GitHub did not accept the token (%1)").arg(serverMsg);
+                else if (status == 404)
+                    serverMsg = tr("GitHub found no such repository, or the token cannot write to it (%1)").arg(serverMsg);
+                else if (status == 409)
+                    serverMsg = tr("GitHub reports a conflict; check that the branch exists (%1)").arg(serverMsg);
+                else if (status == 422)
+                    serverMsg = tr("GitHub rejected the commit; a file with this name is probably already in the repository (%1)").arg(serverMsg);
+            }
             cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
             return;
         }

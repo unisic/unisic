@@ -425,6 +425,9 @@ Item {
                                 readonly property bool needsUserKey:
                                     App.uploads.isVgyMeDestination(card.dest)
                                     && App.uploads.vgyMeUserKeyOf(card.dest) === ""
+                                readonly property bool needsRepo:
+                                    App.uploads.isGitHubDestination(card.dest)
+                                    && !App.uploads.gitHubReadyOf(card.dest)
                                 Row {
                                     id: nameRow
                                     width: parent.width
@@ -458,7 +461,7 @@ Item {
                                     }
                                     Rectangle {
                                         id: setupChip
-                                        visible: infoCol.needsClientId || infoCol.needsUserKey
+                                        visible: infoCol.needsClientId || infoCol.needsUserKey || infoCol.needsRepo
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: setupChipText.implicitWidth + 12
                                         height: 18
@@ -471,7 +474,9 @@ Item {
                                             anchors.centerIn: parent
                                             text: infoCol.needsClientId
                                                   ? qsTr("Needs a Client-ID")
-                                                  : qsTr("Needs a user key")
+                                                  : infoCol.needsRepo
+                                                    ? qsTr("Needs a repository and a token")
+                                                    : qsTr("Needs a user key")
                                             color: Theme.danger
                                             font.pixelSize: Theme.fontS - 2
                                             font.weight: Font.DemiBold
@@ -525,8 +530,14 @@ Item {
             returnFocus = from || null
             var e = page.editing || {}
             fName.text = e.name || ""
-            fType.currentIndex = e.type === "curl" ? 1 : 0
+            fType.currentIndex = e.type === "curl" ? 1 : (App.uploads.isGitHubDestination(e) ? 2 : 0)
             fUrl.text = e.requestUrl || ""
+            var gh = App.uploads.gitHubSetupOf(e)
+            fRepo.text = gh.repo
+            fBranch.text = gh.branch
+            fFolder.text = gh.folder
+            fToken.text = gh.token
+            fPagesUrl.text = gh.publicUrl
             fBody.currentIndex = e.body === "json" ? 1 : 0
             fFormName.text = e.fileFormName || "file"
             fData.text = e.data || ""
@@ -574,6 +585,16 @@ Item {
             // builtin, urlReplace, …) still survive the round-trip.
             var d = JSON.parse(JSON.stringify(page.editing || {}))
             d.name = fName.text.trim()
+            if (editSheet.gitHubMode) {
+                // The five fields own every http key. C++ composes them, so
+                // the upload, the list badge and this editor agree on the
+                // format and read each other's output back.
+                var gh = App.uploads.gitHubDestinationFor(fRepo.text, fBranch.text, fFolder.text,
+                                                          fToken.text, fPagesUrl.text)
+                for (var gk in gh)
+                    d[gk] = gh[gk]
+                return d
+            }
             d.type = fType.currentIndex === 1 ? "curl" : "http"
             d.requestUrl = fUrl.text.trim()
             if (!d.method) d.method = "POST"
@@ -657,6 +678,12 @@ Item {
         // the editor, the list badge and the upload precheck.
         readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
         readonly property bool vgyMeMode: App.uploads.isVgyMeDestination({ requestUrl: fUrl.text })
+        // The third Type: a form of its own instead of the raw http fields.
+        readonly property bool gitHubMode: fType.currentIndex === 2
+        // What Save and Test need before they make sense: an address, or for
+        // GitHub Pages a repository (the token guard then says what is missing).
+        readonly property bool formComplete: gitHubMode ? fRepo.text.trim() !== ""
+                                                        : fUrl.text.trim() !== ""
         // Test-upload state. Local on purpose: App.uploads.busy is global and a
         // real capture upload running in parallel would grey the Test button out.
         property bool testing: false
@@ -873,14 +900,89 @@ Item {
                     }
                     Labeled {
                         label: qsTr("Type")
-                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP.")
+                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.")
                         UComboBox {
                             id: fType; width: parent.width
-                            model: ["http", "curl"]
+                            model: ["http", "curl", "GitHub Pages"]
                             onActivated: (i) => fType.currentIndex = i
                         }
                     }
+                    // GitHub Pages: the file is committed to the repository and
+                    // the link is where Pages serves it. Five plain fields; the
+                    // request itself is composed in C++ (gitHubDestination).
                     Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Repository")
+                        hint: qsTr("owner/name, or the repository's github.com address. GitHub Pages must be turned on for it.")
+                        UTextField {
+                            id: fRepo; width: parent.width
+                            placeholder: qsTr("e.g. octocat/cdn")
+                        }
+                    }
+                    Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Branch")
+                        hint: qsTr("The branch Pages publishes from. Empty means main.")
+                        UTextField {
+                            id: fBranch; width: parent.width
+                            placeholder: "main"
+                        }
+                    }
+                    Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Folder (optional)")
+                        hint: qsTr("Files are committed under this folder of the repository.")
+                        UTextField {
+                            id: fFolder; width: parent.width
+                            placeholder: qsTr("e.g. img")
+                        }
+                    }
+                    Labeled {
+                        id: rToken
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Personal access token")
+                        UTextField {
+                            id: fToken; width: parent.width
+                            placeholder: "github_pat_…"
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rToken.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("A fine-grained token limited to this repository with Contents: Read and write, or a classic token with the repo scope. It is stored in clear text in destinations.json, like every other credential here.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    UButton {
+                        visible: rToken.visible
+                        compact: true
+                        variant: "tonal"
+                        iconName: "globe"
+                        text: qsTr("Create a token on GitHub")
+                        onClicked: Qt.openUrlExternally("https://github.com/settings/personal-access-tokens/new")
+                    }
+                    Labeled {
+                        id: rPagesUrl
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Public URL (optional)")
+                        hint: qsTr("Where Pages serves the folder. Empty means the github.io address; with a custom domain, type it here. The link is this address plus the file name.")
+                        UTextField {
+                            id: fPagesUrl; width: parent.width
+                            placeholder: App.uploads.gitHubPagesUrlFor(fRepo.text, fFolder.text)
+                                         || qsTr("e.g. https://cdn.example.com")
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rPagesUrl.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Pages publishes a new commit within a minute or so, so a link copied right after the upload can show a 404 at first. A file name that is already in the repository is refused; Unisic's file names carry the date and time, so that does not happen by itself.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Labeled {
+                        visible: !editSheet.gitHubMode
                         label: qsTr("Request URL")
                         hint: fType.currentIndex === 1
                               ? qsTr("%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.")
@@ -946,6 +1048,7 @@ Item {
                         font.pixelSize: Theme.fontS
                     }
                     Labeled {
+                        visible: !editSheet.gitHubMode
                         label: qsTr("URL extractor")
                         hint: fType.currentIndex === 1
                               ? qsTr("Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.")
@@ -981,7 +1084,7 @@ Item {
                         // The Client-ID field replaces this one for Imgur, which
                         // is an http destination; a curl destination always gets
                         // the raw header field.
-                        visible: fType.currentIndex === 1 || !editSheet.imgurMode
+                        visible: fType.currentIndex === 1 || (fType.currentIndex === 0 && !editSheet.imgurMode)
                         label: qsTr("Headers (JSON)")
                         UTextField {
                             id: fHeaders; width: parent.width
@@ -1059,7 +1162,7 @@ Item {
                         variant: "tonal"
                         iconName: "upload-cloud"
                         text: editSheet.testing ? qsTr("Testing…") : qsTr("Test upload")
-                        enabled: !editSheet.testing && fUrl.text.trim() !== ""
+                        enabled: !editSheet.testing && editSheet.formComplete
                         onClicked: {
                             var d = editSheet.buildDest()
                             if (!d)
@@ -1101,7 +1204,7 @@ Item {
                         UButton {
                             id: saveBtn
                             text: qsTr("Save")
-                            enabled: fName.text.trim() !== "" && fUrl.text.trim() !== ""
+                            enabled: fName.text.trim() !== "" && editSheet.formComplete
                             // Last control of a modal sheet: Tab wraps back to
                             // the top of the form. The page behind is disabled
                             // (see pageFlick), so this closes the loop.

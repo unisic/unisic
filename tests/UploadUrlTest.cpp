@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QTemporaryDir>
+#include <QJsonDocument>
 #include "Settings.h"
 #include "upload/UploadManager.h"
 
@@ -12,6 +13,7 @@ private slots:
     void responseTemplate();
     void offeredVariablesResolve();
     void vgyMeSupport();
+    void gitHubPagesSupport();
     void uploadChain();
     void liveBuzzheavierUpload();
     void liveVgyMeUpload();
@@ -172,6 +174,85 @@ void UploadUrlTest::vgyMeSupport()
         QVERIFY(!ok);
         QVERIFY(url.isEmpty());
         QVERIFY(err.contains(QStringLiteral("user key")));
+    });
+    QVERIFY(testDone);
+}
+
+// GitHub Pages: the editor's five fields compose an http destination that reads
+// back unchanged, the link is the public address plus the committed file's
+// name, and the shipped preset (no repository, no token) is refused before any
+// request and kept out of the chain.
+void UploadUrlTest::gitHubPagesSupport()
+{
+    UploadManager::GitHubSetup in;
+    in.repo = QStringLiteral("https://github.com/Octo-Cat/cdn.git");
+    in.branch = QStringLiteral("gh-pages");
+    in.folder = QStringLiteral("/img/");
+    in.token = QStringLiteral("github_pat_test");
+    in.publicUrl = QStringLiteral("https://cdn.example.com/");
+    const QJsonObject dest = UploadManager::gitHubDestination(in);
+    QVERIFY(UploadManager::isGitHub(dest));
+    QVERIFY(UploadManager::gitHubReady(dest));
+    QCOMPARE(dest.value(QStringLiteral("requestUrl")).toString(),
+             QStringLiteral("https://api.github.com/repos/Octo-Cat/cdn/contents/img/%file%"));
+    QCOMPARE(dest.value(QStringLiteral("method")).toString(), QStringLiteral("PUT"));
+    QCOMPARE(dest.value(QStringLiteral("headers")).toObject().value(QStringLiteral("Authorization")).toString(),
+             QStringLiteral("Bearer github_pat_test"));
+    // The name lands in the URL path percent-encoded, the way the API wants it.
+    QCOMPARE(UploadManager::requestUrlWithFileName(dest.value(QStringLiteral("requestUrl")).toString(),
+                                                   QStringLiteral("a b.png")),
+             QStringLiteral("https://api.github.com/repos/Octo-Cat/cdn/contents/img/a%20b.png"));
+    const UploadManager::GitHubSetup out = UploadManager::gitHubSetup(dest);
+    QCOMPARE(out.repo, QStringLiteral("Octo-Cat/cdn"));
+    QCOMPARE(out.branch, QStringLiteral("gh-pages"));
+    QCOMPARE(out.folder, QStringLiteral("img"));
+    QCOMPARE(out.token, in.token);
+    QCOMPARE(out.publicUrl, QStringLiteral("https://cdn.example.com"));
+    const QJsonObject data = QJsonDocument::fromJson(dest.value(QStringLiteral("data")).toString().toUtf8()).object();
+    QCOMPARE(data.value(QStringLiteral("branch")).toString(), QStringLiteral("gh-pages"));
+    QCOMPARE(data.value(QStringLiteral("content")).toString(), QStringLiteral("$base64$"));
+    QCOMPARE(data.value(QStringLiteral("message")).toString(), QStringLiteral("unisic: $filename$"));
+    const QByteArray response(R"({"content":{"name":"shot.png","path":"img/shot.png","html_url":"https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"},"commit":{"sha":"abc"}})");
+    QCOMPARE(UploadManager::extractUrl(dest, QStringLiteral("urlPath"), response),
+             QStringLiteral("https://cdn.example.com/shot.png"));
+    QCOMPARE(UploadManager::extractUrl(dest, QStringLiteral("deletionUrlPath"), response),
+             QStringLiteral("https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"));
+
+    // Default addresses: a project site under /name, the user site at the root.
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("Octo-Cat/cdn"), QStringLiteral("img")),
+             QStringLiteral("https://octo-cat.github.io/cdn/img"));
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("octocat/octocat.github.io"), {}),
+             QStringLiteral("https://octocat.github.io"));
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("octocat"), {}), QString());
+    UploadManager::GitHubSetup bare;
+    bare.repo = QStringLiteral("octocat/cdn");
+    bare.token = QStringLiteral("x");
+    const QJsonObject bareDest = UploadManager::gitHubDestination(bare);
+    QCOMPARE(bareDest.value(QStringLiteral("urlPath")).toString(),
+             QStringLiteral("https://octocat.github.io/cdn/$json:content.name$"));
+    const UploadManager::GitHubSetup back = UploadManager::gitHubSetup(bareDest);
+    QCOMPARE(back.branch, QStringLiteral("main"));
+    QVERIFY(back.publicUrl.isEmpty());
+
+    // The shipped preset: recognised, incomplete, refused before any request.
+    const QJsonObject preset = UploadManager::gitHubDestination({});
+    QVERIFY(UploadManager::isGitHub(preset));
+    QVERIFY(!UploadManager::gitHubReady(preset));
+    QVERIFY(UploadManager::gitHubSetup(preset).repo.isEmpty());
+
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+    Settings settings;
+    UploadManager uploads(&settings);
+    QVERIFY(uploads.destinationNames().contains(QStringLiteral("GitHub Pages")));
+    QVERIFY(!uploads.uploadChainFor(QStringLiteral("catbox.moe")).contains(QStringLiteral("GitHub Pages")));
+    bool testDone = false;
+    uploads.testDestination(preset.toVariantMap(), [&](bool ok, const QString &url, const QString &err) {
+        testDone = true;
+        QVERIFY(!ok);
+        QVERIFY(url.isEmpty());
+        QVERIFY(err.contains(QStringLiteral("token")));
     });
     QVERIFY(testDone);
 }

@@ -56,7 +56,7 @@ By hand: grab the **AppImage** or a native package from the **[latest release](h
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Every hotkey is rebindable in Settings → Hotkeys. The same actions run from the command line (`unisic --region | --fullscreen | --window | --scroll | --gif`, see `unisic --help`), which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
+Every hotkey is rebindable in Settings → Hotkeys. The same actions run from the command line (`unisic --region | --fullscreen | --window | --scroll | --gif`, see `unisic --help`; bash and zsh complete the options on Tab), which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
 
 ## What it does
 

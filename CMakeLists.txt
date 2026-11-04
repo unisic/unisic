@@ -484,12 +484,17 @@ install(FILES ${CMAKE_BINARY_DIR}/unisic-features.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
-# was last hand-edited. It is the ONLY CLI documentation Unisic has - there is
-# no --help - and Debian's linters flag a binary that ships without one.
+# was last hand-edited. Debian's linters flag a binary that ships without one.
 string(TIMESTAMP UNISIC_MAN_DATE "%Y-%m-%d" UTC)
 configure_file(resources/unisic.1.in ${CMAKE_CURRENT_BINARY_DIR}/unisic.1 @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+# Shell completion (#133). Both files parse `unisic --help` at completion time
+# instead of listing options, so a new flag needs no edit here.
+install(FILES resources/completions/unisic.bash
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME unisic)
+install(FILES resources/completions/_unisic
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)
 
 # The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
 # restricted interfaces this app declares. KWin authorizes a caller by

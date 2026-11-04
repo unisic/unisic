@@ -1,0 +1,5 @@
+#compdef unisic
+# zsh completion for unisic. The options are read from `unisic --help`, which
+# the binary answers before Qt starts, so this file never lists them and can
+# never fall behind the real CLI.
+_gnu_generic "$@"

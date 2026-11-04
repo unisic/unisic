@@ -219,6 +219,8 @@ appstream-util validate-relax --nonet \
 %{_datadir}/unisic/unisic-features.txt
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_mandir}/man1/unisic.1*
+%{_datadir}/bash-completion/completions/unisic
+%{_datadir}/zsh/site-functions/_unisic
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg

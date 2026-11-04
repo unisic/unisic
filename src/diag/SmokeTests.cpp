@@ -5831,7 +5831,31 @@ QString AppContext::scrollStitchCheck() const
             .arg(got.width()).arg(got.height()).arg(expect.width()).arg(expect.height());
     if (got != expect)
         return QStringLiteral("FAIL (pixels differ)");
-    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
+
+    // A bar floating over the page, inset from the sides and the top, leaves
+    // no row standing still: it must still appear once, not at every step.
+    auto floating = [&](int y) {
+        QImage f = doc.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(12, 6, w - 24, 20, QColor(40, 40, 90));
+        p.setPen(Qt::white);
+        p.drawText(20, 20, QStringLiteral("Floating navigation"));
+        return f;
+    };
+    ScrollStitcher bar;
+    bar.addFrame(floating(0));
+    for (int y : {30, 75, 76, 140, 230}) {
+        if (bar.addFrame(floating(y)) != ScrollStitcher::Result::Stitched)
+            return QStringLiteral("FAIL (floating bar: lost track at y=%1)").arg(y);
+    }
+    QImage barExpect = doc.copy(0, 0, w, 230 + vh);
+    {
+        QPainter p(&barExpect);
+        p.drawImage(0, 0, floating(0).copy(0, 0, w, 26));
+    }
+    if (bar.stitchedImage() != barExpect)
+        return QStringLiteral("FAIL (floating bar repeated)");
+    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames, floating bar once)")
         .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
 }
 

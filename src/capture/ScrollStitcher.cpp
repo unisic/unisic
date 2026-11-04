@@ -15,6 +15,10 @@ constexpr int kTol = 24;
 // rows match at every shift, so they never decide an alignment.
 constexpr int kFlat = 24;
 
+// A pixel of an overlay pinned to the view is the same bytes in every frame,
+// give or take rounding; kTol would also take a pale card over a white page.
+constexpr int kStill = 8;
+
 // Only colour bytes 0..2 are compared: every 32-bit format the grabbers
 // deliver (RGB32/ARGB32 = B,G,R,A and RGBX/RGBA8888 = R,G,B,A in memory)
 // keeps alpha or padding in byte 3, which may be garbage for the x formats.
@@ -22,6 +26,12 @@ inline bool pxEq(const uchar *a, const uchar *b)
 {
     return std::abs(a[0] - b[0]) <= kTol && std::abs(a[1] - b[1]) <= kTol
         && std::abs(a[2] - b[2]) <= kTol;
+}
+
+inline bool near(const uchar *a, const uchar *b, int tol)
+{
+    return std::abs(a[0] - b[0]) <= tol && std::abs(a[1] - b[1]) <= tol
+        && std::abs(a[2] - b[2]) <= tol;
 }
 
 inline int lum(const uchar *p) { return p[0] + 2 * p[1] + p[2]; }
@@ -132,8 +142,8 @@ ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QIma
     const QImage curr = smoothed(curr32, sx, n);
 
     QVector<int> cols;   // byte offsets into a row of the smoothed pictures
+    QVector<uchar> moved(n, 0);
     {
-        QVector<uchar> moved(n, 0);
         int left = n;
         for (int y = 0; y < h && left > 0; ++y) {   // row by row: columns are cache-hostile
             const uchar *a = prev.constScanLine(y);
@@ -338,12 +348,127 @@ ScrollStitcher::Shift ScrollStitcher::findShift(const QImage &prevIn, const QIma
 
     out.ok = true;
     out.dy = bestD;
-    const int y0 = bestD > 0 ? areaTop : areaTop - bestD;
-    const int y1 = bestD > 0 ? areaBottom - bestD : areaBottom;
-    for (int y = y0; y < y1; ++y) {
-        if (!rows.equal(y + bestD, y))
-            out.staleRows.append(y);
+
+    const int quarter = h / 4;
+    bool midChanged = false;
+    {
+        const int y0 = bestD > 0 ? areaTop : areaTop - bestD;
+        const int y1 = bestD > 0 ? areaBottom - bestD : areaBottom;
+        for (int y = y0; y < y1; ++y) {
+            if (!rows.equal(y + bestD, y)) {
+                out.staleRows.append(y);
+                midChanged |= y >= quarter && y < h - quarter;
+            }
+        }
     }
+
+    // Overlays pinned to the view that leave no whole row standing still, so
+    // the sticky-row test above misses them: a navigation bar floating a little
+    // below the top edge and narrower than the view, a badge in a corner of the
+    // blank margin. Their pixels keep their bytes while the page behind them
+    // moved, so they differ from what the shift brings there; a scrolled pixel
+    // matches its shifted self. Without this the bar was repainted into the
+    // page at every frame position and the badge came along with every strip.
+    // Only the outer quarters can hold such a band; a column with pixels like
+    // that in the middle is static content (a sidebar's text), not an overlay.
+    // A pair whose middle changed as well (a hover card came or went, a
+    // picture loaded) is left out: a pixel of the page that happens to match
+    // in place then differs from the card the shift brings there, and passes
+    // for an overlay. The bands found in other pairs stay.
+    if (!midChanged) {
+        const int d = bestD;
+        // Seeds of row y, handed to onSeed(i) until it returns true. A seed is
+        // a pixel whose bytes did not change, on an edge that stood still too,
+        // against a neighbour that kept its value (a flat margin is the same in
+        // place whatever scrolled, background next to a scrolled glyph is no
+        // overlay), and that differs from the pixel the shift brings to it on
+        // every side the frames have: on one side alone that may land on
+        // another overlay (a pixel above a badge does exactly that). The
+        // smoothed pictures are gray, one channel says it all.
+        auto seeds = [&](int y, auto onSeed) {
+            const bool fwd = y + d >= 0 && y + d < h;
+            const bool back = y - d >= 0 && y - d < h;
+            if (!fwd && !back)
+                return;
+            const uchar *c = curr.constScanLine(y), *p = prev.constScanLine(y);
+            const uchar *cu = y > 0 ? curr.constScanLine(y - 1) : nullptr;
+            const uchar *pu = y > 0 ? prev.constScanLine(y - 1) : nullptr;
+            const uchar *cd = y + 1 < h ? curr.constScanLine(y + 1) : nullptr;
+            const uchar *pd = y + 1 < h ? prev.constScanLine(y + 1) : nullptr;
+            const uchar *pf = fwd ? prev.constScanLine(y + d) : nullptr;
+            const uchar *cb = back ? curr.constScanLine(y - d) : nullptr;
+            const uchar *rc = curr32.constScanLine(y), *rp = prev32.constScanLine(y);
+            for (int i = 0, off = 0; i < n; ++i, off += 4) {
+                const int v = c[off];
+                if (std::abs(v - p[off]) > kStill || (fwd && std::abs(v - pf[off]) <= kTol)
+                    || (back && std::abs(p[off] - cb[off]) <= kTol))
+                    continue;
+                auto edgeTo = [v](const uchar *cq, const uchar *pq, int o) {
+                    return std::abs(v - cq[o]) > kFlat && std::abs(cq[o] - pq[o]) <= kStill;
+                };
+                if (!((i > 0 && edgeTo(c, p, off - 4)) || (i + 1 < n && edgeTo(c, p, off + 4))
+                      || (cu && edgeTo(cu, pu, off)) || (cd && edgeTo(cd, pd, off))))
+                    continue;
+                if (near(rp + i * sx * 4, rc + i * sx * 4, kStill) && onSeed(i))
+                    return;
+            }
+        };
+        QVector<uchar> staticCol(n, 0);
+        for (int y = quarter; y < h - quarter; ++y)
+            seeds(y, [&](int i) { staticCol[i] = 1; return false; });
+        auto pinned = [&](int y) {   // two pixels, so a single noisy one cannot make a band
+            int found = 0;
+            bool two = false;
+            seeds(y, [&](int i) { return two = !staticCol[i] && ++found == 2; });
+            return two;
+        };
+        int top = 0, bottom = 0;
+        for (int y = quarter - 1; y >= 0 && top == 0; --y) {
+            if (pinned(y))
+                top = y + 1;
+        }
+        for (int y = h - quarter; y < h && bottom == 0; ++y) {
+            if (pinned(y))
+                bottom = h - y;
+        }
+        // The band goes on over rows of the overlay that hold no seed: its
+        // border or shadow, which match neither in place nor at the shift, and
+        // a dark badge on a dark margin, too faint for the smoothed pictures,
+        // whose bytes still differ from the margin the shift brings there.
+        // Only in columns that never moved: in the page a pixel of background
+        // between lines of text does that too.
+        auto edgeRow = [&](int y) {
+            const bool fwd = y + d >= 0 && y + d < h;
+            const bool back = y - d >= 0 && y - d < h;
+            if (fwd && !rows.equal(y + d, y))
+                return true;
+            if (!fwd && !back)
+                return false;
+            const uchar *rc = curr32.constScanLine(y), *rp = prev32.constScanLine(y);
+            const uchar *rf = fwd ? prev32.constScanLine(y + d) : nullptr;
+            const uchar *rb = back ? curr32.constScanLine(y - d) : nullptr;
+            for (int i = 0; i < n; ++i) {
+                const int x = i * sx * 4;
+                if (!moved[i] && !staticCol[i] && near(rp + x, rc + x, kStill)
+                    && (!fwd || !near(rc + x, rf + x, kStill)) && (!back || !near(rp + x, rb + x, kStill)))
+                    return true;
+            }
+            return false;
+        };
+        if (top > 0) {
+            while (top < quarter && edgeRow(top))
+                ++top;
+        }
+        if (bottom > 0) {
+            while (bottom < quarter && edgeRow(h - 1 - bottom))
+                ++bottom;
+        }
+        out.pinnedTop = top;
+        out.pinnedBottom = bottom;
+        out.header = std::max(out.header, top);
+        out.footer = std::max(out.footer, bottom);
+    }
+
     return out;
 }
 
@@ -369,6 +494,8 @@ void ScrollStitcher::restart(const QImage &frame)
     m_bottom = frame.height();
     m_headPos = 0;
     m_tailEnd = frame.height();
+    m_pinTop = 0;
+    m_pinBottom = 0;
     m_frameCount = 1;
 }
 
@@ -435,8 +562,12 @@ ScrollStitcher::Result ScrollStitcher::addFrame(const QImage &frameIn)
 
     const int h = frame.height();
     const int w = frame.width();
-    const int H = s.header;
-    const int F = s.footer;
+    // A pinned overlay seen once is there for the whole capture, even in a
+    // pair where it happened to match what scrolled behind it.
+    m_pinTop = std::max(m_pinTop, s.pinnedTop);
+    m_pinBottom = std::max(m_pinBottom, s.pinnedBottom);
+    const int H = std::max(s.header, m_pinTop);
+    const int F = std::max(s.footer, m_pinBottom);
 
     // The head covers document rows [m_headPos, m_top), the tail
     // [m_bottom, m_tailEnd). When m_prev's sticky band is bigger than what is
@@ -482,8 +613,13 @@ ScrollStitcher::Result ScrollStitcher::addFrame(const QImage &frameIn)
         writeRow(r, frame, r - pos);
     for (int r = m_bottom; r < newBottom; ++r)
         writeRow(r, frame, r - pos);
-    // Rows that changed in place (an image finished loading) take the newer pixels.
+    // Rows that changed in place (an image finished loading) take the newer
+    // pixels, except in a band: there they are the pinned overlay, and a row of
+    // it painted into the page would stay, since that row only ever moves into
+    // the band again.
     for (int y : s.staleRows) {
+        if (y < H || y >= h - F)
+            continue;
         const int r = pos + y;
         if (r >= m_top && r < m_bottom)
             writeRow(r, frame, y);

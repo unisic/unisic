@@ -193,6 +193,11 @@ jobs:
           cmake --build build-appimage --parallel
           mkdir -p AppDir
           DESTDIR="$PWD/AppDir" cmake --install build-appimage --strip
+          # appimagetool (continuous, from its 2026-10-31 build on) makes
+          # .DirIcon only from a PNG at the AppDir root; linuxdeploy links the
+          # SVG there, since an SVG always wins its icon ranking. The raster is
+          # rendered from resources/icons/unisic.svg (docs/dev/packaging.md).
+          cp resources/icons/unisic-256.png AppDir/app.unisic.Unisic.png
           # OCR language data. The libraries were always bundled and the data
           # never was, so OCR returned nothing on any host without a matching
           # langpack. The path is found by name rather than hardcoded: Ubuntu
@@ -246,6 +251,7 @@ jobs:
             version="${version%% *}"
           fi
           export VERSION="$version"
+          export LINUXDEPLOY_OUTPUT_VERSION="$version"
 
           mkdir -p tools dist
           curl -L -o tools/linuxdeploy-x86_64.AppImage \

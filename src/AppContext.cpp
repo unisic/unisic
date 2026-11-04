@@ -9,6 +9,7 @@
 #include "upload/UploadManager.h"
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
+#include "history/CaptureStats.h"
 #include "history/HistoryFilterModel.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
@@ -1808,11 +1809,11 @@ QString AppContext::systemDiagnostics() const
     const bool kwinOnBus = bi && bi->isServiceRegistered(QStringLiteral("org.kde.KWin"));
     L << QStringLiteral("KWin on bus: %1").arg(yn(kwinOnBus));
     if (kwinOnBus) {
-        const QString blur = KWinForceBlur::blursThisApp();
+        const QString blur = KWinForceBlur::blursThisApp(m_layerShellAvailable);
         L << QStringLiteral("Force blur (Better Blur): %1")
                  .arg(!blur.isEmpty() ? blur
-                      : KWinForceBlur::loaded() ? QStringLiteral("loaded, leaves Unisic alone")
-                                                : QStringLiteral("not loaded"));
+                      : !KWinForceBlur::loadedGroup().isEmpty() ? QStringLiteral("loaded, leaves Unisic alone")
+                                                                : QStringLiteral("not loaded"));
     }
 
     // There is no [Build features] section any more: every gate is a HARD build
@@ -1928,6 +1929,18 @@ void AppContext::showLogInFileManager()
         return;
     }
     showInFileManager(p);
+}
+
+QVariantMap AppContext::captureStats() const
+{
+    const QString path = CaptureStats::filePath();
+    const CaptureStats::Counts c = CaptureStats::read(path, QDate::currentDate());
+    return {{QStringLiteral("today"), c.today},
+            {QStringLiteral("month"), c.month},
+            {QStringLiteral("year"), c.year},
+            {QStringLiteral("total"), c.total},
+            {QStringLiteral("readable"), c.readable},
+            {QStringLiteral("path"), path}};
 }
 
 QVariantList AppContext::dependencyReport() const
@@ -2936,7 +2949,7 @@ void AppContext::showRecordBorder(QRect physRegion, QScreen *screen, int countdo
         if (auto *ls = LayerShellQt::Window::get(win)) {
             using LW = LayerShellQt::Window;
             ls->setLayer(LW::LayerOverlay);
-            ls->setScope(QStringLiteral("unisic-record-border"));
+            ls->setScope(QStringLiteral("dock")); // not our own name: see ScrollCaptureController::createOverlayWindow (#121)
             ls->setExclusiveZone(-1); // cover the whole output, ignore panels
             ls->setKeyboardInteractivity(LW::KeyboardInteractivityNone);
             ls->setAnchors(LW::Anchors(LW::AnchorTop | LW::AnchorBottom
@@ -3092,7 +3105,7 @@ void AppContext::noteForceBlur()
 {
     if (m_forceBlurWarned)
         return;
-    m_forceBlurWarning = KWinForceBlur::blursThisApp();
+    m_forceBlurWarning = KWinForceBlur::blursThisApp(m_layerShellAvailable);
     if (!m_forceBlurWarning.isEmpty())
         qWarning().noquote() << "Capture overlay is force-blurred:" << m_forceBlurWarning;
 }
@@ -3218,6 +3231,10 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
     // links the file to THIS entry instead of stranding it (setFilePathById(0)
     // silently missed). The thumbnail is generated now from `output`, so the
     // full image no longer stays pinned across the whole network transfer.
+    // Counted before the history entry: the Statistics row re-reads the file
+    // when the history model grows, so the count must already be on disk.
+    if (!cliMode)
+        CaptureStats::record(CaptureStats::filePath(), QDate::currentDate());
     quint64 historyId = cliMode ? 0
                                 : m_history->addEntry(path, output, QStringLiteral("image"));
 
@@ -3320,7 +3337,8 @@ void AppContext::afterUploadActions(const QString &url)
     // Read now: both are only set while the chain's callback runs (this one).
     const QString fellBackFrom = m_uploads->fallbackFrom();
     const QString fellBackTo = m_uploads->fallbackTo();
-    const auto finish = [this, fellBackFrom, fellBackTo](const QString &finalUrl) {
+    const QString fellBackWhy = m_uploads->fallbackReason();
+    const auto finish = [this, fellBackFrom, fellBackTo, fellBackWhy](const QString &finalUrl) {
         if (m_settings->afterUploadCopyLink()) {
             copyText(finalUrl);
             // Important when a fallback took over: the link lives on another
@@ -3328,11 +3346,11 @@ void AppContext::afterUploadActions(const QString &url)
             if (fellBackFrom.isEmpty())
                 showToast(tr("Uploaded, link copied"));
             else
-                showToast(tr("%1 failed, uploaded to %2, link copied").arg(fellBackFrom, fellBackTo), true);
+                showToast(tr("%1 failed, uploaded to %2, link copied. %3").arg(fellBackFrom, fellBackTo, fellBackWhy), true);
         } else if (fellBackFrom.isEmpty()) {
             showToast(tr("Uploaded: %1").arg(finalUrl));
         } else {
-            showToast(tr("%1 failed, uploaded to %2: %3").arg(fellBackFrom, fellBackTo, finalUrl), true);
+            showToast(tr("%1 failed, uploaded to %2: %3. %4").arg(fellBackFrom, fellBackTo, finalUrl, fellBackWhy), true);
         }
         if (!m_settings->afterUploadOpenInBrowser())
             return;

@@ -97,6 +97,7 @@ public:
     // the one that took the upload.
     QString fallbackFrom() const { return m_fallbackFrom; }
     QString fallbackTo() const { return m_fallbackTo; }
+    QString fallbackReason() const { return m_fallbackReason; } // "name: error" of the first server
 
     QVariantList destinationsVariant() const;
     QStringList destinationNames() const;
@@ -142,6 +143,44 @@ public:
     { return isVgyMe(QJsonObject::fromVariantMap(dest)); }
     Q_INVOKABLE QString vgyMeUserKeyOf(const QVariantMap &dest) const
     { return vgyMeUserKey(QJsonObject::fromVariantMap(dest)); }
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+    // GitHub Pages: the file is committed to a repository through the GitHub
+    // Contents API and the link is where Pages serves it (the github.io
+    // address, or the custom domain in front of it). Stored as a plain http
+    // destination, so an exported destinations.json shows exactly what is
+    // sent; the editor swaps the raw fields for repository, branch, folder,
+    // token and public URL. The token is a fine-grained personal access token
+    // with "Contents: Read and write" on that one repository (or a classic one
+    // with the repo scope), kept in clear text like every credential here.
+    struct GitHubSetup { QString repo, branch, folder, token, publicUrl; };
+    static bool isGitHub(const QJsonObject &dest);
+    // The five pieces out of a stored destination. The shipped placeholder
+    // repository reads as empty (so the preset shows as needing setup), and a
+    // public URL equal to the github.io default reads as empty too.
+    static GitHubSetup gitHubSetup(const QJsonObject &dest);
+    // The http keys (no name) for a setup. `repo` may be pasted as a github.com
+    // address; an empty branch means main, an empty publicUrl the github.io
+    // address, an empty repo the placeholder.
+    static QJsonObject gitHubDestination(const GitHubSetup &s);
+    // Where Pages serves `folder` of `repo` without a custom domain: the user
+    // site (owner/owner.github.io) at the root, any other repository under
+    // its name. Empty for anything that is not owner/name.
+    static QString gitHubPagesUrl(const QString &repo, const QString &folder);
+    // Repository and token both set: without them the API answers 404 with no
+    // hint of which one is missing, so the upload is refused before it.
+    static bool gitHubReady(const QJsonObject &dest);
+    Q_INVOKABLE bool isGitHubDestination(const QVariantMap &dest) const
+    { return isGitHub(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE bool gitHubReadyOf(const QVariantMap &dest) const
+    { return gitHubReady(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE QVariantMap gitHubSetupOf(const QVariantMap &dest) const;
+    Q_INVOKABLE QVariantMap gitHubDestinationFor(const QString &repo, const QString &branch,
+                                                 const QString &folder, const QString &token,
+                                                 const QString &publicUrl) const;
+    Q_INVOKABLE QString gitHubPagesUrlFor(const QString &repo, const QString &folder) const
+    { return gitHubPagesUrl(repo, folder); }
+#endif
 
     // What a given form field substitutes, for the editor to offer as chips and
     // to draw as pills inside the field. Answered HERE and not spelled out in
@@ -236,7 +275,7 @@ private:
     bool m_busy = false;
     QString m_lastImportError;
     int m_active = 0; // in-flight CAPTURE uploads; busy = m_active > 0
-    QString m_fallbackFrom, m_fallbackTo;
+    QString m_fallbackFrom, m_fallbackTo, m_fallbackReason;
     // Correlates a testFinished() emission with the QML test that asked for it
     // (see the QML overload in the .cpp): only the newest one may speak.
     quint64 m_qmlTestGen = 0;

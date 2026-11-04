@@ -49,6 +49,8 @@ private slots:
     void scrollDownIsByteExact();
     void irregularStepsAreByteExact();
     void stickyHeaderAndFooterAppearOnce();
+    void floatingOverlaysAppearOnce_data();
+    void floatingOverlaysAppearOnce();
     void staticSidebarAndScrollbarDoNotBreakAlignment();
     void changingStickySidebarDoesNotBreakAlignment();
     void scrollingUpExtendsTheTop();
@@ -196,6 +198,66 @@ void ScrollStitchTest::stickyHeaderAndFooterAppearOnce()
     p.drawImage(0, 0, frame(y).copy(0, 0, w, hdr));
     p.drawImage(0, hdr, doc.copy(0, 0, w, body));
     p.drawImage(0, hdr + body, frame(y).copy(0, vh - ftr, w, ftr));
+    p.end();
+    QCOMPARE(s.stitchedImage(), expect);
+}
+
+// What a web page pins to the view without a full-width band at the frame
+// edge: a navigation bar floating a little below the top of the view, narrower
+// than it, and a small badge in a corner of the blank margin (a framework's dev
+// indicator, a chat button). Neither makes a whole row stand still, so the
+// sticky-row test misses them; before they were recognised, the bar was
+// repainted into the page at every frame position and the badge came along with
+// every new strip. The bar may be translucent (backdrop blur), so the rows
+// behind it change with the page while its text stays put.
+void ScrollStitchTest::floatingOverlaysAppearOnce_data()
+{
+    QTest::addColumn<int>("barAlpha");
+    QTest::addColumn<bool>("down");
+    QTest::newRow("opaque bar, scrolled down") << 255 << true;
+    QTest::newRow("translucent bar, scrolled down") << 200 << true;
+    QTest::newRow("opaque bar, scrolled up") << 255 << false;
+}
+
+void ScrollStitchTest::floatingOverlaysAppearOnce()
+{
+    QFETCH(int, barAlpha);
+    QFETCH(bool, down);
+    const int margin = 40, aw = 380, w = margin + aw + margin, vh = 300, pageH = 1600;
+    const QImage text = document(aw, pageH);
+    QImage page(w, pageH, QImage::Format_RGB32);
+    page.fill(QColor(17, 17, 17));
+    {
+        QPainter p(&page);
+        p.drawImage(margin, 0, text);
+    }
+    auto frame = [&](int y) {
+        QImage f = page.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(margin + 10, 14, aw - 20, 32, QColor(40, 40, 46, barAlpha));
+        p.setPen(Qt::white);
+        drawGlyphs(p, margin + 20, 34, QStringLiteral("AmpersandBot  CHANGELOG  SUPPORT"));
+        p.fillRect(8, vh - 44, 24, 24, Qt::black);
+        drawGlyphs(p, 16, vh - 26, QStringLiteral("N"));
+        return f;
+    };
+    const int start = down ? 0 : pageH - vh;
+    ScrollStitcher s;
+    s.addFrame(frame(start));
+    int y = start;
+    for (int d : {40, 75, 12, 3, 120, 60, 1, 90}) {
+        y += down ? d : -d;
+        QVERIFY2(s.addFrame(frame(y)) == R::Stitched, qPrintable(QStringLiteral("y %1").arg(y)));
+    }
+    // The page as the view showed it at the top (bar over it) down to where
+    // the view showed it at the bottom (badge over it); every row in between
+    // is the page itself.
+    const int lo = std::min(start, y), hi = std::max(start, y);
+    const int barEnd = 46, badgeTop = vh - 44;
+    QImage expect = page.copy(0, lo, w, hi + vh - lo);
+    QPainter p(&expect);
+    p.drawImage(0, 0, frame(lo).copy(0, 0, w, barEnd));
+    p.drawImage(0, hi - lo + badgeTop, frame(hi).copy(0, badgeTop, w, vh - badgeTop));
     p.end();
     QCOMPARE(s.stitchedImage(), expect);
 }

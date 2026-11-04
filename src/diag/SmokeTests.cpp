@@ -21,6 +21,8 @@
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
 #include "history/HistoryFilterModel.h"
+#include "history/CaptureStats.h"
+#include "history/CaptureStats.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
 #include "diag/CrashHandler.h"
@@ -3281,6 +3283,26 @@ QtObject {
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
+QString AppContext::captureStatsCheck()
+{
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("SKIP (no scratch directory)");
+    const QString scratch = dir.filePath(QStringLiteral("unisic.stats"));
+    const QDate day(2026, 3, 1);
+    if (!CaptureStats::record(scratch, day) || !CaptureStats::record(scratch, day)
+        || !CaptureStats::record(scratch, day.addYears(-1)))
+        return QStringLiteral("FAIL (scratch file not written)");
+    const CaptureStats::Counts c = CaptureStats::read(scratch, day);
+    if (c.today != 2 || c.month != 2 || c.year != 2 || c.total != 3)
+        return QStringLiteral("FAIL (counted %1/%2/%3/%4, want 2/2/2/3)")
+            .arg(c.today).arg(c.month).arg(c.year).arg(c.total);
+    const CaptureStats::Counts real = CaptureStats::read(CaptureStats::filePath(), QDate::currentDate());
+    if (!real.readable)
+        return QStringLiteral("FAIL (%1 does not parse)").arg(CaptureStats::filePath());
+    return QStringLiteral("PASS (%1 screenshots counted so far)").arg(real.total);
+}
+
 QString AppContext::historyFilterCheck()
 {
     HistoryFilterModel f;
@@ -3474,6 +3496,112 @@ QString AppContext::vgyMeCheck() const
         ? QStringLiteral("PASS (host match, user key extraction, response parsing, missing key guard, builtin present)")
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
 }
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+QString AppContext::gitHubPagesCheck()
+{
+    QStringList fails;
+    UploadManager::GitHubSetup in;
+    in.repo = QStringLiteral("https://github.com/Octo-Cat/cdn.git");
+    in.branch = QStringLiteral("gh-pages");
+    in.folder = QStringLiteral("/img/");
+    in.token = QStringLiteral("github_pat_smoke");
+    in.publicUrl = QStringLiteral("https://cdn.example.com/");
+    const QJsonObject dest = UploadManager::gitHubDestination(in);
+    if (!UploadManager::isGitHub(dest))
+        fails << QStringLiteral("composed destination not recognised as GitHub");
+    if (dest.value(QStringLiteral("requestUrl")).toString()
+        != QLatin1String("https://api.github.com/repos/Octo-Cat/cdn/contents/img/%file%"))
+        fails << QStringLiteral("requestUrl: ") + dest.value(QStringLiteral("requestUrl")).toString();
+    if (!UploadManager::gitHubReady(dest))
+        fails << QStringLiteral("complete setup reads as not ready");
+    const UploadManager::GitHubSetup out = UploadManager::gitHubSetup(dest);
+    if (out.repo != QLatin1String("Octo-Cat/cdn") || out.branch != QLatin1String("gh-pages")
+        || out.folder != QLatin1String("img") || out.token != in.token
+        || out.publicUrl != QLatin1String("https://cdn.example.com"))
+        fails << QStringLiteral("round trip lost a field: %1 %2 %3 %4")
+                     .arg(out.repo, out.branch, out.folder, out.publicUrl);
+    // The body is JSON the API parses: the tokens sit inside string values.
+    const QJsonObject data = QJsonDocument::fromJson(
+        dest.value(QStringLiteral("data")).toString().toUtf8()).object();
+    if (data.value(QStringLiteral("content")).toString() != QLatin1String("$base64$")
+        || data.value(QStringLiteral("branch")).toString() != QLatin1String("gh-pages"))
+        fails << QStringLiteral("JSON body: ") + dest.value(QStringLiteral("data")).toString();
+    const QByteArray response(R"({"content":{"name":"shot.png","path":"img/shot.png","html_url":"https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"},"commit":{"sha":"abc"}})");
+    const QString url = UploadManager::extractUrl(dest, QStringLiteral("urlPath"), response);
+    if (url != QLatin1String("https://cdn.example.com/shot.png"))
+        fails << QStringLiteral("link: ") + url;
+    if (UploadManager::extractUrl(dest, QStringLiteral("deletionUrlPath"), response)
+        != QLatin1String("https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"))
+        fails << QStringLiteral("deletion link is not the file's GitHub page");
+    // Default addresses: a project site under /name, the user site at the root.
+    if (UploadManager::gitHubPagesUrl(QStringLiteral("Octo-Cat/cdn"), QStringLiteral("img"))
+        != QLatin1String("https://octo-cat.github.io/cdn/img"))
+        fails << QStringLiteral("project site address");
+    if (UploadManager::gitHubPagesUrl(QStringLiteral("octocat/octocat.github.io"), {})
+        != QLatin1String("https://octocat.github.io"))
+        fails << QStringLiteral("user site address");
+    UploadManager::GitHubSetup bare;
+    bare.repo = QStringLiteral("octocat/cdn");
+    bare.token = QStringLiteral("x");
+    const UploadManager::GitHubSetup back = UploadManager::gitHubSetup(UploadManager::gitHubDestination(bare));
+    if (back.branch != QLatin1String("main") || !back.publicUrl.isEmpty())
+        fails << QStringLiteral("defaults: branch %1, public URL %2").arg(back.branch, back.publicUrl);
+
+    bool hasBuiltin = false;
+    for (const QJsonValue &v : m_uploads->destinationsJson()) {
+        if (v.toObject().value(QStringLiteral("name")).toString() == QLatin1String("GitHub Pages")) {
+            hasBuiltin = true;
+            break;
+        }
+    }
+    if (!hasBuiltin)
+        fails << QStringLiteral("GitHub Pages builtin destination missing");
+
+    // The guard: the preset as shipped must fail before any request goes out,
+    // naming the fix, and must stay out of the chain.
+    const QString scratch = QStringLiteral("unisic-smoke-github");
+    QJsonObject preset = UploadManager::gitHubDestination({});
+    preset.insert(QStringLiteral("name"), scratch);
+    m_uploads->saveDestination(preset.toVariantMap());
+    if (m_uploads->uploadChainFor(QStringLiteral("catbox.moe")).contains(scratch))
+        fails << QStringLiteral("unconfigured GitHub Pages offered as a fallback");
+    QString guardError;
+    bool guardCalled = false;
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        guardCalled = true;
+        guardError = err;
+    });
+    m_uploads->removeDestination(scratch);
+    const auto namesToken = [](const QString &s) {
+        return s.contains(QStringLiteral("token"), Qt::CaseInsensitive)
+               || s.contains(QStringLiteral("токен"), Qt::CaseInsensitive);
+    };
+    if (!guardCalled)
+        fails << QStringLiteral("no token: upload was attempted, not refused");
+    else if (!namesToken(guardError))
+        fails << QStringLiteral("unhelpful error on missing token: ") + guardError.left(80);
+
+    bool testCalled = false;
+    QString testErr;
+    m_uploads->testDestination(preset.toVariantMap(), [&](bool ok, const QString &, const QString &err) {
+        testCalled = true;
+        if (ok)
+            fails << QStringLiteral("testDestination succeeded without a token");
+        testErr = err;
+    });
+    if (!testCalled)
+        fails << QStringLiteral("testDestination was not called synchronously for a missing token");
+    else if (!namesToken(testErr))
+        fails << QStringLiteral("unhelpful test error on missing token: ") + testErr.left(80);
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (compose + read back, link from the response, default addresses, missing token guard, builtin present)")
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+#endif
 
 QString AppContext::uploadChainCheck()
 {
@@ -3840,6 +3968,13 @@ void AppContext::devTestHistoryFilter()
     showToast(tr("Dev: history search + filters: %1").arg(historyFilterCheck()));
 }
 
+void AppContext::devTestCaptureStats()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: screenshot statistics: %1").arg(captureStatsCheck()));
+}
+
 void AppContext::devTestImgurSetup()
 {
     if (!devBuild())
@@ -3853,6 +3988,15 @@ void AppContext::devTestVgyMe()
         return;
     showToast(tr("Dev: vgy.me support: %1").arg(vgyMeCheck()));
 }
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+void AppContext::devTestGitHubPages()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: GitHub Pages support: %1").arg(gitHubPagesCheck()));
+}
+#endif
 
 void AppContext::devTestUploadChain()
 {
@@ -4544,8 +4688,11 @@ void AppContext::runSmokeTest()
                             == QStringLiteral("file:///tmp/a%20b.png")
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
+        smokeLog(QStringLiteral("screenshot statistics: ") + captureStatsCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
         smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
+        // GitHub Pages (parked, docs/dev/architecture.md):
+        // smokeLog(QStringLiteral("GitHub Pages support: ") + gitHubPagesCheck());
         smokeLog(QStringLiteral("Failure Chain: ") + uploadChainCheck());
         smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
@@ -5677,7 +5824,31 @@ QString AppContext::scrollStitchCheck() const
             .arg(got.width()).arg(got.height()).arg(expect.width()).arg(expect.height());
     if (got != expect)
         return QStringLiteral("FAIL (pixels differ)");
-    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
+
+    // A bar floating over the page, inset from the sides and the top, leaves
+    // no row standing still: it must still appear once, not at every step.
+    auto floating = [&](int y) {
+        QImage f = doc.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(12, 6, w - 24, 20, QColor(40, 40, 90));
+        p.setPen(Qt::white);
+        p.drawText(20, 20, QStringLiteral("Floating navigation"));
+        return f;
+    };
+    ScrollStitcher bar;
+    bar.addFrame(floating(0));
+    for (int y : {30, 75, 76, 140, 230}) {
+        if (bar.addFrame(floating(y)) != ScrollStitcher::Result::Stitched)
+            return QStringLiteral("FAIL (floating bar: lost track at y=%1)").arg(y);
+    }
+    QImage barExpect = doc.copy(0, 0, w, 230 + vh);
+    {
+        QPainter p(&barExpect);
+        p.drawImage(0, 0, floating(0).copy(0, 0, w, 26));
+    }
+    if (bar.stitchedImage() != barExpect)
+        return QStringLiteral("FAIL (floating bar repeated)");
+    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames, floating bar once)")
         .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
 }
 

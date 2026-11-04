@@ -36,8 +36,10 @@ public:
         bool changed = false;     // most of the area between the sticky bands changed
         bool ok = false;          // a verified shift was found
         int dy = 0;               // >0 content moved up (scrolled down)
-        int header = 0;           // top rows that did not move
-        int footer = 0;           // bottom rows that did not move
+        int header = 0;           // top rows that did not move, or hold something pinned to the view
+        int footer = 0;           // bottom rows that did not move, or hold something pinned to the view
+        int pinnedTop = 0;        // the part of header owed to pinned overlays (a floating bar)
+        int pinnedBottom = 0;     // the part of footer owed to pinned overlays (a corner badge)
         QVector<int> staleRows;   // overlapping rows of curr that differ from prev
     };
 
@@ -87,6 +89,8 @@ private:
     QImage m_tail;          // sticky footer shown below the body
     int m_headPos = 0;      // document row of m_head's first row
     int m_tailEnd = 0;      // document row just past m_tail
+    int m_pinTop = 0;       // largest pinnedTop/pinnedBottom seen in this capture:
+    int m_pinBottom = 0;    // an overlay pinned to the view stays for all of it
 
     int m_frameCount = 0;
 };

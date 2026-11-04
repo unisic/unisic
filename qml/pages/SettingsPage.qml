@@ -1135,7 +1135,7 @@ Item {
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
-                            placeholder: "pol+eng"
+                            placeholder: "eng"
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
                     }
@@ -1335,6 +1335,46 @@ Item {
                                       : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                id: statsGroup
+                width: page.cardWidth
+                property var stats: App.captureStats()
+                // A capture lands in history right after it is counted.
+                Connections {
+                    target: App.history
+                    function onRowsInserted() { statsGroup.stats = App.captureStats() }
+                }
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Statistics") }
+                    SettingRow {
+                        label: qsTr("Screenshots taken")
+                        help: statsGroup.stats.readable
+                              ? qsTr("%1 today, %2 this month, %3 this year, %4 in all.")
+                                    .arg(statsGroup.stats.today).arg(statsGroup.stats.month)
+                                    .arg(statsGroup.stats.year).arg(statsGroup.stats.total)
+                              : qsTr("The statistics file could not be read. The next screenshot starts a new count and keeps the old file beside it.")
+                        helpDetail: qsTr("Unisic counts your screenshots per day in a file named unisic.stats: dates and numbers only, no file names or images. Drop that file on unisic.app/stats to see an activity chart and a review of your year. The page reads the file in your browser and nothing is uploaded.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UIconButton {
+                                iconName: "folder-open"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Show statistics file")
+                                onClicked: App.showInFileManager(statsGroup.stats.path)
+                            }
+                            UIconButton {
+                                iconName: "globe"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Open unisic.app/stats")
+                                onClicked: Qt.openUrlExternally("https://unisic.app/stats/")
+                            }
                         }
                     }
                 }
@@ -3946,9 +3986,12 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History drag payload"); onClicked: App.devTestHistoryDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot statistics"); onClicked: App.devTestCaptureStats() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("vgy.me support"); onClicked: App.devTestVgyMe() }
+                        // GitHub Pages (parked, docs/dev/architecture.md):
+                        // UButton { compact: true; variant: "tonal"; text: qsTr("GitHub Pages support"); onClicked: App.devTestGitHubPages() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Failure Chain"); onClicked: App.devTestUploadChain() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("curl destination"); onClicked: App.devTestCurlDestination() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Template variables"); onClicked: App.devTestTemplateVars() }

@@ -970,7 +970,9 @@ Window {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: visible ? Theme.spacingL : -height
         width: Math.min(toastLabel.implicitWidth + 44, parent.width - 80)
-        height: 46
+        // Grows with a wrapped label: a fallback toast carries the first
+        // server's error and would otherwise lose its middle to the elide.
+        height: Math.max(46, toastLabel.implicitHeight + 24)
         radius: 23
         color: Theme.surfaceHi
         border.width: 1
@@ -1009,7 +1011,10 @@ Window {
             Accessible.ignored: true
             anchors.centerIn: parent
             width: Math.min(implicitWidth, toast.width - 30)
-            elide: Text.ElideMiddle
+            wrapMode: Text.Wrap
+            maximumLineCount: 3
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
             color: Theme.textPrimary
             font.pixelSize: Theme.fontM
         }

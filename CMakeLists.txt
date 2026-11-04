@@ -185,6 +185,7 @@ qt_add_executable(unisic
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
+    src/history/CaptureStats.h src/history/CaptureStats.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
@@ -484,12 +485,17 @@ install(FILES ${CMAKE_BINARY_DIR}/unisic-features.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
-# was last hand-edited. It is the ONLY CLI documentation Unisic has - there is
-# no --help - and Debian's linters flag a binary that ships without one.
+# was last hand-edited. Debian's linters flag a binary that ships without one.
 string(TIMESTAMP UNISIC_MAN_DATE "%Y-%m-%d" UTC)
 configure_file(resources/unisic.1.in ${CMAKE_CURRENT_BINARY_DIR}/unisic.1 @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+# Shell completion (#133). Both files parse `unisic --help` at completion time
+# instead of listing options, so a new flag needs no edit here.
+install(FILES resources/completions/unisic.bash
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME unisic)
+install(FILES resources/completions/_unisic
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)
 
 # The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
 # restricted interfaces this app declares. KWin authorizes a caller by
@@ -863,6 +869,15 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_diag_redact_test PRIVATE Qt6::Core Qt6::Test)
     target_include_directories(unisic_diag_redact_test PRIVATE src)
     add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
+
+    qt_add_executable(unisic_capture_stats_test
+        tests/CaptureStatsTest.cpp
+        src/history/CaptureStats.h
+        src/history/CaptureStats.cpp
+    )
+    target_link_libraries(unisic_capture_stats_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_capture_stats_test PRIVATE src)
+    add_test(NAME unisic_capture_stats_test COMMAND unisic_capture_stats_test)
 
     qt_add_executable(unisic_scroll_stitch_test
         tests/ScrollStitchTest.cpp

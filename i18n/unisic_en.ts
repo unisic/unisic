@@ -84,7 +84,7 @@
     <message>
         <location filename="../src/AppContext.cpp" line="5991"/>
         <location filename="../src/diag/SmokeTests.cpp" line="2243"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4353"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4357"/>
         <source>Quit</source>
         <translation>Quit</translation>
     </message>
@@ -330,68 +330,68 @@
         <translation>Dev: couldn&apos;t save the test image</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3832"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3834"/>
         <source>Dev: template variables: %1</source>
         <translation>Dev: template variables: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3994"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3996"/>
         <source>Dev: vgy.me support: %1</source>
         <translation>Dev: vgy.me support: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4015"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4019"/>
         <source>Dev: settings round-trip: %1</source>
         <translation>Dev: settings round-trip: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4056"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4060"/>
         <source>Dev: uploading a test image to &apos;%1&apos;…</source>
         <translation>Dev: uploading a test image to &apos;%1&apos;…</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4059"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4063"/>
         <source>Dev: upload OK: %1</source>
         <translation>Dev: upload OK: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4061"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4065"/>
         <source>Dev: upload failed: %1</source>
         <translation>Dev: upload failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4387"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4391"/>
         <source>Alternate hotkey test</source>
         <translation>Alternate hotkey test</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4413"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4417"/>
         <source>Dev: alternate hotkeys - %1</source>
         <translation>Dev: alternate hotkeys - %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4421"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4425"/>
         <source>Dev: KGlobalAccel not available (backend: %1)</source>
         <translation>Dev: KGlobalAccel not available (backend: %1)</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4422"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4426"/>
         <source>none</source>
         <translation>none</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5773"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4430"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4434"/>
         <source>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</source>
         <translation>Hotkey taken by another app: %1. Pick a different key in Settings → Hotkeys, or free it in System Settings → Shortcuts.</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4434"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4438"/>
         <source>Hotkeys: all %1 bound in the daemon</source>
         <translation>Hotkeys: all %1 bound in the daemon</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4436"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4440"/>
         <source>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</source>
         <translation>Hotkeys: %1 of %2 were unbound and have been re-asserted (details in the log)</translation>
     </message>
@@ -758,37 +758,37 @@
         <translation>Dev: copy recording file: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3980"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3982"/>
         <source>Dev: screenshot statistics: %1</source>
         <translation>Dev: screenshot statistics: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4001"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4004"/>
         <source>Dev: GitHub Pages support: %1</source>
         <translation>Dev: GitHub Pages support: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4008"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4012"/>
         <source>Dev: Failure Chain: %1</source>
         <translation>Dev: Failure Chain: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4366"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4370"/>
         <source>Dev: tray menu: %1</source>
         <translation>Dev: tray menu: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4563"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4567"/>
         <source>Dev: native hotkeys: %1</source>
         <translation>Dev: native hotkeys: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5901"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5906"/>
         <source>Dev: scrolling hand-off: %1</source>
         <translation>Dev: scrolling hand-off: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5908"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5913"/>
         <source>Dev: scrolling stitch: %1</source>
         <translation>Dev: scrolling stitch: %1</translation>
     </message>
@@ -997,12 +997,12 @@
         <translation>Dev: record border FAILED to show</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3973"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3975"/>
         <source>Dev: history search + filters: %1</source>
         <translation>Dev: history search + filters: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3987"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3989"/>
         <source>Dev: Imgur Client-ID guard: %1</source>
         <translation>Dev: Imgur Client-ID guard: %1</translation>
     </message>
@@ -1346,7 +1346,7 @@
         <translation>Dev: KWin record failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3717"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3719"/>
         <source>Dev: curl destination: %1</source>
         <translation>Dev: curl destination: %1</translation>
     </message>
@@ -1355,42 +1355,42 @@
         <translation type="vanished">Dev: upload variables: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3883"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3885"/>
         <source>Dev: still GIF: %1</source>
         <translation>Dev: still GIF: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="3966"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="3968"/>
         <source>Dev: image conversion: %1</source>
         <translation>Dev: image conversion: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4049"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4053"/>
         <source>Dev: install channel: %1</source>
         <translation>Dev: install channel: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4113"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4117"/>
         <source>Dev: server test upload: %1</source>
         <translation>Dev: server test upload: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4211"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4215"/>
         <source>Dev: drop import: %1</source>
         <translation>Dev: drop import: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4294"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4298"/>
         <source>Dev: paste import: %1</source>
         <translation>Dev: paste import: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4374"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4378"/>
         <source>Dev: record page mode: %1</source>
         <translation>Dev: record page mode: %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="4555"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4559"/>
         <source>Dev: X11 record grab: %1</source>
         <translation>Dev: X11 record grab: %1</translation>
     </message>
@@ -1603,14 +1603,14 @@
     <message>
         <location filename="../src/AppContext.cpp" line="5447"/>
         <location filename="../src/AppContext.cpp" line="5974"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4352"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4356"/>
         <source>Capture full screen</source>
         <translation>Capture full screen</translation>
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5448"/>
         <location filename="../src/AppContext.cpp" line="5973"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4351"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4355"/>
         <source>Capture region</source>
         <translation>Capture region</translation>
     </message>
@@ -1668,7 +1668,7 @@
         <translation>Removed Unisic shortcuts from %1</translation>
     </message>
     <message>
-        <location filename="../src/diag/SmokeTests.cpp" line="5774"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="5779"/>
         <source>Dev: desktop shortcuts: %1</source>
         <translation>Dev: desktop shortcuts: %1</translation>
     </message>
@@ -1774,7 +1774,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5980"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4351"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4355"/>
         <source>Select text…</source>
         <translation>Select text…</translation>
     </message>
@@ -1835,7 +1835,7 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="5990"/>
-        <location filename="../src/diag/SmokeTests.cpp" line="4353"/>
+        <location filename="../src/diag/SmokeTests.cpp" line="4357"/>
         <source>Open Unisic</source>
         <translation>Open Unisic</translation>
     </message>
@@ -2163,7 +2163,7 @@
         <translation>No upload destinations yet. Add one to send captures straight to your own server or a public host.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="476"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="480"/>
         <source>Needs a Client-ID</source>
         <translation>Needs a Client-ID</translation>
     </message>
@@ -2172,12 +2172,12 @@
         <translation type="vanished">Use %1 for uploads</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="498"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="500"/>
         <source>Edit %1</source>
         <translation>Edit %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="506"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="508"/>
         <source>Delete %1</source>
         <translation>Delete %1</translation>
     </message>
@@ -2212,76 +2212,76 @@
         <translation>Drag to the top to make it the default</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="456"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="457"/>
         <source>Default</source>
         <translation>Default</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="478"/>
         <source>Needs a repository and a token</source>
-        <translation>Needs a repository and a token</translation>
+        <translation type="vanished">Needs a repository and a token</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="479"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="481"/>
         <source>Needs a user key</source>
         <translation>Needs a user key</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="788"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="796"/>
         <source>Edit server</source>
         <translation>Edit server</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="788"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="796"/>
         <source>New server</source>
         <translation>New server</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="852"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="860"/>
         <source>Testing the upload…</source>
         <translation>Testing the upload…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="855"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="863"/>
         <source>Upload worked. The server answered with:</source>
         <translation>Upload worked. The server answered with:</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="856"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="864"/>
         <source>Upload worked, but no link came back. Set a public URL base so the copied link points at the uploaded file.</source>
         <translation>Upload worked, but no link came back. Set a public URL base so the copied link points at the uploaded file.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="857"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="865"/>
         <source>Upload failed</source>
         <translation>Upload failed</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="893"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="901"/>
         <source>Name</source>
         <translation>Name</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="898"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="906"/>
         <source>e.g. my-server</source>
         <translation>e.g. my-server</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="902"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="910"/>
         <source>Type</source>
         <translation>Type</translation>
     </message>
     <message>
+        <location filename="../qml/pages/DestinationsPage.qml" line="914"/>
         <source>http for web APIs and public hosts, curl for FTP/SFTP.</source>
-        <translation type="vanished">http for web APIs and public hosts, curl for FTP/SFTP.</translation>
+        <translation>http for web APIs and public hosts, curl for FTP/SFTP.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="986"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="999"/>
         <source>Request URL</source>
         <translation>Request URL</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="995"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1008"/>
         <source>https://host/api/upload  or  https://host/put/%file%</source>
         <translation>https://host/api/upload  or  https://host/put/%file%</translation>
     </message>
@@ -2290,22 +2290,22 @@
         <translation type="vanished">sftp://host/path/  or  ftp://host/path/</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1003"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1016"/>
         <source>Multipart form-data (upload the file)</source>
         <translation>Multipart form-data (upload the file)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1003"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1016"/>
         <source>Custom JSON body</source>
         <translation>Custom JSON body</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1018"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1031"/>
         <source>$base64$ is the file itself, $filename$ its name, $mime$ its type.</source>
         <translation>$base64$ is the file itself, $filename$ its name, $mime$ its type.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1022"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1035"/>
         <source>e.g. {&quot;image&quot;:&quot;$base64$&quot;,&quot;name&quot;:&quot;$filename$&quot;}</source>
         <translation>e.g. {&quot;image&quot;:&quot;$base64$&quot;,&quot;name&quot;:&quot;$filename$&quot;}</translation>
     </message>
@@ -2314,7 +2314,7 @@
         <translation type="vanished">vgy.me user key (optional)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1039"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1052"/>
         <source>e.g. your-user-key</source>
         <translation>e.g. your-user-key</translation>
     </message>
@@ -2323,143 +2323,127 @@
         <translation type="vanished">Optional user key from https://vgy.me/account/details#userkeys. Attach uploads to your vgy.me account (required if anonymous uploads are disabled).</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1069"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1082"/>
         <source>Imgur Client-ID</source>
         <translation>Imgur Client-ID</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1079"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1092"/>
         <source>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient - pick “Anonymous usage without user authorisation” - and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</source>
         <translation>Unisic ships no Client-ID: it identifies the application, so a shared one would put every user on one daily cap. Register a free application at https://api.imgur.com/oauth2/addclient - pick “Anonymous usage without user authorisation” - and paste its Client-ID here. Uploads stay anonymous; they never appear in your Imgur gallery.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1099"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1112"/>
         <source>user:password (curl -u)</source>
         <translation>user:password (curl -u)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1105"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1118"/>
         <source>Where the uploaded file is reachable from. With neither this nor a URL extractor, a curl upload succeeds but no link can be copied.</source>
         <translation>Where the uploaded file is reachable from. With neither this nor a URL extractor, a curl upload succeeds but no link can be copied.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1187"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1200"/>
         <source>Cancel</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1206"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1219"/>
         <source>Save</source>
         <translation>Save</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="618"/>
-        <location filename="../qml/pages/DestinationsPage.qml" line="667"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="626"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="675"/>
         <source>Headers are not valid JSON. Fix or clear the field</source>
         <translation>Headers are not valid JSON. Fix or clear the field</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="646"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="654"/>
         <source>Extra form fields are not valid JSON. Fix or clear the field</source>
         <translation>Extra form fields are not valid JSON. Fix or clear the field</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="877"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="885"/>
         <source>Upload test result</source>
         <translation>Upload test result</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="903"/>
         <source>http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.</source>
-        <translation>http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.</translation>
+        <translation type="vanished">http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="915"/>
         <source>Repository</source>
-        <translation>Repository</translation>
+        <translation type="vanished">Repository</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="916"/>
         <source>owner/name, or the repository&apos;s github.com address. GitHub Pages must be turned on for it.</source>
-        <translation>owner/name, or the repository&apos;s github.com address. GitHub Pages must be turned on for it.</translation>
+        <translation type="vanished">owner/name, or the repository&apos;s github.com address. GitHub Pages must be turned on for it.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="919"/>
         <source>e.g. octocat/cdn</source>
-        <translation>e.g. octocat/cdn</translation>
+        <translation type="vanished">e.g. octocat/cdn</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="924"/>
         <source>Branch</source>
-        <translation>Branch</translation>
+        <translation type="vanished">Branch</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="925"/>
         <source>The branch Pages publishes from. Empty means main.</source>
-        <translation>The branch Pages publishes from. Empty means main.</translation>
+        <translation type="vanished">The branch Pages publishes from. Empty means main.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="933"/>
         <source>Folder (optional)</source>
-        <translation>Folder (optional)</translation>
+        <translation type="vanished">Folder (optional)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="934"/>
         <source>Files are committed under this folder of the repository.</source>
-        <translation>Files are committed under this folder of the repository.</translation>
+        <translation type="vanished">Files are committed under this folder of the repository.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="937"/>
         <source>e.g. img</source>
-        <translation>e.g. img</translation>
+        <translation type="vanished">e.g. img</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="943"/>
         <source>Personal access token</source>
-        <translation>Personal access token</translation>
+        <translation type="vanished">Personal access token</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="953"/>
         <source>A fine-grained token limited to this repository with Contents: Read and write, or a classic token with the repo scope. It is stored in clear text in destinations.json, like every other credential here.</source>
-        <translation>A fine-grained token limited to this repository with Contents: Read and write, or a classic token with the repo scope. It is stored in clear text in destinations.json, like every other credential here.</translation>
+        <translation type="vanished">A fine-grained token limited to this repository with Contents: Read and write, or a classic token with the repo scope. It is stored in clear text in destinations.json, like every other credential here.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="962"/>
         <source>Create a token on GitHub</source>
-        <translation>Create a token on GitHub</translation>
+        <translation type="vanished">Create a token on GitHub</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="968"/>
         <source>Public URL (optional)</source>
-        <translation>Public URL (optional)</translation>
+        <translation type="vanished">Public URL (optional)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="969"/>
         <source>Where Pages serves the folder. Empty means the github.io address; with a custom domain, type it here. The link is this address plus the file name.</source>
-        <translation>Where Pages serves the folder. Empty means the github.io address; with a custom domain, type it here. The link is this address plus the file name.</translation>
+        <translation type="vanished">Where Pages serves the folder. Empty means the github.io address; with a custom domain, type it here. The link is this address plus the file name.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="973"/>
         <source>e.g. https://cdn.example.com</source>
-        <translation>e.g. https://cdn.example.com</translation>
+        <translation type="vanished">e.g. https://cdn.example.com</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="980"/>
         <source>Pages publishes a new commit within a minute or so, so a link copied right after the upload can show a 404 at first. A file name that is already in the repository is refused; Unisic&apos;s file names carry the date and time, so that does not happen by itself.</source>
-        <translation>Pages publishes a new commit within a minute or so, so a link copied right after the upload can show a 404 at first. A file name that is already in the repository is refused; Unisic&apos;s file names carry the date and time, so that does not happen by itself.</translation>
+        <translation type="vanished">Pages publishes a new commit within a minute or so, so a link copied right after the upload can show a 404 at first. A file name that is already in the repository is refused; Unisic&apos;s file names carry the date and time, so that does not happen by itself.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="988"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1001"/>
         <source>%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.</source>
         <translation>%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="989"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1002"/>
         <source>%file% is replaced by the file name. Without it the address is sent exactly as typed.</source>
         <translation>%file% is replaced by the file name. Without it the address is sent exactly as typed.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="994"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1007"/>
         <source>sftp://host/path/  or  https://host/upload/%file%</source>
         <translation>sftp://host/path/  or  https://host/upload/%file%</translation>
     </message>
@@ -2468,22 +2452,22 @@
         <translation type="vanished">https://…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1000"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1013"/>
         <source>Request body</source>
         <translation>Request body</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1009"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1022"/>
         <source>File form field name</source>
         <translation>File form field name</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1012"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1025"/>
         <source>file</source>
         <translation>file</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1017"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1030"/>
         <source>JSON body</source>
         <translation>JSON body</translation>
     </message>
@@ -2492,62 +2476,62 @@
         <translation type="vanished">Tokens: $base64$, $filename$, $mime$</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1027"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1040"/>
         <source>Extra form fields (JSON)</source>
         <translation>Extra form fields (JSON)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1030"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1043"/>
         <source>e.g. {&quot;reqtype&quot;:&quot;fileupload&quot;}</source>
         <translation>e.g. {&quot;reqtype&quot;:&quot;fileupload&quot;}</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1036"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1049"/>
         <source>vgy.me user key</source>
         <translation>vgy.me user key</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1046"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1059"/>
         <source>User key from https://vgy.me/account/details#userkeys. Required because vgy.me does not allow anonymous uploads.</source>
         <translation>User key from https://vgy.me/account/details#userkeys. Required because vgy.me does not allow anonymous uploads.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1052"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1065"/>
         <source>URL extractor</source>
         <translation>URL extractor</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1054"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1067"/>
         <source>Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.</source>
         <translation>Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1059"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1072"/>
         <source>$text$, $json:files[0].url$ or $regex:…$</source>
         <translation>$text$, $json:files[0].url$ or $regex:…$</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1072"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1085"/>
         <source>e.g. 1a2b3c4d5e6f7g8</source>
         <translation>e.g. 1a2b3c4d5e6f7g8</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1088"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1101"/>
         <source>Headers (JSON)</source>
         <translation>Headers (JSON)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1091"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1104"/>
         <source>e.g. {&quot;Authorization&quot;:&quot;Bearer x&quot;}</source>
         <translation>e.g. {&quot;Authorization&quot;:&quot;Bearer x&quot;}</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1096"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1109"/>
         <source>Credentials</source>
         <translation>Credentials</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1104"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1117"/>
         <source>Public URL base (optional)</source>
         <translation>Public URL base (optional)</translation>
     </message>
@@ -2556,27 +2540,27 @@
         <translation type="vanished">Where the uploaded file is reachable from. Without it a curl upload succeeds but no link can be copied.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1108"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1121"/>
         <source>https://host/dir/</source>
         <translation>https://host/dir/</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1150"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1163"/>
         <source>A test upload really writes unisic-test.png to this server. Unisic cannot remove it again.</source>
         <translation>A test upload really writes unisic-test.png to this server. Unisic cannot remove it again.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1164"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1177"/>
         <source>Testing…</source>
         <translation>Testing…</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1164"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1177"/>
         <source>Test upload</source>
         <translation>Test upload</translation>
     </message>
     <message>
-        <location filename="../qml/pages/DestinationsPage.qml" line="1224"/>
+        <location filename="../qml/pages/DestinationsPage.qml" line="1237"/>
         <source>A server with this name already exists</source>
         <translation>A server with this name already exists</translation>
     </message>
@@ -4252,173 +4236,185 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
         <translation>GIF recording</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="83"/>
+        <location filename="../qml/pages/RecordPage.qml" line="87"/>
         <source>Video</source>
         <translation>Video</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="85"/>
+        <location filename="../qml/pages/RecordPage.qml" line="89"/>
         <source>Record to an MP4 or WebM file</source>
         <translation>Record to an MP4 or WebM file</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="90"/>
+        <location filename="../qml/pages/RecordPage.qml" line="94"/>
         <source>GIF</source>
         <translation>GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="92"/>
+        <location filename="../qml/pages/RecordPage.qml" line="96"/>
         <source>Record to an animated GIF</source>
         <translation>Record to an animated GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="110"/>
         <source>Record a region or a whole screen straight to an optimized .gif.</source>
-        <translation>Record a region or a whole screen straight to an optimized .gif.</translation>
+        <translation type="vanished">Record a region or a whole screen straight to an optimized .gif.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="112"/>
         <source>Record the full screen, a region, or a single window to a video file.</source>
-        <translation>Record the full screen, a region, or a single window to a video file.</translation>
+        <translation type="vanished">Record the full screen, a region, or a single window to a video file.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="113"/>
         <source>Record the full screen or a region to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</source>
-        <translation>Record the full screen or a region to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</translation>
+        <translation type="vanished">Record the full screen or a region to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="114"/>
+        <location filename="../qml/pages/RecordPage.qml" line="117"/>
+        <source>Press Screen or Region to start recording an optimized .gif.</source>
+        <translation>Press Screen or Region to start recording an optimized .gif.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="119"/>
+        <source>Press Screen, Region or Window to start recording to a video file.</source>
+        <translation>Press Screen, Region or Window to start recording to a video file.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="120"/>
+        <source>Press Screen or Region to start recording to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</source>
+        <translation>Press Screen or Region to start recording to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="121"/>
         <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
         <translation>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="134"/>
+        <location filename="../qml/pages/RecordPage.qml" line="141"/>
         <source>Screen</source>
         <translation>Screen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="139"/>
+        <location filename="../qml/pages/RecordPage.qml" line="146"/>
         <source>Record a whole screen to a GIF</source>
         <translation>Record a whole screen to a GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="140"/>
+        <location filename="../qml/pages/RecordPage.qml" line="147"/>
         <source>Record a whole screen to a video</source>
         <translation>Record a whole screen to a video</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="144"/>
+        <location filename="../qml/pages/RecordPage.qml" line="151"/>
         <source>Region</source>
         <translation>Region</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="147"/>
+        <location filename="../qml/pages/RecordPage.qml" line="154"/>
         <source>Record a selected region to a GIF</source>
         <translation>Record a selected region to a GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="148"/>
+        <location filename="../qml/pages/RecordPage.qml" line="155"/>
         <source>Record a selected region to a video</source>
         <translation>Record a selected region to a video</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="152"/>
+        <location filename="../qml/pages/RecordPage.qml" line="159"/>
         <source>Window</source>
         <translation>Window</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="159"/>
+        <location filename="../qml/pages/RecordPage.qml" line="166"/>
         <source>Unavailable: GIF has no single-window source</source>
         <translation>Unavailable: GIF has no single-window source</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="160"/>
+        <location filename="../qml/pages/RecordPage.qml" line="167"/>
         <source>Record a single window to a video</source>
         <translation>Record a single window to a video</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="165"/>
+        <location filename="../qml/pages/RecordPage.qml" line="172"/>
         <source>Resume</source>
         <translation>Resume</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="165"/>
+        <location filename="../qml/pages/RecordPage.qml" line="172"/>
         <source>Pause</source>
         <translation>Pause</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="171"/>
+        <location filename="../qml/pages/RecordPage.qml" line="178"/>
         <source>Stop</source>
         <translation>Stop</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="180"/>
+        <location filename="../qml/pages/RecordPage.qml" line="187"/>
         <source>Save replay</source>
         <translation>Save replay</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="180"/>
+        <location filename="../qml/pages/RecordPage.qml" line="187"/>
         <source>Start replay</source>
         <translation>Start replay</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="183"/>
+        <location filename="../qml/pages/RecordPage.qml" line="190"/>
         <source>Instant replay always saves a video, never a GIF</source>
         <translation>Instant replay always saves a video, never a GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="206"/>
+        <location filename="../qml/pages/RecordPage.qml" line="213"/>
         <source>Video options</source>
         <translation>Video options</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="206"/>
+        <location filename="../qml/pages/RecordPage.qml" line="213"/>
         <source>GIF options</source>
         <translation>GIF options</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="219"/>
+        <location filename="../qml/pages/RecordPage.qml" line="226"/>
         <source>Format</source>
         <translation>Format</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="241"/>
-        <location filename="../qml/pages/RecordPage.qml" line="296"/>
+        <location filename="../qml/pages/RecordPage.qml" line="248"/>
+        <location filename="../qml/pages/RecordPage.qml" line="303"/>
         <source>Quality</source>
         <translation>Quality</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="242"/>
+        <location filename="../qml/pages/RecordPage.qml" line="249"/>
         <source>Higher is sharper and bigger. 50% is the balanced default.</source>
         <translation>Higher is sharper and bigger. 50% is the balanced default.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="299"/>
+        <location filename="../qml/pages/RecordPage.qml" line="306"/>
         <source>Fast / small</source>
         <translation>Fast / small</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="299"/>
+        <location filename="../qml/pages/RecordPage.qml" line="306"/>
         <source>Balanced</source>
         <translation>Balanced</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="299"/>
+        <location filename="../qml/pages/RecordPage.qml" line="306"/>
         <source>Best</source>
         <translation>Best</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="323"/>
+        <location filename="../qml/pages/RecordPage.qml" line="330"/>
         <source>Audio &amp; replay</source>
         <translation>Audio &amp; replay</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="323"/>
+        <location filename="../qml/pages/RecordPage.qml" line="330"/>
         <source>Good to know</source>
         <translation>Good to know</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="352"/>
+        <location filename="../qml/pages/RecordPage.qml" line="359"/>
         <source>Application audio only</source>
         <translation>Application audio only</translation>
     </message>
@@ -4427,12 +4423,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
         <translation type="vanished">Refresh</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="356"/>
+        <location filename="../qml/pages/RecordPage.qml" line="363"/>
         <source>Separate audio tracks</source>
         <translation>Separate audio tracks</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="357"/>
+        <location filename="../qml/pages/RecordPage.qml" line="364"/>
         <source>Keeps every source on its own named track for editing, behind a first track with the full mix. Needs two sources or more, otherwise the recording has one track anyway.</source>
         <translation>Keeps every source on its own named track for editing, behind a first track with the full mix. Needs two sources or more, otherwise the recording has one track anyway.</translation>
     </message>
@@ -4441,33 +4437,33 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
         <translation type="vanished">Keeps every source on its own named track for editing. Needs two sources or more, otherwise the recording has one track anyway.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="364"/>
+        <location filename="../qml/pages/RecordPage.qml" line="371"/>
         <source>Replay length</source>
         <translation>Replay length</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="391"/>
+        <location filename="../qml/pages/RecordPage.qml" line="398"/>
         <source>GIF has no audio track. For a clip with sound, switch to Video mode and record an MP4 or WebM instead.</source>
         <translation>GIF has no audio track. For a clip with sound, switch to Video mode and record an MP4 or WebM instead.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="398"/>
+        <location filename="../qml/pages/RecordPage.qml" line="405"/>
         <source>File size grows quickly with area, frame rate and duration. A small region at 15-30 FPS usually looks great and stays easy to share.</source>
         <translation>File size grows quickly with area, frame rate and duration. A small region at 15-30 FPS usually looks great and stays easy to share.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="405"/>
+        <location filename="../qml/pages/RecordPage.qml" line="412"/>
         <source>Every recording is converted in two passes (a color palette first, then the frames), so colors stay crisp - the trade-off is a short encode after you stop.</source>
         <translation>Every recording is converted in two passes (a color palette first, then the frames), so colors stay crisp - the trade-off is a short encode after you stop.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="412"/>
+        <location filename="../qml/pages/RecordPage.qml" line="419"/>
         <source>Instant replay always saves a video, never a GIF - its length and audio options live in Video mode.</source>
         <translation>Instant replay always saves a video, never a GIF - its length and audio options live in Video mode.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="228"/>
-        <location filename="../qml/pages/RecordPage.qml" line="272"/>
+        <location filename="../qml/pages/RecordPage.qml" line="235"/>
+        <location filename="../qml/pages/RecordPage.qml" line="279"/>
         <source>Frame rate</source>
         <translation>Frame rate</translation>
     </message>
@@ -4480,29 +4476,29 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
         <translation type="vanished">Quality (CRF %1, lower is better)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="253"/>
-        <location filename="../qml/pages/RecordPage.qml" line="284"/>
+        <location filename="../qml/pages/RecordPage.qml" line="260"/>
+        <location filename="../qml/pages/RecordPage.qml" line="291"/>
         <source>Maximum duration</source>
         <translation>Maximum duration</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="259"/>
-        <location filename="../qml/pages/RecordPage.qml" line="290"/>
+        <location filename="../qml/pages/RecordPage.qml" line="266"/>
+        <location filename="../qml/pages/RecordPage.qml" line="297"/>
         <source>0 = unlimited</source>
         <translation>0 = unlimited</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="338"/>
+        <location filename="../qml/pages/RecordPage.qml" line="345"/>
         <source>Record system audio</source>
         <translation>Record system audio</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="345"/>
+        <location filename="../qml/pages/RecordPage.qml" line="352"/>
         <source>Record microphone</source>
         <translation>Record microphone</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="310"/>
+        <location filename="../qml/pages/RecordPage.qml" line="317"/>
         <source>Include mouse cursor</source>
         <translation>Include mouse cursor</translation>
     </message>
@@ -4702,7 +4698,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1111"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4058"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4059"/>
         <source>Language</source>
         <translation>Language</translation>
     </message>
@@ -4829,7 +4825,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1493"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4009"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4010"/>
         <source>Capture delay</source>
         <translation>Capture delay</translation>
     </message>
@@ -4855,7 +4851,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2793"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4001"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4002"/>
         <source>Capture sound</source>
         <translation>Capture sound</translation>
     </message>
@@ -5170,7 +5166,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2845"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4002"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4003"/>
         <source>Recording sound</source>
         <translation>Recording sound</translation>
     </message>
@@ -5568,62 +5564,62 @@ Applies to the next capture.</translation>
         <translation type="vanished">X11 hotkeys probe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4031"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4032"/>
         <source>Measure</source>
         <translation>Measure</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4037"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4038"/>
         <source>Trim cut (exact + lossless)</source>
         <translation>Trim cut (exact + lossless)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4038"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4039"/>
         <source>Recording pause excise</source>
         <translation>Recording pause excise</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4046"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4047"/>
         <source>Magnifier</source>
         <translation>Magnifier</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4047"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4048"/>
         <source>Eyedropper</source>
         <translation>Eyedropper</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4048"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4049"/>
         <source>Pixel loupe</source>
         <translation>Pixel loupe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4054"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4055"/>
         <source>Auto-redact pattern</source>
         <translation>Auto-redact pattern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4055"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4056"/>
         <source>Style presets</source>
         <translation>Style presets</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4056"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4057"/>
         <source>Cursor overlay</source>
         <translation>Cursor overlay</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4057"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4058"/>
         <source>OCR auto language</source>
         <translation>OCR auto language</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4059"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4060"/>
         <source>Update check</source>
         <translation>Update check</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4060"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4061"/>
         <source>Simulate update</source>
         <translation>Simulate update</translation>
     </message>
@@ -5754,7 +5750,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1530"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4049"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4050"/>
         <source>Capture on release</source>
         <translation>Capture on release</translation>
     </message>
@@ -5925,7 +5921,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1419"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4017"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4018"/>
         <source>Copy diagnostics</source>
         <translation>Copy diagnostics</translation>
     </message>
@@ -6104,7 +6100,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1634"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4025"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4026"/>
         <source>External action</source>
         <translation>External action</translation>
     </message>
@@ -6156,12 +6152,12 @@ Thumbnail: image-first, the capture fills the card and actions stay visible over
 Applies to the next capture.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3996"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3997"/>
         <source>Template variables</source>
         <translation>Template variables</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4026"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4027"/>
         <source>External action timeout</source>
         <translation>External action timeout</translation>
     </message>
@@ -6820,7 +6816,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2400"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="3998"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3999"/>
         <source>Image conversion</source>
         <translation>Image conversion</translation>
     </message>
@@ -6906,7 +6902,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2518"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4012"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4013"/>
         <source>Watermark preview</source>
         <translation>Watermark preview</translation>
     </message>
@@ -7112,7 +7108,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3564"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4035"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4036"/>
         <source>Instant replay</source>
         <translation>Instant replay</translation>
     </message>
@@ -7379,7 +7375,7 @@ Applies to the next capture.</translation>
         <translation>History drag payload</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3995"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3996"/>
         <source>curl destination</source>
         <translation>curl destination</translation>
     </message>
@@ -7388,88 +7384,88 @@ Applies to the next capture.</translation>
         <translation type="vanished">Upload variables</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3997"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3998"/>
         <source>Still GIF</source>
         <translation>Still GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3999"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4000"/>
         <source>Notification drag payload</source>
         <translation>Notification drag payload</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4008"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4009"/>
         <source>Paste clipboard</source>
         <translation>Paste clipboard</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4010"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4011"/>
         <source>Copy as</source>
         <translation>Copy as</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2464"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4011"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4012"/>
         <source>Watermark</source>
         <translation>Watermark</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4013"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4014"/>
         <source>Callout</source>
         <translation>Callout</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4014"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4015"/>
         <source>Shift snap</source>
         <translation>Shift snap</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4016"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4017"/>
         <source>QR preview</source>
         <translation>QR preview</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4053"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4054"/>
         <source>OCR highlight + redact</source>
         <translation>OCR highlight + redact</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4062"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4063"/>
         <source>Installer update (dry-run)</source>
         <translation>Installer update (dry-run)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4063"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4064"/>
         <source>Staged update (dry-run)</source>
         <translation>Staged update (dry-run)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4064"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4065"/>
         <source>Filename + save routing</source>
         <translation>Filename + save routing</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4065"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4066"/>
         <source>Save-as dialog</source>
         <translation>Save-as dialog</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4066"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4067"/>
         <source>Active window geometry</source>
         <translation>Active window geometry</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4067"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4068"/>
         <source>Record countdown</source>
         <translation>Record countdown</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4068"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4069"/>
         <source>Full-screen countdown</source>
         <translation>Full-screen countdown</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4069"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4070"/>
         <source>Toggle autostart</source>
         <translation>Toggle autostart</translation>
     </message>
@@ -7595,7 +7591,7 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1936"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="4040"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4041"/>
         <source>Separate audio tracks</source>
         <translation>Separate audio tracks</translation>
     </message>
@@ -7896,172 +7892,171 @@ Applies to the next capture.</translation>
         <translation>vgy.me support</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3993"/>
         <source>GitHub Pages support</source>
-        <translation>GitHub Pages support</translation>
+        <translation type="vanished">GitHub Pages support</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="3994"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="3995"/>
         <source>Failure Chain</source>
         <translation>Failure Chain</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4000"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4001"/>
         <source>OCR region</source>
         <translation>OCR region</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4003"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4004"/>
         <source>Record start sound</source>
         <translation>Record start sound</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4004"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4005"/>
         <source>Trash sound</source>
         <translation>Trash sound</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4005"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4006"/>
         <source>Text render</source>
         <translation>Text render</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4006"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4007"/>
         <source>Keystroke badge</source>
         <translation>Keystroke badge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4007"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4008"/>
         <source>Custom theme</source>
         <translation>Custom theme</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4015"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4016"/>
         <source>Pen line click</source>
         <translation>Pen line click</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4018"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4019"/>
         <source>Diagnostic log</source>
         <translation>Diagnostic log</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4019"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4020"/>
         <source>Log viewer</source>
         <translation>Log viewer</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4020"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4021"/>
         <source>Crash report</source>
         <translation>Crash report</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4021"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4022"/>
         <source>Dependency report</source>
         <translation>Dependency report</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4022"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4023"/>
         <source>System check dialog</source>
         <translation>System check dialog</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4023"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4024"/>
         <source>Do not disturb</source>
         <translation>Do not disturb</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4024"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4025"/>
         <source>Hide while capturing</source>
         <translation>Hide while capturing</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4027"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4028"/>
         <source>Task preset</source>
         <translation>Task preset</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4028"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4029"/>
         <source>CLI output</source>
         <translation>CLI output</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4029"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4030"/>
         <source>Scrolling stitch</source>
         <translation>Scrolling stitch</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4030"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4031"/>
         <source>Scrolling hand-off</source>
         <translation>Scrolling hand-off</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4032"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4033"/>
         <source>Hardware encoder</source>
         <translation>Hardware encoder</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4033"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4034"/>
         <source>Freeze recorder (watchdog)</source>
         <translation>Freeze recorder (watchdog)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4034"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4035"/>
         <source>Per-app audio</source>
         <translation>Per-app audio</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4036"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4037"/>
         <source>Trim recording</source>
         <translation>Trim recording</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4039"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4040"/>
         <source>Video quality scale</source>
         <translation>Video quality scale</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4041"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4042"/>
         <source>Audio input devices</source>
         <translation>Audio input devices</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4042"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4043"/>
         <source>Live audio capture</source>
         <translation>Live audio capture</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4043"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4044"/>
         <source>Trim audio edit</source>
         <translation>Trim audio edit</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4044"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4045"/>
         <source>Screenshot cursor</source>
         <translation>Screenshot cursor</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4045"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4046"/>
         <source>Shape edit</source>
         <translation>Shape edit</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4050"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4051"/>
         <source>Overlay mode badge</source>
         <translation>Overlay mode badge</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4051"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4052"/>
         <source>Overlay preview</source>
         <translation>Overlay preview</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4052"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4053"/>
         <source>OCR boxes</source>
         <translation>OCR boxes</translation>
     </message>
     <message>
-        <location filename="../qml/pages/SettingsPage.qml" line="4061"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="4062"/>
         <source>Auto-restart gate</source>
         <translation>Auto-restart gate</translation>
     </message>
@@ -9052,7 +9047,7 @@ Applies to the next capture.</translation>
 <context>
     <name>UValueCombo</name>
     <message>
-        <location filename="../external/unisic-kit/qml/components/UValueCombo.qml" line="406"/>
+        <location filename="../external/unisic-kit/qml/components/UValueCombo.qml" line="423"/>
         <source>Custom…</source>
         <translation>Custom…</translation>
     </message>
@@ -9593,186 +9588,186 @@ Applies to the next capture.</translation>
 <context>
     <name>UploadManager</name>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="732"/>
-        <location filename="../src/upload/UploadManager.cpp" line="741"/>
+        <location filename="../src/upload/UploadManager.cpp" line="738"/>
+        <location filename="../src/upload/UploadManager.cpp" line="747"/>
         <source>File name</source>
         <translation>File name</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="733"/>
+        <location filename="../src/upload/UploadManager.cpp" line="739"/>
         <source>The name of the uploaded file. Without it the name is added at the end of the address, which is what FTP and SFTP folders want.</source>
         <translation>The name of the uploaded file. Without it the name is added at the end of the address, which is what FTP and SFTP folders want.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="735"/>
+        <location filename="../src/upload/UploadManager.cpp" line="741"/>
         <source>The name of the uploaded file, put right into the address.</source>
         <translation>The name of the uploaded file, put right into the address.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="739"/>
+        <location filename="../src/upload/UploadManager.cpp" line="745"/>
         <source>File as base64</source>
         <translation>File as base64</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="740"/>
+        <location filename="../src/upload/UploadManager.cpp" line="746"/>
         <source>The whole file, base64-encoded, inline in the body.</source>
         <translation>The whole file, base64-encoded, inline in the body.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="742"/>
+        <location filename="../src/upload/UploadManager.cpp" line="748"/>
         <source>The name of the uploaded file.</source>
         <translation>The name of the uploaded file.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="743"/>
+        <location filename="../src/upload/UploadManager.cpp" line="749"/>
         <source>File type</source>
         <translation>File type</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="744"/>
+        <location filename="../src/upload/UploadManager.cpp" line="750"/>
         <source>The file&apos;s MIME type, for example image/png.</source>
         <translation>The file&apos;s MIME type, for example image/png.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="749"/>
+        <location filename="../src/upload/UploadManager.cpp" line="755"/>
         <source>Whole answer</source>
         <translation>Whole answer</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="750"/>
+        <location filename="../src/upload/UploadManager.cpp" line="756"/>
         <source>Everything the server answered, used as the link.</source>
         <translation>Everything the server answered, used as the link.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="751"/>
+        <location filename="../src/upload/UploadManager.cpp" line="757"/>
         <source>Value from JSON</source>
         <translation>Value from JSON</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="752"/>
+        <location filename="../src/upload/UploadManager.cpp" line="758"/>
         <source>A field of a JSON answer, by path: $json:data.link$ or $json:files[0].url$.</source>
         <translation>A field of a JSON answer, by path: $json:data.link$ or $json:files[0].url$.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="755"/>
+        <location filename="../src/upload/UploadManager.cpp" line="761"/>
         <source>Match by pattern</source>
         <translation>Match by pattern</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="756"/>
+        <location filename="../src/upload/UploadManager.cpp" line="762"/>
         <source>The first group a regular expression matches in the answer.</source>
         <translation>The first group a regular expression matches in the answer.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="772"/>
+        <location filename="../src/upload/UploadManager.cpp" line="778"/>
         <source>Cannot open %1</source>
         <translation>Cannot open %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="778"/>
+        <location filename="../src/upload/UploadManager.cpp" line="784"/>
         <source>Not a valid .sxcu file: %1</source>
         <translation>Not a valid .sxcu file: %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="786"/>
+        <location filename="../src/upload/UploadManager.cpp" line="792"/>
         <source>The .sxcu file has no RequestURL</source>
         <translation>The .sxcu file has no RequestURL</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="796"/>
+        <location filename="../src/upload/UploadManager.cpp" line="802"/>
         <source>This .sxcu uses ShareX RegexList response parsing, which Unisic can&apos;t import yet. Edit the destination&apos;s URL extractor to a $json:…$ or $text$ token after importing.</source>
         <translation>This .sxcu uses ShareX RegexList response parsing, which Unisic can&apos;t import yet. Edit the destination&apos;s URL extractor to a $json:…$ or $text$ token after importing.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="845"/>
-        <location filename="../src/upload/UploadManager.cpp" line="1200"/>
-        <location filename="../src/upload/UploadManager.cpp" line="1256"/>
+        <location filename="../src/upload/UploadManager.cpp" line="851"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1211"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1267"/>
         <source>Cannot read %1</source>
         <translation>Cannot read %1</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="896"/>
-        <location filename="../src/upload/UploadManager.cpp" line="952"/>
+        <location filename="../src/upload/UploadManager.cpp" line="903"/>
+        <location filename="../src/upload/UploadManager.cpp" line="959"/>
         <source>No upload server configured</source>
         <translation>No upload server configured</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="911"/>
+        <location filename="../src/upload/UploadManager.cpp" line="918"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="942"/>
+        <location filename="../src/upload/UploadManager.cpp" line="949"/>
         <source>Upload server &quot;%1&quot; no longer exists</source>
         <translation>Upload server &quot;%1&quot; no longer exists</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="959"/>
+        <location filename="../src/upload/UploadManager.cpp" line="966"/>
         <source>Imgur needs your own Client-ID. Register a free application at https://api.imgur.com/oauth2/addclient (&quot;Anonymous usage without user authorisation&quot;), then paste the Client-ID into Destinations → %1 → Edit.</source>
         <translation>Imgur needs your own Client-ID. Register a free application at https://api.imgur.com/oauth2/addclient (&quot;Anonymous usage without user authorisation&quot;), then paste the Client-ID into Destinations → %1 → Edit.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="966"/>
+        <location filename="../src/upload/UploadManager.cpp" line="973"/>
         <source>vgy.me requires a user key. Log in to https://vgy.me/account/details#userkeys to find your key, then paste it into Destinations → %1 → Edit.</source>
         <translation>vgy.me requires a user key. Log in to https://vgy.me/account/details#userkeys to find your key, then paste it into Destinations → %1 → Edit.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="972"/>
+        <location filename="../src/upload/UploadManager.cpp" line="980"/>
         <source>GitHub Pages needs a repository and a token. Open Destinations → %1 → Edit, enter the repository (owner/name) and paste a personal access token that can write its contents.</source>
         <translation>GitHub Pages needs a repository and a token. Open Destinations → %1 → Edit, enter the repository (owner/name) and paste a personal access token that can write its contents.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1020"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1029"/>
         <source>Enter a request URL first.</source>
         <translation>Enter a request URL first.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1026"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1035"/>
         <source>Imgur needs your own Client-ID. Paste it into the field above, then test again.</source>
         <translation>Imgur needs your own Client-ID. Paste it into the field above, then test again.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1031"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1040"/>
         <source>vgy.me requires a user key. Paste it into the field above, then test again.</source>
         <translation>vgy.me requires a user key. Paste it into the field above, then test again.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1036"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1046"/>
         <source>GitHub Pages needs a repository and a token. Fill in the fields above, then test again.</source>
         <translation>GitHub Pages needs a repository and a token. Fill in the fields above, then test again.</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1307"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1319"/>
         <source>GitHub did not accept the token (%1)</source>
         <translation>GitHub did not accept the token (%1)</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1309"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1321"/>
         <source>GitHub found no such repository, or the token cannot write to it (%1)</source>
         <translation>GitHub found no such repository, or the token cannot write to it (%1)</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1311"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1323"/>
         <source>GitHub reports a conflict; check that the branch exists (%1)</source>
         <translation>GitHub reports a conflict; check that the branch exists (%1)</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1313"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1325"/>
         <source>GitHub rejected the commit; a file with this name is probably already in the repository (%1)</source>
         <translation>GitHub rejected the commit; a file with this name is probably already in the repository (%1)</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1415"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1428"/>
         <source>Cannot create temp file</source>
         <translation>Cannot create temp file</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1422"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1435"/>
         <source>Cannot write temp file</source>
         <translation>Cannot write temp file</translation>
     </message>
     <message>
-        <location filename="../src/upload/UploadManager.cpp" line="1517"/>
+        <location filename="../src/upload/UploadManager.cpp" line="1530"/>
         <source>Could not run curl. Is it installed? (needed for FTP/SFTP uploads)</source>
         <translation>Could not run curl. Is it installed? (needed for FTP/SFTP uploads)</translation>
     </message>

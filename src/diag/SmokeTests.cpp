@@ -3504,6 +3504,7 @@ QString AppContext::vgyMeCheck() const
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
 }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
 QString AppContext::gitHubPagesCheck()
 {
     QStringList fails;
@@ -3607,6 +3608,7 @@ QString AppContext::gitHubPagesCheck()
         ? QStringLiteral("PASS (compose + read back, link from the response, default addresses, missing token guard, builtin present)")
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
 }
+#endif
 
 QString AppContext::uploadChainCheck()
 {
@@ -3994,12 +3996,14 @@ void AppContext::devTestVgyMe()
     showToast(tr("Dev: vgy.me support: %1").arg(vgyMeCheck()));
 }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
 void AppContext::devTestGitHubPages()
 {
     if (!devBuild())
         return;
     showToast(tr("Dev: GitHub Pages support: %1").arg(gitHubPagesCheck()));
 }
+#endif
 
 void AppContext::devTestUploadChain()
 {
@@ -4694,7 +4698,8 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("screenshot statistics: ") + captureStatsCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
         smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
-        smokeLog(QStringLiteral("GitHub Pages support: ") + gitHubPagesCheck());
+        // GitHub Pages (parked, docs/dev/architecture.md):
+        // smokeLog(QStringLiteral("GitHub Pages support: ") + gitHubPagesCheck());
         smokeLog(QStringLiteral("Failure Chain: ") + uploadChainCheck());
         smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());

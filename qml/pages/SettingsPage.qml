@@ -3990,7 +3990,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("vgy.me support"); onClicked: App.devTestVgyMe() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("GitHub Pages support"); onClicked: App.devTestGitHubPages() }
+                        // GitHub Pages (parked, docs/dev/architecture.md):
+                        // UButton { compact: true; variant: "tonal"; text: qsTr("GitHub Pages support"); onClicked: App.devTestGitHubPages() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Failure Chain"); onClicked: App.devTestUploadChain() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("curl destination"); onClicked: App.devTestCurlDestination() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Template variables"); onClicked: App.devTestTemplateVars() }

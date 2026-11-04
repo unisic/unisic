@@ -144,6 +144,7 @@ public:
     Q_INVOKABLE QString vgyMeUserKeyOf(const QVariantMap &dest) const
     { return vgyMeUserKey(QJsonObject::fromVariantMap(dest)); }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
     // GitHub Pages: the file is committed to a repository through the GitHub
     // Contents API and the link is where Pages serves it (the github.io
     // address, or the custom domain in front of it). Stored as a plain http
@@ -179,6 +180,7 @@ public:
                                                  const QString &publicUrl) const;
     Q_INVOKABLE QString gitHubPagesUrlFor(const QString &repo, const QString &folder) const
     { return gitHubPagesUrl(repo, folder); }
+#endif
 
     // What a given form field substitutes, for the editor to offer as chips and
     // to draw as pills inside the field. Answered HERE and not spelled out in

@@ -425,9 +425,10 @@ Item {
                                 readonly property bool needsUserKey:
                                     App.uploads.isVgyMeDestination(card.dest)
                                     && App.uploads.vgyMeUserKeyOf(card.dest) === ""
-                                readonly property bool needsRepo:
-                                    App.uploads.isGitHubDestination(card.dest)
-                                    && !App.uploads.gitHubReadyOf(card.dest)
+                                // GitHub Pages (parked, docs/dev/architecture.md):
+                                // readonly property bool needsRepo:
+                                //     App.uploads.isGitHubDestination(card.dest)
+                                //     && !App.uploads.gitHubReadyOf(card.dest)
                                 Row {
                                     id: nameRow
                                     width: parent.width
@@ -461,7 +462,8 @@ Item {
                                     }
                                     Rectangle {
                                         id: setupChip
-                                        visible: infoCol.needsClientId || infoCol.needsUserKey || infoCol.needsRepo
+                                        // GitHub Pages (parked): || infoCol.needsRepo
+                                        visible: infoCol.needsClientId || infoCol.needsUserKey
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: setupChipText.implicitWidth + 12
                                         height: 18
@@ -472,11 +474,11 @@ Item {
                                         Text {
                                             id: setupChipText
                                             anchors.centerIn: parent
+                                            // GitHub Pages (parked), between the two:
+                                            // : infoCol.needsRepo ? qsTr("Needs a repository and a token")
                                             text: infoCol.needsClientId
                                                   ? qsTr("Needs a Client-ID")
-                                                  : infoCol.needsRepo
-                                                    ? qsTr("Needs a repository and a token")
-                                                    : qsTr("Needs a user key")
+                                                  : qsTr("Needs a user key")
                                             color: Theme.danger
                                             font.pixelSize: Theme.fontS - 2
                                             font.weight: Font.DemiBold
@@ -530,14 +532,18 @@ Item {
             returnFocus = from || null
             var e = page.editing || {}
             fName.text = e.name || ""
-            fType.currentIndex = e.type === "curl" ? 1 : (App.uploads.isGitHubDestination(e) ? 2 : 0)
+            // GitHub Pages (parked, docs/dev/architecture.md):
+            // fType.currentIndex = e.type === "curl" ? 1 : (App.uploads.isGitHubDestination(e) ? 2 : 0)
+            fType.currentIndex = e.type === "curl" ? 1 : 0
             fUrl.text = e.requestUrl || ""
+            /* GitHub Pages (parked):
             var gh = App.uploads.gitHubSetupOf(e)
             fRepo.text = gh.repo
             fBranch.text = gh.branch
             fFolder.text = gh.folder
             fToken.text = gh.token
             fPagesUrl.text = gh.publicUrl
+            */
             fBody.currentIndex = e.body === "json" ? 1 : 0
             fFormName.text = e.fileFormName || "file"
             fData.text = e.data || ""
@@ -585,6 +591,7 @@ Item {
             // builtin, urlReplace, …) still survive the round-trip.
             var d = JSON.parse(JSON.stringify(page.editing || {}))
             d.name = fName.text.trim()
+            /* GitHub Pages (parked, docs/dev/architecture.md):
             if (editSheet.gitHubMode) {
                 // The five fields own every http key. C++ composes them, so
                 // the upload, the list badge and this editor agree on the
@@ -595,6 +602,7 @@ Item {
                     d[gk] = gh[gk]
                 return d
             }
+            */
             d.type = fType.currentIndex === 1 ? "curl" : "http"
             d.requestUrl = fUrl.text.trim()
             if (!d.method) d.method = "POST"
@@ -678,12 +686,12 @@ Item {
         // the editor, the list badge and the upload precheck.
         readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
         readonly property bool vgyMeMode: App.uploads.isVgyMeDestination({ requestUrl: fUrl.text })
-        // The third Type: a form of its own instead of the raw http fields.
-        readonly property bool gitHubMode: fType.currentIndex === 2
-        // What Save and Test need before they make sense: an address, or for
-        // GitHub Pages a repository (the token guard then says what is missing).
-        readonly property bool formComplete: gitHubMode ? fRepo.text.trim() !== ""
-                                                        : fUrl.text.trim() !== ""
+        // GitHub Pages (parked, docs/dev/architecture.md): the third Type, a
+        // form of its own instead of the raw http fields.
+        // readonly property bool gitHubMode: fType.currentIndex === 2
+        // What Save and Test need before they make sense: an address (for
+        // GitHub Pages, parked: a repository, `gitHubMode ? fRepo.text.trim() !== "" :`).
+        readonly property bool formComplete: fUrl.text.trim() !== ""
         // Test-upload state. Local on purpose: App.uploads.busy is global and a
         // real capture upload running in parallel would grey the Test button out.
         property bool testing: false
@@ -900,13 +908,17 @@ Item {
                     }
                     Labeled {
                         label: qsTr("Type")
-                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.")
+                        // GitHub Pages (parked, docs/dev/architecture.md): the hint was
+                        // qsTr("http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.")
+                        // and the model ["http", "curl", "GitHub Pages"].
+                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP.")
                         UComboBox {
                             id: fType; width: parent.width
-                            model: ["http", "curl", "GitHub Pages"]
+                            model: ["http", "curl"]
                             onActivated: (i) => fType.currentIndex = i
                         }
                     }
+                    /* GitHub Pages (parked, docs/dev/architecture.md).
                     // GitHub Pages: the file is committed to the repository and
                     // the link is where Pages serves it. Five plain fields; the
                     // request itself is composed in C++ (gitHubDestination).
@@ -981,8 +993,9 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
+                    */
                     Labeled {
-                        visible: !editSheet.gitHubMode
+                        // GitHub Pages (parked): visible: !editSheet.gitHubMode
                         label: qsTr("Request URL")
                         hint: fType.currentIndex === 1
                               ? qsTr("%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.")
@@ -1048,7 +1061,7 @@ Item {
                         font.pixelSize: Theme.fontS
                     }
                     Labeled {
-                        visible: !editSheet.gitHubMode
+                        // GitHub Pages (parked): visible: !editSheet.gitHubMode
                         label: qsTr("URL extractor")
                         hint: fType.currentIndex === 1
                               ? qsTr("Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.")

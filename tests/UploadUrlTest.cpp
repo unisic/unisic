@@ -13,7 +13,8 @@ private slots:
     void responseTemplate();
     void offeredVariablesResolve();
     void vgyMeSupport();
-    void gitHubPagesSupport();
+    // GitHub Pages (parked, docs/dev/architecture.md):
+    // void gitHubPagesSupport();
     void uploadChain();
     void liveBuzzheavierUpload();
     void liveVgyMeUpload();
@@ -178,6 +179,7 @@ void UploadUrlTest::vgyMeSupport()
     QVERIFY(testDone);
 }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
 // GitHub Pages: the editor's five fields compose an http destination that reads
 // back unchanged, the link is the public address plus the committed file's
 // name, and the shipped preset (no repository, no token) is refused before any
@@ -256,6 +258,7 @@ void UploadUrlTest::gitHubPagesSupport()
     });
     QVERIFY(testDone);
 }
+#endif
 
 // The failure chain's order: hotkey server (or the top of the list when it is
 // gone), then the rest of the list, minus servers that need setup; chain off =

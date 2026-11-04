@@ -37,6 +37,7 @@
 static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
 static const char kImgurHost[] = "api.imgur.com";
 static const char kVgyMeHost[] = "vgy.me";
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
 static const char kGitHubApiHost[] = "api.github.com";
 // The preset ships with this in place of owner/name: it keeps the request URL
 // recognisable as GitHub, and gitHubSetup() reads it back as "no repository".
@@ -44,6 +45,7 @@ static const char kGitHubPlaceholderRepo[] = "OWNER/REPO";
 // The tail of a GitHub Pages urlPath: the public address plus the name the
 // API confirms it committed.
 static const char kGitHubNameToken[] = "/$json:content.name$";
+#endif
 
 // The two squares of the checkerboard testDestination() uploads: the mandatory
 // palette's Secondary (#2E236C) and Accent (#C8ACD6), i.e. the `secondary` and
@@ -108,6 +110,7 @@ QString UploadManager::vgyMeUserKey(const QJsonObject &dest)
     return {};
 }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
 bool UploadManager::isGitHub(const QJsonObject &dest)
 {
     const QUrl url(dest.value(QStringLiteral("requestUrl")).toString());
@@ -251,6 +254,7 @@ QVariantMap UploadManager::gitHubDestinationFor(const QString &repo, const QStri
 {
     return gitHubDestination({repo, branch, folder, token, publicUrl}).toVariantMap();
 }
+#endif
 
 UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
@@ -521,6 +525,7 @@ void UploadManager::ensureBuiltins()
         });
         changed = true;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
     // Ships without a repository or token (both are the user's), so it sits
     // in the list as "needs setup" until the editor fills it in.
     if (!has(QStringLiteral("GitHub Pages"))) {
@@ -530,6 +535,7 @@ void UploadManager::ensureBuiltins()
         m_destinations.append(gh);
         changed = true;
     }
+#endif
     if (changed)
         persistDestinations();
 }
@@ -869,8 +875,9 @@ QStringList UploadManager::uploadChainFor(const QString &primary) const
     QStringList ready;
     for (const QJsonValue &v : std::as_const(m_destinations)) {
         const QJsonObject d = v.toObject();
-        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty())
-            && !(isGitHub(d) && !gitHubReady(d)))
+        // GitHub Pages (parked, docs/dev/architecture.md) adds:
+        //     && !(isGitHub(d) && !gitHubReady(d))
+        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty()))
             ready << d.value(QStringLiteral("name")).toString();
     }
     return uploadChain(primary, destinationNames(), ready,
@@ -968,12 +975,14 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
                       "then paste it into Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
     if (isGitHub(dest) && !gitHubReady(dest)) {
         cb({}, {}, tr("GitHub Pages needs a repository and a token. Open Destinations → %1 → "
                       "Edit, enter the repository (owner/name) and paste a personal access "
                       "token that can write its contents.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
+#endif
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
     // `busy` means "a capture is on its way to a server": it greys the editor's
     // Upload button out and relabels it "Uploading…". A configuration test is
@@ -1032,11 +1041,13 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
                          "field above, then test again."));
         return;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
     if (isGitHub(dest) && !gitHubReady(dest)) {
         cb(false, {}, tr("GitHub Pages needs a repository and a token. Fill in the "
                          "fields above, then test again."));
         return;
     }
+#endif
 
     // A tiny recognisable tile: some hosts reject degenerate dimensions, and a
     // visible checker is friendlier than a blank pixel when the user opens the
@@ -1296,6 +1307,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
             }
             if (serverMsg.isEmpty())
                 serverMsg = QString::fromUtf8(body.left(300));
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
             // The Contents API's answers name the symptom, not the cause a
             // Pages user can act on: 422 is almost always "that file name is
             // already in the repository" (it wants the old blob's sha to
@@ -1319,6 +1331,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
                     return;
                 }
             }
+#endif
             cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
             return;
         }

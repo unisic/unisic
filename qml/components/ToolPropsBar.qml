@@ -58,6 +58,15 @@ Flow {
 
     function has(p) { return props.indexOf(p) >= 0 }
 
+    // A recent colour that is also a palette swatch is already on offer one
+    // dot to the left; shown twice it drew two selection rings for one colour.
+    // Filtered here, not when it is recorded: the palette changes with the theme.
+    readonly property var shownRecent: has("stroke")
+        ? recentColors.filter(function (c) {
+              return !Theme.swatches.some(function (s) { return Qt.colorEqual(s, c) })
+          })
+        : []
+
     // ---- fitting the host ----
     // A Flow needs an explicit width to know where to wrap, and its own
     // implicitWidth is the width of the ALREADY WRAPPED content, so it cannot
@@ -412,7 +421,7 @@ Flow {
             activeFocusOnTab: root.controlsFocusable && swatchGroup.count > 0
 
             readonly property int baseCount: root.has("stroke") ? Theme.swatches.length : 0
-            readonly property int recentCount: root.has("stroke") ? root.recentColors.length : 0
+            readonly property int recentCount: root.shownRecent.length
             count: swatchGroup.baseCount + swatchGroup.recentCount
             entryIndex: swatchGroup._selected()
 
@@ -426,7 +435,7 @@ Flow {
                     if (Qt.colorEqual(root.canvas.strokeColor, Theme.swatches[i]))
                         return i
                 for (var j = 0; j < swatchGroup.recentCount; ++j)
-                    if (Qt.colorEqual(root.canvas.strokeColor, root.recentColors[j]))
+                    if (Qt.colorEqual(root.canvas.strokeColor, root.shownRecent[j]))
                         return swatchGroup.baseCount + j
                 return 0
             }
@@ -452,8 +461,15 @@ Flow {
                     onClicked: root.canvas.strokeColor = modelData
                 }
             }
+            // Palette | recent: one keyboard group, two sources the eye should
+            // tell apart. Shorter than a Divider, which separates whole groups.
+            Rectangle {
+                visible: swatchGroup.recentCount > 0
+                width: 1; height: 16; color: Theme.divider
+                anchors.verticalCenter: parent.verticalCenter
+            }
             Repeater {
-                model: root.has("stroke") ? root.recentColors : []
+                model: root.shownRecent
                 delegate: ColorDot {
                     activeFocusOnTab: false
                     focus: swatchGroup.baseCount + index === swatchGroup.currentIndex

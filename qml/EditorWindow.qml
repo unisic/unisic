@@ -965,13 +965,16 @@ Window {
                 // Props follow the active tool, or the SELECTED shape when
                 // the Edit tool is active.
                 readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
-                readonly property real maxW: stage.width - 2 * Theme.spacingM - 2 * Theme.spacingS
+                readonly property real maxW: stage.width - 4 * Theme.spacingM
                 readonly property bool shown: canvas.ocrMode || editorWindow.shapesActive
                     || ctxProps.length > 0 || canvas.hasAnnotSelection
                     || (canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection)
                 x: Math.round((stage.width - width) / 2)
                 y: toolPill.y + toolPill.height + Theme.spacingS
-                width: ctxFlow.width + 2 * Theme.spacingS
+                // Wider at the sides than the tool bar's spacingS: this bar can
+                // open on a 26 px colour dot, which at 6 px sat on the rounded
+                // end; at 12 it is nearly concentric with it.
+                width: ctxFlow.width + 2 * Theme.spacingM
                 height: Math.max(editorWindow.pillHeight, ctxFlow.height + 2 * Theme.spacingS)
                 // Fades in, but hides at once: everything inside is bound to
                 // the same state and is already gone, so a fade-out only

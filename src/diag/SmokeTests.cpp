@@ -2708,18 +2708,31 @@ static QString editorZoomCheck(QQuickWindow *win)
     // a handler left at its Mouse-only default declined exactly those.
     const QPointF at = flick->mapToScene(QPointF(flick->width() / 2, flick->height() / 2));
     int wheels = 0;
+    const QPointingDevice *wheelDevice = nullptr;
     for (const QInputDevice *d : QInputDevice::devices()) {
         if (d->type() != QInputDevice::DeviceType::Mouse
             && d->type() != QInputDevice::DeviceType::TouchPad)
             continue;
+        wheelDevice = static_cast<const QPointingDevice *>(d);
         QWheelEvent wheel(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
                           Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
-                          static_cast<const QPointingDevice *>(d));
+                          wheelDevice);
         QCoreApplication::sendEvent(win, &wheel);
         if (zoom() == 0)
             return QStringLiteral("FAIL (Ctrl+wheel from %1 did not zoom)").arg(d->name());
         flick->setProperty("zoom", 0);
         ++wheels;
+    }
+    // A bare notch zooms too, as in a photo viewer: on Wayland a mouse wheel
+    // arrives with pixelDelta (0,0), which is what tells it from a touchpad.
+    if (wheelDevice) {
+        QWheelEvent notch(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                          wheelDevice);
+        QCoreApplication::sendEvent(win, &notch);
+        if (zoom() == 0)
+            return QStringLiteral("FAIL (a bare wheel notch did not zoom)");
+        flick->setProperty("zoom", 0);
     }
     QMetaObject::invokeMethod(pct, "_activate");
     if (!qFuzzyCompare(zoom(), 1.0))
@@ -2731,10 +2744,43 @@ static QString editorZoomCheck(QQuickWindow *win)
     QMetaObject::invokeMethod(out, "clicked");
     if (!(zoom() < zoomedIn))
         return QStringLiteral("FAIL (- gave %1 from %2)").arg(zoom()).arg(zoomedIn);
+    // Panning, at the largest zoom so the image overflows the view: a
+    // touchpad scroll (real pixels) moves the view instead of zooming, and so
+    // does a left drag, since the editor opens with no tool picked.
+    flick->setProperty("zoom", flick->property("maxZoom"));
+    if (!flick->property("canPan").toBool())
+        return QStringLiteral("FAIL (nothing to pan at %1)").arg(zoom());
+    const auto contentY = [flick] { return flick->property("contentY").toDouble(); };
+    const double zoomedMax = zoom();
+    if (wheelDevice) {
+        flick->setProperty("contentY", 0);
+        QWheelEvent scroll(at, win->mapToGlobal(at), QPoint(0, -24), QPoint(0, -120), Qt::NoButton,
+                           Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                           wheelDevice);
+        QCoreApplication::sendEvent(win, &scroll);
+        if (!(contentY() > 0) || zoom() != zoomedMax)
+            return QStringLiteral("FAIL (touchpad scroll gave y %1, zoom %2)").arg(contentY()).arg(zoom());
+    }
+    flick->setProperty("contentY", 0);
+    const QPointF up = at - QPointF(0, 24);
+    QMouseEvent press(QEvent::MouseButtonPress, at, win->mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, up, win->mapToGlobal(up), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, up, win->mapToGlobal(up), Qt::LeftButton,
+                        Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &press);
+    QCoreApplication::sendEvent(win, &move);
+    QCoreApplication::sendEvent(win, &release);
+    if (!(contentY() > 0))
+        return QStringLiteral("FAIL (dragging with no tool did not pan)");
     QMetaObject::invokeMethod(pct, "_activate");
     if (zoom() != 0)
         return QStringLiteral("FAIL (percentage did not return to fit)");
-    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, 100%, +, -, fit)").arg(wheels);
+    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, %2, 100%, +, -, %3, fit)")
+        .arg(wheels)
+        .arg(wheelDevice ? QStringLiteral("wheel") : QStringLiteral("no wheel device"))
+        .arg(wheelDevice ? QStringLiteral("scroll and drag pan") : QStringLiteral("drag pan"));
 }
 
 void AppContext::devTestEditorZoom()
@@ -3174,6 +3220,43 @@ void AppContext::devTestPreviewFromHistory()
     }
     m_history->addEntry(p, devTestImage(), QStringLiteral("image"));
     previewFromHistory(p);
+}
+
+void AppContext::previewHopCheck(std::function<void(const QString &)> done)
+{
+    if (!m_layerShellAvailable)
+        return done(QStringLiteral("SKIP (no layer-shell, the compositor moves the window)"));
+    if (QGuiApplication::screens().size() < 2)
+        return done(QStringLiteral("SKIP (one screen)"));
+    if (!openPreview(devTestImage()))
+        return done(QStringLiteral("FAIL (preview did not open)"));
+    // The PNG encode runs on a worker and the surface maps after it; wait.
+    QTimer::singleShot(1500, this, [this, done] {
+        auto *win = m_lastPreview ? qobject_cast<QQuickWindow *>(m_lastPreview->parent()) : nullptr;
+        if (!win || !win->screen())
+            return done(QStringLiteral("FAIL (no preview window)"));
+        QScreen *from = win->screen();
+        QScreen *to = nullptr;
+        for (QScreen *s : QGuiApplication::screens())
+            if (s != from) { to = s; break; }
+        if (!m_lastPreview->hopTo(to->geometry().center()))
+            return done(QStringLiteral("FAIL (hopTo refused %1 -> %2)").arg(from->name(), to->name()));
+        if (!win->isVisible())
+            return done(QStringLiteral("FAIL (hop closed the preview)"));
+        done(win->screen() == to
+             ? QStringLiteral("PASS (%1 -> %2)").arg(from->name(), to->name())
+             : QStringLiteral("FAIL (still on %1)").arg(win->screen()->name()));
+    });
+}
+
+void AppContext::devTestPreviewScreenHop()
+{
+    if (!devBuild())
+        return;
+    previewHopCheck([this](const QString &result) {
+        showToast(tr("Dev: preview screen hop: %1").arg(result),
+                  result.startsWith(QLatin1String("FAIL")));
+    });
 }
 
 QString AppContext::settingsRoundTripCheck()
@@ -5151,6 +5234,14 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("preview window: ") + (ok
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
+    });
+
+    // 3d2) preview dropped onto another monitor re-maps there (layer-shell)
+    m_smokeSteps.append([this] {
+        previewHopCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("preview screen hop: ") + result);
+            smokeNext();
+        });
     });
 
     // 3e) history favorite round-trip (star -> role reads back -> unstar)

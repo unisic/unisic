@@ -149,16 +149,43 @@ Flow {
     // font control stayed dark forever once the strip had been created with an
     // empty `props`.
     component Cell: Item {
+        id: cell
         default property alias content: holder.data
         implicitWidth: holder.implicitWidth
         implicitHeight: holder.implicitHeight
         width: implicitWidth
         height: root.cellHeight
+        // Where the wrap put this cell, for its Divider.
+        readonly property bool lineStart: x === 0
+        readonly property bool lineEnd: {
+            var after = false
+            for (var i = 0; i < root.children.length; ++i) {
+                var c = root.children[i]
+                if (c === cell)
+                    after = true
+                else if (after && c.visible)
+                    return c.y > cell.y
+            }
+            return true
+        }
         Row {
             id: holder
             spacing: 6
             anchors.verticalCenter: parent.verticalCenter
         }
+    }
+
+    // A divider separates two groups on one line. Where the wrap leaves it at
+    // the start or the end of a line it separates nothing (it was the "| ● +"
+    // a narrow editor put on a line of its own), so it goes transparent there.
+    // Transparent, not invisible: hiding it would narrow the cell, which can
+    // move the wrap and bring the divider back.
+    component Divider: Rectangle {
+        property bool leading: false
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+        opacity: parent && parent.parent
+                 && (leading ? parent.parent.lineStart : parent.parent.lineEnd) ? 0 : 1
     }
 
     // ---- a row of swatches is ONE tab stop ----
@@ -333,10 +360,8 @@ Flow {
                 onClicked: root.canvas.measureMode = 1
             }
         }
-        Rectangle {
+        Divider {
             visible: root.has("measureMode")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -369,10 +394,8 @@ Flow {
                 onClicked: root.canvas.highlightMode = AnnotationCanvas.HlText
             }
         }
-        Rectangle {
+        Divider {
             visible: root.has("highlightMode")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -454,10 +477,8 @@ Flow {
             onClicked: root.strokePickerRequested()
         }
 
-        Rectangle {
+        Divider {
             visible: root.has("stroke") && (root.showWidth || root.has("fill"))
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -504,20 +525,17 @@ Flow {
             onActivated: (i) => root.canvas.arrowHeadStyle = i
         }
 
-        Rectangle {
+        Divider {
             visible: root.has("width") && root.has("fill")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
     // ---- step marker size ----
     Cell {
         visible: root.has("stepSize")
-        Rectangle {
+        Divider {
             visible: root.has("stepSize") && root.has("stroke")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         Column {
             visible: root.has("stepSize")
@@ -571,10 +589,9 @@ Flow {
     // ---- text styling ----
     Cell {
         visible: root.has("font")
-        Rectangle {
+        Divider {
             visible: root.has("font") && root.has("stroke")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         UComboBox {
             activeFocusOnTab: root.controlsFocusable && enabled
@@ -632,10 +649,8 @@ Flow {
             anchors.verticalCenter: parent.verticalCenter
             onClicked: root.canvas.fontUnderline = !root.canvas.fontUnderline
         }
-        Rectangle {
+        Divider {
             visible: root.has("font")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
     Cell {
@@ -684,10 +699,9 @@ Flow {
     // settings string; the schema lives here.
     Cell {
         visible: root.presetsVisible
-        Rectangle {
+        Divider {
             visible: root.presetsVisible
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         DotGroup {
             id: presetGroup

@@ -15,10 +15,14 @@ Window {
     id: preview
 
     // Injected via the per-window context: previewImagePath, previewImageSize,
-    // previewCtl (the C++ PreviewController).
+    // previewSourcePath (the history file, empty otherwise), previewCtl (the
+    // C++ PreviewController).
     property size imgSize: (typeof previewImageSize !== "undefined" && previewImageSize.width > 0)
                            ? previewImageSize : Qt.size(640, 400)
     readonly property bool layerMode: previewCtl ? previewCtl.layerShell : false
+    readonly property string sourcePath: (typeof previewSourcePath !== "undefined") ? previewSourcePath : ""
+    // The file actions need room beside pin, opacity and close.
+    readonly property int minCardW: sourcePath !== "" ? 380 : 280
 
     // Size against the window's OWN screen — desktopAvailable* spans all
     // monitors, but the layer surface only covers one output, so a stitched
@@ -28,7 +32,7 @@ Window {
     readonly property int maxH: Screen.height * 0.7
     readonly property real fit: Math.min(1.0, maxW / imgSize.width,
                                          (maxH - 40) / imgSize.height)
-    readonly property int cardW: Math.max(280, Math.round(imgSize.width * fit))
+    readonly property int cardW: Math.max(minCardW, Math.round(imgSize.width * fit))
     readonly property int cardH: Math.round(imgSize.height * fit) + 40
     readonly property real imgAspect: imgSize.height > 0 ? imgSize.width / imgSize.height : 1.6
 
@@ -36,7 +40,7 @@ Window {
     // initial values only matter for the non-layer fallback.
     width: cardW
     height: cardH
-    minimumWidth: layerMode ? 0 : 280
+    minimumWidth: layerMode ? 0 : minCardW
     minimumHeight: layerMode ? 0 : 160
     color: "transparent"
     title: qsTr("Unisic Preview")
@@ -52,6 +56,36 @@ Window {
         function updateMask() {
             if (preview.layerMode && previewCtl)
                 previewCtl.setInputRect(card.x, card.y, card.width, card.height)
+        }
+
+        // Where a screen hop wants the card. Re-applied on every surface
+        // resize: the new output's size arrives with the compositor configure,
+        // after the hop, so clamping once would use the old monitor's size.
+        property bool hasWant: false
+        property point wantPos
+        function placeCard() {
+            if (!hasWant || root.width < preview.minCardW || root.height < 160)
+                return
+            if (card.width > root.width || card.height > root.height) {
+                const w = Math.max(preview.minCardW, Math.min(root.width,
+                          Math.round((root.height - bar.height) * preview.imgAspect)))
+                card.width = w
+                card.height = bar.height + Math.round(w / preview.imgAspect)
+            }
+            card.x = Math.max(0, Math.min(wantPos.x, root.width - card.width))
+            card.y = Math.max(0, Math.min(wantPos.y, root.height - card.height))
+            updateMask()
+        }
+        onWidthChanged: placeCard()
+        onHeightChanged: placeCard()
+
+        Connections {
+            target: previewCtl
+            function onCardPlaced(x, y) {
+                root.wantPos = Qt.point(x, y)
+                root.hasWant = true
+                root.placeCard()
+            }
         }
 
         // The visible preview card. In layer mode it floats inside the
@@ -111,8 +145,17 @@ Window {
                     drag.maximumX: Math.max(0, root.width - card.width)
                     drag.minimumY: 0
                     drag.maximumY: Math.max(0, root.height - card.height)
-                    onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+                    onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false; root.hasWant = false }
                     onPositionChanged: (m) => {
+                        // Layer mode: the item drag is clamped to this output,
+                        // but the pointer grab still reports positions past
+                        // its edge. Past it, the controller carries the card
+                        // onto the next monitor until the button is released.
+                        if (preview.layerMode && previewCtl && pressed) {
+                            const p = mapToItem(root, m.x, m.y)
+                            if (p.x < 0 || p.y < 0 || p.x >= root.width || p.y >= root.height)
+                                previewCtl.startCarry(p.x, p.y, pressX, pressY)
+                        }
                         if (previewCtl && !preview.layerMode
                             && !moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
                             moving = true
@@ -132,6 +175,42 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     width: 30; height: 30; iconSize: 16
                     onClicked: if (previewCtl) previewCtl.pinned = !previewCtl.pinned
+                }
+
+                // Opened from history: act on the file itself, same calls as
+                // the History tile. Edit closes the preview - the editor saves
+                // over the file, so this copy would show the old pixels.
+                Row {
+                    visible: preview.sourcePath !== ""
+                    anchors.left: pinBtn.right
+                    anchors.leftMargin: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 4
+                    UIconButton {
+                        iconName: "edit"; tooltip: qsTr("Edit")
+                        width: 30; height: 30; iconSize: 16
+                        onClicked: { App.editFromHistory(preview.sourcePath); preview.close() }
+                    }
+                    UIconButton {
+                        iconName: "edit-copy"; tooltip: qsTr("Copy image")
+                        width: 30; height: 30; iconSize: 16
+                        onClicked: App.copyImageFromHistory(preview.sourcePath)
+                    }
+                    UIconButton {
+                        iconName: "upload-cloud"; tooltip: qsTr("Upload")
+                        width: 30; height: 30; iconSize: 16
+                        onClicked: App.uploadFromHistory(preview.sourcePath)
+                    }
+                    UIconButton {
+                        iconName: "ocr"; tooltip: qsTr("Copy text (OCR)")
+                        width: 30; height: 30; iconSize: 16
+                        onClicked: App.ocrFile(preview.sourcePath)
+                    }
+                    UIconButton {
+                        iconName: "folder-open"; tooltip: qsTr("Show in folder")
+                        width: 30; height: 30; iconSize: 16
+                        onClicked: App.showInFileManager(preview.sourcePath)
+                    }
                 }
 
                 UIconButton {
@@ -219,7 +298,7 @@ Window {
                     let w = Math.round(startW + (p.x - pressRootX))
                     const maxW = root.width - card.x
                     const maxWfromH = Math.round((root.height - card.y - bar.height) * preview.imgAspect)
-                    w = Math.max(280, Math.min(w, maxW, maxWfromH))
+                    w = Math.max(preview.minCardW, Math.min(w, maxW, maxWfromH))
                     card.width = w
                     card.height = bar.height + Math.round(w / preview.imgAspect)
                 }

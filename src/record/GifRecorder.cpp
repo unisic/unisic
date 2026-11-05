@@ -772,7 +772,11 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         m_tempPath = m_replayDir + QStringLiteral("/segment-%03d.mkv");
         m_outPath.clear();
     } else {
-        m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(stamp);
+        // Milliseconds: an aborted take's temp is removed only once its
+        // ffmpeg exits (up to a second later), which must not hit the next
+        // take started within the same second.
+        m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv")
+                                   .arg(nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz")));
         m_outPath = outDir + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
     }
 
@@ -2042,22 +2046,23 @@ void GifRecorder::abort()
         m_kwinStream = nullptr;
     }
     m_nativeStream = false;
-    FfmpegUtil::stopProcess(m_ffmpeg);
-    m_audioCaptures.clear();
-    FfmpegUtil::stopProcess(m_converter);
-    for (QProcess *&pw : m_appAudio)
-        FfmpegUtil::stopProcess(pw);
-    m_appAudio.clear();
-    FfmpegUtil::stopProcess(m_replayExporter);
+    QStringList doomed = m_audioFifoPaths;
     if (!m_tempPath.isEmpty())
-        QFile::remove(m_tempPath);
+        doomed << m_tempPath;
     if (!m_palettePath.isEmpty())
-        QFile::remove(m_palettePath);
+        doomed << m_palettePath;
     // Aborting mid-conversion leaves a truncated file in the save directory.
     if (m_state == Converting && !m_outPath.isEmpty())
-        QFile::remove(m_outPath);
-    for (const QString &fifo : std::as_const(m_audioFifoPaths))
-        QFile::remove(fifo);
+        doomed << m_outPath;
+    // Every stop gets the whole list: whichever process exits last finds
+    // nothing holding the files any more, whatever order they die in.
+    FfmpegUtil::stopProcess(m_ffmpeg, doomed);
+    m_audioCaptures.clear();
+    FfmpegUtil::stopProcess(m_converter, doomed);
+    for (QProcess *&pw : m_appAudio)
+        FfmpegUtil::stopProcess(pw, doomed);
+    m_appAudio.clear();
+    FfmpegUtil::stopProcess(m_replayExporter, doomed);
     cleanup();
 }
 

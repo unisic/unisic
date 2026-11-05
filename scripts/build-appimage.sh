@@ -186,6 +186,9 @@ cmake -S "$SRC" -B "$BUILD" -G Ninja \
 cmake --build "$BUILD" --parallel
 rm -rf "$APPDIR"; mkdir -p "$APPDIR"
 DESTDIR="$APPDIR" cmake --install "$BUILD" --strip
+# appimagetool makes .DirIcon only from a PNG at the AppDir root; linuxdeploy
+# links the SVG there, since an SVG always wins its icon ranking.
+cp "$SRC/resources/icons/unisic-256.png" "$APPDIR/app.unisic.Unisic.png"
 
 # The gate manifest CMake writes at configure time. Same ten names the CI jobs
 # check through .github/actions/assert-gates; here the configure above has
@@ -223,6 +226,7 @@ else
     VERSION="${version_line#*VERSION }"; VERSION="${VERSION%% *}"
 fi
 export VERSION
+export LINUXDEPLOY_OUTPUT_VERSION="$VERSION"
 
 [ -x "$TOOLS/linuxdeploy-x86_64.AppImage" ] || curl -fL -o "$TOOLS/linuxdeploy-x86_64.AppImage" \
     https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage

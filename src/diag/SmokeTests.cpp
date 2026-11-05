@@ -21,6 +21,8 @@
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
 #include "history/HistoryFilterModel.h"
+#include "history/CaptureStats.h"
+#include "history/CaptureStats.h"
 #include "hotkeys/GlobalHotkeys.h"
 #include "hotkeys/ShortcutFormat.h"
 #include "diag/CrashHandler.h"
@@ -2706,18 +2708,31 @@ static QString editorZoomCheck(QQuickWindow *win)
     // a handler left at its Mouse-only default declined exactly those.
     const QPointF at = flick->mapToScene(QPointF(flick->width() / 2, flick->height() / 2));
     int wheels = 0;
+    const QPointingDevice *wheelDevice = nullptr;
     for (const QInputDevice *d : QInputDevice::devices()) {
         if (d->type() != QInputDevice::DeviceType::Mouse
             && d->type() != QInputDevice::DeviceType::TouchPad)
             continue;
+        wheelDevice = static_cast<const QPointingDevice *>(d);
         QWheelEvent wheel(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
                           Qt::ControlModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
-                          static_cast<const QPointingDevice *>(d));
+                          wheelDevice);
         QCoreApplication::sendEvent(win, &wheel);
         if (zoom() == 0)
             return QStringLiteral("FAIL (Ctrl+wheel from %1 did not zoom)").arg(d->name());
         flick->setProperty("zoom", 0);
         ++wheels;
+    }
+    // A bare notch zooms too, as in a photo viewer: on Wayland a mouse wheel
+    // arrives with pixelDelta (0,0), which is what tells it from a touchpad.
+    if (wheelDevice) {
+        QWheelEvent notch(at, win->mapToGlobal(at), QPoint(), QPoint(0, 120), Qt::NoButton,
+                          Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                          wheelDevice);
+        QCoreApplication::sendEvent(win, &notch);
+        if (zoom() == 0)
+            return QStringLiteral("FAIL (a bare wheel notch did not zoom)");
+        flick->setProperty("zoom", 0);
     }
     QMetaObject::invokeMethod(pct, "_activate");
     if (!qFuzzyCompare(zoom(), 1.0))
@@ -2729,10 +2744,48 @@ static QString editorZoomCheck(QQuickWindow *win)
     QMetaObject::invokeMethod(out, "clicked");
     if (!(zoom() < zoomedIn))
         return QStringLiteral("FAIL (- gave %1 from %2)").arg(zoom()).arg(zoomedIn);
+    // Panning, at the largest zoom so the image overflows the view: a
+    // touchpad scroll (real pixels) moves the view instead of zooming, and so
+    // does a left drag, since the editor opens with no tool picked.
+    flick->setProperty("zoom", flick->property("maxZoom"));
+    if (!flick->property("canPan").toBool())
+        return QStringLiteral("FAIL (nothing to pan at %1: content %2x%3 in %4x%5)")
+            .arg(zoom())
+            .arg(flick->property("contentWidth").toDouble())
+            .arg(flick->property("contentHeight").toDouble())
+            .arg(flick->width())
+            .arg(flick->height());
+    const auto contentY = [flick] { return flick->property("contentY").toDouble(); };
+    const double zoomedMax = zoom();
+    if (wheelDevice) {
+        flick->setProperty("contentY", 0);
+        QWheelEvent scroll(at, win->mapToGlobal(at), QPoint(0, -24), QPoint(0, -120), Qt::NoButton,
+                           Qt::NoModifier, Qt::NoScrollPhase, false, Qt::MouseEventNotSynthesized,
+                           wheelDevice);
+        QCoreApplication::sendEvent(win, &scroll);
+        if (!(contentY() > 0) || zoom() != zoomedMax)
+            return QStringLiteral("FAIL (touchpad scroll gave y %1, zoom %2)").arg(contentY()).arg(zoom());
+    }
+    flick->setProperty("contentY", 0);
+    const QPointF up = at - QPointF(0, 24);
+    QMouseEvent press(QEvent::MouseButtonPress, at, win->mapToGlobal(at), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent move(QEvent::MouseMove, up, win->mapToGlobal(up), Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, up, win->mapToGlobal(up), Qt::LeftButton,
+                        Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &press);
+    QCoreApplication::sendEvent(win, &move);
+    QCoreApplication::sendEvent(win, &release);
+    if (!(contentY() > 0))
+        return QStringLiteral("FAIL (dragging with no tool did not pan)");
     QMetaObject::invokeMethod(pct, "_activate");
     if (zoom() != 0)
         return QStringLiteral("FAIL (percentage did not return to fit)");
-    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, 100%, +, -, fit)").arg(wheels);
+    return QStringLiteral("PASS (fit, Ctrl+wheel x%1, %2, 100%, +, -, %3, fit)")
+        .arg(wheels)
+        .arg(wheelDevice ? QStringLiteral("wheel") : QStringLiteral("no wheel device"))
+        .arg(wheelDevice ? QStringLiteral("scroll and drag pan") : QStringLiteral("drag pan"));
 }
 
 void AppContext::devTestEditorZoom()
@@ -3174,6 +3227,43 @@ void AppContext::devTestPreviewFromHistory()
     previewFromHistory(p);
 }
 
+void AppContext::previewHopCheck(std::function<void(const QString &)> done)
+{
+    if (!m_layerShellAvailable)
+        return done(QStringLiteral("SKIP (no layer-shell, the compositor moves the window)"));
+    if (QGuiApplication::screens().size() < 2)
+        return done(QStringLiteral("SKIP (one screen)"));
+    if (!openPreview(devTestImage()))
+        return done(QStringLiteral("FAIL (preview did not open)"));
+    // The PNG encode runs on a worker and the surface maps after it; wait.
+    QTimer::singleShot(1500, this, [this, done] {
+        auto *win = m_lastPreview ? qobject_cast<QQuickWindow *>(m_lastPreview->parent()) : nullptr;
+        if (!win || !win->screen())
+            return done(QStringLiteral("FAIL (no preview window)"));
+        QScreen *from = win->screen();
+        QScreen *to = nullptr;
+        for (QScreen *s : QGuiApplication::screens())
+            if (s != from) { to = s; break; }
+        if (!m_lastPreview->hopTo(to->geometry().center()))
+            return done(QStringLiteral("FAIL (hopTo refused %1 -> %2)").arg(from->name(), to->name()));
+        if (!win->isVisible())
+            return done(QStringLiteral("FAIL (hop closed the preview)"));
+        done(win->screen() == to
+             ? QStringLiteral("PASS (%1 -> %2)").arg(from->name(), to->name())
+             : QStringLiteral("FAIL (still on %1)").arg(win->screen()->name()));
+    });
+}
+
+void AppContext::devTestPreviewScreenHop()
+{
+    if (!devBuild())
+        return;
+    previewHopCheck([this](const QString &result) {
+        showToast(tr("Dev: preview screen hop: %1").arg(result),
+                  result.startsWith(QLatin1String("FAIL")));
+    });
+}
+
 QString AppContext::settingsRoundTripCheck()
 {
     // Export -> parse -> verify every writable Settings property serialized ->
@@ -3281,6 +3371,26 @@ QtObject {
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
+QString AppContext::captureStatsCheck()
+{
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("SKIP (no scratch directory)");
+    const QString scratch = dir.filePath(QStringLiteral("unisic.stats"));
+    const QDate day(2026, 3, 1);
+    if (!CaptureStats::record(scratch, day) || !CaptureStats::record(scratch, day)
+        || !CaptureStats::record(scratch, day.addYears(-1)))
+        return QStringLiteral("FAIL (scratch file not written)");
+    const CaptureStats::Counts c = CaptureStats::read(scratch, day);
+    if (c.today != 2 || c.month != 2 || c.year != 2 || c.total != 3)
+        return QStringLiteral("FAIL (counted %1/%2/%3/%4, want 2/2/2/3)")
+            .arg(c.today).arg(c.month).arg(c.year).arg(c.total);
+    const CaptureStats::Counts real = CaptureStats::read(CaptureStats::filePath(), QDate::currentDate());
+    if (!real.readable)
+        return QStringLiteral("FAIL (%1 does not parse)").arg(CaptureStats::filePath());
+    return QStringLiteral("PASS (%1 screenshots counted so far)").arg(real.total);
+}
+
 QString AppContext::historyFilterCheck()
 {
     HistoryFilterModel f;
@@ -3372,7 +3482,7 @@ QString AppContext::imgurSetupCheck()
     });
     QString error;
     bool called = false;
-    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
                             QStringLiteral("smoke.png"), QStringLiteral("image/png"),
                             [&](const QString &, const QString &, const QString &err) {
         called = true;
@@ -3439,7 +3549,7 @@ QString AppContext::vgyMeCheck() const
     });
     QString guardError;
     bool guardCalled = false;
-    m_uploads->uploadDataTo(scratch, QByteArray("not a real upload"),
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
                             QStringLiteral("smoke.png"), QStringLiteral("image/png"),
                             [&](const QString &, const QString &, const QString &err) {
         guardCalled = true;
@@ -3448,12 +3558,10 @@ QString AppContext::vgyMeCheck() const
     m_uploads->removeDestination(scratch);
     if (!guardCalled)
         fails << QStringLiteral("no user key: upload was attempted, not refused");
-    else if (!guardError.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
-             && !guardError.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+    // Every translation of both refusals names vgy.me (checked in all seven
+    // i18n/*.ts), so this holds in any UI language. A per-language word list
+    // missed one (Russian) and failed the check on a correct message.
+    else if (!guardError.contains(QStringLiteral("vgy.me")))
         fails << QStringLiteral("unhelpful error on missing user key: ") + guardError.left(80);
 
     bool testCalled = false;
@@ -3469,17 +3577,184 @@ QString AppContext::vgyMeCheck() const
     });
     if (!testCalled)
         fails << QStringLiteral("testDestination was not called synchronously for missing user key");
-    else if (!testErr.contains(QStringLiteral("user key"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("klucz"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("schlüssel"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("clave"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("clé"), Qt::CaseInsensitive)
-             && !testErr.contains(QStringLiteral("chiave"), Qt::CaseInsensitive))
+    else if (!testErr.contains(QStringLiteral("vgy.me")))
         fails << QStringLiteral("unhelpful test error on missing user key: ") + testErr.left(80);
 
     return fails.isEmpty()
         ? QStringLiteral("PASS (host match, user key extraction, response parsing, missing key guard, builtin present)")
         : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+QString AppContext::gitHubPagesCheck()
+{
+    QStringList fails;
+    UploadManager::GitHubSetup in;
+    in.repo = QStringLiteral("https://github.com/Octo-Cat/cdn.git");
+    in.branch = QStringLiteral("gh-pages");
+    in.folder = QStringLiteral("/img/");
+    in.token = QStringLiteral("github_pat_smoke");
+    in.publicUrl = QStringLiteral("https://cdn.example.com/");
+    const QJsonObject dest = UploadManager::gitHubDestination(in);
+    if (!UploadManager::isGitHub(dest))
+        fails << QStringLiteral("composed destination not recognised as GitHub");
+    if (dest.value(QStringLiteral("requestUrl")).toString()
+        != QLatin1String("https://api.github.com/repos/Octo-Cat/cdn/contents/img/%file%"))
+        fails << QStringLiteral("requestUrl: ") + dest.value(QStringLiteral("requestUrl")).toString();
+    if (!UploadManager::gitHubReady(dest))
+        fails << QStringLiteral("complete setup reads as not ready");
+    const UploadManager::GitHubSetup out = UploadManager::gitHubSetup(dest);
+    if (out.repo != QLatin1String("Octo-Cat/cdn") || out.branch != QLatin1String("gh-pages")
+        || out.folder != QLatin1String("img") || out.token != in.token
+        || out.publicUrl != QLatin1String("https://cdn.example.com"))
+        fails << QStringLiteral("round trip lost a field: %1 %2 %3 %4")
+                     .arg(out.repo, out.branch, out.folder, out.publicUrl);
+    // The body is JSON the API parses: the tokens sit inside string values.
+    const QJsonObject data = QJsonDocument::fromJson(
+        dest.value(QStringLiteral("data")).toString().toUtf8()).object();
+    if (data.value(QStringLiteral("content")).toString() != QLatin1String("$base64$")
+        || data.value(QStringLiteral("branch")).toString() != QLatin1String("gh-pages"))
+        fails << QStringLiteral("JSON body: ") + dest.value(QStringLiteral("data")).toString();
+    const QByteArray response(R"({"content":{"name":"shot.png","path":"img/shot.png","html_url":"https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"},"commit":{"sha":"abc"}})");
+    const QString url = UploadManager::extractUrl(dest, QStringLiteral("urlPath"), response);
+    if (url != QLatin1String("https://cdn.example.com/shot.png"))
+        fails << QStringLiteral("link: ") + url;
+    if (UploadManager::extractUrl(dest, QStringLiteral("deletionUrlPath"), response)
+        != QLatin1String("https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"))
+        fails << QStringLiteral("deletion link is not the file's GitHub page");
+    // Default addresses: a project site under /name, the user site at the root.
+    if (UploadManager::gitHubPagesUrl(QStringLiteral("Octo-Cat/cdn"), QStringLiteral("img"))
+        != QLatin1String("https://octo-cat.github.io/cdn/img"))
+        fails << QStringLiteral("project site address");
+    if (UploadManager::gitHubPagesUrl(QStringLiteral("octocat/octocat.github.io"), {})
+        != QLatin1String("https://octocat.github.io"))
+        fails << QStringLiteral("user site address");
+    UploadManager::GitHubSetup bare;
+    bare.repo = QStringLiteral("octocat/cdn");
+    bare.token = QStringLiteral("x");
+    const UploadManager::GitHubSetup back = UploadManager::gitHubSetup(UploadManager::gitHubDestination(bare));
+    if (back.branch != QLatin1String("main") || !back.publicUrl.isEmpty())
+        fails << QStringLiteral("defaults: branch %1, public URL %2").arg(back.branch, back.publicUrl);
+
+    bool hasBuiltin = false;
+    for (const QJsonValue &v : m_uploads->destinationsJson()) {
+        if (v.toObject().value(QStringLiteral("name")).toString() == QLatin1String("GitHub Pages")) {
+            hasBuiltin = true;
+            break;
+        }
+    }
+    if (!hasBuiltin)
+        fails << QStringLiteral("GitHub Pages builtin destination missing");
+
+    // The guard: the preset as shipped must fail before any request goes out,
+    // naming the fix, and must stay out of the chain.
+    const QString scratch = QStringLiteral("unisic-smoke-github");
+    QJsonObject preset = UploadManager::gitHubDestination({});
+    preset.insert(QStringLiteral("name"), scratch);
+    m_uploads->saveDestination(preset.toVariantMap());
+    if (m_uploads->uploadChainFor(QStringLiteral("catbox.moe")).contains(scratch))
+        fails << QStringLiteral("unconfigured GitHub Pages offered as a fallback");
+    QString guardError;
+    bool guardCalled = false;
+    m_uploads->uploadDataTo({scratch}, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        guardCalled = true;
+        guardError = err;
+    });
+    m_uploads->removeDestination(scratch);
+    const auto namesToken = [](const QString &s) {
+        return s.contains(QStringLiteral("token"), Qt::CaseInsensitive)
+               || s.contains(QStringLiteral("токен"), Qt::CaseInsensitive);
+    };
+    if (!guardCalled)
+        fails << QStringLiteral("no token: upload was attempted, not refused");
+    else if (!namesToken(guardError))
+        fails << QStringLiteral("unhelpful error on missing token: ") + guardError.left(80);
+
+    bool testCalled = false;
+    QString testErr;
+    m_uploads->testDestination(preset.toVariantMap(), [&](bool ok, const QString &, const QString &err) {
+        testCalled = true;
+        if (ok)
+            fails << QStringLiteral("testDestination succeeded without a token");
+        testErr = err;
+    });
+    if (!testCalled)
+        fails << QStringLiteral("testDestination was not called synchronously for a missing token");
+    else if (!namesToken(testErr))
+        fails << QStringLiteral("unhelpful test error on missing token: ") + testErr.left(80);
+
+    return fails.isEmpty()
+        ? QStringLiteral("PASS (compose + read back, link from the response, default addresses, missing token guard, builtin present)")
+        : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+}
+#endif
+
+QString AppContext::uploadChainCheck()
+{
+    QStringList fails;
+    const QStringList order{QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c")};
+    if (UploadManager::uploadChain(QStringLiteral("b"), order, order, true)
+        != QStringList{QStringLiteral("b"), QStringLiteral("a"), QStringLiteral("c")})
+        fails << QStringLiteral("per-hotkey server first, then the list");
+    if (UploadManager::uploadChain(QStringLiteral("gone"), order, {QStringLiteral("c")}, true)
+        != QStringList{QStringLiteral("a"), QStringLiteral("c")})
+        fails << QStringLiteral("unknown hotkey server or a server that needs setup");
+    if (UploadManager::uploadChain({}, order, order, false) != QStringList{QStringLiteral("a")})
+        fails << QStringLiteral("chain switched off");
+    if (!UploadManager::uploadChain({}, {}, {}, true).isEmpty())
+        fails << QStringLiteral("no servers");
+
+    // A real chain over two scratch servers that refuse before any request
+    // (Imgur with no Client-ID, vgy.me with no key): nothing leaves the
+    // machine, and the user's own list and active server are not touched.
+    const QString first = QStringLiteral("unisic-smoke-chain-imgur");
+    const QString second = QStringLiteral("unisic-smoke-chain-vgy");
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), first},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://api.imgur.com/3/image")},
+    });
+    m_uploads->saveDestination(QVariantMap{
+        {QStringLiteral("name"), second},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://vgy.me/upload")},
+    });
+
+    const bool busyBefore = m_uploads->busy(); // a real upload may be in flight
+    bool called = false;
+    QString chainErr;
+    m_uploads->uploadDataTo({first, second}, QByteArray("not a real upload"),
+                            QStringLiteral("smoke.png"), QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        called = true;
+        chainErr = err;
+    });
+    const bool busyAfter = m_uploads->busy();
+    bool pickCalled = false;
+    QString pickErr;
+    m_uploads->uploadDataTo({first}, QByteArray("not a real upload"), QStringLiteral("smoke.png"),
+                            QStringLiteral("image/png"),
+                            [&](const QString &, const QString &, const QString &err) {
+        pickCalled = true;
+        pickErr = err;
+    });
+
+    m_uploads->removeDestination(first);
+    m_uploads->removeDestination(second);
+
+    const int at1 = chainErr.indexOf(first + QLatin1Char(':'));
+    const int at2 = chainErr.indexOf(second + QLatin1Char(':'));
+    if (!called)
+        fails << QStringLiteral("chain never answered");
+    else if (at1 < 0 || at2 < at1)
+        fails << QStringLiteral("chain did not try both servers in order: ") + chainErr.left(80);
+    if (busyAfter && !busyBefore)
+        fails << QStringLiteral("busy stuck after the chain");
+    if (!pickCalled || pickErr.isEmpty() || pickErr.contains(second))
+        fails << QStringLiteral("hand-picked server fell through to the chain");
+
+    return fails.isEmpty() ? QStringLiteral("PASS (order, chain off, fall-through, hand-pick stays put)")
+                           : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral(", ")));
 }
 
 QString AppContext::curlDestinationCheck() const
@@ -3781,6 +4056,13 @@ void AppContext::devTestHistoryFilter()
     showToast(tr("Dev: history search + filters: %1").arg(historyFilterCheck()));
 }
 
+void AppContext::devTestCaptureStats()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: screenshot statistics: %1").arg(captureStatsCheck()));
+}
+
 void AppContext::devTestImgurSetup()
 {
     if (!devBuild())
@@ -3793,6 +4075,22 @@ void AppContext::devTestVgyMe()
     if (!devBuild())
         return;
     showToast(tr("Dev: vgy.me support: %1").arg(vgyMeCheck()));
+}
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+void AppContext::devTestGitHubPages()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: GitHub Pages support: %1").arg(gitHubPagesCheck()));
+}
+#endif
+
+void AppContext::devTestUploadChain()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: Failure Chain: %1").arg(uploadChainCheck()));
 }
 
 void AppContext::devTestSettingsRoundTrip()
@@ -4478,8 +4776,12 @@ void AppContext::runSmokeTest()
                             == QStringLiteral("file:///tmp/a%20b.png")
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeLog(QStringLiteral("history search + filters: ") + historyFilterCheck());
+        smokeLog(QStringLiteral("screenshot statistics: ") + captureStatsCheck());
         smokeLog(QStringLiteral("Imgur Client-ID guard: ") + imgurSetupCheck());
         smokeLog(QStringLiteral("vgy.me support: ") + vgyMeCheck());
+        // GitHub Pages (parked, docs/dev/architecture.md):
+        // smokeLog(QStringLiteral("GitHub Pages support: ") + gitHubPagesCheck());
+        smokeLog(QStringLiteral("Failure Chain: ") + uploadChainCheck());
         smokeLog(QStringLiteral("curl destination: ") + curlDestinationCheck());
         smokeLog(QStringLiteral("template variables: ") + templateVarsCheck());
         smokeLog(QStringLiteral("still GIF: ") + staticGifCheck());
@@ -4858,9 +5160,9 @@ void AppContext::runSmokeTest()
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
-        QImage t(64, 64, QImage::Format_ARGB32);
-        t.fill(QColor(0x2E, 0x23, 0x6C));
-        openEditor(t);
+        // Big enough to overflow the view at the zoom check's largest zoom,
+        // which the pan half needs.
+        openEditor(devTestImage());
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         const QPointer<QQuickWindow> win = m_editorWindows > before && !m_smokeWindows.isEmpty()
@@ -4937,6 +5239,14 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("preview window: ") + (ok
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         smokeNext();
+    });
+
+    // 3d2) preview dropped onto another monitor re-maps there (layer-shell)
+    m_smokeSteps.append([this] {
+        previewHopCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("preview screen hop: ") + result);
+            smokeNext();
+        });
     });
 
     // 3e) history favorite round-trip (star -> role reads back -> unstar)
@@ -5589,11 +5899,20 @@ QString AppContext::scrollStitchCheck() const
         hi = std::max(hi, y);
     }
 
-    QImage expect(w, hi - lo + vh, QImage::Format_RGB32);
+    // The rows a full-height region's badge covered join below the frame at
+    // the bottom of the image (y=500, row 200 from the start), never below
+    // the last one (y=255).
+    const int below = 20;
+    if (stitcher.appendBelow(stitcher.framePos(), doc.copy(0, 255 + vh - hdr, w, below)))
+        return QStringLiteral("FAIL (covered rows placed mid-image)");
+    if (!stitcher.appendBelow(hi - 300, doc.copy(0, hi + vh - hdr, w, below)))
+        return QStringLiteral("FAIL (covered rows refused)");
+
+    QImage expect(w, hi - lo + vh + below, QImage::Format_RGB32);
     {
         QPainter p(&expect);
         p.drawImage(0, 0, frame(lo).copy(0, 0, w, hdr));
-        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh - hdr));
+        p.drawImage(0, hdr, doc.copy(0, lo, w, hi - lo + vh + below - hdr));
     }
     const QImage got = stitcher.stitchedImage();
     if (got.size() != expect.size())
@@ -5601,7 +5920,31 @@ QString AppContext::scrollStitchCheck() const
             .arg(got.width()).arg(got.height()).arg(expect.width()).arg(expect.height());
     if (got != expect)
         return QStringLiteral("FAIL (pixels differ)");
-    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames)")
+
+    // A bar floating over the page, inset from the sides and the top, leaves
+    // no row standing still: it must still appear once, not at every step.
+    auto floating = [&](int y) {
+        QImage f = doc.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(12, 6, w - 24, 20, QColor(40, 40, 90));
+        p.setPen(Qt::white);
+        p.drawText(20, 20, QStringLiteral("Floating navigation"));
+        return f;
+    };
+    ScrollStitcher bar;
+    bar.addFrame(floating(0));
+    for (int y : {30, 75, 76, 140, 230}) {
+        if (bar.addFrame(floating(y)) != ScrollStitcher::Result::Stitched)
+            return QStringLiteral("FAIL (floating bar: lost track at y=%1)").arg(y);
+    }
+    QImage barExpect = doc.copy(0, 0, w, 230 + vh);
+    {
+        QPainter p(&barExpect);
+        p.drawImage(0, 0, floating(0).copy(0, 0, w, 26));
+    }
+    if (bar.stitchedImage() != barExpect)
+        return QStringLiteral("FAIL (floating bar repeated)");
+    return QStringLiteral("PASS (%1x%2, byte-exact, %3 frames, floating bar once)")
         .arg(got.width()).arg(got.height()).arg(stitcher.frameCount());
 }
 

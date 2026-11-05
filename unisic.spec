@@ -166,10 +166,13 @@ Requires:       qt6-qtmultimedia
 # Verified on Tumbleweed (2026-07): the SVG imageformat plugin ships inside
 # libQt6Svg6 (no qt6-svg-imageformat package), and libQt6Svg6 arrives via the
 # linked-soname autodeps - only the dlopened QML imports and the wayland
-# platform plugin need explicit names.
+# platform plugin need explicit names. The portal platform theme is split out
+# too (Fedora keeps it inside qt6-qtbase-gui, which the soname autodeps pull):
+# main.cpp selects it on GNOME so the file dialogs follow the dark style (#118).
 Requires:       qt6-declarative-imports
 Requires:       qt6-wayland
 Requires:       qt6-multimedia-imports
+Requires:       qt6-platformtheme-xdgdesktopportal
 %endif
 
 %description
@@ -216,6 +219,8 @@ appstream-util validate-relax --nonet \
 %{_datadir}/unisic/unisic-features.txt
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_mandir}/man1/unisic.1*
+%{_datadir}/bash-completion/completions/unisic
+%{_datadir}/zsh/site-functions/_unisic
 %{_datadir}/metainfo/app.unisic.Unisic.metainfo.xml
 %{_datadir}/icons/hicolor/scalable/apps/unisic.svg
 %{_datadir}/icons/hicolor/scalable/apps/app.unisic.Unisic.svg

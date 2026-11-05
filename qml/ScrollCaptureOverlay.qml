@@ -40,7 +40,7 @@ Window {
     // up, and the badge must not sit over it offering Finish (#121).
     Item {
         anchors.fill: parent
-        visible: scrollCtl.streaming
+        visible: scrollCtl.controlsShown
 
         // Top border
         Rectangle {
@@ -87,10 +87,14 @@ Window {
     // Floating Control Badge
     Rectangle {
         id: badge
-        visible: scrollCtl.streaming
-        readonly property bool roomAbove: scrollCtl.regionY - height - 10 >= 0
+        visible: scrollCtl.controlsShown
+        // A full-height region has no room outside: the badge sits over its
+        // bottom rows, which the controller leaves out of the stitch.
+        readonly property bool roomAbove: scrollCtl.coveredRows === 0
+                                          && scrollCtl.regionY - height - 10 >= 0
         x: Math.max(10, Math.min(overlayWindow.width - width - 10, scrollCtl.regionX))
-        y: roomAbove ? (scrollCtl.regionY - height - 10) : (scrollCtl.regionY + scrollCtl.regionH + 10)
+        y: roomAbove ? (scrollCtl.regionY - height - 10)
+                     : (scrollCtl.regionY + scrollCtl.regionH - scrollCtl.coveredRows + 10)
         width: badgeRow.width + 24
         height: 38
         radius: 19

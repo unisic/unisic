@@ -281,6 +281,9 @@ public:
     Q_INVOKABLE bool hasUnseenCrash() const;
     Q_INVOKABLE void markCrashNoticeSeen();
     Q_INVOKABLE void showLogInFileManager();
+    // Screenshots counted in unisic.stats (today, month, year, total, readable,
+    // path), for the Statistics row. Read from disk on each call.
+    Q_INVOKABLE QVariantMap captureStats() const;
     // Runtime dependencies and whether each is satisfied, as a list of
     // {label, ok, detail} maps for the first-run system check to render.
     // Package recipes require them; a missing one means the install was altered
@@ -320,8 +323,12 @@ public:
     Q_INVOKABLE void devTestHistoryDrag();
     Q_INVOKABLE void devTestNotificationDrag();
     Q_INVOKABLE void devTestHistoryFilter();
+    Q_INVOKABLE void devTestCaptureStats();
     Q_INVOKABLE void devTestImgurSetup();
     Q_INVOKABLE void devTestVgyMe();
+    // GitHub Pages (parked, docs/dev/architecture.md):
+    // Q_INVOKABLE void devTestGitHubPages();
+    Q_INVOKABLE void devTestUploadChain();
     Q_INVOKABLE void devTestCurlDestination();
     Q_INVOKABLE void devTestTemplateVars();
     Q_INVOKABLE void devTestStaticGif();
@@ -340,6 +347,7 @@ public:
     Q_INVOKABLE void devTestCrashReport();
     Q_INVOKABLE void devTestPreview();
     Q_INVOKABLE void devTestPreviewFromHistory();
+    Q_INVOKABLE void devTestPreviewScreenHop();
     Q_INVOKABLE void devTestHotkeyBinds();
     Q_INVOKABLE void devTestUpload();
     // The server editor's "Test upload": guard + a real curl transport against
@@ -720,8 +728,9 @@ public:
     void uploadImage(const QImage &img, UploadDone done, quint64 historyId = 0);
     void openEditor(const QImage &img, const QString &overwritePath = {}, quint64 historyId = 0);
     // Floating, pinnable, translucent preview of a capture. Returns false when
-    // the window could not be created.
-    bool openPreview(const QImage &img);
+    // the window could not be created. `sourcePath` is the file the image came
+    // from (history); the preview then offers edit/copy/upload/OCR on it.
+    bool openPreview(const QImage &img, const QString &sourcePath = {});
     // Re-open a saved capture from history; editor save() overwrites it in place.
     Q_INVOKABLE void editFromHistory(const QString &filePath);
     // Open a saved capture from history in the floating pinned preview.
@@ -742,7 +751,10 @@ public:
     QString effectiveOcrLanguages() const;
     // Upload for the capture popup: reuses the existing history entry (by path)
     // instead of adding a new one, and reflects progress back on the popup.
-    void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path);
+    // Empty `destination` runs the failure chain; a name (the Upload button's
+    // right-click picker) goes to exactly that server.
+    void uploadFromNotification(CaptureNotification *n, const QImage &img, const QString &path,
+                                const QString &destination = {});
     // Desktop-aware "what to do about it" suffix for capture failures.
     QString captureErrorGuidance(const QString &err);
 
@@ -868,12 +880,25 @@ private:
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
+    // unisic.stats: counts into a scratch file (never the user's), asserts the
+    // day/month/year totals, and that the real file, if any, still parses.
+    QString captureStatsCheck();
     // Imgur is unusable without a per-user Client-ID: assert no stored
     // destination kept the old shipped placeholder, and that an Imgur
     // destination without an ID fails fast with a message that says what to do
     // (instead of spending an upload on a 429 from Imgur).
     QString imgurSetupCheck();
     QString vgyMeCheck() const;
+    // GitHub Pages (parked, docs/dev/architecture.md): the editor's five fields
+    // compose an http destination that reads back unchanged, the link is the
+    // public address plus the committed file's name, and the shipped preset
+    // (no repository, no token) is refused before any request.
+    // QString gitHubPagesCheck();
+    // The failure chain: uploadChain() ordering, then a real chain over two
+    // scratch servers that refuse before any request (Imgur with no Client-ID,
+    // vgy.me with no key), so nothing leaves the machine. A hand-picked server
+    // must not fall through to the next one.
+    QString uploadChainCheck();
     // The two pieces of a curl destination that used to need a real server to
     // see: where the file is PUT (the %file% token, and the legacy append when
     // it is absent, with a file name that must not be able to climb out of the
@@ -904,6 +929,11 @@ private:
     // check stays offline), and neither may persist anything. Async - `done`
     // gets one summary line, shared by the smoke step and the dev button.
     void destinationTestCheck(std::function<void(const QString &)> done);
+    // Layer-shell preview moved to another monitor: opens a preview, hands
+    // PreviewController::hopTo() the next screen's centre and checks the
+    // window now lives there and survived the hide/show. Async, SKIP on one
+    // screen or without layer-shell (the compositor moves a normal window).
+    void previewHopCheck(std::function<void(const QString &)> done);
     // Second half of destinationTestCheck(), chained off the guard's answer.
     // Split out precisely so the guard can WAIT for its answer instead of
     // assuming an empty form is refused synchronously.
@@ -1023,7 +1053,8 @@ private:
     // that turned out bigger). Never leaves both files behind.
     QString autoConvertIfLarge(const QString &path, const QImage &img);
     // Continuation of openPreview after the worker-thread PNG save.
-    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize);
+    void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
+                           const QString &sourcePath);
     void afterUploadActions(const QString &url);
     // Everything that has to be kept off the screen while a capture or a
     // recording is running, and put back afterwards: the desktop's other
@@ -1036,6 +1067,12 @@ private:
     // Ends the share a running scrolling capture holds (startScrollCapture())
     // and puts the window back. No-op when the session holds none.
     void endScrollIsolation();
+    // A full-screen transparent overlay (scroll frame, record frame) is about
+    // to map: remember whether Better Blur will blur the screen under it
+    // (KWinForceBlur). The toast lives in the main window, which is down for
+    // the capture, so it is shown by warnForceBlur() once the result is in.
+    void noteForceBlur();
+    void warnForceBlur();
     // Take our own main window off screen so it cannot land in the shot. False =
     // nothing was hidden (setting off, window already down, no window yet), so
     // the caller need not wait for the compositor. Idempotent per capture.
@@ -1137,6 +1174,7 @@ private:
     LayerShellNotifier *m_layerNotifier = nullptr; // set when layer-shell is usable, and on Windows
     bool m_layerShellAvailable = false;            // compositor exposes zwlr_layer_shell_v1
     QPointer<QQuickWindow> m_recordBorderWindow; // live region-recording frame
+    QPointer<PreviewController> m_lastPreview;   // newest preview, for previewHopCheck
     // Set only between hideOwnWindowForCapture() and restoreOwnWindowAfterCapture():
     // "this window was visible, we took it down, put it back". QPointer because
     // quitting from the tray mid-capture deletes it underneath us.
@@ -1151,6 +1189,8 @@ private:
     // session starts, and the window must stay out of the region (and out of
     // every slice) until endScrollIsolation().
     bool m_scrollHoldsWindow = false;
+    QString m_forceBlurWarning;     // noteForceBlur() -> warnForceBlur()
+    bool m_forceBlurWarned = false; // once per session is enough
     // The card currently shown as a settings preview. QPointer: the notifier (or
     // the helper's process exit) owns and destroys it whenever it closes itself.
     QPointer<CaptureNotification> m_previewNotif;

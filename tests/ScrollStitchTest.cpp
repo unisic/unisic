@@ -49,11 +49,14 @@ private slots:
     void scrollDownIsByteExact();
     void irregularStepsAreByteExact();
     void stickyHeaderAndFooterAppearOnce();
+    void floatingOverlaysAppearOnce_data();
+    void floatingOverlaysAppearOnce();
     void staticSidebarAndScrollbarDoNotBreakAlignment();
     void changingStickySidebarDoesNotBreakAlignment();
     void scrollingUpExtendsTheTop();
     void scrollingBackAndForthDoesNotDuplicate();
     void tooFastScrollIsUnmatched();
+    void coveredRowsJoinTheBottom();
     void localAnimationIsUnchanged();
     void scatteredSmallChangesAreUnchanged();
     void hoverCardOverTheViewDoesNotBlockTheShift();
@@ -199,6 +202,66 @@ void ScrollStitchTest::stickyHeaderAndFooterAppearOnce()
     QCOMPARE(s.stitchedImage(), expect);
 }
 
+// What a web page pins to the view without a full-width band at the frame
+// edge: a navigation bar floating a little below the top of the view, narrower
+// than it, and a small badge in a corner of the blank margin (a framework's dev
+// indicator, a chat button). Neither makes a whole row stand still, so the
+// sticky-row test misses them; before they were recognised, the bar was
+// repainted into the page at every frame position and the badge came along with
+// every new strip. The bar may be translucent (backdrop blur), so the rows
+// behind it change with the page while its text stays put.
+void ScrollStitchTest::floatingOverlaysAppearOnce_data()
+{
+    QTest::addColumn<int>("barAlpha");
+    QTest::addColumn<bool>("down");
+    QTest::newRow("opaque bar, scrolled down") << 255 << true;
+    QTest::newRow("translucent bar, scrolled down") << 200 << true;
+    QTest::newRow("opaque bar, scrolled up") << 255 << false;
+}
+
+void ScrollStitchTest::floatingOverlaysAppearOnce()
+{
+    QFETCH(int, barAlpha);
+    QFETCH(bool, down);
+    const int margin = 40, aw = 380, w = margin + aw + margin, vh = 300, pageH = 1600;
+    const QImage text = document(aw, pageH);
+    QImage page(w, pageH, QImage::Format_RGB32);
+    page.fill(QColor(17, 17, 17));
+    {
+        QPainter p(&page);
+        p.drawImage(margin, 0, text);
+    }
+    auto frame = [&](int y) {
+        QImage f = page.copy(0, y, w, vh);
+        QPainter p(&f);
+        p.fillRect(margin + 10, 14, aw - 20, 32, QColor(40, 40, 46, barAlpha));
+        p.setPen(Qt::white);
+        drawGlyphs(p, margin + 20, 34, QStringLiteral("AmpersandBot  CHANGELOG  SUPPORT"));
+        p.fillRect(8, vh - 44, 24, 24, Qt::black);
+        drawGlyphs(p, 16, vh - 26, QStringLiteral("N"));
+        return f;
+    };
+    const int start = down ? 0 : pageH - vh;
+    ScrollStitcher s;
+    s.addFrame(frame(start));
+    int y = start;
+    for (int d : {40, 75, 12, 3, 120, 60, 1, 90}) {
+        y += down ? d : -d;
+        QVERIFY2(s.addFrame(frame(y)) == R::Stitched, qPrintable(QStringLiteral("y %1").arg(y)));
+    }
+    // The page as the view showed it at the top (bar over it) down to where
+    // the view showed it at the bottom (badge over it); every row in between
+    // is the page itself.
+    const int lo = std::min(start, y), hi = std::max(start, y);
+    const int barEnd = 46, badgeTop = vh - 44;
+    QImage expect = page.copy(0, lo, w, hi + vh - lo);
+    QPainter p(&expect);
+    p.drawImage(0, 0, frame(lo).copy(0, 0, w, barEnd));
+    p.drawImage(0, hi - lo + badgeTop, frame(hi).copy(0, badgeTop, w, vh - badgeTop));
+    p.end();
+    QCOMPARE(s.stitchedImage(), expect);
+}
+
 void ScrollStitchTest::staticSidebarAndScrollbarDoNotBreakAlignment()
 {
     const int w = 400, vh = 280, side = 90, bar = 12;
@@ -287,6 +350,41 @@ void ScrollStitchTest::scrollingBackAndForthDoesNotDuplicate()
         hi = std::max(hi, y);
     }
     QCOMPARE(s.stitchedImage(), doc.copy(0, lo, 350, hi + vh - lo));
+}
+
+// A full-height region whose bottom rows sit under the capture controls: the
+// frames leave them out, and the clean rows go in below the frame at the
+// bottom of the image, never below one that is not.
+void ScrollStitchTest::coveredRowsJoinTheBottom()
+{
+    const QImage doc = document(350, 1400);
+    const int vh = 250, cut = 40;
+    auto part = [&](int y) { return doc.copy(0, y, 350, vh - cut); };
+    auto rows = [&](int y) { return doc.copy(0, y + vh - cut, 350, cut); };
+
+    // Scrolled down: the last frame ends the image.
+    ScrollStitcher down;
+    down.addFrame(part(0));
+    int y = 0;
+    for (int d : {60, 90, 45}) {
+        y += d;
+        QCOMPARE(down.addFrame(part(y)), R::Stitched);
+    }
+    QVERIFY(!down.appendBelow(0, rows(0)));      // the first frame is far up
+    QVERIFY(down.appendBelow(down.framePos(), rows(y)));
+    QCOMPARE(down.stitchedImage(), doc.copy(0, 0, 350, y + vh));
+
+    // Scrolled up from the bottom: the first frame ends the image.
+    ScrollStitcher up;
+    up.addFrame(part(900));
+    y = 900;
+    for (int d : {70, 30, 110}) {
+        y -= d;
+        QCOMPARE(up.addFrame(part(y)), R::Stitched);
+    }
+    QVERIFY(!up.appendBelow(up.framePos(), rows(y)));
+    QVERIFY(up.appendBelow(0, rows(900)));
+    QCOMPARE(up.stitchedImage(), doc.copy(0, y, 350, 900 + vh - y));
 }
 
 void ScrollStitchTest::tooFastScrollIsUnmatched()

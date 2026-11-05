@@ -33,8 +33,8 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, curl, ffmpeg, grim, libqt6svg6,
  pipewire, pipewire-bin, qml6-module-qtmultimedia, qml6-module-qtquick,
  qml6-module-qtquick-controls, qml6-module-qtquick-dialogs,
  qml6-module-qtquick-effects, qml6-module-qtquick-window, qt6-svg-plugins,
- qt6-wayland, tesseract-ocr-eng, tesseract-ocr-osd, tesseract-ocr-pol,
- wl-clipboard, xdg-desktop-portal, zip
+ qt6-wayland, qt6-xdgdesktopportal-platformtheme, tesseract-ocr-eng,
+ tesseract-ocr-osd, tesseract-ocr-pol, wl-clipboard, xdg-desktop-portal, zip
 Recommends: xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
  xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh |
  xdg-desktop-portal-gtk | xdg-desktop-portal-xapp

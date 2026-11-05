@@ -242,12 +242,6 @@ Item {
             collectRows(kids[i], tabIdx, q, out)
     }
 
-    // Local absolute path -> file URL. Per-segment encode: encodeURI leaves
-    // '#'/'?' unescaped, so a filename containing them would be parsed as a URL
-    // fragment/query and the thumbnail would fail to load.
-    function fileUrl(p) {
-        return "file://" + p.split("/").map(encodeURIComponent).join("/")
-    }
     // Tooltip label from a path: basename without the image extension.
     function iconLabel(p) {
         return p.split("/").pop().replace(/\.(svg|svgz|png|jpe?g|webp|xpm|ico)$/i, "")
@@ -1135,7 +1129,7 @@ Item {
                         UTextField {
                             width: 150
                             text: App.settings.ocrLanguages
-                            placeholder: "pol+eng"
+                            placeholder: "eng"
                             onEdited: (t) => App.settings.ocrLanguages = t
                         }
                     }
@@ -1335,6 +1329,46 @@ Item {
                                       : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                id: statsGroup
+                width: page.cardWidth
+                property var stats: App.captureStats()
+                // A capture lands in history right after it is counted.
+                Connections {
+                    target: App.history
+                    function onRowsInserted() { statsGroup.stats = App.captureStats() }
+                }
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Statistics") }
+                    SettingRow {
+                        label: qsTr("Screenshots taken")
+                        help: statsGroup.stats.readable
+                              ? qsTr("%1 today, %2 this month, %3 this year, %4 in all.")
+                                    .arg(statsGroup.stats.today).arg(statsGroup.stats.month)
+                                    .arg(statsGroup.stats.year).arg(statsGroup.stats.total)
+                              : qsTr("The statistics file could not be read. The next screenshot starts a new count and keeps the old file beside it.")
+                        helpDetail: qsTr("Unisic counts your screenshots per day in a file named unisic.stats: dates and numbers only, no file names or images. Drop that file on unisic.app/stats to see an activity chart and a review of your year. The page reads the file in your browser and nothing is uploaded.")
+                        Row {
+                            spacing: Theme.spacingS
+                            UIconButton {
+                                iconName: "folder-open"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Show statistics file")
+                                onClicked: App.showInFileManager(statsGroup.stats.path)
+                            }
+                            UIconButton {
+                                iconName: "globe"; iconSize: 15
+                                width: 34; height: 34
+                                tooltip: qsTr("Open unisic.app/stats")
+                                onClicked: Qt.openUrlExternally("https://unisic.app/stats/")
+                            }
                         }
                     }
                 }
@@ -3194,7 +3228,7 @@ Item {
                                 for (var i = 0; i < presets.length; i++)
                                     arr.push({ path: presets[i],
                                                label: page.iconLabel(presets[i]),
-                                               src: page.fileUrl(presets[i]) })
+                                               src: App.fileDragUri(presets[i]) })
                                 return arr
                             }
                             delegate: trayTileDelegate
@@ -3210,7 +3244,7 @@ Item {
                                 if (cur !== "" && App.trayIconPresets.indexOf(cur) === -1
                                         && App.bundledTrayIcons.indexOf(cur) === -1)
                                     return [{ path: cur, label: page.iconLabel(cur),
-                                              src: page.fileUrl(cur) }]
+                                              src: App.fileDragUri(cur) }]
                                 return []
                             }
                             delegate: trayTileDelegate
@@ -3942,13 +3976,18 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Show capture in folder"); onClicked: App.devTestShowInFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open preview window"); onClicked: App.devTestPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pin preview from history"); onClicked: App.devTestPreviewFromHistory() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Move preview to the next screen"); onClicked: App.devTestPreviewScreenHop() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add history entry"); onClicked: App.devTestHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Add starred history entry"); onClicked: App.devTestFavoriteHistory() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History drag payload"); onClicked: App.devTestHistoryDrag() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("History search + filters"); onClicked: App.devTestHistoryFilter() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot statistics"); onClicked: App.devTestCaptureStats() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Export ZIP"); onClicked: App.devTestZipExport() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Imgur Client-ID guard"); onClicked: App.devTestImgurSetup() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("vgy.me support"); onClicked: App.devTestVgyMe() }
+                        // GitHub Pages (parked, docs/dev/architecture.md):
+                        // UButton { compact: true; variant: "tonal"; text: qsTr("GitHub Pages support"); onClicked: App.devTestGitHubPages() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Failure Chain"); onClicked: App.devTestUploadChain() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("curl destination"); onClicked: App.devTestCurlDestination() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Template variables"); onClicked: App.devTestTemplateVars() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Still GIF"); onClicked: App.devTestStaticGif() }

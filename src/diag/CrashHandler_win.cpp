@@ -237,11 +237,28 @@ namespace CrashHandler {
 
 void install()
 {
+    // A stack overflow runs the filter on whatever is left of the overflowed
+    // stack. Without a guarantee that can be less than the unwinder and
+    // CreateFileW need, and a second fault there loses the report. Reserved
+    // for the calling thread only: main, where the UI and QML run.
+    ULONG guarantee = 64 * 1024;
+    SetThreadStackGuarantee(&guarantee);
     SetUnhandledExceptionFilter(crashExceptionFilter);
     ::signal(SIGABRT, crashAbortHandler);
 }
 
 void setLogFd(int fd) { g_logFd = fd; }
+
+int openLog(const char *utf8Path)
+{
+    wchar_t path[MAX_PATH * 4];
+    if (!utf8Path
+        || MultiByteToWideChar(CP_UTF8, 0, utf8Path, -1, path, int(sizeof(path) / sizeof(path[0])))
+               <= 0)
+        return -1;
+    return ::_wopen(path, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY | _O_NOINHERIT,
+                    _S_IREAD | _S_IWRITE);
+}
 
 void setCrashFilePath(const char *utf8Path)
 {

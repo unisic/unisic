@@ -459,23 +459,22 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
 {
     *handedOff = false;
     *handoffResult = 0;
-    auto *server = new QLocalServer(app);
-    if (server->listen(serverName))
-        return server;
 
-    // Serialize the recovery below across near-simultaneous spawns (autostart
-    // plus a compositor-keybind `unisic --region`): unguarded, one process can
-    // removeServer() — an unconditional unlink — the socket another just
-    // bound, booting two full instances. QLockFile auto-breaks locks held by
-    // dead PIDs, so a crash mid-recovery can't wedge future launches; a failed
-    // tryLock (broken tmp) just degrades to the old unserialized behavior.
-    QLockFile recoveryLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
-    recoveryLock.tryLock(2000);
+    // Serialize probe-and-listen across near-simultaneous spawns (autostart
+    // plus a hotkey `unisic --region`). On Linux listen() refuses a taken
+    // name, but removeServer() below is an unconditional unlink that can take
+    // the socket another process just bound. On Windows listen() never
+    // refuses: Qt creates the pipe without FILE_FLAG_FIRST_PIPE_INSTANCE, so
+    // the second process gets its own instance of the same pipe and both boot
+    // in full. QLockFile auto-breaks locks held by dead PIDs, so a crash
+    // mid-start can't wedge future launches; a failed tryLock (broken tmp)
+    // just degrades to the unserialized behavior.
+    QLockFile startLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
+    startLock.tryLock(2000);
 
-    // If a peer appeared between our probe and listen(), hand off to it — with
-    // the REAL command, and signal main() to exit: continuing would boot a
-    // duplicate instance with duplicate hotkey registrations (every press
-    // would then fire twice). Otherwise remove the stale socket left by a crash.
+    // A peer that came up between main()'s probe and the lock gets the REAL
+    // command, and main() exits: continuing would boot a duplicate instance
+    // with duplicate hotkey registrations (every press would then fire twice).
     const auto tryHandoff = [&] {
         if (expectsReply) {
             const int result = requestExistingCapture(serverName, command);
@@ -488,17 +487,20 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     };
     if (tryHandoff()) {
         *handedOff = true;
-        delete server;
         return nullptr;
     }
+    auto *server = new QLocalServer(app);
+    if (server->listen(serverName))
+        return server;
+    // No peer answered, so a name still in use is a stale socket from a crash.
     QLocalServer::removeServer(serverName);
     if (server->listen(serverName))
         return server;
 
-    // Still can't bind — most likely a live peer took the name meanwhile, so
-    // hand off instead of continuing as an unguarded duplicate. Only the
-    // genuinely environmental no-peer case (broken runtime dir) falls through
-    // to warn-and-continue.
+    // Still can't bind: a peer that ignored the lock (broken tmp) may have
+    // taken the name meanwhile, so hand off instead of continuing as an
+    // unguarded duplicate. Only the genuinely environmental no-peer case
+    // (broken runtime dir) falls through to warn-and-continue.
     if (tryHandoff()) {
         *handedOff = true;
         delete server;
@@ -784,6 +786,19 @@ int main(int argc, char *argv[])
 #else
     QGuiApplication::setDesktopFileName(QStringLiteral("app.unisic.Unisic"));
 #endif
+    // GNOME: Qt's gtk3 platform theme opens the Open/Save dialogs as GTK3
+    // dialogs, and GNOME's dark style never reaches GTK3 - it is a libadwaita
+    // preference, the legacy GTK theme stays light unless the user flips it in
+    // Tweaks. So a dark Unisic got a light file dialog (#118). The portal theme
+    // keeps gtk3 as its base (fonts, icons, palette) and routes only the file
+    // dialog to xdg-desktop-portal-gnome, which does follow the style. One
+    // portal round-trip in the QApplication constructor; a user-set theme and
+    // the sandbox (Qt picks the portal theme there itself) are left alone.
+    if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORMTHEME")
+        && qEnvironmentVariableIsEmpty("FLATPAK_ID")
+        && qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains(QLatin1String("GNOME"),
+                                                                Qt::CaseInsensitive))
+        qputenv("QT_QPA_PLATFORMTHEME", "xdgdesktopportal");
     QApplication app(argc, argv); // QApplication: needed for QSystemTrayIcon/QMenu
     // Dev builds are a SEPARATE app: own application name (which moves every
     // QStandardPaths location: cache, history, U-2-Net model), own desktop id,

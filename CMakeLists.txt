@@ -155,6 +155,7 @@ qt_add_executable(unisic
     src/capture/PortalScreenshot.h src/capture/PortalScreenshot.cpp
     src/capture/KWinScreenShot2.h src/capture/KWinScreenShot2.cpp
     src/capture/KWinWindowGeometry.h src/capture/KWinWindowGeometry.cpp
+    src/capture/KWinForceBlur.h src/capture/KWinForceBlur.cpp
     src/capture/GnomeScreenshot.h src/capture/GnomeScreenshot.cpp
     src/capture/GrimScreenshot.h src/capture/GrimScreenshot.cpp
     src/capture/CaptureManager.h src/capture/CaptureManager.cpp
@@ -165,6 +166,7 @@ qt_add_executable(unisic
     src/record/PwDump.h src/record/PwDump.cpp
     src/record/AudioCapture.h src/record/AudioCapture.cpp
     src/record/VideoQuality.h
+    src/record/MatroskaRawStream.h
     src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     src/record/CursorSmoother.h src/record/CursorSmoother.cpp
     src/record/ClickCapture.h src/record/ClickCapture.cpp
@@ -183,6 +185,7 @@ qt_add_executable(unisic
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
+    src/history/CaptureStats.h src/history/CaptureStats.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
@@ -482,12 +485,17 @@ install(FILES ${CMAKE_BINARY_DIR}/unisic-features.txt
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
-# was last hand-edited. It is the ONLY CLI documentation Unisic has - there is
-# no --help - and Debian's linters flag a binary that ships without one.
+# was last hand-edited. Debian's linters flag a binary that ships without one.
 string(TIMESTAMP UNISIC_MAN_DATE "%Y-%m-%d" UTC)
 configure_file(resources/unisic.1.in ${CMAKE_CURRENT_BINARY_DIR}/unisic.1 @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/unisic.1
     DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
+# Shell completion (#133). Both files parse `unisic --help` at completion time
+# instead of listing options, so a new flag needs no edit here.
+install(FILES resources/completions/unisic.bash
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/bash-completion/completions RENAME unisic)
+install(FILES resources/completions/_unisic
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/zsh/site-functions)
 
 # The desktop file's Exec must be an ABSOLUTE path, or KWin refuses both
 # restricted interfaces this app declares. KWin authorizes a caller by
@@ -555,7 +563,11 @@ set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 # libqt6gui6 pulls qt6-svg-plugins in only as a Recommends, so an
 # `apt install --no-install-recommends` used to leave it out (#124). The xcb
 # platform plugin needs no entry: it ships in libqt6gui6 itself (trixie, Ubuntu
-# 26.04); qt6-qpa-plugins only carries the VNC one.
+# 26.04); qt6-qpa-plugins only carries the VNC one. The portal platform theme
+# is its own package on Debian/Ubuntu (qt6-xdgdesktopportal-platformtheme):
+# main.cpp selects it on GNOME so the file dialogs follow the dark style
+# (#118); without the plugin Qt falls back to gtk3 and the fix is silently
+# absent.
 # KEEP THIS LIST CHARACTER-IDENTICAL to Depends in packaging/obs/debian.control.
 set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     curl
@@ -572,6 +584,7 @@ set(UNISIC_DEBIAN_RUNTIME_DEPENDS
     qml6-module-qtquick-window
     qt6-svg-plugins
     qt6-wayland
+    qt6-xdgdesktopportal-platformtheme
     tesseract-ocr-eng
     tesseract-ocr-osd
     tesseract-ocr-pol
@@ -776,6 +789,15 @@ if(BUILD_TESTING)
     target_include_directories(unisic_stream_geometry_test PRIVATE src)
     add_test(NAME unisic_stream_geometry_test COMMAND unisic_stream_geometry_test)
 
+    # The recorder's stdin framing, read back by the real ffmpeg when present.
+    qt_add_executable(unisic_matroska_raw_stream_test
+        tests/MatroskaRawStreamTest.cpp
+        src/record/MatroskaRawStream.h
+    )
+    target_link_libraries(unisic_matroska_raw_stream_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_matroska_raw_stream_test PRIVATE src)
+    add_test(NAME unisic_matroska_raw_stream_test COMMAND unisic_matroska_raw_stream_test)
+
     # The percent <-> CRF scale the recorder's quality setting is stored in.
     qt_add_executable(unisic_video_quality_test
         tests/VideoQualityTest.cpp
@@ -800,8 +822,9 @@ if(BUILD_TESTING)
     set_tests_properties(unisic_settings_persistence_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     # Where a curl destination puts the file and what it makes of the answer -
-    # pure string work, so it needs neither a server nor a compositor. The rest
-    # of UploadManager is network transport and stays with the smoke test.
+    # pure string work, so it needs neither a server nor a compositor - plus the
+    # failure chain over servers that refuse before any request. The rest of
+    # UploadManager is network transport and stays with the smoke test.
     qt_add_executable(unisic_upload_url_test
         tests/UploadUrlTest.cpp
         src/upload/UploadManager.h src/upload/UploadManager.cpp
@@ -847,6 +870,15 @@ if(BUILD_TESTING)
     target_include_directories(unisic_diag_redact_test PRIVATE src)
     add_test(NAME unisic_diag_redact_test COMMAND unisic_diag_redact_test)
 
+    qt_add_executable(unisic_capture_stats_test
+        tests/CaptureStatsTest.cpp
+        src/history/CaptureStats.h
+        src/history/CaptureStats.cpp
+    )
+    target_link_libraries(unisic_capture_stats_test PRIVATE Qt6::Core Qt6::Test)
+    target_include_directories(unisic_capture_stats_test PRIVATE src)
+    add_test(NAME unisic_capture_stats_test COMMAND unisic_capture_stats_test)
+
     qt_add_executable(unisic_scroll_stitch_test
         tests/ScrollStitchTest.cpp
         src/capture/ScrollStitcher.h
@@ -855,7 +887,17 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_scroll_stitch_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
     target_include_directories(unisic_scroll_stitch_test PRIVATE src)
     add_test(NAME unisic_scroll_stitch_test COMMAND unisic_scroll_stitch_test)
+
     set_tests_properties(unisic_scroll_stitch_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    qt_add_executable(unisic_kwin_force_blur_test
+        tests/KWinForceBlurTest.cpp
+        src/capture/KWinForceBlur.h
+        src/capture/KWinForceBlur.cpp
+    )
+    target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
+    target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
+    add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

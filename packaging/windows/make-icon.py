@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# Regenerate src/platform/win/unisic.ico from resources/icons/unisic.svg, the
-# same artwork the Linux packages install. Run from an MSYS2 UCRT64 shell (it
-# needs rsvg-convert, pacman -S mingw-w64-ucrt-x86_64-librsvg) after the SVG
-# changes, and commit the result: the build only reads the .ico, so neither
-# tool is a build dependency.
+# Regenerate src/platform/win/unisic.ico and resources/icons/unisic-256.png
+# (the PNG the AppImage build puts at the AppDir root, which appimagetool turns
+# into .DirIcon) from resources/icons/unisic.svg, the same artwork the Linux
+# packages install. Run from an MSYS2 UCRT64 shell (it needs rsvg-convert,
+# pacman -S mingw-w64-ucrt-x86_64-librsvg) after the SVG changes, and commit
+# the results: the builds only read the .ico and the .png, so neither tool is
+# a build dependency.
 #
 #   python3 packaging/windows/make-icon.py
 #
@@ -20,6 +22,7 @@ SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 repo = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 svg = os.path.join(repo, "resources", "icons", "unisic.svg")
 out = os.path.join(repo, "src", "platform", "win", "unisic.ico")
+png_out = os.path.join(repo, "resources", "icons", "unisic-256.png")
 
 images = []
 for size in SIZES:
@@ -42,3 +45,7 @@ for size, png in images:
 with open(out, "wb") as f:
     f.write(header + entries + b"".join(png for _, png in images))
 print(f"wrote {out}: {len(images)} sizes, {offset} bytes")
+
+with open(png_out, "wb") as f:
+    f.write(dict(images)[256])
+print(f"wrote {png_out}")

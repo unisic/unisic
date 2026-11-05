@@ -58,6 +58,15 @@ Flow {
 
     function has(p) { return props.indexOf(p) >= 0 }
 
+    // A recent colour that is also a palette swatch is already on offer one
+    // dot to the left; shown twice it drew two selection rings for one colour.
+    // Filtered here, not when it is recorded: the palette changes with the theme.
+    readonly property var shownRecent: has("stroke")
+        ? recentColors.filter(function (c) {
+              return !Theme.swatches.some(function (s) { return Qt.colorEqual(s, c) })
+          })
+        : []
+
     // ---- fitting the host ----
     // A Flow needs an explicit width to know where to wrap, and its own
     // implicitWidth is the width of the ALREADY WRAPPED content, so it cannot
@@ -149,16 +158,43 @@ Flow {
     // font control stayed dark forever once the strip had been created with an
     // empty `props`.
     component Cell: Item {
+        id: cell
         default property alias content: holder.data
         implicitWidth: holder.implicitWidth
         implicitHeight: holder.implicitHeight
         width: implicitWidth
         height: root.cellHeight
+        // Where the wrap put this cell, for its Divider.
+        readonly property bool lineStart: x === 0
+        readonly property bool lineEnd: {
+            var after = false
+            for (var i = 0; i < root.children.length; ++i) {
+                var c = root.children[i]
+                if (c === cell)
+                    after = true
+                else if (after && c.visible)
+                    return c.y > cell.y
+            }
+            return true
+        }
         Row {
             id: holder
             spacing: 6
             anchors.verticalCenter: parent.verticalCenter
         }
+    }
+
+    // A divider separates two groups on one line. Where the wrap leaves it at
+    // the start or the end of a line it separates nothing (it was the "| ● +"
+    // a narrow editor put on a line of its own), so it goes transparent there.
+    // Transparent, not invisible: hiding it would narrow the cell, which can
+    // move the wrap and bring the divider back.
+    component Divider: Rectangle {
+        property bool leading: false
+        width: 1; height: 28; color: Theme.divider
+        anchors.verticalCenter: parent.verticalCenter
+        opacity: parent && parent.parent
+                 && (leading ? parent.parent.lineStart : parent.parent.lineEnd) ? 0 : 1
     }
 
     // ---- a row of swatches is ONE tab stop ----
@@ -333,10 +369,8 @@ Flow {
                 onClicked: root.canvas.measureMode = 1
             }
         }
-        Rectangle {
+        Divider {
             visible: root.has("measureMode")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -369,10 +403,8 @@ Flow {
                 onClicked: root.canvas.highlightMode = AnnotationCanvas.HlText
             }
         }
-        Rectangle {
+        Divider {
             visible: root.has("highlightMode")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -389,7 +421,7 @@ Flow {
             activeFocusOnTab: root.controlsFocusable && swatchGroup.count > 0
 
             readonly property int baseCount: root.has("stroke") ? Theme.swatches.length : 0
-            readonly property int recentCount: root.has("stroke") ? root.recentColors.length : 0
+            readonly property int recentCount: root.shownRecent.length
             count: swatchGroup.baseCount + swatchGroup.recentCount
             entryIndex: swatchGroup._selected()
 
@@ -403,7 +435,7 @@ Flow {
                     if (Qt.colorEqual(root.canvas.strokeColor, Theme.swatches[i]))
                         return i
                 for (var j = 0; j < swatchGroup.recentCount; ++j)
-                    if (Qt.colorEqual(root.canvas.strokeColor, root.recentColors[j]))
+                    if (Qt.colorEqual(root.canvas.strokeColor, root.shownRecent[j]))
                         return swatchGroup.baseCount + j
                 return 0
             }
@@ -429,8 +461,15 @@ Flow {
                     onClicked: root.canvas.strokeColor = modelData
                 }
             }
+            // Palette | recent: one keyboard group, two sources the eye should
+            // tell apart. Shorter than a Divider, which separates whole groups.
+            Rectangle {
+                visible: swatchGroup.recentCount > 0
+                width: 1; height: 16; color: Theme.divider
+                anchors.verticalCenter: parent.verticalCenter
+            }
             Repeater {
-                model: root.has("stroke") ? root.recentColors : []
+                model: root.shownRecent
                 delegate: ColorDot {
                     activeFocusOnTab: false
                     focus: swatchGroup.baseCount + index === swatchGroup.currentIndex
@@ -454,10 +493,8 @@ Flow {
             onClicked: root.strokePickerRequested()
         }
 
-        Rectangle {
+        Divider {
             visible: root.has("stroke") && (root.showWidth || root.has("fill"))
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
@@ -504,20 +541,17 @@ Flow {
             onActivated: (i) => root.canvas.arrowHeadStyle = i
         }
 
-        Rectangle {
+        Divider {
             visible: root.has("width") && root.has("fill")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
 
     // ---- step marker size ----
     Cell {
         visible: root.has("stepSize")
-        Rectangle {
+        Divider {
             visible: root.has("stepSize") && root.has("stroke")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         Column {
             visible: root.has("stepSize")
@@ -571,10 +605,9 @@ Flow {
     // ---- text styling ----
     Cell {
         visible: root.has("font")
-        Rectangle {
+        Divider {
             visible: root.has("font") && root.has("stroke")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         UComboBox {
             activeFocusOnTab: root.controlsFocusable && enabled
@@ -632,10 +665,8 @@ Flow {
             anchors.verticalCenter: parent.verticalCenter
             onClicked: root.canvas.fontUnderline = !root.canvas.fontUnderline
         }
-        Rectangle {
+        Divider {
             visible: root.has("font")
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
         }
     }
     Cell {
@@ -684,10 +715,9 @@ Flow {
     // settings string; the schema lives here.
     Cell {
         visible: root.presetsVisible
-        Rectangle {
+        Divider {
             visible: root.presetsVisible
-            width: 1; height: 28; color: Theme.divider
-            anchors.verticalCenter: parent.verticalCenter
+            leading: true
         }
         DotGroup {
             id: presetGroup

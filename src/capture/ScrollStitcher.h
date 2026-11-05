@@ -36,8 +36,10 @@ public:
         bool changed = false;     // most of the area between the sticky bands changed
         bool ok = false;          // a verified shift was found
         int dy = 0;               // >0 content moved up (scrolled down)
-        int header = 0;           // top rows that did not move
-        int footer = 0;           // bottom rows that did not move
+        int header = 0;           // top rows that did not move, or hold something pinned to the view
+        int footer = 0;           // bottom rows that did not move, or hold something pinned to the view
+        int pinnedTop = 0;        // the part of header owed to pinned overlays (a floating bar)
+        int pinnedBottom = 0;     // the part of footer owed to pinned overlays (a corner badge)
         QVector<int> staleRows;   // overlapping rows of curr that differ from prev
     };
 
@@ -51,6 +53,14 @@ public:
     QImage stitchedImage() const;
     // Small preview of the stitched body (nearest-neighbour, cheap at any height).
     QImage previewThumbnail(int maxW, int maxH) const;
+
+    // Document rows: the frame the image started from is at row 0.
+    int framePos() const { return m_pos; }      // of the newest aligned frame
+    const QImage &lastFrame() const { return m_prev; }
+    // Rows that lie right below the frame at document row `pos` on screen but
+    // were never in a frame (the capture controls covered them). Added only
+    // when that frame reaches the bottom of the image, where they belong.
+    bool appendBelow(int pos, const QImage &rows);
 
     int stitchedWidth() const { return m_prev.width(); }
     int stitchedHeight() const;
@@ -79,6 +89,8 @@ private:
     QImage m_tail;          // sticky footer shown below the body
     int m_headPos = 0;      // document row of m_head's first row
     int m_tailEnd = 0;      // document row just past m_tail
+    int m_pinTop = 0;       // largest pinnedTop/pinnedBottom seen in this capture:
+    int m_pinBottom = 0;    // an overlay pinned to the view stays for all of it
 
     int m_frameCount = 0;
 };

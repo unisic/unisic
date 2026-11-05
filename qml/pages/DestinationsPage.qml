@@ -29,11 +29,46 @@ Item {
         }
     }
 
-    function destNames() {
-        var names = []
+    // The Servers list in its shown order. A ListModel, NOT the destinations
+    // array: a drag reorders it LIVE so the cards move out of the way under the
+    // hand, and assigning a new array would re-create every card, destroying
+    // the one being dragged (or holding the keyboard focus). Same reasoning as
+    // UNotifPreview's action order.
+    ListModel { id: orderModel }
+    property bool dragging: false
+    function rebuildOrder() {
+        orderModel.clear()
         for (var i = 0; i < App.uploads.destinations.length; ++i)
-            names.push(App.uploads.destinations[i].name)
-        return names
+            orderModel.append({ name: App.uploads.destinations[i].name })
+    }
+    function destinationNamed(name) {
+        var all = App.uploads.destinations
+        for (var i = 0; i < all.length; ++i)
+            if (all[i].name === name)
+                return all[i]
+        return ({})
+    }
+    // The model has already moved; the save must not rebuild it, or the card
+    // in hand is destroyed under the gesture.
+    function commitMove(from, to) {
+        dragging = true
+        App.uploads.moveDestination(from, to)
+        dragging = false
+    }
+    function moveByKey(i, delta) {
+        var j = i + delta
+        if (j < 0 || j >= orderModel.count)
+            return
+        orderModel.move(i, j, 1)
+        commitMove(i, j)
+    }
+    Component.onCompleted: rebuildOrder()
+    Connections {
+        target: App.uploads
+        function onDestinationsChanged() {
+            if (!page.dragging)
+                page.rebuildOrder()
+        }
     }
 
     // A placeholder vanishes the moment the field has a value, so every control
@@ -239,12 +274,11 @@ Item {
 
             USettingRow {
                 width: parent.width
-                label: qsTr("Active server")
-                UComboBox {
-                    id: activeCombo
-                    model: page.destNames()
-                    currentIndex: Math.max(0, page.destNames().indexOf(App.settings.activeDestination))
-                    onActivated: (i) => App.settings.activeDestination = model[i]
+                label: qsTr("Failure Chain")
+                sub: qsTr("Drag a server to the top to make it the default. When the default fails, the next server down the list gets the capture; servers that still need setup are skipped. A server picked by hand (right-click Upload on the capture card) is never swapped for another.")
+                USwitch {
+                    checked: App.settings.uploadFailureChain
+                    onToggled: (c) => App.settings.uploadFailureChain = c
                 }
             }
 
@@ -270,36 +304,115 @@ Item {
                     font.pixelSize: Theme.fontM
                 }
 
+                // Every move glides, the card in hand included: it swaps slot
+                // by slot instead of chasing the pointer (UNotifPreview).
+                move: Transition {
+                    NumberAnimation { properties: "y"; duration: 150; easing.type: Easing.OutCubic }
+                }
+
                 Repeater {
-                    model: App.uploads.destinations
+                    model: orderModel
                     delegate: Rectangle {
+                        id: card
+                        required property string name
+                        required property int index
+                        readonly property var dest: page.destinationNamed(name)
+                        // The top server is the one every upload starts on.
+                        readonly property bool isDefault: index === 0
                         width: listCol.width
                         height: 64
                         radius: Theme.radiusM
-                        color: Theme.surface
+                        z: grip.pressed ? 5 : 0
+                        color: grip.pressed ? Theme.surfaceHi : Theme.surface
                         border.width: 1
-                        border.color: App.settings.activeDestination === modelData.name ? Theme.accent : Theme.divider
+                        border.color: isDefault || grip.pressed ? Theme.accent : Theme.divider
 
                         // The row is a list entry, not a control (its buttons are
-                        // the controls); "in use" is only shown as an accent border
-                        // today, so it has to be spoken here.
+                        // the controls); "default" is only shown as a chip and an
+                        // accent border, so it has to be spoken here.
                         Accessible.role: Accessible.ListItem
-                        Accessible.name: modelData.name
-                        Accessible.description: modelData.requestUrl || ""
+                        Accessible.name: dest.name || ""
+                        Accessible.description: dest.requestUrl || ""
                         Accessible.selectable: true
-                        Accessible.selected: App.settings.activeDestination === modelData.name
+                        Accessible.selected: isDefault
+
+                        // The grip: drag a server to the top and it is the
+                        // default, with the failure chain running down the list
+                        // from there. Up/Down do the same from the keyboard.
+                        Item {
+                            id: handle
+                            anchors.left: parent.left
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 28
+                            height: 40
+                            activeFocusOnTab: true
+                            Keys.onUpPressed: page.moveByKey(card.index, -1)
+                            Keys.onDownPressed: page.moveByKey(card.index, 1)
+                            Accessible.role: Accessible.Button
+                            Accessible.name: qsTr("Move %1").arg(card.dest.name || "")
+                            Accessible.description: qsTr("Drag, or press Up or Down, to change the order. The server on top is the default.")
+                            UIcon {
+                                anchors.centerIn: parent
+                                name: "drag-handle"
+                                size: 16
+                                color: grip.containsMouse || grip.pressed || handle.activeFocus
+                                       ? Theme.textPrimary : Theme.textTertiary
+                            }
+                            UFocusRing { hostRadius: Theme.radiusS }
+                            UHoverTip {
+                                anchor: handle
+                                text: qsTr("Drag to the top to make it the default")
+                                show: grip.containsMouse && !grip.pressed
+                            }
+                            MouseArea {
+                                id: grip
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                                // The page scrolls: without this the Flickable takes
+                                // a vertical drag for itself (USlider does the same).
+                                preventStealing: true
+                                property int startIndex: -1
+                                function finish() {
+                                    if (startIndex < 0)
+                                        return
+                                    const from = startIndex
+                                    startIndex = -1
+                                    page.commitMove(from, card.index)
+                                }
+                                onPressed: {
+                                    startIndex = card.index
+                                    page.dragging = true
+                                }
+                                // The slot under the pointer, not the distance
+                                // travelled: still right after the page scrolls
+                                // under a held card.
+                                onPositionChanged: (mouse) => {
+                                    if (startIndex < 0)
+                                        return
+                                    const y = mapToItem(listCol, mouse.x, mouse.y).y
+                                    const slot = Math.max(0, Math.min(orderModel.count - 1,
+                                        Math.floor(y / (card.height + listCol.spacing))))
+                                    if (slot !== card.index)
+                                        orderModel.move(card.index, slot, 1)
+                                }
+                                onReleased: finish()
+                                onCanceled: finish()
+                            }
+                        }
 
                         Row {
                             id: infoRow
-                            anchors.left: parent.left
-                            anchors.leftMargin: Theme.spacingL
+                            anchors.left: handle.right
+                            anchors.leftMargin: Theme.spacingS
                             // Stop before the action buttons so a long request URL
-                            // elides instead of sliding under Use/Edit/Delete.
+                            // elides instead of sliding under Edit/Delete.
                             anchors.right: actionRow.left
                             anchors.rightMargin: Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.spacingM
-                            UIcon { name: modelData.type === "curl" ? "lock" : "globe"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+                            UIcon { name: card.dest.type === "curl" ? "lock" : "globe"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
                             Column {
                                 id: infoCol
                                 width: infoRow.width - 22 - Theme.spacingM
@@ -307,22 +420,49 @@ Item {
                                 // Imgur ships without a Client-ID (it is per-user), so
                                 // say so on the row instead of letting every upload fail.
                                 readonly property bool needsClientId:
-                                    App.uploads.isImgurDestination(modelData)
-                                    && App.uploads.imgurClientIdOf(modelData) === ""
+                                    App.uploads.isImgurDestination(card.dest)
+                                    && App.uploads.imgurClientIdOf(card.dest) === ""
                                 readonly property bool needsUserKey:
-                                    App.uploads.isVgyMeDestination(modelData)
-                                    && App.uploads.vgyMeUserKeyOf(modelData) === ""
+                                    App.uploads.isVgyMeDestination(card.dest)
+                                    && App.uploads.vgyMeUserKeyOf(card.dest) === ""
+                                // GitHub Pages (parked, docs/dev/architecture.md):
+                                // readonly property bool needsRepo:
+                                //     App.uploads.isGitHubDestination(card.dest)
+                                //     && !App.uploads.gitHubReadyOf(card.dest)
                                 Row {
+                                    id: nameRow
                                     width: parent.width
                                     spacing: Theme.spacingS
                                     Text {
-                                        text: modelData.name; color: Theme.textPrimary
+                                        text: card.dest.name || ""; color: Theme.textPrimary
                                         font.pixelSize: Theme.fontM; font.weight: Font.DemiBold
                                         elide: Text.ElideRight
-                                        width: Math.min(implicitWidth, parent.width - (setupChip.visible ? setupChip.width + Theme.spacingS : 0))
+                                        width: Math.min(implicitWidth, parent.width
+                                                        - (defaultChip.visible ? defaultChip.width + Theme.spacingS : 0)
+                                                        - (setupChip.visible ? setupChip.width + Theme.spacingS : 0))
+                                    }
+                                    Rectangle {
+                                        id: defaultChip
+                                        visible: card.isDefault
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: defaultChipText.implicitWidth + 12
+                                        height: 18
+                                        radius: 9
+                                        color: Theme.alpha(Theme.accent, 0.18)
+                                        border.width: 1
+                                        border.color: Theme.alpha(Theme.accent, 0.5)
+                                        Text {
+                                            id: defaultChipText
+                                            anchors.centerIn: parent
+                                            text: qsTr("Default")
+                                            color: Theme.accent
+                                            font.pixelSize: Theme.fontS - 2
+                                            font.weight: Font.DemiBold
+                                        }
                                     }
                                     Rectangle {
                                         id: setupChip
+                                        // GitHub Pages (parked): || infoCol.needsRepo
                                         visible: infoCol.needsClientId || infoCol.needsUserKey
                                         anchors.verticalCenter: parent.verticalCenter
                                         width: setupChipText.implicitWidth + 12
@@ -334,6 +474,8 @@ Item {
                                         Text {
                                             id: setupChipText
                                             anchors.centerIn: parent
+                                            // GitHub Pages (parked), between the two:
+                                            // : infoCol.needsRepo ? qsTr("Needs a repository and a token")
                                             text: infoCol.needsClientId
                                                   ? qsTr("Needs a Client-ID")
                                                   : qsTr("Needs a user key")
@@ -343,7 +485,7 @@ Item {
                                         }
                                     }
                                 }
-                                Text { width: parent.width; text: modelData.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS; elide: Text.ElideMiddle }
+                                Text { width: parent.width; text: card.dest.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS; elide: Text.ElideMiddle }
                             }
                         }
                         Row {
@@ -352,37 +494,20 @@ Item {
                             anchors.rightMargin: Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 4
-                            UButton {
-                                compact: true; variant: "ghost"; text: qsTr("Use")
-                                accessibleName: qsTr("Use %1 for uploads").arg(modelData.name)
-                                // Disabled, never hidden: flipping `visible` here
-                                // reflowed Edit/Delete sideways under the pointer
-                                // the moment the row was activated. The row already
-                                // says it is the active one (accent border, and
-                                // Accessible.selected on the row itself).
-                                enabled: App.settings.activeDestination !== modelData.name
-                                onClicked: App.settings.activeDestination = modelData.name
-                            }
                             UIconButton {
                                 id: editBtn
                                 iconName: "edit"; iconSize: 16
-                                accessibleName: qsTr("Edit %1").arg(modelData.name)
+                                accessibleName: qsTr("Edit %1").arg(card.dest.name)
                                 onClicked: {
-                                    page.editing = JSON.parse(JSON.stringify(modelData))
+                                    page.editing = JSON.parse(JSON.stringify(card.dest))
                                     editSheet.open(editBtn)
                                 }
                             }
                             UIconButton {
                                 iconName: "edit-delete"; iconSize: 16
-                                accessibleName: qsTr("Delete %1").arg(modelData.name)
-                                visible: !modelData.builtin
-                                onClicked: {
-                                    // Clear the active pointer first, or it dangles at a
-                                    // removed name (combo and list then disagree).
-                                    if (App.settings.activeDestination === modelData.name)
-                                        App.settings.activeDestination = ""
-                                    App.uploads.removeDestination(modelData.name)
-                                }
+                                accessibleName: qsTr("Delete %1").arg(card.dest.name)
+                                visible: !card.dest.builtin
+                                onClicked: App.uploads.removeDestination(card.dest.name)
                             }
                         }
                     }
@@ -407,8 +532,18 @@ Item {
             returnFocus = from || null
             var e = page.editing || {}
             fName.text = e.name || ""
+            // GitHub Pages (parked, docs/dev/architecture.md):
+            // fType.currentIndex = e.type === "curl" ? 1 : (App.uploads.isGitHubDestination(e) ? 2 : 0)
             fType.currentIndex = e.type === "curl" ? 1 : 0
             fUrl.text = e.requestUrl || ""
+            /* GitHub Pages (parked):
+            var gh = App.uploads.gitHubSetupOf(e)
+            fRepo.text = gh.repo
+            fBranch.text = gh.branch
+            fFolder.text = gh.folder
+            fToken.text = gh.token
+            fPagesUrl.text = gh.publicUrl
+            */
             fBody.currentIndex = e.body === "json" ? 1 : 0
             fFormName.text = e.fileFormName || "file"
             fData.text = e.data || ""
@@ -456,6 +591,18 @@ Item {
             // builtin, urlReplace, …) still survive the round-trip.
             var d = JSON.parse(JSON.stringify(page.editing || {}))
             d.name = fName.text.trim()
+            /* GitHub Pages (parked, docs/dev/architecture.md):
+            if (editSheet.gitHubMode) {
+                // The five fields own every http key. C++ composes them, so
+                // the upload, the list badge and this editor agree on the
+                // format and read each other's output back.
+                var gh = App.uploads.gitHubDestinationFor(fRepo.text, fBranch.text, fFolder.text,
+                                                          fToken.text, fPagesUrl.text)
+                for (var gk in gh)
+                    d[gk] = gh[gk]
+                return d
+            }
+            */
             d.type = fType.currentIndex === 1 ? "curl" : "http"
             d.requestUrl = fUrl.text.trim()
             if (!d.method) d.method = "POST"
@@ -539,6 +686,12 @@ Item {
         // the editor, the list badge and the upload precheck.
         readonly property bool imgurMode: App.uploads.isImgurDestination({ requestUrl: fUrl.text })
         readonly property bool vgyMeMode: App.uploads.isVgyMeDestination({ requestUrl: fUrl.text })
+        // GitHub Pages (parked, docs/dev/architecture.md): the third Type, a
+        // form of its own instead of the raw http fields.
+        // readonly property bool gitHubMode: fType.currentIndex === 2
+        // What Save and Test need before they make sense: an address (for
+        // GitHub Pages, parked: a repository, `gitHubMode ? fRepo.text.trim() !== "" :`).
+        readonly property bool formComplete: fUrl.text.trim() !== ""
         // Test-upload state. Local on purpose: App.uploads.busy is global and a
         // real capture upload running in parallel would grey the Test button out.
         property bool testing: false
@@ -755,6 +908,9 @@ Item {
                     }
                     Labeled {
                         label: qsTr("Type")
+                        // GitHub Pages (parked, docs/dev/architecture.md): the hint was
+                        // qsTr("http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.")
+                        // and the model ["http", "curl", "GitHub Pages"].
                         hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP.")
                         UComboBox {
                             id: fType; width: parent.width
@@ -762,7 +918,84 @@ Item {
                             onActivated: (i) => fType.currentIndex = i
                         }
                     }
+                    /* GitHub Pages (parked, docs/dev/architecture.md).
+                    // GitHub Pages: the file is committed to the repository and
+                    // the link is where Pages serves it. Five plain fields; the
+                    // request itself is composed in C++ (gitHubDestination).
                     Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Repository")
+                        hint: qsTr("owner/name, or the repository's github.com address. GitHub Pages must be turned on for it.")
+                        UTextField {
+                            id: fRepo; width: parent.width
+                            placeholder: qsTr("e.g. octocat/cdn")
+                        }
+                    }
+                    Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Branch")
+                        hint: qsTr("The branch Pages publishes from. Empty means main.")
+                        UTextField {
+                            id: fBranch; width: parent.width
+                            placeholder: "main"
+                        }
+                    }
+                    Labeled {
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Folder (optional)")
+                        hint: qsTr("Files are committed under this folder of the repository.")
+                        UTextField {
+                            id: fFolder; width: parent.width
+                            placeholder: qsTr("e.g. img")
+                        }
+                    }
+                    Labeled {
+                        id: rToken
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Personal access token")
+                        UTextField {
+                            id: fToken; width: parent.width
+                            placeholder: "github_pat_…"
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rToken.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("A fine-grained token limited to this repository with Contents: Read and write, or a classic token with the repo scope. It is stored in clear text in destinations.json, like every other credential here.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    UButton {
+                        visible: rToken.visible
+                        compact: true
+                        variant: "tonal"
+                        iconName: "globe"
+                        text: qsTr("Create a token on GitHub")
+                        onClicked: Qt.openUrlExternally("https://github.com/settings/personal-access-tokens/new")
+                    }
+                    Labeled {
+                        id: rPagesUrl
+                        visible: editSheet.gitHubMode
+                        label: qsTr("Public URL (optional)")
+                        hint: qsTr("Where Pages serves the folder. Empty means the github.io address; with a custom domain, type it here. The link is this address plus the file name.")
+                        UTextField {
+                            id: fPagesUrl; width: parent.width
+                            placeholder: App.uploads.gitHubPagesUrlFor(fRepo.text, fFolder.text)
+                                         || qsTr("e.g. https://cdn.example.com")
+                        }
+                    }
+                    Text {
+                        width: parent.width
+                        visible: rPagesUrl.visible
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Pages publishes a new commit within a minute or so, so a link copied right after the upload can show a 404 at first. A file name that is already in the repository is refused; Unisic's file names carry the date and time, so that does not happen by itself.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    */
+                    Labeled {
+                        // GitHub Pages (parked): visible: !editSheet.gitHubMode
                         label: qsTr("Request URL")
                         hint: fType.currentIndex === 1
                               ? qsTr("%file% is replaced by the file name. Without it the name is added at the end, which is what FTP and SFTP folders want.")
@@ -828,6 +1061,7 @@ Item {
                         font.pixelSize: Theme.fontS
                     }
                     Labeled {
+                        // GitHub Pages (parked): visible: !editSheet.gitHubMode
                         label: qsTr("URL extractor")
                         hint: fType.currentIndex === 1
                               ? qsTr("Reads the link out of what the server answers. Leave it empty for a plain file server that answers nothing, and fill in the public URL base below instead.")
@@ -863,7 +1097,7 @@ Item {
                         // The Client-ID field replaces this one for Imgur, which
                         // is an http destination; a curl destination always gets
                         // the raw header field.
-                        visible: fType.currentIndex === 1 || !editSheet.imgurMode
+                        visible: fType.currentIndex === 1 || (fType.currentIndex === 0 && !editSheet.imgurMode)
                         label: qsTr("Headers (JSON)")
                         UTextField {
                             id: fHeaders; width: parent.width
@@ -941,7 +1175,7 @@ Item {
                         variant: "tonal"
                         iconName: "upload-cloud"
                         text: editSheet.testing ? qsTr("Testing…") : qsTr("Test upload")
-                        enabled: !editSheet.testing && fUrl.text.trim() !== ""
+                        enabled: !editSheet.testing && editSheet.formComplete
                         onClicked: {
                             var d = editSheet.buildDest()
                             if (!d)
@@ -983,7 +1217,7 @@ Item {
                         UButton {
                             id: saveBtn
                             text: qsTr("Save")
-                            enabled: fName.text.trim() !== "" && fUrl.text.trim() !== ""
+                            enabled: fName.text.trim() !== "" && editSheet.formComplete
                             // Last control of a modal sheet: Tab wraps back to
                             // the top of the form. The page behind is disabled
                             // (see pageFlick), so this closes the loop.
@@ -1009,14 +1243,8 @@ Item {
                                 // the original resurrects as a duplicate next launch.
                                 if (orig !== "" && orig !== d.name)
                                     delete d.builtin
-                                App.uploads.saveDestination(d)
-                                // Renaming: drop the old entry so it doesn't linger as a
-                                // duplicate, and keep the active-destination pointer valid.
-                                if (orig !== "" && orig !== d.name) {
-                                    App.uploads.removeDestination(orig)
-                                    if (App.settings.activeDestination === orig)
-                                        App.settings.activeDestination = d.name
-                                }
+                                // In place: a renamed server keeps its rank.
+                                App.uploads.saveDestination(d, orig)
                                 editSheet.close()
                             }
                         }

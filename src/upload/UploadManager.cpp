@@ -37,6 +37,15 @@
 static const char kImgurPlaceholderId[] = "REPLACE_WITH_YOUR_IMGUR_CLIENT_ID";
 static const char kImgurHost[] = "api.imgur.com";
 static const char kVgyMeHost[] = "vgy.me";
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+static const char kGitHubApiHost[] = "api.github.com";
+// The preset ships with this in place of owner/name: it keeps the request URL
+// recognisable as GitHub, and gitHubSetup() reads it back as "no repository".
+static const char kGitHubPlaceholderRepo[] = "OWNER/REPO";
+// The tail of a GitHub Pages urlPath: the public address plus the name the
+// API confirms it committed.
+static const char kGitHubNameToken[] = "/$json:content.name$";
+#endif
 
 // The two squares of the checkerboard testDestination() uploads: the mandatory
 // palette's Secondary (#2E236C) and Accent (#C8ACD6), i.e. the `secondary` and
@@ -101,6 +110,152 @@ QString UploadManager::vgyMeUserKey(const QJsonObject &dest)
     return {};
 }
 
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+bool UploadManager::isGitHub(const QJsonObject &dest)
+{
+    const QUrl url(dest.value(QStringLiteral("requestUrl")).toString());
+    return url.host().compare(QLatin1String(kGitHubApiHost), Qt::CaseInsensitive) == 0
+           && url.path().contains(QLatin1String("/contents/"));
+}
+
+// "owner/name" out of whatever was pasted: the repository's github.com page,
+// a clone URL, a trailing slash or .git. Empty when there is no owner/name.
+static QString gitHubRepoName(QString repo)
+{
+    static const QRegularExpression site(
+        QStringLiteral("^(?:https?://)?(?:www\\.)?github\\.com[/:]"),
+        QRegularExpression::CaseInsensitiveOption);
+    repo = repo.trimmed();
+    repo.remove(site);
+    if (repo.endsWith(QLatin1String(".git"), Qt::CaseInsensitive))
+        repo.chop(4);
+    const QStringList parts = repo.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    if (parts.size() < 2)
+        return {};
+    return parts.at(0).trimmed() + QLatin1Char('/') + parts.at(1).trimmed();
+}
+
+// A folder path the way the Contents API wants it: no slash at either end.
+static QString gitHubFolder(QString folder)
+{
+    folder = folder.trimmed().replace(QLatin1Char('\\'), QLatin1Char('/'));
+    const QStringList parts = folder.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+    return parts.join(QLatin1Char('/'));
+}
+
+QString UploadManager::gitHubPagesUrl(const QString &repoIn, const QString &folderIn)
+{
+    const QString repo = gitHubRepoName(repoIn);
+    if (repo.isEmpty())
+        return {};
+    const QString owner = repo.section(QLatin1Char('/'), 0, 0).toLower();
+    const QString name = repo.section(QLatin1Char('/'), 1, 1);
+    QString url = QStringLiteral("https://") + owner + QStringLiteral(".github.io");
+    if (name.compare(owner + QLatin1String(".github.io"), Qt::CaseInsensitive) != 0)
+        url += QLatin1Char('/') + name;
+    const QString folder = gitHubFolder(folderIn);
+    if (!folder.isEmpty())
+        url += QLatin1Char('/') + folder;
+    return url;
+}
+
+QJsonObject UploadManager::gitHubDestination(const GitHubSetup &s)
+{
+    QString repo = gitHubRepoName(s.repo);
+    if (repo.isEmpty())
+        repo = QLatin1String(kGitHubPlaceholderRepo);
+    const QString folder = gitHubFolder(s.folder);
+    const QString branch = s.branch.trimmed().isEmpty() ? QStringLiteral("main") : s.branch.trimmed();
+    QString publicUrl = s.publicUrl.trimmed();
+    if (publicUrl.isEmpty())
+        publicUrl = gitHubPagesUrl(repo, folder);
+    while (publicUrl.endsWith(QLatin1Char('/')))
+        publicUrl.chop(1);
+    QJsonObject headers{
+        {QStringLiteral("Accept"), QStringLiteral("application/vnd.github+json")},
+        {QStringLiteral("X-GitHub-Api-Version"), QStringLiteral("2022-11-28")},
+    };
+    if (!s.token.trimmed().isEmpty())
+        headers.insert(QStringLiteral("Authorization"), QStringLiteral("Bearer ") + s.token.trimmed());
+    // PUT /repos/{owner}/{repo}/contents/{path}: the file goes base64 inside a
+    // JSON body, and the commit message names it so the repository's log
+    // reads like an upload log. Built as JSON so the branch is escaped.
+    const QJsonObject data{
+        {QStringLiteral("message"), QStringLiteral("unisic: $filename$")},
+        {QStringLiteral("branch"), branch},
+        {QStringLiteral("content"), QStringLiteral("$base64$")},
+    };
+    return QJsonObject{
+        {QStringLiteral("type"), QStringLiteral("http")},
+        {QStringLiteral("requestUrl"), QStringLiteral("https://api.github.com/repos/") + repo
+                                           + QStringLiteral("/contents/")
+                                           + (folder.isEmpty() ? QString() : folder + QLatin1Char('/'))
+                                           + QStringLiteral("%file%")},
+        {QStringLiteral("method"), QStringLiteral("PUT")},
+        {QStringLiteral("headers"), headers},
+        {QStringLiteral("body"), QStringLiteral("json")},
+        {QStringLiteral("data"), QString::fromUtf8(QJsonDocument(data).toJson(QJsonDocument::Compact))},
+        {QStringLiteral("responseType"), QStringLiteral("json")},
+        {QStringLiteral("urlPath"), publicUrl + QLatin1String(kGitHubNameToken)},
+        // The file's page on GitHub, where it can be deleted.
+        {QStringLiteral("deletionUrlPath"), QStringLiteral("$json:content.html_url$")},
+    };
+}
+
+UploadManager::GitHubSetup UploadManager::gitHubSetup(const QJsonObject &dest)
+{
+    GitHubSetup s;
+    if (!isGitHub(dest))
+        return s;
+    static const QRegularExpression re(
+        QStringLiteral("^https://api\\.github\\.com/repos/([^/]+/[^/]+)/contents/(?:(.*)/)?%file%$"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch m = re.match(dest.value(QStringLiteral("requestUrl")).toString().trimmed());
+    const QString storedRepo = m.captured(1);
+    if (storedRepo != QLatin1String(kGitHubPlaceholderRepo))
+        s.repo = storedRepo;
+    s.folder = m.captured(2);
+    s.branch = QJsonDocument::fromJson(dest.value(QStringLiteral("data")).toString().toUtf8())
+                   .object().value(QStringLiteral("branch")).toString();
+    const QString auth = dest.value(QStringLiteral("headers")).toObject()
+                             .value(QStringLiteral("Authorization")).toString().trimmed();
+    if (auth.startsWith(QLatin1String("Bearer "), Qt::CaseInsensitive))
+        s.token = auth.mid(7).trimmed();
+    else if (auth.startsWith(QLatin1String("token "), Qt::CaseInsensitive))
+        s.token = auth.mid(6).trimmed();
+    QString urlPath = dest.value(QStringLiteral("urlPath")).toString().trimmed();
+    if (urlPath.endsWith(QLatin1String(kGitHubNameToken))) {
+        urlPath.chop(int(qstrlen(kGitHubNameToken)));
+        if (urlPath != gitHubPagesUrl(storedRepo, s.folder))
+            s.publicUrl = urlPath;
+    }
+    return s;
+}
+
+bool UploadManager::gitHubReady(const QJsonObject &dest)
+{
+    const GitHubSetup s = gitHubSetup(dest);
+    return !s.repo.isEmpty() && !s.token.isEmpty();
+}
+
+QVariantMap UploadManager::gitHubSetupOf(const QVariantMap &dest) const
+{
+    const GitHubSetup s = gitHubSetup(QJsonObject::fromVariantMap(dest));
+    return {{QStringLiteral("repo"), s.repo},
+            {QStringLiteral("branch"), s.branch},
+            {QStringLiteral("folder"), s.folder},
+            {QStringLiteral("token"), s.token},
+            {QStringLiteral("publicUrl"), s.publicUrl}};
+}
+
+QVariantMap UploadManager::gitHubDestinationFor(const QString &repo, const QString &branch,
+                                                const QString &folder, const QString &token,
+                                                const QString &publicUrl) const
+{
+    return gitHubDestination({repo, branch, folder, token, publicUrl}).toVariantMap();
+}
+#endif
+
 UploadManager::UploadManager(Settings *settings, QObject *parent)
     : QObject(parent), m_settings(settings), m_nam(new QNetworkAccessManager(this))
 {
@@ -112,7 +267,33 @@ UploadManager::UploadManager(Settings *settings, QObject *parent)
     // finished handler. (int overload: the chrono one needs Qt 6.7.)
     m_nam->setTransferTimeout(kCaptureStallMs);
     loadDestinations();
+    // Before anything persists: a save makes the top server the active one,
+    // and up to 0.8.8 the active one could sit anywhere in the list.
+    const bool moved = moveActiveToTop();
     ensureBuiltins();
+    // The save also points the setting at the top: a 0.8.8 config may name a
+    // server that was deleted, or none.
+    if (moved || (m_settings && m_settings->activeDestination() != destinationNames().value(0)))
+        persistDestinations();
+    if (m_settings)
+        connect(m_settings, &Settings::activeDestinationChanged, this, [this] {
+            if (moveActiveToTop())
+                persistDestinations();
+        });
+}
+
+// The top of the list IS the active server. The Servers page picks it by
+// dragging; everything else (the Capture page's combo, an sxcu import, a
+// settings import) names it, and the named one moves up. Memory only.
+bool UploadManager::moveActiveToTop()
+{
+    if (!m_settings)
+        return false;
+    const int at = destinationNames().indexOf(m_settings->activeDestination());
+    if (at <= 0)
+        return false;
+    m_destinations.prepend(m_destinations.takeAt(at));
+    return true;
 }
 
 QString UploadManager::configPath() const
@@ -184,6 +365,10 @@ void UploadManager::persistDestinations()
     } else {
         qWarning() << "could not open" << configPath() << f.errorString();
     }
+    // A reorder, a delete or a rename can change the top; the setting follows.
+    if (m_settings && !m_destinations.isEmpty())
+        m_settings->setActiveDestination(
+            m_destinations.first().toObject().value(QStringLiteral("name")).toString());
     emit destinationsChanged();
 }
 
@@ -222,11 +407,13 @@ void UploadManager::ensureBuiltins()
             changed = true;
         }
     }
-    // The pruned host may still be the selected one; destinationNamed() would
-    // silently fall back to the first destination while the UI shows a dead
-    // name. Point the setting at the default instead.
-    if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st"))
+    // The pruned host may still be the selected one; uploads would silently
+    // go to the first destination while the UI shows a dead name. Point the
+    // setting at the default instead.
+    if (m_settings && m_settings->activeDestination() == QStringLiteral("0x0.st")) {
         m_settings->setActiveDestination(QStringLiteral("catbox.moe"));
+        moveActiveToTop();
+    }
     // The Imgur builtin ships WITHOUT an Authorization header: the user pastes
     // their own Client-ID (Destinations → Imgur). Until then startUpload() fails
     // it fast with an actionable message instead of letting Imgur reject it.
@@ -338,6 +525,17 @@ void UploadManager::ensureBuiltins()
         });
         changed = true;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+    // Ships without a repository or token (both are the user's), so it sits
+    // in the list as "needs setup" until the editor fills it in.
+    if (!has(QStringLiteral("GitHub Pages"))) {
+        QJsonObject gh = gitHubDestination({});
+        gh.insert(QStringLiteral("name"), QStringLiteral("GitHub Pages"));
+        gh.insert(QStringLiteral("builtin"), true);
+        m_destinations.append(gh);
+        changed = true;
+    }
+#endif
     if (changed)
         persistDestinations();
 }
@@ -347,27 +545,42 @@ QVariantList UploadManager::destinationsVariant() const
     return m_destinations.toVariantList();
 }
 
-QVariantMap UploadManager::destination(const QString &name) const
+QStringList UploadManager::destinationNames() const
 {
+    QStringList names;
     for (const QJsonValue &v : std::as_const(m_destinations))
-        if (v.toObject().value(QStringLiteral("name")).toString() == name)
-            return v.toObject().toVariantMap();
-    return {};
+        names << v.toObject().value(QStringLiteral("name")).toString();
+    return names;
 }
 
-void UploadManager::saveDestination(const QVariantMap &dest)
+QVariantMap UploadManager::destination(const QString &name) const
+{
+    return findDestination(name).toVariantMap();
+}
+
+void UploadManager::saveDestination(const QVariantMap &dest, const QString &replacing)
 {
     const QString name = dest.value(QStringLiteral("name")).toString();
     if (name.isEmpty()) return;
+    const QString target = replacing.isEmpty() ? name : replacing;
     QJsonObject obj = QJsonObject::fromVariantMap(dest);
     for (int i = 0; i < m_destinations.size(); ++i) {
-        if (m_destinations[i].toObject().value(QStringLiteral("name")).toString() == name) {
+        if (m_destinations[i].toObject().value(QStringLiteral("name")).toString() == target) {
             m_destinations[i] = obj;
             persistDestinations();
             return;
         }
     }
     m_destinations.append(obj);
+    persistDestinations();
+}
+
+void UploadManager::moveDestination(int from, int to)
+{
+    if (from == to || from < 0 || to < 0 || from >= m_destinations.size()
+        || to >= m_destinations.size())
+        return;
+    m_destinations.insert(to, m_destinations.takeAt(from));
     persistDestinations();
 }
 
@@ -385,6 +598,9 @@ void UploadManager::removeDestination(const QString &name)
 void UploadManager::replaceAllDestinations(const QJsonArray &arr)
 {
     m_destinations = arr;
+    // The imported settings named the active server; an older export did not
+    // keep it on top.
+    moveActiveToTop();
     ensureBuiltins(); // guarantees the defaults survive a foreign import
     persistDestinations();
 }
@@ -592,17 +808,12 @@ QString UploadManager::importSxcu(const QString &pathOrUrl)
     return dest.value(QStringLiteral("name")).toString();
 }
 
-QJsonObject UploadManager::activeDestination() const
-{
-    return destinationNamed(m_settings->activeDestination());
-}
-
-QJsonObject UploadManager::destinationNamed(const QString &name) const
+QJsonObject UploadManager::findDestination(const QString &name) const
 {
     for (const QJsonValue &v : std::as_const(m_destinations))
         if (v.toObject().value(QStringLiteral("name")).toString() == name)
             return v.toObject();
-    return m_destinations.isEmpty() ? QJsonObject{} : m_destinations.first().toObject();
+    return {};
 }
 
 void UploadManager::setBusy(bool b)
@@ -612,10 +823,27 @@ void UploadManager::setBusy(bool b)
     emit busyChanged();
 }
 
-void UploadManager::uploadFile(const QString &filePath, Callback cb)
+void UploadManager::uploadFile(const QString &filePath, Callback cb, const QString &primary)
+{
+    uploadFileTo(uploadChainFor(primary), filePath, std::move(cb));
+}
+
+void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
+                               const QString &mime, Callback cb, const QString &primary)
+{
+    startUpload(uploadChainFor(primary), data, {}, fileName, mime, std::move(cb));
+}
+
+void UploadManager::uploadDataTo(const QStringList &servers, const QByteArray &data,
+                                 const QString &fileName, const QString &mime, Callback cb)
+{
+    startUpload(servers, data, {}, fileName, mime, std::move(cb));
+}
+
+void UploadManager::uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb)
 {
     {
-        // Early readability check only — the payload itself is streamed from
+        // Early readability check only - the payload itself is streamed from
         // disk (a saved recording can be hundreds of MB; readAll() used to pin
         // it in RAM for the whole transfer, twice on the curl path).
         QFile f(filePath);
@@ -624,28 +852,103 @@ void UploadManager::uploadFile(const QString &filePath, Callback cb)
             return;
         }
     }
-    const QString mime = QMimeDatabase().mimeTypeForFile(filePath).name();
-    startUpload({}, filePath, QFileInfo(filePath).fileName(), mime, {}, std::move(cb));
+    startUpload(servers, {}, filePath, QFileInfo(filePath).fileName(),
+                QMimeDatabase().mimeTypeForFile(filePath).name(), std::move(cb));
 }
 
-void UploadManager::uploadData(const QByteArray &data, const QString &fileName,
-                               const QString &mime, Callback cb)
+QStringList UploadManager::uploadChain(const QString &primary, const QStringList &order,
+                                       const QStringList &ready, bool chain)
 {
-    startUpload(data, {}, fileName, mime, {}, std::move(cb));
+    const QString first = order.contains(primary) ? primary : order.value(0);
+    if (first.isEmpty())
+        return {};
+    QStringList names{first};
+    if (chain)
+        for (const QString &n : order)
+            if (ready.contains(n) && !names.contains(n))
+                names << n;
+    return names;
 }
 
-void UploadManager::uploadDataTo(const QString &destination, const QByteArray &data,
-                                 const QString &fileName, const QString &mime, Callback cb)
+QStringList UploadManager::uploadChainFor(const QString &primary) const
 {
-    startUpload(data, {}, fileName, mime, destination, std::move(cb));
+    QStringList ready;
+    for (const QJsonValue &v : std::as_const(m_destinations)) {
+        const QJsonObject d = v.toObject();
+        // GitHub Pages (parked, docs/dev/architecture.md) adds:
+        //     && !(isGitHub(d) && !gitHubReady(d))
+        if (!(isImgur(d) && imgurClientId(d).isEmpty()) && !(isVgyMe(d) && vgyMeUserKey(d).isEmpty()))
+            ready << d.value(QStringLiteral("name")).toString();
+    }
+    return uploadChain(primary, destinationNames(), ready,
+                       m_settings && m_settings->uploadFailureChain());
 }
 
-void UploadManager::startUpload(const QByteArray &data, const QString &srcPath,
-                                const QString &fileName, const QString &mime,
-                                const QString &destination, Callback cb)
+// One upload in flight, over one server or a chain of them. The payload rides
+// along until it ends: `data` is the implicitly shared capture buffer (no
+// copy), a recording stays on disk as `srcPath`.
+struct UploadManager::Chain {
+    QByteArray data;
+    QString srcPath, fileName, mime;
+    QStringList names;  // servers to try, in order (uploadChain())
+    QStringList errors; // "name: error" per failed server; size() = next index
+    Callback cb;
+};
+
+void UploadManager::startUpload(const QStringList &servers, const QByteArray &data,
+                                const QString &srcPath, const QString &fileName,
+                                const QString &mime, Callback cb)
 {
-    startUploadTo(destination.isEmpty() ? activeDestination() : destinationNamed(destination),
-                  data, srcPath, fileName, mime, Purpose::Capture, std::move(cb));
+    if (servers.isEmpty()) {
+        cb({}, {}, tr("No upload server configured"));
+        return;
+    }
+    // Hold busy across the gap between one server failing and the next one
+    // starting, or the editor's Upload button would flicker back on.
+    ++m_active;
+    setBusy(true);
+    runChain(std::make_shared<Chain>(Chain{data, srcPath, fileName, mime, servers, {}, std::move(cb)}));
+}
+
+void UploadManager::runChain(const std::shared_ptr<Chain> &c)
+{
+    const QString name = c->names.at(c->errors.size());
+    auto done = [this, c, name](const QString &url, const QString &del, const QString &err) {
+        if (!err.isEmpty()) {
+            c->errors << tr("%1: %2").arg(name, err);
+            if (c->errors.size() < c->names.size()) {
+                // Names only: an error can echo the server's response body.
+                qInfo() << "upload:" << name << "failed, trying" << c->names.at(c->errors.size());
+                runChain(c); // a synchronous refusal recurses at most names.size() deep
+                return;
+            }
+        }
+        setBusy(--m_active > 0);
+        if (!err.isEmpty()) {
+            // A lone server's error reaches the caller untouched, as it always has.
+            c->cb({}, {}, c->names.size() == 1 ? err : c->errors.join(QStringLiteral("; ")));
+            return;
+        }
+        if (!c->errors.isEmpty()) {
+            m_fallbackFrom = c->names.mid(0, c->errors.size()).join(QStringLiteral(", "));
+            m_fallbackTo = name;
+            // Why the server the user picked failed: the toast names it,
+            // or a wrong repository/token on a personal host looks like
+            // the app quietly choosing another server.
+            m_fallbackReason = c->errors.first();
+        }
+        c->cb(url, del, {});
+        m_fallbackFrom.clear();
+        m_fallbackTo.clear();
+        m_fallbackReason.clear();
+    };
+    // Deleted since the list was built: it fails its turn instead of being
+    // swapped for another server.
+    const QJsonObject dest = findDestination(name);
+    if (dest.isEmpty())
+        done({}, {}, tr("Upload server \"%1\" no longer exists").arg(name));
+    else
+        startUploadTo(dest, c->data, c->srcPath, c->fileName, c->mime, Purpose::Capture, done);
 }
 
 void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &data,
@@ -672,6 +975,14 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
                       "then paste it into Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+    if (isGitHub(dest) && !gitHubReady(dest)) {
+        cb({}, {}, tr("GitHub Pages needs a repository and a token. Open Destinations → %1 → "
+                      "Edit, enter the repository (owner/name) and paste a personal access "
+                      "token that can write its contents.").arg(dest.value(QStringLiteral("name")).toString()));
+        return;
+    }
+#endif
     const QString type = dest.value(QStringLiteral("type")).toString(QStringLiteral("http"));
     // `busy` means "a capture is on its way to a server": it greys the editor's
     // Upload button out and relabels it "Uploading…". A configuration test is
@@ -730,6 +1041,13 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
                          "field above, then test again."));
         return;
     }
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+    if (isGitHub(dest) && !gitHubReady(dest)) {
+        cb(false, {}, tr("GitHub Pages needs a repository and a token. Fill in the "
+                         "fields above, then test again."));
+        return;
+    }
+#endif
 
     // A tiny recognisable tile: some hosts reject degenerate dimensions, and a
     // visible checker is friendlier than a blank pixel when the user opens the
@@ -753,6 +1071,29 @@ void UploadManager::testDestination(const QVariantMap &destMap, TestCallback cb)
                   [cb = std::move(cb)](const QString &url, const QString &, const QString &err) {
         cb(err.isEmpty(), url, err);
     });
+}
+
+// The human-readable part of a JSON error body: vgy.me's "messages" (an object
+// of field: text, or one string), else the usual "message" or "error" string.
+// Empty when the body is not JSON or names none of them.
+QString UploadManager::serverErrorMessage(const QByteArray &response)
+{
+    const QJsonObject obj = QJsonDocument::fromJson(response).object();
+    const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
+    if (msgVal.isObject()) {
+        QStringList parts;
+        const QJsonObject msgObj = msgVal.toObject();
+        for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
+            parts << (it.value().isString() ? it.value().toString()
+                                            : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
+        }
+        return parts.join(QStringLiteral(", "));
+    }
+    if (msgVal.isString())
+        return msgVal.toString();
+    if (obj.value(QStringLiteral("message")).isString())
+        return obj.value(QStringLiteral("message")).toString();
+    return obj.value(QStringLiteral("error")).toString();
 }
 
 // Resolve a single $text$/$json:...$/$regex:...$ token against the response.
@@ -906,7 +1247,7 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         QByteArray payload;
         for (int i = 0; i < parts.size(); ++i) {
             QString part = parts[i];
-            part.replace(QLatin1String("$filename$"), fileName);
+            part.replace(QLatin1String("$filename$"), sanitizeFileName(fileName));
             part.replace(QLatin1String("$mime$"), mime);
             if (i > 0)
                 payload += b64;
@@ -966,29 +1307,34 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         reply->deleteLater();
         const QByteArray body = reply->readAll();
         if (reply->error() != QNetworkReply::NoError) {
-            QString serverMsg;
-            const QJsonDocument doc = QJsonDocument::fromJson(body);
-            if (doc.isObject()) {
-                const QJsonObject obj = doc.object();
-                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
-                if (msgVal.isObject()) {
-                    QStringList parts;
-                    const QJsonObject msgObj = msgVal.toObject();
-                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
-                        parts << (it.value().isString() ? it.value().toString()
-                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
-                    }
-                    serverMsg = parts.join(QStringLiteral(", "));
-                } else if (msgVal.isString()) {
-                    serverMsg = msgVal.toString();
-                } else if (obj.value(QStringLiteral("message")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("message")).toString();
-                } else if (obj.value(QStringLiteral("error")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("error")).toString();
-                }
-            }
+            QString serverMsg = serverErrorMessage(body);
             if (serverMsg.isEmpty())
                 serverMsg = QString::fromUtf8(body.left(300));
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+            // The Contents API's answers name the symptom, not the cause a
+            // Pages user can act on: 422 is almost always "that file name is
+            // already in the repository" (it wants the old blob's sha to
+            // overwrite), 404 is a wrong repository or a token without access.
+            if (isGitHub(dest)) {
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                QString hint;
+                if (status == 401)
+                    hint = tr("GitHub did not accept the token (%1)").arg(serverMsg);
+                else if (status == 404)
+                    hint = tr("GitHub found no such repository, or the token cannot write to it (%1)").arg(serverMsg);
+                else if (status == 409)
+                    hint = tr("GitHub reports a conflict; check that the branch exists (%1)").arg(serverMsg);
+                else if (status == 422)
+                    hint = tr("GitHub rejected the commit; a file with this name is probably already in the repository (%1)").arg(serverMsg);
+                // The hint is the whole message: Qt's "Error transferring
+                // <url> - server replied: Not Found" in front of it only
+                // pushes the part the user can act on out of a toast.
+                if (!hint.isEmpty()) {
+                    cb({}, {}, hint);
+                    return;
+                }
+            }
+#endif
             cb({}, {}, QStringLiteral("%1: %2").arg(reply->errorString(), serverMsg));
             return;
         }
@@ -997,24 +1343,9 @@ void UploadManager::httpUpload(const QJsonObject &dest, const QByteArray &data,
         if (url.isEmpty()) {
             const QJsonDocument doc = QJsonDocument::fromJson(body);
             if (doc.isObject() && doc.object().value(QStringLiteral("error")).toBool()) {
-                QString serverMsg;
-                const QJsonObject obj = doc.object();
-                const QJsonValue msgVal = obj.value(QStringLiteral("messages"));
-                if (msgVal.isObject()) {
-                    QStringList parts;
-                    const QJsonObject msgObj = msgVal.toObject();
-                    for (auto it = msgObj.begin(); it != msgObj.end(); ++it) {
-                        parts << (it.value().isString() ? it.value().toString()
-                                                        : QStringLiteral("%1: %2").arg(it.key(), it.value().toVariant().toString()));
-                    }
-                    serverMsg = parts.join(QStringLiteral(", "));
-                } else if (msgVal.isString()) {
-                    serverMsg = msgVal.toString();
-                } else if (obj.value(QStringLiteral("message")).isString()) {
-                    serverMsg = obj.value(QStringLiteral("message")).toString();
-                }
+                const QString serverMsg = serverErrorMessage(body);
                 if (!serverMsg.isEmpty()) {
-                    cb({}, {}, QStringLiteral("Server reported error: %1").arg(serverMsg));
+                    cb({}, {}, UploadManager::tr("Server reported error: %1").arg(serverMsg));
                     return;
                 }
             }

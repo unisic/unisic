@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <functional>
+#include <memory>
 #include <qqmlregistration.h>
 #include <QUrl>
 
@@ -66,15 +67,47 @@ public:
 
     explicit UploadManager(Settings *settings, QObject *parent = nullptr);
 
-    void uploadFile(const QString &filePath, Callback cb);
-    void uploadData(const QByteArray &data, const QString &fileName, const QString &mime, Callback cb);
-    void uploadDataTo(const QString &destination, const QByteArray &data,
+    // The failure chain: `primary` (a per-hotkey destination; empty = none) or
+    // else the active server, the top of the Servers list. With
+    // Settings::uploadFailureChain on, every other server down the list
+    // follows, each tried only after the one before it failed. The callback
+    // fires once - with the first link, or with every server's error when all
+    // of them failed.
+    void uploadFile(const QString &filePath, Callback cb, const QString &primary = {});
+    void uploadData(const QByteArray &data, const QString &fileName, const QString &mime,
+                    Callback cb, const QString &primary = {});
+    // Exactly `servers`, in this order, with no settings consulted: a server
+    // picked by hand ({name}) must never be swapped for another, and the
+    // checks chain scratch servers without reaching a real host. A name that
+    // is not (or no longer) stored fails its turn.
+    void uploadDataTo(const QStringList &servers, const QByteArray &data,
                       const QString &fileName, const QString &mime, Callback cb);
+    void uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb);
+
+    // Pure: the names a chained upload tries, in order. `order` is the list
+    // as shown (top = active), `ready` the servers that need no setup: an
+    // Imgur without a Client-ID is a certain refusal, not a fallback. The
+    // first server goes in even when not ready, so its own error surfaces.
+    static QStringList uploadChain(const QString &primary, const QStringList &order,
+                                   const QStringList &ready, bool chain);
+    // uploadChain() over the stored list and settings: what uploadData() tries.
+    QStringList uploadChainFor(const QString &primary) const;
+    // Non-empty only while a chained upload's callback runs after a later
+    // server took over: the names that failed first (comma-separated), and
+    // the one that took the upload.
+    QString fallbackFrom() const { return m_fallbackFrom; }
+    QString fallbackTo() const { return m_fallbackTo; }
+    QString fallbackReason() const { return m_fallbackReason; } // "name: error" of the first server
 
     QVariantList destinationsVariant() const;
+    QStringList destinationNames() const;
     bool busy() const { return m_busy; }
 
-    Q_INVOKABLE void saveDestination(const QVariantMap &dest);
+    // `replacing` = the name the server had before an edit renamed it: the
+    // entry keeps its place in the list (its place is its rank).
+    Q_INVOKABLE void saveDestination(const QVariantMap &dest, const QString &replacing = {});
+    // Drag-and-drop on the Servers page. The top server is the active one.
+    Q_INVOKABLE void moveDestination(int from, int to);
     Q_INVOKABLE void removeDestination(const QString &name);
     Q_INVOKABLE QVariantMap destination(const QString &name) const;
 
@@ -83,10 +116,9 @@ public:
     // through the very same http/curl path a real capture takes and answers
     // with testFinished(). Nothing is persisted: no destinations.json write, no
     // history entry, no clipboard touch. It takes the whole object and not a
-    // name (the way uploadDataTo() does) because a name has to be looked up,
-    // and destinationNamed() silently falls back to the FIRST stored
-    // destination for an unknown one - an unsaved config would be "tested"
-    // against somebody else's server.
+    // name (the way uploadDataTo() does) because an unsaved config has no name
+    // in the store yet: looking one up would test whatever server is saved
+    // under it, or none at all.
     Q_INVOKABLE void testDestination(const QVariantMap &dest);
     // The same test, answered on a PRIVATE channel. testFinished() is one
     // global signal that the server editor's sheet listens to permanently
@@ -111,6 +143,44 @@ public:
     { return isVgyMe(QJsonObject::fromVariantMap(dest)); }
     Q_INVOKABLE QString vgyMeUserKeyOf(const QVariantMap &dest) const
     { return vgyMeUserKey(QJsonObject::fromVariantMap(dest)); }
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+    // GitHub Pages: the file is committed to a repository through the GitHub
+    // Contents API and the link is where Pages serves it (the github.io
+    // address, or the custom domain in front of it). Stored as a plain http
+    // destination, so an exported destinations.json shows exactly what is
+    // sent; the editor swaps the raw fields for repository, branch, folder,
+    // token and public URL. The token is a fine-grained personal access token
+    // with "Contents: Read and write" on that one repository (or a classic one
+    // with the repo scope), kept in clear text like every credential here.
+    struct GitHubSetup { QString repo, branch, folder, token, publicUrl; };
+    static bool isGitHub(const QJsonObject &dest);
+    // The five pieces out of a stored destination. The shipped placeholder
+    // repository reads as empty (so the preset shows as needing setup), and a
+    // public URL equal to the github.io default reads as empty too.
+    static GitHubSetup gitHubSetup(const QJsonObject &dest);
+    // The http keys (no name) for a setup. `repo` may be pasted as a github.com
+    // address; an empty branch means main, an empty publicUrl the github.io
+    // address, an empty repo the placeholder.
+    static QJsonObject gitHubDestination(const GitHubSetup &s);
+    // Where Pages serves `folder` of `repo` without a custom domain: the user
+    // site (owner/owner.github.io) at the root, any other repository under
+    // its name. Empty for anything that is not owner/name.
+    static QString gitHubPagesUrl(const QString &repo, const QString &folder);
+    // Repository and token both set: without them the API answers 404 with no
+    // hint of which one is missing, so the upload is refused before it.
+    static bool gitHubReady(const QJsonObject &dest);
+    Q_INVOKABLE bool isGitHubDestination(const QVariantMap &dest) const
+    { return isGitHub(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE bool gitHubReadyOf(const QVariantMap &dest) const
+    { return gitHubReady(QJsonObject::fromVariantMap(dest)); }
+    Q_INVOKABLE QVariantMap gitHubSetupOf(const QVariantMap &dest) const;
+    Q_INVOKABLE QVariantMap gitHubDestinationFor(const QString &repo, const QString &branch,
+                                                 const QString &folder, const QString &token,
+                                                 const QString &publicUrl) const;
+    Q_INVOKABLE QString gitHubPagesUrlFor(const QString &repo, const QString &folder) const
+    { return gitHubPagesUrl(repo, folder); }
+#endif
 
     // What a given form field substitutes, for the editor to offer as chips and
     // to draw as pills inside the field. Answered HERE and not spelled out in
@@ -146,6 +216,7 @@ public:
     static QString curlTargetUrl(const QString &requestUrl, const QString &fileName);
     static QString extractUrl(const QJsonObject &dest, const QString &key, const QByteArray &response);
     static QString extractToken(const QString &token, const QByteArray &response);
+    static QString serverErrorMessage(const QByteArray &response);
     static bool isVgyMe(const QJsonObject &dest);
     static QString vgyMeUserKey(const QJsonObject &dest);
 
@@ -170,8 +241,6 @@ private:
     // every entry point has to say which kind of upload it is starting.
     enum class Purpose { Capture, Test };
 
-    QJsonObject activeDestination() const;
-    QJsonObject destinationNamed(const QString &name) const;
     void loadDestinations();
     void persistDestinations();
     void ensureBuiltins();
@@ -184,11 +253,15 @@ private:
                     const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                     const QString &fileName, Purpose purpose, Callback cb);
-    void startUpload(const QByteArray &data, const QString &srcPath, const QString &fileName,
-                     const QString &mime, const QString &destination, Callback cb);
+    void startUpload(const QStringList &servers, const QByteArray &data, const QString &srcPath,
+                     const QString &fileName, const QString &mime, Callback cb);
+    struct Chain;
+    void runChain(const std::shared_ptr<Chain> &c);
+    bool moveActiveToTop();
+    QJsonObject findDestination(const QString &name) const; // exact; {} when missing
     // Same as startUpload() but with the destination object already resolved, so
     // a caller can upload to a config that is not (or not yet) in the store.
-    // Every caller states its Purpose: the three public upload entry points are
+    // Every caller states its Purpose: the public upload entry points are
     // real captures, testDestination() is the one test.
     void startUploadTo(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                        const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
@@ -202,6 +275,7 @@ private:
     bool m_busy = false;
     QString m_lastImportError;
     int m_active = 0; // in-flight CAPTURE uploads; busy = m_active > 0
+    QString m_fallbackFrom, m_fallbackTo, m_fallbackReason;
     // Correlates a testFinished() emission with the QML test that asked for it
     // (see the QML overload in the .cpp): only the newest one may speak.
     quint64 m_qmlTestGen = 0;

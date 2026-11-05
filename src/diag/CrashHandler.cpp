@@ -210,6 +210,11 @@ void install()
 
 void setLogFd(int fd) { g_logFd = fd; }
 
+int openLog(const char *utf8Path)
+{
+    return ::open(utf8Path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+}
+
 void setCrashFilePath(const char *utf8Path)
 {
     if (!utf8Path) {

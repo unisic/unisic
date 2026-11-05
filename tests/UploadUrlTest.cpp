@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QTemporaryDir>
+#include <QJsonDocument>
 #include "Settings.h"
 #include "upload/UploadManager.h"
 
@@ -12,6 +13,9 @@ private slots:
     void responseTemplate();
     void offeredVariablesResolve();
     void vgyMeSupport();
+    // GitHub Pages (parked, docs/dev/architecture.md):
+    // void gitHubPagesSupport();
+    void uploadChain();
     void liveBuzzheavierUpload();
     void liveVgyMeUpload();
 };
@@ -154,6 +158,16 @@ void UploadUrlTest::vgyMeSupport()
     QCOMPARE(UploadManager::extractUrl(vgyDest, QStringLiteral("deletionUrlPath"), response),
              QStringLiteral("https://vgy.me/delete/del123"));
 
+    // Error bodies: vgy.me's "messages" object or string, then the usual keys
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":true,"messages":{"Unauthorized":"Invalid userkey"}})"),
+             QStringLiteral("Invalid userkey"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":true,"messages":"File too large"})"),
+             QStringLiteral("File too large"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"message":"Rate limited"})"), QStringLiteral("Rate limited"));
+    QCOMPARE(UploadManager::serverErrorMessage(R"({"error":"Bad file"})"), QStringLiteral("Bad file"));
+    QVERIFY(UploadManager::serverErrorMessage(R"({"error":true})").isEmpty());
+    QVERIFY(UploadManager::serverErrorMessage("<html>502</html>").isEmpty());
+
     // Guard test: vgy.me destination without a user key must be refused early
     QTemporaryDir cfg;
     QVERIFY(cfg.isValid());
@@ -173,6 +187,152 @@ void UploadUrlTest::vgyMeSupport()
         QVERIFY(err.contains(QStringLiteral("user key")));
     });
     QVERIFY(testDone);
+}
+
+#if 0 // GitHub Pages: parked, see docs/dev/architecture.md
+// GitHub Pages: the editor's five fields compose an http destination that reads
+// back unchanged, the link is the public address plus the committed file's
+// name, and the shipped preset (no repository, no token) is refused before any
+// request and kept out of the chain.
+void UploadUrlTest::gitHubPagesSupport()
+{
+    UploadManager::GitHubSetup in;
+    in.repo = QStringLiteral("https://github.com/Octo-Cat/cdn.git");
+    in.branch = QStringLiteral("gh-pages");
+    in.folder = QStringLiteral("/img/");
+    in.token = QStringLiteral("github_pat_test");
+    in.publicUrl = QStringLiteral("https://cdn.example.com/");
+    const QJsonObject dest = UploadManager::gitHubDestination(in);
+    QVERIFY(UploadManager::isGitHub(dest));
+    QVERIFY(UploadManager::gitHubReady(dest));
+    QCOMPARE(dest.value(QStringLiteral("requestUrl")).toString(),
+             QStringLiteral("https://api.github.com/repos/Octo-Cat/cdn/contents/img/%file%"));
+    QCOMPARE(dest.value(QStringLiteral("method")).toString(), QStringLiteral("PUT"));
+    QCOMPARE(dest.value(QStringLiteral("headers")).toObject().value(QStringLiteral("Authorization")).toString(),
+             QStringLiteral("Bearer github_pat_test"));
+    // The name lands in the URL path percent-encoded, the way the API wants it.
+    QCOMPARE(UploadManager::requestUrlWithFileName(dest.value(QStringLiteral("requestUrl")).toString(),
+                                                   QStringLiteral("a b.png")),
+             QStringLiteral("https://api.github.com/repos/Octo-Cat/cdn/contents/img/a%20b.png"));
+    const UploadManager::GitHubSetup out = UploadManager::gitHubSetup(dest);
+    QCOMPARE(out.repo, QStringLiteral("Octo-Cat/cdn"));
+    QCOMPARE(out.branch, QStringLiteral("gh-pages"));
+    QCOMPARE(out.folder, QStringLiteral("img"));
+    QCOMPARE(out.token, in.token);
+    QCOMPARE(out.publicUrl, QStringLiteral("https://cdn.example.com"));
+    const QJsonObject data = QJsonDocument::fromJson(dest.value(QStringLiteral("data")).toString().toUtf8()).object();
+    QCOMPARE(data.value(QStringLiteral("branch")).toString(), QStringLiteral("gh-pages"));
+    QCOMPARE(data.value(QStringLiteral("content")).toString(), QStringLiteral("$base64$"));
+    QCOMPARE(data.value(QStringLiteral("message")).toString(), QStringLiteral("unisic: $filename$"));
+    const QByteArray response(R"({"content":{"name":"shot.png","path":"img/shot.png","html_url":"https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"},"commit":{"sha":"abc"}})");
+    QCOMPARE(UploadManager::extractUrl(dest, QStringLiteral("urlPath"), response),
+             QStringLiteral("https://cdn.example.com/shot.png"));
+    QCOMPARE(UploadManager::extractUrl(dest, QStringLiteral("deletionUrlPath"), response),
+             QStringLiteral("https://github.com/Octo-Cat/cdn/blob/gh-pages/img/shot.png"));
+
+    // Default addresses: a project site under /name, the user site at the root.
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("Octo-Cat/cdn"), QStringLiteral("img")),
+             QStringLiteral("https://octo-cat.github.io/cdn/img"));
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("octocat/octocat.github.io"), {}),
+             QStringLiteral("https://octocat.github.io"));
+    QCOMPARE(UploadManager::gitHubPagesUrl(QStringLiteral("octocat"), {}), QString());
+    UploadManager::GitHubSetup bare;
+    bare.repo = QStringLiteral("octocat/cdn");
+    bare.token = QStringLiteral("x");
+    const QJsonObject bareDest = UploadManager::gitHubDestination(bare);
+    QCOMPARE(bareDest.value(QStringLiteral("urlPath")).toString(),
+             QStringLiteral("https://octocat.github.io/cdn/$json:content.name$"));
+    const UploadManager::GitHubSetup back = UploadManager::gitHubSetup(bareDest);
+    QCOMPARE(back.branch, QStringLiteral("main"));
+    QVERIFY(back.publicUrl.isEmpty());
+
+    // The shipped preset: recognised, incomplete, refused before any request.
+    const QJsonObject preset = UploadManager::gitHubDestination({});
+    QVERIFY(UploadManager::isGitHub(preset));
+    QVERIFY(!UploadManager::gitHubReady(preset));
+    QVERIFY(UploadManager::gitHubSetup(preset).repo.isEmpty());
+
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+    Settings settings;
+    UploadManager uploads(&settings);
+    QVERIFY(uploads.destinationNames().contains(QStringLiteral("GitHub Pages")));
+    QVERIFY(!uploads.uploadChainFor(QStringLiteral("catbox.moe")).contains(QStringLiteral("GitHub Pages")));
+    bool testDone = false;
+    uploads.testDestination(preset.toVariantMap(), [&](bool ok, const QString &url, const QString &err) {
+        testDone = true;
+        QVERIFY(!ok);
+        QVERIFY(url.isEmpty());
+        QVERIFY(err.contains(QStringLiteral("token")));
+    });
+    QVERIFY(testDone);
+}
+#endif
+
+// The failure chain's order: hotkey server (or the top of the list when it is
+// gone), then the rest of the list, minus servers that need setup; chain off =
+// the first one only. The top of the list is the active server, whichever way
+// it changes. Then real chains over servers that refuse before any request
+// (Imgur with no Client-ID, vgy.me with no key), so nothing leaves the machine.
+void UploadUrlTest::uploadChain()
+{
+    const QStringList order{"a", "b", "c"};
+    QCOMPARE(UploadManager::uploadChain("b", order, order, true), (QStringList{"b", "a", "c"}));
+    QCOMPARE(UploadManager::uploadChain("gone", order, {"c"}, true), (QStringList{"a", "c"}));
+    QCOMPARE(UploadManager::uploadChain("c", order, order, false), QStringList{"c"});
+    QVERIFY(UploadManager::uploadChain("a", {}, {}, true).isEmpty());
+
+    QTemporaryDir cfg;
+    QVERIFY(cfg.isValid());
+    qputenv("XDG_CONFIG_HOME", cfg.path().toUtf8());
+    Settings settings;
+    UploadManager uploads(&settings);
+    QVERIFY(settings.uploadFailureChain());
+    QCOMPARE(uploads.destinationNames().value(0), settings.activeDestination());
+    uploads.saveDestination({{"name", "first"}, {"requestUrl", "https://api.imgur.com/3/image"}});
+    uploads.saveDestination({{"name", "second"}, {"requestUrl", "https://vgy.me/upload"}});
+
+    // Naming a server moves it to the top; dragging one there names it.
+    settings.setActiveDestination("second");
+    QCOMPARE(uploads.destinationNames().value(0), QString("second"));
+    uploads.moveDestination(uploads.destinationNames().indexOf("first"), 0);
+    QCOMPARE(settings.activeDestination(), QString("first"));
+    QCOMPARE(uploads.destinationNames().mid(0, 2), (QStringList{"first", "second"}));
+    // A rename keeps the place, and with it the active server.
+    uploads.saveDestination({{"name", "renamed"}, {"requestUrl", "https://api.imgur.com/3/image"}}, "first");
+    QCOMPARE(uploads.destinationNames().value(0), QString("renamed"));
+    QCOMPARE(settings.activeDestination(), QString("renamed"));
+    QVERIFY(!uploads.destinationNames().contains("first"));
+    // Both scratch servers need setup: only the first one is ever tried.
+    QCOMPARE(uploads.uploadChainFor({}).value(0), QString("renamed"));
+    QVERIFY(!uploads.uploadChainFor({}).contains("second"));
+
+    int calls = 0;
+    QString err;
+    const auto cb = [&](const QString &, const QString &, const QString &e) { ++calls; err = e; };
+    uploads.uploadDataTo({"renamed", "second"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 1);
+    QVERIFY2(err.startsWith("renamed: ") && err.contains("; second: "), qPrintable(err));
+    QVERIFY(!uploads.busy());
+    QVERIFY(uploads.fallbackFrom().isEmpty());
+
+    // A hand-picked server reports its own failure and stops there.
+    uploads.uploadDataTo({"renamed"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 2);
+    QVERIFY2(err.contains("Client-ID") && !err.contains("second"), qPrintable(err));
+    uploads.uploadDataTo({"gone"}, "x", "x.png", "image/png", cb);
+    QCOMPARE(calls, 3);
+    QVERIFY(err.contains("gone"));
+
+    // A failure that arrives later, from the network (port 1 refuses), still
+    // moves on, and the chain stays busy until the last server answers.
+    uploads.saveDestination({{"name", "local"}, {"requestUrl", "http://127.0.0.1:1/"}});
+    uploads.uploadDataTo({"local", "second"}, "x", "x.png", "image/png", cb);
+    QVERIFY(uploads.busy());
+    QTRY_COMPARE_WITH_TIMEOUT(calls, 4, 10000);
+    QVERIFY2(err.startsWith("local: ") && err.contains("; second: "), qPrintable(err));
+    QVERIFY(!uploads.busy());
 }
 
 // The whole curl path against the real host it was built for: the %file% token

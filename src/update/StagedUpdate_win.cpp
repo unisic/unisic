@@ -219,7 +219,11 @@ void UpdateChecker::setUnpackCommand(QProcess *proc, const QString &pkg)
     // An empty program (no system directory) fails to start, which the
     // caller reports as a failed unpack.
     proc->setProgram(systemTar());
-    proc->setArguments({QStringLiteral("-xf"), QDir::toNativeSeparators(pkg)});
+    // Relative to the working directory the caller set: System32 tar takes an
+    // ANSI argv, so an absolute path through a profile name outside the code
+    // page (Cyrillic under 1250) would not open. The asset name is ASCII.
+    proc->setArguments({QStringLiteral("-xf"),
+                        QDir::toNativeSeparators(QDir(proc->workingDirectory()).relativeFilePath(pkg))});
 }
 
 QString UpdateChecker::stagedExe(const QString &verDir)

@@ -23,6 +23,8 @@
 #include <cerrno>
 #include <memory>
 
+#include <windows.h>
+
 void AppContext::showInFileManager(const QString &path)
 {
     if (path.isEmpty() || !QFileInfo::exists(path)) {
@@ -238,9 +240,24 @@ static bool writeRunValue()
     return run.status() == QSettings::NoError;
 }
 
+// The StartupApproved value is 12 bytes, the first one odd when the switch
+// is off (03, 07) and even when on (02, 06), then a FILETIME of the change.
+static bool startupSwitchedOff(const QString &name)
+{
+    BYTE data[16];
+    DWORD size = sizeof(data);
+    const LSTATUS rc = RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
+        reinterpret_cast<LPCWSTR>(name.utf16()), RRF_RT_REG_BINARY, nullptr, data, &size);
+    return rc == ERROR_SUCCESS && size > 0 && (data[0] & 1);
+}
+
 bool AppContext::autostartEnabled() const
 {
-    return QSettings(runKey(), QSettings::NativeFormat).contains(QGuiApplication::desktopFileName());
+    const QString name = QGuiApplication::desktopFileName();
+    // A Run value Task Manager switched off does not start: the toggle says so.
+    return QSettings(runKey(), QSettings::NativeFormat).contains(name) && !startupSwitchedOff(name);
 }
 
 void AppContext::refreshAutostartIfStale()

@@ -41,6 +41,14 @@ inline QString expand(QString t, int counter, const QDateTime &now)
         t.chop(1);
     if (t.isEmpty())
         t = QStringLiteral("Unisic");
+    // Windows reserves these device names with any extension after them:
+    // "nul.png" is the null device, and the save fails or vanishes. A Linux
+    // save is fine but breaks the moment the file meets a Windows share.
+    static const QRegularExpression reserved(
+        QStringLiteral("^(CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³])(\\..*)?$"),
+        QRegularExpression::CaseInsensitiveOption);
+    if (reserved.match(t).hasMatch())
+        t.prepend(QLatin1Char('_'));
     return t;
 }
 

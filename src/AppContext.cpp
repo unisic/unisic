@@ -3328,16 +3328,19 @@ void AppContext::copyLastCapture()
 
 void AppContext::afterUploadActions(const QString &url)
 {
-    // An FTP/SFTP destination with no public URL base succeeds with no link at
-    // all: copying "" would wipe the clipboard and the toast would claim a link.
-    if (url.isEmpty()) {
-        showToast(tr("Uploaded"));
-        return;
-    }
     // Read now: both are only set while the chain's callback runs (this one).
     const QString fellBackFrom = m_uploads->fallbackFrom();
     const QString fellBackTo = m_uploads->fallbackTo();
     const QString fellBackWhy = m_uploads->fallbackReason();
+    // An FTP/SFTP destination with no public URL base succeeds with no link at
+    // all: copying "" would wipe the clipboard and the toast would claim a link.
+    if (url.isEmpty()) {
+        if (fellBackFrom.isEmpty())
+            showToast(tr("Uploaded"));
+        else
+            showToast(tr("%1 failed, uploaded to %2. %3").arg(fellBackFrom, fellBackTo, fellBackWhy), true);
+        return;
+    }
     const auto finish = [this, fellBackFrom, fellBackTo, fellBackWhy](const QString &finalUrl) {
         if (m_settings->afterUploadCopyLink()) {
             copyText(finalUrl);
@@ -4303,10 +4306,7 @@ void AppContext::uploadFromHistory(const QString &filePath)
                         // The link belongs to the tile of the file it came
                         // from: the re-encode exists only on the server.
                         m_history->setUrl(filePath, url, del);
-                        if (url.isEmpty())
-                            showToast(tr("Uploaded"));
-                        else
-                            afterUploadActions(url);
+                        afterUploadActions(url);
                     });
             }, upFmt);
             return;
@@ -4321,10 +4321,7 @@ void AppContext::uploadFromHistory(const QString &filePath)
             return;
         }
         m_history->setUrl(filePath, url, del);
-        if (url.isEmpty())
-            showToast(tr("Uploaded")); // FTP/SFTP destination with no public URL
-        else
-            afterUploadActions(url);   // shows its own toast (+ copy-link/open)
+        afterUploadActions(url);
     });
 }
 

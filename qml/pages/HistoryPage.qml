@@ -534,11 +534,10 @@ Item {
 
                     readonly property bool selected: page.isSelected(entryId)
                     readonly property bool current: grid.activeFocus && grid.currentIndex === index
-                    // file:// URL of the thumbnail image, shared by the tile image
-                    // and the drag pixmap.
-                    readonly property string thumbUrl: thumbnail !== ""
-                        ? "file://" + encodeURI(thumbnail).replace(/[?#]/g, encodeURIComponent)
-                        : ""
+                    // URL of the thumbnail image, shared by the tile image and the
+                    // drag pixmap. Built in C++: "file://" + "C:/..." makes "C" a
+                    // host, a UNC share Windows tries to reach over SMB.
+                    readonly property url thumbUrl: App.fileDragUri(thumbnail)
 
                     // Deliberately NOT a tab stop: the GridView owns keyboard
                     // navigation (currentIndex + its own Keys handler), and a

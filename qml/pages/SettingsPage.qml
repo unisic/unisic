@@ -242,12 +242,6 @@ Item {
             collectRows(kids[i], tabIdx, q, out)
     }
 
-    // Local absolute path -> file URL. Per-segment encode: encodeURI leaves
-    // '#'/'?' unescaped, so a filename containing them would be parsed as a URL
-    // fragment/query and the thumbnail would fail to load.
-    function fileUrl(p) {
-        return "file://" + p.split("/").map(encodeURIComponent).join("/")
-    }
     // Tooltip label from a path: basename without the image extension.
     function iconLabel(p) {
         return p.split("/").pop().replace(/\.(svg|svgz|png|jpe?g|webp|xpm|ico)$/i, "")
@@ -3234,7 +3228,7 @@ Item {
                                 for (var i = 0; i < presets.length; i++)
                                     arr.push({ path: presets[i],
                                                label: page.iconLabel(presets[i]),
-                                               src: page.fileUrl(presets[i]) })
+                                               src: App.fileDragUri(presets[i]) })
                                 return arr
                             }
                             delegate: trayTileDelegate
@@ -3250,7 +3244,7 @@ Item {
                                 if (cur !== "" && App.trayIconPresets.indexOf(cur) === -1
                                         && App.bundledTrayIcons.indexOf(cur) === -1)
                                     return [{ path: cur, label: page.iconLabel(cur),
-                                              src: page.fileUrl(cur) }]
+                                              src: App.fileDragUri(cur) }]
                                 return []
                             }
                             delegate: trayTileDelegate

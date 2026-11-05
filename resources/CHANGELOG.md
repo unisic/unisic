@@ -43,6 +43,7 @@ whole per release (not per individual change).
 - **Updating in place works with a non-ASCII Windows user name**: the tar built into Windows, which unpacks the update, reads its arguments in the system code page, so a user folder with letters outside it (Cyrillic on a Polish Windows, say) could make the unpack fail. Unisic now gives it a path relative to the update folder.
 - **Windows device names never become file names**: a save name template that came out as `nul`, `con`, `aux`, `prn`, `com1` or `lpt1`, with or without an extension, saved the capture to a Windows device instead of a file, and it was lost. Such a name now gets a leading underscore.
 - **Recording sound on Windows follows a new default device**: switching the default speakers or microphone during a recording kept the recording on the old device, so the system sound went silent from then on. It now moves to the new default within a second. A microphone picked by name stays that microphone.
+- **Start at login matches Task Manager on Windows**: Unisic switched off under startup apps in Task Manager or Windows Settings does not start, but its own switch still showed on. It now shows off, and turning it on again enables it in both places.
 
 ### Polski
 **Dodane**
@@ -79,6 +80,7 @@ whole per release (not per individual change).
 - **Aktualizacja w miejscu działa z nazwą użytkownika Windows spoza ASCII**: wbudowany w Windows tar, który rozpakowuje aktualizację, czyta argumenty w stronie kodowej systemu, więc folder użytkownika z literami spoza niej (np. cyrylica w polskim Windows) mógł sprawić, że rozpakowanie się nie udało. Unisic podaje mu teraz ścieżkę względną wobec folderu aktualizacji.
 - **Nazwy urządzeń Windows nie stają się nazwami plików**: szablon nazwy zapisu, z którego wychodziło `nul`, `con`, `aux`, `prn`, `com1` albo `lpt1`, z rozszerzeniem lub bez, zapisywał zrzut do urządzenia Windows zamiast do pliku i zrzut przepadał. Taka nazwa dostaje teraz podkreślnik na początku.
 - **Dźwięk w nagraniu na Windows podąża za nowym domyślnym urządzeniem**: zmiana domyślnych głośników albo mikrofonu w trakcie nagrania zostawiała nagranie na starym urządzeniu, więc dźwięk systemu od tej chwili milkł. Teraz nagranie przechodzi na nowe domyślne urządzenie w ciągu sekundy. Mikrofon wybrany z nazwy zostaje tym mikrofonem.
+- **Uruchom przy logowaniu zgadza się z Menedżerem zadań na Windows**: Unisic wyłączony w aplikacjach autostartu w Menedżerze zadań albo w Ustawieniach Windows się nie uruchamia, a jego własny przełącznik dalej pokazywał włączenie. Teraz pokazuje wyłączenie, a ponowne włączenie włącza go w obu miejscach.
 
 ## 0.8.8
 

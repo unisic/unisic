@@ -1173,11 +1173,13 @@ QString UploadManager::extractUrl(const QJsonObject &dest, const QString &key, c
     return url;
 }
 
-// Quotes and CR/LF in a filename would corrupt (or inject into) multipart
-// headers; path separators would change the remote path on curl targets.
+// Quotes and control characters in a filename would corrupt (or inject into)
+// multipart headers and a JSON body template, where even a tab is invalid;
+// path separators would change the remote path on curl targets.
 static QString sanitizeFileName(QString name)
 {
-    name.remove(QLatin1Char('"')).remove(QLatin1Char('\r')).remove(QLatin1Char('\n'));
+    name.remove(QLatin1Char('"'));
+    name.removeIf([](QChar c) { return c.unicode() < 0x20 || c.unicode() == 0x7f; });
     name.replace(QLatin1Char('/'), QLatin1Char('_')).replace(QLatin1Char('\\'), QLatin1Char('_'));
     name = name.trimmed();
     return name.isEmpty() ? QStringLiteral("upload.bin") : name;

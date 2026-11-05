@@ -25,15 +25,21 @@ const QLatin1String kSig("sig");
 const QByteArray kSignKey = QByteArrayLiteral("715579944aa9472b376859cdec5fe5c26e2a0ff5bea54a602bf36eefab39ffe2");
 
 // The whole file. A missing file is an empty object; nullopt means the file
-// exists but is not a stats file, so it must not be written over.
-std::optional<QJsonObject> load(const QString &path)
+// exists but could not be read (*ioError set) or is not a stats file, so it
+// must not be written over. A read error says nothing about the content, so
+// the caller must not set the file aside for it either.
+std::optional<QJsonObject> load(const QString &path, bool *ioError = nullptr)
 {
     QFile f(path);
     if (!f.exists())
         return QJsonObject{};
-    if (!f.open(QIODevice::ReadOnly))
+    const QByteArray data = f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    if (f.error() != QFileDevice::NoError) {
+        if (ioError)
+            *ioError = true;
         return std::nullopt;
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    }
+    const QJsonObject root = QJsonDocument::fromJson(data).object();
     if (root.value(QLatin1String("format")).toString() != kFormat
         || root.value(kSig).toString().toLatin1()
                != CaptureStats::signature(root.value(kId).toString(), root.value(kScreenshots).toObject()))
@@ -63,11 +69,19 @@ QString CaptureStats::filePath()
 
 bool CaptureStats::record(const QString &path, QDate day)
 {
-    std::optional<QJsonObject> root = load(path);
+    bool ioError = false;
+    std::optional<QJsonObject> root = load(path, &ioError);
     if (!root) {
+        if (ioError) {
+            qWarning() << "unisic.stats unreadable, this capture is not counted:" << path;
+            return false;
+        }
         const QString bak = path + QStringLiteral(".broken-")
                             + QString::number(QDateTime::currentSecsSinceEpoch());
-        QFile::rename(path, bak);
+        if (!QFile::rename(path, bak)) {
+            qWarning() << "unisic.stats unparseable and could not be set aside as" << bak;
+            return false;
+        }
         qWarning() << "unisic.stats unparseable, preserved as" << bak;
         root = QJsonObject{};
     }

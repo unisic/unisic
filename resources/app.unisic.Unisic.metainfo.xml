@@ -70,6 +70,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.9" date="2026-11-05">
+      <description>
+        <p>When an upload fails, the next server on your list takes the file (the Failure Chain), and the capture card lets you pick the server for one capture; GitHub Pages is a built-in destination. The editor is laid out like an image editor, a capture can be acted on straight from its History preview, Unisic counts your screenshots per day for unisic.app/stats, and bash and zsh complete its command line. Recordings keep sound and picture in sync on a busy computer, a scrolling capture is no longer blurred under Better Blur, and the experimental Windows build gets thumbnails in History, faster full-screen recording and a series of fixes.</p>
+      </description>
+    </release>
     <release version="0.8.8" date="2026-10-19">
       <description>
         <p>The tool icons on the selection toolbar have a size setting and are sharp again, the installer moved to unisic.app, and Plasma trusts the Debian, Ubuntu and Fedora packages again. Screenshots from a lower-scale screen, recorded regions on a fractionally scaled screen and selections on a scaled screen keep their real size; a finished GIF or video goes on the clipboard, the editor opens fully on screen, and --output waits for the file it names. An experimental Windows 11 build is on the release page as well.</p>

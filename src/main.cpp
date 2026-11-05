@@ -459,23 +459,22 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
 {
     *handedOff = false;
     *handoffResult = 0;
-    auto *server = new QLocalServer(app);
-    if (server->listen(serverName))
-        return server;
 
-    // Serialize the recovery below across near-simultaneous spawns (autostart
-    // plus a compositor-keybind `unisic --region`): unguarded, one process can
-    // removeServer() — an unconditional unlink — the socket another just
-    // bound, booting two full instances. QLockFile auto-breaks locks held by
-    // dead PIDs, so a crash mid-recovery can't wedge future launches; a failed
-    // tryLock (broken tmp) just degrades to the old unserialized behavior.
-    QLockFile recoveryLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
-    recoveryLock.tryLock(2000);
+    // Serialize probe-and-listen across near-simultaneous spawns (autostart
+    // plus a hotkey `unisic --region`). On Linux listen() refuses a taken
+    // name, but removeServer() below is an unconditional unlink that can take
+    // the socket another process just bound. On Windows listen() never
+    // refuses: Qt creates the pipe without FILE_FLAG_FIRST_PIPE_INSTANCE, so
+    // the second process gets its own instance of the same pipe and both boot
+    // in full. QLockFile auto-breaks locks held by dead PIDs, so a crash
+    // mid-start can't wedge future launches; a failed tryLock (broken tmp)
+    // just degrades to the unserialized behavior.
+    QLockFile startLock(QDir::temp().filePath(serverName + QStringLiteral(".lock")));
+    startLock.tryLock(2000);
 
-    // If a peer appeared between our probe and listen(), hand off to it — with
-    // the REAL command, and signal main() to exit: continuing would boot a
-    // duplicate instance with duplicate hotkey registrations (every press
-    // would then fire twice). Otherwise remove the stale socket left by a crash.
+    // A peer that came up between main()'s probe and the lock gets the REAL
+    // command, and main() exits: continuing would boot a duplicate instance
+    // with duplicate hotkey registrations (every press would then fire twice).
     const auto tryHandoff = [&] {
         if (expectsReply) {
             const int result = requestExistingCapture(serverName, command);
@@ -488,17 +487,20 @@ static QLocalServer *createSingleInstanceServer(const QString &serverName, QCore
     };
     if (tryHandoff()) {
         *handedOff = true;
-        delete server;
         return nullptr;
     }
+    auto *server = new QLocalServer(app);
+    if (server->listen(serverName))
+        return server;
+    // No peer answered, so a name still in use is a stale socket from a crash.
     QLocalServer::removeServer(serverName);
     if (server->listen(serverName))
         return server;
 
-    // Still can't bind — most likely a live peer took the name meanwhile, so
-    // hand off instead of continuing as an unguarded duplicate. Only the
-    // genuinely environmental no-peer case (broken runtime dir) falls through
-    // to warn-and-continue.
+    // Still can't bind: a peer that ignored the lock (broken tmp) may have
+    // taken the name meanwhile, so hand off instead of continuing as an
+    // unguarded duplicate. Only the genuinely environmental no-peer case
+    // (broken runtime dir) falls through to warn-and-continue.
     if (tryHandoff()) {
         *handedOff = true;
         delete server;

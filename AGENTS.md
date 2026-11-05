@@ -270,8 +270,9 @@ Each of these cost real debugging hours and is now load-bearing. Changing the su
 
 ### Process / single-instance
 
-- **Single-instance socket is keyed on UID alone** (`org.unisic.Unisic.<uid>`), deliberately not on any session/display env var - those disagree across autostart vs click vs keybind-spawn and would split into duplicate instances (double hotkey dispatch, racing QSettings writers). A CLI capture flag forwards to the running instance and must trigger the action there, not just raise the window.
-- **A running release AppImage owns the socket** (`/tmp/org.unisic.Unisic.<uid>`), so a dev `./build/unisic` will *forward and exit in ~60 ms* - your code never runs. See §11.
+- **Single-instance socket is keyed on UID alone** (`app.unisic.Unisic.<uid>`, `app.unisic.UnisicDev.<uid>` for a dev build, `USERNAME` in place of the UID on Windows), deliberately not on any session/display env var - those disagree across autostart vs click vs keybind-spawn and would split into duplicate instances (double hotkey dispatch, racing QSettings writers). A CLI capture flag forwards to the running instance and must trigger the action there, not just raise the window.
+- **A running release AppImage owns the socket** (`/tmp/app.unisic.Unisic.<uid>`), so a dev `./build/unisic` will *forward and exit in ~60 ms* - your code never runs. See §11.
+- **`createSingleInstanceServer` takes the `QLockFile` BEFORE its handoff probe and `listen()`, and keeps it until the server listens.** On Windows `listen()` never refuses a taken name: Qt creates the named pipe without `FILE_FLAG_FIRST_PIPE_INSTANCE`, so two simultaneous starts both listen and both boot. The lock is the only thing that makes the second one find the first.
 
 ### QML singleton trap
 

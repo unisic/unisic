@@ -2749,7 +2749,12 @@ static QString editorZoomCheck(QQuickWindow *win)
     // does a left drag, since the editor opens with no tool picked.
     flick->setProperty("zoom", flick->property("maxZoom"));
     if (!flick->property("canPan").toBool())
-        return QStringLiteral("FAIL (nothing to pan at %1)").arg(zoom());
+        return QStringLiteral("FAIL (nothing to pan at %1: content %2x%3 in %4x%5)")
+            .arg(zoom())
+            .arg(flick->property("contentWidth").toDouble())
+            .arg(flick->property("contentHeight").toDouble())
+            .arg(flick->width())
+            .arg(flick->height());
     const auto contentY = [flick] { return flick->property("contentY").toDouble(); };
     const double zoomedMax = zoom();
     if (wheelDevice) {
@@ -5155,9 +5160,9 @@ void AppContext::runSmokeTest()
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
-        QImage t(64, 64, QImage::Format_ARGB32);
-        t.fill(QColor(0x2E, 0x23, 0x6C));
-        openEditor(t);
+        // Big enough to overflow the view at the zoom check's largest zoom,
+        // which the pan half needs.
+        openEditor(devTestImage());
         smokeLog(QStringLiteral("editor open: ") + (m_editorWindows > before
                  ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
         const QPointer<QQuickWindow> win = m_editorWindows > before && !m_smokeWindows.isEmpty()

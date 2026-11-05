@@ -23,6 +23,7 @@ Rectangle {
     implicitHeight: compact ? 34 : 42
     implicitWidth: leftPart.implicitWidth + 1 + rightPart.implicitWidth
     radius: height / 2
+    opacity: root.enabled ? 1.0 : 0.4
     color: Theme.tertiary
     border.width: 1
     border.color: Theme.divider

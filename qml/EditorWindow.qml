@@ -12,14 +12,16 @@ Window {
     // toolbar control visible, and never above the work area - oversized
     // images get a fit-scaled (and zoomable/pannable) canvas instead.
     width: Math.min(Math.max(minimumWidth, canvas.imageSize.width / Screen.devicePixelRatio
-                                           + 2 * Theme.spacingM + 2 * fitSide),
+                                           + 2 * fitPad + railWidth + Theme.spacingS),
                     Screen.width * 0.9)
     height: Math.min(Math.max(minimumHeight,
                               canvas.imageSize.height / Screen.devicePixelRatio
-                              + chromeTop + 2 * Theme.spacingM + fitTop + fitBottom),
+                              + 2 * fitPad + topBar.rowHeight + statusBar.height),
                      Screen.height * 0.9)
     minimumWidth: 820
-    minimumHeight: 480
+    // Tall enough for one column of tools under two rows of top bar, short
+    // of the screen: on a low one the rail takes a second column instead.
+    minimumHeight: Math.min(2 * topBar.rowHeight + toolRail.oneColumn, Math.floor(Screen.height * 0.9))
     // AppContext::openEditor centres and shows the window once it exists. Shown from here,
     // it would map before Component.onCompleted hands the canvas its image, at
     // the 820x480 minimum: the platform centres THAT size, then the window
@@ -34,17 +36,15 @@ Window {
     flags: App.settings.useSystemDecoration
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
-    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
-    // The bars float over the stage; a fitted image keeps clear of them by
-    // these margins (stage px). The options bar's slot is reserved whether it
-    // shows or not, so picking a tool never moves or rescales the image. A
-    // narrow window wraps the options bar onto more lines; those overlap the
-    // image's top edge instead of shrinking it, and canvasFlick.topMargin keeps
-    // that edge reachable by panning.
-    readonly property int pillHeight: 40 + 2 * Theme.spacingS                          // = 52
-    readonly property int fitTop: Theme.spacingM + 2 * pillHeight + 2 * Theme.spacingS  // = 128
-    readonly property int fitBottom: Theme.spacingM + pillHeight + Theme.spacingS       // = 70
-    readonly property int fitSide: Theme.spacingM
+    // A fitted image keeps this far from the stage card's edges (stage px).
+    readonly property int fitPad: Theme.spacingM
+    // The tool rail with one column of chips, and the top bar with one row.
+    // A short window wraps the rail into more columns and a narrow one moves
+    // the tool options to a row of their own, but the size the window opens
+    // at and the choice of rows assume one of each: bound to the real ones,
+    // the width would depend on the height that depends on it, and a resize
+    // that changes the rows would snap the window back to the image's size.
+    readonly property int railWidth: 40 + 2 * Theme.spacingS
 
     // A Flow wrapped into `limit`, by the Flow's own rule (a child goes on the
     // current line unless it would cross the edge and is not alone there):
@@ -365,80 +365,500 @@ Window {
             e.accepted = true
         }
 
-        // ---------- custom title bar (frameless decoration) ----------
-        // The main window's bar: it blends into the backdrop with the title
-        // centred and dimmed, and only the stage below is a card.
+        // ---------- layout ----------
+        // An image editor's frame: the tools in a rail down the left edge, the
+        // title, the active tool's options and the exports in one bar along
+        // the top, the view controls in a status line at the bottom, and the
+        // image alone in the card between them. Nothing floats over the image,
+        // so a fitted image is never under a bar and gets the height the old
+        // floating bars took.
+
+        // Window drag (frameless decoration) on the bare parts of the top bar.
+        // Every press on it is eaten, also with system decorations, so a click
+        // on the padding of a bar never reaches the canvas under it.
+        component DragArea: MouseArea {
+            acceptedButtons: Qt.AllButtons
+            cursorShape: Qt.ArrowCursor
+            property real pressX: 0
+            property real pressY: 0
+            property bool moving: false
+            onWheel: (wheel) => wheel.accepted = true
+            // Deferred startSystemMove past a drag threshold - same pattern
+            // (and reason) as Main.qml's title bar.
+            onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
+            onPositionChanged: (m) => {
+                if (App.settings.useSystemDecoration || !(pressedButtons & Qt.LeftButton))
+                    return
+                if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
+                    moving = true
+                    editorWindow.startSystemMove()
+                }
+            }
+            onDoubleClicked: (m) => {
+                if (App.settings.useSystemDecoration || m.button !== Qt.LeftButton)
+                    return
+                editorWindow.visibility === Window.Maximized
+                    ? editorWindow.showNormal() : editorWindow.showMaximized()
+            }
+        }
+
+        // UNLIKE the capture overlay, the chips in here ARE tab stops (the
+        // kit default). They can be: this window's key scope ends its
+        // if/else chain with a bare `return`, so an unmatched key - Tab
+        // included - is left UNaccepted and Qt's focus chain still works;
+        // and ToolChip only binds Space/Return/Enter, which auto-accept
+        // exactly themselves, so P/L/A/T/... and every Ctrl chord keep
+        // bubbling from a focused chip up to shortcutScope.
+        //
+        // Measured with real key events on a focused chip, in an offscreen
+        // probe built from this file's own handler text: P and T switched
+        // the tool, Ctrl+Z reached undo and Escape reached the scope, all
+        // three with the chip's activation count still 0, while Space,
+        // Return and Enter activated the chip and did NOT reach the scope.
+        // Tab alone is not covered by that probe (a qmltestrunner window
+        // runs no focus chain), so that half rests on the `else return`
+        // that closes the chain.
+        //
+        // Declared first so Tab starts on the tools.
         Item {
-            id: editorTitleBar
+            id: toolRail
+            anchors.top: topBar.bottom
+            anchors.left: parent.left
+            anchors.bottom: parent.bottom
+            width: toolColumn.width + 2 * Theme.spacingS
+            readonly property real oneColumn: toolRepeater.count * (40 + toolColumn.spacing) - toolColumn.spacing
+                                              + Theme.spacingM + historyColumn.height + statusBar.height
+            Accessible.role: Accessible.ToolBar
+            Accessible.name: qsTr("Annotation tools")
+
+            // A window too short for one column of tools gets two, so no tool
+            // is ever scrolled away or clipped.
+            Flow {
+                id: toolColumn
+                flow: Flow.TopToBottom
+                x: Theme.spacingS
+                height: parent.height - historyColumn.height - statusBar.height - Theme.spacingM
+                spacing: 2
+                // Same gate as the tool letters in shortcutScope.
+                enabled: !canvas.ocrMode
+
+                Repeater {
+                    id: toolRepeater
+                    model: editorWindow.mainRowModel()
+                    delegate: ToolChip {
+                        iconName: modelData.kind === "group"
+                                  ? modelData.group.iconName
+                                  : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                        // The group glyph has no freedesktop equivalent - always bundled.
+                        iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
+                        label: modelData.kind === "group"
+                               ? modelData.group.label
+                               : ToolCatalog.labelWithShortcut(modelData.tool)
+                        // A tool chip's hover-tip label already IS its
+                        // spoken name, shortcut letter included, and
+                        // ToolChip falls back to it. A GROUP chip's
+                        // label is the bare word "Shapes", which says
+                        // nothing about it being a group or about the
+                        // press opening its members in the options bar -
+                        // so it names itself here instead. The visible
+                        // label is untouched, and the spoken name still
+                        // STARTS with it, so "click Shapes" keeps working.
+                        accessibleName: modelData.kind === "group"
+                                        ? qsTr("%1 tool group").arg(modelData.group.label)
+                                        : ""
+                        accessibleDescription: modelData.kind === "group"
+                                        ? qsTr("Opens these tools in the options bar: %1. The group itself has no shortcut.")
+                                              .arg(editorWindow.groupMembers(modelData.group.id))
+                                        : ""
+                        active: modelData.kind === "group"
+                                ? editorWindow.shapesActive
+                                : canvas.tool === modelData.tool.tool
+                        // A second click puts the tool down, like the
+                        // group chip does: the pointer is the hand again.
+                        onClicked: modelData.kind === "group"
+                                   ? editorWindow.toggleShapesGroup()
+                                   : canvas.tool = canvas.tool === modelData.tool.tool
+                                                   ? AnnotationCanvas.None : modelData.tool.tool
+                    }
+                }
+            }
+
+            // Undo and Redo close the rail, level with the bottom of the image.
+            Column {
+                id: historyColumn
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: statusBar.height
+                spacing: 2
+
+                ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
+                ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
+            }
+        }
+
+        // The title bar (frameless decoration), the active tool's options and
+        // the exports. The options share the title's row when the widest
+        // tool's options fit beside the exports, and get a row of their own
+        // when they do not. Which one follows the window's width alone, never
+        // the tool, so picking a tool never moves or rescales the image.
+        Item {
+            id: topBar
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            height: editorWindow.chromeTop
-            visible: !App.settings.useSystemDecoration
+            readonly property int rowHeight: 40 + 2 * Theme.spacingS
+            // The widest tool's options: the text tool's measure 865 px in
+            // English (offscreen probe, ToolPropsBar.naturalWidth). Wider ones
+            // (a long translation, OCR mode) wrap, see ctxPanel.
+            readonly property int optionsBudget: 880
+            // The tool options start level with the stage's left edge.
+            readonly property real rowRoom: width - rightCluster.width - Theme.spacingS
+                                            - Theme.spacingM - editorWindow.railWidth
+            readonly property bool twoRows: rowRoom < optionsBudget
+            // How far the options reach below the bar once they wrap. They
+            // overlap the image's top edge instead of shrinking it, and
+            // canvasFlick.topMargin keeps that edge reachable by panning.
+            readonly property real overflow: ctxPanel.visible
+                ? Math.max(0, ctxPanel.y + ctxPanel.height - height) : 0
+            height: twoRows ? 2 * rowHeight : rowHeight
+            // Over the stage, for the wrapped options.
             z: 20
-            // Deferred startSystemMove past a drag threshold - same pattern
-            // (and reason) as Main.qml's title bar.
-            MouseArea {
-                anchors.fill: parent
-                property real pressX: 0
-                property real pressY: 0
-                property bool moving: false
-                onPressed: (m) => { pressX = m.x; pressY = m.y; moving = false }
-                onPositionChanged: (m) => {
-                    if (!moving && (Math.abs(m.x - pressX) > 6 || Math.abs(m.y - pressY) > 6)) {
-                        moving = true
-                        editorWindow.startSystemMove()
-                    }
-                }
-                onDoubleClicked: editorWindow.visibility === Window.Maximized
-                                 ? editorWindow.showNormal() : editorWindow.showMaximized()
-            }
+
+            DragArea { anchors.fill: parent }
+
+            // Centred while there is room beside the right cluster, then
+            // pushed left of it and elided.
             Text {
-                anchors.centerIn: parent
-                width: Math.min(implicitWidth, parent.width - 2 * (titleButtons.width + Theme.spacingL))
+                readonly property real room: rightCluster.x - Theme.spacingL - Theme.spacingM
+                visible: !App.settings.useSystemDecoration && (topBar.twoRows || !ctxPanel.shown)
+                width: Math.min(implicitWidth, room)
+                x: Math.max(Theme.spacingM, Math.min((parent.width - width) / 2, room + Theme.spacingM - width))
+                y: Math.round((topBar.rowHeight - height) / 2)
                 elide: Text.ElideRight
                 text: editorWindow.title
                 color: Theme.textSecondary
                 font.pixelSize: Theme.fontM
                 font.weight: Font.DemiBold
             }
+
+            // The active tool's options, the Shapes group's members, the crop
+            // and OCR actions: whatever the moment needs, under the title or
+            // in its place.
+            Rectangle {
+                id: ctxPanel
+                // Props follow the active tool, or the SELECTED shape when
+                // the Edit tool is active.
+                readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
+                readonly property real maxW: topBar.twoRows
+                    ? topBar.width - toolRail.width - Theme.spacingS
+                    : rightCluster.x - Theme.spacingM - toolRail.width
+                readonly property bool shown: canvas.ocrMode || editorWindow.shapesActive
+                    || ctxProps.length > 0 || canvas.hasAnnotSelection
+                    || (canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection)
+                // Level with the stage, so lines that wrap hang over the image
+                // and never over the tool rail.
+                x: toolRail.width - Theme.spacingS
+                y: topBar.twoRows ? topBar.rowHeight : 0
+                width: ctxFlow.width + 2 * Theme.spacingS
+                height: Math.max(topBar.rowHeight, ctxFlow.height + 2 * Theme.spacingS)
+                // The bar's own colour: invisible on the bar, a panel where
+                // wrapped lines hang over the image.
+                color: Theme.backgroundDeep
+                bottomLeftRadius: Theme.radiusL
+                bottomRightRadius: Theme.radiusL
+                // Fades in, but hides at once: everything inside is bound to
+                // the same state and is already gone.
+                opacity: shown ? 1 : 0
+                visible: shown
+                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
+                Accessible.role: Accessible.ToolBar
+                Accessible.name: qsTr("Tool options")
+
+                DragArea { anchors.fill: parent }
+
+                Flow {
+                    id: ctxFlow
+                    x: Theme.spacingS
+                    anchors.verticalCenter: parent.verticalCenter
+                    // The widest line it lays out once wrapped evenly into
+                    // the room it has, never the whole room.
+                    width: editorWindow.flowWidth(ctxFlow, editorWindow.flowBalanced(ctxFlow, ctxPanel.maxW))
+                    // Same 6 px gap the props strip uses internally,
+                    // horizontally and between lines.
+                    spacing: 6
+
+                    // The group chips and the delete affordance are one
+                    // block, so they wrap as one.
+                    Row {
+                        id: shapesRow
+                        spacing: 6
+                        // A zero-width but VISIBLE child still costs the
+                        // Flow a spacing gap. Spelled out rather than
+                        // derived from `implicitWidth > 0`: a positioner
+                        // reports content size 0 while it is itself
+                        // invisible, so that form latches off the first
+                        // time it is false and never comes back.
+                        visible: !canvas.ocrMode && (editorWindow.shapesActive || canvas.hasAnnotSelection)
+
+                        Repeater {
+                            model: editorWindow.shapesActive ? editorWindow.shapesTools : []
+                            delegate: ToolChip {
+                                iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: App.settings.editorIconStyle
+                                label: ToolCatalog.labelWithShortcut(modelData)
+                                active: canvas.tool === modelData.tool
+                                onClicked: {
+                                    canvas.tool = modelData.tool
+                                    editorWindow.currentShapeId = modelData.id
+                                }
+                            }
+                        }
+
+                        // Delete affordance for the selected shape - shown for
+                        // any tool, since a plain click selects shapes now.
+                        ToolChip {
+                            visible: canvas.hasAnnotSelection
+                            iconName: "edit-delete"
+                            label: qsTr("Delete shape")
+                            anchors.verticalCenter: parent.verticalCenter
+                            onClicked: canvas.removeSelectedAnnot()
+                        }
+
+                        Rectangle {
+                            visible: ctxPanel.ctxProps.length > 0
+                            // Nothing to separate once the props wrap below.
+                            opacity: propsBar.y > shapesRow.y ? 0 : 1
+                            width: 1; height: 30; color: Theme.divider
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    ToolPropsBar {
+                        id: propsBar
+                        visible: !canvas.ocrMode && ctxPanel.ctxProps.length > 0
+                        canvas: canvas
+                        props: ctxPanel.ctxProps
+                        recentColors: editorWindow.recentList()
+                        // Bounded, the strip wraps - and the Flow drops it onto
+                        // its own line first, so it only has to wrap inside
+                        // itself when even a whole line is not enough. Then
+                        // into even lines, like the Flow around it.
+                        maxWidth: editorWindow.flowBalanced(propsBar, ctxPanel.maxW)
+                        onStrokePickerRequested: strokePopup.openWith(canvas.strokeColor)
+                        onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
+                        onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
+                        onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
+                    }
+
+                    UButton {
+                        visible: !canvas.ocrMode && canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection
+                        compact: true
+                        text: qsTr("Apply crop")
+                        onClicked: canvas.applyCrop()
+                    }
+
+                    // --- OCR text selection ---
+                    // How to select is in the status line, which OCR fills
+                    // with its result and the gestures.
+                    UButton {
+                        visible: canvas.ocrMode
+                        compact: true
+                        iconName: "edit-copy"
+                        text: canvas.ocrBusy ? qsTr("Recognizing…") : qsTr("Copy selection")
+                        enabled: canvas.hasOcrSelection
+                        onClicked: editorSession.copyOcrSelection()
+                    }
+                    UButton {
+                        visible: canvas.ocrMode
+                        compact: true
+                        iconName: "draw-highlight"
+                        text: qsTr("Highlight selection")
+                        enabled: canvas.hasOcrSelection
+                        onClicked: editorSession.highlightOcrSelection()
+                    }
+                    UButton {
+                        visible: canvas.ocrMode
+                        compact: true
+                        // No "blur" icon - redaction paints an OPAQUE black bar (a
+                        // blur/mosaic of a password is recoverable); the wrong icon
+                        // misrepresented the result.
+                        iconName: "edit-delete"
+                        text: qsTr("Redact selection")
+                        enabled: canvas.hasOcrSelection
+                        onClicked: editorSession.redactOcrSelection()
+                    }
+                    // Pattern redaction: the point is to black out the few secrets
+                    // in a shot, not all of its text (Select all + Redact selection
+                    // already does that, and leaves an unreadable image). The
+                    // patterns are regexes and are NOT translated - only the labels.
+                    UMenuButton {
+                        visible: canvas.ocrMode
+                        height: 34
+                        text: qsTr("Auto-redact")
+                        enabled: !canvas.ocrBusy
+                        actions: [
+                            { label: qsTr("E-mail addresses"), iconName: "edit-delete",
+                              trigger: function () {
+                                  editorSession.redactTextMatching("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")
+                              } },
+                            { label: qsTr("IP addresses"), iconName: "edit-delete",
+                              trigger: function () {
+                                  editorSession.redactTextMatching("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")
+                              } },
+                            { label: qsTr("Long numbers"), iconName: "edit-delete",
+                              trigger: function () {
+                                  editorSession.redactTextMatching("\\d[\\d -]{5,}\\d")
+                              } }
+                        ]
+                    }
+                    UButton {
+                        visible: canvas.ocrMode
+                        compact: true
+                        text: qsTr("Select all"); variant: "tonal"
+                        enabled: !canvas.ocrBusy
+                        onClicked: canvas.ocrSelectAll()
+                    }
+                    UButton {
+                        visible: canvas.ocrMode
+                        compact: true
+                        iconName: "close"; text: qsTr("Done"); variant: "ghost"
+                        onClicked: canvas.clearOcrMode()
+                    }
+                }
+            }
+
             Row {
-                id: titleButtons
+                id: rightCluster
                 anchors.right: parent.right
-                anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 2
-                UIconButton {
-                    iconName: "minus"; iconSize: 14; width: 30; height: 30
-                    tooltip: qsTr("Minimize")
-                    onClicked: editorWindow.showMinimized()
+                anchors.rightMargin: Theme.spacingS
+                y: Math.round((topBar.rowHeight - height) / 2)
+                spacing: Theme.spacingS
+
+                // Primary exports stay labelled; the occasional OCR actions
+                // live behind one "More" menu. Closing is the title bar's (and
+                // Esc's). In OCR mode its own actions sit in the options and
+                // these, which act on the whole image, are disabled until
+                // "Done" - disabled rather than hidden, so nothing in the bar
+                // moves when OCR starts.
+                Row {
+                    id: actionRow
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    enabled: !canvas.ocrMode
+                    Accessible.role: Accessible.ToolBar
+                    Accessible.name: qsTr("Editor actions")
+
+                    UButton {
+                        compact: true
+                        iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
+                        onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+                    }
+                    USplitMenuButton {
+                        compact: true
+                        iconName: "document-save"
+                        text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
+                        tooltip: editorSession.overwriteMode ? qsTr("Overwrite (Ctrl+S)") : qsTr("Save (Ctrl+S)")
+                        dropdownTooltip: qsTr("More save options")
+                        onClicked: editorWindow.doSave()
+                        actions: [
+                            { label: qsTr("Save as…"), iconName: "document-save",
+                              hint: "Ctrl+Shift+S",
+                              trigger: function () {
+                                  editorWindow.doSaveAs()
+                              } },
+                            { label: qsTr("Save as PNG"), iconName: "document-save",
+                              separatorBefore: true,
+                              hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
+                              trigger: function () {
+                                  editorWindow.commitPendingText()
+                                  editorSession.saveAs("png")
+                              } },
+                            { label: qsTr("Save as JPEG"), iconName: "document-save",
+                              hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
+                              trigger: function () {
+                                  editorWindow.commitPendingText()
+                                  editorSession.saveAs("jpg")
+                              } },
+                            { label: qsTr("Save as WebP"), iconName: "document-save",
+                              hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
+                              trigger: function () {
+                                  editorWindow.commitPendingText()
+                                  editorSession.saveAs("webp")
+                              } },
+                            { label: qsTr("Save as GIF"), iconName: "document-save",
+                              enabled: App.ffmpegAvailable,
+                              hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
+                                    : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
+                              trigger: function () {
+                                  editorWindow.commitPendingText()
+                                  editorSession.saveAs("gif")
+                              } }
+                        ]
+                    }
+                    UButton {
+                        compact: true
+                        iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
+                        variant: "tonal"; enabled: !App.uploads.busy
+                        onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
+                    }
+                    // "More": the occasional text actions. OCR is always built in.
+                    UMenuButton {
+                        id: moreMenu
+                        width: 34; height: 34
+                        anchors.verticalCenter: parent.verticalCenter
+                        iconOnly: true
+                        iconName: "view-more"
+                        tooltip: qsTr("More")
+                        actions: [
+                            { label: qsTr("Copy all text"), iconName: "ocr",
+                              trigger: function () { editorSession.ocrCopyText() } },
+                            { label: qsTr("Select text…"), iconName: "select",
+                              trigger: function () { editorSession.startOcrPick() } }
+                        ]
+                    }
                 }
-                UIconButton {
-                    iconName: "window"; iconSize: 13; width: 30; height: 30
-                    tooltip: qsTr("Maximize")
-                    onClicked: editorWindow.visibility === Window.Maximized
-                               ? editorWindow.showNormal() : editorWindow.showMaximized()
+
+                Rectangle {
+                    visible: !App.settings.useSystemDecoration
+                    width: 1; height: 30; color: Theme.divider
+                    anchors.verticalCenter: parent.verticalCenter
                 }
-                UIconButton {
-                    iconName: "close"; iconSize: 14; width: 30; height: 30
-                    tooltip: qsTr("Close")
-                    onClicked: editorWindow.close()
+
+                Row {
+                    id: titleButtons
+                    visible: !App.settings.useSystemDecoration
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    UIconButton {
+                        iconName: "minus"; iconSize: 14; width: 30; height: 30
+                        tooltip: qsTr("Minimize")
+                        onClicked: editorWindow.showMinimized()
+                    }
+                    UIconButton {
+                        iconName: "window"; iconSize: 13; width: 30; height: 30
+                        tooltip: qsTr("Maximize")
+                        onClicked: editorWindow.visibility === Window.Maximized
+                                   ? editorWindow.showNormal() : editorWindow.showMaximized()
+                    }
+                    UIconButton {
+                        iconName: "close"; iconSize: 14; width: 30; height: 30
+                        tooltip: qsTr("Close")
+                        onClicked: editorWindow.close()
+                    }
                 }
             }
         }
 
         // ---------- stage ----------
-        // One card holds the image and the bars float over it, the way a photo
-        // viewer lays out: tools on top, view and export controls at the
-        // bottom. The fitted image sits in the clear area between them
-        // (fitTop/fitBottom); zoomed in, it pans underneath them.
+        // The same card as the main window's pages, holding the image and
+        // nothing else.
         Rectangle {
             id: stage
-            anchors.fill: parent
-            anchors.topMargin: editorWindow.chromeTop + Theme.spacingM
-            anchors.leftMargin: Theme.spacingM
-            anchors.rightMargin: Theme.spacingM
-            anchors.bottomMargin: Theme.spacingM
+            anchors.top: topBar.bottom
+            anchors.left: toolRail.right
+            anchors.right: parent.right
+            anchors.bottom: statusBar.top
+            anchors.rightMargin: Theme.spacingS
             radius: Theme.radiusL
             color: Theme.background
             border.width: 1
@@ -457,17 +877,15 @@ Window {
                 // flick: a drawing tool owns the left button.
                 interactive: false
                 // The clear area between the bars, in viewport coordinates.
-                readonly property real padSide: editorWindow.fitSide - Theme.spacingS
-                readonly property real padTop: editorWindow.fitTop - Theme.spacingS
-                readonly property real padBottom: editorWindow.fitBottom - Theme.spacingS
+                readonly property real padSide: editorWindow.fitPad - Theme.spacingS
+                readonly property real padTop: padSide
+                readonly property real padBottom: padSide
                 readonly property real availW: Math.max(1, width - 2 * padSide)
                 readonly property real availH: Math.max(1, height - padTop - padBottom)
-                // How far a wrapped options bar reaches past the one line the
-                // fit reserves for it: the image's top can be panned that far
-                // down, out from under the bar. A margin, so the bar wrapping
-                // moves nothing on screen.
-                topMargin: ctxPill.visible
-                    ? Math.max(0, ctxPill.y + ctxPill.height + Theme.spacingS - editorWindow.fitTop) : 0
+                // How far wrapped tool options hang over the stage: the image's
+                // top can be panned that far down, out from under them. A
+                // margin, so the options wrapping moves nothing on screen.
+                topMargin: Math.max(0, topBar.overflow + Theme.spacingS - editorWindow.fitPad)
                 onTopMarginChanged: clampPan()
                 contentWidth: Math.max(width, canvas.width + 2 * padSide)
                 contentHeight: Math.max(height, canvas.height + padTop + padBottom)
@@ -630,6 +1048,18 @@ Window {
                         const p = panArea.mapToItem(canvasFlick, m.x, m.y)
                         canvasFlick.toggleZoom(p.x, p.y)
                     }
+                }
+
+                // The image's edge, for a screenshot of a dark window on the
+                // dark stage. Outside the canvas, so it covers no pixel of it.
+                Rectangle {
+                    x: canvas.x - 1
+                    y: canvas.y - 1
+                    width: canvas.width + 2
+                    height: canvas.height + 2
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Theme.edgeLight
                 }
 
                 AnnotationCanvas {
@@ -855,484 +1285,112 @@ Window {
                     }
                 }
             }
+        }
 
-            // ---------- floating bars ----------
-            // One step up from the stage, with the window's light edge and no
-            // shadow: the stage card is already the layer below them.
-            component Pill: Rectangle {
-                radius: Theme.radiusXL
-                color: Theme.surface
-                border.width: 1
-                border.color: Theme.edgeLight
-                // Presses and wheel turns on the padding stop here instead of
-                // drawing on, or zooming, the image under the bar.
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.AllButtons
-                    cursorShape: Qt.ArrowCursor
-                    onWheel: (wheel) => wheel.accepted = true
-                }
-            }
+        // View zoom and the status line, under the image. The zoom keeps the
+        // same steps as the wheel / Ctrl+± / Ctrl+0 for anyone who never
+        // finds those, and scales the view only: the image, the annotations
+        // and the export are untouched. The percentage has a fixed width so
+        // "25%" -> "100%" never shifts the + button out from under a pointer
+        // clicking it repeatedly.
+        Item {
+            id: statusBar
+            anchors.left: toolRail.right
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.rightMargin: Theme.spacingS
+            height: 32 + 2 * Theme.spacingXS
 
-            // UNLIKE the capture overlay, the chips in here ARE tab stops (the
-            // kit default). They can be: this window's key scope ends its
-            // if/else chain with a bare `return`, so an unmatched key - Tab
-            // included - is left UNaccepted and Qt's focus chain still works;
-            // and ToolChip only binds Space/Return/Enter, which auto-accept
-            // exactly themselves, so P/L/A/T/... and every Ctrl chord keep
-            // bubbling from a focused chip up to shortcutScope.
-            //
-            // Measured with real key events on a focused chip, in an offscreen
-            // probe built from this file's own handler text: P and T switched
-            // the tool, Ctrl+Z reached undo and Escape reached the scope, all
-            // three with the chip's activation count still 0, while Space,
-            // Return and Enter activated the chip and did NOT reach the scope.
-            // Tab alone is not covered by that probe (a qmltestrunner window
-            // runs no focus chain), so that half rests on the `else return`
-            // that closes the chain.
-            Pill {
-                id: toolPill
-                x: Math.round((stage.width - width) / 2)
-                y: Theme.spacingM
-                width: toolRow.width + 2 * Theme.spacingS
-                height: editorWindow.pillHeight
-                Accessible.role: Accessible.ToolBar
-                Accessible.name: qsTr("Annotation tools")
+            DragArea { anchors.fill: parent }
 
-                Row {
-                    id: toolRow
-                    anchors.centerIn: parent
-                    spacing: 4
-
-                    Row {
-                        spacing: 4
-                        // Same gate as the tool letters in shortcutScope.
-                        enabled: !canvas.ocrMode
-
-                        Repeater {
-                            model: editorWindow.mainRowModel()
-                            delegate: ToolChip {
-                                iconName: modelData.kind === "group"
-                                          ? modelData.group.iconName
-                                          : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                                // The group glyph has no freedesktop equivalent - always bundled.
-                                iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
-                                label: modelData.kind === "group"
-                                       ? modelData.group.label
-                                       : ToolCatalog.labelWithShortcut(modelData.tool)
-                                // A tool chip's hover-tip label already IS its
-                                // spoken name, shortcut letter included, and
-                                // ToolChip falls back to it. A GROUP chip's
-                                // label is the bare word "Shapes", which says
-                                // nothing about it being a group or about the
-                                // press opening a sub-bar - so it names itself
-                                // here instead. The visible label is untouched,
-                                // and the spoken name still STARTS with it, so
-                                // "click Shapes" keeps working.
-                                accessibleName: modelData.kind === "group"
-                                                ? qsTr("%1 tool group").arg(modelData.group.label)
-                                                : ""
-                                accessibleDescription: modelData.kind === "group"
-                                                ? qsTr("Opens these tools in the bar below: %1. The group itself has no shortcut.")
-                                                      .arg(editorWindow.groupMembers(modelData.group.id))
-                                                : ""
-                                active: modelData.kind === "group"
-                                        ? editorWindow.shapesActive
-                                        : canvas.tool === modelData.tool.tool
-                                // A second click puts the tool down, like the
-                                // group chip does: the pointer is the hand again.
-                                onClicked: modelData.kind === "group"
-                                           ? editorWindow.toggleShapesGroup()
-                                           : canvas.tool = canvas.tool === modelData.tool.tool
-                                                           ? AnnotationCanvas.None : modelData.tool.tool
-                            }
-                        }
-                    }
-
-                    Rectangle { width: 1; height: 30; color: Theme.divider; anchors.verticalCenter: parent.verticalCenter }
-
-                    ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
-                    ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
-                }
-            }
-
-            // The active tool's options, the Shapes group's members, the crop
-            // and OCR actions: whatever the moment needs, in one bar under the
-            // tools. Its slot is reserved in fitTop whether it shows or not,
-            // so picking a tool never moves or rescales the image.
-            Pill {
-                id: ctxPill
-                // Props follow the active tool, or the SELECTED shape when
-                // the Edit tool is active.
-                readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
-                readonly property real maxW: stage.width - 4 * Theme.spacingM
-                readonly property bool shown: canvas.ocrMode || editorWindow.shapesActive
-                    || ctxProps.length > 0 || canvas.hasAnnotSelection
-                    || (canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection)
-                x: Math.round((stage.width - width) / 2)
-                y: toolPill.y + toolPill.height + Theme.spacingS
-                // Wider at the sides than the tool bar's spacingS: this bar can
-                // open on a 26 px colour dot, which at 6 px sat on the rounded
-                // end; at 12 it is nearly concentric with it.
-                width: ctxFlow.width + 2 * Theme.spacingM
-                height: Math.max(editorWindow.pillHeight, ctxFlow.height + 2 * Theme.spacingS)
-                // Fades in, but hides at once: everything inside is bound to
-                // the same state and is already gone, so a fade-out only
-                // showed the empty 12 px shell in the middle of the stage.
-                opacity: shown ? 1 : 0
-                visible: shown
-                Behavior on opacity { NumberAnimation { duration: Theme.animFast } }
-                Accessible.role: Accessible.ToolBar
-                Accessible.name: qsTr("Tool options")
-
-                Flow {
-                    id: ctxFlow
-                    anchors.centerIn: parent
-                    // The widest line it lays out once wrapped evenly into
-                    // the stage, never the whole stage: the bar hugs its content.
-                    width: editorWindow.flowWidth(ctxFlow, editorWindow.flowBalanced(ctxFlow, ctxPill.maxW))
-                    // Same 6 px gap the props strip uses internally,
-                    // horizontally and between lines.
-                    spacing: 6
-
-                    // The group chips and the delete affordance are one
-                    // block, so they wrap as one.
-                    Row {
-                        id: shapesRow
-                        spacing: 6
-                        // A zero-width but VISIBLE child still costs the
-                        // Flow a spacing gap. Spelled out rather than
-                        // derived from `implicitWidth > 0`: a positioner
-                        // reports content size 0 while it is itself
-                        // invisible, so that form latches off the first
-                        // time it is false and never comes back.
-                        visible: !canvas.ocrMode && (editorWindow.shapesActive || canvas.hasAnnotSelection)
-
-                        Repeater {
-                            model: editorWindow.shapesActive ? editorWindow.shapesTools : []
-                            delegate: ToolChip {
-                                iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                                iconStyle: App.settings.editorIconStyle
-                                label: ToolCatalog.labelWithShortcut(modelData)
-                                active: canvas.tool === modelData.tool
-                                onClicked: {
-                                    canvas.tool = modelData.tool
-                                    editorWindow.currentShapeId = modelData.id
-                                }
-                            }
-                        }
-
-                        // Delete affordance for the selected shape - shown for
-                        // any tool, since a plain click selects shapes now.
-                        ToolChip {
-                            visible: canvas.hasAnnotSelection
-                            iconName: "edit-delete"
-                            label: qsTr("Delete shape")
-                            anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.removeSelectedAnnot()
-                        }
-
-                        Rectangle {
-                            visible: ctxPill.ctxProps.length > 0
-                            // Nothing to separate once the props wrap below.
-                            opacity: propsBar.y > shapesRow.y ? 0 : 1
-                            width: 1; height: 30; color: Theme.divider
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
-
-                    ToolPropsBar {
-                        id: propsBar
-                        visible: !canvas.ocrMode && ctxPill.ctxProps.length > 0
-                        canvas: canvas
-                        props: ctxPill.ctxProps
-                        recentColors: editorWindow.recentList()
-                        // Bounded, the strip wraps - and the Flow drops it onto
-                        // its own line first, so it only has to wrap inside
-                        // itself when even a whole line is not enough. Then
-                        // into even lines, like the Flow around it.
-                        maxWidth: editorWindow.flowBalanced(propsBar, ctxPill.maxW)
-                        onStrokePickerRequested: strokePopup.openWith(canvas.strokeColor)
-                        onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
-                        onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
-                        onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
-                    }
-
-                    UButton {
-                        visible: !canvas.ocrMode && canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection
-                        compact: true
-                        text: qsTr("Apply crop")
-                        onClicked: canvas.applyCrop()
-                    }
-
-                    // --- OCR text selection ---
-                    UButton {
-                        visible: canvas.ocrMode
-                        compact: true
-                        iconName: "edit-copy"
-                        text: canvas.ocrBusy ? qsTr("Recognizing…") : qsTr("Copy selection")
-                        enabled: canvas.hasOcrSelection
-                        onClicked: editorSession.copyOcrSelection()
-                    }
-                    UButton {
-                        visible: canvas.ocrMode
-                        compact: true
-                        iconName: "draw-highlight"
-                        text: qsTr("Highlight selection")
-                        enabled: canvas.hasOcrSelection
-                        onClicked: editorSession.highlightOcrSelection()
-                    }
-                    UButton {
-                        visible: canvas.ocrMode
-                        compact: true
-                        // No "blur" icon - redaction paints an OPAQUE black bar (a
-                        // blur/mosaic of a password is recoverable); the wrong icon
-                        // misrepresented the result.
-                        iconName: "edit-delete"
-                        text: qsTr("Redact selection")
-                        enabled: canvas.hasOcrSelection
-                        onClicked: editorSession.redactOcrSelection()
-                    }
-                    // Pattern redaction: the point is to black out the few secrets
-                    // in a shot, not all of its text (Select all + Redact selection
-                    // already does that, and leaves an unreadable image). The
-                    // patterns are regexes and are NOT translated - only the labels.
-                    UMenuButton {
-                        visible: canvas.ocrMode
-                        height: 34
-                        text: qsTr("Auto-redact")
-                        enabled: !canvas.ocrBusy
-                        actions: [
-                            { label: qsTr("E-mail addresses"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")
-                              } },
-                            { label: qsTr("IP addresses"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")
-                              } },
-                            { label: qsTr("Long numbers"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("\\d[\\d -]{5,}\\d")
-                              } }
-                        ]
-                    }
-                    UButton {
-                        visible: canvas.ocrMode
-                        compact: true
-                        text: qsTr("Select all"); variant: "tonal"
-                        enabled: !canvas.ocrBusy
-                        onClicked: canvas.ocrSelectAll()
-                    }
-                    UButton {
-                        visible: canvas.ocrMode
-                        compact: true
-                        iconName: "close"; text: qsTr("Done"); variant: "ghost"
-                        onClicked: canvas.clearOcrMode()
-                    }
-                }
-            }
-
-            // OCR mode hint - persistent on-canvas guidance so the user isn't
-            // left with a dimmed image and a greyed "Copy selection" button.
-            Text {
-                visible: canvas.ocrMode && !canvas.ocrBusy && !canvas.hasOcrSelection
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: ctxPill.y + ctxPill.height + Theme.spacingS
-                text: qsTr("Click a line · double-click a word · drag for letters")
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontS
-            }
-
-            // View zoom, the same steps as the wheel / Ctrl+± / Ctrl+0 for
-            // anyone who never finds those. It scales the view only: the
-            // image, the annotations and the export are untouched. The
-            // percentage has a fixed width so "25%" -> "100%" never shifts
-            // the + button out from under a pointer clicking it repeatedly.
-            Pill {
-                id: zoomPill
-                x: Theme.spacingM
-                y: stage.height - Theme.spacingM - height
-                width: zoomRow.width + 2 * Theme.spacingS
-                height: editorWindow.pillHeight
+            Row {
+                id: zoomRow
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
                 Accessible.role: Accessible.ToolBar
                 Accessible.name: qsTr("Zoom")
 
-                Row {
-                    id: zoomRow
-                    anchors.centerIn: parent
-                    spacing: 2
-                    UIconButton {
-                        id: zoomOut
-                        objectName: "editorZoomOut"
-                        iconName: "minus"; iconSize: 16; width: 40; height: 40
-                        tooltip: qsTr("Zoom out (Ctrl+-)")
-                        enabled: canvasFlick.effectiveScale > canvasFlick.minZoom + 0.001
-                        onClicked: canvasFlick.zoomBy(1 / 1.2)
-                    }
-                    Rectangle {
-                        id: zoomPct
-                        objectName: "editorZoomPct"
-                        width: zoomPctMetrics.width + 2 * Theme.spacingS
-                        height: 40
-                        radius: Theme.radiusM
-                        color: zoomPctMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16) : "transparent"
-                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
-                        function _activate() { canvasFlick.toggleZoom() }
-                        TextMetrics { id: zoomPctMetrics; font: zoomPctText.font; text: "400%" }
-                        Text {
-                            id: zoomPctText
-                            anchors.centerIn: parent
-                            text: Math.round(canvasFlick.effectiveScale * 100) + "%"
-                            color: canvasFlick.zoom > 0 ? Theme.textPrimary : Theme.textSecondary
-                            font.pixelSize: Theme.fontS + 1
-                            Accessible.ignored: true
-                        }
-                        MouseArea {
-                            id: zoomPctMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: zoomPct._activate()
-                        }
-                        UHoverTip {
-                            anchor: zoomPct
-                            text: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
-                            show: zoomPctMouse.containsMouse
-                        }
-                        activeFocusOnTab: true
-                        Keys.onSpacePressed: (e) => UKeys.activate(e, zoomPct._activate)
-                        Keys.onReturnPressed: (e) => UKeys.activate(e, zoomPct._activate)
-                        Keys.onEnterPressed: (e) => UKeys.activate(e, zoomPct._activate)
-                        Accessible.role: Accessible.Button
-                        Accessible.name: qsTr("Zoom %1%").arg(Math.round(canvasFlick.effectiveScale * 100))
-                        Accessible.description: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
-                        Accessible.focusable: true
-                        Accessible.onPressAction: zoomPct._activate()
-                        UFocusRing {}
-                    }
-                    UIconButton {
-                        id: zoomIn
-                        objectName: "editorZoomIn"
-                        iconName: "plus"; iconSize: 16; width: 40; height: 40
-                        tooltip: qsTr("Zoom in (Ctrl++)")
-                        enabled: canvasFlick.effectiveScale < canvasFlick.maxZoom - 0.001
-                        onClicked: canvasFlick.zoomBy(1.2)
-                    }
-                    Rectangle {
-                        visible: statusLabel.visible
-                        width: 1; height: 30; color: Theme.divider
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    // Image size, or the last export's result. It gets what the
-                    // bottom edge has left once both bars are placed, and drops
-                    // out rather than shrink to a few letters.
+                UIconButton {
+                    id: zoomOut
+                    objectName: "editorZoomOut"
+                    iconName: "minus"; iconSize: 14; width: 32; height: 32
+                    tooltip: qsTr("Zoom out (Ctrl+-)")
+                    enabled: canvasFlick.effectiveScale > canvasFlick.minZoom + 0.001
+                    onClicked: canvasFlick.zoomBy(1 / 1.2)
+                }
+                Rectangle {
+                    id: zoomPct
+                    objectName: "editorZoomPct"
+                    width: zoomPctMetrics.width + 2 * Theme.spacingS
+                    height: 32
+                    radius: Theme.radiusS
+                    color: zoomPctMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16) : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    function _activate() { canvasFlick.toggleZoom() }
+                    TextMetrics { id: zoomPctMetrics; font: zoomPctText.font; text: "400%" }
                     Text {
-                        id: statusLabel
-                        readonly property real room: stage.width - 2 * Theme.spacingM
-                            - (actionPill.visible ? actionPill.width + Theme.spacingM : 0)
-                            - 2 * Theme.spacingS - zoomOut.width - zoomPct.width - zoomIn.width
-                            - 1 - 4 * zoomRow.spacing
-                        visible: room >= 80
-                        width: Math.min(implicitWidth, room)
-                        anchors.verticalCenter: parent.verticalCenter
-                        leftPadding: Theme.spacingS
-                        rightPadding: Theme.spacingS
-                        text: editorSession.statusText !== ""
-                              ? editorSession.statusText
-                              : canvas.imageSize.width + " × " + canvas.imageSize.height + " px"
-                        color: Theme.textSecondary
+                        id: zoomPctText
+                        anchors.centerIn: parent
+                        text: Math.round(canvasFlick.effectiveScale * 100) + "%"
+                        color: canvasFlick.zoom > 0 ? Theme.textPrimary : Theme.textSecondary
                         font.pixelSize: Theme.fontS + 1
-                        elide: Text.ElideMiddle
+                        Accessible.ignored: true
                     }
+                    MouseArea {
+                        id: zoomPctMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: zoomPct._activate()
+                    }
+                    UHoverTip {
+                        anchor: zoomPct
+                        text: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
+                        show: zoomPctMouse.containsMouse
+                    }
+                    activeFocusOnTab: true
+                    Keys.onSpacePressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Keys.onReturnPressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Keys.onEnterPressed: (e) => UKeys.activate(e, zoomPct._activate)
+                    Accessible.role: Accessible.Button
+                    Accessible.name: qsTr("Zoom %1%").arg(Math.round(canvasFlick.effectiveScale * 100))
+                    Accessible.description: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
+                    Accessible.focusable: true
+                    Accessible.onPressAction: zoomPct._activate()
+                    UFocusRing {}
+                }
+                UIconButton {
+                    id: zoomIn
+                    objectName: "editorZoomIn"
+                    iconName: "plus"; iconSize: 14; width: 32; height: 32
+                    tooltip: qsTr("Zoom in (Ctrl++)")
+                    enabled: canvasFlick.effectiveScale < canvasFlick.maxZoom - 0.001
+                    onClicked: canvasFlick.zoomBy(1.2)
                 }
             }
 
-            // Primary exports stay labeled; the occasional OCR actions live
-            // behind one "More" menu. Closing is the title bar's (and Esc's).
-            // OCR mode brings its own actions up in the options bar, and
-            // these, which act on the whole image, step aside until "Done".
-            Pill {
-                id: actionPill
-                visible: !canvas.ocrMode
-                x: stage.width - Theme.spacingM - width
-                y: stage.height - Theme.spacingM - height
-                width: actionRow.width + 2 * Theme.spacingS
-                height: editorWindow.pillHeight
-                Accessible.role: Accessible.ToolBar
-                Accessible.name: qsTr("Editor actions")
+            Rectangle {
+                id: statusDivider
+                anchors.left: zoomRow.right
+                anchors.leftMargin: Theme.spacingS
+                anchors.verticalCenter: parent.verticalCenter
+                width: 1; height: 20; color: Theme.divider
+            }
 
-                Row {
-                    id: actionRow
-                    anchors.centerIn: parent
-                    spacing: Theme.spacingS
-
-                    UButton {
-                        iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
-                        onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
-                    }
-                    USplitMenuButton {
-                        iconName: "document-save"
-                        text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
-                        tooltip: editorSession.overwriteMode ? qsTr("Overwrite (Ctrl+S)") : qsTr("Save (Ctrl+S)")
-                        dropdownTooltip: qsTr("More save options")
-                        onClicked: editorWindow.doSave()
-                        actions: [
-                            { label: qsTr("Save as…"), iconName: "document-save",
-                              hint: "Ctrl+Shift+S",
-                              trigger: function () {
-                                  editorWindow.doSaveAs()
-                              } },
-                            { label: qsTr("Save as PNG"), iconName: "document-save",
-                              separatorBefore: true,
-                              hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("png")
-                              } },
-                            { label: qsTr("Save as JPEG"), iconName: "document-save",
-                              hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("jpg")
-                              } },
-                            { label: qsTr("Save as WebP"), iconName: "document-save",
-                              hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("webp")
-                              } },
-                            { label: qsTr("Save as GIF"), iconName: "document-save",
-                              enabled: App.ffmpegAvailable,
-                              hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
-                                    : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("gif")
-                              } }
-                        ]
-                    }
-                    UButton {
-                        iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
-                        variant: "tonal"; enabled: !App.uploads.busy
-                        onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
-                    }
-                    Rectangle {
-                        width: 1; height: 30; color: Theme.divider
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    // "More": the occasional text actions. OCR is always built in.
-                    UMenuButton {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("More")
-                        actions: [
-                            { label: qsTr("Copy all text"), iconName: "ocr",
-                              trigger: function () { editorSession.ocrCopyText() } },
-                            { label: qsTr("Select text…"), iconName: "select",
-                              trigger: function () { editorSession.startOcrPick() } }
-                        ]
-                    }
-                }
+            // Image size, or the last export's or OCR's result (OCR also
+            // names the selection gestures here). It has the rest of the line.
+            Text {
+                id: statusLabel
+                anchors.left: statusDivider.right
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                leftPadding: Theme.spacingM
+                text: editorSession.statusText !== ""
+                      ? editorSession.statusText
+                      : canvas.imageSize.width + " × " + canvas.imageSize.height + " px"
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontS + 1
+                elide: Text.ElideMiddle
             }
         }
     }

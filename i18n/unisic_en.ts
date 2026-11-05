@@ -554,7 +554,7 @@
         <location filename="../src/AppContext.cpp" line="1434"/>
         <location filename="../src/AppContext.cpp" line="1490"/>
         <location filename="../src/AppContext.cpp" line="1501"/>
-        <location filename="../src/main.cpp" line="347"/>
+        <location filename="../src/main.cpp" line="348"/>
         <source>Another capture is already active</source>
         <translation>Another capture is already active</translation>
     </message>
@@ -2741,12 +2741,12 @@
 <context>
     <name>EditorWindow</name>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="29"/>
+        <location filename="../qml/EditorWindow.qml" line="31"/>
         <source>Unisic Editor (editing saved image)</source>
         <translation>Unisic Editor (editing saved image)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="30"/>
+        <location filename="../qml/EditorWindow.qml" line="32"/>
         <source>Unisic Editor</source>
         <translation>Unisic Editor</translation>
     </message>
@@ -2776,97 +2776,100 @@
         <translation>Discard</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="413"/>
+        <location filename="../qml/EditorWindow.qml" line="470"/>
+        <source>Opens these tools in the options bar: %1. The group itself has no shortcut.</source>
+        <translation>Opens these tools in the options bar: %1. The group itself has no shortcut.</translation>
+    </message>
+    <message>
+        <location filename="../qml/EditorWindow.qml" line="834"/>
         <source>Minimize</source>
         <translation>Minimize</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="418"/>
+        <location filename="../qml/EditorWindow.qml" line="839"/>
         <source>Maximize</source>
         <translation>Maximize</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="424"/>
+        <location filename="../qml/EditorWindow.qml" line="845"/>
         <source>Close</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="900"/>
+        <location filename="../qml/EditorWindow.qml" line="432"/>
         <source>Annotation tools</source>
         <translation>Annotation tools</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="933"/>
+        <location filename="../qml/EditorWindow.qml" line="467"/>
         <source>%1 tool group</source>
         <translation>%1 tool group</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="936"/>
         <source>Opens these tools in the bar below: %1. The group itself has no shortcut.</source>
-        <translation>Opens these tools in the bar below: %1. The group itself has no shortcut.</translation>
+        <translation type="vanished">Opens these tools in the bar below: %1. The group itself has no shortcut.</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="954"/>
+        <location filename="../qml/EditorWindow.qml" line="494"/>
         <source>Undo</source>
         <translation>Undo</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="955"/>
+        <location filename="../qml/EditorWindow.qml" line="495"/>
         <source>Redo</source>
         <translation>Redo</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="983"/>
+        <location filename="../qml/EditorWindow.qml" line="575"/>
         <source>Tool options</source>
         <translation>Tool options</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1061"/>
+        <location filename="../qml/EditorWindow.qml" line="656"/>
         <source>Apply crop</source>
         <translation>Apply crop</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1027"/>
+        <location filename="../qml/EditorWindow.qml" line="622"/>
         <source>Delete shape</source>
         <translation>Delete shape</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="640"/>
+        <location filename="../qml/EditorWindow.qml" line="1070"/>
         <source>Annotation canvas</source>
         <translation>Annotation canvas</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="641"/>
+        <location filename="../qml/EditorWindow.qml" line="1071"/>
         <source>%1 by %2 pixels</source>
         <translation>%1 by %2 pixels</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="794"/>
+        <location filename="../qml/EditorWindow.qml" line="1224"/>
         <source>Annotation text</source>
         <translation>Annotation text</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="795"/>
+        <location filename="../qml/EditorWindow.qml" line="1225"/>
         <source>Ctrl+Enter finishes, Escape discards</source>
         <translation>Ctrl+Enter finishes, Escape discards</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="852"/>
+        <location filename="../qml/EditorWindow.qml" line="1282"/>
         <source>Text… (Ctrl+Enter finishes)</source>
         <translation>Text… (Ctrl+Enter finishes)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1139"/>
         <source>Click a line · double-click a word · drag for letters</source>
-        <translation>Click a line · double-click a word · drag for letters</translation>
+        <translation type="vanished">Click a line · double-click a word · drag for letters</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1156"/>
+        <location filename="../qml/EditorWindow.qml" line="1311"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1260"/>
+        <location filename="../qml/EditorWindow.qml" line="749"/>
         <source>Editor actions</source>
         <translation>Editor actions</translation>
     </message>
@@ -2875,122 +2878,122 @@
         <translation type="vanished"> (fit)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1268"/>
+        <location filename="../qml/EditorWindow.qml" line="753"/>
         <source>Copy</source>
         <translation>Copy</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1273"/>
+        <location filename="../qml/EditorWindow.qml" line="759"/>
         <source>Overwrite</source>
         <translation>Overwrite</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1273"/>
+        <location filename="../qml/EditorWindow.qml" line="759"/>
         <source>Save</source>
         <translation>Save</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1274"/>
+        <location filename="../qml/EditorWindow.qml" line="760"/>
         <source>Overwrite (Ctrl+S)</source>
         <translation>Overwrite (Ctrl+S)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1274"/>
+        <location filename="../qml/EditorWindow.qml" line="760"/>
         <source>Save (Ctrl+S)</source>
         <translation>Save (Ctrl+S)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1275"/>
+        <location filename="../qml/EditorWindow.qml" line="761"/>
         <source>More save options</source>
         <translation>More save options</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1283"/>
+        <location filename="../qml/EditorWindow.qml" line="769"/>
         <source>Save as PNG</source>
         <translation>Save as PNG</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1285"/>
-        <location filename="../qml/EditorWindow.qml" line="1291"/>
-        <location filename="../qml/EditorWindow.qml" line="1297"/>
-        <location filename="../qml/EditorWindow.qml" line="1305"/>
+        <location filename="../qml/EditorWindow.qml" line="771"/>
+        <location filename="../qml/EditorWindow.qml" line="777"/>
+        <location filename="../qml/EditorWindow.qml" line="783"/>
+        <location filename="../qml/EditorWindow.qml" line="791"/>
         <source>Default</source>
         <translation>Default</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1290"/>
+        <location filename="../qml/EditorWindow.qml" line="776"/>
         <source>Save as JPEG</source>
         <translation>Save as JPEG</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1296"/>
+        <location filename="../qml/EditorWindow.qml" line="782"/>
         <source>Save as WebP</source>
         <translation>Save as WebP</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1313"/>
+        <location filename="../qml/EditorWindow.qml" line="800"/>
         <source>Uploading…</source>
         <translation>Uploading…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1313"/>
+        <location filename="../qml/EditorWindow.qml" line="800"/>
         <source>Upload</source>
         <translation>Upload</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1324"/>
+        <location filename="../qml/EditorWindow.qml" line="811"/>
         <source>More</source>
         <translation>More</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1326"/>
+        <location filename="../qml/EditorWindow.qml" line="813"/>
         <source>Copy all text</source>
         <translation>Copy all text</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1328"/>
+        <location filename="../qml/EditorWindow.qml" line="815"/>
         <source>Select text…</source>
         <translation>Select text…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1278"/>
+        <location filename="../qml/EditorWindow.qml" line="764"/>
         <source>Save as…</source>
         <translation>Save as…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1166"/>
+        <location filename="../qml/EditorWindow.qml" line="1317"/>
         <source>Zoom out (Ctrl+-)</source>
         <translation>Zoom out (Ctrl+-)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1197"/>
-        <location filename="../qml/EditorWindow.qml" line="1206"/>
+        <location filename="../qml/EditorWindow.qml" line="1348"/>
+        <location filename="../qml/EditorWindow.qml" line="1357"/>
         <source>Fit to window (Ctrl+0)</source>
         <translation>Fit to window (Ctrl+0)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1197"/>
-        <location filename="../qml/EditorWindow.qml" line="1206"/>
+        <location filename="../qml/EditorWindow.qml" line="1348"/>
+        <location filename="../qml/EditorWindow.qml" line="1357"/>
         <source>Actual size (100%)</source>
         <translation>Actual size (100%)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1205"/>
+        <location filename="../qml/EditorWindow.qml" line="1356"/>
         <source>Zoom %1%</source>
         <translation>Zoom %1%</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1215"/>
+        <location filename="../qml/EditorWindow.qml" line="1366"/>
         <source>Zoom in (Ctrl++)</source>
         <translation>Zoom in (Ctrl++)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1302"/>
+        <location filename="../qml/EditorWindow.qml" line="788"/>
         <source>Save as GIF</source>
         <translation>Save as GIF</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1304"/>
+        <location filename="../qml/EditorWindow.qml" line="790"/>
         <source>Needs ffmpeg</source>
         <translation>Needs ffmpeg</translation>
     </message>
@@ -2999,52 +3002,52 @@
         <translation type="vanished">Close (Esc)</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1070"/>
+        <location filename="../qml/EditorWindow.qml" line="667"/>
         <source>Recognizing…</source>
         <translation>Recognizing…</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1070"/>
+        <location filename="../qml/EditorWindow.qml" line="667"/>
         <source>Copy selection</source>
         <translation>Copy selection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1078"/>
+        <location filename="../qml/EditorWindow.qml" line="675"/>
         <source>Highlight selection</source>
         <translation>Highlight selection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1089"/>
+        <location filename="../qml/EditorWindow.qml" line="686"/>
         <source>Redact selection</source>
         <translation>Redact selection</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1100"/>
+        <location filename="../qml/EditorWindow.qml" line="697"/>
         <source>Auto-redact</source>
         <translation>Auto-redact</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1103"/>
+        <location filename="../qml/EditorWindow.qml" line="700"/>
         <source>E-mail addresses</source>
         <translation>E-mail addresses</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1107"/>
+        <location filename="../qml/EditorWindow.qml" line="704"/>
         <source>IP addresses</source>
         <translation>IP addresses</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1111"/>
+        <location filename="../qml/EditorWindow.qml" line="708"/>
         <source>Long numbers</source>
         <translation>Long numbers</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1120"/>
+        <location filename="../qml/EditorWindow.qml" line="717"/>
         <source>Select all</source>
         <translation>Select all</translation>
     </message>
     <message>
-        <location filename="../qml/EditorWindow.qml" line="1127"/>
+        <location filename="../qml/EditorWindow.qml" line="724"/>
         <source>Done</source>
         <translation>Done</translation>
     </message>
@@ -8206,178 +8209,178 @@ Applies to the next capture.</translation>
 <context>
     <name>ToolPropsBar</name>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="377"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="386"/>
         <source>Freehand</source>
         <translation>Freehand</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="384"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="393"/>
         <source>Rectangle</source>
         <translation>Rectangle</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="391"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="400"/>
         <source>Text</source>
         <translation>Text</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="475"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="491"/>
         <source>More colors</source>
         <translation>More colors</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="494"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="510"/>
         <source>Stroke</source>
         <translation>Stroke</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="539"/>
         <source>Filled head</source>
         <translation>Filled head</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="539"/>
         <source>Open head</source>
         <translation>Open head</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="523"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="539"/>
         <source>Double head</source>
         <translation>Double head</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="357"/>
-        <location filename="../qml/components/ToolPropsBar.qml" line="545"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="366"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="561"/>
         <source>Size</source>
         <translation>Size</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="350"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="359"/>
         <source>Distance</source>
         <translation>Distance</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="419"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="428"/>
         <source>Stroke colour</source>
         <translation>Stroke colour</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="420"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="429"/>
         <source>Left and right arrows move between the swatches, Space picks one</source>
         <translation>Left and right arrows move between the swatches, Space picks one</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="448"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="457"/>
         <source>Stroke colour %1</source>
         <translation>Stroke colour %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="461"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="477"/>
         <source>Recent stroke colour %1</source>
         <translation>Recent stroke colour %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="503"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="519"/>
         <source>Stroke width</source>
         <translation>Stroke width</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="516"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="532"/>
         <source>Arrow head</source>
         <translation>Arrow head</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="554"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="570"/>
         <source>Step marker size</source>
         <translation>Step marker size</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="573"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="589"/>
         <source>Fill shapes</source>
         <translation>Fill shapes</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="580"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="596"/>
         <source>Shape fill colour %1</source>
         <translation>Shape fill colour %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="598"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="614"/>
         <source>Font</source>
         <translation>Font</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="604"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="620"/>
         <source>Default font</source>
         <translation>Default font</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="615"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="631"/>
         <source>Font size</source>
         <translation>Font size</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="631"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="647"/>
         <source>Bold</source>
         <translation>Bold</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="639"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="655"/>
         <source>Italic</source>
         <translation>Italic</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="647"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="663"/>
         <source>Underline</source>
         <translation>Underline</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="662"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="678"/>
         <source>Text outline</source>
         <translation>Text outline</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="669"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="685"/>
         <source>Text outline colour %1</source>
         <translation>Text outline colour %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="680"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="696"/>
         <source>Text background</source>
         <translation>Text background</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="687"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="703"/>
         <source>Text background colour %1</source>
         <translation>Text background colour %1</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="714"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="730"/>
         <source>Style presets</source>
         <translation>Style presets</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="715"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="731"/>
         <source>Left and right arrows move between the presets, Space applies one</source>
         <translation>Left and right arrows move between the presets, Space applies one</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="732"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="748"/>
         <source>Style preset %1, %2 px</source>
         <translation>Style preset %1, %2 px</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="736"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="752"/>
         <source>Middle-click to delete this preset</source>
         <translation>Middle-click to delete this preset</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="752"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="768"/>
         <source>%1 px - middle-click to delete</source>
         <translation>%1 px - middle-click to delete</translation>
     </message>
     <message>
-        <location filename="../qml/components/ToolPropsBar.qml" line="772"/>
+        <location filename="../qml/components/ToolPropsBar.qml" line="788"/>
         <source>Save current style as a preset</source>
         <translation>Save current style as a preset</translation>
     </message>

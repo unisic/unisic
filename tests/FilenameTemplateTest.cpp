@@ -82,6 +82,16 @@ private slots:
                  QStringLiteral("_"));
     }
 
+    void windowsDeviceNamesEscaped()
+    {
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("nul"), 1, now), QStringLiteral("_nul"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("COM1.x"), 1, now), QStringLiteral("_COM1.x"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("Lpt¹"), 1, now), QStringLiteral("_Lpt¹"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("console"), 1, now), QStringLiteral("console"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("COM10"), 1, now), QStringLiteral("COM10"));
+        QCOMPARE(FilenameTemplate::expand(QStringLiteral("aux_%i%"), 3, now), QStringLiteral("aux_3"));
+    }
+
     void unknownTokensPassThrough()
     {
         QCOMPARE(FilenameTemplate::expand(QStringLiteral("%width%_%height%"), 1, now),

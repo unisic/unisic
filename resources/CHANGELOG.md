@@ -38,6 +38,7 @@ whole per release (not per individual change).
 - **History thumbnails show on Windows**: the History tiles and the tray icon previews in Settings built the image address by hand, and on Windows that turned the drive letter into a network host, so the image never loaded and Windows tried to reach a computer named "c" on the network. The address now comes from the file path the way Windows reads it.
 - **Cancelling a recording on Windows leaves no files behind**: cancelling during the conversion left the unfinished GIF or video in your save folder, and a cancelled recording left its working copy, which can run to gigabytes, in the cache until the first recording after a restart. Windows does not delete a file a program still has open, and Unisic deleted these while ffmpeg was still closing. They are now deleted once ffmpeg has exited.
 - **Full-screen recording on Windows uses the fast capture at every scale**: at some display scales, such as a 2560-pixel-wide monitor at 150%, Unisic worked the monitor out one pixel wider than it is, no monitor matched, and the whole recording went through the slower GDI capture. The size now comes from Windows itself.
+- **Capture window from the tray menu on Windows takes your window**: after a click in the tray the taskbar holds the focus, so Capture window from the tray menu could capture the taskbar. When the taskbar, the desktop or Unisic itself has the focus, it now takes the topmost window instead.
 
 ### Polski
 **Dodane**
@@ -69,6 +70,7 @@ whole per release (not per individual change).
 - **Miniatury w Historii widać na Windows**: kafelki Historii i podglądy ikon tray w Ustawieniach składały adres obrazu ręcznie, a na Windows to zamieniało literę dysku w nazwę hosta w sieci, więc obraz się nie wczytywał, a Windows próbował połączyć się z komputerem o nazwie "c". Adres powstaje teraz ze ścieżki pliku tak, jak czyta go Windows.
 - **Anulowane nagranie na Windows nie zostawia plików**: anulowanie w trakcie konwersji zostawiało niedokończony GIF albo film w folderze zapisu, a anulowane nagranie zostawiało w cache swoją kopię roboczą, która potrafi mieć gigabajty, aż do pierwszego nagrania po ponownym uruchomieniu. Windows nie usuwa pliku, który program nadal ma otwarty, a Unisic usuwał je, gdy ffmpeg jeszcze się zamykał. Teraz są usuwane, gdy ffmpeg się zakończy.
 - **Nagrywanie całego ekranu na Windows używa szybkiego przechwytywania przy każdej skali**: przy niektórych skalach ekranu, np. monitor o szerokości 2560 pikseli przy 150%, Unisic wyliczał monitor o piksel szerszy, niż jest, żaden monitor nie pasował i całe nagranie szło przez wolniejsze przechwytywanie GDI. Rozmiar pochodzi teraz od samego Windows.
+- **Przechwyć okno z menu tray na Windows bierze Twoje okno**: po kliknięciu w tray fokus ma pasek zadań, więc Przechwyć okno z menu tray mogło przechwycić pasek zadań. Gdy fokus ma pasek zadań, pulpit albo sam Unisic, przechwytywane jest teraz najwyżej położone okno.
 
 ## 0.8.8
 

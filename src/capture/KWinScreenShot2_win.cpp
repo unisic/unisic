@@ -78,13 +78,14 @@ QImage grabRect(const RECT &r, bool includeCursor, qreal dpr, QString *error)
     bi.bmiHeader.biCompression = BI_RGB;
     // 32 bpp rows are w*4 bytes in both a DIB and a QImage, so one call fills it.
     const int rows = blitted ? GetDIBits(mem, bmp, 0, UINT(h), img.bits(), &bi, DIB_RGB_COLORS) : 0;
+    const DWORD gdiError = rows == h ? 0 : GetLastError(); // before the cleanup calls touch it
 
     DeleteObject(bmp);
     DeleteDC(mem);
     ReleaseDC(nullptr, screen);
 
     if (rows != h) {
-        *error = QStringLiteral("GDI screen grab failed (error %1)").arg(GetLastError());
+        *error = QStringLiteral("GDI screen grab failed (error %1)").arg(gdiError);
         return {};
     }
     // GDI leaves the alpha byte undefined; the image is opaque.
@@ -93,6 +94,52 @@ QImage grabRect(const RECT &r, bool includeCursor, qreal dpr, QString *error)
         px[i] |= 0xff000000u;
     img.setDevicePixelRatio(dpr);
     return img;
+}
+
+// The desktop, the taskbar, or one of ours (hidden for the capture, or the
+// tray menu): never what "the active window" means.
+bool isShellOrOwn(HWND w)
+{
+    DWORD pid = 0;
+    GetWindowThreadProcessId(w, &pid);
+    if (pid == GetCurrentProcessId() || w == GetShellWindow())
+        return true;
+    wchar_t cls[32];
+    const int n = GetClassNameW(w, cls, 32);
+    const QString c = QString::fromWCharArray(cls, n > 0 ? n : 0);
+    return c == QLatin1String("Shell_TrayWnd") || c == QLatin1String("Shell_SecondaryTrayWnd")
+           || c == QLatin1String("Progman") || c == QLatin1String("WorkerW");
+}
+
+// A window a user would call one: shown, not minimised, not a tool window or
+// an owned popup, and not cloaked (a suspended UWP app or one on another
+// virtual desktop stays "visible" to Win32).
+BOOL CALLBACK pickTopWindow(HWND w, LPARAM out)
+{
+    if (!IsWindowVisible(w) || IsIconic(w) || GetWindow(w, GW_OWNER) || isShellOrOwn(w)
+        || (GetWindowLongPtrW(w, GWL_EXSTYLE) & WS_EX_TOOLWINDOW))
+        return TRUE;
+    DWORD cloaked = 0;
+    if (SUCCEEDED(DwmGetWindowAttribute(w, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked)
+        return TRUE;
+    RECT r;
+    if (!GetWindowRect(w, &r) || IsRectEmpty(&r))
+        return TRUE;
+    *reinterpret_cast<HWND *>(out) = w;
+    return FALSE;
+}
+
+// The foreground window, unless that is the taskbar (where a tray-menu pick
+// leaves the focus) or ours; then the topmost real window. EnumWindows walks
+// top to bottom, and unlike a GetWindow loop it survives the z-order changing.
+HWND captureTarget()
+{
+    HWND fg = GetForegroundWindow();
+    if (fg && !isShellOrOwn(fg))
+        return fg;
+    HWND top = nullptr;
+    EnumWindows(pickTopWindow, reinterpret_cast<LPARAM>(&top));
+    return top;
 }
 
 struct MonitorMatch {
@@ -214,8 +261,8 @@ void KWinScreenShot2::captureActiveScreen(bool includeCursor, Callback cb)
 void KWinScreenShot2::captureActiveWindow(bool includeCursor, Callback cb)
 {
     deliverLater(this, [includeCursor](QString *error) {
-        HWND wnd = GetForegroundWindow();
-        if (!wnd || wnd == GetShellWindow()) {
+        HWND wnd = captureTarget();
+        if (!wnd) {
             *error = QStringLiteral("no active window");
             return QImage();
         }

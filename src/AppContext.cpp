@@ -4097,6 +4097,9 @@ void AppContext::playSoundId(const QString &id)
         file = dir + QLatin1Char('/') + id + QStringLiteral(".wav");
         QFile res(QStringLiteral(":/resources/sounds/%1.wav").arg(id));
         if (!QFile::exists(file) || QFileInfo(file).size() != res.size()) {
+            // A copy out of qrc is read-only (0444), and Windows refuses to
+            // delete a read-only file, so without this the stale cue stays.
+            QFile::setPermissions(file, QFile::ReadOwner | QFile::WriteOwner);
             QFile::remove(file);
             res.copy(file);
         }

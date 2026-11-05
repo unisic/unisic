@@ -39,6 +39,7 @@ whole per release (not per individual change).
 - **Cancelling a recording on Windows leaves no files behind**: cancelling during the conversion left the unfinished GIF or video in your save folder, and a cancelled recording left its working copy, which can run to gigabytes, in the cache until the first recording after a restart. Windows does not delete a file a program still has open, and Unisic deleted these while ffmpeg was still closing. They are now deleted once ffmpeg has exited.
 - **Full-screen recording on Windows uses the fast capture at every scale**: at some display scales, such as a 2560-pixel-wide monitor at 150%, Unisic worked the monitor out one pixel wider than it is, no monitor matched, and the whole recording went through the slower GDI capture. The size now comes from Windows itself.
 - **Capture window from the tray menu on Windows takes your window**: after a click in the tray the taskbar holds the focus, so Capture window from the tray menu could capture the taskbar. When the taskbar, the desktop or Unisic itself has the focus, it now takes the topmost window instead.
+- **Updated sounds reach Windows installs**: Unisic copies its bundled sounds to the cache, the copy is read-only, and Windows refuses to delete a read-only file, so a sound changed in an update kept playing the old version. The old copy is now made writable before it is replaced.
 
 ### Polski
 **Dodane**
@@ -71,6 +72,7 @@ whole per release (not per individual change).
 - **Anulowane nagranie na Windows nie zostawia plików**: anulowanie w trakcie konwersji zostawiało niedokończony GIF albo film w folderze zapisu, a anulowane nagranie zostawiało w cache swoją kopię roboczą, która potrafi mieć gigabajty, aż do pierwszego nagrania po ponownym uruchomieniu. Windows nie usuwa pliku, który program nadal ma otwarty, a Unisic usuwał je, gdy ffmpeg jeszcze się zamykał. Teraz są usuwane, gdy ffmpeg się zakończy.
 - **Nagrywanie całego ekranu na Windows używa szybkiego przechwytywania przy każdej skali**: przy niektórych skalach ekranu, np. monitor o szerokości 2560 pikseli przy 150%, Unisic wyliczał monitor o piksel szerszy, niż jest, żaden monitor nie pasował i całe nagranie szło przez wolniejsze przechwytywanie GDI. Rozmiar pochodzi teraz od samego Windows.
 - **Przechwyć okno z menu tray na Windows bierze Twoje okno**: po kliknięciu w tray fokus ma pasek zadań, więc Przechwyć okno z menu tray mogło przechwycić pasek zadań. Gdy fokus ma pasek zadań, pulpit albo sam Unisic, przechwytywane jest teraz najwyżej położone okno.
+- **Zaktualizowane dźwięki docierają do instalacji na Windows**: Unisic kopiuje wbudowane dźwięki do cache, kopia jest tylko do odczytu, a Windows nie usuwa pliku tylko do odczytu, więc dźwięk zmieniony w aktualizacji grał dalej w starej wersji. Stara kopia jest teraz odblokowywana do zapisu przed podmianą.
 
 ## 0.8.8
 

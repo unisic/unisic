@@ -40,6 +40,7 @@ whole per release (not per individual change).
 - **Full-screen recording on Windows uses the fast capture at every scale**: at some display scales, such as a 2560-pixel-wide monitor at 150%, Unisic worked the monitor out one pixel wider than it is, no monitor matched, and the whole recording went through the slower GDI capture. The size now comes from Windows itself.
 - **Capture window from the tray menu on Windows takes your window**: after a click in the tray the taskbar holds the focus, so Capture window from the tray menu could capture the taskbar. When the taskbar, the desktop or Unisic itself has the focus, it now takes the topmost window instead.
 - **Updated sounds reach Windows installs**: Unisic copies its bundled sounds to the cache, the copy is read-only, and Windows refuses to delete a read-only file, so a sound changed in an update kept playing the old version. The old copy is now made writable before it is replaced.
+- **Updating in place works with a non-ASCII Windows user name**: the tar built into Windows, which unpacks the update, reads its arguments in the system code page, so a user folder with letters outside it (Cyrillic on a Polish Windows, say) could make the unpack fail. Unisic now gives it a path relative to the update folder.
 
 ### Polski
 **Dodane**
@@ -73,6 +74,7 @@ whole per release (not per individual change).
 - **Nagrywanie całego ekranu na Windows używa szybkiego przechwytywania przy każdej skali**: przy niektórych skalach ekranu, np. monitor o szerokości 2560 pikseli przy 150%, Unisic wyliczał monitor o piksel szerszy, niż jest, żaden monitor nie pasował i całe nagranie szło przez wolniejsze przechwytywanie GDI. Rozmiar pochodzi teraz od samego Windows.
 - **Przechwyć okno z menu tray na Windows bierze Twoje okno**: po kliknięciu w tray fokus ma pasek zadań, więc Przechwyć okno z menu tray mogło przechwycić pasek zadań. Gdy fokus ma pasek zadań, pulpit albo sam Unisic, przechwytywane jest teraz najwyżej położone okno.
 - **Zaktualizowane dźwięki docierają do instalacji na Windows**: Unisic kopiuje wbudowane dźwięki do cache, kopia jest tylko do odczytu, a Windows nie usuwa pliku tylko do odczytu, więc dźwięk zmieniony w aktualizacji grał dalej w starej wersji. Stara kopia jest teraz odblokowywana do zapisu przed podmianą.
+- **Aktualizacja w miejscu działa z nazwą użytkownika Windows spoza ASCII**: wbudowany w Windows tar, który rozpakowuje aktualizację, czyta argumenty w stronie kodowej systemu, więc folder użytkownika z literami spoza niej (np. cyrylica w polskim Windows) mógł sprawić, że rozpakowanie się nie udało. Unisic podaje mu teraz ścieżkę względną wobec folderu aktualizacji.
 
 ## 0.8.8
 

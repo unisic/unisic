@@ -188,7 +188,7 @@ void UpdateChecker::pruneStages(const QString &keepVersion)
     for (const QFileInfo &d : dirs) {
         if (d.fileName() == keepVersion)
             continue;
-        if (self.startsWith(d.absoluteFilePath() + QLatin1Char('/')))
+        if (self.startsWith(d.absoluteFilePath() + QLatin1Char('/'), Qt::CaseInsensitive))
             continue; // never delete the tree this process runs from
         QDir(d.absoluteFilePath()).removeRecursively();
     }

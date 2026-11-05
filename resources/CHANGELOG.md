@@ -45,6 +45,7 @@ whole per release (not per individual change).
 - **Recording sound on Windows follows a new default device**: switching the default speakers or microphone during a recording kept the recording on the old device, so the system sound went silent from then on. It now moves to the new default within a second. A microphone picked by name stays that microphone.
 - **Start at login matches Task Manager on Windows**: Unisic switched off under startup apps in Task Manager or Windows Settings does not start, but its own switch still showed on. It now shows off, and turning it on again enables it in both places.
 - **Two launches at once on Windows open one Unisic**: two starts at the same moment, such as autostart and a click on the shortcut, could both start in full, with two tray icons. The second one now hands its command to the first.
+- **The diagnostic log is written with a non-ASCII Windows user name**: the log was opened through the system code page, so with letters outside it in the user folder it never reached the disk, and the run before a crash or a freeze was gone with it. It is now opened by its full Unicode path. A crash from a stack overflow now writes its report too, instead of running out of stack while writing it.
 
 ### Polski
 **Dodane**
@@ -83,6 +84,7 @@ whole per release (not per individual change).
 - **Dźwięk w nagraniu na Windows podąża za nowym domyślnym urządzeniem**: zmiana domyślnych głośników albo mikrofonu w trakcie nagrania zostawiała nagranie na starym urządzeniu, więc dźwięk systemu od tej chwili milkł. Teraz nagranie przechodzi na nowe domyślne urządzenie w ciągu sekundy. Mikrofon wybrany z nazwy zostaje tym mikrofonem.
 - **Uruchom przy logowaniu zgadza się z Menedżerem zadań na Windows**: Unisic wyłączony w aplikacjach autostartu w Menedżerze zadań albo w Ustawieniach Windows się nie uruchamia, a jego własny przełącznik dalej pokazywał włączenie. Teraz pokazuje wyłączenie, a ponowne włączenie włącza go w obu miejscach.
 - **Dwa uruchomienia naraz na Windows otwierają jeden Unisic**: dwa starty w tej samej chwili, np. autostart i kliknięcie skrótu, mogły oba uruchomić się w całości, z dwiema ikonami w zasobniku. Drugi przekazuje teraz polecenie pierwszemu.
+- **Dziennik diagnostyczny zapisuje się przy nazwie użytkownika Windows spoza ASCII**: dziennik był otwierany przez stronę kodową systemu, więc gdy folder użytkownika miał litery spoza niej, nigdy nie trafiał na dysk, a razem z nim znikał przebieg przed awarią albo zawieszeniem. Teraz jest otwierany pełną ścieżką Unicode. Awaria z przepełnienia stosu też zapisuje teraz raport, zamiast skończyć stos w trakcie jego zapisu.
 
 ## 0.8.8
 

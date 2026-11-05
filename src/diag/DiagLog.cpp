@@ -218,8 +218,7 @@ QString openLogFile()
     QFile::rename(prev, prev2);
     QFile::rename(path, prev);
 
-    const int fd = ::open(path.toLocal8Bit().constData(),
-                          O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+    const int fd = CrashHandler::openLog(path.toUtf8().constData());
     if (fd < 0)
         return QString(); // stay in RAM; nothing else changes
 

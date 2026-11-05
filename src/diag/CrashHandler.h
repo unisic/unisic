@@ -29,6 +29,12 @@ void install();
 // The already-open log fd (or -1). The handler writes its block there too, so
 // a crash report and the run that led to it live in one file.
 void setLogFd(int fd);
+// Opens (creates, truncates) the log for writing, owner-only, as the raw fd
+// setLogFd takes; -1 on failure. Not for the handler: it may allocate. Here
+// because the path has to reach Windows as UTF-16 (_wopen), and a narrow
+// open() there goes through the ANSI code page, which a profile name outside
+// it does not survive.
+int openLog(const char *utf8Path);
 
 // Where to write the standalone crash file. Copied into a static buffer; the
 // handler never touches the caller's memory.

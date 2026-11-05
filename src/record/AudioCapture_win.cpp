@@ -158,12 +158,14 @@ struct Stream {
     UniqueHandle ready;
     ComPtr<IAudioClient> client;
     ComPtr<IAudioCaptureClient> capture;
+    std::wstring endpoint; // id of the device opened, empty for Application
 
     void reset()
     {
         capture.Reset();
         client.Reset();
         ready.reset();
+        endpoint.clear();
     }
 };
 
@@ -315,6 +317,23 @@ HRESULT openDevice(const Shared &s, ComPtr<IMMDevice> &device)
     return S_OK;
 }
 
+std::wstring endpointId(IMMDevice *device)
+{
+    LPWSTR id = nullptr;
+    if (!device || FAILED(device->GetId(&id)))
+        return {};
+    std::wstring out(id);
+    CoTaskMemFree(id);
+    return out;
+}
+
+// Whether the stream follows the default device rather than a picked one.
+bool followsDefault(const Shared &s)
+{
+    return s.source == AudioCapture::Source::System
+           || (s.source == AudioCapture::Source::Microphone && s.deviceId.empty());
+}
+
 // Process loopback: what one process tree plays, which the audio engine mixes
 // into `format`. The client has no mix format to negotiate with.
 HRESULT openApplicationStream(const Shared &s, const Format &format, Stream &st)
@@ -352,6 +371,7 @@ HRESULT openStream(const Shared &s, Format &format, bool negotiate, Stream &st)
     HRESULT hr = openDevice(s, device);
     if (FAILED(hr))
         return hr;
+    st.endpoint = endpointId(device.Get());
     const auto activate = [&] {
         st.client.Reset();
         return device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
@@ -501,6 +521,7 @@ void pump(const Shared &s, Stream &st)
     const qint64 t0 = qpcNow();
     qint64 written = 0; // frames handed to the pipe since t0
     qint64 retryAt = 0;
+    qint64 defaultCheckAt = 0;
     const auto frameAt = [&](qint64 ticks) { return (ticks - t0) * rate / kTicksPerSecond; };
     const auto fillTo = [&](qint64 frame) {
         if (frame > written)
@@ -549,6 +570,19 @@ void pump(const Shared &s, Stream &st)
                            << Qt::hex << ulong(hr);
                 st.reset();
                 retryAt = qpcNow() + kTicksPerSecond;
+            } else if (followsDefault(s) && qpcNow() >= defaultCheckAt) {
+                // A stream opened on an IMMDevice stays on that device when
+                // the user picks another default output or microphone: no
+                // error, silence from then on. Reopen on the new default.
+                defaultCheckAt = qpcNow() + kTicksPerSecond;
+                ComPtr<IMMDevice> current;
+                const std::wstring id =
+                    SUCCEEDED(openDevice(s, current)) ? endpointId(current.Get()) : std::wstring();
+                if (!id.empty() && id != st.endpoint) {
+                    qInfo() << "AudioCapture: default device changed, following it";
+                    st.reset();
+                    retryAt = 0;
+                }
             }
         } else if (qpcNow() >= retryAt && s.sourceAlive()) {
             if (FAILED(openStream(s, format, false, st)) || FAILED(st.client->Start())) {

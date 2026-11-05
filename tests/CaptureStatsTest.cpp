@@ -105,6 +105,27 @@ private slots:
         QVERIFY(old.open(QIODevice::ReadOnly));
         QCOMPARE(old.readAll(), QByteArray("not json"));
     }
+
+    void unreadableFileIsLeftAlone()
+    {
+        QTemporaryDir dir;
+        QVERIFY(dir.isValid());
+        const QString path = dir.filePath(QStringLiteral("unisic.stats"));
+        QVERIFY(CaptureStats::record(path, QDate(2026, 3, 1)));
+        QFile f(path);
+        const QByteArray before = f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+        f.close();
+        QVERIFY(f.setPermissions(QFileDevice::WriteOwner));
+        if (f.open(QIODevice::ReadOnly))
+            QSKIP("running with permission to read a write-only file (root)");
+
+        QVERIFY(!CaptureStats::read(path, QDate(2026, 3, 1)).readable);
+        QVERIFY(!CaptureStats::record(path, QDate(2026, 3, 1)));
+        QVERIFY(QDir(dir.path()).entryList({QStringLiteral("unisic.stats.broken-*")}).isEmpty());
+        QVERIFY(f.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner));
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        QCOMPARE(f.readAll(), before);
+    }
 };
 
 QTEST_GUILESS_MAIN(CaptureStatsTest)

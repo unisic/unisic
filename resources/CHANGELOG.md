@@ -34,6 +34,8 @@ whole per release (not per individual change).
 - **The floating preview moves to another monitor**: on KDE Plasma and other desktops where the preview floats above every window, it was held to the monitor it opened on, and dragging stopped at that monitor's edge. It now follows the pointer onto the next monitor and back while you drag.
 - **A colour from the palette shows one selection ring**: in the editor's options bar, a recent colour that is also a palette swatch sat in the row a second time, so one colour had two rings. Recent colours now leave the palette out and sit after a short divider, and the bar has more room at its ends, so the first colour dot no longer touches the rounded edge.
 - **Text outline, Text background and three more icons look right on the System theme**: with the System app theme, an icon the desktop icon theme lacks was drawn as its nearest relative, so Text outline, Text background and Markdown image all showed the same plain text glyph, and Upload and Edit shapes a generic one. Unisic now draws its own icon for those.
+- **The step marker's icon shows its number**: the Step marker tool in the editor and on the capture overlay showed a plain filled dot, because the icon's white "1" took the same colour as the circle under it. The number is now cut out of the circle, so it shows in every theme.
+- **Full-screen recording on Windows uses the fast capture at every scale**: at some display scales, such as a 2560-pixel-wide monitor at 150%, Unisic worked the monitor out one pixel wider than it is, no monitor matched, and the whole recording went through the slower GDI capture. The size now comes from Windows itself.
 
 ### Polski
 **Dodane**
@@ -61,6 +63,8 @@ whole per release (not per individual change).
 - **Pływający podgląd przechodzi na inny monitor**: na KDE Plasma i innych pulpitach, na których podgląd unosi się nad wszystkimi oknami, był przywiązany do monitora, na którym się otworzył, a przeciąganie zatrzymywało się na jego krawędzi. Teraz podczas przeciągania idzie za wskaźnikiem na sąsiedni monitor i z powrotem.
 - **Kolor z palety ma jeden pierścień zaznaczenia**: na pasku opcji edytora ostatnio użyty kolor, który jest też w palecie, stał w rzędzie drugi raz, więc jeden kolor miał dwa pierścienie. Ostatnie kolory pomijają teraz paletę i stoją za krótką kreską, a pasek ma więcej miejsca na końcach, więc pierwsza kropka koloru nie dotyka już zaokrąglonej krawędzi.
 - **Kontur tekstu, Tło tekstu i trzy inne ikony wyglądają właściwie w motywie Systemowy**: w motywie aplikacji Systemowy ikonę, której brakuje w motywie ikon pulpitu, zastępowała najbliższa z rodziny, więc Kontur tekstu, Tło tekstu i Obraz Markdown miały ten sam zwykły glif tekstu, a Wyślij i Edytuj kształty glif ogólny. Unisic rysuje teraz dla nich własną ikonę.
+- **Ikona znacznika kroku pokazuje numer**: narzędzie Znacznik kroku w edytorze i na nakładce przechwytywania miało zwykłą pełną kropkę, bo biała "1" ikony dostawała ten sam kolor co koło pod nią. Numer jest teraz wycięty z koła, więc widać go w każdym motywie.
+- **Nagrywanie całego ekranu na Windows używa szybkiego przechwytywania przy każdej skali**: przy niektórych skalach ekranu, np. monitor o szerokości 2560 pikseli przy 150%, Unisic wyliczał monitor o piksel szerszy, niż jest, żaden monitor nie pasował i całe nagranie szło przez wolniejsze przechwytywanie GDI. Rozmiar pochodzi teraz od samego Windows.
 
 ## 0.8.8
 

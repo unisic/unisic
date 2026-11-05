@@ -751,6 +751,10 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                                          : QStringLiteral("mp4");
     const QDateTime nowDt = QDateTime::currentDateTime();
     const QString stamp = nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss"));
+    // Milliseconds for the temp video and the audio FIFOs: an aborted take's
+    // files are removed only once its ffmpeg exits (up to a second later),
+    // which must not hit the next take started within the same second.
+    const QString tempStamp = nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz"));
     // Optional per-month subfolders (yyyy-MM) - same knob as screenshots
     // (Settings::dateSubfolders), applied to recordings too so the option
     // actually buckets GIFs/videos and not just images. mkpath creates the
@@ -772,11 +776,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
         m_tempPath = m_replayDir + QStringLiteral("/segment-%03d.mkv");
         m_outPath.clear();
     } else {
-        // Milliseconds: an aborted take's temp is removed only once its
-        // ffmpeg exits (up to a second later), which must not hit the next
-        // take started within the same second.
-        m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv")
-                                   .arg(nowDt.toString(QStringLiteral("yyyy-MM-dd_HH-mm-ss-zzz")));
+        m_tempPath = tmpBase + QStringLiteral("/unisic-rec-%1.mkv").arg(tempStamp);
         m_outPath = outDir + QStringLiteral("/Unisic_%1.%2").arg(stamp, ext);
     }
 
@@ -866,7 +866,7 @@ void GifRecorder::beginEncoding(const QSize &streamSize)
                 break;
             }
             const QString fifo = tmpBase + QStringLiteral("/unisic-audio-%1-%2.fifo")
-                                               .arg(stamp).arg(appSerials.size());
+                                               .arg(tempStamp).arg(appSerials.size());
             QFile::remove(fifo);
             if (::mkfifo(QFile::encodeName(fifo).constData(), 0600) != 0)
                 continue;
@@ -2062,7 +2062,22 @@ void GifRecorder::abort()
     for (QProcess *&pw : m_appAudio)
         FfmpegUtil::stopProcess(pw, doomed);
     m_appAudio.clear();
+    // The stop drops the exporter's own finished handler, which owned its
+    // snapshot copy and half-written output, so they go once that ffmpeg is
+    // gone: Windows refuses to delete a file it still holds.
+    QProcess *exporter = m_replayExporter;
     FfmpegUtil::stopProcess(m_replayExporter, doomed);
+    if (exporter) {
+        QObject::connect(exporter, &QObject::destroyed,
+                         [out = m_replayExportPath, snapshot = m_replaySnapshotDir] {
+                             if (!out.isEmpty())
+                                 QFile::remove(out);
+                             if (!snapshot.isEmpty())
+                                 QDir(snapshot).removeRecursively();
+                         });
+        m_replayExportPath.clear();
+        m_replaySnapshotDir.clear();
+    }
     cleanup();
 }
 

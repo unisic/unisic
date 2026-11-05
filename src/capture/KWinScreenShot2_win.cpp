@@ -112,8 +112,9 @@ bool isShellOrOwn(HWND w)
 }
 
 // A window a user would call one: shown, not minimised, not a tool window or
-// an owned popup, and not cloaked (a suspended UWP app or one on another
-// virtual desktop stays "visible" to Win32).
+// an owned popup, not cloaked (a suspended UWP app or one on another virtual
+// desktop stays "visible" to Win32), and on a screen (an app parking a
+// helper window at -32000 would otherwise be picked and fail as off screen).
 BOOL CALLBACK pickTopWindow(HWND w, LPARAM out)
 {
     if (!IsWindowVisible(w) || IsIconic(w) || GetWindow(w, GW_OWNER) || isShellOrOwn(w)
@@ -123,7 +124,7 @@ BOOL CALLBACK pickTopWindow(HWND w, LPARAM out)
     if (SUCCEEDED(DwmGetWindowAttribute(w, DWMWA_CLOAKED, &cloaked, sizeof(cloaked))) && cloaked)
         return TRUE;
     RECT r;
-    if (!GetWindowRect(w, &r) || IsRectEmpty(&r))
+    if (!GetWindowRect(w, &r) || IsRectEmpty(&r) || !MonitorFromRect(&r, MONITOR_DEFAULTTONULL))
         return TRUE;
     *reinterpret_cast<HWND *>(out) = w;
     return FALSE;

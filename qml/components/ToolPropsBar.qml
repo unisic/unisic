@@ -53,6 +53,7 @@ Flow {
     signal fillPickerRequested()
     signal textOutlinePickerRequested()
     signal textBackgroundPickerRequested()
+    signal imageFileRequested()
 
     spacing: 6
 
@@ -251,8 +252,11 @@ Flow {
     // ---- style presets ----
     // Presets only make sense for a tool that HAS a style; Blur/Crop and the
     // like declare no props, and a preset row floating next to nothing would
-    // just be noise.
-    readonly property bool presetsVisible: props.length > 0
+    // just be noise. Spotlight's shape and the sticker pick are choices, not a
+    // style a preset captures.
+    readonly property bool presetsVisible: props.some(function (p) {
+        return p !== "spotlightShape" && p !== "sticker"
+    })
     readonly property int maxPresets: 6
     property var presets: []
 
@@ -398,6 +402,62 @@ Flow {
         }
         Divider {
             visible: root.has("spotlightShape")
+        }
+    }
+
+    // ---- sticker: the mouse pointer or an emoji, and a picture file ----
+    // Pointing hands, verdicts and attention marks: what a screenshot gets
+    // stamped with. Any other emoji goes in with the Text tool.
+    readonly property var stickerEmoji: ["\u{1F449}", "\u{1F446}", "\u{1F447}", "\u{1F448}",
+                                         "\u2705", "\u274C", "\u26A0\uFE0F", "\u2753",
+                                         "\u{1F4A1}", "\u2B50", "\u{1F44D}", "\u{1F600}"]
+    Cell {
+        visible: root.has("sticker")
+        DotGroup {
+            id: stickerGroup
+            visible: root.has("sticker")
+            anchors.verticalCenter: parent.verticalCenter
+            activeFocusOnTab: root.controlsFocusable
+            readonly property var choices: ["pointer"].concat(root.stickerEmoji)
+            count: choices.length
+            entryIndex: Math.max(0, choices.indexOf(root.canvas.sticker))
+            Accessible.name: qsTr("Sticker")
+            Accessible.description: qsTr("Left and right arrows move between the stickers, Space picks one")
+
+            Repeater {
+                model: root.has("sticker") ? stickerGroup.choices : []
+                delegate: ToolChip {
+                    required property string modelData
+                    required property int index
+                    // Not a tab stop of its own - the group is (see DotGroup).
+                    activeFocusOnTab: false
+                    focus: index === stickerGroup.currentIndex
+                    Accessible.focusable: root.controlsFocusable
+                    iconName: modelData === "pointer" ? "cursor-arrow" : ""
+                    iconStyle: "custom"
+                    icon: modelData === "pointer" ? "" : modelData
+                    label: modelData === "pointer" ? qsTr("Mouse pointer") : ""
+                    accessibleName: modelData === "pointer" ? "" : modelData
+                    active: root.canvas.sticker === modelData
+                    anchors.verticalCenter: parent.verticalCenter
+                    onClicked: root.canvas.sticker = modelData
+                }
+            }
+        }
+        Divider {
+            visible: root.has("sticker")
+        }
+    }
+    Cell {
+        visible: root.has("sticker")
+        ToolChip {
+            activeFocusOnTab: root.controlsFocusable && enabled
+            iconName: "image"; iconStyle: "custom"; label: qsTr("Picture from a file\u2026")
+            anchors.verticalCenter: parent.verticalCenter
+            onClicked: root.imageFileRequested()
+        }
+        Divider {
+            visible: root.has("sticker")
         }
     }
 

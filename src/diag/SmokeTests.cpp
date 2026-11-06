@@ -2155,6 +2155,76 @@ void AppContext::devTestCutOut()
     showToast(tr("Dev: cut out: %1").arg(cutOutCheck()));
 }
 
+// Sticker tool: a click stamps the mouse pointer, a drag stamps an emoji sized
+// to the box (in colour when the system has a colour emoji font), and a
+// picture file goes in as an image. Each is one undo step.
+static QString stickerCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(300);
+    c.setHeight(300);
+    QImage base(300, 300, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Sticker);
+    c.setSticker(QStringLiteral("pointer"));
+    const auto gesture = [&c](QPointF from, QPointF to) {
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        c.mousePressEvent(&p);
+        if (to != from) {
+            QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            c.mouseMoveEvent(&m);
+        }
+        QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        c.mouseReleaseEvent(&r);
+    };
+    const auto count = [&c](const QRect &r, auto pred) {
+        const QImage out = c.rendered();
+        int n = 0;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x)
+                n += pred(out.pixelColor(x, y));
+        return n;
+    };
+    const auto dark = [](const QColor &col) { return col.lightness() < 100; };
+    gesture({50, 50}, {50, 50});
+    if (c.annotCount() != 1 || count(QRect(50, 50, 18, 26), dark) < 20)
+        return QStringLiteral("FAIL (a click did not stamp the pointer at its tip)");
+
+    c.setSticker(QStringLiteral("\U0001F600"));
+    gesture({150, 150}, {250, 250});
+    if (c.annotCount() != 2)
+        return QStringLiteral("FAIL (no glyph for the emoji - is an emoji font installed?)");
+    const int colour = count(QRect(150, 150, 100, 100),
+                             [](const QColor &col) { return col.hsvSaturation() > 120 && col.value() > 120; });
+    const QString emoji = colour > 500 ? QStringLiteral("colour emoji")
+                                       : QStringLiteral("monochrome emoji, no colour emoji font");
+
+    QTemporaryDir dir;
+    QImage red(40, 30, QImage::Format_RGB32);
+    red.fill(Qt::red);
+    const QString path = dir.filePath(QStringLiteral("sticker.png"));
+    if (!dir.isValid() || !red.save(path) || !c.insertImageFile(path, 100, 250)
+        || c.rendered().pixelColor(100, 250) != QColor(Qt::red))
+        return QStringLiteral("FAIL (a picture file was not inserted)");
+    for (int i = 0; i < 3; ++i)
+        c.undo();
+    if (c.annotCount() != 0 || c.canUndo())
+        return QStringLiteral("FAIL (three stickers were not three undo steps)");
+    return QStringLiteral("PASS (pointer by click, %1 by drag, picture file, undo)").arg(emoji);
+}
+
+void AppContext::devTestStickers()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: stickers: %1").arg(stickerCheck()));
+}
+
 // Eyedropper tool: a click adopts the pixel under the cursor as the stroke
 // colour (dev button + smoke step).
 static QString eyedropperCheck()
@@ -3554,7 +3624,8 @@ QtObject {
         { key: Qt.Key_E, id: "smarterase" },
         { key: Qt.Key_N, id: "step" },
         { key: Qt.Key_C, id: "crop" },
-        { key: Qt.Key_K, id: "cutout" }
+        { key: Qt.Key_K, id: "cutout" },
+        { key: Qt.Key_G, id: "sticker" }
     ]
     readonly property bool valid: check()
     function check() {
@@ -3563,7 +3634,7 @@ QtObject {
             if (!editorTool || editorTool.id !== expected[i].id)
                 return false
             const overlayTool = ToolCatalog.toolForShortcut(expected[i].key, "overlay")
-            if (expected[i].id === "crop" || expected[i].id === "cutout") {
+            if (expected[i].id === "crop" || expected[i].id === "cutout" || expected[i].id === "sticker") {
                 if (overlayTool)
                     return false
             } else if (!overlayTool || overlayTool.id !== expected[i].id) {
@@ -3588,7 +3659,7 @@ QtObject {
     if (!probe)
         return QStringLiteral("FAIL (probe create: %1)").arg(probeComponent.errorString().simplified());
     return probe->property("valid").toBool()
-        ? QStringLiteral("PASS (16 editor, 14 overlay mappings)")
+        ? QStringLiteral("PASS (17 editor, 14 overlay mappings)")
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
@@ -5632,6 +5703,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("spotlight: ") + spotlightCheck());
         smokeLog(QStringLiteral("image transform: ") + imageTransformCheck());
         smokeLog(QStringLiteral("cut out: ") + cutOutCheck());
+        smokeLog(QStringLiteral("stickers: ") + stickerCheck());
         smokeNext();
     });
 

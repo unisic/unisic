@@ -693,6 +693,7 @@ if(BUILD_TESTING)
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
         src/editor/ImageEffects.h src/editor/ImageEffects.cpp
+        src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     )
     target_link_libraries(unisic_annotation_canvas_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)

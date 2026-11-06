@@ -25,17 +25,17 @@
     "unisic-kit": {
       "flake": false,
       "locked": {
-        "lastModified": 1793925298,
-        "narHash": "sha256-EPQKfeL5oba/qDcZaiH4WAp4FZ+x4X7JMbgjO8s2fJ4=",
+        "lastModified": 1793927485,
+        "narHash": "sha256-eN87QlpcpoXaOMsnD/TOqTrxh2x6RVz7MPniTT+2D+Y=",
         "owner": "unisic",
         "repo": "unisic-kit",
-        "rev": "216b93b8c0ab7b8724b208d63f4e920d6f439e35",
+        "rev": "67c91489e864b87d7be2549183b1bc3ec27b4354",
         "type": "github"
       },
       "original": {
         "owner": "unisic",
         "repo": "unisic-kit",
-        "rev": "216b93b8c0ab7b8724b208d63f4e920d6f439e35",
+        "rev": "67c91489e864b87d7be2549183b1bc3ec27b4354",
         "type": "github"
       }
     }

@@ -780,6 +780,10 @@ Window {
                         onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
                         onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
                         onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
+                        onImageFileRequested: {
+                            var at = canvas.toImage(canvas.width / 2, canvas.height / 2)
+                            editorSession.insertImageFile(at.x, at.y)
+                        }
                     }
 
                     UButton {

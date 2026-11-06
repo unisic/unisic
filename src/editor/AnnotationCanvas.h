@@ -52,6 +52,9 @@ class AnnotationCanvas : public QQuickPaintedItem
     // mode it was drawn in.
     Q_PROPERTY(int measureMode READ measureMode WRITE setMeasureMode NOTIFY measureModeChanged)
     Q_PROPERTY(int spotlightShape READ spotlightShape WRITE setSpotlightShape NOTIFY spotlightShapeChanged)
+    // What the Sticker tool stamps: "pointer" (the mouse pointer) or the emoji
+    // text itself.
+    Q_PROPERTY(QString sticker READ sticker WRITE setSticker NOTIFY stickerChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -123,7 +126,8 @@ public:
         Magnify,     // 18 — loupe: enlarged copy of a dragged source region
         Eyedropper,  // 19 — click a pixel to adopt its colour as the stroke colour
         Spotlight,   // 20 - dims the picture outside a rectangle or ellipse
-        CutOut       // 21 - editor-only: a drag removes a strip of columns or rows
+        CutOut,      // 21 - editor-only: a drag removes a strip of columns or rows
+        Sticker      // 22 - editor-only: a click stamps `sticker`, a drag sizes it
     };
     Q_ENUM(Tool)
 
@@ -169,6 +173,8 @@ public:
     // Hole the next Spotlight leaves undimmed: 0 rectangle, 1 ellipse.
     int spotlightShape() const { return m_spotlightShape; }
     void setSpotlightShape(int shape);
+    QString sticker() const { return m_sticker; }
+    void setSticker(const QString &sticker);
     // The placed Measure annotations, formatted for the clipboard. `format` is
     // "readable" (842 × 317 / 412 px), "plain" (842x317 / 412) or "css"
     // (width: 842px; height: 317px / 412px). One measure per line; "" when none.
@@ -297,6 +303,9 @@ public:
     // Removes columns (or rows) [from, to) and joins the two sides. false, and
     // nothing changes, for an empty strip or one that would leave no picture.
     Q_INVOKABLE bool cutOut(bool columns, int from, int to);
+    // Places the picture in `path` centred on the point, as one undo
+    // step. false, and nothing changes, when it does not decode.
+    Q_INVOKABLE bool insertImageFile(const QString &path, qreal imgX, qreal imgY);
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
     bool pixelLoupe() const { return m_pixelLoupe; }
@@ -364,6 +373,7 @@ signals:
     void highlightModeChanged();
     void measureModeChanged();
     void spotlightShapeChanged();
+    void stickerChanged();
     void pixelLoupeChanged();
     void pixelLoupeZoomChanged();
 
@@ -452,6 +462,9 @@ private:
     // Click (no drag) with the Callout tool: a default bubble whose tail points
     // at the click, sized by its text from then on.
     void placeCalloutAt(const QPointF &at);
+    void insertImageAnnot(QImage image, const QPointF &centre);
+    QImage stickerImage() const;
+    void stampSticker(const QPointF &at);
     void drawAll(QPainter &p) const;
     void drawSpotlights(QPainter &p) const;
     // A stroke drawn as a freehand path (accumulated points) rather than a
@@ -561,6 +574,11 @@ private:
     int m_highlightMode = HlText; // see HighlightMode; text-snap by default
     int m_measureMode = 0;        // 0 distance line, 1 size box
     int m_spotlightShape = 0;     // 0 rectangle, 1 ellipse
+    QString m_sticker = QStringLiteral("pointer");
+    // The last sticker rendered, so stamping the same one again shares its
+    // pixels instead of holding another copy per annotation.
+    mutable QString m_stickerKey;
+    mutable QImage m_stickerImage;
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting

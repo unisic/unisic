@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 class TestAnnotationCanvas final : public AnnotationCanvas
@@ -57,6 +58,7 @@ private slots:
     void spotlightDimsOutsideSharedHoles();
     void rotateFlipScaleWholeImage();
     void cutOutRemovesStripAndJoins();
+    void stickersStampDragAndInsertFile();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
 };
@@ -1351,6 +1353,67 @@ void AnnotationCanvasTest::cutOutRemovesStripAndJoins()
     canvas.undo();
     QCOMPARE(canvas.imageSize(), QSize(200, 200));
     QCOMPARE(canvas.annotCount(), 1);
+}
+
+// The Sticker tool: a click on empty space stamps the pointer with its tip on
+// the click, a click on a placed sticker selects it instead of stamping, a drag
+// fits the sticker into the dragged box, and a picture file goes in as a
+// PastedImage (a file that does not decode changes nothing). The emoji path is
+// fed a plain letter: a test machine need not have a colour emoji font.
+void AnnotationCanvasTest::stickersStampDragAndInsertFile()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    const auto darkIn = [&canvas](const QRect &r) {
+        const QImage out = canvas.rendered();
+        int n = 0;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x)
+                n += out.pixelColor(x, y).lightness() < 100;
+        return n;
+    };
+
+    canvas.setTool(AnnotationCanvas::Sticker);
+    QCOMPARE(canvas.sticker(), QStringLiteral("pointer"));
+    click(canvas, QPointF(50, 50));
+    QCOMPARE(canvas.annotCount(), 1);
+    QVERIFY2(darkIn(QRect(50, 50, 18, 26)) > 20, "the pointer outline is drawn below-right of its tip");
+    QCOMPARE(darkIn(QRect(20, 20, 28, 28)), 0);
+    click(canvas, QPointF(54, 62));
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::PastedImage));
+    click(canvas, QPointF(200, 50));
+    QCOMPARE(canvas.annotCount(), 2);
+    QCOMPARE(canvas.selectedAnnotTool(), -1);
+
+    canvas.setSticker(QStringLiteral("A"));
+    drag(canvas, QPointF(150, 150), QPointF(250, 200));
+    QCOMPARE(canvas.annotCount(), 3);
+    QVERIFY2(darkIn(QRect(150, 150, 101, 51)) > 100, "the letter fills the dragged box");
+    QCOMPARE(darkIn(QRect(150, 202, 101, 60)), 0);
+    click(canvas, QPointF(200, 175));
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::PastedImage));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage red(40, 30, QImage::Format_RGB32);
+    red.fill(Qt::red);
+    const QString path = dir.filePath(QStringLiteral("red.png"));
+    QVERIFY(red.save(path));
+    QVERIFY(canvas.insertImageFile(path, 100, 250));
+    QCOMPARE(canvas.annotCount(), 4);
+    QCOMPARE(canvas.rendered().pixelColor(100, 250), QColor(Qt::red));
+    QVERIFY(!canvas.insertImageFile(dir.filePath(QStringLiteral("missing.png")), 100, 250));
+    QCOMPARE(canvas.annotCount(), 4);
+
+    for (int i = 4; i > 0; --i) {
+        canvas.undo();
+        QCOMPARE(canvas.annotCount(), i - 1);
+    }
 }
 
 // The region-overlay pixel loupe: appears only once the pointer hovers in

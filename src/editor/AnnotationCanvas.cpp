@@ -1,4 +1,6 @@
 #include "AnnotationCanvas.h"
+#include "record/CursorOverlayPainter.h"
+#include <QImageReader>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPainterPathStroker>
@@ -259,6 +261,13 @@ void AnnotationCanvas::setSpotlightShape(int shape)
     emit spotlightShapeChanged();
 }
 
+void AnnotationCanvas::setSticker(const QString &sticker)
+{
+    if (sticker.isEmpty() || m_sticker == sticker) return;
+    m_sticker = sticker;
+    emit stickerChanged();
+}
+
 void AnnotationCanvas::setMeasureMode(int mode)
 {
     mode = qBound(0, mode, 1);
@@ -491,36 +500,136 @@ bool AnnotationCanvas::pasteClipboard(qreal imgX, qreal imgY)
     const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
     if (!mime)
         return false;
-    const QPointF origin(imgX, imgY);
     if (mime->hasImage()) {
-        QImage image = qvariant_cast<QImage>(mime->imageData());
+        const QImage image = qvariant_cast<QImage>(mime->imageData());
         if (image.isNull())
             return false;
-        image.setDevicePixelRatio(1.0);
-        QSizeF size = image.size();
-        // A pasted full-screen image should stay movable/editable instead of
-        // covering the whole canvas by default. Downscale ONCE here rather
-        // than asking QPainter to resample a 4K source on every canvas repaint;
-        // the visible/exported rect cannot use those discarded pixels anyway.
-        const QSizeF maxSize(m_base.width() * 0.6, m_base.height() * 0.6);
-        if (size.width() > maxSize.width() || size.height() > maxSize.height()) {
-            size.scale(maxSize, Qt::KeepAspectRatio);
-            image = image.scaled(size.toSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            size = image.size();
-        }
-        pushUndo();
-        Annot a;
-        a.type = PastedImage;
-        a.rect = QRectF(origin - QPointF(size.width() / 2.0, size.height() / 2.0), size);
-        a.image = image;
-        m_items.append(a);
-        updateImgRect(annotBoundsImg(a));
+        insertImageAnnot(image, QPointF(imgX, imgY));
         return true;
     }
     if (!mime->hasText() || mime->text().trimmed().isEmpty())
         return false;
     commitText(imgX, imgY, mime->text());
     return true;
+}
+
+bool AnnotationCanvas::insertImageFile(const QString &path, qreal imgX, qreal imgY)
+{
+    QImageReader reader(path);
+    reader.setAutoTransform(true);   // a phone photo stands the way it was shot
+    const QImage image = reader.read();
+    if (image.isNull() || m_base.isNull())
+        return false;
+    insertImageAnnot(image, QPointF(imgX, imgY));
+    return true;
+}
+
+void AnnotationCanvas::insertImageAnnot(QImage image, const QPointF &centre)
+{
+    image.setDevicePixelRatio(1.0);
+    QSizeF size = image.size();
+    // A full-screen image should stay movable/editable instead of covering
+    // the whole canvas by default. Downscale ONCE here rather than asking
+    // QPainter to resample a 4K source on every canvas repaint; the
+    // visible/exported rect cannot use those discarded pixels anyway.
+    const QSizeF maxSize(m_base.width() * 0.6, m_base.height() * 0.6);
+    if (size.width() > maxSize.width() || size.height() > maxSize.height()) {
+        size.scale(maxSize, Qt::KeepAspectRatio);
+        image = image.scaled(size.toSize(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        size = image.size();
+    }
+    pushUndo();
+    Annot a;
+    a.type = PastedImage;
+    a.rect = QRectF(centre - QPointF(size.width() / 2.0, size.height() / 2.0), size);
+    a.image = image;
+    m_items.append(a);
+    updateImgRect(annotBoundsImg(a));
+}
+
+// Stickers are rendered once in a square this big and scaled down on paint, so
+// one resized up afterwards stays sharp to about this size.
+static constexpr int kStickerRaster = 256;
+
+static QRect opaqueBounds(const QImage &img)
+{
+    int left = img.width(), right = -1, top = img.height(), bottom = -1;
+    for (int y = 0; y < img.height(); ++y) {
+        const auto *row = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        for (int x = 0; x < img.width(); ++x) {
+            if (qAlpha(row[x]) == 0)
+                continue;
+            left = qMin(left, x); right = qMax(right, x);
+            top = qMin(top, y); bottom = qMax(bottom, y);
+        }
+    }
+    return right < 0 ? QRect() : QRect(QPoint(left, top), QPoint(right, bottom));
+}
+
+static QRectF fitCentred(const QRectF &box, const QSizeF &size)
+{
+    QRectF r(QPointF(), size.scaled(box.size(), Qt::KeepAspectRatio));
+    r.moveCenter(box.center());
+    return r;
+}
+
+QImage AnnotationCanvas::stickerImage() const
+{
+    if (m_stickerKey == m_sticker)
+        return m_stickerImage;
+    QImage img(kStickerRaster, kStickerRaster, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    {
+        QPainter p(&img);
+        p.setRenderHint(QPainter::Antialiasing);
+        if (m_sticker == QLatin1String("pointer")) {
+            // The path is 12.3 x 18.6 units plus its shadow and pen.
+            const qreal s = kStickerRaster / 20.0;
+            p.scale(s, s);
+            p.translate(0.8, 0.8);
+            CursorOverlayPainter::drawVectorPointer(p);
+        } else {
+            // A colour emoji font ignores the pen; a monochrome fallback
+            // glyph is drawn in it.
+            QFont font;
+            font.setPixelSize(kStickerRaster * 3 / 4);
+            p.setFont(font);
+            p.setPen(Qt::black);
+            p.drawText(img.rect(), Qt::AlignCenter, m_sticker);
+        }
+    }
+    // Cropped to the ink, so the sticker's box (its handles, its hit area) is
+    // the sticker. Fully transparent - no glyph for that text - stays null.
+    const QRect ink = opaqueBounds(img);
+    m_stickerKey = m_sticker;
+    m_stickerImage = ink.isEmpty() ? QImage() : img.copy(ink);
+    return m_stickerImage;
+}
+
+void AnnotationCanvas::stampSticker(const QPointF &at)
+{
+    const QImage img = stickerImage();
+    if (img.isNull() || m_base.isNull())
+        return;
+    const bool pointer = m_sticker == QLatin1String("pointer");
+    // About a real pointer on a 1080p shot, and a glanceable emoji.
+    const qreal side = qMin(m_base.width(), m_base.height());
+    const qreal h = pointer ? qBound(24.0, side / 30.0, 96.0) : qBound(32.0, side / 8.0, 192.0);
+    const QSizeF size(h * img.width() / img.height(), h);
+    Annot a;
+    a.type = PastedImage;
+    a.image = img;
+    // The pointer's tip is its hotspot and lands on the click; an emoji
+    // centres on it.
+    a.rect = pointer ? QRectF(at, size)
+                     : QRectF(at - QPointF(size.width() / 2.0, size.height() / 2.0), size);
+    // Not selected: a selected picture empties the props bar, and the sticker
+    // palette has to stay up for the next stamp.
+    if (m_selectedAnnot >= 0)
+        selectAnnot(-1);
+    pushUndo();
+    m_items.append(a);
+    updateImgRect(annotBoundsImg(a));
 }
 
 // ------------------------------------------------------ EditShapes: selection
@@ -2020,6 +2129,12 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
                    QString::number(a.number));
         break;
     }
+    case Sticker:
+        // Never placed: the live preview of a dragged sticker. The release
+        // turns it into a PastedImage.
+        if (!a.image.isNull())
+            p.drawImage(fitCentred(a.rect.normalized(), a.image.size()), a.image);
+        break;
     case CutOut: {
         // Never placed: the live preview of the strip a release removes.
         const QRectF r = a.rect.normalized();
@@ -2858,6 +2973,8 @@ void AnnotationCanvas::beginDraw(const QPointF &at)
     // Spotlight does the same: an ellipse hole (1) or a rectangle (0).
     if (m_tool == Spotlight)
         m_current.filled = (m_spotlightShape == 1);
+    if (m_tool == Sticker)
+        m_current.image = stickerImage();
     m_current.width = m_strokeWidth;
     m_current.arrowHeadStyle = m_arrowHeadStyle;
     m_current.fontSize = m_fontSize;
@@ -3371,6 +3488,8 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             // a bubble that sizes itself to what gets typed, so a note does not
             // need a rectangle dragged to the right size first.
             placeCalloutAt(img);
+        else if (hit < 0 && m_tool == Sticker)
+            stampSticker(img);
         else
             selectAnnot(hit);
         update();
@@ -3409,6 +3528,13 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
                     cutOut(true, qRound(r.left()), qRound(r.right()));
                 else
                     cutOut(false, qRound(r.top()), qRound(r.bottom()));
+            } else if (m_current.type == Sticker) {
+                if (!m_current.image.isNull()) {
+                    m_current.type = PastedImage;
+                    m_current.rect = fitCentred(m_current.rect.normalized(), m_current.image.size());
+                    pushUndo();
+                    m_items.append(m_current);
+                }
             } else if (m_current.type == Magnify) {
                 // The drag picked the SOURCE; the placed annotation is the
                 // loupe — a 2x copy centred on the source, clamped into the

@@ -27,6 +27,7 @@ class QSystemTrayIcon;
 class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
+class FolderWatch;
 class QQuickWindow;
 class QMimeData;
 class QScreen;
@@ -146,6 +147,8 @@ class AppContext : public QObject
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors - quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
+    // Settings > Upload's watched folder is a folder that is being watched.
+    Q_PROPERTY(bool watchFolderActive READ watchFolderActive NOTIFY watchFolderActiveChanged)
     // Tesseract is a hard build requirement, but its language data is a separate
     // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
@@ -441,6 +444,7 @@ public:
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
+    bool watchFolderActive() const;
     bool ocrHasLanguages() const;
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
@@ -587,6 +591,7 @@ public:
     // through the same failure chain and after-upload actions as a capture.
     Q_INVOKABLE void uploadAnyFile();       // file dialog, any type
     Q_INVOKABLE void uploadPath(const QString &path);
+    Q_INVOKABLE void devTestWatchFolder();
     Q_INVOKABLE void uploadClipboard();     // a copied file, image or text
     Q_INVOKABLE void qrFromClipboard();     // QR code of the copied text
     // What uploadClipboard() sends for this payload: "files", "image", "text",
@@ -807,6 +812,7 @@ signals:
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
+    void watchFolderActiveChanged();
     void smokeTestChanged();
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
@@ -841,6 +847,7 @@ private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    void startWatchFolder();     // follows Settings::watchFolder for good
     QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
@@ -1190,6 +1197,7 @@ private:
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
+    FolderWatch *m_folderWatch = nullptr; // Settings > Upload > watched folder
     QTimer *m_trimTimer = nullptr;
     QTimer *m_updateRestartTimer = nullptr; // retries the idle auto-restart
     // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K

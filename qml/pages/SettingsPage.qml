@@ -1631,6 +1631,40 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Upload from a folder") }
+                    SettingRow {
+                        id: watchFolderRow
+                        label: qsTr("Watched folder")
+                        help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
+                        helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
+                        UTextField {
+                            width: Math.min(420, page.cardWidth - 140)
+                            placeholder: qsTr("No folder")
+                            // Set here, so the row bridge keeps off it: the
+                            // error under the card is a Text, which a screen
+                            // reader never reaches on its own.
+                            accessibleDescription: watchFolderError.visible ? watchFolderError.text : watchFolderRow.help
+                            text: App.settings.watchFolder
+                            onEdited: (t) => App.settings.watchFolder = t
+                        }
+                    }
+                    Text {
+                        id: watchFolderError
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: App.settings.watchFolder.trim() !== "" && !App.watchFolderActive
+                        text: qsTr("This is not a folder, so nothing is watched.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
                     SectionTitle { text: qsTr("External action") }
                     Text {
                         width: parent.width
@@ -4020,6 +4054,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR of text"); onClicked: App.devTestQrText() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Share sources"); onClicked: App.devTestShareSources() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Watched folder"); onClicked: App.devTestWatchFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }

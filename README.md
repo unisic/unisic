@@ -65,7 +65,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 - **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, emoji or a picture from a file), rotate, flip, resize, undo/redo and zoom.
 - **Record** - region, full screen or window to GIF, MP4 or WebM, with optional system and microphone audio.
 - **Read pixels** - OCR any region or scan a QR/barcode, and copy the result.
-- **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP and built-in hosts; the link auto-copies, and copied text turns into a QR code.
+- **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP and built-in hosts, plus every new file in a watched folder; the link auto-copies, and copied text turns into a QR code.
 - **Remember** - thumbnail history of every capture; deleting moves the file to the trash.
 - **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
 - **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.

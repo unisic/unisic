@@ -184,6 +184,7 @@ qt_add_executable(unisic
     src/upload/UploadManager.h src/upload/UploadManager.cpp
     # AppContext's upload entry points that are not captures (same class).
     src/upload/UploadSources.cpp
+    src/upload/FolderWatch.h src/upload/FolderWatch.cpp
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp

@@ -4,6 +4,8 @@
 // are not captures stay out of the capture pipeline's file.
 #include "AppContext.h"
 #include "Settings.h"
+#include "history/HistoryStore.h"
+#include "upload/FolderWatch.h"
 #include "upload/UploadManager.h"
 
 #include <KSystemClipboard>
@@ -64,6 +66,33 @@ void AppContext::uploadPath(const QString &path)
     // after-upload actions", and it attaches the link when the file happens
     // to be one of the captures listed there.
     uploadFromHistory(info.absoluteFilePath());
+}
+
+void AppContext::startWatchFolder()
+{
+    m_folderWatch = new FolderWatch(this);
+    const auto apply = [this] {
+        const QString dir = m_settings->watchFolder().trimmed();
+        // Set per keystroke while the path is typed: a half-typed path is not
+        // worth a warning, the settings row says it is not a folder.
+        m_folderWatch->setPath(dir);
+        emit watchFolderActiveChanged();
+    };
+    connect(m_settings, &Settings::watchFolderChanged, this, apply);
+    apply();
+    connect(m_folderWatch, &FolderWatch::fileReady, this, [this](const QString &path) {
+        // A capture saved into the watched folder is in History already, and
+        // "Upload to the active server" decides its upload: not twice.
+        if (m_history->idForFile(path) != 0)
+            return;
+        qInfo().noquote() << "watched folder: uploading" << path;
+        uploadPath(path);
+    });
+}
+
+bool AppContext::watchFolderActive() const
+{
+    return m_folderWatch && !m_folderWatch->path().isEmpty();
 }
 
 void AppContext::uploadClipboard()

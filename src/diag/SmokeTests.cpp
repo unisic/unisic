@@ -18,6 +18,7 @@
 #include "capture/PortalRequest.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
+#include "upload/FolderWatch.h"
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
 #include "history/HistoryFilterModel.h"
@@ -945,6 +946,53 @@ void AppContext::devTestShortenLink()
         return;
     const QString r = shortenReplyCheck();
     showToast(tr("Dev: link shortener: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// Watched folder: a file that was there first stays, a new one is handed over
+// once it holds still, a dotfile and a partial download never are, and a path
+// that is not a folder is refused. The check owns its FolderWatch, so nothing
+// is uploaded.
+static QString watchFolderCheck()
+{
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("SKIP (no temporary folder)");
+    const auto write = [&dir](const QString &name) {
+        QFile f(dir.filePath(name));
+        return f.open(QIODevice::WriteOnly) && f.write("x") == 1;
+    };
+    if (!write(QStringLiteral("old.txt")))
+        return QStringLiteral("FAIL (could not write into %1)").arg(dir.path());
+    FolderWatch watch;
+    QStringList got;
+    QObject::connect(&watch, &FolderWatch::fileReady, &watch,
+                     [&got](const QString &path) { got << QFileInfo(path).fileName(); });
+    if (watch.setPath(dir.filePath(QStringLiteral("old.txt"))) || !watch.path().isEmpty())
+        return QStringLiteral("FAIL (a file was taken for a folder)");
+    if (!watch.setPath(dir.path()))
+        return QStringLiteral("FAIL (a temporary folder could not be watched)");
+    QElapsedTimer t;
+    t.start();
+    write(QStringLiteral("new.txt"));
+    write(QStringLiteral(".hidden"));
+    write(QStringLiteral("download.part"));
+    while (got.isEmpty() && t.elapsed() < 5000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    const qint64 after = t.elapsed();
+    // One more settle period, so a second hand-over would show up.
+    while (t.elapsed() < after + 2 * FolderWatch::kSettleMs)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    if (got != QStringList{QStringLiteral("new.txt")})
+        return QStringLiteral("FAIL (handed over: [%1])").arg(got.join(QLatin1String(", ")));
+    return QStringLiteral("PASS (new file after %1 ms; the old one, a dotfile and a .part stayed)").arg(after);
+}
+
+void AppContext::devTestWatchFolder()
+{
+    if (!devBuild())
+        return;
+    const QString r = watchFolderCheck();
+    showToast(tr("Dev: watched folder: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestDiagnostics()
@@ -5661,6 +5709,7 @@ void AppContext::runSmokeTest()
     // 3e3i3) Shorten the link (is.gd): its answers parsed offline, no request.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("link shortener: ") + shortenReplyCheck());
+        smokeLog(QStringLiteral("watched folder: ") + watchFolderCheck());
         smokeNext();
     });
 

@@ -378,6 +378,8 @@ void AppContext::initialize(QQmlEngine *engine)
         // now re-validates to the bundled default - refresh the live tray too.
         applyTrayIcon();
     });
+    startWatchFolder();
+
     // Deferred to the first event-loop pass so the asynchronous registration
     // burst starts after the QML engine has loaded the window, and late enough
     // that startup toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.

@@ -687,6 +687,12 @@ if(BUILD_TESTING)
     add_test(NAME unisic_version_cli_test COMMAND unisic --version)
     set_tests_properties(unisic_version_cli_test PROPERTIES
         PASS_REGULAR_EXPRESSION "${UNISIC_VERSION_STRING}")
+    # The bash completion parses that same early --help (#133).
+    if(NOT WIN32)
+        add_test(NAME unisic_bash_completion_test
+            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/tests/bash-completion.sh $<TARGET_FILE:unisic>
+                    ${CMAKE_CURRENT_SOURCE_DIR}/resources/completions/unisic.bash)
+    endif()
 
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp

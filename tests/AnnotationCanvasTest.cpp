@@ -1195,6 +1195,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     canvas.setHeight(400);
     QImage image(500, 400, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::white);
+    image.setPixelColor(50, 50, QColor(0x12, 0xAB, 0xEF));
     canvas.setImage(image);
     canvas.setSelectionMode(true);
     canvas.setPixelLoupe(true);
@@ -1209,6 +1210,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     const QRectF nearOrigin = canvas.pixelLoupeRect();
     QVERIFY2(!nearOrigin.isEmpty() && nearOrigin.left() > 50 && nearOrigin.top() > 50,
              "the loupe sits below-right of the cursor");
+    QCOMPARE(canvas.loupeColorHex(), QStringLiteral("#12ABEF")); // what the overlay's C copies
     hover({490, 390});
     const QRectF nearCorner = canvas.pixelLoupeRect();
     QVERIFY2(!nearCorner.isEmpty() && nearCorner.right() < 490 && nearCorner.bottom() < 390,
@@ -1231,6 +1233,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     wheel(-120);
     QVERIFY2(canvas.pixelLoupeRect().isEmpty(),
              "scrolling out below the minimum collapses the loupe");
+    QVERIFY2(canvas.loupeColorHex().isEmpty(), "no colour to copy while collapsed");
     wheel(120);
     QVERIFY2(!canvas.pixelLoupeRect().isEmpty(),
              "scrolling back in revives the collapsed loupe");

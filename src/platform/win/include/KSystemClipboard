@@ -1,8 +1,8 @@
 #pragma once
 // Windows build only: stands in for KF6GuiAddons' <KSystemClipboard>, which
-// MSYS2 does not package. The Linux code reaches it only after finding KWin on
-// the session bus, which never happens here, so forwarding to QClipboard is
-// enough for it to compile and to behave if it is ever called.
+// MSYS2 does not package. Its point on Linux is reading and offering the
+// clipboard without focus (data-control); Windows needs no focus for either,
+// so forwarding to QClipboard is the whole implementation.
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMimeData>
@@ -20,5 +20,11 @@ public:
     void setMimeData(QMimeData *mime, QClipboard::Mode mode)
     {
         QGuiApplication::clipboard()->setMimeData(mime, mode);
+    }
+
+    // Owned by the clipboard, valid until the clipboard changes.
+    const QMimeData *mimeData(QClipboard::Mode mode) const
+    {
+        return QGuiApplication::clipboard()->mimeData(mode);
     }
 };

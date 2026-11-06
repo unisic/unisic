@@ -148,6 +148,10 @@ AppContext::AppContext(QObject *parent)
     m_notifier = new DesktopNotifier(this, this);
     m_dnd = new NotificationInhibitor(this);
     m_actionRunner = new ExternalActionRunner(this);
+    // Created up front, not on first use: over data-control it learns the
+    // current selection one roundtrip after it exists, so a lazy first read
+    // (Upload clipboard, QR of copied text) found the clipboard empty.
+    KSystemClipboard::instance();
     // Keystroke-badge colors follow the active theme (incl. custom themes).
     // Resolved lazily at key-capture start - m_engine is null here.
     m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
@@ -620,7 +624,7 @@ void AppContext::requestAudioInputDevices()
 QImage qrPreviewImage(const QString &url)
 {
     const QByteArray utf8 = url.toUtf8();
-    if (utf8.isEmpty() || utf8.size() > 2048)
+    if (utf8.isEmpty() || utf8.size() > kQrMaxBytes)
         return {};
     try {
 #if __has_include(<ZXing/MultiFormatWriter.h>)
@@ -5088,14 +5092,17 @@ void AppContext::copyFileToClipboard(const QString &path)
                     QUrl::fromLocalFile(path).toEncoded() + "\r\n");
 }
 
-void AppContext::showQr(const QString &url)
+void AppContext::showQr(const QString &text)
 {
-    const QUrl parsed(url);
-    if (!parsed.isValid() || parsed.scheme().isEmpty()) {
-        showToast(tr("No valid link to turn into a QR code"), true);
+    if (text.trimmed().isEmpty()) {
+        showToast(tr("Nothing to turn into a QR code"), true);
         return;
     }
-    const QImage qr = qrPreviewImage(url);
+    if (const qsizetype bytes = text.toUtf8().size(); bytes > kQrMaxBytes) {
+        showToast(tr("Too long for a QR code: %1 bytes, at most %2").arg(bytes).arg(kQrMaxBytes), true);
+        return;
+    }
+    const QImage qr = qrPreviewImage(text);
     if (qr.isNull()) {
         // zxing-cpp is always linked in, so a null image can only be the encoder
         // refusing this payload (too long, or an unencodable byte sequence).
@@ -5990,6 +5997,9 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("replay-save"), QStringLiteral("document-save"), AppContext::tr("Save instant replay"), 1, false, [a] { a->saveInstantReplay(); }},
         {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] { a->stopRecording(); }},
         {QStringLiteral("copy-last"), QStringLiteral("content-copy"), AppContext::tr("Copy last capture"), 2, false, [a] { a->copyLastCapture(); }},
+        {QStringLiteral("upload-file"), QStringLiteral("upload-cloud"), AppContext::tr("Upload a file…"), 2, false, [a] { a->uploadAnyFile(); }},
+        {QStringLiteral("upload-clipboard"), QStringLiteral("document-send"), AppContext::tr("Upload clipboard"), 2, false, [a] { a->uploadClipboard(); }},
+        {QStringLiteral("qr-clipboard"), QStringLiteral("view-preview"), AppContext::tr("QR code of copied text"), 2, false, [a] { a->qrFromClipboard(); }},
         {QStringLiteral("open"), QStringLiteral("monitor"), AppContext::tr("Open Unisic"), kTrayUpdateGroup + 1, true, [a] { emit a->showMainWindowRequested(); }},
         {QStringLiteral("quit"), QStringLiteral("close"), AppContext::tr("Quit"), kTrayUpdateGroup + 1, true, [a] { a->quitApp(QStringLiteral("tray menu Quit")); }},
     };

@@ -395,6 +395,8 @@ public:
     Q_INVOKABLE void devTestShiftSnap();
     Q_INVOKABLE void devTestPenLine();
     Q_INVOKABLE void devTestQrPreview();
+    Q_INVOKABLE void devTestQrText();
+    Q_INVOKABLE void devTestShareSources();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
@@ -571,7 +573,20 @@ public:
     Q_INVOKABLE void saveInstantReplay();
 
     Q_INVOKABLE void copyText(const QString &text);
-    Q_INVOKABLE void showQr(const QString &url);
+    // A QR code of any text up to 2048 bytes: an upload link, or what was copied.
+    Q_INVOKABLE void showQr(const QString &text);
+    // Sharing what you already have (src/upload/UploadSources.cpp). Each goes
+    // through the same failure chain and after-upload actions as a capture.
+    Q_INVOKABLE void uploadAnyFile();       // file dialog, any type
+    Q_INVOKABLE void uploadPath(const QString &path);
+    Q_INVOKABLE void uploadClipboard();     // a copied file, image or text
+    Q_INVOKABLE void qrFromClipboard();     // QR code of the copied text
+    // What uploadClipboard() sends for this payload: "files", "image", "text",
+    // or "" for nothing it can upload. Pure, so the routing is checkable
+    // without touching the real clipboard.
+    static QString clipboardUploadKind(const QMimeData *mime);
+    // The name copied text is uploaded under: the filename template, .txt.
+    QString clipboardTextFileName() const;
     // Text representations of a capture. The data URI encode is asynchronous
     // because a full-resolution PNG must never stall the GUI thread.
     void copyImageAs(const QImage &img, const QString &filePath, const QString &url,
@@ -798,6 +813,8 @@ private:
     // a local file url -> openPath(), anything else (and a null payload, which
     // is what an empty clipboard hands over) -> a toast that says why.
     void pasteMimeData(const QMimeData *mime);
+    // uploadClipboard()'s sender, split off for the same reason.
+    void uploadMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
     // The members below up to showInFolderCheck() are defined per platform in

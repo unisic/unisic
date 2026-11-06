@@ -2392,10 +2392,7 @@ void AnnotationCanvas::paint(QPainter *painter)
     if (!panel.isEmpty()) {
         const int z = m_pixelLoupeZoom;
         const int n = loupeGridCells();
-        // The exact image pixel under the cursor = the loupe's centre cell.
-        QPoint c = toImage(m_hoverPoint.x(), m_hoverPoint.y()).toPoint();
-        c.setX(qBound(0, c.x(), m_base.width() - 1));
-        c.setY(qBound(0, c.y(), m_base.height() - 1));
+        const QPoint c = loupePixel();
         // copy() zero-fills the part of the window that falls outside the
         // image, which reads as the dark panel background — no clamping shift.
         const QImage patch = m_base.copy(c.x() - n / 2, c.y() - n / 2, n, n)
@@ -3436,6 +3433,20 @@ int AnnotationCanvas::loupeGridCells() const
     if ((n & 1) == 0)
         ++n;
     return qMax(5, n);
+}
+
+// The exact image pixel under the cursor = the loupe's centre cell.
+QPoint AnnotationCanvas::loupePixel() const
+{
+    const QPoint c = toImage(m_hoverPoint.x(), m_hoverPoint.y()).toPoint();
+    return {qBound(0, c.x(), m_base.width() - 1), qBound(0, c.y(), m_base.height() - 1)};
+}
+
+QString AnnotationCanvas::loupeColorHex() const
+{
+    if (pixelLoupeRect().isEmpty())
+        return {};
+    return m_base.pixelColor(loupePixel()).name(QColor::HexRgb).toUpper();
 }
 
 QRectF AnnotationCanvas::pixelLoupeRect() const

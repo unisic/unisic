@@ -7,11 +7,128 @@ import "../components"
 // Files you already have, not captures: an image opens in the same editor a
 // screenshot does, a recording in the same trim window History's Trim opens.
 // Its own page rather than a fourth card on Capture — nothing here captures
-// anything, and the two cases want different file dialogs.
+// anything, and the two cases want different file dialogs. Below them, the
+// same kind of tiles for sharing what you have: a file, the clipboard, a QR code.
 Item {
+    id: editPage
     // Nothing modal on this page - the flag exists on every page so Main.qml
     // can ask the active one without a per-page special case.
     readonly property bool modalOpen: false
+
+    function activate(kind) {
+        if (kind === "upload-file") App.uploadAnyFile()
+        else if (kind === "upload-clipboard") App.uploadClipboard()
+        else if (kind === "qr") App.qrFromClipboard()
+        else App.openFileForEditing(kind)
+    }
+
+    component TileFlow: Flow {
+        id: modeFlow
+        property var tiles: []
+        width: parent.width
+        spacing: Theme.spacingL
+
+        readonly property int count: tiles.length
+        readonly property int minCard: 180
+        readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
+        readonly property int perRow: {
+            for (var n = Math.min(fits, count); n > 1; --n)
+                if (count % n === 0)
+                    return n
+            return 1
+        }
+        readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
+
+        Repeater {
+            model: modeFlow.tiles
+
+            // Color-only hover feedback - the tiles never move (same
+            // rule as the Capture page).
+            delegate: Rectangle {
+                id: modeTile
+                // One entry point for pointer, keyboard and assistive
+                // tech, so the three can never drift apart.
+                function activate() { editPage.activate(modelData.kind) }
+                width: modeFlow.cardW
+                // Kept in lockstep with CapturePage's tiles: the two
+                // pages share one grid, so a height that differs
+                // between them is visible the moment you switch.
+                height: 140
+                radius: Theme.radiusXL
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: cardMouse.containsMouse ? Theme.surfaceHiTop : Theme.surfaceTop }
+                    GradientStop { position: 1.0; color: cardMouse.containsMouse ? Theme.surfaceHi : Theme.surfaceBottom }
+                }
+                border.width: 1
+                border.color: cardMouse.containsMouse ? Theme.alpha(Theme.accent, 0.55) : Theme.divider
+                Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
+                layer.enabled: true
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: Theme.shadow
+                    shadowBlur: 0.7
+                    shadowVerticalOffset: 4
+                    shadowOpacity: 0.55
+                }
+
+                Rectangle {
+                    x: parent.radius / 2
+                    width: parent.width - parent.radius
+                    height: 1; y: 1
+                    color: Theme.edgeLight
+                }
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 10
+                    UIcon {
+                        name: modelData.iconName
+                        size: 40
+                        color: cardMouse.containsMouse ? Theme.accent : Theme.textPrimary
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    // Folded into the tile's Accessible.name below, so
+                    // the button announces itself exactly once.
+                    Text {
+                        text: modelData.title
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontL
+                        font.weight: Font.DemiBold
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        Accessible.ignored: true
+                    }
+                    Text {
+                        text: modelData.sub
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        Accessible.ignored: true
+                    }
+                }
+
+                MouseArea {
+                    id: cardMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: modeTile.activate()
+                }
+
+                // Same rule as the Capture tiles.
+                activeFocusOnTab: true
+                Keys.onSpacePressed: (e) => UKeys.activate(e, modeTile.activate)
+                Keys.onReturnPressed: (e) => UKeys.activate(e, modeTile.activate)
+                Keys.onEnterPressed: (e) => UKeys.activate(e, modeTile.activate)
+
+                Accessible.role: Accessible.Button
+                //: Spoken name of an Edit tile: title, subtitle.
+                Accessible.name: qsTr("%1, %2").arg(modelData.title).arg(modelData.sub)
+                Accessible.focusable: modeTile.activeFocusOnTab
+                Accessible.onPressAction: modeTile.activate()
+                UFocusRing { inset: 3 }
+            }
+        }
+    }
 
     Flickable {
         id: pageFlick
@@ -47,119 +164,34 @@ Item {
 
             // The same stretch-to-fill tile grid as the Capture page, so both
             // pages share one grid; wraps instead of clipping when narrow.
-            Flow {
-                id: modeFlow
-                width: parent.width
-                spacing: Theme.spacingL
+            TileFlow {
+                tiles: [
+                    { iconName: "edit", title: qsTr("Edit an image"),
+                      sub: qsTr("Annotate, crop, blur"), kind: "image" },
+                    { iconName: "cut", title: qsTr("Trim a video"),
+                      sub: qsTr("Cut a start and an end"), kind: "video" },
+                ]
+            }
 
-                readonly property int count: 2
-                readonly property int minCard: 180
-                readonly property int fits: Math.max(1, Math.floor((width + spacing) / (minCard + spacing)))
-                readonly property int perRow: {
-                    for (var n = Math.min(fits, count); n > 1; --n)
-                        if (count % n === 0)
-                            return n
-                    return 1
-                }
-                readonly property real cardW: Math.floor((width - (perRow - 1) * spacing) / perRow)
+            Text {
+                text: qsTr("Share")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontL
+                font.weight: Font.Bold
+                topPadding: Theme.spacingS
+            }
 
-                Repeater {
-                    model: [
-                        { iconName: "edit", title: qsTr("Edit an image"),
-                          sub: qsTr("Annotate, crop, blur"), kind: "image" },
-                        { iconName: "cut", title: qsTr("Trim a video"),
-                          sub: qsTr("Cut a start and an end"), kind: "video",
-                          // Trimming shells out to ffmpeg; without recording
-                          // support the rest of the app has no ffmpeg either.
-                          available: true },
-                    ]
-
-                    // Color-only hover feedback — the tiles never move (same
-                    // rule as the Capture page).
-                    delegate: Rectangle {
-                        id: modeTile
-                        // One entry point for pointer, keyboard and assistive
-                        // tech, so the three can never drift apart.
-                        function activate() { App.openFileForEditing(modelData.kind) }
-                        width: modeFlow.cardW
-                        // Kept in lockstep with CapturePage's tiles: the two
-                        // pages share one grid, so a height that differs
-                        // between them is visible the moment you switch.
-                        height: 140
-                        radius: Theme.radiusXL
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: cardMouse.containsMouse ? Theme.surfaceHiTop : Theme.surfaceTop }
-                            GradientStop { position: 1.0; color: cardMouse.containsMouse ? Theme.surfaceHi : Theme.surfaceBottom }
-                        }
-                        border.width: 1
-                        border.color: cardMouse.containsMouse ? Theme.alpha(Theme.accent, 0.55) : Theme.divider
-                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
-                        layer.enabled: true
-                        layer.effect: MultiEffect {
-                            shadowEnabled: true
-                            shadowColor: Theme.shadow
-                            shadowBlur: 0.7
-                            shadowVerticalOffset: 4
-                            shadowOpacity: 0.55
-                        }
-
-                        Rectangle {
-                            x: parent.radius / 2
-                            width: parent.width - parent.radius
-                            height: 1; y: 1
-                            color: Theme.edgeLight
-                        }
-
-                        Column {
-                            anchors.centerIn: parent
-                            spacing: 10
-                            UIcon {
-                                name: modelData.iconName
-                                size: 40
-                                color: cardMouse.containsMouse ? Theme.accent : Theme.textPrimary
-                                anchors.horizontalCenter: parent.horizontalCenter
-                            }
-                            // Folded into the tile's Accessible.name below, so
-                            // the button announces itself exactly once.
-                            Text {
-                                text: modelData.title
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.fontL
-                                font.weight: Font.DemiBold
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Accessible.ignored: true
-                            }
-                            Text {
-                                text: modelData.sub
-                                color: Theme.textSecondary
-                                font.pixelSize: Theme.fontS
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                Accessible.ignored: true
-                            }
-                        }
-
-                        MouseArea {
-                            id: cardMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: modeTile.activate()
-                        }
-
-                        // Same rule as the Capture tiles.
-                        activeFocusOnTab: true
-                        Keys.onSpacePressed: (e) => UKeys.activate(e, modeTile.activate)
-                        Keys.onReturnPressed: (e) => UKeys.activate(e, modeTile.activate)
-                        Keys.onEnterPressed: (e) => UKeys.activate(e, modeTile.activate)
-
-                        Accessible.role: Accessible.Button
-                        //: Spoken name of an Edit tile: title, subtitle.
-                        Accessible.name: qsTr("%1, %2").arg(modelData.title).arg(modelData.sub)
-                        Accessible.focusable: modeTile.activeFocusOnTab
-                        Accessible.onPressAction: modeTile.activate()
-                        UFocusRing { inset: 3 }
-                    }
-                }
+            // Not captures either: these go through the same servers, failure
+            // chain and after-upload actions a capture upload does.
+            TileFlow {
+                tiles: [
+                    { iconName: "upload-cloud", title: qsTr("Upload a file"),
+                      sub: qsTr("Any file, to your server"), kind: "upload-file" },
+                    { iconName: "document-send", title: qsTr("Upload clipboard"),
+                      sub: qsTr("A copied image, file or text"), kind: "upload-clipboard" },
+                    { iconName: "view-preview", title: qsTr("QR code"),
+                      sub: qsTr("Of the text you copied"), kind: "qr" },
+                ]
             }
 
             Item { width: 1; height: Theme.spacingS }

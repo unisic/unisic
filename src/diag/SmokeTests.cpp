@@ -860,6 +860,65 @@ void AppContext::devTestQrPreview()
     showQr(QStringLiteral("https://example.invalid/unisic-qr-test"));
 }
 
+// A QR code of text that is no link: the Edit page and tray turn copied text
+// into one, so the old "links only" rule must stay gone.
+void AppContext::devTestQrText()
+{
+    if (!devBuild())
+        return;
+    showQr(QStringLiteral("Unisic QR code from plain text, no link"));
+}
+
+// Upload a file / the clipboard / QR of copied text: what each clipboard
+// payload is routed as, the name copied text goes up under, and that a QR code
+// takes plain text but refuses a payload past its cap. Never uploads: the
+// chain would walk onto real public hosts.
+static QString shareSourcesCheck(const AppContext *app)
+{
+    QMimeData files;
+    files.setUrls({QUrl::fromLocalFile(QStringLiteral("/nonexistent/a.zip")),
+                   QUrl(QStringLiteral("https://example.invalid/b.png"))});
+    files.setText(QStringLiteral("/nonexistent/a.zip"));
+    QImage pixels(4, 4, QImage::Format_ARGB32_Premultiplied);
+    pixels.fill(Qt::red);
+    QMimeData image;
+    image.setImageData(pixels);
+    image.setText(QStringLiteral("caption"));
+    QMimeData text;
+    text.setText(QStringLiteral("hello"));
+    QMimeData blank;
+    blank.setText(QStringLiteral("  \n"));
+    QMimeData remote;
+    remote.setUrls({QUrl(QStringLiteral("https://example.invalid/a.png"))});
+    if (AppContext::clipboardUploadKind(&files) != QLatin1String("files"))
+        return QStringLiteral("FAIL (a copied file is not sent as the file)");
+    if (AppContext::clipboardUploadKind(&image) != QLatin1String("image"))
+        return QStringLiteral("FAIL (copied pixels are not sent as an image)");
+    if (AppContext::clipboardUploadKind(&text) != QLatin1String("text"))
+        return QStringLiteral("FAIL (copied text is not sent as text)");
+    // Qt 6 reads a url list as text too: a copied link goes up as that text.
+    if (AppContext::clipboardUploadKind(&remote) != QLatin1String("text"))
+        return QStringLiteral("FAIL (a copied link is not sent as text)");
+    if (!AppContext::clipboardUploadKind(&blank).isEmpty()
+        || !AppContext::clipboardUploadKind(nullptr).isEmpty())
+        return QStringLiteral("FAIL (blank text or nothing would be uploaded)");
+    if (!app->clipboardTextFileName().endsWith(QLatin1String(".txt")))
+        return QStringLiteral("FAIL (copied text goes up as %1)").arg(app->clipboardTextFileName());
+    if (qrPreviewImage(QStringLiteral("plain text, no link")).isNull())
+        return QStringLiteral("FAIL (no QR code for plain text)");
+    if (!qrPreviewImage(QString(kQrMaxBytes + 1, QLatin1Char('x'))).isNull())
+        return QStringLiteral("FAIL (QR code past the %1 byte cap)").arg(kQrMaxBytes);
+    return QStringLiteral("PASS (file, image, text, link as text, refusals, .txt name, QR of text, QR cap)");
+}
+
+void AppContext::devTestShareSources()
+{
+    if (!devBuild())
+        return;
+    const QString r = shareSourcesCheck(this);
+    showToast(tr("Dev: share sources: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 void AppContext::devTestDiagnostics()
 {
     if (!devBuild())
@@ -1979,8 +2038,9 @@ void AppContext::devTestEyedropper()
 // Pixel loupe (region overlay): the panel must appear once the pointer hovers
 // in selection mode, flip away from the item edges so it never covers the
 // pixels being aimed at, zoom one step per scroll notch within its 5–16 range,
-// collapse when scrolled out below the minimum (and revive on scroll up), and
-// stay out of the exported render (dev button + smoke step).
+// collapse when scrolled out below the minimum (and revive on scroll up),
+// report the centre pixel's hex for the overlay's C key (and nothing once it is
+// gone), and stay out of the exported render (dev button + smoke step).
 static QString pixelLoupeCheck()
 {
     struct Probe final : AnnotationCanvas {
@@ -1991,11 +2051,12 @@ static QString pixelLoupeCheck()
     c.setHeight(400);
     QImage base(500, 400, QImage::Format_ARGB32_Premultiplied);
     base.fill(Qt::white);
+    base.setPixelColor(50, 50, QColor(0x12, 0xAB, 0xEF));
     c.setImage(base);
     c.setSelectionMode(true);
     c.setPixelLoupe(true);
     c.setPixelLoupeZoom(8);
-    if (!c.pixelLoupeRect().isEmpty())
+    if (!c.pixelLoupeRect().isEmpty() || !c.loupeColorHex().isEmpty())
         return QStringLiteral("FAIL (loupe visible before any hover)");
     const auto hover = [&c](QPointF at) {
         QHoverEvent e(QEvent::HoverMove, at, at, at);
@@ -2005,6 +2066,8 @@ static QString pixelLoupeCheck()
     const QRectF nearOrigin = c.pixelLoupeRect();
     if (nearOrigin.isEmpty() || nearOrigin.left() <= 50 || nearOrigin.top() <= 50)
         return QStringLiteral("FAIL (loupe not offset below-right of the cursor)");
+    if (c.loupeColorHex() != QLatin1String("#12ABEF"))
+        return QStringLiteral("FAIL (C would copy %1, not the hovered #12ABEF)").arg(c.loupeColorHex());
     hover({490, 390});
     const QRectF nearCorner = c.pixelLoupeRect();
     if (nearCorner.isEmpty() || nearCorner.right() >= 490 || nearCorner.bottom() >= 390)
@@ -2023,12 +2086,14 @@ static QString pixelLoupeCheck()
         return QStringLiteral("FAIL (zoom did not clamp at 5)");
     if (!c.pixelLoupeRect().isEmpty())
         return QStringLiteral("FAIL (loupe did not collapse when scrolled out)");
+    if (!c.loupeColorHex().isEmpty())
+        return QStringLiteral("FAIL (C still copies a colour with the loupe collapsed)");
     wheel(120);
     if (c.pixelLoupeRect().isEmpty())
         return QStringLiteral("FAIL (scroll up did not revive the collapsed loupe)");
     if (c.rendered() != base)
         return QStringLiteral("FAIL (loupe leaked into the exported render)");
-    return QStringLiteral("PASS (follows hover, edge flip, scroll 5-16, collapse/revive, not exported)");
+    return QStringLiteral("PASS (follows hover, edge flip, scroll 5-16, collapse/revive, C copies hex, not exported)");
 }
 
 void AppContext::devTestPixelLoupe()
@@ -5340,6 +5405,13 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("QR preview: ")
                  + (!qr.isNull() && qr.size() == QSize(360, 360)
                         ? QStringLiteral("PASS") : QStringLiteral("FAIL")));
+        smokeNext();
+    });
+
+    // 3e3i2) Upload a file / the clipboard / QR of copied text: routing only,
+    // nothing leaves the machine.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("share sources: ") + shareSourcesCheck(this));
         smokeNext();
     });
 

@@ -291,6 +291,9 @@ public:
     // The loupe panel's item-space rect for the current hover point (empty when
     // the loupe is inactive) — public so placement/flip logic is testable.
     QRectF pixelLoupeRect() const;
+    // #RRGGBB of the pixel the loupe is centred on, empty while no loupe is
+    // showing. The overlay's C key copies it.
+    Q_INVOKABLE QString loupeColorHex() const;
 
     // Final composite at full image resolution (annotations burnt in).
     QImage rendered() const;
@@ -573,6 +576,7 @@ private:
     bool m_hoverInside = false;
     bool loupeActive() const;
     int loupeGridCells() const;
+    QPoint loupePixel() const;
     void updateLoupeRegion(const QRectF &before);
     // Shadows QQuickPaintedItem::update: a full update() followed by a partial
     // update(rect) in the SAME sync cycle silently downgrades the full repaint

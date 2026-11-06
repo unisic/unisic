@@ -3371,7 +3371,19 @@ void AppContext::afterUploadActions(const QString &url)
             QDesktopServices::openUrl(u);
     };
 
-    finish(url);
+    const QString scheme = QUrl(url).scheme().toLower();
+    if (!m_settings->afterUploadShortenUrl()
+        || (scheme != QLatin1String("http") && scheme != QLatin1String("https"))) {
+        finish(url);
+        return;
+    }
+    // A failed shortening costs only the short form: the full link goes on as
+    // if shortening were off, and one toast says both.
+    m_uploads->shortenUrl(url, [this, url, finish](const QString &shortUrl, const QString &error) {
+        finish(shortUrl.isEmpty() ? url : shortUrl);
+        if (shortUrl.isEmpty())
+            showToast(tr("Uploaded, but is.gd could not shorten the link (%1). The full link is used.").arg(error), true);
+    });
 }
 
 // The one place the watermark settings are read. The Settings preview renders

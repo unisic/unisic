@@ -1533,3 +1533,46 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     proc->write(curlConfig);
     proc->closeWriteChannel();
 }
+
+QString UploadManager::parseShortenReply(int httpStatus, const QByteArray &body, QString *error)
+{
+    const QString text = QString::fromUtf8(body.left(512)).trimmed();
+    // StrictMode refuses whitespace, so a body of several lines or a page of
+    // HTML can never pass for a link.
+    const QUrl link(text, QUrl::StrictMode);
+    if (httpStatus == 200 && link.isValid() && link.scheme() == QLatin1String("https")
+        && link.host() == QLatin1String("is.gd") && link.path().size() > 1)
+        return text;
+    if (error)
+        *error = text.startsWith(QLatin1String("Error: ")) ? text.mid(7).left(200) : QString();
+    return {};
+}
+
+void UploadManager::shortenUrl(const QString &url,
+                               std::function<void(const QString &, const QString &)> done)
+{
+    QUrl api(QStringLiteral("https://is.gd/create.php"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("format"), QStringLiteral("simple"));
+    query.addQueryItem(QStringLiteral("url"), QString::fromLatin1(QUrl::toPercentEncoding(url)));
+    api.setQuery(query);
+    QNetworkRequest req(api);
+    // A short link is a nicety: waiting longer than this for one only delays
+    // the full link the user could already have.
+    req.setTransferTimeout(15000);
+    QNetworkReply *reply = m_nam->get(req);
+    // is.gd answers with one line; anything this big is not that answer.
+    connect(reply, &QNetworkReply::downloadProgress, reply, [reply](qint64 received, qint64) {
+        if (received > 4096)
+            reply->abort();
+    });
+    connect(reply, &QNetworkReply::finished, this, [reply, done = std::move(done)] {
+        reply->deleteLater();
+        QString error;
+        const QString shortUrl = parseShortenReply(
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), reply->readAll(), &error);
+        if (shortUrl.isEmpty() && error.isEmpty())
+            error = reply->errorString();
+        done(shortUrl, error);
+    });
+}

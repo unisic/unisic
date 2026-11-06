@@ -13,12 +13,14 @@ whole per release (not per individual change).
 - **Copy a colour from the capture overlay**: with the pixel loupe on, press C while selecting a region and the colour of the pixel at the centre of the loupe is copied as `#RRGGBB`.
 - **Upload any file, or what you copied**: the Edit page has a new Share row. Upload a file sends any file from disk, not only a capture, to your servers. Upload clipboard sends what you copied: a file copied in the file manager goes up as that file (the first one, when you copied several), copied pixels go up as an image, and copied text goes up as a `.txt` file. Both go through the Failure Chain and the after-upload actions, so the link is copied the same way as after a capture. The tray menu can show both too (Settings > Appearance > System tray menu).
 - **A QR code of any text**: QR code on the Edit page, or in the tray menu, turns the text you copied into a QR code, up to 2048 bytes. The QR code on a capture card and in History keeps showing the upload link.
+- **Shorter links (opt-in)**: Settings > Capture > After upload > Shorten the link swaps the upload link for a short is.gd one before it is copied or opened. It is off by default because is.gd, a free public shortener, gets every link you upload; when it fails or takes longer than 15 seconds, the full link is used and a message says why. History keeps the full link.
 
 ### Polski
 **Dodane**
 - **Kopiowanie koloru z nakładki przechwytywania**: przy włączonej lupie pikseli wciśnij C w trakcie zaznaczania obszaru, a kolor piksela w środku lupy trafi do schowka jako `#RRGGBB`.
 - **Wysyłanie dowolnego pliku albo tego, co skopiowano**: strona Edytuj ma nowy rząd Udostępnij. Wyślij plik wysyła na twoje serwery dowolny plik z dysku, nie tylko zrzut. Wyślij schowek wysyła to, co skopiowano: plik skopiowany w menedżerze plików idzie jako ten plik (pierwszy, gdy skopiowano kilka), skopiowane piksele jako obraz, a skopiowany tekst jako plik `.txt`. Oba przechodzą przez łańcuch niepowodzeń i akcje po wysłaniu, więc link trafia do schowka tak samo jak po zrzucie. Oba można też dodać do menu w zasobniku (Ustawienia > Wygląd > Menu zasobnika systemowego).
 - **Kod QR z dowolnego tekstu**: Kod QR na stronie Edytuj albo w menu zasobnika zamienia skopiowany tekst w kod QR, do 2048 bajtów. Kod QR na karcie po zrzucie i w Historii dalej pokazuje link do wysłanego pliku.
+- **Krótsze linki (do włączenia)**: Ustawienia > Przechwytywanie > Po wysłaniu > Skracaj link zamienia link do wysłanego pliku na krótki z is.gd, zanim zostanie skopiowany lub otwarty. Domyślnie jest wyłączone, bo is.gd, darmowy publiczny skracacz, dostaje każdy link do wysłanego pliku; gdy zawiedzie albo odpowiada dłużej niż 15 sekund, używany jest pełny link, a komunikat mówi dlaczego. Historia zachowuje pełny link.
 
 ## 0.8.9
 

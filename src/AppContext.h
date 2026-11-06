@@ -397,6 +397,7 @@ public:
     Q_INVOKABLE void devTestQrPreview();
     Q_INVOKABLE void devTestQrText();
     Q_INVOKABLE void devTestShareSources();
+    Q_INVOKABLE void devTestShortenLink();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();

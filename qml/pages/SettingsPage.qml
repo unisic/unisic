@@ -1617,6 +1617,12 @@ Item {
                         helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
                         USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
                     }
+                    SettingRow {
+                        label: qsTr("Shorten the link")
+                        help: qsTr("Swaps the link for a short is.gd one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because is.gd, a free public shortener, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
                 }
             }
 
@@ -4012,6 +4018,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR of text"); onClicked: App.devTestQrText() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Share sources"); onClicked: App.devTestShareSources() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }

@@ -919,6 +919,34 @@ void AppContext::devTestShareSources()
     showToast(tr("Dev: share sources: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
+// Offline: is.gd's answers as documented, and the ones that must not pass
+// for a link.
+static QString shortenReplyCheck()
+{
+    QString err;
+    if (UploadManager::parseShortenReply(200, "https://is.gd/R709K6\n", &err) != QLatin1String("https://is.gd/R709K6"))
+        return QStringLiteral("FAIL (a good answer was refused)");
+    if (!UploadManager::parseShortenReply(400, "Error: Please specify a URL to shorten.", &err).isEmpty()
+        || err != QLatin1String("Please specify a URL to shorten."))
+        return QStringLiteral("FAIL (is.gd's error text lost: %1)").arg(err);
+    const QList<QByteArray> bad = {"<html><body>maintenance</body></html>", "https://evil.example/x",
+                                   "https://is.gd/a\nhttps://is.gd/b", "http://is.gd/R709K6", "https://is.gd/"};
+    for (const QByteArray &body : bad)
+        if (!UploadManager::parseShortenReply(200, body, &err).isEmpty())
+            return QStringLiteral("FAIL (taken for a link: %1)").arg(QString::fromUtf8(body));
+    if (!UploadManager::parseShortenReply(502, {}, &err).isEmpty() || !err.isEmpty())
+        return QStringLiteral("FAIL (an empty 502 passed or made up an error)");
+    return QStringLiteral("PASS (link, is.gd error, html, other host, two lines, http, bare host, empty 502)");
+}
+
+void AppContext::devTestShortenLink()
+{
+    if (!devBuild())
+        return;
+    const QString r = shortenReplyCheck();
+    showToast(tr("Dev: link shortener: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 void AppContext::devTestDiagnostics()
 {
     if (!devBuild())
@@ -5412,6 +5440,12 @@ void AppContext::runSmokeTest()
     // nothing leaves the machine.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("share sources: ") + shareSourcesCheck(this));
+        smokeNext();
+    });
+
+    // 3e3i3) Shorten the link (is.gd): its answers parsed offline, no request.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("link shortener: ") + shortenReplyCheck());
         smokeNext();
     });
 

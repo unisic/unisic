@@ -84,6 +84,16 @@ public:
                       const QString &fileName, const QString &mime, Callback cb);
     void uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb);
 
+    // Shortens a link through is.gd. Opt-in only: is.gd, a third party, sees
+    // every address it shortens. `done` gets the short link, or an empty one
+    // and the reason.
+    void shortenUrl(const QString &url,
+                    std::function<void(const QString &shortUrl, const QString &error)> done);
+    // Pure: is.gd's format=simple answer. The short link on a 200 that is one
+    // https://is.gd/ address; otherwise empty, with `error` set to is.gd's
+    // "Error: " text (left empty when the body says nothing usable).
+    static QString parseShortenReply(int httpStatus, const QByteArray &body, QString *error);
+
     // Pure: the names a chained upload tries, in order. `order` is the list
     // as shown (top = active), `ready` the servers that need no setup: an
     // Imgur without a Client-ID is a certain refusal, not a fallback. The

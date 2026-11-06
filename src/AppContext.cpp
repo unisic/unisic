@@ -1044,6 +1044,11 @@ QString AppContext::inputAccessFixCommand() const
 
 bool AppContext::capScreenshotCursor() const
 {
+    // Windows captures through GDI (KWinScreenShot2_win.cpp), which draws the
+    // pointer in only when asked. Without this the switch sat greyed out with
+    // the Linux portal explanation, so screenshots could not follow it.
+    if (QGuiApplication::platformName() == QLatin1String("windows"))
+        return true;
     const QString desktop = qEnvironmentVariable("XDG_CURRENT_DESKTOP");
     if (desktop.contains(QLatin1String("KDE"), Qt::CaseInsensitive))
         return true;

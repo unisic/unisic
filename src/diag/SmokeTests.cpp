@@ -33,6 +33,8 @@
 #include <csignal>
 #include <QWheelEvent>
 #include <QTemporaryFile>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
@@ -4540,6 +4542,84 @@ void AppContext::devTestDestinationTest()
     });
 }
 
+void AppContext::s3SigningCheck(std::function<void(const QString &)> done)
+{
+    // The signing itself is curl's; what can rot is our half (the config lines
+    // fed to it) and the curl on this machine knowing --aws-sigv4 at all.
+    auto *server = new QTcpServer(this);
+    if (!server->listen(QHostAddress::LocalHost)) {
+        delete server;
+        done(QStringLiteral("FAIL (no local port)"));
+        return;
+    }
+    auto request = std::make_shared<QByteArray>();
+    connect(server, &QTcpServer::newConnection, server, [server, request] {
+        QTcpSocket *sock = server->nextPendingConnection();
+        connect(sock, &QTcpSocket::readyRead, sock, [sock, request] {
+            *request += sock->readAll().left(64 * 1024 - request->size());
+            const qsizetype end = request->indexOf("\r\n\r\n");
+            if (end < 0)
+                return;
+            static const QRegularExpression lengthRe(QStringLiteral("(?im)^content-length:\\s*(\\d+)"));
+            const qsizetype body = lengthRe.match(QString::fromLatin1(request->left(end)))
+                                           .captured(1).toLongLong();
+            if (request->size() < end + 4 + body && request->size() < 64 * 1024)
+                return;
+            sock->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            sock->disconnectFromHost();
+        });
+        connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
+    });
+
+    const QString base = QStringLiteral("http://127.0.0.1:%1/bucket/").arg(server->serverPort());
+    const QVariantMap dest{
+        {QStringLiteral("type"), QStringLiteral("curl")},
+        {QStringLiteral("requestUrl"), base + QStringLiteral("%file%")},
+        {QStringLiteral("user"), QStringLiteral("AKUNISICSMOKE:smoke-secret")},
+        {QStringLiteral("s3Region"), QStringLiteral("eu-central-1")},
+    };
+    auto finished = std::make_shared<bool>(false);
+    const auto finish = [server, finished, done](const QString &verdict) {
+        if (*finished)
+            return;
+        *finished = true;
+        server->deleteLater();
+        done(verdict);
+    };
+    m_uploads->testDestination(dest, [request, base, finish](bool ok, const QString &url, const QString &err) {
+        if (!ok) {
+            finish(QStringLiteral("FAIL (%1)").arg(err));
+            return;
+        }
+        const QString head = QString::fromLatin1(request->left(request->indexOf("\r\n\r\n"))).toLower();
+        QStringList missing;
+        if (!head.contains(QLatin1String("authorization: aws4-hmac-sha256 credential=akunisicsmoke/"))
+            || !head.contains(QLatin1String("/eu-central-1/s3/aws4_request")))
+            missing << QStringLiteral("SigV4 Authorization");
+        if (!head.contains(QLatin1String("\r\nx-amz-content-sha256:")))
+            missing << QStringLiteral("x-amz-content-sha256");
+        if (!head.contains(QLatin1String("\r\ncontent-type: image/png")))
+            missing << QStringLiteral("Content-Type");
+        if (request->contains("smoke-secret"))
+            missing << QStringLiteral("secret sent in clear");
+        if (url != base + QStringLiteral("unisic-test.png"))
+            missing << QStringLiteral("link '%1'").arg(url);
+        finish(missing.isEmpty()
+                   ? QStringLiteral("PASS (signed for eu-central-1, link is the object address)")
+                   : QStringLiteral("FAIL (%1)").arg(missing.join(QStringLiteral(", "))));
+    });
+    QTimer::singleShot(20000, server, [finish] { finish(QStringLiteral("FAIL (no answer in 20 s)")); });
+}
+
+void AppContext::devTestS3Signing()
+{
+    if (!devBuild())
+        return;
+    s3SigningCheck([this](const QString &result) {
+        showToast(tr("Dev: S3 signing: %1").arg(result), !result.startsWith(QLatin1String("PASS")));
+    });
+}
+
 QString AppContext::importDropCheck()
 {
     // Everything the main window's DropArea can hand over, routed through the
@@ -6172,6 +6252,12 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         destinationTestCheck([this](const QString &result) {
             smokeLog(QStringLiteral("server test upload: ") + result);
+            smokeNext();
+        });
+    });
+    m_smokeSteps.append([this] {
+        s3SigningCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("S3 signing: ") + result);
             smokeNext();
         });
     });

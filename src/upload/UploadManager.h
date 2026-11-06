@@ -262,7 +262,7 @@ private:
     void httpUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                     const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
-                    const QString &fileName, Purpose purpose, Callback cb);
+                    const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void startUpload(const QStringList &servers, const QByteArray &data, const QString &srcPath,
                      const QString &fileName, const QString &mime, Callback cb);
     struct Chain;

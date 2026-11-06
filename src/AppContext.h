@@ -356,6 +356,8 @@ public:
     // The server editor's "Test upload": guard + a real curl transport against
     // a scratch file:// target, plus the promise that nothing is persisted.
     Q_INVOKABLE void devTestDestinationTest();
+    // S3 signing: a curl destination with an S3 region against a local stand-in.
+    Q_INVOKABLE void devTestS3Signing();
     // Drag and drop import: the router behind the main window's DropArea.
     Q_INVOKABLE void devTestImportDrop();
     // Ctrl+V import: clipboard pixels and a copied file.
@@ -963,6 +965,11 @@ private:
     // check stays offline), and neither may persist anything. Async - `done`
     // gets one summary line, shared by the smoke step and the dev button.
     void destinationTestCheck(std::function<void(const QString &)> done);
+    // An S3 destination's PUT as a local listener sees it: curl on this machine
+    // knows --aws-sigv4, the request carries the SigV4 scope, the payload hash
+    // header S3 requires and the file's Content-Type, and the link is the
+    // object's address. Async, offline.
+    void s3SigningCheck(std::function<void(const QString &)> done);
     // Layer-shell preview moved to another monitor: opens a preview, hands
     // PreviewController::hopTo() the next screen's centre and checks the
     // window now lives there and survived the hide/show. Async, SKIP on one

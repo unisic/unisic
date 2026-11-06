@@ -553,6 +553,7 @@ Item {
             fClientId.text = App.uploads.imgurClientIdOf(e)
             fUserKey.text = App.uploads.vgyMeUserKeyOf(e)
             fUser.text = e.user || ""
+            fS3Region.text = e.s3Region || ""
             fPublicBase.text = e.publicUrlBase || ""
             testing = false
             testDone = false
@@ -661,6 +662,8 @@ Item {
             } else {
                 if (fUser.text.trim() !== "") d.user = fUser.text.trim()
                 else delete d.user
+                if (fS3Region.text.trim() !== "") d.s3Region = fS3Region.text.trim()
+                else delete d.s3Region
                 if (fPublicBase.text.trim() !== "") d.publicUrlBase = fPublicBase.text.trim()
                 else delete d.publicUrlBase
                 // An empty extractor MEANS something here, so it is not
@@ -909,9 +912,9 @@ Item {
                     Labeled {
                         label: qsTr("Type")
                         // GitHub Pages (parked, docs/dev/architecture.md): the hint was
-                        // qsTr("http for web APIs and public hosts, curl for FTP/SFTP, GitHub Pages for a repository that publishes a site.")
+                        // qsTr("http for web APIs and public hosts, curl for FTP/SFTP and S3, GitHub Pages for a repository that publishes a site.")
                         // and the model ["http", "curl", "GitHub Pages"].
-                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP.")
+                        hint: qsTr("http for web APIs and public hosts, curl for FTP/SFTP and S3.")
                         UComboBox {
                             id: fType; width: parent.width
                             model: ["http", "curl"]
@@ -1110,6 +1113,15 @@ Item {
                         UTextField {
                             id: fUser; width: parent.width
                             placeholder: qsTr("user:password (curl -u)")
+                        }
+                    }
+                    Labeled {
+                        visible: fType.currentIndex === 1
+                        label: qsTr("S3 region (optional)")
+                        hint: qsTr("Set for Amazon S3 or an S3-compatible store (Cloudflare R2: auto, MinIO: us-east-1): the upload is then signed with Credentials as access-key:secret-key, the request URL is the bucket address ending in /%file%, and the link is the object's address unless a public URL base is set. A public object needs the store's own policy or an x-amz-acl header.")
+                        UTextField {
+                            id: fS3Region; width: parent.width
+                            placeholder: qsTr("e.g. eu-central-1")
                         }
                     }
                     Labeled {

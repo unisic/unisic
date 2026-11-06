@@ -4007,6 +4007,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Server test upload"); onClicked: App.devTestDestinationTest() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("S3 signing"); onClicked: App.devTestS3Signing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }

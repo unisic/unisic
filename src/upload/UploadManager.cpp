@@ -1000,7 +1000,7 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
         cb(url, del, err);
     };
     if (type == QLatin1String("curl"))
-        curlUpload(dest, data, srcPath, fileName, purpose, done);
+        curlUpload(dest, data, srcPath, fileName, mime, purpose, done);
     else
         httpUpload(dest, data, srcPath, fileName, mime, purpose, done);
 }
@@ -1403,9 +1403,21 @@ static QByteArray curlConfigLine(const QString &option, const QString &value)
     return QStringLiteral("%1 = \"%2\"\n").arg(option, v).toUtf8();
 }
 
+// S3 answers a refused request with <Error><Code>..</Code><Message>..</Message>;
+// "403" alone cannot tell a wrong secret from a wrong bucket or region.
+static QString s3ErrorOf(const QByteArray &body)
+{
+    static const QRegularExpression code(QStringLiteral("<Code>([^<]*)</Code>"));
+    static const QRegularExpression message(QStringLiteral("<Message>([^<]*)</Message>"));
+    const QString text = QString::fromUtf8(body.left(4096));
+    const QString c = code.match(text).captured(1);
+    const QString m = message.match(text).captured(1);
+    return c.isEmpty() ? m : (m.isEmpty() ? c : c + QStringLiteral(": ") + m);
+}
+
 void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
                                const QString &srcPath, const QString &fileName,
-                               Purpose purpose, Callback cb)
+                               const QString &mime, Purpose purpose, Callback cb)
 {
     // File source: hand curl the original path directly — copying a recording
     // into a QTemporaryFile doubled both the RAM (readAll upstream) and disk.
@@ -1442,7 +1454,13 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     // file:///... and write a local file. -g: the file name is always
     // percent-encoded, but a '[' or '{' the user typed into the folder part of
     // requestUrl is a URL glob to curl and fails with "bad range in URL position".
-    QStringList args{QStringLiteral("-sS"), QStringLiteral("--fail"),
+    // S3 and the stores that speak its API (R2, B2, MinIO, Wasabi): curl signs
+    // the PUT with AWS Signature Version 4 itself (curl 7.75+), and `user` is
+    // then access-key:secret-key.
+    const QString s3Region = dest.value(QStringLiteral("s3Region")).toString().trimmed();
+    const bool s3 = !s3Region.isEmpty();
+    // --fail-with-body keeps S3's error document, which names the actual fault.
+    QStringList args{QStringLiteral("-sS"), s3 ? QStringLiteral("--fail-with-body") : QStringLiteral("--fail"),
                      QStringLiteral("--proto"), QStringLiteral("=ftp,ftps,sftp,http,https"),
                      QStringLiteral("-g"),
                      QStringLiteral("--connect-timeout"), QStringLiteral("30"),
@@ -1460,9 +1478,22 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
     if (!user.isEmpty())
         curlConfig += curlConfigLine(QStringLiteral("user"), user);
     const QJsonObject headers = dest.value(QStringLiteral("headers")).toObject();
-    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it)
+    bool hasContentType = false;
+    for (auto it = headers.constBegin(); it != headers.constEnd(); ++it) {
         curlConfig += curlConfigLine(QStringLiteral("header"),
                                      it.key() + QStringLiteral(": ") + it.value().toString());
+        hasContentType = hasContentType
+                || it.key().compare(QLatin1String("Content-Type"), Qt::CaseInsensitive) == 0;
+    }
+    if (s3) {
+        curlConfig += curlConfigLine(QStringLiteral("aws-sigv4"),
+                                     QStringLiteral("aws:amz:%1:s3").arg(s3Region));
+        // Without it the object is stored as binary/octet-stream and a browser
+        // downloads the link instead of showing the picture.
+        if (!hasContentType && !mime.isEmpty())
+            curlConfig += curlConfigLine(QStringLiteral("header"),
+                                         QStringLiteral("Content-Type: ") + mime);
+    }
     args << QStringLiteral("-K") << QStringLiteral("-");
     // Skipping host-key verification enables silent MITM; only on explicit
     // per-destination opt-in ("insecure": true) for curl builds whose sftp
@@ -1473,7 +1504,7 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
 
     auto *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this,
-            [proc, tmp, dest, safeName, cb](int code, QProcess::ExitStatus) {
+            [proc, tmp, dest, safeName, s3, target, cb](int code, QProcess::ExitStatus) {
         const QString errOut = QString::fromUtf8(proc->readAllStandardError()).trimmed();
         // curl's stdout is the server's answer. It used to be dropped on the
         // floor, which pinned every curl destination to publicUrlBase + name:
@@ -1484,7 +1515,10 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
         if (tmp)
             tmp->deleteLater();
         if (code != 0) {
-            cb({}, {}, errOut.isEmpty() ? QStringLiteral("curl exited with code %1").arg(code) : errOut);
+            QString err = errOut.isEmpty() ? QStringLiteral("curl exited with code %1").arg(code) : errOut;
+            if (const QString s3Err = s3 ? s3ErrorOf(body) : QString(); !s3Err.isEmpty())
+                err += QStringLiteral(" (") + s3Err + QLatin1Char(')');
+            cb({}, {}, err);
             return;
         }
         // An explicit extractor wins: it is the one the user typed.
@@ -1504,6 +1538,9 @@ void UploadManager::curlUpload(const QJsonObject &dest, const QByteArray &data,
             if (!publicUrl.endsWith(QLatin1Char('/')))
                 publicUrl += QLatin1Char('/');
             publicUrl += QString::fromUtf8(QUrl::toPercentEncoding(safeName));
+        } else if (s3) {
+            // The object's own address: the link, for a bucket that is public.
+            publicUrl = target;
         }
         cb(publicUrl, {}, {});
     });

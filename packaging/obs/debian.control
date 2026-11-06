@@ -7,7 +7,9 @@
 # cannot upload over sftp, cannot build a diagnostics bundle or has an empty
 # OCR language list is a broken install, not a degraded one. Only the portal
 # BACKEND stays weak, because a session always has one and choosing for the user
-# would pull in half a foreign desktop.
+# would pull in half a foreign desktop. ONNX Runtime is a Suggests: it is the
+# one optional feature (docs/dev/packaging.md "Background removal"), dlopen()ed
+# and never linked. Debian names it by version: 1.21 Debian 13, 1.23 Ubuntu 26.04.
 # Build-Depends mirror the debian:trixie CI job in .github/workflows/deb.yml
 # and the Build-Depends line in unisic.dsc, and cover all 11 compile-time gates
 # (each is REQUIRED in CMakeLists.txt now, so a missing one fails configure
@@ -38,6 +40,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, curl, ffmpeg, grim, libqt6svg6,
 Recommends: xdg-desktop-portal-kde | xdg-desktop-portal-gnome |
  xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh |
  xdg-desktop-portal-gtk | xdg-desktop-portal-xapp
+Suggests: libonnxruntime1.21 | libonnxruntime1.23
 Description: Capture, annotate, record and share your screen on Linux Wayland
  Unisic covers the whole workflow after you press the hotkey: annotate on the
  selection overlay before the shot is taken, keep editing afterwards (blur,

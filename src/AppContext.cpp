@@ -182,6 +182,7 @@ AppContext::AppContext(QObject *parent)
         });
 
     m_updater = new UpdateChecker(m_settings, this);
+    m_bgRemover = new BackgroundRemover(this);
     // Tray entry follows availability flips only - stateChanged also fires per
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);

@@ -222,6 +222,14 @@ Item {
         helpDialog.open()
     }
     UConfirmDialog {
+        id: bgDeleteConfirm
+        title: qsTr("Delete the background removal files?")
+        text: qsTr("The model and any ONNX Runtime that Unisic downloaded are removed. Remove background needs them downloaded again.")
+        confirmText: qsTr("Delete")
+        destructive: true
+        onAccepted: App.backgroundRemover.deleteDownloads()
+    }
+    UConfirmDialog {
         id: helpDialog
         showCancel: false
         confirmText: qsTr("Close")
@@ -2177,6 +2185,76 @@ Item {
 
             SettingsGroup {
                 width: page.cardWidth
+                visible: App.backgroundRemover.available
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Background removal") }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("\"Remove background\" in the editor's More menu cuts the subject out with the BiRefNet lite model. It runs on this computer and nothing is uploaded. One run takes about 10 seconds and up to 7 GB of memory.")
+                        color: Theme.textTertiary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: (App.backgroundRemover.runtimeFound
+                               ? App.backgroundRemover.runtimeInfo
+                               : App.backgroundRemover.canDownloadRuntime
+                                 ? qsTr("ONNX Runtime: not installed, it is downloaded with the model")
+                                 : App.backgroundRemover.runtimeInfo !== ""
+                                   ? App.backgroundRemover.runtimeInfo
+                                   : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
+                              + "\n" + (App.backgroundRemover.modelInstalled
+                                        ? qsTr("Model: downloaded") : qsTr("Model: not downloaded"))
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                    Text {
+                        visible: App.backgroundRemover.error !== ""
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: App.backgroundRemover.error
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
+                    Row {
+                        spacing: Theme.spacingM
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "folder-cloud"
+                            visible: App.backgroundRemover.downloading || !App.backgroundRemover.modelInstalled
+                                     || (!App.backgroundRemover.runtimeFound && App.backgroundRemover.canDownloadRuntime)
+                            enabled: !App.backgroundRemover.downloading
+                            text: App.backgroundRemover.downloading
+                                  ? qsTr("Downloading… %1%").arg(Math.round(App.backgroundRemover.progress * 100))
+                                  : qsTr("Download (%1)").arg(App.backgroundRemover.downloadSizeText)
+                            onClicked: App.backgroundRemover.download()
+                        }
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            visible: App.backgroundRemover.downloading
+                            text: qsTr("Cancel")
+                            onClicked: App.backgroundRemover.cancelDownload()
+                        }
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "edit-delete"
+                            visible: App.backgroundRemover.hasDownloads && !App.backgroundRemover.downloading
+                            text: qsTr("Delete downloaded files")
+                            onClicked: bgDeleteConfirm.open()
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
                 Column {
                     width: parent.width
                     spacing: Theme.spacingS
@@ -4081,6 +4159,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Print"); onClicked: App.devTestPrint() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Trash after upload"); onClicked: App.devTestTrashAfterUpload() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Background removal"); onClicked: App.devTestBackgroundRemoval() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watched folder"); onClicked: App.devTestWatchFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }

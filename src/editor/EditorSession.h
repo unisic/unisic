@@ -16,6 +16,9 @@ class EditorSession : public QObject
     QML_UNCREATABLE("Created by AppContext")
 
     Q_PROPERTY(QString statusText READ statusText NOTIFY statusTextChanged)
+    // False for a status that reports an edit rather than an export, so it
+    // does not count as exported for the discard prompt.
+    Q_PROPERTY(bool statusExported READ statusExported NOTIFY statusTextChanged)
     // True when editing an existing capture from history: save() OVERWRITES that
     // file instead of creating a new one. The UI shows an overwrite confirmation.
     Q_PROPERTY(bool overwriteMode READ overwriteMode CONSTANT)
@@ -26,6 +29,7 @@ public:
                            QObject *parent = nullptr);
 
     QString statusText() const { return m_status; }
+    bool statusExported() const { return m_statusExported; }
     bool overwriteMode() const { return !m_overwritePath.isEmpty(); }
 
     Q_INVOKABLE void bindCanvas(AnnotationCanvas *canvas);
@@ -51,14 +55,16 @@ public:
     Q_INVOKABLE void redactOcrSelection();    // black out the selected text permanently
     // Black out every recognized run matching `pattern` — no selection needed.
     Q_INVOKABLE void redactTextMatching(const QString &pattern);
-    // Remove the background from the whole image (U-2-Net) → transparent PNG.
+    // Cut the subject out (BackgroundRemover) as one undo step, annotations
+    // baked in. Dropped with a status line if the picture changed meanwhile.
+    Q_INVOKABLE void removeBackground();
 
 signals:
     void statusTextChanged();
 
 private:
     QImage composited() const;
-    void setStatus(const QString &s);
+    void setStatus(const QString &s, bool exported = true);
 
     AppContext *m_app;
     QImage m_image;
@@ -69,4 +75,6 @@ private:
     quint64 m_historyId = 0;
     AnnotationCanvas *m_canvas = nullptr;
     QString m_status;
+    bool m_statusExported = true;
+    quint64 m_edits = 0;           // canvas history changes, a staleness guard
 };

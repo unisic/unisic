@@ -306,6 +306,9 @@ public:
     // Places the picture in `path` centred on the point, as one undo
     // step. false, and nothing changes, when it does not decode.
     Q_INVOKABLE bool insertImageFile(const QString &path, qreal imgX, qreal imgY);
+    // The picture becomes `img` with the annotations baked in, as one undo
+    // step - what every whole-picture transform above ends in.
+    void replaceBaseFlattened(const QImage &img);
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
     bool pixelLoupe() const { return m_pixelLoupe; }
@@ -527,7 +530,6 @@ private:
     // from every deselect path so a clicked shape's style can't leak into the
     // drawing defaults. Caller must have already cleared m_selectedAnnot.
     void restoreStyleBackup();
-    void replaceBaseFlattened(const QImage &img);
     void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
     // A style property setter calls this AFTER updating the "current" prop: when
     // a shape is selected it coalesces an undo entry, copies the props onto the

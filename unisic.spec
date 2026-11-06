@@ -144,6 +144,10 @@ Requires:       pipewire-utils
 Requires:       tesseract-langpack-eng
 Requires:       tesseract-langpack-pol
 Requires:       tesseract-osd
+# The one optional piece (docs/dev/packaging.md "Background removal"): ONNX
+# Runtime is dlopen()ed, never linked, and Settings can download it instead.
+# Suggests, not Recommends, so dnf does not pull it into every install.
+Suggests:       onnxruntime
 %else
 Requires:       pipewire-tools
 Requires:       tesseract-ocr-traineddata-eng

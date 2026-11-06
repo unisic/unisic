@@ -498,6 +498,9 @@ public:
     Q_INVOKABLE void captureScroll();
     // Single monitor: the screen under the cursor (fallback: primary).
     Q_INVOKABLE void captureScreenUnderCursor();
+    // Single monitor picked by its QScreen name (tray submenu, `--screen`);
+    // an empty name is the screen under the cursor.
+    Q_INVOKABLE void captureScreenNamed(const QString &name);
     // Repeat the last region capture's exact rect without opening the overlay
     // (ShareX "repeat last capture"). Errors as a toast when no region is
     // stored or its screen is gone.
@@ -809,6 +812,8 @@ signals:
     void recordingCapabilitiesChanged();
 
 private:
+    // captureScreenUnderCursor() with an empty name, captureScreenNamed() otherwise.
+    void captureOneScreen(const QString &name);
     // The paste ROUTER, split from pasteFromClipboard() so a payload can be
     // routed without going near QClipboard: pixels -> a new editor document,
     // a local file url -> openPath(), anything else (and a null payload, which

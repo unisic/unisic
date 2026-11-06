@@ -910,9 +910,10 @@ void AppContext::clearCliCapture(const QString &error)
     if (stdoutPending && !error.isEmpty())
         emit cliCaptureReady({}, error);
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
-    // or the process that asked for it waits for a capture that is not coming.
+    // and why, or the process that asked for it waits for a capture that is
+    // not coming and then exits 1 without a word.
     if (filePending)
-        emit cliCaptureFinished(false, {});
+        emit cliCaptureFinished(false, error);
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -1350,6 +1351,16 @@ void AppContext::captureRegionWithTool(int initialTool)
 
 void AppContext::captureScreenUnderCursor()
 {
+    captureOneScreen({});
+}
+
+void AppContext::captureScreenNamed(const QString &name)
+{
+    captureOneScreen(name);
+}
+
+void AppContext::captureOneScreen(const QString &name)
+{
     if (m_captureInFlight || m_overlay->active()) { // see captureFullScreen
         m_nextCaptureTask = {};
         clearCliCapture(tr("Another capture is already active"));
@@ -1358,7 +1369,7 @@ void AppContext::captureScreenUnderCursor()
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     beginCaptureIsolation();
-    withCaptureDelay([this, inhibited] {
+    withCaptureDelay([this, inhibited, name] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
             endCaptureIsolation();
@@ -1366,13 +1377,7 @@ void AppContext::captureScreenUnderCursor()
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
-        // Hint only: on KWin the compositor resolves the pointer's screen
-        // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
-        // while the pointer is over one of our windows (e.g. the tray menu).
-        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-        if (!screen)
-            screen = QGuiApplication::primaryScreen();
-        m_capture->captureActiveScreen(screen, [this, inhibited](const QImage &img, const QString &err) {
+        auto done = [this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             endCaptureIsolation();
             if (!err.isEmpty() || img.isNull()) {
@@ -1383,7 +1388,30 @@ void AppContext::captureScreenUnderCursor()
                 return;
             }
             finishCapture(img, inhibited);
-        });
+        };
+        if (name.isEmpty()) {
+            // Hint only: on KWin the compositor resolves the pointer's screen
+            // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
+            // while the pointer is over one of our windows (e.g. the tray menu).
+            QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+            if (!screen)
+                screen = QGuiApplication::primaryScreen();
+            m_capture->captureActiveScreen(screen, done);
+            return;
+        }
+        // Looked up after the delay: a monitor unplugged meanwhile is an error
+        // here, not a dangling QScreen in the capture backend.
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        const auto it = std::find_if(screens.cbegin(), screens.cend(),
+                                     [&name](const QScreen *s) { return s->name() == name; });
+        if (it == screens.cend()) {
+            QStringList names;
+            for (const QScreen *s : screens)
+                names.append(s->name());
+            done({}, tr("No monitor named %1. Connected: %2").arg(name, names.join(QLatin1String(", "))));
+            return;
+        }
+        m_capture->captureScreen(*it, done);
     });
 }
 
@@ -5995,6 +6023,8 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("region"), QStringLiteral("region"), AppContext::tr("Capture region"), 0, false, [a] { a->captureRegion(); }},
         {QStringLiteral("full-screen"), QStringLiteral("monitor"), AppContext::tr("Capture full screen"), 0, false, [a] { a->captureFullScreen(); }},
         {QStringLiteral("screen-under-cursor"), QStringLiteral("monitor"), AppContext::tr("Capture screen under cursor"), 0, false, [a] { a->captureScreenUnderCursor(); }},
+        // No `run`: a submenu of the connected monitors, filled as the menu opens.
+        {QStringLiteral("monitor-pick"), QStringLiteral("monitor"), AppContext::tr("Capture monitor"), 0, false, nullptr},
         {QStringLiteral("window"), QStringLiteral("window"), AppContext::tr("Capture window"), 0, false, [a] { a->captureWindow(); }},
         {QStringLiteral("scroll"), QStringLiteral("chevron-down"), AppContext::tr("Capture scrolling region"), 0, false, [a] { a->captureScroll(); }},
         {QStringLiteral("recapture"), QStringLiteral("region"), AppContext::tr("Re-capture last region"), 0, false, [a] { a->recaptureLastRegion(); }},
@@ -6065,6 +6095,10 @@ QMenu *AppContext::buildTrayMenu()
         if (!e.locked && hidden.contains(e.id))
             return;
         flushSeparator();
+        if (!e.run) {
+            actions.insert(e.id, menu->addMenu(trayMenuIcon(e.icon), e.label)->menuAction());
+            return;
+        }
         QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
         connect(a, &QAction::triggered, this, e.run);
         actions.insert(e.id, a);
@@ -6111,6 +6145,20 @@ QMenu *AppContext::buildTrayMenu()
             a->setEnabled(recording());
         if (QAction *a = actions.value(QStringLiteral("recapture")))
             a->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
+        // Rebuilt on every open, so a monitor plugged in or a mode changed
+        // since the last one shows up; a handful of actions at most.
+        if (QAction *a = actions.value(QStringLiteral("monitor-pick"))) {
+            const QList<QScreen *> screens = QGuiApplication::screens();
+            // One monitor: "Capture full screen" already is that monitor.
+            a->setVisible(screens.size() > 1);
+            QMenu *sub = a->menu();
+            sub->clear();
+            for (const QScreen *s : screens) {
+                const QSize px = s->geometry().size() * s->devicePixelRatio();
+                sub->addAction(QStringLiteral("%1 (%2x%3)").arg(s->name()).arg(px.width()).arg(px.height()),
+                               this, [this, name = s->name()] { captureScreenNamed(name); });
+            }
+        }
     });
     return menu;
 }

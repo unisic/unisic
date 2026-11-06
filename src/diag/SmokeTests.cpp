@@ -4504,6 +4504,19 @@ QString AppContext::trayMenuCheck()
         m_settings->setHiddenTrayItems(original);
     }
 
+    // The monitor submenu fills as the menu opens: one entry per screen,
+    // shown only when there is more than one.
+    emit menu->aboutToShow();
+    int monitorEntries = -1;
+    bool monitorShown = false;
+    for (QAction *a : menu->actions())
+        if (a->text() == tr("Capture monitor") && a->menu()) {
+            monitorEntries = int(a->menu()->actions().size());
+            monitorShown = a->isVisible();
+        }
+    const qsizetype screenCount = QGuiApplication::screens().size();
+    const bool monitorsOk = monitorEntries == screenCount && monitorShown == (screenCount > 1);
+
     QStringList texts;
     bool badSeparator = false;
     const QList<QAction *> actions = menu->actions();
@@ -4529,11 +4542,14 @@ QString AppContext::trayMenuCheck()
     const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
     const bool kept = texts.contains(tr("Capture full screen"))
                       && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
-    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty())
-        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4)")
-            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')));
-    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked)")
-        .arg(trayMenuEntries().size());
+    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty() || !monitorsOk)
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4, "
+                              "monitor submenu %5 entries for %6 screens, shown=%7)")
+            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')))
+            .arg(monitorEntries).arg(screenCount).arg(monitorShown);
+    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked; "
+                          "monitor submenu lists %2 screens)")
+        .arg(trayMenuEntries().size()).arg(screenCount);
 }
 
 void AppContext::devTestTrayMenu()

@@ -15,6 +15,10 @@ whole per release (not per individual change).
 - **A QR code of any text**: QR code on the Edit page, or in the tray menu, turns the text you copied into a QR code, up to 2048 bytes. The QR code on a capture card and in History keeps showing the upload link.
 - **Shorter links (opt-in)**: Settings > Capture > After upload > Shorten the link swaps the upload link for a short is.gd one before it is copied or opened. It is off by default because is.gd, a free public shortener, gets every link you upload; when it fails or takes longer than 15 seconds, the full link is used and a message says why. History keeps the full link.
 - **Capture one monitor of several**: the tray menu has a new Capture monitor entry listing every connected monitor by name and size; pick one and only that monitor is captured, wherever the pointer is. It shows up when more than one monitor is connected. From a terminal or a keyboard shortcut, `unisic --screen DP-1` does the same; a name that matches no monitor fails with a list of the connected ones.
+- **Spotlight tool (S)**: drag a rectangle or an ellipse and everything outside it is darkened, so the eye lands on that one spot. Several spotlights share one dim, so none darkens another, and arrows, text and the other annotations stay on top at full strength. Works on the capture overlay and in the editor; Edit shapes moves and resizes a spotlight later.
+
+**Fixed**
+- Changing the colour or width of a selected size measurement (Measure in Size mode) no longer turns it back into a distance line.
 
 ### Polski
 **Dodane**
@@ -23,6 +27,10 @@ whole per release (not per individual change).
 - **Kod QR z dowolnego tekstu**: Kod QR na stronie Edytuj albo w menu zasobnika zamienia skopiowany tekst w kod QR, do 2048 bajtów. Kod QR na karcie po zrzucie i w Historii dalej pokazuje link do wysłanego pliku.
 - **Krótsze linki (do włączenia)**: Ustawienia > Przechwytywanie > Po wysłaniu > Skracaj link zamienia link do wysłanego pliku na krótki z is.gd, zanim zostanie skopiowany lub otwarty. Domyślnie jest wyłączone, bo is.gd, darmowy publiczny skracacz, dostaje każdy link do wysłanego pliku; gdy zawiedzie albo odpowiada dłużej niż 15 sekund, używany jest pełny link, a komunikat mówi dlaczego. Historia zachowuje pełny link.
 - **Zrzut jednego z kilku monitorów**: menu w zasobniku ma nową pozycję Zrzut monitora z listą podłączonych monitorów (nazwa i rozdzielczość); wybrany monitor jest przechwytywany niezależnie od tego, gdzie jest kursor. Pozycja pojawia się, gdy podłączony jest więcej niż jeden monitor. Z terminala albo skrótu klawiszowego to samo robi `unisic --screen DP-1`; nazwa, która nie pasuje do żadnego monitora, kończy się błędem z listą podłączonych.
+- **Narzędzie Reflektor (S)**: przeciągnij prostokąt albo elipsę, a wszystko poza nią zostanie przyciemnione, żeby wzrok trafił w to jedno miejsce. Kilka reflektorów dzieli jedno przyciemnienie, więc żaden nie przyciemnia drugiego, a strzałki, tekst i inne adnotacje zostają na wierzchu w pełnej sile. Działa na nakładce przechwytywania i w edytorze; Edytuj kształty przesuwa reflektor i zmienia jego rozmiar później.
+
+**Naprawione**
+- Zmiana koloru albo grubości zaznaczonego pomiaru rozmiaru (Pomiar w trybie Rozmiar) nie zamienia go już z powrotem w pomiar odległości.
 
 ## 0.8.9
 

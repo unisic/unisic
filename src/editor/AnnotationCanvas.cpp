@@ -251,6 +251,14 @@ void AnnotationCanvas::setHighlightMode(int mode)
     update();
 }
 
+void AnnotationCanvas::setSpotlightShape(int shape)
+{
+    shape = qBound(0, shape, 1);
+    if (m_spotlightShape == shape) return;
+    m_spotlightShape = shape;
+    emit spotlightShapeChanged();
+}
+
 void AnnotationCanvas::setMeasureMode(int mode)
 {
     mode = qBound(0, mode, 1);
@@ -541,7 +549,10 @@ void AnnotationCanvas::applyStyleToSelected()
     Annot &a = m_items[m_selectedAnnot];
     a.color = m_color;
     a.fillColor = m_fillColor;
-    a.filled = m_fillEnabled && (a.type == Rect || a.type == Ellipse || a.type == Callout);
+    // Measure and Spotlight keep their sub-mode in `filled`; a colour pick on
+    // a selected size box must not turn it back into a distance line.
+    if (a.type == Rect || a.type == Ellipse || a.type == Callout)
+        a.filled = m_fillEnabled;
     a.width = m_strokeWidth;
     a.arrowHeadStyle = m_arrowHeadStyle;
     a.fontSize = m_fontSize;
@@ -1280,11 +1291,12 @@ int AnnotationCanvas::annotAt(const QPointF &at) const
         const qreal tol = qMax(a.width / 2.0 + 3.0, 6.0 / qMax(0.05, renderScale()));
         switch (a.type) {
         case Rect: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage:
-        case Magnify: {
+        case Magnify: case Spotlight: {
             const QRectF r = a.rect.normalized();
             const bool solid = a.filled || a.type == Blur || a.type == Pixelate
                                || a.type == Highlight || a.type == SmartErase
-                               || a.type == PastedImage || a.type == Magnify;
+                               || a.type == PastedImage || a.type == Magnify
+                               || a.type == Spotlight;
             if (solid) {
                 if (r.contains(pos)) return i;
             } else {
@@ -1408,7 +1420,8 @@ int AnnotationCanvas::handlesForSelected(QPointF out[9]) const
     if (a.type == Highlight && !a.points.isEmpty())
         return 0;
     switch (a.type) {
-    case Rect: case Ellipse: case Callout: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: case Magnify: {
+    case Rect: case Ellipse: case Callout: case Blur: case Pixelate: case Highlight: case SmartErase: case PastedImage: case Magnify:
+    case Spotlight: {
         const QRectF r = a.rect.normalized();
         out[0] = r.topLeft();  out[1] = {r.center().x(), r.top()};    out[2] = r.topRight();
         out[3] = {r.left(), r.center().y()}; out[4] = {r.right(), r.center().y()};
@@ -2122,6 +2135,7 @@ void AnnotationCanvas::drawAll(QPainter &p) const
     // repaint) → draw everything.
     const QRectF clip = p.clipBoundingRect();
     const bool cull = !clip.isEmpty();
+    drawSpotlights(p);
     for (const Annot &a : m_items) {
         if (cull && !annotBoundsImg(a).intersects(clip))
             continue;
@@ -2129,6 +2143,38 @@ void AnnotationCanvas::drawAll(QPainter &p) const
     }
     if (m_drawing)
         drawAnnot(p, m_current);
+}
+
+// Every Spotlight is a hole in ONE shared dim, painted under the other
+// annotations: dimmed one by one, a second spotlight would darken the first
+// one's hole, and an arrow pointing into the hole would fade with the picture
+// it points from. A few path unions per paint; there are rarely more than two.
+void AnnotationCanvas::drawSpotlights(QPainter &p) const
+{
+    QPainterPath holes;
+    auto add = [&holes](const Annot &a) {
+        if (a.type != Spotlight)
+            return;
+        QPainterPath hole;
+        if (a.filled)
+            hole.addEllipse(a.rect.normalized());
+        else
+            hole.addRect(a.rect.normalized());
+        holes = holes.united(hole);
+    };
+    for (const Annot &a : m_items)
+        add(a);
+    if (m_drawing)
+        add(m_current);
+    if (holes.isEmpty())
+        return;
+    QPainterPath dim;
+    dim.addRect(QRectF(QPointF(0, 0), QSizeF(m_base.size())));
+    p.save();
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 0, 0, 150));
+    p.drawPath(dim.subtracted(holes));
+    p.restore();
 }
 
 void AnnotationCanvas::updateImgRect(const QRectF &imgRect)
@@ -2142,6 +2188,9 @@ void AnnotationCanvas::updateImgRect(const QRectF &imgRect)
 
 QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
 {
+    // The dim covers the whole picture, so moving the hole repaints all of it.
+    if (a.type == Spotlight)
+        return QRectF(QPointF(0, 0), QSizeF(m_base.size()));
     QRectF r;
     if (a.type == Measure) {
         // Measure draws far outside its line rect: perpendicular end ticks and
@@ -2705,6 +2754,9 @@ void AnnotationCanvas::beginDraw(const QPointF &at)
     // line (0). Nothing paints a fill for Measure, so the field is free.
     if (m_tool == Measure)
         m_current.filled = (m_measureMode == 1);
+    // Spotlight does the same: an ellipse hole (1) or a rectangle (0).
+    if (m_tool == Spotlight)
+        m_current.filled = (m_spotlightShape == 1);
     m_current.width = m_strokeWidth;
     m_current.arrowHeadStyle = m_arrowHeadStyle;
     m_current.fontSize = m_fontSize;
@@ -2741,7 +2793,8 @@ static QPointF shiftConstrainedPoint(AnnotationCanvas::Tool tool, const QPointF 
         return origin + QPointF(std::cos(angle) * length, std::sin(angle) * length);
     }
     if (tool == AnnotationCanvas::Rect || tool == AnnotationCanvas::Ellipse
-        || tool == AnnotationCanvas::Callout || tool == AnnotationCanvas::Magnify) {
+        || tool == AnnotationCanvas::Callout || tool == AnnotationCanvas::Magnify
+        || tool == AnnotationCanvas::Spotlight) {
         const qreal side = qMax(std::abs(dx), std::abs(dy));
         return origin + QPointF(dx < 0 ? -side : side, dy < 0 ? -side : side);
     }

@@ -54,6 +54,7 @@ private slots:
     void smartEraseFollowsGradientBackground();
     void smartEraseOverlappingStrokesStayOnBackground();
     void magnifyPlacesCentredTwoXLoupe();
+    void spotlightDimsOutsideSharedHoles();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
 };
@@ -494,6 +495,15 @@ void AnnotationCanvasTest::measureRulerModesAndCopy()
     QCOMPARE(readable.section('\n', 1, 1), QStringLiteral("200 × 60"));    // second is a size box
     QCOMPARE(canvas.measuresText(QStringLiteral("css")).section('\n', 1, 1),
              QStringLiteral("width: 200px; height: 60px"));
+
+    // Restyling a selected size box keeps it a size box: the mode lives in the
+    // same field a fill toggle writes for real shapes.
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(120, 70);
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.setStrokeColor(QColor(30, 200, 40));
+    QCOMPARE(canvas.measuresText(QStringLiteral("readable")).section('\n', 1, 1),
+             QStringLiteral("200 × 60"));
 }
 
 // Pattern redaction blacks out the matches and NOTHING else. Two matches on one
@@ -1180,6 +1190,46 @@ void AnnotationCanvasTest::magnifyPlacesCentredTwoXLoupe()
              "a moved loupe must keep showing the same source pixels");
     QVERIFY2(isMarker(out.pixelColor(70, 70)),
              "the original marker must resurface once the loupe moves away");
+}
+
+// Spotlight: one shared dim with every spotlight cut out of it. Two holes do
+// not darken each other, an ellipse leaves its rectangle's corners dimmed (and
+// keeps doing so after a colour pick routes style to the selected spotlight),
+// and an arrow pointing into a hole is painted above the dim, not under it.
+void AnnotationCanvasTest::spotlightDimsOutsideSharedHoles()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Spotlight);
+
+    drag(canvas, QPointF(20, 20), QPointF(80, 80));
+    QCOMPARE(canvas.annotCount(), 1);
+    canvas.setSpotlightShape(1);
+    drag(canvas, QPointF(100, 100), QPointF(180, 180));
+    QCOMPARE(canvas.annotCount(), 2);
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(140, 140);
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.setStrokeColor(QColor(30, 200, 40)); // routed to the selected ellipse
+
+    canvas.setTool(AnnotationCanvas::Arrow);
+    canvas.setStrokeColor(QColor(220, 30, 40));
+    drag(canvas, QPointF(150, 40), QPointF(50, 50));
+
+    const QImage out = canvas.rendered();
+    const auto lit = [&out](int x, int y) { return out.pixelColor(x, y).lightness() > 240; };
+    QVERIFY2(!lit(10, 10) && !lit(190, 10), "outside every hole the picture is dimmed");
+    QVERIFY2(lit(30, 70), "the rectangle hole stays undimmed");
+    QVERIFY2(lit(140, 140), "a second hole is not darkened by the first spotlight");
+    QVERIFY2(!lit(104, 104),
+             "an ellipse hole keeps its rectangle corners dimmed, also after a colour pick");
+    const QColor shaft = out.pixelColor(110, 44); // outside both holes
+    QVERIFY2(shaft.red() > 180 && shaft.green() < 80,
+             "an arrow is drawn above the dim at full strength, not under it");
 }
 
 // The region-overlay pixel loupe: appears only once the pointer hovers in

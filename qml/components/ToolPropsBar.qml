@@ -374,6 +374,33 @@ Flow {
         }
     }
 
+    // ---- spotlight shape (rectangle / ellipse hole in the dim) ----
+    Cell {
+        visible: root.has("spotlightShape")
+        Row {
+            visible: root.has("spotlightShape")
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+            ToolChip {
+                activeFocusOnTab: root.controlsFocusable && enabled
+                iconName: "draw-rectangle"; iconStyle: "custom"; label: qsTr("Rectangle")
+                active: root.canvas.spotlightShape === 0
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: root.canvas.spotlightShape = 0
+            }
+            ToolChip {
+                activeFocusOnTab: root.controlsFocusable && enabled
+                iconName: "draw-ellipse"; iconStyle: "custom"; label: qsTr("Ellipse")
+                active: root.canvas.spotlightShape === 1
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: root.canvas.spotlightShape = 1
+            }
+        }
+        Divider {
+            visible: root.has("spotlightShape")
+        }
+    }
+
     // ---- highlighter mode (freehand marker / rectangle band / text snap) ----
     Cell {
         visible: root.has("highlightMode")

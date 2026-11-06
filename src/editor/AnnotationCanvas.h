@@ -51,6 +51,7 @@ class AnnotationCanvas : public QQuickPaintedItem
     // draws and labels differently per mode; each placed measure remembers the
     // mode it was drawn in.
     Q_PROPERTY(int measureMode READ measureMode WRITE setMeasureMode NOTIFY measureModeChanged)
+    Q_PROPERTY(int spotlightShape READ spotlightShape WRITE setSpotlightShape NOTIFY spotlightShapeChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -120,7 +121,8 @@ public:
         Callout,     // 16 - speech bubble; carries its own text (a.text), typed in place
         Measure,     // 17 — distance/angle ruler retained in the export
         Magnify,     // 18 — loupe: enlarged copy of a dragged source region
-        Eyedropper   // 19 — click a pixel to adopt its colour as the stroke colour
+        Eyedropper,  // 19 — click a pixel to adopt its colour as the stroke colour
+        Spotlight    // 20 - dims the picture outside a rectangle or ellipse
     };
     Q_ENUM(Tool)
 
@@ -163,6 +165,9 @@ public:
     void setHighlightMode(int mode);
     int measureMode() const { return m_measureMode; }
     void setMeasureMode(int mode);
+    // Hole the next Spotlight leaves undimmed: 0 rectangle, 1 ellipse.
+    int spotlightShape() const { return m_spotlightShape; }
+    void setSpotlightShape(int shape);
     // The placed Measure annotations, formatted for the clipboard. `format` is
     // "readable" (842 × 317 / 412 px), "plain" (842x317 / 412) or "css"
     // (width: 842px; height: 317px / 412px). One measure per line; "" when none.
@@ -348,6 +353,7 @@ signals:
     void glyphBoxesRequested();
     void highlightModeChanged();
     void measureModeChanged();
+    void spotlightShapeChanged();
     void pixelLoupeChanged();
     void pixelLoupeZoomChanged();
 
@@ -437,6 +443,7 @@ private:
     // at the click, sized by its text from then on.
     void placeCalloutAt(const QPointF &at);
     void drawAll(QPainter &p) const;
+    void drawSpotlights(QPainter &p) const;
     // A stroke drawn as a freehand path (accumulated points) rather than a
     // dragged rect: the Pen, or the Highlight tool in freehand marker mode.
     static bool isFreehandStroke(const Annot &a)
@@ -542,6 +549,7 @@ private:
     int m_arrowHeadStyle = 0;
     int m_highlightMode = HlText; // see HighlightMode; text-snap by default
     int m_measureMode = 0;        // 0 distance line, 1 size box
+    int m_spotlightShape = 0;     // 0 rectangle, 1 ellipse
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting

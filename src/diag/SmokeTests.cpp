@@ -2028,6 +2028,48 @@ void AppContext::devTestMagnify()
     showToast(tr("Dev: magnifier: %1").arg(magnifyCheck()));
 }
 
+// Spotlight: a drag cuts an undimmed hole, the rest of the picture is darkened
+// (dev button + smoke step).
+static QString spotlightCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Spotlight);
+    c.setSpotlightShape(1);
+    const QPointF from(40, 40), to(160, 160);
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    c.mouseMoveEvent(&m);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (spotlight not placed)");
+    const QImage out = c.rendered();
+    if (out.pixelColor(100, 100).lightness() < 240)
+        return QStringLiteral("FAIL (the hole is dimmed)");
+    if (out.pixelColor(10, 10).lightness() > 200)
+        return QStringLiteral("FAIL (outside the hole is not dimmed)");
+    if (out.pixelColor(44, 44).lightness() > 200)
+        return QStringLiteral("FAIL (ellipse hole left its corners undimmed)");
+    return QStringLiteral("PASS (ellipse hole lit, the rest dimmed)");
+}
+
+void AppContext::devTestSpotlight()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: spotlight: %1").arg(spotlightCheck()));
+}
+
 // Eyedropper tool: a click adopts the pixel under the cursor as the stroke
 // colour (dev button + smoke step).
 static QString eyedropperCheck()
@@ -5501,6 +5543,7 @@ void AppContext::runSmokeTest()
     // 3e3d) magnifier: a synthetic drag places a 2x loupe centred on the source.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
+        smokeLog(QStringLiteral("spotlight: ") + spotlightCheck());
         smokeNext();
     });
 

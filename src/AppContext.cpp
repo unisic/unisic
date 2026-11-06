@@ -873,6 +873,19 @@ void AppContext::setShortcutRecording(bool recording)
         return;
     m_shortcutRecording = recording;
     emit shortcutRecordingChanged();
+    m_printKeyRelay.setActive(recording);
+    // Our own native grabs take a bound chord before any window sees it:
+    // RegisterHotKey turns the key into a WM_HOTKEY for the sink window and
+    // XGrabKey (owner_events False) reports it to the root grab, so the
+    // focused recorder never got a key one of our actions already owned. The
+    // press went to dispatchHotkey, which drops it while recording, and the
+    // field sat on "Press shortcut..." for good. bindX11Hotkeys() keeps only
+    // the emergency stop while a recorder listens.
+    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
+        const bool report = !recording && m_hotkeyEditedWhileRecording;
+        m_hotkeyEditedWhileRecording = false;
+        bindX11Hotkeys(report);
+    }
 }
 
 void AppContext::setNextCaptureDelayMs(int delayMs)
@@ -5833,16 +5846,21 @@ void AppContext::bindPortalHotkeys()
 // Grab the whole set through XGrabKey (X11 session). Re-grabs everything (the
 // backend has no per-action rebind); a key another client owns is surfaced as a
 // conflict toast, mirroring the KGlobalAccel path.
-void AppContext::bindX11Hotkeys()
+void AppContext::bindX11Hotkeys(bool reportConflicts)
 {
     // Only ever non-null when defineHotkeys() elected the X11 backend, so this
     // is the guard for "not an X11 session" as well.
     if (!m_x11hotkeys)
         return;
     QVector<X11Hotkeys::Shortcut> list;
-    const auto acts = hotkeyActions();
-    for (const HotkeyAction &a : acts)
-        list.append({a.id, a.keys});
+    // While a Settings recorder listens, the action keys stay released so the
+    // chord being recorded reaches it (see setShortcutRecording); the
+    // emergency stop below stays, a recording must remain stoppable.
+    if (!m_shortcutRecording) {
+        const auto acts = hotkeyActions();
+        for (const HotkeyAction &a : acts)
+            list.append({a.id, a.keys});
+    }
     // Fixed emergency stop, same key the other backends reserve (Windows,
     // whose Start menu owns Ctrl+Esc, gets its own: HotkeyDefaults.h).
     list.append({QStringLiteral("stop-recording"), QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP)});
@@ -5855,8 +5873,9 @@ void AppContext::bindX11Hotkeys()
         qWarning().noquote() << QStringLiteral("Hotkey conflicts (%1):\n")
                                         .arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
                                     + conflicts.join(QLatin1Char('\n'));
-        showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                     "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
+        if (reportConflicts)
+            showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
+                         "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
     }
 }
 
@@ -5867,6 +5886,12 @@ void AppContext::bindX11Hotkeys()
 void AppContext::applyHotkey(const QString &actionId)
 {
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
+        // A recorder hands its key over before it lets go, while the grabs
+        // are released for it: they come back, with the new key, when it does.
+        if (m_shortcutRecording) {
+            m_hotkeyEditedWhileRecording = true;
+            return;
+        }
         bindX11Hotkeys();
         return;
     }
@@ -5905,6 +5930,10 @@ void AppContext::applyHotkey(const QString &actionId)
 void AppContext::applyHotkeys()
 {
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
+        if (m_shortcutRecording) {
+            m_hotkeyEditedWhileRecording = true;
+            return;
+        }
         bindX11Hotkeys();
         return;
     }

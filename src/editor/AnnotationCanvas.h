@@ -287,6 +287,12 @@ public:
     void setSelectionRect(const QRectF &r);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
+    // Whole-picture transforms. Each bakes the annotations into the pixels
+    // first, as one undo step.
+    Q_INVOKABLE void rotateImage(bool clockwise);
+    Q_INVOKABLE void flipImage(bool horizontally);
+    // false, and nothing changes, outside 1..16384 a side or above 64 MP.
+    Q_INVOKABLE bool scaleImage(int width, int height);
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
     bool pixelLoupe() const { return m_pixelLoupe; }
@@ -504,6 +510,7 @@ private:
     // from every deselect path so a clicked shape's style can't leak into the
     // drawing defaults. Caller must have already cleared m_selectedAnnot.
     void restoreStyleBackup();
+    void replaceBaseFlattened(const QImage &img);
     void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
     // A style property setter calls this AFTER updating the "current" prop: when
     // a shape is selected it coalesces an undo entry, copies the props onto the

@@ -55,6 +55,7 @@ private slots:
     void smartEraseOverlappingStrokesStayOnBackground();
     void magnifyPlacesCentredTwoXLoupe();
     void spotlightDimsOutsideSharedHoles();
+    void rotateFlipScaleWholeImage();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
 };
@@ -1230,6 +1231,70 @@ void AnnotationCanvasTest::spotlightDimsOutsideSharedHoles()
     const QColor shaft = out.pixelColor(110, 44); // outside both holes
     QVERIFY2(shaft.red() > 180 && shaft.green() < 80,
              "an arrow is drawn above the dim at full strength, not under it");
+}
+
+// Whole-picture transforms: a red marker in the top-left corner lands where
+// each transform says, a drawn shape turns with the picture (baked in), each is
+// one undo step, and a scale outside the caps changes nothing.
+void AnnotationCanvasTest::rotateFlipScaleWholeImage()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(200);
+    QImage image(300, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    for (int y = 0; y < 10; ++y)
+        for (int x = 0; x < 10; ++x)
+            image.setPixelColor(x, y, Qt::red);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setStrokeColor(QColor(20, 40, 230));
+    drag(canvas, QPointF(100, 100), QPointF(140, 140));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    const auto red = [](const QImage &img, int x, int y) {
+        const QColor c = img.pixelColor(x, y);
+        return c.red() > 200 && c.green() < 60 && c.blue() < 60;
+    };
+    const auto blue = [](const QImage &img, int x, int y) {
+        const QColor c = img.pixelColor(x, y);
+        return c.blue() > 180 && c.red() < 90;
+    };
+
+    // Clockwise: (x, y) goes to (h - 1 - y, x).
+    canvas.rotateImage(true);
+    QCOMPARE(canvas.imageSize(), QSize(200, 300));
+    QCOMPARE(canvas.annotCount(), 0);
+    QImage out = canvas.rendered();
+    QVERIFY2(red(out, 195, 5), "the top-left marker is top-right after a clockwise turn");
+    QVERIFY2(blue(out, 79, 100), "the rectangle's left edge turned with the picture");
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(300, 200));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    canvas.rotateImage(false);
+    QCOMPARE(canvas.imageSize(), QSize(200, 300));
+    QVERIFY2(red(canvas.rendered(), 5, 295), "counter-clockwise puts it bottom-left");
+    canvas.undo();
+
+    canvas.flipImage(true);
+    out = canvas.rendered();
+    QVERIFY2(red(out, 295, 5) && !red(out, 5, 5), "a horizontal flip mirrors left and right");
+    canvas.undo();
+    canvas.flipImage(false);
+    out = canvas.rendered();
+    QVERIFY2(red(out, 5, 195) && !red(out, 5, 5), "a vertical flip mirrors top and bottom");
+    canvas.undo();
+
+    QVERIFY(canvas.scaleImage(150, 100));
+    QCOMPARE(canvas.imageSize(), QSize(150, 100));
+    QVERIFY2(red(canvas.rendered(), 2, 2), "the marker shrinks with the picture");
+    canvas.undo();
+    QVERIFY(!canvas.scaleImage(0, 10));
+    QVERIFY(!canvas.scaleImage(16385, 10));
+    QVERIFY(!canvas.scaleImage(16384, 16384)); // 268 MP, over the pixel cap
+    QCOMPARE(canvas.imageSize(), QSize(300, 200));
+    QCOMPARE(canvas.annotCount(), 1);
 }
 
 // The region-overlay pixel loupe: appears only once the pointer hovers in

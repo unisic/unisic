@@ -2070,6 +2070,45 @@ void AppContext::devTestSpotlight()
     showToast(tr("Dev: spotlight: %1").arg(spotlightCheck()));
 }
 
+// Whole-picture rotate, flip and resize from the editor's More menu: a corner
+// marker lands where each step says, and undo walks all three back
+// (dev button + smoke step).
+static QString imageTransformCheck()
+{
+    AnnotationCanvas c;
+    QImage base(30, 20, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    base.setPixelColor(0, 0, Qt::red);
+    c.setImage(base);
+    const auto redAt = [&c](int x, int y) {
+        const QColor px = c.rendered().pixelColor(x, y);
+        return px.red() > 200 && px.green() < 60;
+    };
+    c.rotateImage(true);
+    if (c.imageSize() != QSize(20, 30) || !redAt(19, 0))
+        return QStringLiteral("FAIL (rotate right)");
+    c.flipImage(true);
+    if (!redAt(0, 0))
+        return QStringLiteral("FAIL (flip horizontally)");
+    if (!c.scaleImage(40, 60) || c.imageSize() != QSize(40, 60) || !redAt(0, 0))
+        return QStringLiteral("FAIL (resize)");
+    if (c.scaleImage(16385, 1))
+        return QStringLiteral("FAIL (resize over the cap accepted)");
+    c.undo();
+    c.undo();
+    c.undo();
+    if (c.imageSize() != QSize(30, 20) || !redAt(0, 0) || c.canUndo())
+        return QStringLiteral("FAIL (undo did not restore the original)");
+    return QStringLiteral("PASS (rotate, flip, resize, undo)");
+}
+
+void AppContext::devTestImageTransform()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: rotate and resize: %1").arg(imageTransformCheck()));
+}
+
 // Eyedropper tool: a click adopts the pixel under the cursor as the stroke
 // colour (dev button + smoke step).
 static QString eyedropperCheck()
@@ -5544,6 +5583,7 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
         smokeLog(QStringLiteral("spotlight: ") + spotlightCheck());
+        smokeLog(QStringLiteral("image transform: ") + imageTransformCheck());
         smokeNext();
     });
 

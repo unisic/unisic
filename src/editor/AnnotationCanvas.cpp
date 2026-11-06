@@ -1546,6 +1546,55 @@ void AnnotationCanvas::applyCrop()
     update();
 }
 
+// ponytail: the annotations are baked into the pixels first, so they turn with
+// the picture but stop being editable shapes (undo brings them back). Mapping
+// each shape's geometry through the transform is the upgrade if re-editing
+// after a rotate ever matters. The step counter is kept, so a new marker
+// continues the baked numbering.
+void AnnotationCanvas::replaceBaseFlattened(const QImage &img)
+{
+    if (img.isNull()) return;
+    pushUndo();
+    m_base = img;
+    m_items.clear();
+    m_selection = {};
+    if (m_selectedAnnot >= 0) { m_selectedAnnot = -1; restoreStyleBackup(); emit selectedAnnotChanged(); }
+    // OCR word boxes are in the old pixel grid.
+    if (m_ocrMode) setOcrMode(false);
+    emit imageChanged();
+    emit renderScaleChanged();
+    emit selectionRectChanged();
+    update();
+}
+
+void AnnotationCanvas::rotateImage(bool clockwise)
+{
+    if (m_base.isNull()) return;
+    replaceBaseFlattened(rendered().transformed(QTransform().rotate(clockwise ? 90 : -90)));
+}
+
+// transformed() of a pure -1 scale is QImage's mirror fast path, without
+// mirrored() (deprecated from Qt 6.13) or flipped() (not in 6.5).
+void AnnotationCanvas::flipImage(bool horizontally)
+{
+    if (m_base.isNull()) return;
+    replaceBaseFlattened(rendered().transformed(
+        QTransform::fromScale(horizontally ? -1 : 1, horizontally ? 1 : -1)));
+}
+
+bool AnnotationCanvas::scaleImage(int width, int height)
+{
+    // 4 bytes a pixel: 64 MP is a 256 MB base, the whole undo budget alone.
+    constexpr qint64 kMaxPixels = 64LL * 1024 * 1024;
+    if (m_base.isNull() || width < 1 || height < 1 || width > 16384 || height > 16384
+        || qint64(width) * height > kMaxPixels)
+        return false;
+    if (QSize(width, height) != m_base.size())
+        replaceBaseFlattened(rendered().scaled(width, height, Qt::IgnoreAspectRatio,
+                                               Qt::SmoothTransformation));
+    return true;
+}
+
 // ---------------------------------------------------------------- painting
 
 static qreal arrowHeadLen(qreal w) { return qMax(12.0, w * 4.5); }

@@ -4051,6 +4051,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Spotlight"); onClicked: App.devTestSpotlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rotate and resize"); onClicked: App.devTestImageTransform() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Eyedropper"); onClicked: App.devTestEyedropper() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }

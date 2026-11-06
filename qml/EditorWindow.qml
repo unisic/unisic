@@ -285,6 +285,138 @@ Window {
         destructive: true
         onAccepted: { editorWindow.closeConfirmed = true; editorWindow.close() }
     }
+    // Resize the whole picture. The two sides move together while the aspect
+    // lock is on; scaleImage() owns the caps, and a refusal keeps the dialog
+    // open with the limits spelled out.
+    Popup {
+        id: resizeDialog
+        property bool keepAspect: true
+        property bool refused: false
+        property size start: Qt.size(1, 1)
+
+        function openFor() {
+            editorWindow.commitPendingText()
+            start = canvas.imageSize
+            widthField.text = String(start.width)
+            heightField.text = String(start.height)
+            refused = false
+            open()
+        }
+        function follow(fromWidth) {
+            if (!keepAspect) return
+            const v = parseInt(fromWidth ? widthField.text : heightField.text)
+            if (!(v > 0)) return
+            if (fromWidth) heightField.text = String(Math.max(1, Math.round(v * start.height / start.width)))
+            else widthField.text = String(Math.max(1, Math.round(v * start.width / start.height)))
+        }
+        function apply() {
+            if (canvas.scaleImage(parseInt(widthField.text), parseInt(heightField.text))) close()
+            else refused = true
+        }
+
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        margins: UFlyout.margin
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        width: Math.min(380, parent ? parent.width - 2 * Theme.spacingXL : 380)
+        padding: Theme.spacingXL
+        onOpened: widthField.forceFocus()
+
+        Overlay.modal: Rectangle { color: Theme.modalScrim }
+        background: Rectangle {
+            radius: Theme.radiusL
+            color: Theme.surface
+            border.width: 1
+            border.color: Theme.divider
+        }
+
+        contentItem: Column {
+            spacing: Theme.spacingM
+            Accessible.role: Accessible.Dialog
+            Accessible.name: qsTr("Resize image")
+
+            Text {
+                width: parent.width
+                text: qsTr("Resize image")
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontL
+                font.weight: Font.DemiBold
+            }
+            Row {
+                spacing: Theme.spacingS
+                UTextField {
+                    id: widthField
+                    width: 110
+                    accessibleName: qsTr("Width in pixels")
+                    validator: IntValidator { bottom: 1; top: 16384 }
+                    onEdited: resizeDialog.follow(true)
+                    onAccepted: resizeDialog.apply()
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "×"
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontM
+                }
+                UTextField {
+                    id: heightField
+                    width: 110
+                    accessibleName: qsTr("Height in pixels")
+                    validator: IntValidator { bottom: 1; top: 16384 }
+                    onEdited: resizeDialog.follow(false)
+                    onAccepted: resizeDialog.apply()
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "px"
+                    color: Theme.textSecondary
+                    font.pixelSize: Theme.fontM
+                }
+            }
+            Row {
+                spacing: Theme.spacingS
+                USwitch {
+                    anchors.verticalCenter: parent.verticalCenter
+                    checked: resizeDialog.keepAspect
+                    accessibleName: aspectLabel.text
+                    onToggled: (c) => { resizeDialog.keepAspect = c; if (c) resizeDialog.follow(true) }
+                }
+                Text {
+                    id: aspectLabel
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Keep aspect ratio")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontM
+                }
+            }
+            Text {
+                width: parent.width
+                visible: resizeDialog.refused
+                text: qsTr("Up to 16384 px a side and 64 megapixels in total.")
+                color: Theme.danger
+                font.pixelSize: Theme.fontM
+                wrapMode: Text.WordWrap
+            }
+            Row {
+                anchors.right: parent.right
+                spacing: Theme.spacingS
+                UButton {
+                    text: qsTr("Cancel")
+                    variant: "ghost"
+                    compact: true
+                    onClicked: resizeDialog.close()
+                }
+                UButton {
+                    text: qsTr("Resize")
+                    variant: "filled"
+                    compact: true
+                    onClicked: resizeDialog.apply()
+                }
+            }
+        }
+    }
     Item {
         id: shortcutScope
         anchors.fill: parent
@@ -801,7 +933,7 @@ Window {
                         variant: "tonal"; enabled: !App.uploads.busy
                         onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                     }
-                    // "More": the occasional text actions. OCR is always built in.
+                    // "More": the occasional text and whole-picture actions. OCR is always built in.
                     UMenuButton {
                         id: moreMenu
                         width: 34; height: 34
@@ -813,7 +945,17 @@ Window {
                             { label: qsTr("Copy all text"), iconName: "ocr",
                               trigger: function () { editorSession.ocrCopyText() } },
                             { label: qsTr("Select text…"), iconName: "select",
-                              trigger: function () { editorSession.startOcrPick() } }
+                              trigger: function () { editorSession.startOcrPick() } },
+                            { label: qsTr("Rotate left"), iconName: "object-rotate-left", separatorBefore: true,
+                              trigger: function () { editorWindow.commitPendingText(); canvas.rotateImage(false) } },
+                            { label: qsTr("Rotate right"), iconName: "object-rotate-right",
+                              trigger: function () { editorWindow.commitPendingText(); canvas.rotateImage(true) } },
+                            { label: qsTr("Flip horizontally"), iconName: "object-flip-horizontal",
+                              trigger: function () { editorWindow.commitPendingText(); canvas.flipImage(true) } },
+                            { label: qsTr("Flip vertically"), iconName: "object-flip-vertical",
+                              trigger: function () { editorWindow.commitPendingText(); canvas.flipImage(false) } },
+                            { label: qsTr("Resize…"), iconName: "transform-scale",
+                              trigger: function () { resizeDialog.openFor() } }
                         ]
                     }
                 }

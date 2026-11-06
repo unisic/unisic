@@ -1595,6 +1595,38 @@ bool AnnotationCanvas::scaleImage(int width, int height)
     return true;
 }
 
+// The Cut out drag picks the strip by its longer side: wider than tall cuts
+// columns, taller than wide cuts rows. Preview and release share this.
+static bool cutsColumns(const QRectF &r)
+{
+    return std::abs(r.width()) >= std::abs(r.height());
+}
+bool AnnotationCanvas::cutOut(bool columns, int from, int to)
+{
+    if (m_base.isNull()) return false;
+    const int extent = columns ? m_base.width() : m_base.height();
+    if (from > to) std::swap(from, to);
+    from = qBound(0, from, extent);
+    to = qBound(0, to, extent);
+    if (to - from < 1 || to - from >= extent) return false;
+    const QImage src = rendered();
+    const int keep = extent - (to - from);
+    QImage out = columns ? QImage(keep, src.height(), src.format())
+                         : QImage(src.width(), keep, src.format());
+    QPainter p(&out);
+    p.setCompositionMode(QPainter::CompositionMode_Source);
+    if (columns) {
+        p.drawImage(QPoint(0, 0), src, QRect(0, 0, from, src.height()));
+        p.drawImage(QPoint(from, 0), src, QRect(to, 0, extent - to, src.height()));
+    } else {
+        p.drawImage(QPoint(0, 0), src, QRect(0, 0, src.width(), from));
+        p.drawImage(QPoint(0, from), src, QRect(0, to, src.width(), extent - to));
+    }
+    p.end();
+    replaceBaseFlattened(out);
+    return true;
+}
+
 // ---------------------------------------------------------------- painting
 
 static qreal arrowHeadLen(qreal w) { return qMax(12.0, w * 4.5); }
@@ -1988,6 +2020,25 @@ void AnnotationCanvas::drawAnnot(QPainter &p, const Annot &a) const
                    QString::number(a.number));
         break;
     }
+    case CutOut: {
+        // Never placed: the live preview of the strip a release removes.
+        const QRectF r = a.rect.normalized();
+        const bool columns = cutsColumns(r);
+        const QRectF band = columns ? QRectF(r.left(), 0, r.width(), m_base.height())
+                                    : QRectF(0, r.top(), m_base.width(), r.height());
+        p.fillRect(band, QColor(0, 0, 0, 150));
+        QPen edge(Qt::white, 2, Qt::DashLine);
+        edge.setCosmetic(true);
+        p.setPen(edge);
+        if (columns) {
+            p.drawLine(band.topLeft(), band.bottomLeft());
+            p.drawLine(band.topRight(), band.bottomRight());
+        } else {
+            p.drawLine(band.topLeft(), band.topRight());
+            p.drawLine(band.bottomLeft(), band.bottomRight());
+        }
+        break;
+    }
     default:
         break;
     }
@@ -2238,7 +2289,8 @@ void AnnotationCanvas::updateImgRect(const QRectF &imgRect)
 QRectF AnnotationCanvas::annotBoundsImg(const Annot &a) const
 {
     // The dim covers the whole picture, so moving the hole repaints all of it.
-    if (a.type == Spotlight)
+    // A Cut out strip spans the picture and can swap axis mid-drag.
+    if (a.type == Spotlight || a.type == CutOut)
         return QRectF(QPointF(0, 0), QSizeF(m_base.size()));
     QRectF r;
     if (a.type == Measure) {
@@ -3351,7 +3403,13 @@ void AnnotationCanvas::mouseReleaseEvent(QMouseEvent *e)
             // one undo). Over a picture, or with no glyph boxes cached, it fails
             // and the freehand marker stroke is kept instead. Rect mode never
             // snaps; the freehand marker mode always appends its path.
-            if (m_current.type == Magnify) {
+            if (m_current.type == CutOut) {
+                const QRectF r = m_current.rect.normalized();
+                if (cutsColumns(r))
+                    cutOut(true, qRound(r.left()), qRound(r.right()));
+                else
+                    cutOut(false, qRound(r.top()), qRound(r.bottom()));
+            } else if (m_current.type == Magnify) {
                 // The drag picked the SOURCE; the placed annotation is the
                 // loupe — a 2x copy centred on the source, clamped into the
                 // image. Resizing the loupe afterwards changes the

@@ -122,7 +122,8 @@ public:
         Measure,     // 17 — distance/angle ruler retained in the export
         Magnify,     // 18 — loupe: enlarged copy of a dragged source region
         Eyedropper,  // 19 — click a pixel to adopt its colour as the stroke colour
-        Spotlight    // 20 - dims the picture outside a rectangle or ellipse
+        Spotlight,   // 20 - dims the picture outside a rectangle or ellipse
+        CutOut       // 21 - editor-only: a drag removes a strip of columns or rows
     };
     Q_ENUM(Tool)
 
@@ -293,6 +294,9 @@ public:
     Q_INVOKABLE void flipImage(bool horizontally);
     // false, and nothing changes, outside 1..16384 a side or above 64 MP.
     Q_INVOKABLE bool scaleImage(int width, int height);
+    // Removes columns (or rows) [from, to) and joins the two sides. false, and
+    // nothing changes, for an empty strip or one that would leave no picture.
+    Q_INVOKABLE bool cutOut(bool columns, int from, int to);
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
     bool pixelLoupe() const { return m_pixelLoupe; }

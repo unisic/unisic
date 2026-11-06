@@ -56,6 +56,7 @@ private slots:
     void magnifyPlacesCentredTwoXLoupe();
     void spotlightDimsOutsideSharedHoles();
     void rotateFlipScaleWholeImage();
+    void cutOutRemovesStripAndJoins();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
 };
@@ -1294,6 +1295,61 @@ void AnnotationCanvasTest::rotateFlipScaleWholeImage()
     QVERIFY(!canvas.scaleImage(16385, 10));
     QVERIFY(!canvas.scaleImage(16384, 16384)); // 268 MP, over the pixel cap
     QCOMPARE(canvas.imageSize(), QSize(300, 200));
+    QCOMPARE(canvas.annotCount(), 1);
+}
+
+// Cut out: the drag's longer side picks the axis, the strip is previewed while
+// dragging and removed on release with the two sides joined, annotations are
+// baked first, an empty or whole-picture strip is refused, undo restores.
+void AnnotationCanvasTest::cutOutRemovesStripAndJoins()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter p(&image);
+        p.fillRect(QRect(0, 100, 200, 20), Qt::red);
+        p.fillRect(QRect(150, 0, 10, 200), Qt::blue);
+    }
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    drag(canvas, QPointF(10, 10), QPointF(40, 40));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    canvas.setTool(AnnotationCanvas::CutOut);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(50, 100), QPointF(50, 100),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(55, 120), QPointF(55, 120),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&move);
+    const QImage preview = canvas.rendered();
+    QVERIFY2(preview.pixelColor(190, 110).red() < 200, "the rows strip is dimmed while dragging");
+    QVERIFY2(preview.pixelColor(190, 60).lightness() > 240, "outside the strip stays as it was");
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(55, 120), QPointF(55, 120),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&release);
+    QCOMPARE(canvas.imageSize(), QSize(200, 180));
+    QCOMPARE(canvas.annotCount(), 0);
+    const auto colour = [&canvas](int x, int y) { return canvas.rendered().pixelColor(x, y); };
+    QVERIFY2(colour(5, 100).lightness() > 240, "the rows below the strip moved up into its place");
+    QVERIFY2(colour(155, 100).blue() > 200, "the column outside the cut is intact");
+
+    QVERIFY(canvas.cutOut(true, 160, 150)); // reversed bounds are the same strip
+    QCOMPARE(canvas.imageSize(), QSize(190, 180));
+    QVERIFY2(colour(155, 50).lightness() > 240, "the blue columns are gone");
+
+    QVERIFY(!canvas.cutOut(false, 0, 180));
+    QVERIFY(!canvas.cutOut(true, 20, 20));
+    QVERIFY(!canvas.cutOut(true, -50, 400));
+    QCOMPARE(canvas.imageSize(), QSize(190, 180));
+
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(200, 180));
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(200, 200));
     QCOMPARE(canvas.annotCount(), 1);
 }
 

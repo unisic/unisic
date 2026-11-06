@@ -376,6 +376,7 @@ public:
     Q_INVOKABLE void devTestMagnify();
     Q_INVOKABLE void devTestSpotlight();
     Q_INVOKABLE void devTestImageTransform();
+    Q_INVOKABLE void devTestCutOut();
     Q_INVOKABLE void devTestEyedropper();
     Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();

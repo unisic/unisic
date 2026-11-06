@@ -42,7 +42,8 @@ QtObject {
         { id: "spotlight",  tool: 20, iconName: "spotlight",          label: qsTr("Spotlight"),    shortcut: "S", shortcutKey: Qt.Key_S, overlay: true,  editor: true, hideable: true, props: ["spotlightShape"] },
         { id: "eyedropper", tool: 19, iconName: "color-picker",       label: qsTr("Eyedropper"),   shortcut: "I", shortcutKey: Qt.Key_I, overlay: true,  editor: true, hideable: true, props: ["stroke"] },
         { id: "step",       tool: 10, iconName: "number",             label: qsTr("Step marker"),  shortcut: "N", shortcutKey: Qt.Key_N, overlay: true,  editor: true, hideable: true, props: ["stroke", "stepSize"] },
-        { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         shortcut: "C", shortcutKey: Qt.Key_C, overlay: false, editor: true, hideable: true, props: [] }
+        { id: "crop",       tool: 11, iconName: "transform-crop",     label: qsTr("Crop"),         shortcut: "C", shortcutKey: Qt.Key_C, overlay: false, editor: true, hideable: true, props: [] },
+        { id: "cutout",     tool: 21, iconName: "cut",                label: qsTr("Cut out"),      shortcut: "K", shortcutKey: Qt.Key_K, overlay: false, editor: true, hideable: true, props: [] }
     ]
 
     readonly property var groups: [

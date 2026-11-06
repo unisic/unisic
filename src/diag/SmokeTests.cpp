@@ -2109,6 +2109,52 @@ void AppContext::devTestImageTransform()
     showToast(tr("Dev: rotate and resize: %1").arg(imageTransformCheck()));
 }
 
+// Cut out: a drag taller than wide removes those rows and joins the rest, a
+// strip as wide as the picture is refused, undo restores (dev button + smoke
+// step).
+static QString cutOutCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    QPainter(&base).fillRect(QRect(0, 100, 200, 20), Qt::red);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::CutOut);
+    const QPointF from(50, 100), to(55, 120);
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    c.mouseMoveEvent(&m);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+    if (c.imageSize() != QSize(200, 180))
+        return QStringLiteral("FAIL (the drag did not cut 20 rows)");
+    if (c.rendered().pixelColor(50, 105).red() < 200 || c.rendered().pixelColor(50, 105).green() < 200)
+        return QStringLiteral("FAIL (the cut strip is still in the picture)");
+    if (!c.cutOut(true, 0, 50) || c.imageSize() != QSize(150, 180))
+        return QStringLiteral("FAIL (cutting columns)");
+    if (c.cutOut(true, 0, 150))
+        return QStringLiteral("FAIL (a strip as wide as the picture was accepted)");
+    c.undo();
+    c.undo();
+    if (c.imageSize() != QSize(200, 200) || c.canUndo())
+        return QStringLiteral("FAIL (undo did not restore the original)");
+    return QStringLiteral("PASS (rows by drag, columns, refusal, undo)");
+}
+
+void AppContext::devTestCutOut()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: cut out: %1").arg(cutOutCheck()));
+}
+
 // Eyedropper tool: a click adopts the pixel under the cursor as the stroke
 // colour (dev button + smoke step).
 static QString eyedropperCheck()
@@ -3507,7 +3553,8 @@ QtObject {
         { key: Qt.Key_X, id: "pixelate" },
         { key: Qt.Key_E, id: "smarterase" },
         { key: Qt.Key_N, id: "step" },
-        { key: Qt.Key_C, id: "crop" }
+        { key: Qt.Key_C, id: "crop" },
+        { key: Qt.Key_K, id: "cutout" }
     ]
     readonly property bool valid: check()
     function check() {
@@ -3516,7 +3563,7 @@ QtObject {
             if (!editorTool || editorTool.id !== expected[i].id)
                 return false
             const overlayTool = ToolCatalog.toolForShortcut(expected[i].key, "overlay")
-            if (expected[i].id === "crop") {
+            if (expected[i].id === "crop" || expected[i].id === "cutout") {
                 if (overlayTool)
                     return false
             } else if (!overlayTool || overlayTool.id !== expected[i].id) {
@@ -3541,7 +3588,7 @@ QtObject {
     if (!probe)
         return QStringLiteral("FAIL (probe create: %1)").arg(probeComponent.errorString().simplified());
     return probe->property("valid").toBool()
-        ? QStringLiteral("PASS (15 editor, 14 overlay mappings)")
+        ? QStringLiteral("PASS (16 editor, 14 overlay mappings)")
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
@@ -5584,6 +5631,7 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
         smokeLog(QStringLiteral("spotlight: ") + spotlightCheck());
         smokeLog(QStringLiteral("image transform: ") + imageTransformCheck());
+        smokeLog(QStringLiteral("cut out: ") + cutOutCheck());
         smokeNext();
     });
 

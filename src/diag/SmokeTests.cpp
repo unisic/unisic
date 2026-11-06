@@ -961,6 +961,125 @@ void AppContext::devTestShortenLink()
     showToast(tr("Dev: link shortener: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
+// Print layout, offline: the page size the PDF asks for in each orientation
+// and paper convention, the image at its on-screen size or shrunk to fit.
+static QString printCheck()
+{
+    const QRectF a4(0, 0, 595.276, 841.89);
+    QRectF r = AppContext::printImageRect(QSize(400, 300), a4);
+    if (qAbs(r.width() - 300) > 0.01 || qAbs(r.height() - 225) > 0.01 || r.center() != a4.center())
+        return QStringLiteral("FAIL (a small image was scaled or moved: %1x%2)").arg(r.width()).arg(r.height());
+    const QRectF inner = a4.adjusted(28, 28, -28, -28);
+    r = AppContext::printImageRect(QSize(4000, 1000), inner);
+    if (qAbs(r.width() - inner.width()) > 0.01 || qAbs(r.width() / r.height() - 4.0) > 0.001
+        || !inner.adjusted(-0.01, -0.01, 0.01, 0.01).contains(r))
+        return QStringLiteral("FAIL (a wide image did not shrink to the margins: %1x%2)")
+            .arg(r.width()).arg(r.height());
+
+    static const QRegularExpression mediaBox(QStringLiteral("/MediaBox \\[\\s*0 0 ([\\d.]+) ([\\d.]+)\\s*\\]"));
+    QImage img(1600, 900, QImage::Format_RGB32);
+    img.fill(Qt::darkCyan);
+    struct Case { QVariantMap setup; double w, h; const char *what; };
+    const Case cases[] = {
+        {{}, 595.3, 841.9, "no paper"},
+        {{{QStringLiteral("Width"), 297.0}, {QStringLiteral("Height"), 210.0}}, 595.3, 841.9, "turned paper"},
+        {{{QStringLiteral("Width"), 210.0}, {QStringLiteral("Height"), 297.0},
+          {QStringLiteral("Orientation"), QStringLiteral("landscape")}}, 841.9, 595.3, "landscape"},
+        {{{QStringLiteral("Width"), 279.4}, {QStringLiteral("Height"), 215.9},
+          {QStringLiteral("Orientation"), QStringLiteral("reverse-landscape")},
+          {QStringLiteral("MarginTop"), 6.35}}, 792, 612, "Letter reverse-landscape"},
+    };
+    for (const Case &c : cases) {
+        const QByteArray pdf = AppContext::printPdf(img, c.setup);
+        const QRegularExpressionMatch m = mediaBox.match(QString::fromLatin1(pdf));
+        if (!pdf.startsWith("%PDF") || !pdf.contains("/Subtype /Image") || !m.hasMatch())
+            return QStringLiteral("FAIL (%1: no PDF page with the image)").arg(QLatin1String(c.what));
+        if (qAbs(m.captured(1).toDouble() - c.w) > 1 || qAbs(m.captured(2).toDouble() - c.h) > 1)
+            return QStringLiteral("FAIL (%1: page %2 x %3 pt)").arg(QLatin1String(c.what), m.captured(1), m.captured(2));
+    }
+    // The cost the user waits through after the dialog, at 4K.
+    QImage big(3840, 2160, QImage::Format_RGB32);
+    big.fill(Qt::darkCyan);
+    QElapsedTimer t;
+    t.start();
+    const qsizetype bytes = AppContext::printPdf(big, {}).size();
+    return QStringLiteral("PASS (on-screen size, shrink to margins, A4 fallback, both paper conventions, "
+                          "landscape, Letter; 4K page in %1 ms, %2 KB)").arg(t.elapsed()).arg(bytes / 1024);
+}
+
+void AppContext::devTestPrint()
+{
+    if (!devBuild())
+        return;
+    const QString r = printCheck();
+    showToast(tr("Dev: print: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    printImage(devTestImage(), QStringLiteral("Unisic dev test"));
+}
+
+// Move to the trash after upload, against the real trash: kept while the
+// setting is off and while an after-capture program has the file, then
+// trashed with the history entry and its link kept through a prune.
+QString AppContext::trashAfterUploadCheck()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    const QString path = dir + QStringLiteral("/smoke-trash-%1.png")
+                                   .arg(QUuid::createUuid().toString(QUuid::Id128));
+    if (!QDir().mkpath(dir) || !devTestImage().save(path))
+        return QStringLiteral("FAIL (cannot write %1)").arg(path);
+    const QString link = QStringLiteral("https://example.invalid/smoke-trash.png");
+    const quint64 id = m_history->addEntry(path, devTestImage(), QStringLiteral("image"), link);
+    CaptureNotification card(this, devTestImage(), path, QStringLiteral("image"));
+    const bool wasOn = m_settings->afterUploadTrashFile();
+    const bool extOn = m_settings->externalActionEnabled();
+    const QString extCmd = m_settings->externalActionCommand();
+    QStringList fails;
+
+    m_settings->setAfterUploadTrashFile(false);
+    if (!trashAfterUpload(path, id, &card).isEmpty() || !QFile::exists(path))
+        fails << QStringLiteral("trashed with the setting off");
+    m_settings->setAfterUploadTrashFile(true);
+    m_settings->setExternalActionEnabled(true);
+    m_settings->setExternalActionCommand(QStringLiteral("true"));
+    if (!trashAfterUpload(path, id, &card).isEmpty() || !QFile::exists(path))
+        fails << QStringLiteral("trashed while a program had the file");
+    m_settings->setExternalActionEnabled(false);
+    const QString inTrash = trashAfterUpload(path, id, &card);
+    if (inTrash.isEmpty() || QFile::exists(path) || !QFile::exists(inTrash))
+        fails << QStringLiteral("not moved to the trash");
+    const QVariantMap e = m_history->entryById(id);
+    if (!e.value(QStringLiteral("filePath")).toString().isEmpty()
+        || e.value(QStringLiteral("url")).toString() != link)
+        fails << QStringLiteral("history entry kept the path or lost the link");
+    m_history->pruneMissing();
+    if (m_history->entryById(id).isEmpty())
+        fails << QStringLiteral("pruned, link and all");
+    if (!card.filePath().isEmpty())
+        fails << QStringLiteral("card kept the path");
+
+    m_settings->setAfterUploadTrashFile(wasOn);
+    m_settings->setExternalActionEnabled(extOn);
+    m_settings->setExternalActionCommand(extCmd);
+    m_history->removeByIds({QVariant(id)});
+    QFile::remove(path);
+    if (!inTrash.isEmpty()) {
+        const QFileInfo fi(inTrash);
+        QFile::remove(inTrash);
+        QFile::remove(QDir::cleanPath(fi.absolutePath() + QStringLiteral("/../info/") + fi.fileName()
+                                      + QStringLiteral(".trashinfo")));
+    }
+    return fails.isEmpty() ? QStringLiteral("PASS (kept while off, kept for a program, trashed, link kept "
+                                            "through a prune, card detached)")
+                           : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral(", ")));
+}
+
+void AppContext::devTestTrashAfterUpload()
+{
+    if (!devBuild())
+        return;
+    const QString r = trashAfterUploadCheck();
+    showToast(tr("Dev: trash after upload: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
 // Watched folder: a file that was there first stays, a new one is handed over
 // once it holds still, a dotfile and a partial download never are, and a path
 // that is not a folder is refused. The check owns its FolderWatch, so nothing
@@ -5800,6 +5919,8 @@ void AppContext::runSmokeTest()
     // 3e3i3) Shorten the link (is.gd, TinyURL): answers parsed offline, no request.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("link shortener: ") + shortenReplyCheck());
+        smokeLog(QStringLiteral("print layout: ") + printCheck());
+        smokeLog(QStringLiteral("trash after upload: ") + trashAfterUploadCheck());
         smokeLog(QStringLiteral("watched folder: ") + watchFolderCheck());
         smokeNext();
     });

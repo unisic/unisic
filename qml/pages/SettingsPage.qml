@@ -1641,6 +1641,12 @@ Item {
                             onActivated: (i) => App.settings.linkShortener = ids[i]
                         }
                     }
+                    SettingRow {
+                        label: qsTr("Move the file to the trash")
+                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
+                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
+                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
                 }
             }
 
@@ -4073,6 +4079,8 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR of text"); onClicked: App.devTestQrText() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Share sources"); onClicked: App.devTestShareSources() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Print"); onClicked: App.devTestPrint() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trash after upload"); onClicked: App.devTestTrashAfterUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Watched folder"); onClicked: App.devTestWatchFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }

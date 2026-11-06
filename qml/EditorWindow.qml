@@ -429,6 +429,9 @@ Window {
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_S) editorWindow.doSave()
             // Ctrl+W closes the editor window (the discard prompt still applies).
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_W) editorWindow.close()
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_P) {
+                editorWindow.commitPendingText(); editorSession.print()
+            }
             // Ctrl+C copies the OCR text selection while in OCR mode, else the image.
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_C) {
                 if (canvas.ocrMode) editorSession.copyOcrSelection()
@@ -959,7 +962,10 @@ Window {
                             { label: qsTr("Flip vertically"), iconName: "object-flip-vertical",
                               trigger: function () { editorWindow.commitPendingText(); canvas.flipImage(false) } },
                             { label: qsTr("Resize…"), iconName: "transform-scale",
-                              trigger: function () { resizeDialog.openFor() } }
+                              trigger: function () { resizeDialog.openFor() } },
+                            { label: qsTr("Print…"), iconName: "document-print", hint: "Ctrl+P",
+                              separatorBefore: true,
+                              trigger: function () { editorWindow.commitPendingText(); editorSession.print() } }
                         ]
                     }
                 }

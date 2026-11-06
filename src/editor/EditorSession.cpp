@@ -192,6 +192,12 @@ void EditorSession::copyToClipboard()
     setStatus(tr("Copied to clipboard"));
 }
 
+void EditorSession::print()
+{
+    m_app->printImage(composited(), m_overwritePath.isEmpty() ? QStringLiteral("Unisic")
+                                                              : QFileInfo(m_overwritePath).fileName());
+}
+
 void EditorSession::upload()
 {
     setStatus(tr("Uploading…"));

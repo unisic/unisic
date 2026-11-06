@@ -38,6 +38,7 @@ public:
     Q_INVOKABLE QString saveAsDialog();
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
+    Q_INVOKABLE void print();                 // the image as edited, through the print dialog
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
     // Native file picker, then the picture goes onto the canvas centred on the
     // given image point (a toast when it does not decode).

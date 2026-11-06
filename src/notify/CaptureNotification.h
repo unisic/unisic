@@ -53,6 +53,9 @@ public:
     void setUrl(const QString &url);
     void setUploading(bool on);
     void setUploadFailed(const QString &error);
+    // The file went to the trash after its upload: the card keeps the link and,
+    // for a screenshot, the pixels, so Save writes it again.
+    void forgetFile();
 
     // A file URL the drop target can copy when the thumbnail is dragged out to
     // another app. Saved captures/recordings hand over their real file; an

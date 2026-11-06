@@ -62,10 +62,10 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 
 - **Capture** - full screen across monitors, an interactive region with live dimensions, the active window, or a scrolling capture of a page taller than the screen; optional delay and cursor.
 - **Annotate before the shot** - the selection overlay is already a canvas: arrows, shapes, text, blur and numbered steps, burned into the crop on <kbd>Enter</kbd>.
-- **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, emoji or a picture from a file), rotate, flip, resize, undo/redo and zoom.
+- **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, emoji or a picture from a file), rotate, flip, resize, undo/redo and zoom, then print it.
 - **Record** - region, full screen or window to GIF, MP4 or WebM, with optional system and microphone audio.
 - **Read pixels** - OCR any region or scan a QR/barcode, and copy the result.
-- **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, Amazon S3 and S3-compatible storage and built-in hosts, plus every new file in a watched folder; the link auto-copies, and copied text turns into a QR code.
+- **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, Amazon S3 and S3-compatible storage and built-in hosts, plus every new file in a watched folder; the link auto-copies (the local file can go to the trash after it), and copied text turns into a QR code.
 - **Remember** - thumbnail history of every capture; deleting moves the file to the trash.
 - **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
 - **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.

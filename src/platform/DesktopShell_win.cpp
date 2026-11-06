@@ -10,6 +10,9 @@
 #include <QFileInfo>
 #include <QFutureWatcher>
 #include <QGuiApplication>
+#include <QPainter>
+#include <QPrintDialog>
+#include <QPrinter>
 #include <QPointer>
 #include <QProcess>
 #include <QSaveFile>
@@ -251,6 +254,30 @@ static bool startupSwitchedOff(const QString &name)
         L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
         reinterpret_cast<LPCWSTR>(name.utf16()), RRF_RT_REG_BINARY, nullptr, data, &size);
     return rc == ERROR_SUCCESS && size > 0 && (data[0] & 1);
+}
+
+// No print portal here: the Windows print dialog, then the same layout as the
+// portal's PDF, in points on the printer's printable area.
+void AppContext::printImage(const QImage &img, const QString &title)
+{
+    if (img.isNull())
+        return;
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setDocName(title);
+    printer.setPageOrientation(img.width() > img.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+    QPrintDialog dialog(&printer);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    QPainter p;
+    if (!p.begin(&printer)) {
+        showToast(tr("Printing failed: %1").arg(printer.printerName()), true);
+        return;
+    }
+    const double pt = printer.resolution() / 72.0;
+    p.scale(pt, pt);
+    const QRectF area(0, 0, printer.width() / pt, printer.height() / pt);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+    p.drawImage(printImageRect(img.size(), area), img);
 }
 
 bool AppContext::autostartEnabled() const

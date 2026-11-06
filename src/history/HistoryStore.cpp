@@ -386,8 +386,9 @@ bool HistoryStore::setFilePathById(quint64 id, const QString &filePath)
 {
     // The capture card's Save button persists an until-now unsaved capture:
     // point its own entry (by id — see setUrlById) at the file so path-keyed
-    // lookups (Delete, upload URL) find it.
-    if (id == 0 || filePath.isEmpty())
+    // lookups (Delete, upload URL) find it. An empty path detaches the file
+    // (moved to the trash after its upload), so pruneMissing keeps the link.
+    if (id == 0)
         return false;
     for (int i = 0; i < m_entries.size(); ++i) {
         if (m_entries[i].id == id) {

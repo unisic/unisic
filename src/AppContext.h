@@ -407,6 +407,8 @@ public:
     Q_INVOKABLE void devTestQrText();
     Q_INVOKABLE void devTestShareSources();
     Q_INVOKABLE void devTestShortenLink();
+    Q_INVOKABLE void devTestPrint();
+    Q_INVOKABLE void devTestTrashAfterUpload();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
@@ -772,6 +774,8 @@ public:
     // Upload a saved capture file (history card) to the active destination and
     // write the resulting URL back onto its history entry.
     Q_INVOKABLE void uploadFromHistory(const QString &filePath);
+    // Print a saved image file (history card) through printImage.
+    Q_INVOKABLE void printFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // OCR the image and deliver per-word boxes on the GUI thread (editor's
     // selectable-text overlay). Empty words + a message on failure/no-OCR.
@@ -846,6 +850,19 @@ private:
                   std::function<void(bool, const QString &)> done);
     QString zipUnavailableReason() const; // why ZIP export cannot run, translated; "" when it can
     QString showInFolderCheck() const;    // smoke: can showInFileManager select the file?
+public:
+    // The system print dialog, then the image on one page: the xdg-desktop-
+    // portal Print portal on Linux, QPrintDialog on Windows. `title` names the
+    // print job. Defined per platform in src/platform/DesktopShell*.cpp.
+    void printImage(const QImage &img, const QString &title);
+    // Pure: where the image goes on a page whose printable area is `area`, in
+    // points. Printed at its on-screen size (96 dpi pixels), shrunk to fit when
+    // larger, never enlarged, centred.
+    static QRectF printImageRect(const QSize &image, const QRectF &area);
+    // Pure: a one-page PDF of `img` laid out on the portal's page setup (Width,
+    // Height and margins in mm, Orientation). A4 when the setup names no paper.
+    static QByteArray printPdf(const QImage &img, const QVariantMap &pageSetup);
+private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
@@ -916,6 +933,7 @@ private:
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
+    QString trashAfterUploadCheck();
     // unisic.stats: counts into a scratch file (never the user's), asserts the
     // day/month/year totals, and that the real file, if any, still parses.
     QString captureStatsCheck();
@@ -1097,6 +1115,12 @@ private:
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
                            const QString &sourcePath);
     void afterUploadActions(const QString &url);
+    // "Move the file to the trash" after an automatic upload: trashes `path`,
+    // detaches it from history entry `historyId` (the link stays) and from the
+    // card. Does nothing when the setting is off or an after-capture program
+    // was handed the same file.
+    // Returns where the file went in the trash, empty when it stayed.
+    QString trashAfterUpload(const QString &path, quint64 historyId, CaptureNotification *card);
     // Everything that has to be kept off the screen while a capture or a
     // recording is running, and put back afterwards: the desktop's other
     // notifications (inhibitor) and our own main window. Paired - every capture

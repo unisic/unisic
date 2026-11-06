@@ -869,6 +869,9 @@ Item {
                                                     if (kind === "image" && filePath !== "")
                                                         a.push({ label: qsTr("Copy text (OCR)"), iconName: "ocr",
                                                                  trigger: function() { App.ocrFile(filePath) } })
+                                                    if (kind === "image" && filePath !== "")
+                                                        a.push({ label: qsTr("Print…"), iconName: "document-print",
+                                                                 trigger: function() { App.printFromHistory(filePath) } })
                                                     // Each conversion writes a second file beside the
                                                     // original, so the tile it makes is its own. The
                                                     // format the file already is stays out of the list

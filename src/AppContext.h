@@ -19,6 +19,7 @@
 #include "record/GifRecorder.h"
 #include "update/UpdateChecker.h"
 #include "hotkeys/ShortcutBinder.h"
+#include "hotkeys/PrintKeyRelay.h"
 
 class QQmlEngine;
 class QMenu;
@@ -835,7 +836,9 @@ private:
     int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
-    void bindX11Hotkeys();
+    // reportConflicts=false keeps a re-grab silent when nothing changed (a
+    // recorder cancelled with Escape must not repeat the last conflict toast).
+    void bindX11Hotkeys(bool reportConflicts = true);
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
@@ -1209,6 +1212,11 @@ private:
     int m_editorWindows = 0;
     bool m_converting = false;
     bool m_shortcutRecording = false;
+    // A hotkey was edited while the native grabs were released for a recorder;
+    // the re-grab when it lets go then reports conflicts for the new key.
+    bool m_hotkeyEditedWhileRecording = false;
+    // Delivers Print Screen to a listening recorder on Windows (see its header).
+    PrintKeyRelay m_printKeyRelay;
     bool m_captureInFlight = false; // re-entry guard for portal captures
     int m_nextCaptureDelayMs = -1;  // CLI-only one-shot override; -1 = settings
     CaptureTask m_nextCaptureTask;

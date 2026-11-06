@@ -188,6 +188,7 @@ qt_add_executable(unisic
     src/history/CaptureStats.h src/history/CaptureStats.cpp
     src/hotkeys/GlobalHotkeys.h src/hotkeys/GlobalHotkeys.cpp
     src/hotkeys/PortalGlobalShortcuts.h src/hotkeys/PortalGlobalShortcuts.cpp
+    src/hotkeys/PrintKeyRelay.h src/hotkeys/PrintKeyRelay.cpp
     src/hotkeys/ShortcutBinder.h src/hotkeys/ShortcutBinder.cpp
     src/update/UpdateChecker.h src/update/UpdateChecker.cpp
     src/update/StagedUpdate.h src/update/StagedUpdate.cpp

@@ -84,15 +84,19 @@ public:
                       const QString &fileName, const QString &mime, Callback cb);
     void uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb);
 
-    // Shortens a link through is.gd. Opt-in only: is.gd, a third party, sees
-    // every address it shortens. `done` gets the short link, or an empty one
-    // and the reason.
-    void shortenUrl(const QString &url,
+    // Shortens a link through `service`: "tinyurl" for TinyURL, anything else
+    // is.gd. Opt-in only: the service, a third party, sees every address it
+    // shortens. `done` gets the short link, or an empty one and the reason.
+    void shortenUrl(const QString &service, const QString &url,
                     std::function<void(const QString &shortUrl, const QString &error)> done);
-    // Pure: is.gd's format=simple answer. The short link on a 200 that is one
-    // https://is.gd/ address; otherwise empty, with `error` set to is.gd's
-    // "Error: " text (left empty when the body says nothing usable).
-    static QString parseShortenReply(int httpStatus, const QByteArray &body, QString *error);
+    // Pure: the service's plain-text answer. The short link on a 200 that is
+    // one https address on the service's own host; otherwise empty, with
+    // `error` set to is.gd's "Error: " text (left empty when the body says
+    // nothing usable, as TinyURL's bare "Error" does).
+    static QString parseShortenReply(const QString &service, int httpStatus, const QByteArray &body,
+                                     QString *error);
+    // The name the user knows the service by.
+    static QString shortenerName(const QString &service);
 
     // Pure: the names a chained upload tries, in order. `order` is the list
     // as shown (top = active), `ready` the servers that need no setup: an

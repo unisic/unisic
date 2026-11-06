@@ -3409,10 +3409,12 @@ void AppContext::afterUploadActions(const QString &url)
     }
     // A failed shortening costs only the short form: the full link goes on as
     // if shortening were off, and one toast says both.
-    m_uploads->shortenUrl(url, [this, url, finish](const QString &shortUrl, const QString &error) {
+    const QString service = m_settings->linkShortener();
+    m_uploads->shortenUrl(service, url, [this, url, service, finish](const QString &shortUrl, const QString &error) {
         finish(shortUrl.isEmpty() ? url : shortUrl);
         if (shortUrl.isEmpty())
-            showToast(tr("Uploaded, but is.gd could not shorten the link (%1). The full link is used.").arg(error), true);
+            showToast(tr("Uploaded, but %1 could not shorten the link (%2). The full link is used.")
+                          .arg(UploadManager::shortenerName(service), error), true);
     });
 }
 

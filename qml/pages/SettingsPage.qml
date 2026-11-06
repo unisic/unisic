@@ -1619,9 +1619,27 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Shorten the link")
-                        help: qsTr("Swaps the link for a short is.gd one before it is copied or opened.")
-                        helpDetail: qsTr("Off by default because is.gd, a free public shortener, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
                         USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.afterUploadShortenUrl
+                        label: qsTr("Shortener")
+                        // Tried live: is.gd refused files.catbox.moe and
+                        // litter.catbox.moe links and took Imgur, Uguu,
+                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
+                        help: App.settings.linkShortener === "tinyurl"
+                              ? qsTr("TinyURL also shortens Catbox links.")
+                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
+                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        UComboBox {
+                            width: 200
+                            model: ["is.gd", "TinyURL"]
+                            readonly property var ids: ["isgd", "tinyurl"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
+                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                        }
                     }
                 }
             }

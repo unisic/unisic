@@ -1335,6 +1335,26 @@ Item {
             }
 
             SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Support Unisic") }
+                    SettingRow {
+                        label: qsTr("Buy Me a Coffee")
+                        help: qsTr("Unisic is free and open source. A donation helps fund its development.")
+                        UButton {
+                            compact: true
+                            variant: "tonal"
+                            iconName: "globe"
+                            text: qsTr("Donate")
+                            onClicked: Qt.openUrlExternally("https://buymeacoffee.com/unisic")
+                        }
+                    }
+                }
+            }
+
+            SettingsGroup {
                 id: statsGroup
                 width: page.cardWidth
                 property var stats: App.captureStats()

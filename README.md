@@ -18,6 +18,7 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
   <a href="https://github.com/unisic/unisic/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/unisic/unisic/total?style=for-the-badge&color=433D8B"></a>
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-000?style=for-the-badge&color=433D8B">
   <a href="https://discord.gg/U2Eyw6xQBz"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-000?style=for-the-badge&logo=discord&logoColor=C8ACD6&color=433D8B"></a>
+  <a href="https://buymeacoffee.com/unisic"><img alt="Buy Me a Coffee" src="https://img.shields.io/badge/Buy_Me_a_Coffee-support-000?style=for-the-badge&logo=buymeacoffee&logoColor=C8ACD6&color=433D8B"></a>
 </p>
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/deandark)

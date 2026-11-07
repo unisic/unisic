@@ -9,11 +9,17 @@ whole per release (not per individual change).
 ## 0.8.10
 
 ### English
+**Added**
+- **Support Unisic**: Settings > General has a Support Unisic card with a Donate button that opens [Unisic's Buy Me a Coffee page](https://buymeacoffee.com/unisic) in your browser.
+
 **Fixed**
 - **Recording a hotkey works on Windows**: clicking "+ Add shortcut" in Settings > Hotkeys and pressing a key left the field on "Press shortcut..." with nothing saved for every Print Screen chord, which is every default capture key on Windows, because Windows never tells the window that Print Screen went down, only that it came back up. A key already bound to one of Unisic's actions never reached the field either, since the hotkey took it first. Print Screen is now read when you let go of it, Unisic's own hotkeys step aside while a field is recording (the emergency stop stays), and the field shows the modifiers you hold, such as "Ctrl+Shift+...", so you can see the keys arrive.
 - **Tab after `unisic ` lists the options**: the bash and zsh completion offered file names until `--` was typed, and offered them after `--format`, `--delay` and `--hotkey` too. Tab on an empty word now lists every option, as `rpm` does, `--format` offers png, jpg, webp and gif, and only the options that take a path complete file names. Thanks to Ricky-Tigg for reporting this ([#133](https://github.com/unisic/unisic/issues/133)).
 
 ### Polski
+**Dodane**
+- **Wesprzyj Unisic**: w Ustawieniach > Ogólne jest karta Wesprzyj Unisic z przyciskiem Wesprzyj, który otwiera w przeglądarce [stronę Unisic na Buy Me a Coffee](https://buymeacoffee.com/unisic).
+
 **Naprawione**
 - **Nagrywanie skrótu działa na Windows**: po kliknięciu „+ Dodaj skrót” w Ustawieniach > Skróty i naciśnięciu klawisza pole zostawało na „Naciśnij skrót...”, a nic się nie zapisywało, i tak przy każdej kombinacji z Print Screen, czyli przy każdym domyślnym klawiszu przechwytywania na Windows, bo Windows nigdy nie mówi oknu, że Print Screen został wciśnięty, tylko że został puszczony. Do pola nie docierał też klawisz przypisany już do którejś akcji Unisic, bo najpierw przejmował go skrót. Print Screen jest teraz odczytywany przy puszczeniu, skróty Unisic ustępują na czas nagrywania pola (awaryjne zatrzymanie zostaje), a pole pokazuje trzymane modyfikatory, np. „Ctrl+Shift+...”, więc widać, że klawisze dochodzą.
 - **Tab po `unisic ` pokazuje opcje**: podpowiadanie w bash i zsh dawało nazwy plików, dopóki w wierszu nie było `--`, a także po `--format`, `--delay` i `--hotkey`. Tab na pustym słowie pokazuje teraz wszystkie opcje, tak jak `rpm`, `--format` podpowiada png, jpg, webp i gif, a nazwy plików dostają tylko opcje, które przyjmują ścieżkę. Podziękowania dla Ricky-Tigg za zgłoszenie ([#133](https://github.com/unisic/unisic/issues/133)).

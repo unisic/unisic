@@ -10,7 +10,7 @@ whole per release (not per individual change).
 
 ### English
 **Added**
-- **Support Unisic**: Settings > General has a Support Unisic card with a Donate button that opens [Unisic's Buy Me a Coffee page](https://buymeacoffee.com/unisic) in your browser.
+- **Support Unisic**: Settings > General has a Support Unisic card with a Donate button that opens [Unisic's Buy Me a Coffee page](https://buymeacoffee.com/unisic) in your browser. Software centres such as Discover list the same link as the donation page.
 
 **Fixed**
 - **Recording a hotkey works on Windows**: clicking "+ Add shortcut" in Settings > Hotkeys and pressing a key left the field on "Press shortcut..." with nothing saved for every Print Screen chord, which is every default capture key on Windows, because Windows never tells the window that Print Screen went down, only that it came back up. A key already bound to one of Unisic's actions never reached the field either, since the hotkey took it first. Print Screen is now read when you let go of it, Unisic's own hotkeys step aside while a field is recording (the emergency stop stays), and the field shows the modifiers you hold, such as "Ctrl+Shift+...", so you can see the keys arrive.
@@ -18,7 +18,7 @@ whole per release (not per individual change).
 
 ### Polski
 **Dodane**
-- **Wesprzyj Unisic**: w Ustawieniach > Ogólne jest karta Wesprzyj Unisic z przyciskiem Wesprzyj, który otwiera w przeglądarce [stronę Unisic na Buy Me a Coffee](https://buymeacoffee.com/unisic).
+- **Wesprzyj Unisic**: w Ustawieniach > Ogólne jest karta Wesprzyj Unisic z przyciskiem Wesprzyj, który otwiera w przeglądarce [stronę Unisic na Buy Me a Coffee](https://buymeacoffee.com/unisic). Centra oprogramowania, np. Discover, pokazują ten sam link jako stronę darowizn.
 
 **Naprawione**
 - **Nagrywanie skrótu działa na Windows**: po kliknięciu „+ Dodaj skrót” w Ustawieniach > Skróty i naciśnięciu klawisza pole zostawało na „Naciśnij skrót...”, a nic się nie zapisywało, i tak przy każdej kombinacji z Print Screen, czyli przy każdym domyślnym klawiszu przechwytywania na Windows, bo Windows nigdy nie mówi oknu, że Print Screen został wciśnięty, tylko że został puszczony. Do pola nie docierał też klawisz przypisany już do którejś akcji Unisic, bo najpierw przejmował go skrót. Print Screen jest teraz odczytywany przy puszczeniu, skróty Unisic ustępują na czas nagrywania pola (awaryjne zatrzymanie zostaje), a pole pokazuje trzymane modyfikatory, np. „Ctrl+Shift+...”, więc widać, że klawisze dochodzą.

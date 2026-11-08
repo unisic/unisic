@@ -7,7 +7,9 @@
 # cannot upload over sftp, cannot build a diagnostics bundle or has an empty
 # OCR language list is a broken install, not a degraded one. Only the portal
 # BACKEND stays weak, because a session always has one and choosing for the user
-# would pull in half a foreign desktop.
+# would pull in half a foreign desktop. ONNX Runtime, the one optional feature
+# (docs/dev/packaging.md "Background removal"), is not suggested: it needs 1.25
+# or newer, Debian 13 has 1.21 and Ubuntu 26.04 1.23, so Settings downloads it.
 # Build-Depends mirror the debian:trixie CI job in .github/workflows/deb.yml
 # and the Build-Depends line in unisic.dsc, and cover all 11 compile-time gates
 # (each is REQUIRED in CMakeLists.txt now, so a missing one fails configure

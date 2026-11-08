@@ -18,6 +18,7 @@
 #include "history/HistoryStore.h"
 #include "record/GifRecorder.h"
 #include "update/UpdateChecker.h"
+#include "editor/BackgroundRemover.h"
 #include "hotkeys/ShortcutBinder.h"
 #include "hotkeys/PrintKeyRelay.h"
 
@@ -63,6 +64,7 @@ class AppContext : public QObject
     Q_PROPERTY(UploadManager *uploads READ uploads CONSTANT)
     Q_PROPERTY(HistoryStore *history READ history CONSTANT)
     Q_PROPERTY(UpdateChecker *updater READ updater CONSTANT)
+    Q_PROPERTY(BackgroundRemover *backgroundRemover READ backgroundRemover CONSTANT)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool converting READ converting NOTIFY recordingChanged)
     Q_PROPERTY(bool instantReplayActive READ instantReplayActive NOTIFY recordingChanged)
@@ -205,6 +207,7 @@ public:
     UploadManager *uploads() const { return m_uploads; }
     HistoryStore *history() const { return m_history; }
     UpdateChecker *updater() const { return m_updater; }
+    BackgroundRemover *backgroundRemover() const { return m_bgRemover; }
     CaptureManager *captureManager() const { return m_capture; }
     QQmlEngine *qmlEngine() const { return m_engine; }
 
@@ -410,6 +413,7 @@ public:
     Q_INVOKABLE void devTestShortenLink();
     Q_INVOKABLE void devTestPrint();
     Q_INVOKABLE void devTestTrashAfterUpload();
+    Q_INVOKABLE void devTestBackgroundRemoval();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
@@ -937,6 +941,7 @@ private:
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
     QString trashAfterUploadCheck();
+    void backgroundRemovalCheck(std::function<void(const QString &)> done);
     // unisic.stats: counts into a scratch file (never the user's), asserts the
     // day/month/year totals, and that the real file, if any, still parses.
     QString captureStatsCheck();
@@ -1219,6 +1224,7 @@ private:
     UploadManager *m_uploads;
     HistoryStore *m_history;
     UpdateChecker *m_updater = nullptr;
+    BackgroundRemover *m_bgRemover = nullptr;
     GlobalHotkeys *m_hotkeys;
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     X11Hotkeys *m_x11hotkeys = nullptr;

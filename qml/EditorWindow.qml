@@ -105,7 +105,7 @@ Window {
     }
 
     // True once the user has taken any export action (save/copy/upload/OCR)
-    // - statusText is only ever set by those. Used to skip the
+    // - a statusText with statusExported is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.
@@ -113,7 +113,8 @@ Window {
     Connections {
         target: editorSession
         function onStatusTextChanged() {
-            if (editorSession.statusText !== "") editorWindow.exported = true
+            if (editorSession.statusText !== "" && editorSession.statusExported)
+                editorWindow.exported = true
         }
     }
 
@@ -963,10 +964,15 @@ Window {
                               trigger: function () { editorWindow.commitPendingText(); canvas.flipImage(false) } },
                             { label: qsTr("Resize…"), iconName: "transform-scale",
                               trigger: function () { resizeDialog.openFor() } },
+                            App.backgroundRemover.available
+                            ? { label: qsTr("Remove background"), iconName: "draw-eraser",
+                                enabled: !App.backgroundRemover.busy,
+                                trigger: function () { editorWindow.commitPendingText(); editorSession.removeBackground() } }
+                            : null,
                             { label: qsTr("Print…"), iconName: "document-print", hint: "Ctrl+P",
                               separatorBefore: true,
                               trigger: function () { editorWindow.commitPendingText(); editorSession.print() } }
-                        ]
+                        ].filter(a => a !== null)
                     }
                 }
 

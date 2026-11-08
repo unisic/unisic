@@ -387,6 +387,26 @@ modules:
           type: git
           tag-pattern: ^([\d.]+)$
 
+  # ONNX Runtime for "Remove background" (docs/dev/packaging.md "Background
+  # removal"). Unisic dlopen()s it, nothing links it, and the sandbox is the one
+  # place the user cannot add it afterwards, so it is bundled here only. The
+  # upstream release build, not a source build: ORT's own build pulls dozens of
+  # sources over the network at configure time, which flatpak-builder forbids.
+  # The release ships one x86_64 tarball, matching the one arch built here.
+  - name: onnxruntime
+    only-arches:
+      - x86_64
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 lib/libonnxruntime.so.1.31.1 /app/lib/libonnxruntime.so.1.31.1
+      - ln -s libonnxruntime.so.1.31.1 /app/lib/libonnxruntime.so.1
+      - install -Dm644 LICENSE /app/share/licenses/app.unisic.Unisic/onnxruntime/LICENSE
+      - install -Dm644 ThirdPartyNotices.txt /app/share/licenses/app.unisic.Unisic/onnxruntime/ThirdPartyNotices.txt
+    sources:
+      - type: archive
+        url: https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/onnxruntime-linux-x64-1.31.1.tgz
+        sha256: c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9
+
   - name: unisic
     buildsystem: cmake-ninja
     builddir: true

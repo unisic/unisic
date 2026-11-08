@@ -42,7 +42,28 @@ void EditorSession::bindCanvas(AnnotationCanvas *canvas)
                     canvas->setGlyphBoxes(words);
             });
         });
+        connect(m_canvas, &AnnotationCanvas::historyChanged, this, [this] { ++m_edits; });
     }
+}
+
+void EditorSession::removeBackground()
+{
+    if (!m_canvas)
+        return;
+    setStatus(tr("Removing the background…"), false);
+    QPointer<AnnotationCanvas> canvas(m_canvas);
+    const quint64 edits = m_edits;
+    m_app->backgroundRemover()->remove(m_canvas->rendered(), this,
+                                       [this, canvas, edits](const QImage &img, const QString &err) {
+        if (!err.isEmpty())
+            setStatus(err, false);
+        else if (!canvas || edits != m_edits)
+            setStatus(tr("The picture changed while the background was being removed - run it again"), false);
+        else {
+            canvas->replaceBaseFlattened(img);
+            setStatus(tr("Background removed"), false);
+        }
+    });
 }
 
 QImage EditorSession::composited() const
@@ -50,9 +71,10 @@ QImage EditorSession::composited() const
     return m_canvas ? m_canvas->rendered() : m_image;
 }
 
-void EditorSession::setStatus(const QString &s)
+void EditorSession::setStatus(const QString &s, bool exported)
 {
     m_status = s;
+    m_statusExported = exported;
     emit statusTextChanged();
 }
 

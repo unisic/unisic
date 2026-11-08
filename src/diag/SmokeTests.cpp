@@ -57,6 +57,7 @@
 #include "editor/EditorSession.h"
 #include "editor/ImageEffects.h"
 #include "editor/WatermarkPreview.h"
+#include "editor/BackgroundRemover.h"
 #include "PreviewController.h"
 #include "notify/NotifCard.h"
 #include "notify/CaptureNotification.h"
@@ -1078,6 +1079,81 @@ void AppContext::devTestTrashAfterUpload()
         return;
     const QString r = trashAfterUploadCheck();
     showToast(tr("Dev: trash after upload: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+static QString procStatusKb(const char *field)
+{
+    QFile f(QStringLiteral("/proc/self/status"));
+    if (!f.open(QIODevice::ReadOnly))
+        return QStringLiteral("n/a");
+    for (const QByteArray &line : f.readAll().split('\n'))
+        if (line.startsWith(field))
+            return QString::number(line.mid(qstrlen(field)).trimmed().split(' ').value(0).toLongLong() / 1024)
+                   + QStringLiteral(" MB");
+    return QStringLiteral("n/a");
+}
+
+// Background removal on a synthetic picture: a red disc on flat grey must come
+// back opaque in the middle and transparent in a corner. SKIP without the
+// runtime or the model, which are the one optional part of Unisic.
+void AppContext::backgroundRemovalCheck(std::function<void(const QString &)> done)
+{
+    BackgroundRemover *br = m_bgRemover;
+    if (!br->runtimeFound()) {
+        done(QStringLiteral("SKIP (no ONNX Runtime%1)")
+                 .arg(br->runtimeInfo().isEmpty() ? QString() : QStringLiteral(": ") + br->runtimeInfo()));
+        return;
+    }
+    if (!br->modelInstalled()) {
+        QString err;
+        br->remove(devTestImage(), this, [&err](const QImage &, const QString &e) { err = e; });
+        done(err.isEmpty() ? QStringLiteral("FAIL (ran without the model)")
+                           : QStringLiteral("SKIP (model not downloaded; refused cleanly)"));
+        return;
+    }
+    if (br->busy()) {
+        done(QStringLiteral("SKIP (a removal is already running)"));
+        return;
+    }
+    QImage img(640, 480, QImage::Format_ARGB32_Premultiplied);
+    img.fill(QColor(128, 128, 128));
+    {
+        QPainter p(&img);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(220, 30, 30));
+        p.drawEllipse(QPointF(320, 240), 150, 150);
+    }
+    auto t = std::make_shared<QElapsedTimer>();
+    t->start();
+    // A refusal arrives before remove() returns. The only one left at this
+    // point is too little free memory, which is the machine, not a defect.
+    auto refusing = std::make_shared<bool>(true);
+    br->remove(img, this, [done, t, refusing, size = img.size()](const QImage &out, const QString &err) {
+        const qint64 ms = t->elapsed();
+        if (!err.isEmpty()) {
+            done(QStringLiteral("%1 (%2)").arg(*refusing ? QStringLiteral("SKIP") : QStringLiteral("FAIL"), err));
+            return;
+        }
+        const int centre = out.isNull() ? -1 : qAlpha(out.pixel(320, 240));
+        const int corner = out.isNull() ? -1 : qAlpha(out.pixel(10, 10));
+        const bool pass = out.size() == size && centre > 200 && corner >= 0 && corner < 50;
+        done(QStringLiteral("%1 (centre alpha %2, corner alpha %3; %4 ms, peak RSS %5, now %6)")
+                 .arg(pass ? QStringLiteral("PASS") : QStringLiteral("FAIL"))
+                 .arg(centre).arg(corner).arg(ms)
+                 .arg(procStatusKb("VmHWM:"), procStatusKb("VmRSS:")));
+    });
+    *refusing = false;
+}
+
+void AppContext::devTestBackgroundRemoval()
+{
+    if (!devBuild())
+        return;
+    backgroundRemovalCheck([this](const QString &r) {
+        showToast(tr("Dev: background removal: %1").arg(r),
+                  !r.startsWith(QLatin1String("PASS")) && !r.startsWith(QLatin1String("SKIP")));
+    });
 }
 
 // Watched folder: a file that was there first stays, a new one is handed over
@@ -5923,6 +5999,16 @@ void AppContext::runSmokeTest()
         smokeLog(QStringLiteral("trash after upload: ") + trashAfterUploadCheck());
         smokeLog(QStringLiteral("watched folder: ") + watchFolderCheck());
         smokeNext();
+    });
+
+    // 3e3i4) Background removal, the one optional feature: SKIP when the
+    // runtime or the model is missing, otherwise a real run on a synthetic
+    // picture (seconds of CPU, about 2 GB at the peak).
+    m_smokeSteps.append([this] {
+        backgroundRemovalCheck([this](const QString &r) {
+            smokeLog(QStringLiteral("background removal: ") + r);
+            smokeNext();
+        });
     });
 
     // 3e3j) A helper program that never exits must not hold the after-capture

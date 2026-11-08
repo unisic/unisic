@@ -1637,6 +1637,70 @@ Item {
                         helpDetail: qsTr("Runs after every successful upload, using the system default browser.")
                         USwitch { checked: App.settings.afterUploadOpenInBrowser; onToggled: (c) => App.settings.afterUploadOpenInBrowser = c }
                     }
+                    SettingRow {
+                        label: qsTr("Shorten the link")
+                        help: qsTr("Swaps the link for a short one before it is copied or opened.")
+                        helpDetail: qsTr("Off by default because the shortener, a free public service, gets every link you upload. When it fails or takes longer than 15 seconds, the full link is used.")
+                        USwitch { checked: App.settings.afterUploadShortenUrl; onToggled: (c) => App.settings.afterUploadShortenUrl = c }
+                    }
+                    SettingRow {
+                        visible: App.settings.afterUploadShortenUrl
+                        label: qsTr("Shortener")
+                        // Tried live: is.gd refused files.catbox.moe and
+                        // litter.catbox.moe links and took Imgur, Uguu,
+                        // tmpfiles and buzzheavier ones; TinyURL took Catbox.
+                        help: App.settings.linkShortener === "tinyurl"
+                              ? qsTr("TinyURL also shortens Catbox links.")
+                              : qsTr("is.gd refuses links to catbox.moe, so Catbox and Litterbox links stay long.")
+                        helpDetail: qsTr("is.gd also refuses links to other shorteners and to addresses on its blacklist. A refused link is used in full, and a message says why.")
+                        UComboBox {
+                            width: 200
+                            model: ["is.gd", "TinyURL"]
+                            readonly property var ids: ["isgd", "tinyurl"]
+                            currentIndex: Math.max(0, ids.indexOf(App.settings.linkShortener))
+                            onActivated: (i) => App.settings.linkShortener = ids[i]
+                        }
+                    }
+                    SettingRow {
+                        label: qsTr("Move the file to the trash")
+                        help: qsTr("After a capture or recording uploads on its own, its local file goes to the trash.")
+                        helpDetail: qsTr("History keeps the entry and its link. Uploads you start by hand keep their file, and so does every capture while an after-capture program is set, because that program may still be reading it.")
+                        USwitch { checked: App.settings.afterUploadTrashFile; onToggled: (c) => App.settings.afterUploadTrashFile = c }
+                    }
+                }
+            }
+
+            SettingsGroup {
+                width: page.cardWidth
+                Column {
+                    width: parent.width
+                    spacing: Theme.spacingS
+                    SectionTitle { text: qsTr("Upload from a folder") }
+                    SettingRow {
+                        id: watchFolderRow
+                        label: qsTr("Watched folder")
+                        help: qsTr("Uploads every new file that lands in this folder. Empty is off.")
+                        helpDetail: qsTr("Each file goes to the active server once it has stopped changing for a second, then the after-upload actions run. Files already in the folder, hidden files and partial downloads are left alone, and captures Unisic saves there follow \"Upload to the active server\" instead.")
+                        UTextField {
+                            width: Math.min(420, page.cardWidth - 140)
+                            placeholder: qsTr("No folder")
+                            // Set here, so the row bridge keeps off it: the
+                            // error under the card is a Text, which a screen
+                            // reader never reaches on its own.
+                            accessibleDescription: watchFolderError.visible ? watchFolderError.text : watchFolderRow.help
+                            text: App.settings.watchFolder
+                            onEdited: (t) => App.settings.watchFolder = t
+                        }
+                    }
+                    Text {
+                        id: watchFolderError
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        visible: App.settings.watchFolder.trim() !== "" && !App.watchFolderActive
+                        text: qsTr("This is not a folder, so nothing is watched.")
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                    }
                 }
             }
 
@@ -3958,6 +4022,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture region"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture window"); onClicked: App.captureWindow() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture screen at cursor"); onClicked: App.captureScreenUnderCursor() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture first monitor by name"); onClicked: App.captureScreenNamed(Qt.application.screens[0].name) }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Re-capture last region"); onClicked: App.recaptureLastRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (screen)"); onClicked: App.startGifFullScreen() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Rec GIF (region)"); onClicked: App.startGifRegion() }
@@ -3986,6 +4051,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Desktop shortcuts (bind commands)"); onClicked: App.devTestDesktopShortcuts() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Upload test image"); onClicked: App.devTestUpload() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Server test upload"); onClicked: App.devTestDestinationTest() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("S3 signing"); onClicked: App.devTestS3Signing() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Settings round-trip"); onClicked: App.devTestSettingsRoundTrip() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Install channel"); onClicked: App.devTestInstallChannel() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Record page mode"); onClicked: App.devTestRecordPageMode() }
@@ -4030,6 +4096,12 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shift snap"); onClicked: App.devTestShiftSnap() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pen line click"); onClicked: App.devTestPenLine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("QR preview"); onClicked: App.devTestQrPreview() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("QR of text"); onClicked: App.devTestQrText() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Share sources"); onClicked: App.devTestShareSources() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Link shortener"); onClicked: App.devTestShortenLink() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Print"); onClicked: App.devTestPrint() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Trash after upload"); onClicked: App.devTestTrashAfterUpload() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Watched folder"); onClicked: App.devTestWatchFolder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Copy diagnostics"); onClicked: App.devTestDiagnostics() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Diagnostic log"); onClicked: App.devTestDiagLog() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Log viewer"); onClicked: logViewer.open() }
@@ -4060,6 +4132,10 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Screenshot cursor"); onClicked: App.devTestCursorCapability() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Shape edit"); onClicked: App.devTestShapeEdit() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Magnifier"); onClicked: App.devTestMagnify() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Spotlight"); onClicked: App.devTestSpotlight() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Rotate and resize"); onClicked: App.devTestImageTransform() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Cut out a strip"); onClicked: App.devTestCutOut() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Stickers"); onClicked: App.devTestStickers() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Eyedropper"); onClicked: App.devTestEyedropper() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Pixel loupe"); onClicked: App.devTestPixelLoupe() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Capture on release"); onClicked: App.devTestCaptureOnRelease() }

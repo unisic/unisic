@@ -28,6 +28,7 @@ class QSystemTrayIcon;
 class QTranslator;
 class QDBusServiceWatcher;
 class QFileSystemWatcher;
+class FolderWatch;
 class QQuickWindow;
 class QMimeData;
 class QScreen;
@@ -147,6 +148,8 @@ class AppContext : public QObject
     Q_PROPERTY(QColor trayContrastColor READ trayContrastColor NOTIFY trayContrastColorChanged)
     // Open post-capture editors - quit-on-close must not destroy unsaved work.
     Q_PROPERTY(int editorWindowsOpen READ editorWindowsOpen NOTIFY editorWindowsOpenChanged)
+    // Settings > Upload's watched folder is a folder that is being watched.
+    Q_PROPERTY(bool watchFolderActive READ watchFolderActive NOTIFY watchFolderActiveChanged)
     // Tesseract is a hard build requirement, but its language data is a separate
     // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
@@ -354,6 +357,8 @@ public:
     // The server editor's "Test upload": guard + a real curl transport against
     // a scratch file:// target, plus the promise that nothing is persisted.
     Q_INVOKABLE void devTestDestinationTest();
+    // S3 signing: a curl destination with an S3 region against a local stand-in.
+    Q_INVOKABLE void devTestS3Signing();
     // Drag and drop import: the router behind the main window's DropArea.
     Q_INVOKABLE void devTestImportDrop();
     // Ctrl+V import: clipboard pixels and a copied file.
@@ -375,6 +380,10 @@ public:
     Q_INVOKABLE void devTestCustomTheme();
     Q_INVOKABLE void devTestShapeEdit();
     Q_INVOKABLE void devTestMagnify();
+    Q_INVOKABLE void devTestSpotlight();
+    Q_INVOKABLE void devTestImageTransform();
+    Q_INVOKABLE void devTestCutOut();
+    Q_INVOKABLE void devTestStickers();
     Q_INVOKABLE void devTestEyedropper();
     Q_INVOKABLE void devTestPixelLoupe();
     Q_INVOKABLE void devTestCaptureOnRelease();
@@ -396,6 +405,11 @@ public:
     Q_INVOKABLE void devTestShiftSnap();
     Q_INVOKABLE void devTestPenLine();
     Q_INVOKABLE void devTestQrPreview();
+    Q_INVOKABLE void devTestQrText();
+    Q_INVOKABLE void devTestShareSources();
+    Q_INVOKABLE void devTestShortenLink();
+    Q_INVOKABLE void devTestPrint();
+    Q_INVOKABLE void devTestTrashAfterUpload();
     Q_INVOKABLE void devTestDiagnostics();
     Q_INVOKABLE void devTestSystemCheck();
     Q_INVOKABLE void devTestWelcome();
@@ -435,6 +449,7 @@ public:
     QString smokeTestLog() const { return m_smokeLog; }
     bool smokeTestRunning() const { return m_smokeRunning; }
     int editorWindowsOpen() const { return m_editorWindows; }
+    bool watchFolderActive() const;
     bool ocrHasLanguages() const;
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
@@ -496,6 +511,9 @@ public:
     Q_INVOKABLE void captureScroll();
     // Single monitor: the screen under the cursor (fallback: primary).
     Q_INVOKABLE void captureScreenUnderCursor();
+    // Single monitor picked by its QScreen name (tray submenu, `--screen`);
+    // an empty name is the screen under the cursor.
+    Q_INVOKABLE void captureScreenNamed(const QString &name);
     // Repeat the last region capture's exact rect without opening the overlay
     // (ShareX "repeat last capture"). Errors as a toast when no region is
     // stored or its screen is gone.
@@ -572,7 +590,21 @@ public:
     Q_INVOKABLE void saveInstantReplay();
 
     Q_INVOKABLE void copyText(const QString &text);
-    Q_INVOKABLE void showQr(const QString &url);
+    // A QR code of any text up to 2048 bytes: an upload link, or what was copied.
+    Q_INVOKABLE void showQr(const QString &text);
+    // Sharing what you already have (src/upload/UploadSources.cpp). Each goes
+    // through the same failure chain and after-upload actions as a capture.
+    Q_INVOKABLE void uploadAnyFile();       // file dialog, any type
+    Q_INVOKABLE void uploadPath(const QString &path);
+    Q_INVOKABLE void devTestWatchFolder();
+    Q_INVOKABLE void uploadClipboard();     // a copied file, image or text
+    Q_INVOKABLE void qrFromClipboard();     // QR code of the copied text
+    // What uploadClipboard() sends for this payload: "files", "image", "text",
+    // or "" for nothing it can upload. Pure, so the routing is checkable
+    // without touching the real clipboard.
+    static QString clipboardUploadKind(const QMimeData *mime);
+    // The name copied text is uploaded under: the filename template, .txt.
+    QString clipboardTextFileName() const;
     // Text representations of a capture. The data URI encode is asynchronous
     // because a full-resolution PNG must never stall the GUI thread.
     void copyImageAs(const QImage &img, const QString &filePath, const QString &url,
@@ -743,6 +775,8 @@ public:
     // Upload a saved capture file (history card) to the active destination and
     // write the resulting URL back onto its history entry.
     Q_INVOKABLE void uploadFromHistory(const QString &filePath);
+    // Print a saved image file (history card) through printImage.
+    Q_INVOKABLE void printFromHistory(const QString &filePath);
     void ocrImage(const QImage &img);                // OCR + copy recognized text
     // OCR the image and deliver per-word boxes on the GUI thread (editor's
     // selectable-text overlay). Empty words + a message on failure/no-OCR.
@@ -785,6 +819,7 @@ signals:
     void trayAvailableChanged();
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
+    void watchFolderActiveChanged();
     void smokeTestChanged();
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
@@ -794,11 +829,15 @@ signals:
     void recordingCapabilitiesChanged();
 
 private:
+    // captureScreenUnderCursor() with an empty name, captureScreenNamed() otherwise.
+    void captureOneScreen(const QString &name);
     // The paste ROUTER, split from pasteFromClipboard() so a payload can be
     // routed without going near QClipboard: pixels -> a new editor document,
     // a local file url -> openPath(), anything else (and a null payload, which
     // is what an empty clipboard hands over) -> a toast that says why.
     void pasteMimeData(const QMimeData *mime);
+    // uploadClipboard()'s sender, split off for the same reason.
+    void uploadMimeData(const QMimeData *mime);
     bool systemIsDark() const;                        // OS light/dark scheme
     QIcon recoloredTrayIcon(const QString &path) const; // bundled preset -> contrast
     // The members below up to showInFolderCheck() are defined per platform in
@@ -812,9 +851,23 @@ private:
                   std::function<void(bool, const QString &)> done);
     QString zipUnavailableReason() const; // why ZIP export cannot run, translated; "" when it can
     QString showInFolderCheck() const;    // smoke: can showInFileManager select the file?
+public:
+    // The system print dialog, then the image on one page: the xdg-desktop-
+    // portal Print portal on Linux, QPrintDialog on Windows. `title` names the
+    // print job. Defined per platform in src/platform/DesktopShell*.cpp.
+    void printImage(const QImage &img, const QString &title);
+    // Pure: where the image goes on a page whose printable area is `area`, in
+    // points. Printed at its on-screen size (96 dpi pixels), shrunk to fit when
+    // larger, never enlarged, centred.
+    static QRectF printImageRect(const QSize &image, const QRectF &area);
+    // Pure: a one-page PDF of `img` laid out on the portal's page setup (Width,
+    // Height and margins in mm, Orientation). A4 when the setup names no paper.
+    static QByteArray printPdf(const QImage &img, const QVariantMap &pageSetup);
+private:
     QIcon trayIcon() const;      // custom (Settings) if valid, else bundled default
     QIcon trayIconBadged() const;// trayIcon() + a red recording dot
     void applyTrayIcon();        // push trayIcon() to the live QSystemTrayIcon
+    void startWatchFolder();     // follows Settings::watchFolder for good
     QMenu *buildTrayMenu();      // the tray menu minus Settings::hiddenTrayItems
     struct HotkeyAction {
         QString id;
@@ -883,6 +936,7 @@ private:
     // History search/filter model: seeds three entries covering every filter
     // dimension, asserts each filter, then removes them again.
     QString historyFilterCheck();
+    QString trashAfterUploadCheck();
     // unisic.stats: counts into a scratch file (never the user's), asserts the
     // day/month/year totals, and that the real file, if any, still parses.
     QString captureStatsCheck();
@@ -932,6 +986,11 @@ private:
     // check stays offline), and neither may persist anything. Async - `done`
     // gets one summary line, shared by the smoke step and the dev button.
     void destinationTestCheck(std::function<void(const QString &)> done);
+    // An S3 destination's PUT as a local listener sees it: curl on this machine
+    // knows --aws-sigv4, the request carries the SigV4 scope, the payload hash
+    // header S3 requires and the file's Content-Type, and the link is the
+    // object's address. Async, offline.
+    void s3SigningCheck(std::function<void(const QString &)> done);
     // Layer-shell preview moved to another monitor: opens a preview, hands
     // PreviewController::hopTo() the next screen's centre and checks the
     // window now lives there and survived the hide/show. Async, SKIP on one
@@ -1059,6 +1118,12 @@ private:
     void finishOpenPreview(bool saved, const QString &tmp, const QSize &imgSize,
                            const QString &sourcePath);
     void afterUploadActions(const QString &url);
+    // "Move the file to the trash" after an automatic upload: trashes `path`,
+    // detaches it from history entry `historyId` (the link stays) and from the
+    // card. Does nothing when the setting is off or an after-capture program
+    // was handed the same file.
+    // Returns where the file went in the trash, empty when it stayed.
+    QString trashAfterUpload(const QString &path, quint64 historyId, CaptureNotification *card);
     // Everything that has to be kept off the screen while a capture or a
     // recording is running, and put back afterwards: the desktop's other
     // notifications (inhibitor) and our own main window. Paired - every capture
@@ -1166,6 +1231,7 @@ private:
     QSystemTrayIcon *m_tray = nullptr;
     QDBusServiceWatcher *m_trayWatcher = nullptr; // at most one, reused across retries
     QFileSystemWatcher *m_trayIconsWatcher = nullptr; // watches trayIconsDir() for drops
+    FolderWatch *m_folderWatch = nullptr; // Settings > Upload > watched folder
     QTimer *m_trimTimer = nullptr;
     QTimer *m_updateRestartTimer = nullptr; // retries the idle auto-restart
     // Newest screenshot, encoded off-thread (megabytes, not a pinned 4K

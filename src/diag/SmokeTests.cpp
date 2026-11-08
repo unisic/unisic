@@ -18,6 +18,7 @@
 #include "capture/PortalRequest.h"
 #include "overlay/OverlayController.h"
 #include "upload/UploadManager.h"
+#include "upload/FolderWatch.h"
 #include "actions/ExternalActionRunner.h"
 #include "history/HistoryStore.h"
 #include "history/HistoryFilterModel.h"
@@ -32,6 +33,8 @@
 #include <csignal>
 #include <QWheelEvent>
 #include <QTemporaryFile>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include "update/UpdateChecker.h"
 #include "update/VersionCompare.h"
 #include "hotkeys/PortalGlobalShortcuts.h"
@@ -858,6 +861,270 @@ void AppContext::devTestQrPreview()
     if (!devBuild())
         return;
     showQr(QStringLiteral("https://example.invalid/unisic-qr-test"));
+}
+
+// A QR code of text that is no link: the Edit page and tray turn copied text
+// into one, so the old "links only" rule must stay gone.
+void AppContext::devTestQrText()
+{
+    if (!devBuild())
+        return;
+    showQr(QStringLiteral("Unisic QR code from plain text, no link"));
+}
+
+// Upload a file / the clipboard / QR of copied text: what each clipboard
+// payload is routed as, the name copied text goes up under, and that a QR code
+// takes plain text but refuses a payload past its cap. Never uploads: the
+// chain would walk onto real public hosts.
+static QString shareSourcesCheck(const AppContext *app)
+{
+    QMimeData files;
+    files.setUrls({QUrl::fromLocalFile(QStringLiteral("/nonexistent/a.zip")),
+                   QUrl(QStringLiteral("https://example.invalid/b.png"))});
+    files.setText(QStringLiteral("/nonexistent/a.zip"));
+    QImage pixels(4, 4, QImage::Format_ARGB32_Premultiplied);
+    pixels.fill(Qt::red);
+    QMimeData image;
+    image.setImageData(pixels);
+    image.setText(QStringLiteral("caption"));
+    QMimeData text;
+    text.setText(QStringLiteral("hello"));
+    QMimeData blank;
+    blank.setText(QStringLiteral("  \n"));
+    QMimeData remote;
+    remote.setUrls({QUrl(QStringLiteral("https://example.invalid/a.png"))});
+    if (AppContext::clipboardUploadKind(&files) != QLatin1String("files"))
+        return QStringLiteral("FAIL (a copied file is not sent as the file)");
+    if (AppContext::clipboardUploadKind(&image) != QLatin1String("image"))
+        return QStringLiteral("FAIL (copied pixels are not sent as an image)");
+    if (AppContext::clipboardUploadKind(&text) != QLatin1String("text"))
+        return QStringLiteral("FAIL (copied text is not sent as text)");
+    // Qt 6 reads a url list as text too: a copied link goes up as that text.
+    if (AppContext::clipboardUploadKind(&remote) != QLatin1String("text"))
+        return QStringLiteral("FAIL (a copied link is not sent as text)");
+    if (!AppContext::clipboardUploadKind(&blank).isEmpty()
+        || !AppContext::clipboardUploadKind(nullptr).isEmpty())
+        return QStringLiteral("FAIL (blank text or nothing would be uploaded)");
+    if (!app->clipboardTextFileName().endsWith(QLatin1String(".txt")))
+        return QStringLiteral("FAIL (copied text goes up as %1)").arg(app->clipboardTextFileName());
+    if (qrPreviewImage(QStringLiteral("plain text, no link")).isNull())
+        return QStringLiteral("FAIL (no QR code for plain text)");
+    if (!qrPreviewImage(QString(kQrMaxBytes + 1, QLatin1Char('x'))).isNull())
+        return QStringLiteral("FAIL (QR code past the %1 byte cap)").arg(kQrMaxBytes);
+    return QStringLiteral("PASS (file, image, text, link as text, refusals, .txt name, QR of text, QR cap)");
+}
+
+void AppContext::devTestShareSources()
+{
+    if (!devBuild())
+        return;
+    const QString r = shareSourcesCheck(this);
+    showToast(tr("Dev: share sources: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// Offline: is.gd's answers as documented, TinyURL's as observed, and the
+// ones that must not pass for a link.
+static QString shortenReplyCheck()
+{
+    const QString isgd = QStringLiteral("isgd"), tiny = QStringLiteral("tinyurl");
+    QString err;
+    if (UploadManager::parseShortenReply(isgd, 200, "https://is.gd/R709K6\n", &err) != QLatin1String("https://is.gd/R709K6"))
+        return QStringLiteral("FAIL (a good is.gd answer was refused)");
+    if (UploadManager::parseShortenReply(tiny, 200, "https://tinyurl.com/26bpbn69", &err)
+        != QLatin1String("https://tinyurl.com/26bpbn69"))
+        return QStringLiteral("FAIL (a good TinyURL answer was refused)");
+    if (!UploadManager::parseShortenReply(isgd, 400, "Error: Please specify a URL to shorten.", &err).isEmpty()
+        || err != QLatin1String("Please specify a URL to shorten."))
+        return QStringLiteral("FAIL (is.gd's error text lost: %1)").arg(err);
+    if (!UploadManager::parseShortenReply(tiny, 400, "Error", &err).isEmpty() || !err.isEmpty())
+        return QStringLiteral("FAIL (TinyURL's bare Error passed or made up a reason)");
+    // Each service's link is foreign to the other.
+    if (!UploadManager::parseShortenReply(isgd, 200, "https://tinyurl.com/26bpbn69", &err).isEmpty()
+        || !UploadManager::parseShortenReply(tiny, 200, "https://is.gd/R709K6", &err).isEmpty())
+        return QStringLiteral("FAIL (one service's link passed for the other's)");
+    const QList<QByteArray> bad = {"<html><body>maintenance</body></html>", "https://evil.example/x",
+                                   "https://is.gd/a\nhttps://is.gd/b", "http://is.gd/R709K6", "https://is.gd/"};
+    for (const QByteArray &body : bad)
+        if (!UploadManager::parseShortenReply(isgd, 200, body, &err).isEmpty())
+            return QStringLiteral("FAIL (taken for a link: %1)").arg(QString::fromUtf8(body));
+    if (!UploadManager::parseShortenReply(isgd, 502, {}, &err).isEmpty() || !err.isEmpty())
+        return QStringLiteral("FAIL (an empty 502 passed or made up an error)");
+    return QStringLiteral("PASS (is.gd and TinyURL links, both errors, crossed hosts, html, other host, "
+                          "two lines, http, bare host, empty 502)");
+}
+
+void AppContext::devTestShortenLink()
+{
+    if (!devBuild())
+        return;
+    const QString r = shortenReplyCheck();
+    showToast(tr("Dev: link shortener: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// Print layout, offline: the page size the PDF asks for in each orientation
+// and paper convention, the image at its on-screen size or shrunk to fit.
+static QString printCheck()
+{
+    const QRectF a4(0, 0, 595.276, 841.89);
+    QRectF r = AppContext::printImageRect(QSize(400, 300), a4);
+    if (qAbs(r.width() - 300) > 0.01 || qAbs(r.height() - 225) > 0.01 || r.center() != a4.center())
+        return QStringLiteral("FAIL (a small image was scaled or moved: %1x%2)").arg(r.width()).arg(r.height());
+    const QRectF inner = a4.adjusted(28, 28, -28, -28);
+    r = AppContext::printImageRect(QSize(4000, 1000), inner);
+    if (qAbs(r.width() - inner.width()) > 0.01 || qAbs(r.width() / r.height() - 4.0) > 0.001
+        || !inner.adjusted(-0.01, -0.01, 0.01, 0.01).contains(r))
+        return QStringLiteral("FAIL (a wide image did not shrink to the margins: %1x%2)")
+            .arg(r.width()).arg(r.height());
+
+    static const QRegularExpression mediaBox(QStringLiteral("/MediaBox \\[\\s*0 0 ([\\d.]+) ([\\d.]+)\\s*\\]"));
+    QImage img(1600, 900, QImage::Format_RGB32);
+    img.fill(Qt::darkCyan);
+    struct Case { QVariantMap setup; double w, h; const char *what; };
+    const Case cases[] = {
+        {{}, 595.3, 841.9, "no paper"},
+        {{{QStringLiteral("Width"), 297.0}, {QStringLiteral("Height"), 210.0}}, 595.3, 841.9, "turned paper"},
+        {{{QStringLiteral("Width"), 210.0}, {QStringLiteral("Height"), 297.0},
+          {QStringLiteral("Orientation"), QStringLiteral("landscape")}}, 841.9, 595.3, "landscape"},
+        {{{QStringLiteral("Width"), 279.4}, {QStringLiteral("Height"), 215.9},
+          {QStringLiteral("Orientation"), QStringLiteral("reverse-landscape")},
+          {QStringLiteral("MarginTop"), 6.35}}, 792, 612, "Letter reverse-landscape"},
+    };
+    for (const Case &c : cases) {
+        const QByteArray pdf = AppContext::printPdf(img, c.setup);
+        const QRegularExpressionMatch m = mediaBox.match(QString::fromLatin1(pdf));
+        if (!pdf.startsWith("%PDF") || !pdf.contains("/Subtype /Image") || !m.hasMatch())
+            return QStringLiteral("FAIL (%1: no PDF page with the image)").arg(QLatin1String(c.what));
+        if (qAbs(m.captured(1).toDouble() - c.w) > 1 || qAbs(m.captured(2).toDouble() - c.h) > 1)
+            return QStringLiteral("FAIL (%1: page %2 x %3 pt)").arg(QLatin1String(c.what), m.captured(1), m.captured(2));
+    }
+    // The cost the user waits through after the dialog, at 4K.
+    QImage big(3840, 2160, QImage::Format_RGB32);
+    big.fill(Qt::darkCyan);
+    QElapsedTimer t;
+    t.start();
+    const qsizetype bytes = AppContext::printPdf(big, {}).size();
+    return QStringLiteral("PASS (on-screen size, shrink to margins, A4 fallback, both paper conventions, "
+                          "landscape, Letter; 4K page in %1 ms, %2 KB)").arg(t.elapsed()).arg(bytes / 1024);
+}
+
+void AppContext::devTestPrint()
+{
+    if (!devBuild())
+        return;
+    const QString r = printCheck();
+    showToast(tr("Dev: print: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    printImage(devTestImage(), QStringLiteral("Unisic dev test"));
+}
+
+// Move to the trash after upload, against the real trash: kept while the
+// setting is off and while an after-capture program has the file, then
+// trashed with the history entry and its link kept through a prune.
+QString AppContext::trashAfterUploadCheck()
+{
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    const QString path = dir + QStringLiteral("/smoke-trash-%1.png")
+                                   .arg(QUuid::createUuid().toString(QUuid::Id128));
+    if (!QDir().mkpath(dir) || !devTestImage().save(path))
+        return QStringLiteral("FAIL (cannot write %1)").arg(path);
+    const QString link = QStringLiteral("https://example.invalid/smoke-trash.png");
+    const quint64 id = m_history->addEntry(path, devTestImage(), QStringLiteral("image"), link);
+    CaptureNotification card(this, devTestImage(), path, QStringLiteral("image"));
+    const bool wasOn = m_settings->afterUploadTrashFile();
+    const bool extOn = m_settings->externalActionEnabled();
+    const QString extCmd = m_settings->externalActionCommand();
+    QStringList fails;
+
+    m_settings->setAfterUploadTrashFile(false);
+    if (!trashAfterUpload(path, id, &card).isEmpty() || !QFile::exists(path))
+        fails << QStringLiteral("trashed with the setting off");
+    m_settings->setAfterUploadTrashFile(true);
+    m_settings->setExternalActionEnabled(true);
+    m_settings->setExternalActionCommand(QStringLiteral("true"));
+    if (!trashAfterUpload(path, id, &card).isEmpty() || !QFile::exists(path))
+        fails << QStringLiteral("trashed while a program had the file");
+    m_settings->setExternalActionEnabled(false);
+    const QString inTrash = trashAfterUpload(path, id, &card);
+    if (inTrash.isEmpty() || QFile::exists(path) || !QFile::exists(inTrash))
+        fails << QStringLiteral("not moved to the trash");
+    const QVariantMap e = m_history->entryById(id);
+    if (!e.value(QStringLiteral("filePath")).toString().isEmpty()
+        || e.value(QStringLiteral("url")).toString() != link)
+        fails << QStringLiteral("history entry kept the path or lost the link");
+    m_history->pruneMissing();
+    if (m_history->entryById(id).isEmpty())
+        fails << QStringLiteral("pruned, link and all");
+    if (!card.filePath().isEmpty())
+        fails << QStringLiteral("card kept the path");
+
+    m_settings->setAfterUploadTrashFile(wasOn);
+    m_settings->setExternalActionEnabled(extOn);
+    m_settings->setExternalActionCommand(extCmd);
+    m_history->removeByIds({QVariant(id)});
+    QFile::remove(path);
+    if (!inTrash.isEmpty()) {
+        const QFileInfo fi(inTrash);
+        QFile::remove(inTrash);
+        QFile::remove(QDir::cleanPath(fi.absolutePath() + QStringLiteral("/../info/") + fi.fileName()
+                                      + QStringLiteral(".trashinfo")));
+    }
+    return fails.isEmpty() ? QStringLiteral("PASS (kept while off, kept for a program, trashed, link kept "
+                                            "through a prune, card detached)")
+                           : QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral(", ")));
+}
+
+void AppContext::devTestTrashAfterUpload()
+{
+    if (!devBuild())
+        return;
+    const QString r = trashAfterUploadCheck();
+    showToast(tr("Dev: trash after upload: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// Watched folder: a file that was there first stays, a new one is handed over
+// once it holds still, a dotfile and a partial download never are, and a path
+// that is not a folder is refused. The check owns its FolderWatch, so nothing
+// is uploaded.
+static QString watchFolderCheck()
+{
+    QTemporaryDir dir;
+    if (!dir.isValid())
+        return QStringLiteral("SKIP (no temporary folder)");
+    const auto write = [&dir](const QString &name) {
+        QFile f(dir.filePath(name));
+        return f.open(QIODevice::WriteOnly) && f.write("x") == 1;
+    };
+    if (!write(QStringLiteral("old.txt")))
+        return QStringLiteral("FAIL (could not write into %1)").arg(dir.path());
+    FolderWatch watch;
+    QStringList got;
+    QObject::connect(&watch, &FolderWatch::fileReady, &watch,
+                     [&got](const QString &path) { got << QFileInfo(path).fileName(); });
+    if (watch.setPath(dir.filePath(QStringLiteral("old.txt"))) || !watch.path().isEmpty())
+        return QStringLiteral("FAIL (a file was taken for a folder)");
+    if (!watch.setPath(dir.path()))
+        return QStringLiteral("FAIL (a temporary folder could not be watched)");
+    QElapsedTimer t;
+    t.start();
+    write(QStringLiteral("new.txt"));
+    write(QStringLiteral(".hidden"));
+    write(QStringLiteral("download.part"));
+    while (got.isEmpty() && t.elapsed() < 5000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    const qint64 after = t.elapsed();
+    // One more settle period, so a second hand-over would show up.
+    while (t.elapsed() < after + 2 * FolderWatch::kSettleMs)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+    if (got != QStringList{QStringLiteral("new.txt")})
+        return QStringLiteral("FAIL (handed over: [%1])").arg(got.join(QLatin1String(", ")));
+    return QStringLiteral("PASS (new file after %1 ms; the old one, a dotfile and a .part stayed)").arg(after);
+}
+
+void AppContext::devTestWatchFolder()
+{
+    if (!devBuild())
+        return;
+    const QString r = watchFolderCheck();
+    showToast(tr("Dev: watched folder: %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestDiagnostics()
@@ -1941,6 +2208,203 @@ void AppContext::devTestMagnify()
     showToast(tr("Dev: magnifier: %1").arg(magnifyCheck()));
 }
 
+// Spotlight: a drag cuts an undimmed hole, the rest of the picture is darkened
+// (dev button + smoke step).
+static QString spotlightCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Spotlight);
+    c.setSpotlightShape(1);
+    const QPointF from(40, 40), to(160, 160);
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    c.mouseMoveEvent(&m);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+    if (c.annotCount() != 1)
+        return QStringLiteral("FAIL (spotlight not placed)");
+    const QImage out = c.rendered();
+    if (out.pixelColor(100, 100).lightness() < 240)
+        return QStringLiteral("FAIL (the hole is dimmed)");
+    if (out.pixelColor(10, 10).lightness() > 200)
+        return QStringLiteral("FAIL (outside the hole is not dimmed)");
+    if (out.pixelColor(44, 44).lightness() > 200)
+        return QStringLiteral("FAIL (ellipse hole left its corners undimmed)");
+    return QStringLiteral("PASS (ellipse hole lit, the rest dimmed)");
+}
+
+void AppContext::devTestSpotlight()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: spotlight: %1").arg(spotlightCheck()));
+}
+
+// Whole-picture rotate, flip and resize from the editor's More menu: a corner
+// marker lands where each step says, and undo walks all three back
+// (dev button + smoke step).
+static QString imageTransformCheck()
+{
+    AnnotationCanvas c;
+    QImage base(30, 20, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    base.setPixelColor(0, 0, Qt::red);
+    c.setImage(base);
+    const auto redAt = [&c](int x, int y) {
+        const QColor px = c.rendered().pixelColor(x, y);
+        return px.red() > 200 && px.green() < 60;
+    };
+    c.rotateImage(true);
+    if (c.imageSize() != QSize(20, 30) || !redAt(19, 0))
+        return QStringLiteral("FAIL (rotate right)");
+    c.flipImage(true);
+    if (!redAt(0, 0))
+        return QStringLiteral("FAIL (flip horizontally)");
+    if (!c.scaleImage(40, 60) || c.imageSize() != QSize(40, 60) || !redAt(0, 0))
+        return QStringLiteral("FAIL (resize)");
+    if (c.scaleImage(16385, 1))
+        return QStringLiteral("FAIL (resize over the cap accepted)");
+    c.undo();
+    c.undo();
+    c.undo();
+    if (c.imageSize() != QSize(30, 20) || !redAt(0, 0) || c.canUndo())
+        return QStringLiteral("FAIL (undo did not restore the original)");
+    return QStringLiteral("PASS (rotate, flip, resize, undo)");
+}
+
+void AppContext::devTestImageTransform()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: rotate and resize: %1").arg(imageTransformCheck()));
+}
+
+// Cut out: a drag taller than wide removes those rows and joins the rest, a
+// strip as wide as the picture is refused, undo restores (dev button + smoke
+// step).
+static QString cutOutCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(200);
+    c.setHeight(200);
+    QImage base(200, 200, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    QPainter(&base).fillRect(QRect(0, 100, 200, 20), Qt::red);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::CutOut);
+    const QPointF from(50, 100), to(55, 120);
+    QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    c.mousePressEvent(&p);
+    QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    c.mouseMoveEvent(&m);
+    QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    c.mouseReleaseEvent(&r);
+    if (c.imageSize() != QSize(200, 180))
+        return QStringLiteral("FAIL (the drag did not cut 20 rows)");
+    if (c.rendered().pixelColor(50, 105).red() < 200 || c.rendered().pixelColor(50, 105).green() < 200)
+        return QStringLiteral("FAIL (the cut strip is still in the picture)");
+    if (!c.cutOut(true, 0, 50) || c.imageSize() != QSize(150, 180))
+        return QStringLiteral("FAIL (cutting columns)");
+    if (c.cutOut(true, 0, 150))
+        return QStringLiteral("FAIL (a strip as wide as the picture was accepted)");
+    c.undo();
+    c.undo();
+    if (c.imageSize() != QSize(200, 200) || c.canUndo())
+        return QStringLiteral("FAIL (undo did not restore the original)");
+    return QStringLiteral("PASS (rows by drag, columns, refusal, undo)");
+}
+
+void AppContext::devTestCutOut()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: cut out: %1").arg(cutOutCheck()));
+}
+
+// Sticker tool: a click stamps the mouse pointer, a drag stamps an emoji sized
+// to the box (in colour when the system has a colour emoji font), and a
+// picture file goes in as an image. Each is one undo step.
+static QString stickerCheck()
+{
+    struct Probe final : AnnotationCanvas {
+        using AnnotationCanvas::mousePressEvent;
+        using AnnotationCanvas::mouseMoveEvent;
+        using AnnotationCanvas::mouseReleaseEvent;
+    } c;
+    c.setWidth(300);
+    c.setHeight(300);
+    QImage base(300, 300, QImage::Format_ARGB32_Premultiplied);
+    base.fill(Qt::white);
+    c.setImage(base);
+    c.setTool(AnnotationCanvas::Sticker);
+    c.setSticker(QStringLiteral("pointer"));
+    const auto gesture = [&c](QPointF from, QPointF to) {
+        QMouseEvent p(QEvent::MouseButtonPress, from, from, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        c.mousePressEvent(&p);
+        if (to != from) {
+            QMouseEvent m(QEvent::MouseMove, to, to, Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+            c.mouseMoveEvent(&m);
+        }
+        QMouseEvent r(QEvent::MouseButtonRelease, to, to, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        c.mouseReleaseEvent(&r);
+    };
+    const auto count = [&c](const QRect &r, auto pred) {
+        const QImage out = c.rendered();
+        int n = 0;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x)
+                n += pred(out.pixelColor(x, y));
+        return n;
+    };
+    const auto dark = [](const QColor &col) { return col.lightness() < 100; };
+    gesture({50, 50}, {50, 50});
+    if (c.annotCount() != 1 || count(QRect(50, 50, 18, 26), dark) < 20)
+        return QStringLiteral("FAIL (a click did not stamp the pointer at its tip)");
+
+    c.setSticker(QStringLiteral("\U0001F600"));
+    gesture({150, 150}, {250, 250});
+    if (c.annotCount() != 2)
+        return QStringLiteral("FAIL (no glyph for the emoji - is an emoji font installed?)");
+    const int colour = count(QRect(150, 150, 100, 100),
+                             [](const QColor &col) { return col.hsvSaturation() > 120 && col.value() > 120; });
+    const QString emoji = colour > 500 ? QStringLiteral("colour emoji")
+                                       : QStringLiteral("monochrome emoji, no colour emoji font");
+
+    QTemporaryDir dir;
+    QImage red(40, 30, QImage::Format_RGB32);
+    red.fill(Qt::red);
+    const QString path = dir.filePath(QStringLiteral("sticker.png"));
+    if (!dir.isValid() || !red.save(path) || !c.insertImageFile(path, 100, 250)
+        || c.rendered().pixelColor(100, 250) != QColor(Qt::red))
+        return QStringLiteral("FAIL (a picture file was not inserted)");
+    for (int i = 0; i < 3; ++i)
+        c.undo();
+    if (c.annotCount() != 0 || c.canUndo())
+        return QStringLiteral("FAIL (three stickers were not three undo steps)");
+    return QStringLiteral("PASS (pointer by click, %1 by drag, picture file, undo)").arg(emoji);
+}
+
+void AppContext::devTestStickers()
+{
+    if (!devBuild())
+        return;
+    showToast(tr("Dev: stickers: %1").arg(stickerCheck()));
+}
+
 // Eyedropper tool: a click adopts the pixel under the cursor as the stroke
 // colour (dev button + smoke step).
 static QString eyedropperCheck()
@@ -1979,8 +2443,9 @@ void AppContext::devTestEyedropper()
 // Pixel loupe (region overlay): the panel must appear once the pointer hovers
 // in selection mode, flip away from the item edges so it never covers the
 // pixels being aimed at, zoom one step per scroll notch within its 5–16 range,
-// collapse when scrolled out below the minimum (and revive on scroll up), and
-// stay out of the exported render (dev button + smoke step).
+// collapse when scrolled out below the minimum (and revive on scroll up),
+// report the centre pixel's hex for the overlay's C key (and nothing once it is
+// gone), and stay out of the exported render (dev button + smoke step).
 static QString pixelLoupeCheck()
 {
     struct Probe final : AnnotationCanvas {
@@ -1991,11 +2456,12 @@ static QString pixelLoupeCheck()
     c.setHeight(400);
     QImage base(500, 400, QImage::Format_ARGB32_Premultiplied);
     base.fill(Qt::white);
+    base.setPixelColor(50, 50, QColor(0x12, 0xAB, 0xEF));
     c.setImage(base);
     c.setSelectionMode(true);
     c.setPixelLoupe(true);
     c.setPixelLoupeZoom(8);
-    if (!c.pixelLoupeRect().isEmpty())
+    if (!c.pixelLoupeRect().isEmpty() || !c.loupeColorHex().isEmpty())
         return QStringLiteral("FAIL (loupe visible before any hover)");
     const auto hover = [&c](QPointF at) {
         QHoverEvent e(QEvent::HoverMove, at, at, at);
@@ -2005,6 +2471,8 @@ static QString pixelLoupeCheck()
     const QRectF nearOrigin = c.pixelLoupeRect();
     if (nearOrigin.isEmpty() || nearOrigin.left() <= 50 || nearOrigin.top() <= 50)
         return QStringLiteral("FAIL (loupe not offset below-right of the cursor)");
+    if (c.loupeColorHex() != QLatin1String("#12ABEF"))
+        return QStringLiteral("FAIL (C would copy %1, not the hovered #12ABEF)").arg(c.loupeColorHex());
     hover({490, 390});
     const QRectF nearCorner = c.pixelLoupeRect();
     if (nearCorner.isEmpty() || nearCorner.right() >= 490 || nearCorner.bottom() >= 390)
@@ -2023,12 +2491,14 @@ static QString pixelLoupeCheck()
         return QStringLiteral("FAIL (zoom did not clamp at 5)");
     if (!c.pixelLoupeRect().isEmpty())
         return QStringLiteral("FAIL (loupe did not collapse when scrolled out)");
+    if (!c.loupeColorHex().isEmpty())
+        return QStringLiteral("FAIL (C still copies a colour with the loupe collapsed)");
     wheel(120);
     if (c.pixelLoupeRect().isEmpty())
         return QStringLiteral("FAIL (scroll up did not revive the collapsed loupe)");
     if (c.rendered() != base)
         return QStringLiteral("FAIL (loupe leaked into the exported render)");
-    return QStringLiteral("PASS (follows hover, edge flip, scroll 5-16, collapse/revive, not exported)");
+    return QStringLiteral("PASS (follows hover, edge flip, scroll 5-16, collapse/revive, C copies hex, not exported)");
 }
 
 void AppContext::devTestPixelLoupe()
@@ -3333,7 +3803,9 @@ QtObject {
         { key: Qt.Key_X, id: "pixelate" },
         { key: Qt.Key_E, id: "smarterase" },
         { key: Qt.Key_N, id: "step" },
-        { key: Qt.Key_C, id: "crop" }
+        { key: Qt.Key_C, id: "crop" },
+        { key: Qt.Key_K, id: "cutout" },
+        { key: Qt.Key_G, id: "sticker" }
     ]
     readonly property bool valid: check()
     function check() {
@@ -3342,7 +3814,7 @@ QtObject {
             if (!editorTool || editorTool.id !== expected[i].id)
                 return false
             const overlayTool = ToolCatalog.toolForShortcut(expected[i].key, "overlay")
-            if (expected[i].id === "crop") {
+            if (expected[i].id === "crop" || expected[i].id === "cutout" || expected[i].id === "sticker") {
                 if (overlayTool)
                     return false
             } else if (!overlayTool || overlayTool.id !== expected[i].id) {
@@ -3367,7 +3839,7 @@ QtObject {
     if (!probe)
         return QStringLiteral("FAIL (probe create: %1)").arg(probeComponent.errorString().simplified());
     return probe->property("valid").toBool()
-        ? QStringLiteral("PASS (15 editor, 14 overlay mappings)")
+        ? QStringLiteral("PASS (17 editor, 14 overlay mappings)")
         : QStringLiteral("FAIL (catalog mapping mismatch)");
 }
 
@@ -4200,6 +4672,84 @@ void AppContext::devTestDestinationTest()
     });
 }
 
+void AppContext::s3SigningCheck(std::function<void(const QString &)> done)
+{
+    // The signing itself is curl's; what can rot is our half (the config lines
+    // fed to it) and the curl on this machine knowing --aws-sigv4 at all.
+    auto *server = new QTcpServer(this);
+    if (!server->listen(QHostAddress::LocalHost)) {
+        delete server;
+        done(QStringLiteral("FAIL (no local port)"));
+        return;
+    }
+    auto request = std::make_shared<QByteArray>();
+    connect(server, &QTcpServer::newConnection, server, [server, request] {
+        QTcpSocket *sock = server->nextPendingConnection();
+        connect(sock, &QTcpSocket::readyRead, sock, [sock, request] {
+            *request += sock->readAll().left(64 * 1024 - request->size());
+            const qsizetype end = request->indexOf("\r\n\r\n");
+            if (end < 0)
+                return;
+            static const QRegularExpression lengthRe(QStringLiteral("(?im)^content-length:\\s*(\\d+)"));
+            const qsizetype body = lengthRe.match(QString::fromLatin1(request->left(end)))
+                                           .captured(1).toLongLong();
+            if (request->size() < end + 4 + body && request->size() < 64 * 1024)
+                return;
+            sock->write("HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+            sock->disconnectFromHost();
+        });
+        connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
+    });
+
+    const QString base = QStringLiteral("http://127.0.0.1:%1/bucket/").arg(server->serverPort());
+    const QVariantMap dest{
+        {QStringLiteral("type"), QStringLiteral("curl")},
+        {QStringLiteral("requestUrl"), base + QStringLiteral("%file%")},
+        {QStringLiteral("user"), QStringLiteral("AKUNISICSMOKE:smoke-secret")},
+        {QStringLiteral("s3Region"), QStringLiteral("eu-central-1")},
+    };
+    auto finished = std::make_shared<bool>(false);
+    const auto finish = [server, finished, done](const QString &verdict) {
+        if (*finished)
+            return;
+        *finished = true;
+        server->deleteLater();
+        done(verdict);
+    };
+    m_uploads->testDestination(dest, [request, base, finish](bool ok, const QString &url, const QString &err) {
+        if (!ok) {
+            finish(QStringLiteral("FAIL (%1)").arg(err));
+            return;
+        }
+        const QString head = QString::fromLatin1(request->left(request->indexOf("\r\n\r\n"))).toLower();
+        QStringList missing;
+        if (!head.contains(QLatin1String("authorization: aws4-hmac-sha256 credential=akunisicsmoke/"))
+            || !head.contains(QLatin1String("/eu-central-1/s3/aws4_request")))
+            missing << QStringLiteral("SigV4 Authorization");
+        if (!head.contains(QLatin1String("\r\nx-amz-content-sha256:")))
+            missing << QStringLiteral("x-amz-content-sha256");
+        if (!head.contains(QLatin1String("\r\ncontent-type: image/png")))
+            missing << QStringLiteral("Content-Type");
+        if (request->contains("smoke-secret"))
+            missing << QStringLiteral("secret sent in clear");
+        if (url != base + QStringLiteral("unisic-test.png"))
+            missing << QStringLiteral("link '%1'").arg(url);
+        finish(missing.isEmpty()
+                   ? QStringLiteral("PASS (signed for eu-central-1, link is the object address)")
+                   : QStringLiteral("FAIL (%1)").arg(missing.join(QStringLiteral(", "))));
+    });
+    QTimer::singleShot(20000, server, [finish] { finish(QStringLiteral("FAIL (no answer in 20 s)")); });
+}
+
+void AppContext::devTestS3Signing()
+{
+    if (!devBuild())
+        return;
+    s3SigningCheck([this](const QString &result) {
+        showToast(tr("Dev: S3 signing: %1").arg(result), !result.startsWith(QLatin1String("PASS")));
+    });
+}
+
 QString AppContext::importDropCheck()
 {
     // Everything the main window's DropArea can hand over, routed through the
@@ -4411,6 +4961,19 @@ QString AppContext::trayMenuCheck()
         m_settings->setHiddenTrayItems(original);
     }
 
+    // The monitor submenu fills as the menu opens: one entry per screen,
+    // shown only when there is more than one.
+    emit menu->aboutToShow();
+    int monitorEntries = -1;
+    bool monitorShown = false;
+    for (QAction *a : menu->actions())
+        if (a->text() == tr("Capture monitor") && a->menu()) {
+            monitorEntries = int(a->menu()->actions().size());
+            monitorShown = a->isVisible();
+        }
+    const qsizetype screenCount = QGuiApplication::screens().size();
+    const bool monitorsOk = monitorEntries == screenCount && monitorShown == (screenCount > 1);
+
     QStringList texts;
     bool badSeparator = false;
     const QList<QAction *> actions = menu->actions();
@@ -4436,11 +4999,14 @@ QString AppContext::trayMenuCheck()
     const bool hidden = !texts.contains(tr("Capture region")) && !texts.contains(tr("Select text…"));
     const bool kept = texts.contains(tr("Capture full screen"))
                       && texts.contains(tr("Open Unisic")) && texts.contains(tr("Quit"));
-    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty())
-        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4)")
-            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')));
-    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked)")
-        .arg(trayMenuEntries().size());
+    if (!hidden || !kept || badSeparator || !noGlyph.isEmpty() || !monitorsOk)
+        return QStringLiteral("FAIL (hidden gone=%1, others + Open/Quit kept=%2, stray separator=%3, no glyph: %4, "
+                              "monitor submenu %5 entries for %6 screens, shown=%7)")
+            .arg(hidden).arg(kept).arg(badSeparator).arg(noGlyph.join(QLatin1Char(' ')))
+            .arg(monitorEntries).arg(screenCount).arg(monitorShown);
+    return QStringLiteral("PASS (%1 entries listed with glyphs; hide list honoured, Open/Quit locked; "
+                          "monitor submenu lists %2 screens)")
+        .arg(trayMenuEntries().size()).arg(screenCount);
 }
 
 void AppContext::devTestTrayMenu()
@@ -5343,6 +5909,22 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 3e3i2) Upload a file / the clipboard / QR of copied text: routing only,
+    // nothing leaves the machine.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("share sources: ") + shareSourcesCheck(this));
+        smokeNext();
+    });
+
+    // 3e3i3) Shorten the link (is.gd, TinyURL): answers parsed offline, no request.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("link shortener: ") + shortenReplyCheck());
+        smokeLog(QStringLiteral("print layout: ") + printCheck());
+        smokeLog(QStringLiteral("trash after upload: ") + trashAfterUploadCheck());
+        smokeLog(QStringLiteral("watched folder: ") + watchFolderCheck());
+        smokeNext();
+    });
+
     // 3e3j) A helper program that never exits must not hold the after-capture
     // pipeline open forever. Real child process, real ceiling, real kill.
     m_smokeSteps.append([this] {
@@ -5379,6 +5961,10 @@ void AppContext::runSmokeTest()
     // 3e3d) magnifier: a synthetic drag places a 2x loupe centred on the source.
     m_smokeSteps.append([this] {
         smokeLog(QStringLiteral("magnifier: ") + magnifyCheck());
+        smokeLog(QStringLiteral("spotlight: ") + spotlightCheck());
+        smokeLog(QStringLiteral("image transform: ") + imageTransformCheck());
+        smokeLog(QStringLiteral("cut out: ") + cutOutCheck());
+        smokeLog(QStringLiteral("stickers: ") + stickerCheck());
         smokeNext();
     });
 
@@ -5798,6 +6384,12 @@ void AppContext::runSmokeTest()
     m_smokeSteps.append([this] {
         destinationTestCheck([this](const QString &result) {
             smokeLog(QStringLiteral("server test upload: ") + result);
+            smokeNext();
+        });
+    });
+    m_smokeSteps.append([this] {
+        s3SigningCheck([this](const QString &result) {
+            smokeLog(QStringLiteral("S3 signing: ") + result);
             smokeNext();
         });
     });

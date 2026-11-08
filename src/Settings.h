@@ -97,6 +97,10 @@ class Settings : public QObject
     Q_PROPERTY(bool openAfterSave READ openAfterSave WRITE setOpenAfterSave NOTIFY openAfterSaveChanged)
     Q_PROPERTY(bool afterUploadCopyLink READ afterUploadCopyLink WRITE setAfterUploadCopyLink NOTIFY afterUploadCopyLinkChanged)
     Q_PROPERTY(bool afterUploadOpenInBrowser READ afterUploadOpenInBrowser WRITE setAfterUploadOpenInBrowser NOTIFY afterUploadOpenInBrowserChanged)
+    Q_PROPERTY(bool afterUploadShortenUrl READ afterUploadShortenUrl WRITE setAfterUploadShortenUrl NOTIFY afterUploadShortenUrlChanged)
+    Q_PROPERTY(bool afterUploadTrashFile READ afterUploadTrashFile WRITE setAfterUploadTrashFile NOTIFY afterUploadTrashFileChanged)
+    Q_PROPERTY(QString linkShortener READ linkShortener WRITE setLinkShortener NOTIFY linkShortenerChanged)
+    Q_PROPERTY(QString watchFolder READ watchFolder WRITE setWatchFolder NOTIFY watchFolderChanged)
     Q_PROPERTY(bool doNotDisturbWhileCapturing READ doNotDisturbWhileCapturing WRITE setDoNotDisturbWhileCapturing NOTIFY doNotDisturbWhileCapturingChanged)
     Q_PROPERTY(bool externalActionEnabled READ externalActionEnabled WRITE setExternalActionEnabled NOTIFY externalActionEnabledChanged)
     Q_PROPERTY(QString externalActionCommand READ externalActionCommand WRITE setExternalActionCommand NOTIFY externalActionCommandChanged)
@@ -498,6 +502,11 @@ public:
     U_SETTING(bool, openAfterSave, setOpenAfterSave, "openAfterSave", false)
     U_SETTING(bool, afterUploadCopyLink, setAfterUploadCopyLink, "upload/afterUploadCopyLink", true)
     U_SETTING(bool, afterUploadOpenInBrowser, setAfterUploadOpenInBrowser, "upload/afterUploadOpenInBrowser", false)
+    U_SETTING(bool, afterUploadShortenUrl, setAfterUploadShortenUrl, "upload/afterUploadShortenUrl", false)
+    U_SETTING(bool, afterUploadTrashFile, setAfterUploadTrashFile, "upload/afterUploadTrashFile", false)
+    U_SETTING(QString, linkShortener, setLinkShortener, "upload/linkShortener", QStringLiteral("isgd"))
+    // Every new file in this folder is uploaded; empty is off.
+    U_SETTING(QString, watchFolder, setWatchFolder, "upload/watchFolder", QString())
     U_SETTING(bool, doNotDisturbWhileCapturing, setDoNotDisturbWhileCapturing,
               "capture/doNotDisturb", false)
     U_SETTING(bool, externalActionEnabled, setExternalActionEnabled,
@@ -736,6 +745,8 @@ public:
         emit portalAutostartGrantedChanged();
         emit minimizeToTrayOnCloseChanged(); emit openAfterSaveChanged();
         emit afterUploadCopyLinkChanged(); emit afterUploadOpenInBrowserChanged();
+        emit afterUploadShortenUrlChanged(); emit linkShortenerChanged(); emit afterUploadTrashFileChanged();
+        emit watchFolderChanged();
         emit doNotDisturbWhileCapturingChanged();
         emit externalActionEnabledChanged(); emit externalActionCommandChanged();
         emit externalActionTimeoutSecChanged();
@@ -838,6 +849,10 @@ signals:
     void openAfterSaveChanged();
     void afterUploadCopyLinkChanged();
     void afterUploadOpenInBrowserChanged();
+    void afterUploadShortenUrlChanged();
+    void afterUploadTrashFileChanged();
+    void linkShortenerChanged();
+    void watchFolderChanged();
     void doNotDisturbWhileCapturingChanged();
     void externalActionEnabledChanged();
     void externalActionCommandChanged();

@@ -62,13 +62,17 @@ if(NOT LibArchive_FOUND)
         "  MSYS2 UCRT64: pacman -S mingw-w64-ucrt-x86_64-libarchive\n")
 endif()
 
+# Print: the Windows print dialog and printer (DesktopShell_win.cpp). Part of
+# qtbase, so the same Qt install always has it.
+find_package(Qt6 REQUIRED COMPONENTS PrintSupport)
+
 # gdi32: BitBlt capture. dwmapi: window frame bounds. shcore: per-monitor DPI.
 # winmm: PlaySoundW for the capture cues. ole32: COM for the WASAPI audio
 # capture. advapi32: the security descriptor of its pipe, and the HKCU Run key
 # behind autostart. mmdevapi: ActivateAudioInterfaceAsync (application audio).
 # version: an application's display name from its version resource.
 target_link_libraries(unisic PRIVATE gdi32 user32 dwmapi shcore winmm ole32 advapi32 mmdevapi
-                      version LibArchive::LibArchive)
+                      version LibArchive::LibArchive Qt6::PrintSupport)
 # NOMINMAX keeps <windows.h> from defining min/max over std:: and Qt's.
 # WIN32_LEAN_AND_MEAN keeps it from pulling in ole2.h, whose `interface` macro
 # breaks QDBusConnection::interface() in main.cpp.

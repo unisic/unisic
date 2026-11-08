@@ -332,6 +332,14 @@ Window {
                 // this must work BEFORE a selection exists, which is exactly
                 // what the tool branch below refuses to do.
                 overlayController.selectActiveWindow()
+            } else if (e.key === Qt.Key_C && UKeys.unmodified(e)
+                       && canvas.loupeColorHex() !== "") {
+                // The pixel the loupe is centred on. C is no overlay tool
+                // letter (Crop lives in the editor only).
+                const hex = canvas.loupeColorHex()
+                App.copyText(hex)
+                //: Toast after copying a colour from the pixel loupe, %1 = #RRGGBB.
+                App.showToast(qsTr("Copied %1").arg(hex))
             } else if (annotationToolsEnabled && canvas.hasSelection
                        && UKeys.unmodified(e)
                        && root.activateToolShortcut(e.key)) {
@@ -569,8 +577,9 @@ Window {
                     const drag = qsTr("Drag to select")
                     // Only offered where KWin answered where the active window
                     // is; nowhere else can an app learn that.
-                    const win = overlayController.activeWindowKnown
-                              ? qsTr(" · W selects the active window") : ""
+                    const win = (overlayController.activeWindowKnown
+                              ? qsTr(" · W selects the active window") : "")
+                              + (App.settings.pixelLoupe ? qsTr(" · C copies the colour") : "")
                     // The verb has to match the mode: the same sentence used to
                     // promise a capture whether it took a screenshot, read text
                     // or started recording.

@@ -104,6 +104,8 @@
 #include <QElapsedTimer>
 #include <QDir>
 #include <QBuffer>
+#include <QPageSize>
+#include <QPdfWriter>
 #include <QTimer>
 #include <QProcess>
 #include <QPainter>
@@ -148,6 +150,10 @@ AppContext::AppContext(QObject *parent)
     m_notifier = new DesktopNotifier(this, this);
     m_dnd = new NotificationInhibitor(this);
     m_actionRunner = new ExternalActionRunner(this);
+    // Created up front, not on first use: over data-control it learns the
+    // current selection one roundtrip after it exists, so a lazy first read
+    // (Upload clipboard, QR of copied text) found the clipboard empty.
+    KSystemClipboard::instance();
     // Keystroke-badge colors follow the active theme (incl. custom themes).
     // Resolved lazily at key-capture start - m_engine is null here.
     m_recorder->setKeystrokeThemeProvider([this]() -> QPair<QColor, QColor> {
@@ -374,6 +380,8 @@ void AppContext::initialize(QQmlEngine *engine)
         // now re-validates to the bundled default - refresh the live tray too.
         applyTrayIcon();
     });
+    startWatchFolder();
+
     // Deferred to the first event-loop pass so the asynchronous registration
     // burst starts after the QML engine has loaded the window, and late enough
     // that startup toasts (e.g. a Ctrl+Esc conflict) have a UI to appear in.
@@ -620,7 +628,7 @@ void AppContext::requestAudioInputDevices()
 QImage qrPreviewImage(const QString &url)
 {
     const QByteArray utf8 = url.toUtf8();
-    if (utf8.isEmpty() || utf8.size() > 2048)
+    if (utf8.isEmpty() || utf8.size() > kQrMaxBytes)
         return {};
     try {
 #if __has_include(<ZXing/MultiFormatWriter.h>)
@@ -919,9 +927,10 @@ void AppContext::clearCliCapture(const QString &error)
     if (stdoutPending && !error.isEmpty())
         emit cliCaptureReady({}, error);
     // Nothing will arrive for a `--output PATH` run that was cancelled - say so,
-    // or the process that asked for it waits for a capture that is not coming.
+    // and why, or the process that asked for it waits for a capture that is
+    // not coming and then exits 1 without a word.
     if (filePending)
-        emit cliCaptureFinished(false, {});
+        emit cliCaptureFinished(false, error);
 }
 
 void AppContext::withDelay(std::function<void()> fn)
@@ -1364,6 +1373,16 @@ void AppContext::captureRegionWithTool(int initialTool)
 
 void AppContext::captureScreenUnderCursor()
 {
+    captureOneScreen({});
+}
+
+void AppContext::captureScreenNamed(const QString &name)
+{
+    captureOneScreen(name);
+}
+
+void AppContext::captureOneScreen(const QString &name)
+{
     if (m_captureInFlight || m_overlay->active()) { // see captureFullScreen
         m_nextCaptureTask = {};
         clearCliCapture(tr("Another capture is already active"));
@@ -1372,7 +1391,7 @@ void AppContext::captureScreenUnderCursor()
     const bool inhibited = nowInhibited();
     m_captureInFlight = true;
     beginCaptureIsolation();
-    withCaptureDelay([this, inhibited] {
+    withCaptureDelay([this, inhibited, name] {
         if (m_overlay->active()) { // re-check after the capture delay
             m_captureInFlight = false;
             endCaptureIsolation();
@@ -1380,13 +1399,7 @@ void AppContext::captureScreenUnderCursor()
             clearCliCapture(tr("Another capture is already active"));
             return;
         }
-        // Hint only: on KWin the compositor resolves the pointer's screen
-        // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
-        // while the pointer is over one of our windows (e.g. the tray menu).
-        QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
-        if (!screen)
-            screen = QGuiApplication::primaryScreen();
-        m_capture->captureActiveScreen(screen, [this, inhibited](const QImage &img, const QString &err) {
+        auto done = [this, inhibited](const QImage &img, const QString &err) {
             m_captureInFlight = false;
             endCaptureIsolation();
             if (!err.isEmpty() || img.isNull()) {
@@ -1397,7 +1410,30 @@ void AppContext::captureScreenUnderCursor()
                 return;
             }
             finishCapture(img, inhibited);
-        });
+        };
+        if (name.isEmpty()) {
+            // Hint only: on KWin the compositor resolves the pointer's screen
+            // itself (CaptureActiveScreen); QCursor::pos() is exact on Wayland only
+            // while the pointer is over one of our windows (e.g. the tray menu).
+            QScreen *screen = QGuiApplication::screenAt(QCursor::pos());
+            if (!screen)
+                screen = QGuiApplication::primaryScreen();
+            m_capture->captureActiveScreen(screen, done);
+            return;
+        }
+        // Looked up after the delay: a monitor unplugged meanwhile is an error
+        // here, not a dangling QScreen in the capture backend.
+        const QList<QScreen *> screens = QGuiApplication::screens();
+        const auto it = std::find_if(screens.cbegin(), screens.cend(),
+                                     [&name](const QScreen *s) { return s->name() == name; });
+        if (it == screens.cend()) {
+            QStringList names;
+            for (const QScreen *s : screens)
+                names.append(s->name());
+            done({}, tr("No monitor named %1. Connected: %2").arg(name, names.join(QLatin1String(", "))));
+            return;
+        }
+        m_capture->captureScreen(*it, done);
     });
 }
 
@@ -3088,7 +3124,7 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
     // the screenshot pipeline plays its own cue in finishCapture.
     playRecordingSound();
 
-    m_history->addEntry(path, thumb, kind, {}, {},
+    const quint64 historyId = m_history->addEntry(path, thumb, kind, {}, {},
                         fromInstantReplay ? QStringLiteral("replay") : QString());
     showToast(tr("Saved %1").arg(path));
     if (m_settings->copyToClipboard())
@@ -3103,11 +3139,13 @@ void AppContext::finishRecordingEntry(const QString &path, const QImage &thumb, 
 
     if (m_settings->uploadAfterCapture()) {
         if (np) np->setUploading(true);
-        m_uploads->uploadFile(path, [this, path, np](const QString &url, const QString &del, const QString &err) {
+        m_uploads->uploadFile(path, [this, path, historyId, np](const QString &url, const QString &del,
+                                                               const QString &err) {
             if (err.isEmpty()) {
                 m_history->setUrl(path, url, del);
                 afterUploadActions(url);
                 if (np) np->setUrl(url);
+                trashAfterUpload(path, historyId, np);
             } else {
                 showToast(tr("Upload failed: %1").arg(err), true);
                 if (np) np->setUploadFailed(err);
@@ -3296,6 +3334,7 @@ void AppContext::finishCapture(const QImage &img, bool inhibited, bool forceCopy
                         m_history->addEntry(path, {}, QStringLiteral("image"), url, del);
                     afterUploadActions(url);
                     if (np) np->setUrl(url);
+                    trashAfterUpload(path, historyId, np);
                 }, uploadDestination);
         }, upFmt);
     } else if (!path.isEmpty() && !cliMode) {
@@ -3344,6 +3383,27 @@ void AppContext::copyLastCapture()
     showToast(tr("Copied to clipboard"));
 }
 
+QString AppContext::trashAfterUpload(const QString &path, quint64 historyId, CaptureNotification *card)
+{
+    // An after-capture program got this path and may still be reading it.
+    if (!m_settings->afterUploadTrashFile() || path.isEmpty()
+        || (m_settings->externalActionEnabled() && !m_settings->externalActionCommand().trimmed().isEmpty()))
+        return {};
+    // The trash, never a hard delete: the link may expire or die, and then the
+    // trash is the only copy left.
+    QString inTrash;
+    if (!QFile::moveToTrash(path, &inTrash)) {
+        showToast(tr("Uploaded, but %1 could not be moved to the trash").arg(path), true);
+        return {};
+    }
+    // Before the event loop runs again, or the directory watcher prunes the
+    // entry, link and all, for its missing file.
+    m_history->setFilePathById(historyId, {});
+    if (card)
+        card->forgetFile();
+    return inTrash;
+}
+
 void AppContext::afterUploadActions(const QString &url)
 {
     // Read now: both are only set while the chain's callback runs (this one).
@@ -3385,7 +3445,21 @@ void AppContext::afterUploadActions(const QString &url)
             QDesktopServices::openUrl(u);
     };
 
-    finish(url);
+    const QString scheme = QUrl(url).scheme().toLower();
+    if (!m_settings->afterUploadShortenUrl()
+        || (scheme != QLatin1String("http") && scheme != QLatin1String("https"))) {
+        finish(url);
+        return;
+    }
+    // A failed shortening costs only the short form: the full link goes on as
+    // if shortening were off, and one toast says both.
+    const QString service = m_settings->linkShortener();
+    m_uploads->shortenUrl(service, url, [this, url, service, finish](const QString &shortUrl, const QString &error) {
+        finish(shortUrl.isEmpty() ? url : shortUrl);
+        if (shortUrl.isEmpty())
+            showToast(tr("Uploaded, but %1 could not shorten the link (%2). The full link is used.")
+                          .arg(UploadManager::shortenerName(service), error), true);
+    });
 }
 
 // The one place the watermark settings are read. The Settings preview renders
@@ -4285,6 +4359,63 @@ void AppContext::copyAsFromHistory(const QString &filePath, const QString &url,
     copyImageAs({}, filePath, url, format);
 }
 
+void AppContext::printFromHistory(const QString &filePath)
+{
+    const QImage img(filePath);
+    if (img.isNull()) {
+        showToast(tr("Can't open %1 to print").arg(QFileInfo(filePath).fileName()), true);
+        return;
+    }
+    printImage(img, QFileInfo(filePath).fileName());
+}
+
+QRectF AppContext::printImageRect(const QSize &image, const QRectF &area)
+{
+    QSizeF size = QSizeF(image) * 0.75; // 96 dpi pixels in 72 dpi points
+    if (size.width() > area.width() || size.height() > area.height())
+        size.scale(area.size(), Qt::KeepAspectRatio);
+    QRectF r(QPointF(), size);
+    r.moveCenter(area.center());
+    return r;
+}
+
+QByteArray AppContext::printPdf(const QImage &img, const QVariantMap &pageSetup)
+{
+    double w = pageSetup.value(QStringLiteral("Width")).toDouble();
+    double h = pageSetup.value(QStringLiteral("Height")).toDouble();
+    if (w <= 0 || h <= 0) {
+        w = 210;
+        h = 297;
+    }
+    // Paper as portrait, then the orientation on top: backends disagree on
+    // whether Width/Height are already turned, and this reads both the same.
+    if (w > h)
+        std::swap(w, h);
+    const bool landscape = pageSetup.value(QStringLiteral("Orientation")).toString()
+                               .endsWith(QLatin1String("landscape"));
+    // The largest of the four margins on every side: whether the backend gives
+    // them for the turned page or the upright paper, the image clears them.
+    double marginMm = 0;
+    for (const char *key : {"MarginTop", "MarginBottom", "MarginLeft", "MarginRight"})
+        marginMm = std::max(marginMm, pageSetup.value(QLatin1String(key)).toDouble());
+
+    QBuffer buf;
+    buf.open(QIODevice::WriteOnly);
+    {
+        QPdfWriter pdf(&buf);
+        pdf.setResolution(72); // device units are points
+        pdf.setPageSize(QPageSize(QSizeF(w, h), QPageSize::Millimeter));
+        pdf.setPageOrientation(landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
+        pdf.setPageMargins(QMarginsF());
+        QPainter p(&pdf);
+        const double m = marginMm * 72.0 / 25.4;
+        const QRectF page(0, 0, pdf.width(), pdf.height());
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        p.drawImage(printImageRect(img.size(), page.adjusted(m, m, -m, -m)), img);
+    }
+    return buf.data();
+}
+
 void AppContext::uploadFromHistory(const QString &filePath)
 {
     if (filePath.isEmpty())
@@ -5106,14 +5237,17 @@ void AppContext::copyFileToClipboard(const QString &path)
                     QUrl::fromLocalFile(path).toEncoded() + "\r\n");
 }
 
-void AppContext::showQr(const QString &url)
+void AppContext::showQr(const QString &text)
 {
-    const QUrl parsed(url);
-    if (!parsed.isValid() || parsed.scheme().isEmpty()) {
-        showToast(tr("No valid link to turn into a QR code"), true);
+    if (text.trimmed().isEmpty()) {
+        showToast(tr("Nothing to turn into a QR code"), true);
         return;
     }
-    const QImage qr = qrPreviewImage(url);
+    if (const qsizetype bytes = text.toUtf8().size(); bytes > kQrMaxBytes) {
+        showToast(tr("Too long for a QR code: %1 bytes, at most %2").arg(bytes).arg(kQrMaxBytes), true);
+        return;
+    }
+    const QImage qr = qrPreviewImage(text);
     if (qr.isNull()) {
         // zxing-cpp is always linked in, so a null image can only be the encoder
         // refusing this payload (too long, or an unencodable byte sequence).
@@ -6010,6 +6144,8 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("region"), QStringLiteral("region"), AppContext::tr("Capture region"), 0, false, [a] { a->captureRegion(); }},
         {QStringLiteral("full-screen"), QStringLiteral("monitor"), AppContext::tr("Capture full screen"), 0, false, [a] { a->captureFullScreen(); }},
         {QStringLiteral("screen-under-cursor"), QStringLiteral("monitor"), AppContext::tr("Capture screen under cursor"), 0, false, [a] { a->captureScreenUnderCursor(); }},
+        // No `run`: a submenu of the connected monitors, filled as the menu opens.
+        {QStringLiteral("monitor-pick"), QStringLiteral("monitor"), AppContext::tr("Capture monitor"), 0, false, nullptr},
         {QStringLiteral("window"), QStringLiteral("window"), AppContext::tr("Capture window"), 0, false, [a] { a->captureWindow(); }},
         {QStringLiteral("scroll"), QStringLiteral("chevron-down"), AppContext::tr("Capture scrolling region"), 0, false, [a] { a->captureScroll(); }},
         {QStringLiteral("recapture"), QStringLiteral("region"), AppContext::tr("Re-capture last region"), 0, false, [a] { a->recaptureLastRegion(); }},
@@ -6024,6 +6160,9 @@ QVector<TrayEntry> trayEntryTable(AppContext *a)
         {QStringLiteral("replay-save"), QStringLiteral("document-save"), AppContext::tr("Save instant replay"), 1, false, [a] { a->saveInstantReplay(); }},
         {QStringLiteral("stop-recording"), QStringLiteral("stop"), AppContext::tr("Stop recording"), 1, false, [a] { a->stopRecording(); }},
         {QStringLiteral("copy-last"), QStringLiteral("content-copy"), AppContext::tr("Copy last capture"), 2, false, [a] { a->copyLastCapture(); }},
+        {QStringLiteral("upload-file"), QStringLiteral("upload-cloud"), AppContext::tr("Upload a file…"), 2, false, [a] { a->uploadAnyFile(); }},
+        {QStringLiteral("upload-clipboard"), QStringLiteral("document-send"), AppContext::tr("Upload clipboard"), 2, false, [a] { a->uploadClipboard(); }},
+        {QStringLiteral("qr-clipboard"), QStringLiteral("view-preview"), AppContext::tr("QR code of copied text"), 2, false, [a] { a->qrFromClipboard(); }},
         {QStringLiteral("open"), QStringLiteral("monitor"), AppContext::tr("Open Unisic"), kTrayUpdateGroup + 1, true, [a] { emit a->showMainWindowRequested(); }},
         {QStringLiteral("quit"), QStringLiteral("close"), AppContext::tr("Quit"), kTrayUpdateGroup + 1, true, [a] { a->quitApp(QStringLiteral("tray menu Quit")); }},
     };
@@ -6077,6 +6216,10 @@ QMenu *AppContext::buildTrayMenu()
         if (!e.locked && hidden.contains(e.id))
             return;
         flushSeparator();
+        if (!e.run) {
+            actions.insert(e.id, menu->addMenu(trayMenuIcon(e.icon), e.label)->menuAction());
+            return;
+        }
         QAction *a = menu->addAction(trayMenuIcon(e.icon), e.label);
         connect(a, &QAction::triggered, this, e.run);
         actions.insert(e.id, a);
@@ -6123,6 +6266,20 @@ QMenu *AppContext::buildTrayMenu()
             a->setEnabled(recording());
         if (QAction *a = actions.value(QStringLiteral("recapture")))
             a->setEnabled(!m_settings->lastCaptureRegion().isEmpty());
+        // Rebuilt on every open, so a monitor plugged in or a mode changed
+        // since the last one shows up; a handful of actions at most.
+        if (QAction *a = actions.value(QStringLiteral("monitor-pick"))) {
+            const QList<QScreen *> screens = QGuiApplication::screens();
+            // One monitor: "Capture full screen" already is that monitor.
+            a->setVisible(screens.size() > 1);
+            QMenu *sub = a->menu();
+            sub->clear();
+            for (const QScreen *s : screens) {
+                const QSize px = s->geometry().size() * s->devicePixelRatio();
+                sub->addAction(QStringLiteral("%1 (%2x%3)").arg(s->name()).arg(px.width()).arg(px.height()),
+                               this, [this, name = s->name()] { captureScreenNamed(name); });
+            }
+        }
     });
     return menu;
 }

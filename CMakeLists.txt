@@ -182,6 +182,9 @@ qt_add_executable(unisic
     src/editor/WatermarkPreview.h src/editor/WatermarkPreview.cpp
     src/overlay/OverlayController.h src/overlay/OverlayController.cpp
     src/upload/UploadManager.h src/upload/UploadManager.cpp
+    # AppContext's upload entry points that are not captures (same class).
+    src/upload/UploadSources.cpp
+    src/upload/FolderWatch.h src/upload/FolderWatch.cpp
     src/actions/ExternalActionRunner.h src/actions/ExternalActionRunner.cpp
     src/history/HistoryStore.h src/history/HistoryStore.cpp
     src/history/HistoryFilterModel.h src/history/HistoryFilterModel.cpp
@@ -698,6 +701,7 @@ if(BUILD_TESTING)
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
         src/editor/ImageEffects.h src/editor/ImageEffects.cpp
+        src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     )
     target_link_libraries(unisic_annotation_canvas_test PRIVATE
         Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)

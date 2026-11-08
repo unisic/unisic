@@ -7,6 +7,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTest>
 
 class TestAnnotationCanvas final : public AnnotationCanvas
@@ -54,6 +55,10 @@ private slots:
     void smartEraseFollowsGradientBackground();
     void smartEraseOverlappingStrokesStayOnBackground();
     void magnifyPlacesCentredTwoXLoupe();
+    void spotlightDimsOutsideSharedHoles();
+    void rotateFlipScaleWholeImage();
+    void cutOutRemovesStripAndJoins();
+    void stickersStampDragAndInsertFile();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
 };
@@ -494,6 +499,15 @@ void AnnotationCanvasTest::measureRulerModesAndCopy()
     QCOMPARE(readable.section('\n', 1, 1), QStringLiteral("200 × 60"));    // second is a size box
     QCOMPARE(canvas.measuresText(QStringLiteral("css")).section('\n', 1, 1),
              QStringLiteral("width: 200px; height: 60px"));
+
+    // Restyling a selected size box keeps it a size box: the mode lives in the
+    // same field a fill toggle writes for real shapes.
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(120, 70);
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.setStrokeColor(QColor(30, 200, 40));
+    QCOMPARE(canvas.measuresText(QStringLiteral("readable")).section('\n', 1, 1),
+             QStringLiteral("200 × 60"));
 }
 
 // Pattern redaction blacks out the matches and NOTHING else. Two matches on one
@@ -1182,6 +1196,226 @@ void AnnotationCanvasTest::magnifyPlacesCentredTwoXLoupe()
              "the original marker must resurface once the loupe moves away");
 }
 
+// Spotlight: one shared dim with every spotlight cut out of it. Two holes do
+// not darken each other, an ellipse leaves its rectangle's corners dimmed (and
+// keeps doing so after a colour pick routes style to the selected spotlight),
+// and an arrow pointing into a hole is painted above the dim, not under it.
+void AnnotationCanvasTest::spotlightDimsOutsideSharedHoles()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Spotlight);
+
+    drag(canvas, QPointF(20, 20), QPointF(80, 80));
+    QCOMPARE(canvas.annotCount(), 1);
+    canvas.setSpotlightShape(1);
+    drag(canvas, QPointF(100, 100), QPointF(180, 180));
+    QCOMPARE(canvas.annotCount(), 2);
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(140, 140);
+    QVERIFY(canvas.hasAnnotSelection());
+    canvas.setStrokeColor(QColor(30, 200, 40)); // routed to the selected ellipse
+
+    canvas.setTool(AnnotationCanvas::Arrow);
+    canvas.setStrokeColor(QColor(220, 30, 40));
+    drag(canvas, QPointF(150, 40), QPointF(50, 50));
+
+    const QImage out = canvas.rendered();
+    const auto lit = [&out](int x, int y) { return out.pixelColor(x, y).lightness() > 240; };
+    QVERIFY2(!lit(10, 10) && !lit(190, 10), "outside every hole the picture is dimmed");
+    QVERIFY2(lit(30, 70), "the rectangle hole stays undimmed");
+    QVERIFY2(lit(140, 140), "a second hole is not darkened by the first spotlight");
+    QVERIFY2(!lit(104, 104),
+             "an ellipse hole keeps its rectangle corners dimmed, also after a colour pick");
+    const QColor shaft = out.pixelColor(110, 44); // outside both holes
+    QVERIFY2(shaft.red() > 180 && shaft.green() < 80,
+             "an arrow is drawn above the dim at full strength, not under it");
+}
+
+// Whole-picture transforms: a red marker in the top-left corner lands where
+// each transform says, a drawn shape turns with the picture (baked in), each is
+// one undo step, and a scale outside the caps changes nothing.
+void AnnotationCanvasTest::rotateFlipScaleWholeImage()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(200);
+    QImage image(300, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    for (int y = 0; y < 10; ++y)
+        for (int x = 0; x < 10; ++x)
+            image.setPixelColor(x, y, Qt::red);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setStrokeColor(QColor(20, 40, 230));
+    drag(canvas, QPointF(100, 100), QPointF(140, 140));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    const auto red = [](const QImage &img, int x, int y) {
+        const QColor c = img.pixelColor(x, y);
+        return c.red() > 200 && c.green() < 60 && c.blue() < 60;
+    };
+    const auto blue = [](const QImage &img, int x, int y) {
+        const QColor c = img.pixelColor(x, y);
+        return c.blue() > 180 && c.red() < 90;
+    };
+
+    // Clockwise: (x, y) goes to (h - 1 - y, x).
+    canvas.rotateImage(true);
+    QCOMPARE(canvas.imageSize(), QSize(200, 300));
+    QCOMPARE(canvas.annotCount(), 0);
+    QImage out = canvas.rendered();
+    QVERIFY2(red(out, 195, 5), "the top-left marker is top-right after a clockwise turn");
+    QVERIFY2(blue(out, 79, 100), "the rectangle's left edge turned with the picture");
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(300, 200));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    canvas.rotateImage(false);
+    QCOMPARE(canvas.imageSize(), QSize(200, 300));
+    QVERIFY2(red(canvas.rendered(), 5, 295), "counter-clockwise puts it bottom-left");
+    canvas.undo();
+
+    canvas.flipImage(true);
+    out = canvas.rendered();
+    QVERIFY2(red(out, 295, 5) && !red(out, 5, 5), "a horizontal flip mirrors left and right");
+    canvas.undo();
+    canvas.flipImage(false);
+    out = canvas.rendered();
+    QVERIFY2(red(out, 5, 195) && !red(out, 5, 5), "a vertical flip mirrors top and bottom");
+    canvas.undo();
+
+    QVERIFY(canvas.scaleImage(150, 100));
+    QCOMPARE(canvas.imageSize(), QSize(150, 100));
+    QVERIFY2(red(canvas.rendered(), 2, 2), "the marker shrinks with the picture");
+    canvas.undo();
+    QVERIFY(!canvas.scaleImage(0, 10));
+    QVERIFY(!canvas.scaleImage(16385, 10));
+    QVERIFY(!canvas.scaleImage(16384, 16384)); // 268 MP, over the pixel cap
+    QCOMPARE(canvas.imageSize(), QSize(300, 200));
+    QCOMPARE(canvas.annotCount(), 1);
+}
+
+// Cut out: the drag's longer side picks the axis, the strip is previewed while
+// dragging and removed on release with the two sides joined, annotations are
+// baked first, an empty or whole-picture strip is refused, undo restores.
+void AnnotationCanvasTest::cutOutRemovesStripAndJoins()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter p(&image);
+        p.fillRect(QRect(0, 100, 200, 20), Qt::red);
+        p.fillRect(QRect(150, 0, 10, 200), Qt::blue);
+    }
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    drag(canvas, QPointF(10, 10), QPointF(40, 40));
+    QCOMPARE(canvas.annotCount(), 1);
+
+    canvas.setTool(AnnotationCanvas::CutOut);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(50, 100), QPointF(50, 100),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(55, 120), QPointF(55, 120),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&move);
+    const QImage preview = canvas.rendered();
+    QVERIFY2(preview.pixelColor(190, 110).red() < 200, "the rows strip is dimmed while dragging");
+    QVERIFY2(preview.pixelColor(190, 60).lightness() > 240, "outside the strip stays as it was");
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(55, 120), QPointF(55, 120),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&release);
+    QCOMPARE(canvas.imageSize(), QSize(200, 180));
+    QCOMPARE(canvas.annotCount(), 0);
+    const auto colour = [&canvas](int x, int y) { return canvas.rendered().pixelColor(x, y); };
+    QVERIFY2(colour(5, 100).lightness() > 240, "the rows below the strip moved up into its place");
+    QVERIFY2(colour(155, 100).blue() > 200, "the column outside the cut is intact");
+
+    QVERIFY(canvas.cutOut(true, 160, 150)); // reversed bounds are the same strip
+    QCOMPARE(canvas.imageSize(), QSize(190, 180));
+    QVERIFY2(colour(155, 50).lightness() > 240, "the blue columns are gone");
+
+    QVERIFY(!canvas.cutOut(false, 0, 180));
+    QVERIFY(!canvas.cutOut(true, 20, 20));
+    QVERIFY(!canvas.cutOut(true, -50, 400));
+    QCOMPARE(canvas.imageSize(), QSize(190, 180));
+
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(200, 180));
+    canvas.undo();
+    QCOMPARE(canvas.imageSize(), QSize(200, 200));
+    QCOMPARE(canvas.annotCount(), 1);
+}
+
+// The Sticker tool: a click on empty space stamps the pointer with its tip on
+// the click, a click on a placed sticker selects it instead of stamping, a drag
+// fits the sticker into the dragged box, and a picture file goes in as a
+// PastedImage (a file that does not decode changes nothing). The emoji path is
+// fed a plain letter: a test machine need not have a colour emoji font.
+void AnnotationCanvasTest::stickersStampDragAndInsertFile()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    const auto darkIn = [&canvas](const QRect &r) {
+        const QImage out = canvas.rendered();
+        int n = 0;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x)
+                n += out.pixelColor(x, y).lightness() < 100;
+        return n;
+    };
+
+    canvas.setTool(AnnotationCanvas::Sticker);
+    QCOMPARE(canvas.sticker(), QStringLiteral("pointer"));
+    click(canvas, QPointF(50, 50));
+    QCOMPARE(canvas.annotCount(), 1);
+    QVERIFY2(darkIn(QRect(50, 50, 18, 26)) > 20, "the pointer outline is drawn below-right of its tip");
+    QCOMPARE(darkIn(QRect(20, 20, 28, 28)), 0);
+    click(canvas, QPointF(54, 62));
+    QCOMPARE(canvas.annotCount(), 1);
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::PastedImage));
+    click(canvas, QPointF(200, 50));
+    QCOMPARE(canvas.annotCount(), 2);
+    QCOMPARE(canvas.selectedAnnotTool(), -1);
+
+    canvas.setSticker(QStringLiteral("A"));
+    drag(canvas, QPointF(150, 150), QPointF(250, 200));
+    QCOMPARE(canvas.annotCount(), 3);
+    QVERIFY2(darkIn(QRect(150, 150, 101, 51)) > 100, "the letter fills the dragged box");
+    QCOMPARE(darkIn(QRect(150, 202, 101, 60)), 0);
+    click(canvas, QPointF(200, 175));
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::PastedImage));
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage red(40, 30, QImage::Format_RGB32);
+    red.fill(Qt::red);
+    const QString path = dir.filePath(QStringLiteral("red.png"));
+    QVERIFY(red.save(path));
+    QVERIFY(canvas.insertImageFile(path, 100, 250));
+    QCOMPARE(canvas.annotCount(), 4);
+    QCOMPARE(canvas.rendered().pixelColor(100, 250), QColor(Qt::red));
+    QVERIFY(!canvas.insertImageFile(dir.filePath(QStringLiteral("missing.png")), 100, 250));
+    QCOMPARE(canvas.annotCount(), 4);
+
+    for (int i = 4; i > 0; --i) {
+        canvas.undo();
+        QCOMPARE(canvas.annotCount(), i - 1);
+    }
+}
+
 // The region-overlay pixel loupe: appears only once the pointer hovers in
 // selection mode, sits offset from the cursor and flips away from item edges
 // (never covering the aimed-at pixels), zooms one integer step per scroll notch
@@ -1195,6 +1429,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     canvas.setHeight(400);
     QImage image(500, 400, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::white);
+    image.setPixelColor(50, 50, QColor(0x12, 0xAB, 0xEF));
     canvas.setImage(image);
     canvas.setSelectionMode(true);
     canvas.setPixelLoupe(true);
@@ -1209,6 +1444,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     const QRectF nearOrigin = canvas.pixelLoupeRect();
     QVERIFY2(!nearOrigin.isEmpty() && nearOrigin.left() > 50 && nearOrigin.top() > 50,
              "the loupe sits below-right of the cursor");
+    QCOMPARE(canvas.loupeColorHex(), QStringLiteral("#12ABEF")); // what the overlay's C copies
     hover({490, 390});
     const QRectF nearCorner = canvas.pixelLoupeRect();
     QVERIFY2(!nearCorner.isEmpty() && nearCorner.right() < 490 && nearCorner.bottom() < 390,
@@ -1231,6 +1467,7 @@ void AnnotationCanvasTest::pixelLoupeFollowsHoverAndZooms()
     wheel(-120);
     QVERIFY2(canvas.pixelLoupeRect().isEmpty(),
              "scrolling out below the minimum collapses the loupe");
+    QVERIFY2(canvas.loupeColorHex().isEmpty(), "no colour to copy while collapsed");
     wheel(120);
     QVERIFY2(!canvas.pixelLoupeRect().isEmpty(),
              "scrolling back in revives the collapsed loupe");

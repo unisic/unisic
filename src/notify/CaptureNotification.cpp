@@ -58,8 +58,9 @@ QString CaptureNotification::dragUri()
     // private temp PNG once — mirrors AppContext::openPreview so a drag doesn't
     // litter the user's save folder on cancel. The poster frame of a recording
     // is never dragged: a recording always has m_filePath, so we never reach the
-    // temp branch for it.
-    if (m_filePath.isEmpty() && m_dragFile.isEmpty() && !m_image.isNull()) {
+    // temp branch for it. One trashed after its upload has nothing to drag.
+    if (m_filePath.isEmpty() && m_dragFile.isEmpty() && !m_image.isNull()
+        && m_kind == QLatin1String("image")) {
         const QString dir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
         const QString f = dir + QStringLiteral("/") + QCoreApplication::applicationName()
                           + QStringLiteral("-drag-")
@@ -160,9 +161,16 @@ void CaptureNotification::showQr()
         m_app->showQr(m_url);
 }
 
+void CaptureNotification::forgetFile()
+{
+    m_filePath.clear();
+    emit stateChanged();
+}
+
 void CaptureNotification::save()
 {
-    if (!m_filePath.isEmpty())
+    // A recording's m_image is only its poster frame, never the recording.
+    if (!m_filePath.isEmpty() || m_kind != QLatin1String("image"))
         return;
     const QString path = m_app->saveImageAuto(m_image);
     if (!path.isEmpty()) {

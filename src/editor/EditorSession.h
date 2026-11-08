@@ -38,7 +38,11 @@ public:
     Q_INVOKABLE QString saveAsDialog();
     Q_INVOKABLE void copyToClipboard();
     Q_INVOKABLE void upload();
+    Q_INVOKABLE void print();                 // the image as edited, through the print dialog
     Q_INVOKABLE void ocrCopyText();           // OCR the composited image, copy text
+    // Native file picker, then the picture goes onto the canvas centred on the
+    // given image point (a toast when it does not decode).
+    Q_INVOKABLE void insertImageFile(qreal imgX, qreal imgY);
     // Enter the canvas's OCR text-pick mode: recognize words asynchronously and
     // hand them to the canvas so the user can select + copy a subset.
     Q_INVOKABLE void startOcrPick();

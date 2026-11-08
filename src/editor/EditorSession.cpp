@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QFileDialog>
 #include <QDir>
+#include <QStandardPaths>
 
 EditorSession::EditorSession(AppContext *app, const QImage &image,
                              const QString &overwritePath, quint64 historyId, QObject *parent)
@@ -191,6 +192,12 @@ void EditorSession::copyToClipboard()
     setStatus(tr("Copied to clipboard"));
 }
 
+void EditorSession::print()
+{
+    m_app->printImage(composited(), m_overwritePath.isEmpty() ? QStringLiteral("Unisic")
+                                                              : QFileInfo(m_overwritePath).fileName());
+}
+
 void EditorSession::upload()
 {
     setStatus(tr("Uploading…"));
@@ -291,3 +298,19 @@ void EditorSession::redactTextMatching(const QString &pattern)
     setStatus(tr("Redacted %n match(es)", "", n));
 }
 
+void EditorSession::insertImageFile(qreal imgX, qreal imgY)
+{
+    if (!m_canvas)
+        return;
+    // The dialog spins an event loop: the editor may close under it.
+    QPointer<EditorSession> self(this);
+    QPointer<AnnotationCanvas> canvas(m_canvas);
+    const QString start = QStandardPaths::writableLocation(QStandardPaths::PicturesLocation);
+    const QString path = QFileDialog::getOpenFileName(
+        nullptr, tr("Insert a picture"), start.isEmpty() ? QDir::homePath() : start,
+        tr("Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.svg)"));
+    if (path.isEmpty() || !self || !canvas)
+        return;
+    if (!canvas->insertImageFile(path, imgX, imgY))
+        m_app->showToast(tr("Could not open %1 as a picture").arg(QFileInfo(path).fileName()), true);
+}

@@ -84,6 +84,20 @@ public:
                       const QString &fileName, const QString &mime, Callback cb);
     void uploadFileTo(const QStringList &servers, const QString &filePath, Callback cb);
 
+    // Shortens a link through `service`: "tinyurl" for TinyURL, anything else
+    // is.gd. Opt-in only: the service, a third party, sees every address it
+    // shortens. `done` gets the short link, or an empty one and the reason.
+    void shortenUrl(const QString &service, const QString &url,
+                    std::function<void(const QString &shortUrl, const QString &error)> done);
+    // Pure: the service's plain-text answer. The short link on a 200 that is
+    // one https address on the service's own host; otherwise empty, with
+    // `error` set to is.gd's "Error: " text (left empty when the body says
+    // nothing usable, as TinyURL's bare "Error" does).
+    static QString parseShortenReply(const QString &service, int httpStatus, const QByteArray &body,
+                                     QString *error);
+    // The name the user knows the service by.
+    static QString shortenerName(const QString &service);
+
     // Pure: the names a chained upload tries, in order. `order` is the list
     // as shown (top = active), `ready` the servers that need no setup: an
     // Imgur without a Client-ID is a certain refusal, not a fallback. The
@@ -252,7 +266,7 @@ private:
     void httpUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
                     const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void curlUpload(const QJsonObject &dest, const QByteArray &data, const QString &srcPath,
-                    const QString &fileName, Purpose purpose, Callback cb);
+                    const QString &fileName, const QString &mime, Purpose purpose, Callback cb);
     void startUpload(const QStringList &servers, const QByteArray &data, const QString &srcPath,
                      const QString &fileName, const QString &mime, Callback cb);
     struct Chain;

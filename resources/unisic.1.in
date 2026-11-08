@@ -38,6 +38,14 @@ Capture a single window, picked through the desktop's own window chooser.
 .B \-\-monitor
 Capture the monitor the pointer is on.
 .TP
+.BI \-\-screen " NAME"
+Capture the monitor named
+.IR NAME ,
+for example DP\-1. The tray menu's Capture monitor entry lists the names, and a
+name that matches no monitor fails with a list of the connected ones. Accepts
+.BI \-\-screen= NAME
+as well.
+.TP
 .B \-\-recapture
 Repeat the last region capture: the same rectangle on the same monitor, without
 opening the overlay again.

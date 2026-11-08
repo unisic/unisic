@@ -51,6 +51,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // draws and labels differently per mode; each placed measure remembers the
     // mode it was drawn in.
     Q_PROPERTY(int measureMode READ measureMode WRITE setMeasureMode NOTIFY measureModeChanged)
+    Q_PROPERTY(int spotlightShape READ spotlightShape WRITE setSpotlightShape NOTIFY spotlightShapeChanged)
+    // What the Sticker tool stamps: "pointer" (the mouse pointer) or the emoji
+    // text itself.
+    Q_PROPERTY(QString sticker READ sticker WRITE setSticker NOTIFY stickerChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
     Q_PROPERTY(bool fontBold READ fontBold WRITE setFontBold NOTIFY fontBoldChanged)
@@ -120,7 +124,10 @@ public:
         Callout,     // 16 - speech bubble; carries its own text (a.text), typed in place
         Measure,     // 17 — distance/angle ruler retained in the export
         Magnify,     // 18 — loupe: enlarged copy of a dragged source region
-        Eyedropper   // 19 — click a pixel to adopt its colour as the stroke colour
+        Eyedropper,  // 19 — click a pixel to adopt its colour as the stroke colour
+        Spotlight,   // 20 - dims the picture outside a rectangle or ellipse
+        CutOut,      // 21 - editor-only: a drag removes a strip of columns or rows
+        Sticker      // 22 - editor-only: a click stamps `sticker`, a drag sizes it
     };
     Q_ENUM(Tool)
 
@@ -163,6 +170,11 @@ public:
     void setHighlightMode(int mode);
     int measureMode() const { return m_measureMode; }
     void setMeasureMode(int mode);
+    // Hole the next Spotlight leaves undimmed: 0 rectangle, 1 ellipse.
+    int spotlightShape() const { return m_spotlightShape; }
+    void setSpotlightShape(int shape);
+    QString sticker() const { return m_sticker; }
+    void setSticker(const QString &sticker);
     // The placed Measure annotations, formatted for the clipboard. `format` is
     // "readable" (842 × 317 / 412 px), "plain" (842x317 / 412) or "css"
     // (width: 842px; height: 317px / 412px). One measure per line; "" when none.
@@ -282,6 +294,18 @@ public:
     void setSelectionRect(const QRectF &r);
     Q_INVOKABLE void clearSelection();
     Q_INVOKABLE void applyCrop();
+    // Whole-picture transforms. Each bakes the annotations into the pixels
+    // first, as one undo step.
+    Q_INVOKABLE void rotateImage(bool clockwise);
+    Q_INVOKABLE void flipImage(bool horizontally);
+    // false, and nothing changes, outside 1..16384 a side or above 64 MP.
+    Q_INVOKABLE bool scaleImage(int width, int height);
+    // Removes columns (or rows) [from, to) and joins the two sides. false, and
+    // nothing changes, for an empty strip or one that would leave no picture.
+    Q_INVOKABLE bool cutOut(bool columns, int from, int to);
+    // Places the picture in `path` centred on the point, as one undo
+    // step. false, and nothing changes, when it does not decode.
+    Q_INVOKABLE bool insertImageFile(const QString &path, qreal imgX, qreal imgY);
     Q_INVOKABLE QPointF toImage(qreal itemX, qreal itemY) const;
 
     bool pixelLoupe() const { return m_pixelLoupe; }
@@ -291,6 +315,9 @@ public:
     // The loupe panel's item-space rect for the current hover point (empty when
     // the loupe is inactive) — public so placement/flip logic is testable.
     QRectF pixelLoupeRect() const;
+    // #RRGGBB of the pixel the loupe is centred on, empty while no loupe is
+    // showing. The overlay's C key copies it.
+    Q_INVOKABLE QString loupeColorHex() const;
 
     // Final composite at full image resolution (annotations burnt in).
     QImage rendered() const;
@@ -345,6 +372,8 @@ signals:
     void glyphBoxesRequested();
     void highlightModeChanged();
     void measureModeChanged();
+    void spotlightShapeChanged();
+    void stickerChanged();
     void pixelLoupeChanged();
     void pixelLoupeZoomChanged();
 
@@ -433,7 +462,11 @@ private:
     // Click (no drag) with the Callout tool: a default bubble whose tail points
     // at the click, sized by its text from then on.
     void placeCalloutAt(const QPointF &at);
+    void insertImageAnnot(QImage image, const QPointF &centre);
+    QImage stickerImage() const;
+    void stampSticker(const QPointF &at);
     void drawAll(QPainter &p) const;
+    void drawSpotlights(QPainter &p) const;
     // A stroke drawn as a freehand path (accumulated points) rather than a
     // dragged rect: the Pen, or the Highlight tool in freehand marker mode.
     static bool isFreehandStroke(const Annot &a)
@@ -494,6 +527,7 @@ private:
     // from every deselect path so a clicked shape's style can't leak into the
     // drawing defaults. Caller must have already cleared m_selectedAnnot.
     void restoreStyleBackup();
+    void replaceBaseFlattened(const QImage &img);
     void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
     // A style property setter calls this AFTER updating the "current" prop: when
     // a shape is selected it coalesces an undo entry, copies the props onto the
@@ -539,6 +573,12 @@ private:
     int m_arrowHeadStyle = 0;
     int m_highlightMode = HlText; // see HighlightMode; text-snap by default
     int m_measureMode = 0;        // 0 distance line, 1 size box
+    int m_spotlightShape = 0;     // 0 rectangle, 1 ellipse
+    QString m_sticker = QStringLiteral("pointer");
+    // The last sticker rendered, so stamping the same one again shares its
+    // pixels instead of holding another copy per annotation.
+    mutable QString m_stickerKey;
+    mutable QImage m_stickerImage;
 
     // Style snapshot taken when a selection is made from NO selection: a
     // click-select seeds the props bar from the clicked shape, and deselecting
@@ -573,6 +613,7 @@ private:
     bool m_hoverInside = false;
     bool loupeActive() const;
     int loupeGridCells() const;
+    QPoint loupePixel() const;
     void updateLoupeRegion(const QRectF &before);
     // Shadows QQuickPaintedItem::update: a full update() followed by a partial
     // update(rect) in the SAME sync cycle silently downgrades the full repaint

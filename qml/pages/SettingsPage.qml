@@ -1103,6 +1103,59 @@ Item {
                     Qt.callLater(page.rebuildSearch)
             }
             sourceComponent: ScrollPane {
+            // Support banner, the first thing Settings shows. Accent-framed so
+            // it reads apart from the option cards below it. It names itself
+            // a row so settings search still finds it.
+            Rectangle {
+                id: supportBanner
+                readonly property bool isSettingRow: true
+                readonly property string label: qsTr("Support Unisic")
+                readonly property string help: qsTr("Unisic is free and open source. A donation helps fund its development.")
+                width: page.cardWidth
+                height: Math.max(supportText.implicitHeight, donateButton.height) + 2 * Theme.spacingL
+                radius: Theme.radiusL
+                color: Theme.alpha(Theme.accent, 0.14)
+                border.width: 1
+                border.color: Theme.accent
+                Accessible.role: Accessible.Grouping
+                Accessible.name: label
+                Accessible.description: help
+                Column {
+                    id: supportText
+                    anchors.left: parent.left
+                    anchors.right: donateButton.left
+                    anchors.margins: Theme.spacingL
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingXS
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: supportBanner.label
+                        Accessible.ignored: true
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontL
+                        font.weight: Font.Bold
+                    }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: supportBanner.help
+                        Accessible.ignored: true
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+                UButton {
+                    id: donateButton
+                    anchors.right: parent.right
+                    anchors.rightMargin: Theme.spacingL
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "globe"
+                    text: qsTr("Donate on Ko-fi")
+                    onClicked: Qt.openUrlExternally("https://ko-fi.com/unisic")
+                }
+            }
+
             SettingsGroup {
                 width: page.cardWidth
                 Column {
@@ -1337,26 +1390,6 @@ Item {
                                       : qsTr("This install updates natively through your package manager (the package set up its repository).")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
-                        }
-                    }
-                }
-            }
-
-            SettingsGroup {
-                width: page.cardWidth
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Support Unisic") }
-                    SettingRow {
-                        label: qsTr("Ko-fi")
-                        help: qsTr("Unisic is free and open source. A donation helps fund its development.")
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "globe"
-                            text: qsTr("Donate")
-                            onClicked: Qt.openUrlExternally("https://ko-fi.com/unisic")
                         }
                     }
                 }

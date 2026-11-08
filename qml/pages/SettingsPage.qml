@@ -1150,7 +1150,7 @@ Item {
                     anchors.right: parent.right
                     anchors.rightMargin: Theme.spacingL
                     anchors.verticalCenter: parent.verticalCenter
-                    iconName: "globe"
+                    iconName: "heart"
                     text: qsTr("Donate on Ko-fi")
                     onClicked: Qt.openUrlExternally("https://ko-fi.com/unisic")
                 }

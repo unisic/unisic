@@ -6502,8 +6502,8 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1344"/>
-        <source>Buy Me a Coffee</source>
-        <translation>Buy Me a Coffee</translation>
+        <source>Ko-fi</source>
+        <translation>Ko-fi</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1345"/>

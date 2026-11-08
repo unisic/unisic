@@ -40,7 +40,7 @@
   <url type="homepage">https://unisic.app</url>
   <url type="bugtracker">https://github.com/unisic/unisic/issues</url>
   <url type="vcs-browser">https://github.com/unisic/unisic</url>
-  <url type="donation">https://buymeacoffee.com/unisic</url>
+  <url type="donation">https://ko-fi.com/unisic</url>
   <branding>
     <color type="primary" scheme_preference="light">#C8ACD6</color>
     <color type="primary" scheme_preference="dark">#17153B</color>

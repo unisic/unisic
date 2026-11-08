@@ -1341,14 +1341,14 @@ Item {
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Support Unisic") }
                     SettingRow {
-                        label: qsTr("Buy Me a Coffee")
+                        label: qsTr("Ko-fi")
                         help: qsTr("Unisic is free and open source. A donation helps fund its development.")
                         UButton {
                             compact: true
                             variant: "tonal"
                             iconName: "globe"
                             text: qsTr("Donate")
-                            onClicked: Qt.openUrlExternally("https://buymeacoffee.com/unisic")
+                            onClicked: Qt.openUrlExternally("https://ko-fi.com/unisic")
                         }
                     }
                 }

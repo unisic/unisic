@@ -3,7 +3,7 @@ Version:        0.8
 Release:        1%{?dist}
 Summary:        Capture, annotate, record and share your screen on Linux Wayland
 
-License:        GPL-3.0-or-later
+License:        GPL-3.0-or-later AND CC-BY-4.0 AND Unicode-3.0
 URL:            https://github.com/unisic/unisic
 # Both builders hand this spec a tarball built elsewhere: Packit runs
 # packaging/packit-archive.sh, OBS runs tar_scm with submodules enabled. The
@@ -221,6 +221,10 @@ appstream-util validate-relax --nonet \
 # here or rpmbuild fails the build on an unpackaged file, which is the right
 # outcome: an rpm without it is an rpm nothing can audit.
 %{_datadir}/unisic/unisic-features.txt
+# The licenses of the stickers compiled into the binary: CC BY 4.0 for the
+# Twemoji art, the Unicode License v3 for their names and groups.
+%license %{_datadir}/unisic/LICENSE.twemoji
+%license %{_datadir}/unisic/LICENSE.unicode
 %{_datadir}/applications/app.unisic.Unisic.desktop
 %{_mandir}/man1/unisic.1*
 %{_datadir}/bash-completion/completions/unisic

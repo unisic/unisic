@@ -2043,6 +2043,11 @@ QVariantList AppContext::dependencyReport() const
     return out;
 }
 
+QString AppContext::screenshotBackend() const
+{
+    return m_capture->backendName();
+}
+
 bool AppContext::hasDependencyWarnings() const
 {
     const QVariantList rep = dependencyReport();
@@ -2134,6 +2139,22 @@ QImage ocrBoxTestImage()
     p.setFont(f);
     p.drawText(QRect(20, 20, 170, 80), Qt::AlignCenter, QStringLiteral("1234"));
     p.drawText(QRect(210, 20, 170, 80), Qt::AlignCenter, QStringLiteral("5678"));
+    return t;
+}
+
+QImage autoRedactTestImage()
+{
+    QImage t(900, 240, QImage::Format_ARGB32);
+    t.fill(Qt::white);
+    QPainter p(&t);
+    p.setPen(Qt::black);
+    QFont f;
+    f.setPixelSize(34);
+    p.setFont(f);
+    p.drawText(QPoint(30, 60), QStringLiteral("server 192.168.10.20"));
+    p.drawText(QPoint(30, 130), QStringLiteral("mail jan@example.com"));
+    p.drawText(QPoint(30, 200), QStringLiteral("Settings"));
+    p.drawText(QPoint(760, 200), QStringLiteral("copy"));
     return t;
 }
 

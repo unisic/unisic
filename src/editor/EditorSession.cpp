@@ -78,6 +78,17 @@ void EditorSession::setStatus(const QString &s, bool exported)
     emit statusTextChanged();
 }
 
+QString EditorSession::fileName() const
+{
+    if (!m_overwritePath.isEmpty())
+        return QFileInfo(m_overwritePath).fileName();
+    if (m_historyId == 0)
+        return {};
+    const QString path = m_app->history()->entryById(m_historyId)
+                             .value(QStringLiteral("filePath")).toString();
+    return path.isEmpty() ? QString() : QFileInfo(path).fileName();
+}
+
 QString EditorSession::save()
 {
     const QImage img = composited();
@@ -242,6 +253,7 @@ void EditorSession::startOcrPick()
 {
     if (!m_canvas)
         return;
+    m_scanPending = m_scanLeavesOcr = false;
     m_canvas->setOcrMode(true);
     m_canvas->setOcrBusy(true);
     setStatus(tr("Recognizing text…"));
@@ -259,6 +271,11 @@ void EditorSession::startOcrPick()
         if (!canvas || canvas->ocrSeq() != seq || !canvas->ocrMode())
             return;
         canvas->setOcrWords(words);
+        if (self && self->m_scanPending) {
+            self->m_scanPending = false;
+            self->reportSensitive(err);
+            return;
+        }
         if (self) {
             if (!err.isEmpty())
                 self->setStatus(err);
@@ -301,23 +318,41 @@ void EditorSession::redactOcrSelection()
     setStatus(tr("Redacted selected text"));
 }
 
-void EditorSession::redactTextMatching(const QString &pattern)
+void EditorSession::scanSensitive()
 {
     if (!m_canvas)
         return;
-    const int n = m_canvas->redactTextMatching(pattern);
-    if (n < 0) {
-        setStatus(tr("Not a valid search pattern"));
+    if (m_canvas->ocrMode() && !m_canvas->ocrBusy()) {
+        reportSensitive(QString());
         return;
     }
-    if (n == 0) {
-        // Distinct from "nothing selected": the pattern ran and found nothing,
-        // which on a noisy recognition is the expected answer often enough that
-        // silence would read as a broken button.
-        setStatus(tr("Nothing matched"));
-        return;
-    }
-    setStatus(tr("Redacted %n match(es)", "", n));
+    const bool enter = !m_canvas->ocrMode();
+    if (enter)
+        startOcrPick();
+    m_scanPending = true;
+    m_scanLeavesOcr = enter;
+}
+
+void EditorSession::endSensitiveScan()
+{
+    m_scanPending = false;
+    if (m_scanLeavesOcr && m_canvas)
+        m_canvas->setOcrMode(false);
+    m_scanLeavesOcr = false;
+}
+
+void EditorSession::reportSensitive(const QString &ocrError)
+{
+    int n = 0;
+    const QVariantMap counts = m_canvas->sensitiveCounts();
+    for (const QVariant &c : counts)
+        n += c.toInt();
+    if (!ocrError.isEmpty())
+        setStatus(ocrError);
+    else if (n > 0)
+        setStatus(tr("Found %n item(s) to cover", "", n));
+    else
+        setStatus(tr("Nothing sensitive found"));
 }
 
 void EditorSession::insertImageFile(qreal imgX, qreal imgY)

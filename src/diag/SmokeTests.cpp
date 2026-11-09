@@ -83,6 +83,7 @@
 #include <QRegion>
 #include <QPointer>
 #include <QClipboard>
+#include <QJSValue>
 #include <QQmlEngine>
 #include <QQmlApplicationEngine>
 #include <QTranslator>
@@ -1969,7 +1970,56 @@ static QString shapeEditCheck()
     r.selectAnnotAt(100, 20); // inside only once turned (20x120 about (100,60))
     if (!r.hasAnnotSelection())
         return QStringLiteral("FAIL (hit-test did not follow the rotation)");
-    return QStringLiteral("PASS (select, restyle, move, rotate, undo)");
+
+    // Figma's modifiers on the handles: Shift on a corner keeps the ratio, Alt
+    // grows about the centre. A 60x20 rect at (20,20); the unit test covers
+    // the sides, the axis-locked move and Alt while drawing.
+    Probe f;
+    f.setWidth(200);
+    f.setHeight(120);
+    f.setImage(base);
+    f.setTool(AnnotationCanvas::Rect);
+    f.setShapeFillEnabled(true);
+    const auto fdrag = [&f](QPointF a, QPointF b, Qt::KeyboardModifiers mods) {
+        QMouseEvent p(QEvent::MouseButtonPress, a, a, Qt::LeftButton, Qt::LeftButton, mods);
+        f.mousePressEvent(&p);
+        QMouseEvent m(QEvent::MouseMove, b, b, Qt::NoButton, Qt::LeftButton, mods);
+        f.mouseMoveEvent(&m);
+        QMouseEvent rel(QEvent::MouseButtonRelease, b, b, Qt::LeftButton, Qt::NoButton, mods);
+        f.mouseReleaseEvent(&rel);
+    };
+    const auto ink = [&f](int x, int y) { return f.rendered().pixelColor(x, y).lightness() < 250; };
+    fdrag(QPointF(20, 20), QPointF(80, 40), Qt::NoModifier);
+    f.setTool(AnnotationCanvas::EditShapes);
+    f.selectAnnotAt(50, 30);
+    fdrag(QPointF(80, 40), QPointF(140, 45), Qt::ShiftModifier); // x2 by the larger factor
+    if (!ink(135, 55) || ink(135, 66))
+        return QStringLiteral("FAIL (Shift on a corner did not keep the ratio)");
+    f.undo();
+    f.selectAnnotAt(50, 30);
+    fdrag(QPointF(80, 30), QPointF(90, 30), Qt::AltModifier); // both sides move
+    if (!ink(13, 30) || ink(6, 30))
+        return QStringLiteral("FAIL (Alt on a side did not resize about the centre)");
+
+    // Ctrl on a picture's handle crops it: a 40x30 picture, red then blue
+    // from x 20, on (80,45)-(120,75); the right side in by 10 keeps x 98 red
+    // where a resize would squeeze blue in, and back out it stops at the edge.
+    QTemporaryDir dir;
+    QImage pic(40, 30, QImage::Format_RGB32);
+    pic.fill(Qt::blue);
+    QPainter(&pic).fillRect(0, 0, 20, 30, Qt::red);
+    const QString path = dir.filePath(QStringLiteral("pic.png"));
+    if (!dir.isValid() || !pic.save(path) || !f.insertImageFile(path, 100, 60))
+        return QStringLiteral("FAIL (could not place a picture to crop)");
+    f.selectAnnotAt(100, 60);
+    const auto px = [&f](int x) { return f.rendered().pixelColor(x, 60); };
+    fdrag(QPointF(120, 60), QPointF(110, 60), Qt::ControlModifier);
+    if (px(98) != QColor(Qt::red) || px(113) != QColor(Qt::white))
+        return QStringLiteral("FAIL (Ctrl on a picture's side resized it instead of cropping)");
+    fdrag(QPointF(110, 60), QPointF(140, 60), Qt::ControlModifier);
+    if (px(118) != QColor(Qt::blue) || px(123) != QColor(Qt::white))
+        return QStringLiteral("FAIL (a Ctrl crop grew past the picture's edge)");
+    return QStringLiteral("PASS (select, restyle, move, rotate, Shift/Alt resize, Ctrl crop, undo)");
 }
 
 void AppContext::devTestShapeEdit()
@@ -2620,36 +2670,44 @@ static QString ocrHighlightCheck(const QVector<OcrWord> &words)
     return QStringLiteral("PASS (%1 highlight bars + redaction, one undo)").arg(highlighted);
 }
 
-// Pattern redaction over real Tesseract geometry. The fixture's glyphs are
-// digits, so the "long numbers" preset must black them out with no selection
-// made at all, while the e-mail preset must leave them alone — a pattern that
-// matched everything would be indistinguishable from a broken one here.
-static QString ocrRedactPatternCheck(const QVector<OcrWord> &words)
+// Auto-redact over real Tesseract geometry: the IP and the e-mail are found
+// and covered with no selection, a second run adds nothing, an uncovered
+// finding leaves the export, the batch is one undo step, and the toolbar
+// line's bar stops at its words instead of spanning the gap between them.
+static QString autoRedactCheck(const QVector<OcrWord> &words)
 {
     if (words.isEmpty())
         return QStringLiteral("FAIL (no glyphs)");
     AnnotationCanvas canvas;
-    const QImage base = ocrBoxTestImage();
+    const QImage base = autoRedactTestImage();
     canvas.setImage(base);
     canvas.setOcrMode(true);
     canvas.setOcrWords(words);
-    // Deliberately no ocrSelectAll(): redacting WITHOUT a selection is the path.
-    if (canvas.redactTextMatching(QStringLiteral("([")) != -1)
-        return QStringLiteral("FAIL (invalid pattern not rejected)");
-    if (canvas.redactTextMatching(QStringLiteral("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")) != 0)
-        return QStringLiteral("FAIL (e-mail pattern matched digits)");
-    if (canvas.annotCount() != 0)
-        return QStringLiteral("FAIL (non-matching pattern still drew a bar)");
-    const int n = canvas.redactTextMatching(QStringLiteral("\\d[\\d -]{5,}\\d"));
-    if (n <= 0 || canvas.annotCount() == 0)
-        return QStringLiteral("FAIL (long-number pattern found nothing)");
+    const int n = canvas.autoRedact();
+    QStringList kinds;
+    const QVariantList found = canvas.redactions();
+    for (const QVariant &v : found)
+        kinds << v.toMap().value(QStringLiteral("kind")).toString();
+    if (!kinds.contains(QStringLiteral("ip")) || !kinds.contains(QStringLiteral("email")))
+        return QStringLiteral("FAIL (found %1)").arg(kinds.isEmpty() ? QStringLiteral("nothing") : kinds.join(QLatin1Char(',')));
+    if (canvas.autoRedact() != 0 || canvas.redactions().size() != found.size())
+        return QStringLiteral("FAIL (second run covered again)");
+    const QImage covered = canvas.rendered();
+    if (covered == base)
+        return QStringLiteral("FAIL (redaction missing from export)");
+    canvas.setRedactionCovered(found.first().toMap().value(QStringLiteral("group")).toInt(), false);
+    if (canvas.rendered() == covered)
+        return QStringLiteral("FAIL (uncovered finding still exported)");
+    canvas.undo();
     canvas.undo();
     if (canvas.annotCount() != 0)
-        return QStringLiteral("FAIL (pattern batch needs more than one undo)");
-    canvas.redo();
-    if (canvas.rendered() == base)
-        return QStringLiteral("FAIL (redaction missing from export)");
-    return QStringLiteral("PASS (%1 match(es) redacted, no selection, one undo)").arg(n);
+        return QStringLiteral("FAIL (batch needs more than one undo)");
+    canvas.ocrSelectAll();
+    canvas.redactOcrSelection(false);
+    if (canvas.rendered().pixelColor(450, 188) != QColor(Qt::white))
+        return QStringLiteral("FAIL (bar spans the gap between Settings and copy)");
+    return QStringLiteral("PASS (%1 finding(s): %2; one undo, uncover leaves the export, gap split)")
+        .arg(n).arg(kinds.join(QLatin1Char(',')));
 }
 
 // Style presets are stored as one JSON string in a settings key. The QML side
@@ -2907,13 +2965,13 @@ void AppContext::devTestStylePresets()
     showToast(tr("Dev: style presets: %1").arg(stylePresetsCheck(m_settings)));
 }
 
-void AppContext::devTestOcrRedactPattern()
+void AppContext::devTestAutoRedact()
 {
     if (!devBuild())
         return;
-    ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
-        showToast(!err.isEmpty() ? tr("Dev: auto-redact pattern: FAIL (%1)").arg(err)
-                                 : tr("Dev: auto-redact pattern: %1").arg(ocrRedactPatternCheck(words)),
+    ocrBoxes(autoRedactTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+        showToast(!err.isEmpty() ? tr("Dev: auto-redact: FAIL (%1)").arg(err)
+                                 : tr("Dev: auto-redact: %1").arg(autoRedactCheck(words)),
                   !err.isEmpty());
     });
 }
@@ -3355,6 +3413,996 @@ void AppContext::devTestEditorZoom()
     });
 }
 
+// Positioners (the Rows, Flows and Grids in the bars) lay out on the polish
+// pass, which runs before the next frame; a check reading geometry right
+// after a binding flip has to run it itself. Children first, twice, so a
+// parent sized from a child's size sees the child's new one.
+static void polishTree(QQuickItem *root)
+{
+    const std::function<void(QQuickItem *)> walk = [&walk](QQuickItem *i) {
+        const auto kids = i->childItems();
+        for (QQuickItem *c : kids)
+            walk(c);
+        i->ensurePolished();
+    };
+    walk(root);
+    walk(root);
+}
+
+// Lays an open editor out both ways (EditorWindow.layoutOverride, so the
+// saved setting is never touched) with the text tool, whose options are the
+// widest, and checks what each layout promises: every bar inside the window,
+// the fitted image under none of them, and the options inside the inspector
+// (panels) or clear of the zoom (floating).
+static QString editorLayoutCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    const auto find = [win](const char *name) {
+        return win->findChild<QQuickItem *>(QLatin1String(name));
+    };
+    QQuickItem *flick = find("editorCanvasFlick");
+    QQuickItem *canvas = find("editorCanvas");
+    QQuickItem *rail = find("editorToolRail");
+    QQuickItem *actions = find("editorActions");
+    QQuickItem *status = find("editorStatusBar");
+    QQuickItem *inspector = find("editorInspector");
+    QQuickItem *options = find("editorToolOptions");
+    if (!flick || !canvas || !rail || !actions || !status || !inspector || !options)
+        return QStringLiteral("FAIL (layout item not found)");
+    const QVariant savedTool = canvas->property("tool");
+    const QVariant savedZoom = flick->property("zoom");
+    canvas->setProperty("tool", 6); // AnnotationCanvas::Text
+    flick->setProperty("zoom", 0);
+
+    const auto sceneRect = [](QQuickItem *i) {
+        return i->mapRectToScene(QRectF(0, 0, i->width(), i->height()));
+    };
+    const auto rectText = [](const QRectF &r) {
+        return QStringLiteral("%1,%2 %3x%4").arg(r.x()).arg(r.y()).arg(r.width()).arg(r.height());
+    };
+    const auto inside = [](const QRectF &r, const QRectF &in) {
+        return r.left() >= in.left() - 0.5 && r.top() >= in.top() - 0.5
+               && r.right() <= in.right() + 0.5 && r.bottom() <= in.bottom() + 0.5;
+    };
+    const auto overlaps = [](const QRectF &a, const QRectF &b) {
+        const QRectF c = a.intersected(b);
+        return c.width() > 0.5 && c.height() > 0.5;
+    };
+    // Every control drawn in the options, not just their frame: a Row that
+    // cannot wrap would stick out past the inspector with its frame inside.
+    // Names each offender once (with how far it reaches), not its children.
+    const std::function<void(QQuickItem *, const QRectF &, QStringList &)> spillInto =
+        [&spillInto, &sceneRect, &inside](QQuickItem *i, const QRectF &in, QStringList &out) {
+        const auto kids = i->childItems();
+        for (QQuickItem *c : kids) {
+            if (!c->isVisible() || c->opacity() == 0 || c->width() <= 0 || c->height() <= 0)
+                continue;
+            // A floating pill's shadow is paint the window edge clips, not a
+            // control: its blur padding reaches past the bottom by design.
+            if (c->inherits("QQuickMultiEffect"))
+                continue;
+            QRectF r = sceneRect(c);
+            // A selected ColorDot grows 12 % past its box by design (a state
+            // change, see ColorDot); its box is what has to stay in.
+            if (c->scale() > 1) {
+                const qreal dx = r.width() * (1 - 1 / c->scale()) / 2;
+                const qreal dy = r.height() * (1 - 1 / c->scale()) / 2;
+                r.adjust(dx, dy, -dx, -dy);
+            }
+            if (!inside(r, in)) {
+                const QString name = QString::fromLatin1(c->metaObject()->className()).section(u'_', 0, 0);
+                const QString hit = QStringLiteral("%1 %2..%3 in %4..%5")
+                    .arg(name).arg(r.left()).arg(r.right()).arg(in.left()).arg(in.right());
+                if (!out.contains(hit))
+                    out << hit;
+                continue;
+            }
+            // Its children grow with it, so they were measured with it.
+            if (c->scale() > 1)
+                continue;
+            spillInto(c, in, out);
+        }
+    };
+    const auto spill = [&spillInto](QQuickItem *i, const QRectF &in) {
+        QStringList out;
+        spillInto(i, in, out);
+        return out.join(QStringLiteral(", "));
+    };
+
+    // The inspector minus its padding: what its options may use.
+    QQuickItem *body = find("editorInspectorBody");
+    if (!body)
+        return QStringLiteral("FAIL (inspector body not found)");
+    const auto contentBound = [&] {
+        const QRectF in = sceneRect(inspector);
+        const QRectF b = sceneRect(body);
+        return QRectF(b.left(), in.top(), b.width(), in.height());
+    };
+
+    QStringList fails;
+    for (const QString &layout : {QStringLiteral("panels"), QStringLiteral("floating")}) {
+        win->setProperty("layoutOverride", layout);
+        polishTree(win->contentItem());
+        // After the flip: the window grows to the new layout's minimum size.
+        const QRectF window(0, 0, win->width(), win->height());
+        const QRectF image = sceneRect(canvas);
+        const bool floating = layout == QLatin1String("floating");
+        QList<QPair<const char *, QQuickItem *>> bars = {
+            {"tools", rail}, {"actions", actions}, {"status", status}};
+        if (!floating)
+            bars.append({"inspector", inspector});
+        for (const auto &[name, bar] : bars) {
+            const QRectF r = sceneRect(bar);
+            if (!bar->isVisible() || !inside(r, window))
+                fails << QStringLiteral("%1: %2 %3 outside the window %4")
+                             .arg(layout, QLatin1String(name), rectText(r), rectText(window));
+            else if (overlaps(r, image))
+                fails << QStringLiteral("%1: %2 covers the image").arg(layout, QLatin1String(name));
+        }
+        if (!options->isVisible()) {
+            fails << QStringLiteral("%1: text options hidden").arg(layout);
+            continue;
+        }
+        const QRectF bound = floating ? window : contentBound();
+        const QString out = spill(options, bound);
+        if (!inside(sceneRect(options), bound) || !out.isEmpty())
+            fails << QStringLiteral("%1: options spill out (%2)")
+                         .arg(layout, out.isEmpty() ? QStringLiteral("frame") : out);
+        else if (floating && overlaps(sceneRect(options), sceneRect(status)))
+            fails << QStringLiteral("floating: options under the zoom");
+    }
+
+    // Panels, every editor tool: its options stay inside the inspector's
+    // padding. Edit shapes goes first with a Text selected (the shape actions
+    // plus the widest props); leaving it drops the selection, so every other
+    // tool shows its own props.
+    win->setProperty("layoutOverride", QStringLiteral("panels"));
+    canvas->setProperty("tool", 14); // EditShapes, to place the shape
+    QMetaObject::invokeMethod(canvas, "commitText", Q_ARG(qreal, 4), Q_ARG(qreal, 4),
+                              Q_ARG(QString, QStringLiteral("W")));
+    QMetaObject::invokeMethod(canvas, "selectAllAnnots");
+    const bool selected = canvas->property("hasAnnotSelection").toBool();
+    // Six recent colours (the most addRecent keeps) make the swatch group its
+    // widest: it has to wrap inside the padding, not run past it.
+    QQuickItem *propsBar = find("editorPropsBar");
+    if (!propsBar)
+        return QStringLiteral("FAIL (props bar not found)");
+    const QVariant savedRecent = propsBar->property("recentColors");
+    propsBar->setProperty("recentColors", QStringList{
+        QStringLiteral("#123456"), QStringLiteral("#654321"), QStringLiteral("#2a9d8f"),
+        QStringLiteral("#e9c46a"), QStringLiteral("#f4a261"), QStringLiteral("#264653")});
+    // Grouped by offender, so one control that spills under every tool is one
+    // line naming the tools, not twenty lines the log would cut short.
+    QMap<QString, QStringList> spilled;
+    for (int tool : {14, 1, 2, 3, 17, 4, 5, 16, 6, 9, 7, 8, 12, 18, 20, 19, 10, 11, 21, 22}) {
+        canvas->setProperty("tool", tool);
+        polishTree(win->contentItem());
+        if (!options->isVisible())
+            continue;
+        const QRectF bound = contentBound();
+        QStringList out;
+        if (!inside(sceneRect(options), bound))
+            out << QStringLiteral("frame");
+        spillInto(options, bound, out);
+        for (const QString &o : std::as_const(out))
+            spilled[o] << QString::number(tool);
+    }
+    for (auto it = spilled.cbegin(); it != spilled.cend(); ++it)
+        fails << QStringLiteral("panels: %1 leaves the padding (tools %2)")
+                     .arg(it.key(), it.value().join(u','));
+    propsBar->setProperty("recentColors", savedRecent);
+    if (selected)
+        QMetaObject::invokeMethod(canvas, "undo");
+    else
+        fails << QStringLiteral("panels: no shape to select for the sweep");
+
+    win->setProperty("layoutOverride", QString());
+    canvas->setProperty("tool", savedTool);
+    flick->setProperty("zoom", savedZoom);
+    if (!fails.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+    return QStringLiteral("PASS (panels, floating: bars inside the window, image clear, text options fit; "
+                          "every tool's options inside the inspector padding)");
+}
+
+void AppContext::devTestEditorLayouts()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = editorLayoutCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: editor layouts %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+// The redesign's editor chrome on the real window. Panels: the inspector
+// lists every shape (one row each, a click on a row selects that shape), Fit
+// and 1:1 set the zoom they name, the back button is there. Floating: the
+// tools fold into the three group chips, and the back button and the
+// whole-image pill sit inside the window.
+static QString editorChromeCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *canvas = qobject_cast<AnnotationCanvas *>(
+        win->findChild<QQuickItem *>(QStringLiteral("editorCanvas")));
+    const auto find = [win](const char *name) {
+        return win->findChild<QQuickItem *>(QLatin1String(name));
+    };
+    QQuickItem *list = find("editorShapeList");
+    QQuickItem *fit = find("editorZoomFit");
+    QQuickItem *one = find("editorZoom100");
+    QQuickItem *back = find("editorBack");
+    QQuickItem *flick = find("editorCanvasFlick");
+    QQuickItem *whole = find("editorWholeImage");
+    QQuickItem *rail = find("editorToolRail");
+    if (!canvas || !list || !fit || !one || !back || !flick || !whole || !rail)
+        return QStringLiteral("FAIL (editor item not found)");
+    const QVariant layout0 = win->property("layoutOverride");
+    const QVariant zoom0 = flick->property("zoom");
+    const int tool0 = canvas->tool();
+    const int before = canvas->annotCount();
+    QStringList fails;
+    // The shape list and the floating tool chips are Repeater delegates: not
+    // QObject children, and the list refreshes through Qt.callLater.
+    const std::function<void(QQuickItem *, QList<QQuickItem *> &)> walk =
+        [&walk](QQuickItem *i, QList<QQuickItem *> &out) {
+        for (QQuickItem *c : i->childItems()) {
+            out << c;
+            walk(c, out);
+        }
+    };
+    const auto settle = [win] {
+        QCoreApplication::processEvents();
+        polishTree(win->contentItem());
+    };
+    const auto shown = [win](QQuickItem *i) {
+        const QRectF r = i->mapRectToScene(QRectF(0, 0, i->width(), i->height()));
+        return i->isVisible() && QRectF(0, 0, win->width(), win->height()).contains(r);
+    };
+
+    win->setProperty("layoutOverride", QStringLiteral("panels"));
+    canvas->setTool(AnnotationCanvas::EditShapes);
+    const QSize size = canvas->imageSize();
+    canvas->commitText(size.width() * 0.2, size.height() * 0.2, QStringLiteral("A"));
+    canvas->commitText(size.width() * 0.6, size.height() * 0.6, QStringLiteral("B"));
+    settle();
+    QList<QQuickItem *> rows;
+    for (QQuickItem *r : list->childItems())
+        if (r->isVisible() && r->height() > 0)
+            rows << r;
+    if (!list->isVisible() || rows.size() != canvas->annotCount())
+        fails << QStringLiteral("shape list shows %1 rows for %2 shapes").arg(rows.size()).arg(canvas->annotCount());
+    else {
+        QMetaObject::invokeMethod(rows.first(), "_activate", Q_ARG(QVariant, false));
+        if (canvas->selectedCount() != 1)
+            fails << QStringLiteral("a shape row selected %1").arg(canvas->selectedCount());
+    }
+    QMetaObject::invokeMethod(fit, "clicked");
+    settle();
+    const QPointF fitPan(flick->property("contentX").toReal(), flick->property("contentY").toReal());
+    QMetaObject::invokeMethod(one, "clicked");
+    settle();
+    const qreal oneToOne = qMin<qreal>(1, flick->property("maxZoom").toReal());
+    if (qAbs(canvas->renderScale() - oneToOne) > 0.001)
+        fails << QStringLiteral("1:1 shows the picture at %1, not %2").arg(canvas->renderScale()).arg(oneToOne);
+    QMetaObject::invokeMethod(fit, "clicked");
+    settle();
+    const QPointF pan(flick->property("contentX").toReal(), flick->property("contentY").toReal());
+    if (flick->property("zoom").toReal() != 0)
+        fails << QStringLiteral("Fit left the zoom at %1").arg(flick->property("zoom").toReal());
+    else if ((pan - fitPan).manhattanLength() > 1)
+        fails << QStringLiteral("Fit after 1:1 left the view at %1,%2, not %3,%4")
+                     .arg(pan.x()).arg(pan.y()).arg(fitPan.x()).arg(fitPan.y());
+
+    win->setProperty("layoutOverride", QStringLiteral("floating"));
+    settle();
+    QList<QQuickItem *> all;
+    walk(rail, all);
+    int groups = 0;
+    for (QQuickItem *c : std::as_const(all))
+        if (c->isVisible() && c->property("grouped").toBool())
+            ++groups;
+    if (groups != 3)
+        fails << QStringLiteral("%1 tool group chips, not 3").arg(groups);
+    if (!shown(back))
+        fails << QStringLiteral("back button hidden or outside the window");
+    if (!shown(whole))
+        fails << QStringLiteral("whole-image pill hidden or outside the window");
+
+    for (int guard = 0; guard < 8 && canvas->canUndo() && canvas->annotCount() > before; ++guard)
+        canvas->undo();
+    canvas->setTool(tool0);
+    win->setProperty("layoutOverride", layout0);
+    flick->setProperty("zoom", zoom0);
+    settle();
+    if (!fails.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+    return QStringLiteral("PASS (shape list, Fit and 1:1; floating: 3 tool groups, back, whole-image pill)");
+}
+
+void AppContext::devTestEditorChrome()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = editorChromeCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: editor chrome %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+// The shape-group keys and controls on the real editor window: two texts,
+// Ctrl+A selects both and shows Duplicate and Arrange, Ctrl+D copies both and
+// keeps the copies selected, Ctrl+Shift+[ is its own undo step (the first
+// Ctrl+Z keeps the copies, the second takes them back). Keys go straight to
+// the shortcut scope, so an inactive window runs it too. The canvas logic
+// behind them (marquee, group move, restack order) is in AnnotationCanvasTest.
+static QString shapeGroupCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *canvas = qobject_cast<AnnotationCanvas *>(
+        win->findChild<QQuickItem *>(QStringLiteral("editorCanvas")));
+    QQuickItem *scope = win->findChild<QQuickItem *>(QStringLiteral("editorShortcutScope"));
+    QQuickItem *dup = win->findChild<QQuickItem *>(QStringLiteral("editorDuplicateShape"));
+    QQuickItem *arrange = win->findChild<QQuickItem *>(QStringLiteral("editorArrangeShapes"));
+    if (!canvas || !scope || !dup || !arrange)
+        return QStringLiteral("FAIL (editor item not found)");
+    const int before = canvas->annotCount();
+    const int savedTool = canvas->tool();
+    canvas->setTool(AnnotationCanvas::EditShapes);
+    const QSize size = canvas->imageSize();
+    canvas->commitText(size.width() * 0.2, size.height() * 0.2, QStringLiteral("A"));
+    canvas->commitText(size.width() * 0.6, size.height() * 0.6, QStringLiteral("B"));
+    const auto key = [scope](int k, Qt::KeyboardModifiers mods) {
+        QKeyEvent down(QEvent::KeyPress, k, mods);
+        QKeyEvent up(QEvent::KeyRelease, k, mods);
+        QCoreApplication::sendEvent(scope, &down);
+        QCoreApplication::sendEvent(scope, &up);
+    };
+    const int placed = canvas->annotCount();
+    QString fail;
+    key(Qt::Key_A, Qt::ControlModifier);
+    if (placed != before + 2)
+        fail = QStringLiteral("texts not placed");
+    else if (canvas->selectedCount() != placed)
+        fail = QStringLiteral("Ctrl+A selected %1 of %2").arg(canvas->selectedCount()).arg(placed);
+    else if (!dup->isVisible() || !arrange->isVisible())
+        fail = QStringLiteral("Duplicate/Arrange hidden with shapes selected");
+    if (fail.isEmpty()) {
+        key(Qt::Key_D, Qt::ControlModifier);
+        if (canvas->annotCount() != 2 * placed || canvas->selectedCount() != placed)
+            fail = QStringLiteral("Ctrl+D left %1 shapes, %2 selected")
+                       .arg(canvas->annotCount()).arg(canvas->selectedCount());
+    }
+    if (fail.isEmpty()) {
+        key(Qt::Key_BracketLeft, Qt::ControlModifier | Qt::ShiftModifier);
+        if (canvas->selectedCount() != placed)
+            fail = QStringLiteral("Ctrl+Shift+[ dropped the selection");
+    }
+    if (fail.isEmpty()) {
+        key(Qt::Key_Z, Qt::ControlModifier);
+        if (canvas->annotCount() != 2 * placed)
+            fail = QStringLiteral("Ctrl+Shift+[ was not its own undo step");
+        key(Qt::Key_Z, Qt::ControlModifier);
+        if (fail.isEmpty() && canvas->annotCount() != placed)
+            fail = QStringLiteral("Ctrl+Z did not take the copies back");
+    }
+    for (int guard = 0; guard < 8 && canvas->canUndo() && canvas->annotCount() > before; ++guard)
+        canvas->undo();
+    canvas->setTool(savedTool);
+    if (!fail.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fail);
+    return QStringLiteral("PASS (Ctrl+A, Duplicate and Arrange shown, Ctrl+D, Ctrl+Shift+[, undo)");
+}
+
+// Right click on a shape in the real editor window: a press delivered through
+// the window (so anything stacked over the canvas that eats it shows up) opens
+// the shape menu with that shape selected, a press on a member of a group keeps
+// the group, and the menu's Duplicate copies the selection. The press/selection
+// rules themselves are in AnnotationCanvasTest.
+static QString shapeMenuCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *canvas = qobject_cast<AnnotationCanvas *>(
+        win->findChild<QQuickItem *>(QStringLiteral("editorCanvas")));
+    QQuickItem *menu = win->findChild<QQuickItem *>(QStringLiteral("editorShapeMenu"));
+    if (!canvas || !menu)
+        return QStringLiteral("FAIL (editor item not found)");
+    QObject *popup = nullptr;
+    for (QObject *o : menu->findChildren<QObject *>())
+        if (o->inherits("QQuickPopup")) { popup = o; break; }
+    if (!popup)
+        return QStringLiteral("FAIL (menu popup not found)");
+    const int before = canvas->annotCount();
+    const int savedTool = canvas->tool();
+    canvas->setTool(AnnotationCanvas::Arrow); // a drawing tool, not Edit shapes
+    const QSize size = canvas->imageSize();
+    const QPointF a(size.width() * 0.2, size.height() * 0.2);
+    const QPointF b(size.width() * 0.6, size.height() * 0.6);
+    canvas->commitText(a.x(), a.y(), QStringLiteral("MMMM"));
+    canvas->commitText(b.x(), b.y(), QStringLiteral("MMMM"));
+    canvas->clearAnnotSelection();
+    const qreal fs = canvas->fontSize();
+    const auto rightClick = [win, canvas, fs](const QPointF &img) {
+        const qreal s = canvas->renderScale();
+        const QPointF at = canvas->mapToScene((img + QPointF(fs * 0.5, fs * 0.6)) * s);
+        const QPointF global = win->mapToGlobal(at);
+        QMouseEvent down(QEvent::MouseButtonPress, at, at, global, Qt::RightButton,
+                         Qt::RightButton, Qt::NoModifier);
+        QMouseEvent up(QEvent::MouseButtonRelease, at, at, global, Qt::RightButton,
+                       Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(win, &down);
+        QCoreApplication::sendEvent(win, &up);
+    };
+    // Closed means gone: `opened` drops as the exit fade starts, and the
+    // fading list still takes the presses under it.
+    const auto waitOpen = [menu, popup](bool want) {
+        const auto now = [&] {
+            return want ? menu->property("menuOpen").toBool()
+                        : !popup->property("visible").toBool();
+        };
+        QElapsedTimer t;
+        t.start();
+        while (!now() && t.elapsed() < 1500)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        return now();
+    };
+    QString fail;
+    if (canvas->annotCount() != before + 2)
+        fail = QStringLiteral("texts not placed");
+    if (fail.isEmpty()) {
+        rightClick(a);
+        if (!waitOpen(true))
+            fail = QStringLiteral("right click on a shape opened no menu");
+        else if (canvas->selectedCount() != 1)
+            fail = QStringLiteral("right click selected %1 shapes").arg(canvas->selectedCount());
+        // A context menu slides over the pointer rather than cut its last
+        // rows off, whenever the window is tall enough for all of them.
+        else if (const qreal want = popup->property("flyWant").toReal();
+                 want <= win->height() - 16
+                 && popup->property("height").toReal() < want - 0.5)
+            fail = QStringLiteral("menu cut to %1 of its %2 px")
+                       .arg(popup->property("height").toReal()).arg(want);
+        QMetaObject::invokeMethod(popup, "close");
+        if (fail.isEmpty() && !waitOpen(false))
+            fail = QStringLiteral("menu did not close");
+    }
+    if (fail.isEmpty()) {
+        canvas->selectAllAnnots();
+        const int group = canvas->selectedCount();
+        rightClick(b);
+        if (!waitOpen(true))
+            fail = QStringLiteral("right click on a group member opened no menu");
+        else if (canvas->selectedCount() != group)
+            fail = QStringLiteral("right click narrowed the group of %1 to %2")
+                       .arg(group).arg(canvas->selectedCount());
+    }
+    if (fail.isEmpty()) {
+        const QJSValue dup = menu->property("actions").value<QJSValue>().property(0);
+        const int n = canvas->annotCount();
+        const int group = canvas->selectedCount();
+        if (!dup.property(QStringLiteral("trigger")).isCallable())
+            fail = QStringLiteral("menu has no Duplicate action");
+        else {
+            dup.property(QStringLiteral("trigger")).call();
+            if (canvas->annotCount() != n + group)
+                fail = QStringLiteral("Duplicate left %1 shapes, wanted %2")
+                           .arg(canvas->annotCount()).arg(n + group);
+        }
+    }
+    QMetaObject::invokeMethod(popup, "close");
+    waitOpen(false);
+    for (int guard = 0; guard < 8 && canvas->canUndo() && canvas->annotCount() > before; ++guard)
+        canvas->undo();
+    canvas->clearAnnotSelection();
+    canvas->setTool(savedTool);
+    if (!fail.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fail);
+    return QStringLiteral("PASS (right click opens the whole menu on a shape, keeps a group, Duplicate)");
+}
+
+// The Sticker tool's library in the real editor window (the art of every
+// catalogue sticker is AnnotationCanvasTest::stickerCatalogDrawsEveryEmoji's):
+// the quick defaults are catalogue stickers; a click on a cell (delivered
+// through the window, as a pointer would) stamps that sticker next, closes the
+// library and puts the pick first in the quick row, every chip there drawn
+// from its file; the search field holds the focus on open, Down walks into the
+// grid and Right then Space picks the next cell; a catalogue name typed in the
+// search lists its sticker and Return picks the first match, nonsense lists
+// nothing; a skin-tone chip turns the grid's cells into that tone and a toned
+// pick reopens on its own cell; a pick already in the row leaves its order
+// alone.
+static QString stickerLibraryCheck(QQuickWindow *win, Settings *settings)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *canvas = qobject_cast<AnnotationCanvas *>(
+        win->findChild<QQuickItem *>(QStringLiteral("editorCanvas")));
+    QObject *popup = win->findChild<QObject *>(QStringLiteral("editorStickerPopup"));
+    QQuickItem *bar = win->findChild<QQuickItem *>(QStringLiteral("editorPropsBar"));
+    if (!canvas || !popup || !bar)
+        return QStringLiteral("FAIL (editor item not found)");
+    auto *content = popup->property("contentItem").value<QQuickItem *>();
+    QQuickItem *grid = content ? findVisualChild(content, QStringLiteral("stickerGrid")) : nullptr;
+    QQuickItem *search = content ? findVisualChild(content, QStringLiteral("stickerSearch")) : nullptr;
+    QQuickItem *tone3 = content ? findVisualChild(content, QStringLiteral("stickerTone3")) : nullptr;
+    if (!grid || !search || !tone3)
+        return QStringLiteral("FAIL (sticker grid, search or tone chip not found)");
+
+    const QVariantMap catalog = canvas->stickerCatalog(QStringLiteral("en"));
+    const QStringList all = catalog.value(QStringLiteral("emoji")).toStringList();
+    const QVariantList groupOf = catalog.value(QStringLiteral("group")).toList();
+    const QVariantList tones = catalog.value(QStringLiteral("tones")).toList();
+    const QStringList defaults = popup->property("quickDefaults").toStringList();
+    if (all.isEmpty())
+        return QStringLiteral("FAIL (empty catalogue)");
+    for (const QString &d : defaults)
+        if (!all.contains(d))
+            return QStringLiteral("FAIL (quick default %1 not in the library)").arg(d);
+    QString fresh, next;
+    for (qsizetype i = 0; i + 1 < all.size(); ++i)
+        if (!defaults.contains(all.at(i)) && groupOf.at(i) == groupOf.at(i + 1)) {
+            fresh = all.at(i);
+            next = all.at(i + 1);
+            break;
+        }
+    const qsizetype thumb = all.indexOf(QStringLiteral("\U0001F44D"));
+    const QString thumbTone3 = thumb >= 0 ? tones.at(thumb).toStringList().value(2) : QString();
+
+    const QString savedRecent = settings->recentStickers();
+    const int savedTone = settings->stickerTone();
+    const QString savedSticker = canvas->sticker();
+    const int savedTool = canvas->tool();
+    settings->setRecentStickers(QString());
+    settings->setStickerTone(0);
+    canvas->setTool(AnnotationCanvas::Sticker);
+    QCoreApplication::processEvents();
+
+    const auto waitVisible = [popup](bool want) {
+        QElapsedTimer t;
+        t.start();
+        while (popup->property(want ? "opened" : "visible").toBool() != want && t.elapsed() < 1500)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        return popup->property(want ? "opened" : "visible").toBool() == want;
+    };
+    const auto open = [popup, waitVisible](const QString &sticker) {
+        QMetaObject::invokeMethod(popup, "openFor", Q_ARG(QVariant, sticker));
+        return waitVisible(true);
+    };
+    const auto click = [win](QQuickItem *item) {
+        if (!item)
+            return false;
+        const QPointF at = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+        const QPointF global = win->mapToGlobal(at);
+        QMouseEvent down(QEvent::MouseButtonPress, at, at, global, Qt::LeftButton,
+                         Qt::LeftButton, Qt::NoModifier);
+        QMouseEvent up(QEvent::MouseButtonRelease, at, at, global, Qt::LeftButton,
+                       Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(win, &down);
+        QCoreApplication::sendEvent(win, &up);
+        QCoreApplication::processEvents();
+        return true;
+    };
+    const auto clickCurrent = [grid, click] {
+        return click(grid->property("currentItem").value<QQuickItem *>());
+    };
+    const auto key = [win](Qt::Key k) {
+        QKeyEvent down(QEvent::KeyPress, k, Qt::NoModifier);
+        QKeyEvent up(QEvent::KeyRelease, k, Qt::NoModifier);
+        QCoreApplication::sendEvent(win, &down);
+        QCoreApplication::sendEvent(win, &up);
+        QCoreApplication::processEvents();
+    };
+    const auto quickRow = [bar] { return bar->property("quickStickers").toStringList(); };
+    // The stickers whose quick-row chip has its bundled picture loaded.
+    const auto rowArt = [bar] {
+        QStringList drawn;
+        QList<QQuickItem *> items{bar};
+        while (!items.isEmpty()) {
+            QQuickItem *item = items.takeLast();
+            items << item->childItems();
+            if (item->objectName() != QLatin1String("quickSticker"))
+                continue;
+            for (QQuickItem *c : item->childItems())
+                if (c->inherits("QQuickImage") && c->property("status").toInt() == 1)
+                    drawn << item->property("modelData").toString();
+        }
+        return drawn;
+    };
+    const auto shown = [popup] { return popup->property("shown").toList(); };
+
+    QString fail;
+    if (fresh.isEmpty())
+        fail = QStringLiteral("every sticker is a quick default");
+    else if (thumbTone3.isEmpty())
+        fail = QStringLiteral("no medium skin tone for the thumbs up");
+    else if (quickRow() != defaults)
+        fail = QStringLiteral("quick row is not the defaults with no picks");
+    else if (!open(fresh))
+        fail = QStringLiteral("library did not open");
+    else if (!search->property("inputActiveFocus").toBool())
+        fail = QStringLiteral("the search field does not hold the focus on open");
+    else if (grid->property("currentIndex").toInt() < 0 || !clickCurrent())
+        fail = QStringLiteral("no current cell");
+    else if (!waitVisible(false))
+        fail = QStringLiteral("a pick left the library open");
+    else if (canvas->sticker() != fresh)
+        fail = QStringLiteral("a click picked %1, wanted %2").arg(canvas->sticker(), fresh);
+    else if (quickRow().value(0) != fresh || quickRow().size() != defaults.size())
+        fail = QStringLiteral("quick row after a pick: %1").arg(quickRow().join(u' '));
+    if (fail.isEmpty()) {
+        QStringList row = quickRow();
+        QStringList drawn = rowArt();
+        row.sort();
+        drawn.sort();
+        if (drawn != row)
+            fail = QStringLiteral("quick row draws art for %1 of %2").arg(drawn.size()).arg(row.size());
+    }
+    if (fail.isEmpty() && !open(fresh))
+        fail = QStringLiteral("library did not reopen");
+    if (fail.isEmpty()) {
+        key(Qt::Key_Down);
+        key(Qt::Key_Right);
+        key(Qt::Key_Space);
+        if (!waitVisible(false))
+            fail = QStringLiteral("Down, Right, Space left the library open");
+        else if (canvas->sticker() != next)
+            fail = QStringLiteral("Down, Right, Space picked %1, wanted %2").arg(canvas->sticker(), next);
+    }
+    // The search, by the name the popup itself shows (the UI language's).
+    if (fail.isEmpty() && !open(fresh))
+        fail = QStringLiteral("library did not open for the search");
+    if (fail.isEmpty()) {
+        const QQmlEngine *engine = qmlEngine(popup);
+        const QVariantMap own = canvas->stickerCatalog(engine ? engine->uiLanguage() : QString());
+        const qsizetype cat = all.indexOf(QStringLiteral("\U0001F408"));
+        const QString name = own.value(QStringLiteral("names")).toList().value(cat).toString();
+        search->setProperty("text", QStringLiteral("zqxjv qzxw"));
+        QCoreApplication::processEvents();
+        const bool none = shown().isEmpty() && grid->property("count").toInt() == 0;
+        search->setProperty("text", name);
+        QCoreApplication::processEvents();
+        const QVariantList hits = shown();
+        if (cat < 0 || name.isEmpty())
+            fail = QStringLiteral("no name for the cat");
+        else if (!none)
+            fail = QStringLiteral("nonsense lists %1 stickers").arg(shown().size());
+        else if (std::none_of(hits.cbegin(), hits.cend(),
+                              [cat](const QVariant &v) { return v.toInt() == cat; }))
+            fail = QStringLiteral("searching \"%1\" lists %2 stickers, not the cat").arg(name).arg(hits.size());
+        else {
+            const QString first = all.value(hits.value(0).toInt());
+            key(Qt::Key_Return);
+            if (!waitVisible(false))
+                fail = QStringLiteral("Return left the library open");
+            else if (canvas->sticker() != first)
+                fail = QStringLiteral("Return picked %1, wanted %2").arg(canvas->sticker(), first);
+        }
+    }
+    // A skin tone, then a toned pick reopens on its own cell.
+    if (fail.isEmpty() && !open(QStringLiteral("\U0001F44D")))
+        fail = QStringLiteral("library did not open on the thumbs up");
+    if (fail.isEmpty()) {
+        click(tone3);
+        const auto *cell = grid->property("currentItem").value<QQuickItem *>();
+        if (settings->stickerTone() != 3)
+            fail = QStringLiteral("the medium tone chip set tone %1").arg(settings->stickerTone());
+        else if (!cell || cell->property("sticker").toString() != thumbTone3)
+            fail = QStringLiteral("the current cell did not turn medium");
+        else if (!clickCurrent() || !waitVisible(false))
+            fail = QStringLiteral("could not pick the toned cell");
+        else if (canvas->sticker() != thumbTone3)
+            fail = QStringLiteral("a toned pick stamps %1").arg(canvas->sticker());
+        else if (!open(thumbTone3)
+                 || all.value(shown().value(grid->property("currentIndex").toInt()).toInt())
+                        != QStringLiteral("\U0001F44D"))
+            fail = QStringLiteral("a toned sticker reopens elsewhere");
+        if (popup->property("visible").toBool()) {
+            QMetaObject::invokeMethod(popup, "close");
+            waitVisible(false);
+        }
+    }
+    if (fail.isEmpty()) {
+        settings->setStickerTone(0);
+        const QStringList row = quickRow();
+        if (!open(row.value(2)) || !clickCurrent() || !waitVisible(false))
+            fail = QStringLiteral("could not pick from the quick row's stickers");
+        else if (quickRow() != row)
+            fail = QStringLiteral("a sticker already in the row moved it");
+    }
+    if (popup->property("visible").toBool()) {
+        QMetaObject::invokeMethod(popup, "close");
+        waitVisible(false);
+    }
+    settings->setRecentStickers(savedRecent);
+    settings->setStickerTone(savedTone);
+    canvas->setSticker(savedSticker);
+    canvas->setTool(savedTool);
+    if (!fail.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fail);
+    return QStringLiteral("PASS (%1 stickers; click, Down+Right+Space, search and Return, skin tone, quick row art and order)")
+        .arg(all.size());
+}
+
+// Auto-redact on the real editor, from the whole-image button in both
+// layouts and from the Blur tool's options: the popup opens beside its
+// button inside the window with one row per kind and nothing covered; the
+// e-mail kind's switch covers both e-mails of a recognized line and lists
+// them, a finding's switch takes it out of the export, and the kind's switch
+// off takes the bars away again. The detection and the bars are
+// AnnotationCanvasTest's and the Tesseract path is autoRedactCheck's; this is
+// the window around them.
+static QString redactReviewCheck(QQuickWindow *win)
+{
+    if (!win)
+        return QStringLiteral("FAIL (no editor window)");
+    auto *canvas = qobject_cast<AnnotationCanvas *>(
+        win->findChild<QQuickItem *>(QStringLiteral("editorCanvas")));
+    QObject *popup = win->findChild<QObject *>(QStringLiteral("editorRedactReview"));
+    QQuickItem *panelButton = win->findChild<QQuickItem *>(QStringLiteral("editorPanelRedact"));
+    QQuickItem *pillButton = win->findChild<QQuickItem *>(QStringLiteral("editorWholeRedact"));
+    QQuickItem *toolButton = win->findChild<QQuickItem *>(QStringLiteral("editorToolRedact"));
+    if (!canvas || !popup || !panelButton || !pillButton || !toolButton)
+        return QStringLiteral("FAIL (editor item not found)");
+    auto *content = popup->property("contentItem").value<QQuickItem *>();
+    QQuickItem *list = content ? content->findChild<QQuickItem *>(QStringLiteral("redactReviewList")) : nullptr;
+    if (!list)
+        return QStringLiteral("FAIL (kinds list not found)");
+    const QVariant layout0 = win->property("layoutOverride");
+    const int tool0 = canvas->tool();
+    const int before = canvas->annotCount();
+    constexpr int kKinds = 7;
+
+    // "a@b.co z c@d.eu" glyph by glyph, as AnnotationCanvasTest lays it out.
+    const QString glyphs = QStringLiteral("a@b.cozc@d.eu");
+    QVector<OcrWord> words;
+    for (int i = 0; i < glyphs.size(); ++i)
+        words.append({QRect(10 + i * 12, 20, 10, 18), QString(glyphs.at(i)), 0, 100.f, i == 6 || i == 7});
+    const auto waitOpen = [popup](bool want) {
+        QElapsedTimer t;
+        t.start();
+        while (popup->property(want ? "opened" : "visible").toBool() != want && t.elapsed() < 1500)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        return popup->property(want ? "opened" : "visible").toBool() == want;
+    };
+    // The list refreshes on a Qt.callLater and the panel button moves once the
+    // bars reach the inspector's shape list.
+    const auto settle = [win] {
+        QElapsedTimer t;
+        t.start();
+        while (t.elapsed() < 150)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+        polishTree(win->contentItem());
+        QCoreApplication::processEvents();
+        polishTree(win->contentItem());
+    };
+    const auto inside = [win, popup] {
+        auto *item = popup->property("contentItem").value<QQuickItem *>();
+        auto *frame = item ? item->parentItem() : nullptr;
+        if (!frame)
+            return false;
+        const QRectF r = frame->mapRectToScene(QRectF(0, 0, frame->width(), frame->height()));
+        return QRectF(0, 0, win->width(), win->height()).contains(r);
+    };
+    // Delegates are the ListView's items, not its QObject children.
+    const auto named = [list](const QString &name) {
+        QList<QQuickItem *> out, items{list};
+        while (!items.isEmpty()) {
+            QQuickItem *i = items.takeFirst();
+            items << i->childItems();
+            if (i->isVisible() && i->objectName() == name)
+                out << i;
+        }
+        return out;
+    };
+    const auto switchOf = [](QQuickItem *row) -> QQuickItem * {
+        for (QQuickItem *c : row ? row->childItems() : QList<QQuickItem *>())
+            if (c->metaObject()->indexOfMethod("_toggle()") >= 0)
+                return c;
+        return nullptr;
+    };
+    const auto rowCount = [list] { return list->property("count").toInt(); };
+
+    QStringList fails;
+    const struct { const char *layout; QQuickItem *button; const char *name; } runs[] = {
+        {"panels", panelButton, "panels"}, {"floating", pillButton, "floating"},
+        {"panels", toolButton, "blur tool"}};
+    for (const auto &run : runs) {
+        const QString where = QString::fromLatin1(run.name);
+        win->setProperty("layoutOverride", QString::fromLatin1(run.layout));
+        // The tool's button lives outside OCR mode and starts a real
+        // recognition, which the close has to call off again.
+        const bool fromTool = run.button == toolButton;
+        canvas->setTool(fromTool ? AnnotationCanvas::Blur : tool0);
+        if (!fromTool) {
+            canvas->setOcrMode(true);
+            canvas->setOcrWords(words);
+        }
+        QCoreApplication::processEvents();
+        polishTree(win->contentItem());
+        if (!run.button->isVisible()) {
+            fails << where + QStringLiteral(": button hidden");
+            continue;
+        }
+        QMetaObject::invokeMethod(run.button, "clicked");
+        if (!waitOpen(true)) {
+            fails << where + QStringLiteral(": popup did not open");
+            canvas->setOcrMode(false);
+            continue;
+        }
+        settle();
+        if (canvas->annotCount() != before)
+            fails << where + QStringLiteral(": %1 bars before a kind was picked").arg(canvas->annotCount() - before);
+        if (rowCount() != kKinds)
+            fails << where + QStringLiteral(": %1 rows, not %2 kinds").arg(rowCount()).arg(kKinds);
+        if (!inside())
+            fails << where + QStringLiteral(": popup outside the window");
+        const QList<QQuickItem *> email = named(QStringLiteral("redactKind_email"));
+        QQuickItem *emailSwitch = email.isEmpty() ? nullptr : switchOf(email.first());
+        if (fromTool) {
+            if (!run.button->isVisible())
+                fails << where + QStringLiteral(": the button left with OCR mode, the popup's anchor gone");
+        } else if (!emailSwitch || !emailSwitch->isEnabled()) {
+            fails << where + QStringLiteral(": no live e-mail switch");
+        } else {
+            QMetaObject::invokeMethod(emailSwitch, "_toggle");
+            settle();
+            const QList<QQuickItem *> findings = named(QStringLiteral("redactFinding"));
+            if (canvas->annotCount() != before + 2)
+                fails << where + QStringLiteral(": %1 bars, not 2").arg(canvas->annotCount() - before);
+            if (rowCount() != kKinds + 2 || findings.size() != 2)
+                fails << where + QStringLiteral(": %1 rows (%2 findings) after covering 2")
+                                     .arg(rowCount()).arg(findings.size());
+            if (!emailSwitch->property("checked").toBool())
+                fails << where + QStringLiteral(": the e-mail switch shows off");
+            if (!inside())
+                fails << where + QStringLiteral(": popup outside the window once filled");
+            // A list taller than the room on either side scrolls, UFlyout's cap;
+            // a cut is a fault when the popup stopped short of the room it has
+            // or the other side would have shown every row.
+            const QVariantMap fit = popup->property("flyFit").toMap();
+            const bool up = popup->property("flyUp").toBool();
+            const qreal want = popup->property("flyWant").toReal();
+            const qreal room = fit.value(up ? QStringLiteral("above") : QStringLiteral("below")).toReal();
+            const qreal other = fit.value(up ? QStringLiteral("below") : QStringLiteral("above")).toReal();
+            if (list->property("contentHeight").toReal() > list->height() + 0.5
+                && (popup->property("height").toReal() + 0.5 < qMin(want, room) || want <= other))
+                fails << where + QStringLiteral(": list cut to %1 of %2 px (popup %3 of %4, room %5 here, %6 on the other side)")
+                                     .arg(qRound(list->height())).arg(qRound(list->property("contentHeight").toReal()))
+                                     .arg(popup->property("height").toReal()).arg(want).arg(room).arg(other);
+            QQuickItem *first = findings.isEmpty() ? nullptr : switchOf(findings.first());
+            if (first) {
+                const QImage covered = canvas->rendered();
+                QMetaObject::invokeMethod(first, "_toggle");
+                settle();
+                const QVariantList found = canvas->redactions();
+                if (found.isEmpty() || found.first().toMap().value(QStringLiteral("covered")).toBool())
+                    fails << where + QStringLiteral(": the switch left the finding covered");
+                else if (canvas->rendered() == covered)
+                    fails << where + QStringLiteral(": the uncovered finding is still exported");
+                else if (first->property("checked").toBool())
+                    fails << where + QStringLiteral(": the row still shows it covered");
+            }
+            QMetaObject::invokeMethod(emailSwitch, "_toggle");
+            settle();
+            if (canvas->annotCount() != before || rowCount() != kKinds)
+                fails << where + QStringLiteral(": switched off, %1 bars and %2 rows remain")
+                                     .arg(canvas->annotCount() - before).arg(rowCount());
+        }
+        QMetaObject::invokeMethod(popup, "close");
+        waitOpen(false);
+        if (fromTool && canvas->ocrMode())
+            fails << where + QStringLiteral(": closing left the scan's OCR mode on");
+        for (int guard = 0; guard < 4 && canvas->canUndo() && canvas->annotCount() > before; ++guard)
+            canvas->undo();
+        canvas->setOcrMode(false);
+    }
+    canvas->setTool(tool0);
+    win->setProperty("layoutOverride", layout0);
+    QCoreApplication::processEvents();
+    if (!fails.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
+    return QStringLiteral("PASS (panels, floating, Blur options: %1 kinds, nothing covered on open; e-mail on covers and lists 2, a finding uncovers, off removes)")
+        .arg(kKinds);
+}
+
+void AppContext::devTestRedactReview()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = redactReviewCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: auto-redact review %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+void AppContext::devTestStickerLibrary()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = stickerLibraryCheck(win, m_settings);
+        if (win)
+            win->close();
+        showToast(tr("Dev: sticker library %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+void AppContext::devTestShapeMenu()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = shapeMenuCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: shape menu %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
+void AppContext::devTestShapeGroups()
+{
+    if (!devBuild())
+        return;
+    QPointer<QQuickWindow> win;
+    {
+        CheckWindowCollector collect(this);
+        openEditor(devTestImage());
+        if (!m_checkWindows.isEmpty())
+            win = m_checkWindows.takeLast();
+    }
+    whenLaidOut(win, this, [this, win] {
+        const QString r = shapeGroupCheck(win);
+        if (win)
+            win->close();
+        showToast(tr("Dev: shape groups %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+    });
+}
+
 // Scrolls the Flickable holding item so item is on screen, as a user would
 // before pressing it: a press past the window edge reaches nothing.
 static void scrollIntoView(QQuickItem *item)
@@ -3499,6 +4547,229 @@ void AppContext::devTestLeaveField()
         return;
     const QString r = leaveFieldCheck(mainWindow());
     showToast(tr("Dev: leave filename field %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+// The Capture page at whatever size the window has now (the check never
+// resizes the user's window; maximize it and press the Developer button for
+// the big case): every tile inside the column, and Recent in whole rows that
+// fill the page without making it scroll.
+static QString capturePageCheck(QQuickWindow *win)
+{
+    if (!win || !win->isVisible())
+        return QStringLiteral("SKIP (main window not open)");
+    const QVariant page0 = win->property("currentPage");
+    win->setProperty("currentPage", 0);
+    QCoreApplication::processEvents();
+    const auto restore = [&] { win->setProperty("currentPage", page0); };
+    // The pages are Loaders: the instance the previous check's page switch
+    // threw away can still be a child waiting for its deferred delete, and
+    // findChild() returns whichever comes first.
+    const auto find = [win](const char *name) -> QQuickItem * {
+        const auto all = win->findChildren<QQuickItem *>(QLatin1String(name));
+        for (QQuickItem *i : all)
+            if (i->isVisible() && i->window() == win)
+                return i;
+        return nullptr;
+    };
+    QQuickItem *flick = find("capturePageFlick");
+    QQuickItem *col = find("capturePageColumn");
+    QQuickItem *modes = find("captureModeFlow");
+    QQuickItem *more = find("captureMoreGrid");
+    QQuickItem *grid = find("captureRecentGrid");
+    QQuickItem *recent = grid ? grid->property("contentItem").value<QQuickItem *>() : nullptr;
+    QQuickItem *delay = find("captureDelayPresets");
+    QQuickItem *status = find("captureStatusLine");
+    QQuickItem *aside = find("captureAside");
+    if (!flick || !col || !modes || !more || !grid || !recent || !delay || !status || !aside) {
+        restore();
+        return QStringLiteral("FAIL (capture page item not found)");
+    }
+    polishTree(win->contentItem());
+    const auto sceneRect = [](QQuickItem *i) {
+        return i->mapRectToScene(QRectF(0, 0, i->width(), i->height()));
+    };
+    const QRectF column = sceneRect(col);
+    // The grid is one gap wider than the column on purpose; its rows end at
+    // its own bottom.
+    const QRectF rows(column.left(), sceneRect(grid).top(), column.width(), grid->height());
+    QStringList out;
+    // One line per group, however many tiles it loses: the log cuts long lines.
+    const auto tilesIn = [&](QQuickItem *parent, const QRectF &in, const QString &what) {
+        int n = 0;
+        int outside = 0;
+        QRectF first;
+        const auto kids = parent->childItems();
+        for (QQuickItem *t : kids) {
+            if (!t->isVisible() || t->width() <= 0 || t->height() <= 0)
+                continue;
+            ++n;
+            const QRectF r = sceneRect(t);
+            if (r.left() < in.left() - 0.5 || r.right() > in.right() + 0.5
+                || r.top() < in.top() - 0.5 || r.bottom() > in.bottom() + 0.5) {
+                if (!outside++)
+                    first = r;
+            }
+        }
+        if (outside)
+            out << QStringLiteral("%1 %2 tile(s) outside, first %3..%4 x %5..%6 in %7..%8 x %9..%10")
+                       .arg(outside).arg(what).arg(first.left()).arg(first.right())
+                       .arg(first.top()).arg(first.bottom()).arg(in.left()).arg(in.right())
+                       .arg(in.top()).arg(in.bottom());
+        return n;
+    };
+    const QRectF wide(column.left(), -1e6, column.width(), 2e6);
+    const int modeTiles = tilesIn(modes, wide, QStringLiteral("capture"));
+    const int moreTiles = tilesIn(more, wide, QStringLiteral("extra mode"));
+    tilesIn(recent, rows, QStringLiteral("recent"));
+    const int nRows = grid->property("rows").toInt();
+    const int perRow = grid->property("perRow").toInt();
+    const int count = grid->property("count").toInt();
+    // By index, not by item: after F8's history inserts and removals the
+    // view can keep a second delegate for an index (an "unrequested" item,
+    // same row, same place), which the user cannot tell apart.
+    QSet<int> shown;
+    int pastLastRow = 0;
+    for (QQuickItem *t : recent->childItems()) {
+        if (!t->isVisible())
+            continue;
+        const int i = t->property("index").toInt();
+        if (i >= nRows * perRow)
+            ++pastLastRow;
+        else
+            shown.insert(i);
+    }
+    const qreal step = grid->property("baseH").toReal() + grid->property("spacing").toReal();
+    const qreal spare = flick->height() - flick->property("contentHeight").toReal();
+    const qreal asideSpare = aside->height() - aside->property("contentHeight").toReal();
+    // Four delay presets, at most one of them on (none for a delay set
+    // elsewhere that no preset names), and a status line that says something.
+    int presets = 0;
+    int presetsOn = 0;
+    const auto segs = delay->childItems().isEmpty() ? QList<QQuickItem *>()
+                                                    : delay->childItems().first()->childItems();
+    for (QQuickItem *seg : segs) {
+        if (!seg->isVisible() || seg->width() <= 0)
+            continue;
+        ++presets;
+        presetsOn += seg->property("pressed").toBool() ? 1 : 0;
+    }
+    const QString statusName = status->property("session").toString();
+    restore();
+    if (presets != 4 || presetsOn > 1)
+        out << QStringLiteral("%1 delay presets with %2 on, not 4 with at most 1").arg(presets).arg(presetsOn);
+    if (statusName.isEmpty() || status->height() <= 0)
+        out << QStringLiteral("status line empty");
+    if (modeTiles != 4 || moreTiles != 4)
+        out << QStringLiteral("%1 capture and %2 extra tiles, not 4 and 4").arg(modeTiles).arg(moreTiles);
+    if (shown.size() != qMin(count, nRows * perRow) || pastLastRow)
+        out << QStringLiteral("%1 recent shown for %2 rows of %3 (%4 captures), %5 past the last row")
+                   .arg(shown.size()).arg(nRows).arg(perRow).arg(count).arg(pastLastRow);
+    if (nRows > 1 && spare < -0.5)
+        out << QStringLiteral("%1 rows make the page scroll by %2 px").arg(nRows).arg(-spare);
+    // From the default 1060x700 window up, nothing on the page is below the
+    // fold (AGENTS.md): the tiles, More, one row of Recent, the whole column.
+    if (win->width() >= 1060 && win->height() >= 700 && (spare < -0.5 || asideSpare < -0.5))
+        out << QStringLiteral("page scrolls by %1 px, right column by %2 px at the default size or larger")
+                   .arg(qMax(0.0, -spare)).arg(qMax(0.0, -asideSpare));
+    if (count > nRows * perRow && spare >= step - 0.5)
+        out << QStringLiteral("room for another row left empty (%1 px)").arg(spare);
+    if (!out.isEmpty())
+        return QStringLiteral("FAIL (%1x%2, %3 px spare: %4)").arg(win->width()).arg(win->height())
+            .arg(spare).arg(out.join(QStringLiteral("; ")));
+    return QStringLiteral("PASS (%1x%2: %3 row(s) of %4 recent, tiles inside the column)")
+        .arg(win->width()).arg(win->height()).arg(nRows).arg(perRow);
+}
+
+// The header search (Ctrl+K): a word finds the action it names, a category
+// name finds that Settings tab, dismiss() empties and closes the list, and
+// both Settings routes (a category, the Settings search) land where they say.
+static QString headerSearchCheck(QQuickWindow *win)
+{
+    if (!win || !win->isVisible())
+        return QStringLiteral("SKIP (main window not open)");
+    QQuickItem *search = nullptr;
+    for (QQuickItem *i : win->findChildren<QQuickItem *>(QStringLiteral("headerSearch")))
+        if (i->isVisible())
+            search = i;
+    QQuickItem *input = search ? search->findChild<QQuickItem *>(QStringLiteral("headerSearchInput")) : nullptr;
+    if (!search || !input)
+        return QStringLiteral("FAIL (header search not found)");
+    QStringList out;
+    const QRectF r = search->mapRectToScene(QRectF(0, 0, search->width(), search->height()));
+    if (r.left() < 0 || r.right() > win->width() || search->width() < 159.5 || search->width() > 440.5)
+        out << QStringLiteral("field at %1..%2, %3 wide in a %4 px window")
+                   .arg(r.left()).arg(r.right()).arg(search->width()).arg(win->width());
+
+    // Words from the field's own lists, so the check holds in every language.
+    const QVariantList everything = search->property("everything").toList();
+    const QVariantList tabs = search->property("settingsTabs").toList();
+    if (everything.size() < 2 || tabs.size() < 8)
+        return QStringLiteral("FAIL (%1 actions, %2 categories)").arg(everything.size()).arg(tabs.size());
+    QMetaObject::invokeMethod(search, "focusField");
+    const bool focused = input->hasActiveFocus();
+    const auto firstTitle = [search] {
+        const QVariantList m = search->property("matches").toList();
+        return m.isEmpty() ? QString() : m.first().toMap().value(QStringLiteral("title")).toString();
+    };
+    const QString action = everything.at(1).toMap().value(QStringLiteral("title")).toString();
+    input->setProperty("text", action);
+    QCoreApplication::processEvents();
+    if (firstTitle() != action)
+        out << QStringLiteral("\"%1\" finds \"%2\" first").arg(action, firstTitle());
+    if (focused && !search->property("resultsOpen").toBool())
+        out << QStringLiteral("list closed with words in the field");
+    const QString tab = tabs.at(7).toString();
+    input->setProperty("text", tab);
+    QCoreApplication::processEvents();
+    bool tabFound = false;
+    for (const QVariant &m : search->property("matches").toList())
+        tabFound |= m.toMap().value(QStringLiteral("title")).toString() == tab;
+    if (!tabFound)
+        out << QStringLiteral("\"%1\" does not list its category").arg(tab);
+    QMetaObject::invokeMethod(search, "dismiss");
+    QCoreApplication::processEvents();
+    if (!input->property("text").toString().isEmpty() || search->property("resultsOpen").toBool())
+        out << QStringLiteral("dismiss left the field filled or the list open");
+
+    const QVariant page0 = win->property("currentPage");
+    QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, 7), Q_ARG(QVariant, QString()));
+    QCoreApplication::processEvents();
+    QQuickItem *settings = nullptr;
+    for (QQuickItem *i : win->findChildren<QQuickItem *>(QStringLiteral("settingsPage")))
+        if (i->isVisible())
+            settings = i;
+    if (win->property("currentPage").toInt() != 5 || !settings || settings->property("tab").toInt() != 7) {
+        out << QStringLiteral("category route did not open Settings at tab 7");
+    } else {
+        QMetaObject::invokeMethod(win, "openSettingsAt", Q_ARG(QVariant, -1), Q_ARG(QVariant, tab));
+        QCoreApplication::processEvents();
+        if (settings->property("searchQuery").toString() != tab)
+            out << QStringLiteral("search route left Settings search at \"%1\"")
+                       .arg(settings->property("searchQuery").toString());
+        settings->setProperty("searchQuery", QString());
+    }
+    win->setProperty("currentPage", page0);
+    QCoreApplication::processEvents();
+    if (!out.isEmpty())
+        return QStringLiteral("FAIL (%1)").arg(out.join(QStringLiteral("; ")));
+    return QStringLiteral("PASS (%1 px field; action, category, dismiss and both Settings routes%2)")
+        .arg(qRound(search->width())).arg(focused ? QString() : QStringLiteral(", list not checked: window inactive"));
+}
+
+void AppContext::devTestHeaderSearch()
+{
+    if (!devBuild())
+        return;
+    const QString r = headerSearchCheck(mainWindow());
+    showToast(tr("Dev: header search %1").arg(r), !r.startsWith(QLatin1String("PASS")));
+}
+
+void AppContext::devTestCapturePage()
+{
+    if (!devBuild())
+        return;
+    const QString r = capturePageCheck(mainWindow());
+    showToast(tr("Dev: capture page layout %1").arg(r), !r.startsWith(QLatin1String("PASS")));
 }
 
 void AppContext::devTestEditor()
@@ -5799,6 +7070,18 @@ void AppContext::runSmokeTest()
         smokeNext();
     });
 
+    // 2g) the Capture page uses the window it is given.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("capture page layout: ") + capturePageCheck(mainWindow()));
+        smokeNext();
+    });
+
+    // 2h) the header search finds actions and categories and routes to Settings.
+    m_smokeSteps.append([this] {
+        smokeLog(QStringLiteral("header search: ") + headerSearchCheck(mainWindow()));
+        smokeNext();
+    });
+
     // 3) post-capture editor open
     m_smokeSteps.append([this] {
         const int before = m_editorWindows;
@@ -5811,6 +7094,12 @@ void AppContext::runSmokeTest()
                                                ? m_smokeWindows.last().data() : nullptr;
         whenLaidOut(win, this, [this, win] {
             smokeLog(QStringLiteral("editor zoom control: ") + editorZoomCheck(win));
+            smokeLog(QStringLiteral("editor layouts: ") + editorLayoutCheck(win));
+            smokeLog(QStringLiteral("editor chrome: ") + editorChromeCheck(win));
+            smokeLog(QStringLiteral("editor shape groups: ") + shapeGroupCheck(win));
+            smokeLog(QStringLiteral("editor shape menu: ") + shapeMenuCheck(win));
+            smokeLog(QStringLiteral("editor sticker library: ") + stickerLibraryCheck(win, m_settings));
+            smokeLog(QStringLiteral("editor auto-redact review: ") + redactReviewCheck(win));
             smokeNext();
         });
     });
@@ -6246,11 +7535,11 @@ void AppContext::runSmokeTest()
         });
     });
 
-    // 3f4) Auto-redact: pattern → redaction bars with no selection made.
+    // 3f4) Auto-redact: findings covered with no selection made, toggleable.
     m_smokeSteps.append([this] {
-        ocrBoxes(ocrBoxTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
-            smokeLog(!err.isEmpty() ? QStringLiteral("auto-redact pattern: FAIL (%1)").arg(err)
-                                     : QStringLiteral("auto-redact pattern: ") + ocrRedactPatternCheck(words));
+        ocrBoxes(autoRedactTestImage(), [this](const QVector<OcrWord> &words, const QString &err) {
+            smokeLog(!err.isEmpty() ? QStringLiteral("auto-redact: FAIL (%1)").arg(err)
+                                     : QStringLiteral("auto-redact: ") + autoRedactCheck(words));
             smokeNext();
         });
     });

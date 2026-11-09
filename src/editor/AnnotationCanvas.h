@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QFont>
 #include <QVector>
+#include <QVariantList>
 #include <QRect>
 #include <QTimer>
 #include <QElapsedTimer>
@@ -52,8 +53,8 @@ class AnnotationCanvas : public QQuickPaintedItem
     // mode it was drawn in.
     Q_PROPERTY(int measureMode READ measureMode WRITE setMeasureMode NOTIFY measureModeChanged)
     Q_PROPERTY(int spotlightShape READ spotlightShape WRITE setSpotlightShape NOTIFY spotlightShapeChanged)
-    // What the Sticker tool stamps: "pointer" (the mouse pointer) or the emoji
-    // text itself.
+    // What the Sticker tool stamps: "pointer" (the mouse pointer) or an emoji,
+    // drawn from its bundled art (stickerArt) or, without one, the emoji font.
     Q_PROPERTY(QString sticker READ sticker WRITE setSticker NOTIFY stickerChanged)
     // Text styling for NEW text annotations (empty family = default UI font).
     Q_PROPERTY(QString fontFamily READ fontFamily WRITE setFontFamily NOTIFY fontFamilyChanged)
@@ -76,6 +77,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // normal annotate/confirm flow. Off in the GIF region picker (a stray
     // click must not start a recording) and in the editor.
     Q_PROPERTY(bool clickSelectsAll READ clickSelectsAll WRITE setClickSelectsAll NOTIFY clickSelectsAllChanged)
+    // Right click on a shape asks for its context menu (shapeMenuRequested)
+    // instead of the quick copy. The editor only: the overlay keeps right
+    // click as confirm-and-copy everywhere.
+    Q_PROPERTY(bool shapeMenu MEMBER m_shapeMenu NOTIFY shapeMenuChanged)
     Q_PROPERTY(QRectF selectionRect READ selectionRect NOTIFY selectionRectChanged)
     Q_PROPERTY(bool hasSelection READ hasSelection NOTIFY selectionRectChanged)
     // Latest pointer position in ITEM coordinates, updated on hover AND while
@@ -93,6 +98,10 @@ class AnnotationCanvas : public QQuickPaintedItem
     // saved "next shape" defaults).
     Q_PROPERTY(bool hasAnnotSelection READ hasAnnotSelection NOTIFY selectedAnnotChanged)
     Q_PROPERTY(int selectedAnnotTool READ selectedAnnotTool NOTIFY selectedAnnotChanged)
+    // How many shapes are selected: 0, 1, or a group (Shift+click, the Edit
+    // tool's rubber band, selectAllAnnots). A group's first member is the
+    // "primary" the props bar shows; selectedAnnotTool is that one's.
+    Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectedAnnotChanged)
     // Image-space area the selected Callout writes its text into, empty for
     // anything else. The floating text editor tracks it, so the caret sits on
     // the painted glyphs and follows the bubble as previewCalloutText grows it.
@@ -137,6 +146,10 @@ public:
     enum HighlightMode { HlFreehand = 0, HlRect = 1, HlText = 2 };
     Q_ENUM(HighlightMode)
 
+    // arrangeSelected(): where the selected shapes go in the stacking order.
+    enum Arrange { BringToFront = 0, BringForward, SendBackward, SendToBack };
+    Q_ENUM(Arrange)
+
     explicit AnnotationCanvas(QQuickItem *parent = nullptr);
 
     void paint(QPainter *painter) override;
@@ -175,6 +188,16 @@ public:
     void setSpotlightShape(int shape);
     QString sticker() const { return m_sticker; }
     void setSticker(const QString &sticker);
+    // The bundled Twemoji file for an emoji sticker
+    // ("qrc:/stickers/1f44d.svg"), or "" when it has none.
+    Q_INVOKABLE QString stickerArt(const QString &sticker) const;
+    // The sticker library (third_party/twemoji/catalog.json and
+    // names.<lang>.json), parsed per call: "groups" (Unicode's group names,
+    // in English), and per emoji in Unicode order "emoji", "group" (an index
+    // into groups), "tones" (its five skin tones, or none), "names" (in
+    // `lang`) and "search" (lower-case name and keywords in `lang` and
+    // English). An unknown `lang` reads as English.
+    Q_INVOKABLE QVariantMap stickerCatalog(const QString &lang) const;
     // The placed Measure annotations, formatted for the clipboard. `format` is
     // "readable" (842 × 317 / 412 px), "plain" (842x317 / 412) or "css"
     // (width: 842px; height: 317px / 412px). One measure per line; "" when none.
@@ -223,6 +246,7 @@ public:
     QSize imageSize() const { return m_base.size(); }
     qreal renderScale() const;
     bool hasAnnotSelection() const { return m_selectedAnnot >= 0; }
+    int selectedCount() const { return m_selectedAnnot >= 0 ? 1 + int(m_extraSel.size()) : 0; }
     int selectedAnnotTool() const {
         return (m_selectedAnnot >= 0 && m_selectedAnnot < m_items.size())
                    ? int(m_items[m_selectedAnnot].type) : -1;
@@ -234,14 +258,21 @@ public:
     // Insert the current GUI clipboard at an image-space point. Images retain
     // their pixels as an annotation; plain text uses the existing Text path.
     Q_INVOKABLE bool pasteClipboard(qreal imgX, qreal imgY);
-    // EditShapes: delete the selected annotation, nudge it by whole image
+    // EditShapes: delete the selected annotation(s), nudge them by whole image
     // pixels, or replace a selected Text annotation's string (double-click
     // re-edit). No-ops when nothing / a non-Text shape is selected.
     Q_INVOKABLE void removeSelectedAnnot();
     Q_INVOKABLE void nudgeSelectedAnnot(qreal dx, qreal dy);
-    // Turn the selected annotation by `degrees` (clockwise, about its centre).
-    // No-op for a shape that cannot carry an angle (see canRotate).
+    // Turn the selected annotation(s) by `degrees` (clockwise, each about its
+    // own centre). Skips a shape that cannot carry an angle (see canRotate).
     Q_INVOKABLE void rotateSelectedAnnot(qreal degrees);
+    // Every placed shape, the topmost as the primary.
+    Q_INVOKABLE void selectAllAnnots();
+    // Copies of the selected shapes, 16 screen px down-right, on top of the
+    // stack and selected in their place. One undo step.
+    Q_INVOKABLE void duplicateSelected();
+    // Restack the selection (an Arrange value) as a block. One undo step.
+    Q_INVOKABLE void arrangeSelected(int where);
     Q_INVOKABLE void clearAnnotSelection();
     Q_INVOKABLE void commitTextEdit(const QString &text);
     QRectF textEditRect() const;
@@ -253,8 +284,16 @@ public:
     Q_INVOKABLE void previewCalloutText(const QString &text);
     Q_INVOKABLE void cancelTextEdit();
     // Select the topmost annotation at the given image-space point (-1 → none).
-    Q_INVOKABLE void selectAnnotAt(qreal imgX, qreal imgY);
+    // keepGroup leaves a selection that already holds that shape as it is, so
+    // a context menu opened on a group member acts on the whole group.
+    Q_INVOKABLE void selectAnnotAt(qreal imgX, qreal imgY, bool keepGroup = false);
     Q_INVOKABLE int annotCount() const { return int(m_items.size()); }
+    // One entry per placed shape, bottom of the stack first, for the
+    // inspector's shape list: {tool, color, text, number, redactKind, selected}.
+    Q_INVOKABLE QVariantList annotationList() const;
+    // Select the shape at a stack index, as a click on it would (toggle adds
+    // or removes it from the group, as Shift+click does).
+    Q_INVOKABLE void selectAnnotIndex(int index, bool toggle = false);
 
     // OCR text-pick mode.
     bool ocrMode() const { return m_ocrMode; }
@@ -277,11 +316,21 @@ public:
     // A multi-line range becomes one annotation per line and one undo step.
     Q_INVOKABLE bool highlightOcrSelection();
     Q_INVOKABLE bool redactOcrSelection(bool pixelate);
-    // Pattern redaction: black out every recognized run matching `pattern`
-    // (a QRegularExpression over the recognized text in reading order),
-    // without the user selecting anything. Returns the number of MATCHES
-    // redacted, 0 when nothing matched, -1 when the pattern is invalid.
-    Q_INVOKABLE int redactTextMatching(const QString &pattern);
+    // Auto-redact: an opaque bar over every match of `kinds` (all of them
+    // when empty: e-mail, IP, card number, key...) that findSensitiveText()
+    // (SensitiveText.h) finds in the recognized words, as one undo step and
+    // without a selection. A match an earlier run already covers is skipped.
+    // Returns the number of matches it covered.
+    Q_INVOKABLE int autoRedact(const QStringList &kinds = {});
+    // Takes every auto-redaction bar of `kind` off again, as one undo step.
+    Q_INVOKABLE int removeRedactions(const QString &kind);
+    // How many matches of each kind the recognized words hold, covered or not.
+    Q_INVOKABLE QVariantMap sensitiveCounts() const;
+    // One entry per auto-redacted match, in the order found: {group, kind,
+    // text, covered}. Read from the shapes, so undo or a deleted bar can never
+    // leave it stale.
+    Q_INVOKABLE QVariantList redactions() const;
+    Q_INVOKABLE void setRedactionCovered(int group, bool covered);
     // Text-aware Highlight: the editor recognizes glyph boxes and feeds them
     // here so a plain Highlight drag over text snaps to the text line(s).
     // Requested lazily via glyphBoxesRequested() when the Highlight tool is
@@ -365,9 +414,15 @@ signals:
     void textEditRequested(qreal imgX, qreal imgY, const QString &text);
     void textEditRectChanged();
     void selectionConfirmed();
-    // Right click is deliberately a context-free quick copy. The editor copies
-    // its composite; the screenshot overlay confirms + forces a copy.
+    // Right click off a shape (anywhere, with shapeMenu off) is a quick copy.
+    // The editor copies its composite; the screenshot overlay confirms + forces
+    // a copy.
     void copyRequested();
+    // Item coordinates of a right press on a shape, with shapeMenu on. The
+    // selection is not touched: the editor first commits an open text box
+    // (commitTextEdit writes into the selected shape), then selects.
+    void shapeMenuRequested(qreal x, qreal y);
+    void shapeMenuChanged();
     void selectedAnnotChanged();
     void ocrChanged();
     // Emitted when the Highlight tool is selected and no glyph boxes are cached
@@ -404,6 +459,8 @@ private:
         QImage image;                // PastedImage: implicitly shared, image-pixel space
         // Magnify: the source region whose pixels the loupe shows; `rect` is
         // the destination. Empty while the source is still being dragged out.
+        // PastedImage: the part of `image` shown (a Ctrl crop), in its
+        // pixels; empty shows all of it.
         QRectF srcRect;
         // Rotation in degrees, clockwise, about rect.normalized().center().
         // Only the shapes canRotate() accepts ever hold a non-zero angle: the
@@ -422,6 +479,14 @@ private:
         QColor textBgColor = QColor(0, 0, 0, 179);
         int number = 0;             // step marker
         int stepSize = 22;          // step marker badge size (independent of fontSize)
+        // Auto-redaction (autoRedact): the detector's kind and a group shared
+        // by the bars of one match (a match broken over two lines toggles as
+        // one); `text` holds the matched text. `redactOff` = uncovered: an
+        // outline in the editor only, left out of every export, so the user
+        // can see what was found and cover it again.
+        QString redactKind;
+        int redactGroup = 0;
+        bool redactOff = false;
         // Blur/Pixelate patch cache: recomputing the smooth down/up-scale of the
         // base region on EVERY repaint (i.e. every drag mouse-move) burned
         // milliseconds per patch for byte-identical output. Keyed on the base's
@@ -445,7 +510,7 @@ private:
     // without switching to the Edit tool).
     // RotateAnnot: the grip above the selected shape's top edge is being dragged.
     enum DragMode { NoDrag, DrawDrag, PendingDraw, NewSelection, MoveSelection, ResizeSelection,
-                    PendingMoveAnnot, MoveAnnot, ResizeAnnot, RotateAnnot };
+                    PendingMoveAnnot, MoveAnnot, ResizeAnnot, RotateAnnot, MarqueeAnnot };
 
     // Start a fresh in-progress annotation for the active tool at `at`
     // (shared by the immediate Pen path and the PendingDraw promotion).
@@ -468,7 +533,10 @@ private:
     void insertImageAnnot(QImage image, const QPointF &centre);
     QImage stickerImage() const;
     void stampSticker(const QPointF &at);
-    void drawAll(QPainter &p) const;
+    // `chrome`: the editor's own paint, which also outlines the uncovered
+    // auto-redactions that every export leaves out.
+    void drawAll(QPainter &p, bool chrome = false) const;
+    void drawItem(QPainter &p, const Annot &a, bool chrome) const;
     void drawSpotlights(QPainter &p) const;
     // A stroke drawn as a freehand path (accumulated points) rather than a
     // dragged rect: the Pen, or the Highlight tool in freehand marker mode.
@@ -531,6 +599,19 @@ private:
     // drawing defaults. Caller must have already cleared m_selectedAnnot.
     void restoreStyleBackup();
     void applyStyleToSelected(); // push current props onto m_items[m_selectedAnnot]
+    // Copy ONE current prop (a PropId) onto `a` - how a group's other members
+    // take a style edit.
+    void applyPropTo(Annot &a, int propId) const;
+    // The selection, primary first. Empty when nothing is selected.
+    QVector<int> selectedIndices() const;
+    bool isAnnotSelected(int index) const;
+    // selectAnnot(primary), then the rest of a group on top of it.
+    void selectAnnots(int primary, const QVector<int> &extras);
+    // Shift+click: add the shape to the selection or take it out.
+    void toggleAnnotSelected(int index);
+    static void translateAnnot(Annot &a, const QPointF &d);
+    // Arm PendingMoveAnnot for the whole selection from the current press.
+    void beginMoveSelected();
     // A style property setter calls this AFTER updating the "current" prop: when
     // a shape is selected it coalesces an undo entry, copies the props onto the
     // selected annotation and repaints. propId groups repeats for coalescing.
@@ -594,6 +675,7 @@ private:
     bool m_selectionMode = false;
     bool m_confirmOnRelease = false;
     bool m_clickSelectsAll = false;
+    bool m_shapeMenu = false;
     // A no-arg update() ran since the last paint — the whole texture is dirty
     // and partial updates must not shrink it (see the update() shadow).
     bool m_fullDirty = false;
@@ -634,14 +716,24 @@ private:
     QRectF m_selStart;
     Annot m_current;
     bool m_drawing = false;
-    // True while a Blur's geometry is being dragged: its patch is rebuilt with
-    // fast sampling each frame (drawAnnot) and re-smoothed once on release.
+    // True while a SmartErase is being drawn: its patch is rebuilt with fast
+    // sampling each frame (drawAnnot) and re-smoothed once on release.
     bool m_fxFast = false;
 
-    // EditShapes selection.
+    // EditShapes selection. A group is the primary plus m_extraSel (never
+    // holding the primary); every path that drops the primary clears it.
     int m_selectedAnnot = -1;
+    QVector<int> m_extraSel;
+    // MoveAnnot: offset already applied to the group's other members.
+    QPointF m_groupMoved;
+    // The selected shape a Shift+press landed on: deselected if the press
+    // ends as a bare click, kept if it turns into a move.
+    int m_shiftDeselectOnClick = -1;
+    // MarqueeAnnot: the rubber band, image px.
+    QRectF m_marquee;
     QRectF m_annotStartRect;               // rect at the start of a move/resize
     QVector<QPointF> m_annotStartPoints;   // pen points at the start of a move
+    QRectF m_annotStartSrc;                // a picture's srcRect at the start of a resize
     // Angle between the press point and the shape's own angle, so the grip does
     // not jump to the cursor when the drag starts off-grip.
     qreal m_rotateGrab = 0;
@@ -659,8 +751,9 @@ private:
     // OCR text-pick mode. Glyphs are in reading order; the selection is two
     // CARET positions in [0..N] (a caret at k sits before glyph k), dragged like
     // a text cursor. Selected glyphs = [min..max-1]; equal carets = empty; -1 =
-    // no selection. m_ocrLines caches each text line's contiguous glyph run and
-    // its clean band (union of the line's glyph rects) — the source of the
+    // no selection. m_ocrLines caches each text segment's contiguous glyph run
+    // and its clean band (union of its glyph rects): a text line, cut where a
+    // wide gap opens (rebuildOcrLines). It feeds the
     // always-visible selectable-text boxes, line-constrained caret hit-testing,
     // and consistent-height selection bands.
     struct OcrLine { int first = 0; int last = 0; QRectF band; };
@@ -687,7 +780,8 @@ private:
     // detected text. Returns true when it appended snapped annots (the caller
     // then skips the single plain rectangle); false to fall back to a plain rect.
     bool applyTextAwareHighlight(const Annot &drag);
-    // Rebuild m_ocrLines from m_ocrWords (contiguous same-line glyph runs).
+    // Rebuild m_ocrLines from m_ocrWords (contiguous same-line glyph runs,
+    // split at wide gaps).
     void rebuildOcrLines();
     // Cache index of the line containing glyph g (-1 if none).
     int ocrLineOfGlyph(int g) const;
@@ -721,8 +815,11 @@ private:
     // them. The whole batch is one undo step.
     bool addOcrGlyphAnnotations(const QVector<int> &glyphs, Tool type, const QColor &color,
                                 bool filled = false, const QColor &fillColor = QColor());
-    // Every recognized glyph joined in reading order (same spacing rules as
-    // ocrSelectedText). When `charToGlyph` is given it is resized to the
+    QVector<Annot> ocrGlyphBars(const QVector<int> &glyphs, Tool type, const QColor &color,
+                                bool filled, const QColor &fillColor) const;
+    void commitOcrBars(const QVector<Annot> &bars);
+    // Every recognized glyph joined in reading order, one text segment per
+    // line (ocrSelectedText's spacing otherwise). When `charToGlyph` is given it is resized to the
     // returned string's length, mapping each character back to its glyph index
     // (-1 for the inserted spaces and newlines) so a regex match over the text
     // can be resolved back to glyph boxes.

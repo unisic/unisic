@@ -4,7 +4,7 @@ import Unisic.Kit
 
 // Contextual tool-properties strip: renders only the controls relevant to the
 // active tool (ToolCatalog `props` - "stroke", "width", "fill", "font").
-// Shared by the editor top bar and the overlay pill. The hosts own the color
+// Shared by the editor (inspector or bottom pill) and the overlay pill. The hosts own the color
 // pickers (editor: ColorDialog window, overlay: in-scene UColorPopup - a
 // dialog window would never get input under the layer-shell keyboard grab),
 // so picker requests are surfaced as signals instead of handled here.
@@ -32,10 +32,17 @@ Flow {
     property var props: []
     // Editor-only recent stroke colors (the overlay bar stays compact).
     property var recentColors: []
+    // The Sticker tool's row after the mouse pointer (EditorWindow.stickerList).
+    property var quickStickers: []
     // The widest the host can afford to give the strip. 0 (the default) means
     // "unconstrained" - the strip then takes its natural one-line width, which
     // is what a host that has already reserved room for it wants.
     property real maxWidth: 0
+    // How wide one wrapped DotGroup may run: the host's own bound. Not a
+    // `maxWidth` the host balanced from the cells' widths - a group wrapping
+    // to that changes the very cells it came from, and the Cell's Row
+    // re-polished itself in a loop (the sticker row in a narrow editor).
+    property real groupLimit: maxWidth
     // Whether these controls join the window's Tab chain. TRUE in the editor.
     // FALSE in the capture overlay, where Space and Enter mean "confirm the
     // capture" and the surface holds an exclusive keyboard grab - a focused
@@ -49,11 +56,20 @@ Flow {
     // just add a phantom one. This forwards that exact property into every
     // control in the strip, which is why it is named for them and not for us.
     property bool controlsFocusable: true
+    // How the editor host draws the strip: "bar" (the overlay pill and the
+    // old one-line look), "inspector" (the panels layout: labelled sections
+    // stacked down the inspector, a width slider, a text arrowhead switch) or
+    // "pill" (the floating layout: 24 px swatches, Thin/Medium/Thick and an
+    // icon arrowhead switch). Same canvas properties under every look.
+    property string variant: "bar"
+    readonly property bool inspector: variant === "inspector"
+    readonly property bool pill: variant === "pill"
     signal strokePickerRequested()
     signal fillPickerRequested()
     signal textOutlinePickerRequested()
     signal textBackgroundPickerRequested()
     signal imageFileRequested()
+    signal stickerLibraryRequested()
 
     spacing: 6
 
@@ -89,7 +105,7 @@ Flow {
             var c = children[i]
             if (!c || !c.visible)
                 continue
-            w += c.implicitWidth
+            w += Math.max(c.implicitWidth, c.width)
             ++n
         }
         return n > 0 ? w + spacing * (n - 1) : 0
@@ -107,7 +123,8 @@ Flow {
             var c = children[i]
             if (!c || !c.visible)
                 continue
-            var w = c.implicitWidth
+            // What the Flow lays out: a titled cell is a whole line wide.
+            var w = Math.max(c.implicitWidth, c.width)
             if (n > 0 && line + spacing + w > limit) {
                 widest = Math.max(widest, line)
                 line = w
@@ -127,7 +144,7 @@ Flow {
             var c = children[i]
             if (!c || !c.visible)
                 continue
-            h = Math.max(h, c.implicitHeight)
+            h = Math.max(h, c.lineHeight !== undefined ? c.lineHeight : c.implicitHeight)
         }
         return h
     }
@@ -161,10 +178,49 @@ Flow {
     component Cell: Item {
         id: cell
         default property alias content: holder.data
+        // A labelled section of the inspector: the label above, a value
+        // (the width in px) at its right, the controls below, one full line.
+        property string title: ""
+        property string value: ""
+        readonly property real _head: title !== "" ? titleText.height + 10 : 0
+        // A titled cell spans the line through `width`, never `implicitWidth`:
+        // the floating host balances maxWidth FROM the implicit widths, so an
+        // implicitWidth that read maxWidth looped for the one pass after a
+        // layout flip in which the title had not yet emptied.
         implicitWidth: holder.implicitWidth
-        implicitHeight: holder.implicitHeight
-        width: implicitWidth
-        height: root.cellHeight
+        implicitHeight: holder.implicitHeight + _head + (title !== "" ? 12 : 0)
+        // One line of this cell: a wrapped DotGroup counts as one line of its
+        // dots, so it makes its own cell taller and not every cell in the strip.
+        readonly property real lineHeight: {
+            var h = 0
+            for (var i = 0; i < holder.children.length; ++i) {
+                var c = holder.children[i]
+                if (c.visible)
+                    h = Math.max(h, c.lineHeight !== undefined ? c.lineHeight : c.height)
+            }
+            return h
+        }
+        width: title !== "" ? Math.max(root.maxWidth, implicitWidth) : implicitWidth
+        height: title !== "" ? implicitHeight : Math.max(root.cellHeight, implicitHeight)
+        Text {
+            id: titleText
+            visible: cell.title !== ""
+            text: cell.title
+            color: Theme.textPrimary
+            font.pixelSize: Theme.fontM
+            font.weight: Font.Medium
+            Accessible.ignored: true
+        }
+        Text {
+            visible: cell.title !== "" && cell.value !== ""
+            anchors.right: parent.right
+            anchors.baseline: titleText.baseline
+            text: cell.value
+            color: Theme.textSecondary
+            font.family: "monospace"
+            font.pixelSize: Theme.fontS
+            Accessible.ignored: true
+        }
         // Where the wrap put this cell, for its Divider.
         readonly property bool lineStart: x === 0
         readonly property bool lineEnd: {
@@ -180,8 +236,106 @@ Flow {
         }
         Row {
             id: holder
-            spacing: 6
-            anchors.verticalCenter: parent.verticalCenter
+            spacing: cell.title !== "" ? 8 : 6
+            y: cell.title !== "" ? cell._head : (cell.height - height) / 2
+        }
+    }
+
+    // A row of mutually exclusive buttons in one tray: the inspector's
+    // labelled arrowhead switch (`labelled`, stretched to `fill`) and the
+    // floating pill's icon-only width and arrowhead switches.
+    component Segmented: Rectangle {
+        id: seg
+        // [{ value, label, iconName, bar }]: `bar` draws a stroke that thick
+        // instead of an icon (the Thin/Medium/Thick presets).
+        property var options: []
+        property var current
+        property bool labelled: false
+        property real fill: 0
+        property string accessibleName: ""
+        signal picked(var value)
+        readonly property real buttonW: fill > 0 && options.length > 0
+            ? (fill - 6 - 2 * (options.length - 1)) / options.length : 38
+        implicitWidth: fill > 0 ? fill : segRow.implicitWidth + 6
+        implicitHeight: (labelled ? 30 : 32) + 6
+        width: implicitWidth
+        height: implicitHeight
+        radius: labelled ? 9 : Theme.radiusM
+        color: labelled ? Theme.primary : Theme.alpha(Theme.backgroundDeep, 0.55)
+        border.width: labelled ? 1 : 0
+        border.color: Theme.alpha(Theme.accent, 0.10)
+        Accessible.role: Accessible.Grouping
+        Accessible.name: seg.accessibleName
+        Row {
+            id: segRow
+            x: 3; y: 3
+            spacing: 2
+            Repeater {
+                model: seg.options
+                delegate: Rectangle {
+                    id: segBtn
+                    required property var modelData
+                    readonly property bool on: seg.current === modelData.value
+                    function _activate() { if (segBtn.enabled) seg.picked(segBtn.modelData.value) }
+                    width: seg.buttonW
+                    height: seg.labelled ? 30 : 32
+                    radius: seg.labelled ? 6 : 9
+                    color: on ? (seg.labelled ? Theme.secondary : Theme.tertiary)
+                         : segMouse.containsMouse ? Theme.alpha(Theme.accent, 0.10) : "transparent"
+                    Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        UIcon {
+                            visible: (segBtn.modelData.iconName || "") !== ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: segBtn.modelData.iconName || ""
+                            iconStyle: "custom"
+                            size: 15
+                            color: segBtn.on ? Theme.textPrimary : Theme.textSecondary
+                        }
+                        Rectangle {
+                            visible: (segBtn.modelData.bar || 0) > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 16
+                            height: segBtn.modelData.bar || 0
+                            radius: height / 2
+                            color: segBtn.on ? Theme.textPrimary : Theme.textSecondary
+                        }
+                        Text {
+                            visible: seg.labelled
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: segBtn.modelData.label
+                            color: segBtn.on ? Theme.textPrimary : Theme.textSecondary
+                            font.pixelSize: Theme.fontS
+                            font.weight: segBtn.on ? Font.DemiBold : Font.Normal
+                        }
+                    }
+                    UHoverTip {
+                        anchor: segBtn
+                        text: segBtn.modelData.label
+                        show: !seg.labelled && segMouse.containsMouse
+                    }
+                    MouseArea {
+                        id: segMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: segBtn._activate()
+                    }
+                    activeFocusOnTab: root.controlsFocusable && enabled
+                    Keys.onSpacePressed: (e) => UKeys.activate(e, segBtn._activate)
+                    Keys.onReturnPressed: (e) => UKeys.activate(e, segBtn._activate)
+                    Keys.onEnterPressed: (e) => UKeys.activate(e, segBtn._activate)
+                    Accessible.role: Accessible.RadioButton
+                    Accessible.name: segBtn.modelData.label
+                    Accessible.focusable: segBtn.activeFocusOnTab
+                    Accessible.checkable: true
+                    Accessible.checked: segBtn.on
+                    Accessible.onPressAction: segBtn._activate()
+                    UFocusRing { hostRadius: segBtn.radius }
+                }
+            }
         }
     }
 
@@ -224,8 +378,41 @@ Flow {
         property int entryIndex: 0
         property int currentIndex: 0
         default property alias content: groupRow.data
+        // What else the Cell puts on the line beside this group (the trailing
+        // Divider and its gap by default). A Cell cannot wrap inside itself,
+        // so a group longer than the strip - thirteen stickers, or the
+        // swatches plus six recent colours in the editor's inspector - wraps
+        // its own dots instead of running past the strip's edge.
+        property real reserve: 7
+        readonly property real limit: root.groupLimit > 0 ? Math.max(root.groupLimit, 160) - reserve
+                                                        : Number.POSITIVE_INFINITY
+        // Summed, not groupRow.implicitWidth: that is the width already
+        // wrapped, which cannot answer "how wide unwrapped?". By width, not
+        // implicitWidth: a ColorDot sets only its width.
+        readonly property real naturalWidth: {
+            var w = 0
+            var n = 0
+            for (var i = 0; i < groupRow.children.length; ++i) {
+                var c = groupRow.children[i]
+                if (!c.visible || c.width <= 0)
+                    continue
+                w += c.width
+                ++n
+            }
+            return n > 0 ? w + groupRow.spacing * (n - 1) : 0
+        }
+        // One line of dots, for the Cell's lineHeight.
+        readonly property real lineHeight: {
+            var h = 0
+            for (var i = 0; i < groupRow.children.length; ++i) {
+                var c = groupRow.children[i]
+                if (c.visible)
+                    h = Math.max(h, c.height)
+            }
+            return h
+        }
 
-        implicitWidth: groupRow.implicitWidth
+        implicitWidth: groupRow.width
         implicitHeight: groupRow.implicitHeight
         width: implicitWidth
         height: implicitHeight
@@ -246,7 +433,57 @@ Flow {
         // The dots carry their own names and Button roles; this only groups them.
         Accessible.role: Accessible.Grouping
 
-        Row { id: groupRow; spacing: 6 }
+        // Wrapped, even lines (5, 5, 3 stickers, not 6, 6, 1). Off where a
+        // narrower line would push a separator to the next line's start.
+        property bool balanced: false
+        readonly property int spacing: 6
+        // [lines, widest line] at width w, by Flow's own rule: a dot goes on
+        // the line unless it would cross the edge and it is not alone there.
+        function _wrap(w) {
+            var lines = 0
+            var line = 0
+            var widest = 0
+            for (var i = 0; i < groupRow.children.length; ++i) {
+                var c = groupRow.children[i]
+                if (!c.visible || c.width <= 0)
+                    continue
+                if (lines === 0 || line + groupRow.spacing + c.width > w) {
+                    ++lines
+                    line = c.width
+                } else {
+                    line += groupRow.spacing + c.width
+                }
+                widest = Math.max(widest, line)
+            }
+            return [lines, widest]
+        }
+        function _lines(w) { return _wrap(w)[0] }
+        // The width the dots actually draw, so the next control in the Cell
+        // sits right after them; balanced, the narrowest width that needs no
+        // more lines than the limit does.
+        readonly property real flowWidth: {
+            if (naturalWidth <= limit)
+                return naturalWidth
+            if (!balanced)
+                return _wrap(limit)[1]
+            var lines = _lines(limit)
+            var lo = 0
+            var hi = Math.floor(limit)
+            while (hi - lo > 1) {
+                var mid = Math.floor((lo + hi) / 2)
+                if (_lines(mid) <= lines)
+                    hi = mid
+                else
+                    lo = mid
+            }
+            return hi
+        }
+
+        Flow {
+            id: groupRow
+            spacing: group.spacing
+            width: group.flowWidth
+        }
     }
 
     // ---- style presets ----
@@ -405,20 +642,16 @@ Flow {
         }
     }
 
-    // ---- sticker: the mouse pointer or an emoji, and a picture file ----
-    // Pointing hands, verdicts and attention marks: what a screenshot gets
-    // stamped with. Any other emoji goes in with the Text tool.
-    readonly property var stickerEmoji: ["\u{1F449}", "\u{1F446}", "\u{1F447}", "\u{1F448}",
-                                         "\u2705", "\u274C", "\u26A0\uFE0F", "\u2753",
-                                         "\u{1F4A1}", "\u2B50", "\u{1F44D}", "\u{1F600}"]
+    // ---- sticker: the mouse pointer, the quick row, the library, a file ----
     Cell {
         visible: root.has("sticker")
         DotGroup {
             id: stickerGroup
             visible: root.has("sticker")
+            balanced: true
             anchors.verticalCenter: parent.verticalCenter
             activeFocusOnTab: root.controlsFocusable
-            readonly property var choices: ["pointer"].concat(root.stickerEmoji)
+            readonly property var choices: ["pointer"].concat(root.quickStickers)
             count: choices.length
             entryIndex: Math.max(0, choices.indexOf(root.canvas.sticker))
             Accessible.name: qsTr("Sticker")
@@ -427,20 +660,32 @@ Flow {
             Repeater {
                 model: root.has("sticker") ? stickerGroup.choices : []
                 delegate: ToolChip {
+                    id: stickerChip
+                    objectName: modelData === "pointer" ? "" : "quickSticker"
                     required property string modelData
                     required property int index
                     // Not a tab stop of its own - the group is (see DotGroup).
                     activeFocusOnTab: false
                     focus: index === stickerGroup.currentIndex
                     Accessible.focusable: root.controlsFocusable
+                    readonly property string art: modelData === "pointer" ? ""
+                                                  : root.canvas.stickerArt(modelData)
                     iconName: modelData === "pointer" ? "cursor-arrow" : ""
                     iconStyle: "custom"
-                    icon: modelData === "pointer" ? "" : modelData
+                    // No art: the emoji font draws it, as the canvas would.
+                    icon: modelData === "pointer" || art !== "" ? "" : modelData
                     label: modelData === "pointer" ? qsTr("Mouse pointer") : ""
                     accessibleName: modelData === "pointer" ? "" : modelData
                     active: root.canvas.sticker === modelData
-                    anchors.verticalCenter: parent.verticalCenter
                     onClicked: root.canvas.sticker = modelData
+                    Image {
+                        visible: stickerChip.art !== ""
+                        anchors.centerIn: parent
+                        width: 24
+                        height: 24
+                        sourceSize: Qt.size(48, 48)
+                        source: stickerChip.art
+                    }
                 }
             }
         }
@@ -450,11 +695,22 @@ Flow {
     }
     Cell {
         visible: root.has("sticker")
-        ToolChip {
-            activeFocusOnTab: root.controlsFocusable && enabled
-            iconName: "image"; iconStyle: "custom"; label: qsTr("Picture from a file\u2026")
+        Row {
+            visible: root.has("sticker")
             anchors.verticalCenter: parent.verticalCenter
-            onClicked: root.imageFileRequested()
+            spacing: 4
+            ToolChip {
+                activeFocusOnTab: root.controlsFocusable && enabled
+                iconName: "view-more"; iconStyle: "custom"; label: qsTr("All stickers\u2026")
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: root.stickerLibraryRequested()
+            }
+            ToolChip {
+                activeFocusOnTab: root.controlsFocusable && enabled
+                iconName: "image"; iconStyle: "custom"; label: qsTr("Picture from a file\u2026")
+                anchors.verticalCenter: parent.verticalCenter
+                onClicked: root.imageFileRequested()
+            }
         }
         Divider {
             visible: root.has("sticker")
@@ -501,9 +757,11 @@ Flow {
     // in between.
     Cell {
         visible: root.has("stroke")
+        title: root.inspector ? qsTr("Color") : ""
         DotGroup {
             id: swatchGroup
             visible: root.has("stroke")
+            reserve: root.inspector ? 8 + 26 : 6 + 30 + 7 // the colour picker button, then the Divider
             anchors.verticalCenter: parent.verticalCenter
             activeFocusOnTab: root.controlsFocusable && swatchGroup.count > 0
 
@@ -541,19 +799,31 @@ Flow {
                     // ColorDot carries no label of its own, so the hosts have to name
                     // every swatch - otherwise a screen reader reads a row of
                     // identical nameless buttons.
+                    width: root.pill ? 24 : 26
+                    height: width
+                    radius: width / 2
                     accessibleName: qsTr("Stroke colour %1").arg(String(modelData))
                     dotColor: modelData
                     active: Qt.colorEqual(root.canvas.strokeColor, modelData)
-                    anchors.verticalCenter: parent.verticalCenter
                     onClicked: root.canvas.strokeColor = modelData
                 }
             }
             // Palette | recent: one keyboard group, two sources the eye should
             // tell apart. Shorter than a Divider, which separates whole groups.
-            Rectangle {
+            // Dot-tall, so the Flow (which top-aligns) centres the line. Where
+            // the group wraps it separates nothing at a line's edge, so it goes
+            // transparent there (not invisible: that would move the wrap).
+            Item {
+                id: recentSeparator
                 visible: swatchGroup.recentCount > 0
-                width: 1; height: 16; color: Theme.divider
-                anchors.verticalCenter: parent.verticalCenter
+                width: 1; height: 26
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 1; height: 16; color: Theme.divider
+                    // At the end when the next dot (26 px) would not fit after it.
+                    opacity: recentSeparator.x === 0
+                             || recentSeparator.x + 1 + swatchGroup.spacing + 26 > swatchGroup.flowWidth ? 0 : 1
+                }
             }
             Repeater {
                 model: root.shownRecent
@@ -561,17 +831,61 @@ Flow {
                     activeFocusOnTab: false
                     focus: swatchGroup.baseCount + index === swatchGroup.currentIndex
                     Accessible.focusable: root.controlsFocusable
+                    width: root.pill ? 24 : 26
+                    height: width
+                    radius: width / 2
                     accessibleName: qsTr("Recent stroke colour %1").arg(String(modelData))
                     dotColor: modelData
                     active: Qt.colorEqual(root.canvas.strokeColor, modelData)
-                    anchors.verticalCenter: parent.verticalCenter
                     onClicked: root.canvas.strokeColor = modelData
                 }
             }
         }
+        Rectangle {
+            id: customColor
+            visible: root.has("stroke") && root.inspector
+            width: 26; height: 26
+            radius: 13
+            color: customMouse.containsMouse ? Theme.alpha(Theme.accent, 0.10) : "transparent"
+            function _activate() { root.strokePickerRequested() }
+            // A dashed ring has no Rectangle spelling; one SVG circle in the
+            // theme's accent, rebuilt only when the theme changes.
+            Image {
+                anchors.fill: parent
+                sourceSize: Qt.size(52, 52)
+                source: "data:image/svg+xml;utf8," + encodeURIComponent(
+                    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12.5" fill="none" stroke="'
+                    + Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 1).toString()
+                    + '" stroke-opacity="0.5" stroke-dasharray="3 2.5"/></svg>')
+            }
+            UIcon {
+                anchors.centerIn: parent
+                name: "line-plus"
+                iconStyle: "custom"
+                size: 14
+                color: Theme.textSecondary
+            }
+            UHoverTip { anchor: customColor; text: qsTr("More colors"); show: customMouse.containsMouse }
+            MouseArea {
+                id: customMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: customColor._activate()
+            }
+            activeFocusOnTab: root.controlsFocusable
+            Keys.onSpacePressed: (e) => UKeys.activate(e, customColor._activate)
+            Keys.onReturnPressed: (e) => UKeys.activate(e, customColor._activate)
+            Keys.onEnterPressed: (e) => UKeys.activate(e, customColor._activate)
+            Accessible.role: Accessible.Button
+            Accessible.name: qsTr("More colors")
+            Accessible.focusable: customColor.activeFocusOnTab
+            Accessible.onPressAction: customColor._activate()
+            UFocusRing { inset: 0; hostRadius: customColor.radius }
+        }
         UIconButton {
             activeFocusOnTab: root.controlsFocusable && enabled
-            visible: root.has("stroke")
+            visible: root.has("stroke") && !root.inspector
             iconName: "color-picker"
             iconSize: 16
             width: 30; height: 30
@@ -581,16 +895,79 @@ Flow {
         }
 
         Divider {
-            visible: root.has("stroke") && (root.showWidth || root.has("fill"))
+            visible: root.has("stroke") && !root.inspector && (root.showWidth || root.has("fill"))
         }
     }
 
-    // ---- stroke width / arrow head ----
+    // ---- stroke width / arrow head: the inspector's labelled sections ----
     Cell {
-        visible: root.showWidth || root.has("arrowhead")
-                 || (root.has("width") && root.has("fill"))
+        visible: root.inspector && root.showWidth
+        title: qsTr("Width")
+        value: qsTr("%1 px").arg(root.canvas.strokeWidth)
+        USlider {
+            activeFocusOnTab: root.controlsFocusable && enabled
+            visible: root.inspector && root.showWidth
+            width: Math.max(160, root.maxWidth)
+            from: 1
+            to: Math.max(24, root.canvas.strokeWidth)
+            value: root.canvas.strokeWidth
+            accessibleName: qsTr("Stroke width")
+            onMoved: (v) => root.canvas.strokeWidth = Math.round(v)
+        }
+    }
+    Cell {
+        visible: root.inspector && root.has("arrowhead")
+        title: qsTr("Arrowhead")
+        Segmented {
+            visible: root.inspector && root.has("arrowhead")
+            labelled: true
+            fill: Math.max(160, root.maxWidth)
+            accessibleName: qsTr("Arrow head")
+            options: root.arrowOptions
+            current: root.canvas.arrowHeadStyle
+            onPicked: (v) => root.canvas.arrowHeadStyle = v
+        }
+    }
+
+    // ---- stroke width / arrow head: the floating pill's presets ----
+    readonly property var arrowOptions: [
+        { value: 1, label: qsTr("Open"), iconName: "line-arrow" },
+        { value: 0, label: qsTr("Filled"), iconName: "line-head-filled" },
+        { value: 2, label: qsTr("Both"), iconName: "line-head-both" }
+    ]
+    Cell {
+        visible: root.pill && (root.showWidth || root.has("arrowhead"))
+        Segmented {
+            visible: root.pill && root.showWidth
+            anchors.verticalCenter: parent.verticalCenter
+            accessibleName: qsTr("Stroke width")
+            options: [
+                { value: 2, label: qsTr("Thin"), bar: 2 },
+                { value: 4, label: qsTr("Medium"), bar: 4 },
+                { value: 8, label: qsTr("Thick"), bar: 7 }
+            ]
+            current: root.canvas.strokeWidth
+            onPicked: (v) => root.canvas.strokeWidth = v
+        }
+        Segmented {
+            visible: root.pill && root.has("arrowhead")
+            anchors.verticalCenter: parent.verticalCenter
+            accessibleName: qsTr("Arrow head")
+            options: root.arrowOptions
+            current: root.canvas.arrowHeadStyle
+            onPicked: (v) => root.canvas.arrowHeadStyle = v
+        }
+        Divider {
+            visible: root.pill && root.has("width") && root.has("fill")
+        }
+    }
+
+    // ---- stroke width / arrow head: the overlay bar ----
+    Cell {
+        visible: root.variant === "bar"
+                 && (root.showWidth || root.has("arrowhead") || (root.has("width") && root.has("fill")))
         Column {
-            visible: root.showWidth
+            visible: root.variant === "bar" && root.showWidth
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
             Text {
@@ -617,7 +994,7 @@ Flow {
         UComboBox {
             activeFocusOnTab: root.controlsFocusable && enabled
             accessibleName: qsTr("Arrow head")
-            visible: root.has("arrowhead")
+            visible: root.variant === "bar" && root.has("arrowhead")
             // 150, not 112: at 112 even English "Double head" elided (84 px of
             // text into a 72 px slot), and every translation was worse. This is
             // a Flow, so the extra 38 px only ever costs a wrap.
@@ -629,7 +1006,7 @@ Flow {
         }
 
         Divider {
-            visible: root.has("width") && root.has("fill")
+            visible: root.variant === "bar" && root.has("width") && root.has("fill")
         }
     }
 
@@ -802,13 +1179,15 @@ Flow {
     // settings string; the schema lives here.
     Cell {
         visible: root.presetsVisible
+        title: root.inspector ? qsTr("Style presets") : ""
         Divider {
-            visible: root.presetsVisible
+            visible: root.presetsVisible && !root.inspector
             leading: true
         }
         DotGroup {
             id: presetGroup
             visible: root.presetsVisible && root.presets.length > 0
+            reserve: 7 + 6 + 40 // the leading Divider, then the save chip
             anchors.verticalCenter: parent.verticalCenter
             activeFocusOnTab: root.controlsFocusable && presetGroup.count > 0
             count: root.presetsVisible ? root.presets.length : 0
@@ -844,7 +1223,6 @@ Flow {
                     // A preset is "active" only when the WHOLE style matches, not just
                     // the colour - two presets can share a colour and differ in width.
                     active: root.presetMatchesCanvas(modelData)
-                    anchors.verticalCenter: parent.verticalCenter
                     onClicked: root.applyPreset(modelData)
                     UHoverTip {
                         anchor: presetDot

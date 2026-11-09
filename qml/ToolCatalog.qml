@@ -51,6 +51,85 @@ QtObject {
         { id: "shapes", iconName: "shapes", label: qsTr("Shapes") }
     ]
 
+    // The editor's own line glyphs for the "custom" icon style, by tool id.
+    readonly property var lineIcons: ({
+        edit: "line-edit", pen: "line-pen", line: "line-line", arrow: "line-arrow",
+        measure: "line-ruler", rect: "line-rect", ellipse: "line-ellipse",
+        callout: "line-callout", text: "line-text", highlight: "line-highlight",
+        blur: "line-blur", pixelate: "line-pixelate", smarterase: "line-eraser",
+        magnify: "line-magnify", spotlight: "line-spotlight",
+        eyedropper: "line-eyedropper", step: "line-step", crop: "line-crop",
+        cutout: "line-cut", sticker: "line-sticker"
+    })
+
+    // Editor tool order. "|" starts a new section. The panels layout shows
+    // every tool in `editorRail`; the floating bar folds the "@" entries into
+    // one chip each (editorGroups), so a 1060 px window still fits the pill.
+    readonly property var editorRail: ["edit", "|", "pen", "line", "arrow", "rect", "ellipse", "callout",
+        "|", "text", "step", "highlight", "|", "blur", "pixelate", "smarterase",
+        "|", "magnify", "spotlight", "measure", "eyedropper", "|", "crop", "cutout", "sticker"]
+    readonly property var editorBar: ["edit", "|", "pen", "arrow", "@shapes", "text", "step", "highlight", "@hide",
+        "|", "crop", "@more"]
+    readonly property var editorGroups: ({
+        shapes: { id: "shapes", label: qsTr("Shapes"), members: ["rect", "ellipse", "line", "callout"] },
+        hide: { id: "hide", label: qsTr("Hide"), members: ["blur", "pixelate", "smarterase"] },
+        more: { id: "more", label: qsTr("More tools"), iconName: "line-more-tools",
+                members: ["magnify", "spotlight", "measure", "eyedropper", "cutout", "sticker"] }
+    })
+
+    function _byId(id) {
+        for (var i = 0; i < tools.length; ++i)
+            if (tools[i].id === id) return tools[i]
+        return null
+    }
+
+    // [{kind: "tool", tool}, {kind: "group", group, members: [tool]}, {kind: "sep"}]
+    // for one editor layout. Hidden tools drop out, a group left empty drops
+    // out, separators never lead, trail or double up, and a tool missing from
+    // the order lists still gets a chip at the end.
+    function editorSequence(floating, hiddenCsv) {
+        var order = floating ? editorBar : editorRail
+        var shown = visibleFor("editor", hiddenCsv)
+        var isShown = function (id) { return shown.some(function (t) { return t.id === id }) }
+        var placed = {}
+        var out = []
+        var sep = false
+        var push = function (e) {
+            if (sep && out.length > 0) out.push({ kind: "sep" })
+            sep = false
+            out.push(e)
+        }
+        for (var i = 0; i < order.length; ++i) {
+            var e = order[i]
+            if (e === "|") { sep = true; continue }
+            if (e.charAt(0) === "@") {
+                var g = editorGroups[e.substring(1)]
+                var members = []
+                for (var m = 0; m < g.members.length; ++m) {
+                    placed[g.members[m]] = true
+                    if (isShown(g.members[m])) members.push(_byId(g.members[m]))
+                }
+                if (members.length === 1) push({ kind: "tool", tool: members[0] })
+                else if (members.length > 1) push({ kind: "group", group: g, members: members })
+                continue
+            }
+            placed[e] = true
+            if (isShown(e)) push({ kind: "tool", tool: _byId(e) })
+        }
+        for (var j = 0; j < shown.length; ++j)
+            if (!placed[shown[j].id]) push({ kind: "tool", tool: shown[j] })
+        return out
+    }
+
+    // The floating bar's group holding this tool enum ("" when none).
+    function editorGroupOf(toolEnum) {
+        var t = toolByEnum(toolEnum)
+        if (!t) return ""
+        for (var k in editorGroups)
+            if (editorGroups[k].members.indexOf(t.id) >= 0) return k
+        return ""
+    }
+
     // Resolve the icon name for a tool given the editor icon style and the
     // optional per-tool freedesktop-name override map (JSON string). Overrides
     // only apply to the "system" style; "custom" always uses the bundled glyph.
@@ -61,7 +140,7 @@ QtObject {
                 if (m[t.id] && m[t.id] !== "") return m[t.id]
             } catch (e) {}
         }
-        return t.iconName
+        return style === "custom" && lineIcons[t.id] ? lineIcons[t.id] : t.iconName
     }
 
     function isHidden(id, csv) {

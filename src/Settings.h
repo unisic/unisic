@@ -129,6 +129,8 @@ class Settings : public QObject
     Q_PROPERTY(bool editorResetColors READ editorResetColors WRITE setEditorResetColors NOTIFY editorResetColorsChanged)
     Q_PROPERTY(bool editorResetTools READ editorResetTools WRITE setEditorResetTools NOTIFY editorResetToolsChanged)
     Q_PROPERTY(QString recentColors READ recentColors WRITE setRecentColors NOTIFY recentColorsChanged)
+    Q_PROPERTY(QString recentStickers READ recentStickers WRITE setRecentStickers NOTIFY recentStickersChanged)
+    Q_PROPERTY(int stickerTone READ stickerTone WRITE setStickerTone NOTIFY stickerToneChanged)
     Q_PROPERTY(QString editorStylePresets READ editorStylePresets WRITE setEditorStylePresets NOTIFY editorStylePresetsChanged)
     Q_PROPERTY(QString hiddenTools READ hiddenTools WRITE setHiddenTools NOTIFY hiddenToolsChanged)
     Q_PROPERTY(QString overlayToolbarPosition READ overlayToolbarPosition WRITE setOverlayToolbarPosition NOTIFY overlayToolbarPositionChanged)
@@ -165,6 +167,7 @@ class Settings : public QObject
     Q_PROPERTY(bool ocrAutoLanguage READ ocrAutoLanguage WRITE setOcrAutoLanguage NOTIFY ocrAutoLanguageChanged)
     Q_PROPERTY(QString ocrLanguages READ ocrLanguages WRITE setOcrLanguages NOTIFY ocrLanguagesChanged)
     Q_PROPERTY(QString editorIconStyle READ editorIconStyle WRITE setEditorIconStyle NOTIFY editorIconStyleChanged)
+    Q_PROPERTY(QString editorLayout READ editorLayout WRITE setEditorLayout NOTIFY editorLayoutChanged)
     Q_PROPERTY(QString editorToolIcons READ editorToolIcons WRITE setEditorToolIcons NOTIFY editorToolIconsChanged)
     Q_PROPERTY(QString uiLanguage READ uiLanguage WRITE setUiLanguage NOTIFY uiLanguageChanged)
     Q_PROPERTY(bool useSystemDecoration READ useSystemDecoration WRITE setUseSystemDecoration NOTIFY useSystemDecorationChanged)
@@ -551,6 +554,12 @@ public:
     U_SETTING(bool, editorResetColors, setEditorResetColors, "editor/resetColors", false)
     U_SETTING(bool, editorResetTools, setEditorResetTools, "editor/resetTools", false)
     U_SETTING(QString, recentColors, setRecentColors, "editor/recentColors", QString())
+    // The Sticker tool's quick row, comma-separated emoji, newest first; empty
+    // is StickerPopup.qml's quickDefaults.
+    U_SETTING(QString, recentStickers, setRecentStickers, "editor/recentStickers", QString())
+    // The sticker library's skin tone: 0 none (the yellow default), 1-5 light
+    // to dark, Unicode's U+1F3FB..U+1F3FF.
+    U_SETTING(int, stickerTone, setStickerTone, "editor/stickerTone", 0)
     // Saved annotation-style presets: a JSON array of objects, each holding the
     // canvas style properties captured when the preset was saved. One opaque
     // string rather than a key per field so the QML side owns the schema and a
@@ -668,6 +677,10 @@ public:
     // Editor/overlay tool icons only (never the main app chrome): "custom" =
     // bundled monochrome glyphs, "system" = freedesktop QIcon::fromTheme.
     U_SETTING(QString, editorIconStyle, setEditorIconStyle, "ui/editorIconStyle", QStringLiteral("custom"))
+    // Editor window arrangement: "panels" = tool rail left, options in an
+    // inspector column right; "floating" = full-bleed canvas with the same
+    // controls in floating pills. Same controls either way, only placement.
+    U_SETTING(QString, editorLayout, setEditorLayout, "ui/editorLayout", QStringLiteral("panels"))
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
     // UI language: "system" follows the OS locale, "en" forces English, "pl"
@@ -754,6 +767,7 @@ public:
         emit editorHighlightModeChanged(); emit lastSeenVersionChanged();
         emit editorStepSizeChanged();
         emit editorFillColorChanged(); emit editorFillEnabledChanged(); emit recentColorsChanged();
+        emit recentStickersChanged(); emit stickerToneChanged();
         emit editorStylePresetsChanged();
         emit editorFontFamilyChanged(); emit editorFontBoldChanged(); emit editorFontItalicChanged();
         emit editorFontUnderlineChanged(); emit editorTextOutlineChanged(); emit editorTextOutlineColorChanged();
@@ -776,7 +790,7 @@ public:
         emit capturePopupDurationSecChanged(); emit capturePopupStyleChanged(); emit capturePopupMarginChanged();
         emit hiddenNotifActionsChanged(); emit notificationActionOrderChanged();
         emit muteOnFullscreenChanged(); emit ocrLanguagesChanged();
-        emit editorIconStyleChanged(); emit editorToolIconsChanged();
+        emit editorIconStyleChanged(); emit editorToolIconsChanged(); emit editorLayoutChanged();
         emit uiLanguageChanged();
         emit useSystemDecorationChanged(); emit trayIconPathChanged(); emit hiddenTrayItemsChanged();
         emit recordPageModeChanged();
@@ -876,6 +890,8 @@ signals:
     void editorResetColorsChanged();
     void editorResetToolsChanged();
     void recentColorsChanged();
+    void recentStickersChanged();
+    void stickerToneChanged();
     void editorStylePresetsChanged();
     void hiddenToolsChanged();
     void overlayToolbarPositionChanged();
@@ -913,6 +929,7 @@ signals:
     void ocrAutoLanguageChanged();
     void ocrLanguagesChanged();
     void editorIconStyleChanged();
+    void editorLayoutChanged();
     void editorToolIconsChanged();
     void uiLanguageChanged();
     void useSystemDecorationChanged();

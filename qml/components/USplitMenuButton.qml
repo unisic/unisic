@@ -15,6 +15,10 @@ Rectangle {
     property string tooltip: ""
     property string dropdownTooltip: ""
     property bool compact: false
+    // Surface fill with an accent hairline instead of the tonal pill, and a
+    // caller-set corner radius: the editor header's square-cornered toolbar.
+    property bool outline: false
+    property real cornerRadius: height / 2
     property var actions: []
     readonly property bool menuOpen: popup.opened
 
@@ -22,11 +26,11 @@ Rectangle {
 
     implicitHeight: compact ? 34 : 42
     implicitWidth: leftPart.implicitWidth + 1 + rightPart.implicitWidth
-    radius: height / 2
+    radius: cornerRadius
     opacity: root.enabled ? 1.0 : 0.4
-    color: Theme.tertiary
+    color: outline ? Theme.surface : Theme.tertiary
     border.width: 1
-    border.color: Theme.divider
+    border.color: outline ? Theme.alpha(Theme.accent, 0.14) : Theme.divider
 
     function _openMenu(fromKeyboard) {
         if (!root.enabled)
@@ -78,7 +82,7 @@ Rectangle {
         anchors.topMargin: 1
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 1
-        implicitWidth: leftRow.implicitWidth + (root.compact ? 24 : 32)
+        implicitWidth: leftRow.implicitWidth + (root.outline ? 24 : root.compact ? 24 : 32)
         topLeftRadius: Math.max(0, root.radius - 1)
         bottomLeftRadius: Math.max(0, root.radius - 1)
         topRightRadius: 0
@@ -95,15 +99,15 @@ Rectangle {
             UIcon {
                 visible: root.iconName !== ""
                 name: root.iconName
-                size: 18
+                size: root.outline ? 15 : 18
                 color: Theme.textPrimary
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
                 visible: root.text !== ""
                 text: root.text
-                font.pixelSize: Theme.fontM
-                font.weight: Font.DemiBold
+                font.pixelSize: root.outline ? Theme.fontS + 1 : Theme.fontM
+                font.weight: root.outline ? Font.Medium : Font.DemiBold
                 color: Theme.textPrimary
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -145,8 +149,8 @@ Rectangle {
         anchors.left: leftPart.right
         anchors.verticalCenter: parent.verticalCenter
         width: 1
-        height: parent.height - (root.compact ? 14 : 18)
-        color: Theme.divider
+        height: root.outline ? parent.height : parent.height - (root.compact ? 14 : 18)
+        color: root.outline ? Theme.alpha(Theme.accent, 0.14) : Theme.divider
     }
 
     // RIGHT half - dropdown menu trigger

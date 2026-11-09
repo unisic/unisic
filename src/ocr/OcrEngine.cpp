@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QSet>
+#include <vector>
 #include <tesseract/baseapi.h>
 #include <tesseract/ocrclass.h> // ETEXT_DESC - cancellable Recognize()
 #include <ZXing/ReadBarcode.h>
@@ -174,6 +175,60 @@ QString resolveScriptLangs(const QImage &img, const QString &availableSpec)
     return OcrEngine::languagesForScript(script, availableSpec);
 }
 
+// Grey copy of `src`, inverted wherever the local background is dark (the mean
+// over a (2r+1)-pixel square below mid-grey), so light-on-dark panels read
+// dark-on-light like the rest of the shot. Tesseract's own per-line inversion
+// misses them once PSM_SPARSE_TEXT cuts a dark card into fragments. Box sums
+// over a ring of 2r+1 rows: about 2r+1 rows of 16-bit sums plus one 32-bit sum
+// per column besides the grey copy and the result, whatever the image size.
+QImage normalizePolarity(const QImage &src)
+{
+    constexpr int r = 24;
+    constexpr int win = 2 * r + 1;
+    const QImage g = src.convertToFormat(QImage::Format_Grayscale8);
+    const int w = g.width(), h = g.height();
+    QImage out(w, h, QImage::Format_Grayscale8);
+    std::vector<quint16> ring(size_t(win) * w);
+    std::vector<quint32> col(w, 0);
+    // Row y's sums over [x-r, x+r] (49 * 255 fits 16 bits) into its ring slot,
+    // added to (sign 1) or taken from (sign -1) the column sums.
+    auto rowSums = [&](int y) {
+        const uchar *row = g.constScanLine(y);
+        quint16 *dst = ring.data() + size_t(y % win) * w;
+        quint32 run = 0;
+        for (int x = 0; x <= qMin(r, w - 1); ++x)
+            run += row[x];
+        for (int x = 0; x < w; ++x) {
+            dst[x] = quint16(run);
+            col[x] += run;
+            if (x + r + 1 < w)
+                run += row[x + r + 1];
+            if (x - r >= 0)
+                run -= row[x - r];
+        }
+    };
+    for (int y = 0; y <= qMin(r, h - 1); ++y)
+        rowSums(y);
+    for (int y = 0; y < h; ++y) {
+        const uchar *row = g.constScanLine(y);
+        uchar *o = out.scanLine(y);
+        const quint32 cy = quint32(qMin(h, y + r + 1) - qMax(0, y - r));
+        for (int x = 0; x < w; ++x) {
+            const quint32 cx = quint32(qMin(w, x + r + 1) - qMax(0, x - r));
+            o[x] = col[x] < 128 * cx * cy ? uchar(255 - row[x]) : row[x];
+        }
+        // Slide the window down: the leaving row's slot is the entering row's.
+        if (y - r >= 0) {
+            const quint16 *leave = ring.data() + size_t((y - r) % win) * w;
+            for (int x = 0; x < w; ++x)
+                col[x] -= leave[x];
+        }
+        if (y + r + 1 < h)
+            rowSums(y + r + 1);
+    }
+    return out;
+}
+
 // Runs on a worker thread. Recognizes and walks the result iterator at SYMBOL
 // (glyph) granularity so the editor overlay can select individual letters,
 // tracking the text-line index (for per-line underlines) and word boundaries
@@ -204,10 +259,15 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
                               "Install the Tesseract language packs").arg(langs);
         return r;
     }
-    const QImage rgba = img.convertToFormat(QImage::Format_RGBA8888);
-    api.SetImage(rgba.constBits(), rgba.width(), rgba.height(), 4,
-                 static_cast<int>(rgba.bytesPerLine()));
+    // Sparse text, not the default single block: a screenshot is a scatter of
+    // labels, buttons and cards, and one block makes tesseract join a sidebar
+    // and the column beside it into garbled lines. Sparse mode alone loses
+    // light text on dark cards, hence the polarity pass.
+    const QImage grey = normalizePolarity(img);
+    api.SetImage(grey.constBits(), grey.width(), grey.height(), 1,
+                 static_cast<int>(grey.bytesPerLine()));
     api.SetSourceResolution(96);
+    api.SetPageSegMode(tesseract::PSM_SPARSE_TEXT);
     using namespace tesseract;
     ETEXT_DESC monitor;
     monitor.cancel = [](void *that, int) { return static_cast<std::atomic_bool *>(that)->load(); };

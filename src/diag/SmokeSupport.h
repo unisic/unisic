@@ -32,6 +32,10 @@ QImage devTestImage();
 // box self-test, which is the selectable-text overlay's data source.
 QImage ocrBoxTestImage();
 
+// An IP address, an e-mail and a toolbar line with a wide gap, for the
+// Auto-redact self-test over real Tesseract geometry.
+QImage autoRedactTestImage();
+
 // zxing-cpp is already linked for QR decoding. Encoding a small preview is
 // synchronous and bounded (360 squared pixels); unlike screenshot PNG work it
 // never needs a worker or retains a full capture-sized buffer.

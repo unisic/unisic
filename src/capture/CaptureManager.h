@@ -33,6 +33,10 @@ public:
 
     explicit CaptureManager(Settings *settings, QObject *parent = nullptr);
 
+    // The backend the next screenshot tries first, in the same order the
+    // capture calls below walk (a KWin auth failure moves it on to the rest).
+    QString backendName() const;
+
     // Full virtual desktop (all monitors, one image in workspace coordinates).
     void captureWorkspace(Callback cb);
     // ONE screen (native KWin per-screen capture; portal workspace + crop

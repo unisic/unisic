@@ -62,7 +62,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 
 - **Capture** - full screen across monitors, an interactive region with live dimensions, the active window, or a scrolling capture of a page taller than the screen; optional delay and cursor.
 - **Annotate before the shot** - the selection overlay is already a canvas: arrows, shapes, text, blur and numbered steps, burned into the crop on <kbd>Enter</kbd>.
-- **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, emoji or a picture from a file), rotate, flip, resize, remove the background (on your computer, with a model downloaded once from Settings), undo/redo and zoom, then print it.
+- **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, a library of Twemoji emoji or a picture from a file), rotate, flip, resize, remove the background (on your computer, with a model downloaded once from Settings), undo/redo and zoom, then print it.
 - **Record** - region, full screen or window to GIF, MP4 or WebM, with optional system and microphone audio.
 - **Read pixels** - OCR any region or scan a QR/barcode, and copy the result.
 - **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, Amazon S3 and S3-compatible storage and built-in hosts, plus every new file in a watched folder; the link auto-copies (the local file can go to the trash after it), and copied text turns into a QR code.
@@ -128,7 +128,7 @@ Every dependency is required: configure stops and names the missing package inst
 
 Issues and pull requests welcome. For a bug, [file an issue](https://github.com/unisic/unisic/issues) with your desktop, compositor, GPU and logs. [CONTRIBUTING.md](CONTRIBUTING.md) has the project layout. Unisic is developed with agentic AI assistance ([AGENTS.md](AGENTS.md)); every generated change is read line by line and reviewed by the maintainer before it lands.
 
-Licensed **GNU GPL v3** - see [LICENSE](LICENSE) and [what that means](https://unisic.app/docs/introduction#license). Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.com/D3anDark), inspired by [ShareX](https://getsharex.com/) and [Spectacle](https://apps.kde.org/spectacle/).
+Licensed **GNU GPL v3** - see [LICENSE](LICENSE) and [what that means](https://unisic.app/docs/introduction#license). The sticker art is [Twemoji](https://github.com/jdecked/twemoji) by Twitter and the Twemoji contributors, CC BY 4.0 ([third_party/twemoji](third_party/twemoji/LICENSE)), and their names and groups come from Unicode's emoji data and CLDR, under the [Unicode License v3](third_party/twemoji/LICENSE.unicode). Built by [@DeBondor](https://github.com/DeBondor) & [@D3anDark](https://github.com/D3anDark), inspired by [ShareX](https://getsharex.com/) and [Spectacle](https://apps.kde.org/spectacle/).
 
 <div align="center">
 <br />

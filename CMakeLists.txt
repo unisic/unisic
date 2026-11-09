@@ -177,6 +177,7 @@ qt_add_executable(unisic
     src/record/RecordBorderHelper.h src/record/RecordBorderHelper.cpp
     src/record/RecordBorderController.h src/record/RecordBorderController.cpp
     src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+    src/editor/SensitiveText.h src/editor/SensitiveText.cpp
     src/editor/EditorSession.h src/editor/EditorSession.cpp
     src/editor/ImageEffects.h src/editor/ImageEffects.cpp
     src/editor/WatermarkPreview.h src/editor/WatermarkPreview.cpp
@@ -339,6 +340,10 @@ qt_add_qml_module(unisic
         qml/components/ULogViewer.qml
         qml/components/UAppAudioPicker.qml
         qml/components/UWelcome.qml
+        qml/components/StickerPopup.qml
+        qml/components/RedactReview.qml
+        qml/components/Kbd.qml
+        qml/components/HeaderSearch.qml
         qml/components/UNotifPreview.qml
         qml/components/UOverlayPreview.qml
         qml/components/UModeGlyph.qml
@@ -379,6 +384,15 @@ qt_add_resources(unisic "themes" PREFIX "/" FILES ${UNISIC_THEMES})
 # to the cache dir and played via pw-play/paplay/aplay at capture time.
 file(GLOB UNISIC_SOUNDS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} resources/sounds/*.wav)
 qt_add_resources(unisic "sounds" PREFIX "/" FILES ${UNISIC_SOUNDS})
+
+# The editor's stickers, Twemoji SVGs at :/stickers/<code points>.svg, and
+# their catalogue (names and search words from Unicode's emoji data and CLDR)
+# beside them (third_party/twemoji/README.md). CC BY 4.0 and the Unicode
+# License: both notices ship beside the binary, see the install() below.
+file(GLOB UNISIC_STICKERS CONFIGURE_DEPENDS RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+     third_party/twemoji/*.svg third_party/twemoji/*.json)
+qt_add_resources(unisic "stickers" PREFIX "/stickers" BASE third_party/twemoji
+                 FILES ${UNISIC_STICKERS})
 
 # Bundled tray-icon presets: drop .svg/.png into resources/icons/tray/ and they
 # show up in Settings > Appearance > System tray icon (re-run cmake after adding).
@@ -490,6 +504,12 @@ install(FILES packaging/obs/home_unisic.key
 # package can see exactly which features that binary was built with, without
 # guessing from behaviour.
 install(FILES ${CMAKE_BINARY_DIR}/unisic-features.txt
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
+# The stickers are Twemoji art under CC BY 4.0 and a catalogue of Unicode
+# data, compiled in; both licenses travel with every copy.
+install(FILES third_party/twemoji/LICENSE
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.twemoji)
+install(FILES third_party/twemoji/LICENSE.unicode
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
@@ -615,7 +635,7 @@ set(CPACK_DEBIAN_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
 
 set(CPACK_RPM_PACKAGE_GROUP "Applications/Multimedia")
-set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later")
+set(CPACK_RPM_PACKAGE_LICENSE "GPL-3.0-or-later AND MIT AND CC-BY-4.0 AND Unicode-3.0")
 set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 # The CPack rpm ships as the FEDORA release asset only: QML type
 # registration links Qt PRIVATE API symbols (Qt_6.x_PRIVATE_API), pinning
@@ -708,11 +728,14 @@ if(BUILD_TESTING)
     qt_add_executable(unisic_annotation_canvas_test
         tests/AnnotationCanvasTest.cpp
         src/editor/AnnotationCanvas.h src/editor/AnnotationCanvas.cpp
+        src/editor/SensitiveText.h src/editor/SensitiveText.cpp
         src/editor/ImageEffects.h src/editor/ImageEffects.cpp
         src/record/CursorOverlayPainter.h src/record/CursorOverlayPainter.cpp
     )
     target_link_libraries(unisic_annotation_canvas_test PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+        Qt6::Core Qt6::Gui Qt6::Network Qt6::Quick Qt6::Qml Qt6::Concurrent Qt6::Test)
+    qt_add_resources(unisic_annotation_canvas_test "stickers" PREFIX "/stickers"
+                     BASE third_party/twemoji FILES ${UNISIC_STICKERS})
     target_include_directories(unisic_annotation_canvas_test PRIVATE src src/editor)
     add_test(NAME unisic_annotation_canvas_test COMMAND unisic_annotation_canvas_test)
     set_tests_properties(unisic_annotation_canvas_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

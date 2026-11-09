@@ -220,6 +220,11 @@ bool KWinScreenShot2::isAvailable()
     return QGuiApplication::platformName() == QLatin1String("windows");
 }
 
+QString KWinScreenShot2::backendName()
+{
+    return QStringLiteral("GDI");
+}
+
 void KWinScreenShot2::captureWorkspace(bool includeCursor, Callback cb)
 {
     deliverLater(this, [includeCursor](QString *error) {

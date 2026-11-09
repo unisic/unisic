@@ -13,7 +13,7 @@ pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
-license=('GPL-3.0-or-later')
+license=('GPL-3.0-or-later' 'CC-BY-4.0' 'Unicode-3.0')
 # Unisic has no optional dependencies. Every compile-time gate is a hard build
 # requirement - CMake stops at configure time naming the package to install -
 # so every library those gates detect is a hard runtime one too:

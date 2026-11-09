@@ -1,8 +1,10 @@
 #include "AnnotationCanvas.h"
 #include "ImageEffects.h"
+#include "SensitiveText.h"
 
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QImageReader>
 #include <QMap>
 #include <QMouseEvent>
 #include <QPainter>
@@ -37,7 +39,10 @@ private slots:
     void selectionSnapsToWholePixels();
     void ocrSelectionCreatesLineBatchedAnnotations();
     void ocrCaretSelectionIsCharacterPrecise();
-    void ocrPatternRedactionCoversOnlyMatches();
+    void autoRedactCoversFindingsAndToggles();
+    void autoRedactStopsAtAColumnGap();
+    void sensitiveTextFindsWhatToCover();
+    void ocrLineSplitsAtWideGap();
     void measureRulerModesAndCopy();
     void textHighlightPenSnapsToLineTextHeight();
     void pasteClipboardCreatesTextAndImage();
@@ -59,8 +64,17 @@ private slots:
     void rotateFlipScaleWholeImage();
     void cutOutRemovesStripAndJoins();
     void stickersStampDragAndInsertFile();
+    void stickerArtComesFromBundledFiles();
+    void stickerCatalogDrawsEveryEmoji();
     void pixelLoupeFollowsHoverAndZooms();
     void partialRepaintMatchesFullRender();
+    void multiSelectGroupEdits();
+    void arrangeAndDuplicate();
+    void rightClickShapeMenu();
+    void shapeListSelects();
+    void blurPreviewIsSmoothWhileDragging();
+    void figmaModifiersResizeMoveDraw();
+    void ctrlHandleCropsPicture();
 };
 
 // Convenience: full press→(move)→release cycle at item coordinates.
@@ -510,12 +524,13 @@ void AnnotationCanvasTest::measureRulerModesAndCopy()
              QStringLiteral("200 × 60"));
 }
 
-// Pattern redaction blacks out the matches and NOTHING else. Two matches on one
+// Auto-redact blacks out the findings and NOTHING else. Two matches on one
 // text line must stay two bars: the batch groups a run per text line, so without
 // the index-gap break they would merge into a single bar swallowing the
-// untouched word between them — which on a real screenshot silently destroys
-// content the user never asked to hide.
-void AnnotationCanvasTest::ocrPatternRedactionCoversOnlyMatches()
+// untouched word between them, which on a real screenshot silently destroys
+// content the user never asked to hide. An uncovered finding leaves the export
+// and comes back with undo; a second run adds nothing it already covers.
+void AnnotationCanvasTest::autoRedactCoversFindingsAndToggles()
 {
     TestAnnotationCanvas canvas;
     canvas.setWidth(200);
@@ -524,8 +539,8 @@ void AnnotationCanvasTest::ocrPatternRedactionCoversOnlyMatches()
     image.fill(Qt::white);
     canvas.setImage(image);
 
-    // "a@b.co z c@d.eu" on one line: two e-mails with a non-matching word
-    // between them. Glyph i sits at x = 10 + i*12, so the gap word is at 82..92.
+    // "a@b.co z c@d.eu" on one line: two e-mails with a plain word between
+    // them. Glyph i sits at x = 10 + i*12, so the gap word is at 82..92.
     const QStringList glyphs{QStringLiteral("a"), QStringLiteral("@"), QStringLiteral("b"),
                              QStringLiteral("."), QStringLiteral("c"), QStringLiteral("o"),
                              QStringLiteral("z"),
@@ -542,34 +557,176 @@ void AnnotationCanvasTest::ocrPatternRedactionCoversOnlyMatches()
         words.append(w);
     }
     canvas.setOcrMode(true);
+    QCOMPARE(canvas.autoRedact(), 0); // no words yet: nothing, no crash
     canvas.setOcrWords(words);
-
-    const QString email = QStringLiteral("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}");
-
-    // An unparseable pattern is reported, never silently treated as "no match".
-    QCOMPARE(canvas.redactTextMatching(QStringLiteral("([")), -1);
-    // A valid pattern that matches nothing leaves the canvas untouched.
-    QCOMPARE(canvas.redactTextMatching(QStringLiteral("\\bZZZ\\b")), 0);
-    QCOMPARE(canvas.annotCount(), 0);
 
     // No selection is made: that is the whole point of auto-redaction.
     QVERIFY(!canvas.hasOcrSelection());
-    QCOMPARE(canvas.redactTextMatching(email), 2);
+    QCOMPARE(canvas.autoRedact(), 2);
     QCOMPARE(canvas.annotCount(), 2); // one bar per match, NOT one per line
 
-    const QImage out = canvas.rendered();
+    QImage out = canvas.rendered();
     QCOMPARE(out.size(), image.size());
-    // Both e-mails are blacked out...
     QCOMPARE(out.pixelColor(15, 29), QColor(Qt::black));
     QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
-    // ...and the word between them is untouched.
     QCOMPARE(out.pixelColor(87, 29), QColor(Qt::white));
 
-    // The whole batch is one undo step.
-    canvas.undo();
+    QVariantList found = canvas.redactions();
+    QCOMPARE(found.size(), 2);
+    QCOMPARE(found[0].toMap().value("kind").toString(), QStringLiteral("email"));
+    QCOMPARE(found[0].toMap().value("text").toString(), QStringLiteral("a@b.co"));
+    QCOMPARE(found[1].toMap().value("text").toString(), QStringLiteral("c@d.eu"));
+    QVERIFY(found[0].toMap().value("covered").toBool());
+
+    // Already covered: a second run must not stack a second bar.
+    QCOMPARE(canvas.autoRedact(), 0);
+    QCOMPARE(canvas.annotCount(), 2);
+
+    // Uncover the first: gone from the export, still listed, the other stays.
+    const int g0 = found[0].toMap().value("group").toInt();
+    canvas.setRedactionCovered(g0, false);
+    out = canvas.rendered();
+    QCOMPARE(out.pixelColor(15, 29), QColor(Qt::white));
+    QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
+    found = canvas.redactions();
+    QCOMPARE(found.size(), 2);
+    QVERIFY(!found[0].toMap().value("covered").toBool());
+    // An uncovered finding still counts as found: no second bar on a re-run.
+    QCOMPARE(canvas.autoRedact(), 0);
+    QCOMPARE(canvas.annotCount(), 2);
+
+    canvas.undo(); // the toggle
+    QCOMPARE(canvas.rendered().pixelColor(15, 29), QColor(Qt::black));
+    canvas.undo(); // the whole batch is one step
     QCOMPARE(canvas.annotCount(), 0);
+    QVERIFY(canvas.redactions().isEmpty());
     canvas.redo();
     QCOMPARE(canvas.annotCount(), 2);
+
+    // A bar deleted by hand is not "already covered": the next run puts it back.
+    canvas.selectAnnotIndex(0);
+    canvas.removeSelectedAnnot();
+    QCOMPARE(canvas.annotCount(), 1);
+    out = canvas.rendered();
+    QVERIFY(out.pixelColor(15, 29) == QColor(Qt::white) || out.pixelColor(99, 29) == QColor(Qt::white));
+    QCOMPARE(canvas.autoRedact(), 1);
+    QCOMPARE(canvas.annotCount(), 2);
+    out = canvas.rendered();
+    QCOMPARE(out.pixelColor(15, 29), QColor(Qt::black));
+    QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
+}
+
+// Tesseract reports two table columns as one text line. The canvas splits it at
+// the wide gap, and the detector must see that split too: "12345" and "6789"
+// joined by one space read as a nine-digit phone number nobody wrote.
+void AnnotationCanvasTest::autoRedactStopsAtAColumnGap()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(600);
+    canvas.setHeight(60);
+    QImage image(600, 60, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    const QString left = QStringLiteral("12345");
+    const QString right = QStringLiteral("6789");
+    QVector<OcrWord> words;
+    auto add = [&](const QString &run, int x0) {
+        for (int i = 0; i < run.size(); ++i) {
+            OcrWord w;
+            w.rect = QRect(x0 + i * 12, 20, 10, 18);
+            w.text = run.mid(i, 1);
+            w.line = 0;
+            w.confidence = 100.f;
+            w.spaceBefore = (i == 0 && x0 > 10);
+            words.append(w);
+        }
+    };
+    add(left, 10);
+    add(right, 400);
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+    QCOMPARE(canvas.autoRedact(), 0);
+    QCOMPARE(canvas.annotCount(), 0);
+
+    // The same digits one word space apart are one number.
+    words.clear();
+    add(left, 10);
+    add(right, 82);
+    canvas.setOcrWords(words);
+    QCOMPARE(canvas.autoRedact(), 1);
+}
+
+void AnnotationCanvasTest::sensitiveTextFindsWhatToCover()
+{
+    // Each input lists what must be covered, as "kind:text", in order.
+    const QList<QPair<QString, QStringList>> cases{
+        {QStringLiteral("mail me: jan.kowalski@example.com now"),
+         {QStringLiteral("email:jan.kowalski@example.com")}},
+        {QStringLiteral("server 192.168.1.20 and 10.0.0.1/24"),
+         {QStringLiteral("ip:192.168.1.20"), QStringLiteral("ip:10.0.0.1/24")}},
+        // As OCR reads them: a misread digit past 255, a space split off.
+        {QStringLiteral("89.193.132.262 and 166 .66.122.127"),
+         {QStringLiteral("ip:89.193.132.262"), QStringLiteral("ip:166 .66.122.127")}},
+        {QStringLiteral("build 1.2.3.4.5"), {}},
+        {QStringLiteral("link fe80::1ff:fe23:4567:890a up"), {QStringLiteral("ip:fe80::1ff:fe23:4567:890a")}},
+        {QStringLiteral("at 12:30:05 and 2026-11-09 01:46:37"), {}},
+        {QStringLiteral("ether aa:bb:cc:dd:ee:ff"), {QStringLiteral("mac:aa:bb:cc:dd:ee:ff")}},
+        {QStringLiteral("card 4111 1111 1111 1111"), {QStringLiteral("card:4111 1111 1111 1111")}},
+        // Fails Luhn: still covered, as a long number.
+        {QStringLiteral("card 4111 1111 1111 1112"), {QStringLiteral("number:4111 1111 1111 1112")}},
+        {QStringLiteral("IBAN PL61 1090 1014 0000 0712 1981 2874"),
+         {QStringLiteral("iban:PL61 1090 1014 0000 0712 1981 2874")}},
+        // A Polish account number written without the country code: all 26
+        // digits, never only the card-length start of it.
+        {QStringLiteral("nr 61 1090 1014 0000 0712 1981 2874"),
+         {QStringLiteral("number:61 1090 1014 0000 0712 1981 2874")}},
+        {QStringLiteral("call +48 123 456 789"), {QStringLiteral("number:+48 123 456 789")}},
+        {QStringLiteral("code 1234 5678"), {}},
+        {QStringLiteral("password: hunter22"), {QStringLiteral("secret:hunter22")}},
+        {QStringLiteral("https://bob:s3cret@host.example/x"), {QStringLiteral("secret:s3cret")}},
+        {QStringLiteral("token ghp_abcdefghijklmnopqrstuvwxyz0123456789"),
+         {QStringLiteral("secret:ghp_abcdefghijklmnopqrstuvwxyz0123456789")}},
+        {QStringLiteral("commit 3f2a9c1e5b7d4f6a8c0e2b4d6f8a0c2e4b6d8f0a"), {}},
+        {QStringLiteral("key AbCdEf0123456789GhIjKlMnOpQrStUv"),
+         {QStringLiteral("secret:AbCdEf0123456789GhIjKlMnOpQrStUv")}},
+    };
+    for (const auto &c : cases) {
+        QStringList got;
+        for (const SensitiveMatch &m : findSensitiveText(c.first))
+            got << m.kind + QLatin1Char(':') + c.first.mid(m.start, m.length);
+        QCOMPARE(got, c.second);
+    }
+}
+
+// Tesseract joins a heading and the buttons at the far end of a toolbar into
+// one text line. The box drawn around it, a click on it and a bar over it
+// must stop at the text, not span the empty space between.
+void AnnotationCanvasTest::ocrLineSplitsAtWideGap()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(400);
+    canvas.setHeight(60);
+    QImage image(400, 60, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    // "ab cd" at the left (a normal word space), "xy" at the far right.
+    QVector<OcrWord> words;
+    const int xs[] = {10, 22, 40, 52, 330, 342};
+    const char *ts[] = {"a", "b", "c", "d", "x", "y"};
+    for (int i = 0; i < 6; ++i)
+        words.append({QRect(xs[i], 20, 10, 18), QString::fromLatin1(ts[i]), 0, 100.f, i == 2 || i == 4});
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+    canvas.ocrSelectAll();
+    // Copying keeps it one line of text.
+    QCOMPARE(canvas.ocrSelectedText(), QStringLiteral("ab cd xy"));
+    QVERIFY(canvas.redactOcrSelection(false));
+    QCOMPARE(canvas.annotCount(), 2); // "ab cd" and "xy", not one bar across
+    const QImage out = canvas.rendered();
+    QCOMPARE(out.pixelColor(45, 29), QColor(Qt::black)); // the word space stays covered
+    QCOMPARE(out.pixelColor(200, 29), QColor(Qt::white));
+    QCOMPARE(out.pixelColor(335, 29), QColor(Qt::black));
 }
 
 void AnnotationCanvasTest::ocrSelectionCreatesLineBatchedAnnotations()
@@ -1416,6 +1573,96 @@ void AnnotationCanvasTest::stickersStampDragAndInsertFile()
     }
 }
 
+// An emoji sticker with a bundled Twemoji file is drawn from that file
+// (named by its code points, the U+FE0F presentation selector dropped), so it
+// looks the same on every machine; one without a file has no art and falls
+// back to the font.
+void AnnotationCanvasTest::stickerArtComesFromBundledFiles()
+{
+    TestAnnotationCanvas canvas;
+    QCOMPARE(canvas.stickerArt(QStringLiteral("\U0001F44D")), QStringLiteral("qrc:/stickers/1f44d.svg"));
+    QCOMPARE(canvas.stickerArt(QStringLiteral("\u26A0\uFE0F")), QStringLiteral("qrc:/stickers/26a0.svg"));
+    QCOMPARE(canvas.stickerArt(QStringLiteral("A")), QString());
+    QCOMPARE(canvas.stickerArt(QStringLiteral("pointer")), QString());
+
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Sticker);
+    canvas.setSticker(QStringLiteral("\U0001F44D"));
+    drag(canvas, QPointF(50, 50), QPointF(250, 250));
+    QCOMPARE(canvas.annotCount(), 1);
+    const QImage out = canvas.rendered();
+    int yellow = 0;
+    for (int y = 50; y <= 250; ++y)
+        for (int x = 50; x <= 250; ++x) {
+            const QColor c = out.pixelColor(x, y);
+            yellow += qAbs(c.red() - 0xff) < 8 && qAbs(c.green() - 0xdb) < 8 && qAbs(c.blue() - 0x5e) < 8;
+        }
+    QVERIFY2(yellow > 5000, qPrintable(QStringLiteral("Twemoji yellow pixels: %1").arg(yellow)));
+}
+
+// The sticker library is every Twemoji emoji: each one in the catalogue, and
+// each of its five skin tones, has a bundled file that draws something, a
+// U+200D sequence included whichever way Twemoji spelled its U+FE0F; every
+// one has a name, and the search words hold the UI language's and English.
+void AnnotationCanvasTest::stickerCatalogDrawsEveryEmoji()
+{
+    TestAnnotationCanvas canvas;
+    const QVariantMap c = canvas.stickerCatalog(QStringLiteral("pl"));
+    const QStringList emoji = c.value(QStringLiteral("emoji")).toStringList();
+    const QVariantList tones = c.value(QStringLiteral("tones")).toList();
+    const QStringList names = c.value(QStringLiteral("names")).toStringList();
+    const QStringList search = c.value(QStringLiteral("search")).toStringList();
+    QCOMPARE(c.value(QStringLiteral("groups")).toStringList().size(), 9);
+    QVERIFY2(emoji.size() > 1900, qPrintable(QString::number(emoji.size())));
+    QCOMPARE(tones.size(), emoji.size());
+    QCOMPARE(names.size(), emoji.size());
+    QCOMPARE(search.size(), emoji.size());
+
+    QStringList all = emoji;
+    int toned = 0;
+    for (const QVariant &t : tones)
+        if (t.isValid()) {
+            QCOMPARE(t.toStringList().size(), 5);
+            all << t.toStringList();
+            ++toned;
+        }
+    QVERIFY(toned > 300);
+    QStringList broken;
+    for (const QString &e : std::as_const(all)) {
+        const QString art = canvas.stickerArt(e);
+        QImageReader reader(art.mid(3));   // "qrc:/x" -> ":/x"
+        reader.setScaledSize(QSize(16, 16));
+        const QImage img = reader.read();
+        bool drawn = false;
+        for (int y = 0; y < img.height() && !drawn; ++y)
+            for (int x = 0; x < img.width() && !drawn; ++x)
+                drawn = qAlpha(img.pixel(x, y)) > 0;
+        if (!drawn)
+            broken << e;
+    }
+    QVERIFY2(broken.isEmpty(), qPrintable(broken.join(u' ')));
+    for (int i = 0; i < names.size(); ++i)
+        QVERIFY2(!names.at(i).isEmpty(), qPrintable(emoji.at(i)));
+
+    const QString rainbow = QStringLiteral("\U0001F3F3\uFE0F\u200D\U0001F308");
+    const QString eyeBubble = QStringLiteral("\U0001F441\uFE0F\u200D\U0001F5E8\uFE0F");
+    QCOMPARE(canvas.stickerArt(rainbow), QStringLiteral("qrc:/stickers/1f3f3-fe0f-200d-1f308.svg"));
+    QCOMPARE(canvas.stickerArt(eyeBubble), QStringLiteral("qrc:/stickers/1f441-200d-1f5e8.svg"));
+    QVERIFY(emoji.contains(eyeBubble));
+    const int cat = emoji.indexOf(QStringLiteral("\U0001F408"));   // cat
+    QVERIFY(cat >= 0);
+    QVERIFY2(search.at(cat).contains(QStringLiteral("kot")), qPrintable(search.at(cat)));
+    QVERIFY2(search.at(cat).contains(QStringLiteral("cat")), qPrintable(search.at(cat)));
+    // English holds its own words once; an unknown language reads as English.
+    const QVariantMap xx = canvas.stickerCatalog(QStringLiteral("xx"));
+    QCOMPARE(xx.value(QStringLiteral("names")).toStringList().at(cat), QStringLiteral("cat"));
+    QVERIFY(!xx.value(QStringLiteral("search")).toStringList().at(cat).contains(QStringLiteral("kot")));
+}
+
 // The region-overlay pixel loupe: appears only once the pointer hovers in
 // selection mode, sits offset from the cursor and flips away from item edges
 // (never covering the aimed-at pixels), zooms one integer step per scroll notch
@@ -1590,6 +1837,417 @@ void AnnotationCanvasTest::partialRepaintMatchesFullRender()
                                 .arg(worstAt.x()).arg(worstAt.y())
                                 .arg(worstGot.name(QColor::HexArgb), worstWant.name(QColor::HexArgb))));
     }
+}
+
+// Shift+click builds a group, a drag on any member moves all of it, a style
+// edit lands on every member, Delete takes them all (one undo step), the Edit
+// tool's rubber band picks what it touches, and a bare click on a member
+// narrows the group to it. Falsified by any path that still only touches
+// m_selectedAnnot.
+void AnnotationCanvasTest::multiSelectGroupEdits()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    drag(canvas, QPointF(20, 20), QPointF(60, 60));
+    drag(canvas, QPointF(100, 100), QPointF(140, 140));
+    QCOMPARE(canvas.annotCount(), 2);
+
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.clearAnnotSelection();
+    QCOMPARE(canvas.selectedCount(), 0);
+    click(canvas, QPointF(40, 40));
+    QCOMPARE(canvas.selectedCount(), 1);
+    click(canvas, QPointF(120, 120), Qt::ShiftModifier);
+    QCOMPARE(canvas.selectedCount(), 2);
+    click(canvas, QPointF(120, 120), Qt::ShiftModifier);
+    QCOMPARE(canvas.selectedCount(), 1);
+    click(canvas, QPointF(120, 120), Qt::ShiftModifier);
+    QCOMPARE(canvas.selectedCount(), 2);
+
+    // Drag one member: both move 20 px right and the group survives.
+    drag(canvas, QPointF(40, 40), QPointF(60, 40));
+    QCOMPARE(canvas.selectedCount(), 2);
+    QVERIFY2(canvas.rendered().pixelColor(75, 40).lightness() < 250, "the primary must move");
+    QVERIFY2(canvas.rendered().pixelColor(155, 120).lightness() < 250, "the other member must follow");
+
+    // One fill edit restyles the whole group.
+    canvas.setShapeFillColor(QColor(0, 0, 255));
+    for (const QPoint &pt : {QPoint(60, 40), QPoint(140, 120)}) {
+        const QColor c = canvas.rendered().pixelColor(pt);
+        QVERIFY2(c.blue() > 200 && c.red() < 60, "every member takes the new fill");
+    }
+
+    canvas.removeSelectedAnnot();
+    QCOMPARE(canvas.annotCount(), 0);
+    QCOMPARE(canvas.selectedCount(), 0);
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 2);
+
+    // Rubber band from empty space picks both; a click on empty space clears.
+    drag(canvas, QPointF(2, 2), QPointF(198, 198));
+    QCOMPARE(canvas.selectedCount(), 2);
+    click(canvas, QPointF(5, 195));
+    QCOMPARE(canvas.selectedCount(), 0);
+
+    // A band that touches nothing selects nothing.
+    drag(canvas, QPointF(2, 150), QPointF(30, 198));
+    QCOMPARE(canvas.selectedCount(), 0);
+
+    // Select all, then a bare click on one member narrows to it.
+    canvas.selectAllAnnots();
+    QCOMPARE(canvas.selectedCount(), 2);
+    click(canvas, QPointF(60, 40));
+    QCOMPARE(canvas.selectedCount(), 1);
+}
+
+// Bring to front / forward / send backward / to back restack the selection as
+// one undo step and keep it selected; duplicate places offset copies on top
+// and selects them. Read through the overlap pixel of a red and a blue square.
+void AnnotationCanvasTest::arrangeAndDuplicate()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    canvas.setShapeFillColor(QColor(255, 0, 0));
+    drag(canvas, QPointF(0, 0), QPointF(100, 100));
+    canvas.clearAnnotSelection();
+    canvas.setShapeFillColor(QColor(0, 0, 255));
+    drag(canvas, QPointF(50, 50), QPointF(150, 150));
+    canvas.clearAnnotSelection();
+    canvas.setTool(AnnotationCanvas::EditShapes);
+
+    auto overlapIsRed = [&] { return canvas.rendered().pixelColor(75, 75).red() > 200; };
+    QVERIFY(!overlapIsRed());
+
+    canvas.selectAnnotAt(25, 25); // the red one, underneath
+    canvas.arrangeSelected(AnnotationCanvas::BringToFront);
+    QVERIFY2(overlapIsRed(), "bring to front must put the red square on top");
+    QCOMPARE(canvas.selectedCount(), 1);
+    canvas.arrangeSelected(AnnotationCanvas::SendBackward);
+    QVERIFY(!overlapIsRed());
+    canvas.arrangeSelected(AnnotationCanvas::BringForward);
+    QVERIFY(overlapIsRed());
+    canvas.arrangeSelected(AnnotationCanvas::SendToBack);
+    QVERIFY(!overlapIsRed());
+    // Already at the back: a no-op that must not push an undo entry, so one
+    // undo still reverts the send-to-back above.
+    canvas.arrangeSelected(AnnotationCanvas::SendToBack);
+    canvas.undo();
+    QVERIFY2(overlapIsRed(), "one undo reverts exactly the last real restack");
+    canvas.redo();
+    QVERIFY(!overlapIsRed());
+
+    canvas.selectAnnotAt(140, 140); // the blue one
+    canvas.duplicateSelected();
+    QCOMPARE(canvas.annotCount(), 3);
+    QCOMPARE(canvas.selectedCount(), 1);
+    // renderScale is 1 here, so the copy sits 16 px down-right.
+    QVERIFY2(canvas.rendered().pixelColor(160, 160).blue() > 200, "the copy is offset");
+    canvas.undo();
+    QCOMPARE(canvas.annotCount(), 2);
+
+    canvas.selectAllAnnots();
+    canvas.duplicateSelected();
+    QCOMPARE(canvas.annotCount(), 4);
+    QCOMPARE(canvas.selectedCount(), 2);
+}
+
+// The inspector's shape list: one row per shape, bottom first, and picking
+// a row selects that shape (toggle adds to and drops from the group).
+void AnnotationCanvasTest::shapeListSelects()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setStrokeColor(QColor(255, 0, 0));
+    drag(canvas, QPointF(10, 10), QPointF(60, 60));
+    canvas.clearAnnotSelection();
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.commitText(100, 100, QStringLiteral("Hi"));
+    canvas.clearAnnotSelection();
+
+    QVariantList list = canvas.annotationList();
+    QCOMPARE(list.size(), 2);
+    QCOMPARE(list[0].toMap().value(QStringLiteral("tool")).toInt(), int(AnnotationCanvas::Rect));
+    QCOMPARE(list[0].toMap().value(QStringLiteral("color")).value<QColor>(), QColor(255, 0, 0));
+    QCOMPARE(list[1].toMap().value(QStringLiteral("tool")).toInt(), int(AnnotationCanvas::Text));
+    QCOMPARE(list[1].toMap().value(QStringLiteral("text")).toString(), QStringLiteral("Hi"));
+    QVERIFY(!list[0].toMap().value(QStringLiteral("selected")).toBool());
+
+    canvas.selectAnnotIndex(0);
+    QCOMPARE(canvas.selectedCount(), 1);
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::Rect));
+    QVERIFY(canvas.annotationList()[0].toMap().value(QStringLiteral("selected")).toBool());
+    canvas.selectAnnotIndex(1, true);
+    QCOMPARE(canvas.selectedCount(), 2);
+    canvas.selectAnnotIndex(0, true);
+    QCOMPARE(canvas.selectedCount(), 1);
+    QCOMPARE(canvas.selectedAnnotTool(), int(AnnotationCanvas::Text));
+    canvas.selectAnnotIndex(5);
+    QCOMPARE(canvas.selectedCount(), 1);
+}
+
+void AnnotationCanvasTest::rightClickShapeMenu()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    drag(canvas, QPointF(10, 10), QPointF(60, 60));
+    drag(canvas, QPointF(100, 100), QPointF(150, 150));
+    canvas.clearAnnotSelection();
+
+    QSignalSpy menu(&canvas, &AnnotationCanvas::shapeMenuRequested);
+    QSignalSpy copy(&canvas, &AnnotationCanvas::copyRequested);
+    auto rightPress = [&](const QPointF &at) {
+        QMouseEvent p(QEvent::MouseButtonPress, at, at, Qt::RightButton, Qt::RightButton, Qt::NoModifier);
+        canvas.mousePressEvent(&p);
+    };
+
+    rightPress(QPointF(30, 30));
+    QCOMPARE(copy.count(), 1); // off by default: the overlay keeps its quick copy
+    QCOMPARE(menu.count(), 0);
+
+    canvas.setProperty("shapeMenu", true);
+    rightPress(QPointF(30, 30));
+    QCOMPARE(menu.count(), 1);
+    QCOMPARE(menu.at(0).at(0).toReal(), 30.0);
+    QVERIFY2(!canvas.hasAnnotSelection(), "the press leaves the selection to the editor");
+    rightPress(QPointF(180, 20));
+    QCOMPARE(copy.count(), 2); // empty space still copies
+
+    canvas.setTool(AnnotationCanvas::Crop);
+    rightPress(QPointF(30, 30));
+    QCOMPARE(copy.count(), 3);
+    canvas.setTool(AnnotationCanvas::EditShapes);
+
+    // A member of the group keeps the group; another shape replaces it.
+    canvas.selectAllAnnots();
+    canvas.selectAnnotAt(30, 30, true);
+    QCOMPARE(canvas.selectedCount(), 2);
+    canvas.selectAnnotAt(30, 30);
+    QCOMPARE(canvas.selectedCount(), 1);
+    canvas.selectAnnotAt(120, 120, true);
+    QCOMPARE(canvas.selectedCount(), 1);
+    canvas.removeSelectedAnnot();
+    QVERIFY2(canvas.rendered().pixelColor(30, 30) != QColor(Qt::white), "the first shape stays");
+    QCOMPARE(canvas.rendered().pixelColor(120, 120), QColor(Qt::white));
+}
+
+// The Blur being drawn shows the same smooth blur it stores: a nearest-sampled
+// preview turned 1 px stripes into hard black and white blocks, which looked
+// exactly like Pixelate until the button was released.
+void AnnotationCanvasTest::blurPreviewIsSmoothWhileDragging()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(200);
+    QImage image(200, 200, QImage::Format_ARGB32_Premultiplied);
+    for (int y = 0; y < 200; ++y)
+        for (int x = 0; x < 200; ++x)
+            image.setPixelColor(x, y, x % 2 ? Qt::white : Qt::black);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Blur);
+
+    const auto hardPixels = [&canvas] {
+        QImage out(200, 200, QImage::Format_ARGB32_Premultiplied);
+        out.fill(Qt::transparent);
+        QPainter p(&out);
+        canvas.paint(&p);
+        p.end();
+        int n = 0;
+        for (int y = 60; y < 140; ++y)
+            for (int x = 60; x < 140; ++x) {
+                const int v = out.pixelColor(x, y).red();
+                n += v < 40 || v > 215;
+            }
+        return n;
+    };
+
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(20, 20), QPointF(20, 20),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mousePressEvent(&press);
+    QMouseEvent move(QEvent::MouseMove, QPointF(180, 180), QPointF(180, 180),
+                     Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
+    canvas.mouseMoveEvent(&move);
+    const int whileDragging = hardPixels();
+    QVERIFY2(whileDragging < 64,
+             qPrintable(QStringLiteral("hard pixels mid-drag: %1 of 6400").arg(whileDragging)));
+
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(180, 180), QPointF(180, 180),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    canvas.mouseReleaseEvent(&release);
+    QCOMPARE(canvas.annotCount(), 1);
+    const int afterRelease = hardPixels();
+    QVERIFY2(afterRelease < 64,
+             qPrintable(QStringLiteral("hard pixels after release: %1 of 6400").arg(afterRelease)));
+}
+
+// The handles and drags take Figma's modifiers: Shift on a corner or a side
+// keeps the proportions (a side scales the other axis about its middle), Alt
+// resizes about the centre, Shift locks a move to one axis (also when the
+// press itself held Shift on the selected shape) and Alt draws from the centre.
+void AnnotationCanvasTest::figmaModifiersResizeMoveDraw()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    canvas.setTool(AnnotationCanvas::Rect);
+    canvas.setShapeFillEnabled(true);
+    canvas.setStrokeWidth(2);
+    drag(canvas, QPointF(50, 50), QPointF(100, 80));
+    QCOMPARE(canvas.annotCount(), 1);
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(75, 65);
+    QVERIFY(canvas.hasAnnotSelection());
+
+    const auto filled = [&canvas](int x, int y) {
+        return canvas.rendered().pixelColor(x, y).lightness() < 250;
+    };
+    const auto press = [&canvas](const QPointF &at, Qt::KeyboardModifiers mods) {
+        QMouseEvent ev(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, mods);
+        canvas.mousePressEvent(&ev);
+    };
+    const auto move = [&canvas](const QPointF &at, Qt::KeyboardModifiers mods) {
+        QMouseEvent ev(QEvent::MouseMove, at, at, Qt::NoButton, Qt::LeftButton, mods);
+        canvas.mouseMoveEvent(&ev);
+    };
+    const auto release = [&canvas](const QPointF &at, Qt::KeyboardModifiers mods) {
+        QMouseEvent ev(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, mods);
+        canvas.mouseReleaseEvent(&ev);
+    };
+
+    // Shift on the bottom-right corner: 50x30 grows by the larger factor (x2)
+    // to 100x60, top-left fixed.
+    drag(canvas, QPointF(100, 80), QPointF(150, 90), Qt::ShiftModifier);
+    QVERIFY(filled(145, 105));
+    QVERIFY(!filled(145, 116));
+    QVERIFY(!filled(156, 100));
+    canvas.undo();
+    canvas.selectAnnotAt(75, 65);
+
+    // Shift on the right side: width x2, height x2 about the vertical middle.
+    drag(canvas, QPointF(100, 65), QPointF(150, 65), Qt::ShiftModifier);
+    QVERIFY(filled(120, 39));
+    QVERIFY(filled(120, 91));
+    QVERIFY(!filled(120, 31));
+    canvas.undo();
+    canvas.selectAnnotAt(75, 65);
+
+    // Alt on the right side: both sides move, the centre (75) stays.
+    drag(canvas, QPointF(100, 65), QPointF(110, 65), Qt::AltModifier);
+    QVERIFY(filled(43, 65));
+    QVERIFY(filled(107, 65));
+    QVERIFY(!filled(36, 65));
+    canvas.undo();
+    canvas.selectAnnotAt(75, 65);
+
+    // Shift+press on the selected shape and drag: a move locked to x, and the
+    // shape stays selected.
+    press(QPointF(75, 65), Qt::ShiftModifier);
+    move(QPointF(115, 72), Qt::ShiftModifier);
+    release(QPointF(115, 72), Qt::ShiftModifier);
+    QVERIFY(canvas.hasAnnotSelection());
+    QVERIFY(filled(135, 52));
+    QVERIFY(!filled(135, 84));
+    QVERIFY(!filled(60, 65));
+
+    // A bare Shift+click on it still takes it out of the selection.
+    press(QPointF(115, 65), Qt::ShiftModifier);
+    release(QPointF(115, 65), Qt::ShiftModifier);
+    QVERIFY(!canvas.hasAnnotSelection());
+
+    // Alt while drawing: the press point is the centre.
+    canvas.setTool(AnnotationCanvas::Rect);
+    drag(canvas, QPointF(200, 200), QPointF(220, 215), Qt::AltModifier);
+    QCOMPARE(canvas.annotCount(), 2);
+    QVERIFY(filled(184, 188));
+    QVERIFY(!filled(176, 200));
+
+    // A shape 20 px tall: the corner and the side handle are both within the
+    // 12 px tolerance, and a press on the corner has to take the corner.
+    drag(canvas, QPointF(20, 200), QPointF(80, 220));
+    QCOMPARE(canvas.annotCount(), 3);
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(50, 210);
+    drag(canvas, QPointF(80, 220), QPointF(140, 225), Qt::ShiftModifier);
+    QVERIFY(filled(135, 235));
+    QVERIFY(!filled(50, 194));
+}
+
+// Figma's crop: Ctrl on a picture's handle moves the frame over pixels that
+// stay where they are, and the frame stops at the picture's edge.
+void AnnotationCanvasTest::ctrlHandleCropsPicture()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(300);
+    canvas.setHeight(300);
+    QImage image(300, 300, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+
+    // 40x30, red then blue from x 20: lands on (80,85)-(120,115).
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage pic(40, 30, QImage::Format_RGB32);
+    pic.fill(Qt::blue);
+    QPainter(&pic).fillRect(0, 0, 20, 30, Qt::red);
+    const QString path = dir.filePath(QStringLiteral("pic.png"));
+    QVERIFY(pic.save(path));
+    QVERIFY(canvas.insertImageFile(path, 100, 100));
+    canvas.setTool(AnnotationCanvas::EditShapes);
+    canvas.selectAnnotAt(100, 100);
+    QVERIFY(canvas.hasAnnotSelection());
+    const auto at = [&canvas](int x, int y) { return canvas.rendered().pixelColor(x, y); };
+
+    // Ctrl on the right side: 10 px cut off, x 98 still the picture's 18
+    // (red); a resize would have squeezed blue there.
+    drag(canvas, QPointF(120, 100), QPointF(110, 100), Qt::ControlModifier);
+    QCOMPARE(at(98, 100), QColor(Qt::red));
+    QCOMPARE(at(105, 100), QColor(Qt::blue));
+    QCOMPARE(at(113, 100), QColor(Qt::white));
+
+    // Pulled out past the edge it stops at the picture's own.
+    drag(canvas, QPointF(110, 100), QPointF(140, 100), Qt::ControlModifier);
+    QCOMPARE(at(118, 100), QColor(Qt::blue));
+    QCOMPARE(at(123, 100), QColor(Qt::white));
+
+    // The left side, then a plain resize scales what the crop left.
+    drag(canvas, QPointF(80, 100), QPointF(90, 100), Qt::ControlModifier);
+    QCOMPARE(at(85, 100), QColor(Qt::white));
+    QCOMPARE(at(92, 100), QColor(Qt::red));
+    drag(canvas, QPointF(120, 100), QPointF(150, 100));
+    QCOMPARE(at(105, 100), QColor(Qt::red));
+    QCOMPARE(at(145, 100), QColor(Qt::blue));
+
+    canvas.undo();
+    canvas.undo();
+    QCOMPARE(at(85, 100), QColor(Qt::red));
 }
 
 int main(int argc, char *argv[])

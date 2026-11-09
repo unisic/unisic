@@ -25,7 +25,7 @@ _pkgrel=1
 pkgdesc='Capture, annotate, record and share your screen on Linux Wayland (binary release)'
 arch=('x86_64')
 url='https://github.com/unisic/unisic'
-license=('GPL-3.0-or-later')
+license=('GPL-3.0-or-later' 'CC-BY-4.0' 'Unicode-3.0')
 # This list is not derived from the repacked package: it is the same list the
 # source recipe carries, and it has to be, because Unisic has no optional
 # dependencies. Every compile-time gate is a hard build requirement, so the

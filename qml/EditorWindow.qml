@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Dialogs
+import QtQuick.Effects
 import Unisic
 import Unisic.Kit
 import "components"
@@ -11,17 +12,16 @@ Window {
     // Track the image size, but never below the minimum that keeps every
     // toolbar control visible, and never above the work area - oversized
     // images get a fit-scaled (and zoomable/pannable) canvas instead.
-    width: Math.min(Math.max(minimumWidth, canvas.imageSize.width / Screen.devicePixelRatio
-                                           + 2 * fitPad + railWidth + Theme.spacingS),
+    width: Math.min(Math.max(minimumWidth, canvas.imageSize.width / Screen.devicePixelRatio + chromeWidth),
                     Screen.width * 0.9)
-    height: Math.min(Math.max(minimumHeight,
-                              canvas.imageSize.height / Screen.devicePixelRatio
-                              + 2 * fitPad + topBar.rowHeight + statusBar.height),
+    height: Math.min(Math.max(minimumHeight, canvas.imageSize.height / Screen.devicePixelRatio + chromeHeight),
                      Screen.height * 0.9)
     minimumWidth: 820
-    // Tall enough for one column of tools under two rows of top bar, short
-    // of the screen: on a low one the rail takes a second column instead.
-    minimumHeight: Math.min(2 * topBar.rowHeight + toolRail.oneColumn, Math.floor(Screen.height * 0.9))
+    // Panels: tall enough for one column of tools under the header, short of
+    // the screen: on a low one the rail takes a second column instead.
+    // Floating: the tools are a row, so any sensible height holds them.
+    minimumHeight: Math.min(floatingLayout ? 480 : topBar.rowHeight + toolRail.oneColumn,
+                            Math.floor(Screen.height * 0.9))
     // AppContext::openEditor centres and shows the window once it exists. Shown from here,
     // it would map before Component.onCompleted hands the canvas its image, at
     // the 820x480 minimum: the platform centres THAT size, then the window
@@ -30,21 +30,117 @@ Window {
     visible: false
     title: editorSession.overwriteMode ? qsTr("Unisic Editor (editing saved image)")
                                        : qsTr("Unisic Editor")
-    color: Theme.backgroundDeep
+    color: floatingLayout ? Theme.backgroundDeep : Theme.primary
     // Same decoration policy as the main window: the stylized frameless title
     // bar unless the user opted into system decorations (Appearance).
     flags: App.settings.useSystemDecoration
            ? Qt.Window
            : (Qt.Window | Qt.FramelessWindowHint)
-    // A fitted image keeps this far from the stage card's edges (stage px).
-    readonly property int fitPad: Theme.spacingM
-    // The tool rail with one column of chips, and the top bar with one row.
-    // A short window wraps the rail into more columns and a narrow one moves
-    // the tool options to a row of their own, but the size the window opens
-    // at and the choice of rows assume one of each: bound to the real ones,
-    // the width would depend on the height that depends on it, and a resize
-    // that changes the rows would snap the window back to the image's size.
-    readonly property int railWidth: 40 + 2 * Theme.spacingS
+    // A fitted image keeps this far from the stage's edges (stage px).
+    readonly property int fitPad: floatingLayout ? Theme.spacingM : Theme.spacingXL
+    // The panels rail with one column of chips. A short window wraps the rail
+    // into more columns, but the size the window opens at assumes one: bound
+    // to the real one, the width would depend on the height that depends on
+    // it, and a resize that changes the columns would snap the window back to
+    // the image's size.
+    readonly property int railChipW: 38
+    readonly property int railChipH: 34
+    readonly property int railPad: 9
+    readonly property int railWidth: railChipW + 2 * railPad
+
+    // Settings > Editor > Layout. "panels": the tools in a rail on the left,
+    // the active tool's options in an inspector column on the right.
+    // "floating": the image fills the window and the same controls float over
+    // it in pills. Every control is the same item in both, only placed
+    // differently, so shortcuts, focus order and the smoke test do not care.
+    readonly property bool floatingLayout: (layoutOverride !== "" ? layoutOverride
+                                                                  : App.settings.editorLayout) === "floating"
+    // The smoke test lays an open editor out both ways without touching the
+    // saved setting.
+    property string layoutOverride: ""
+    readonly property int inspectorWidth: 320
+    // Floating: a pill holds one row of 44 px chips, keeps pillEdge from the
+    // window's edges and pillGap from the next pill.
+    readonly property int chipSize: 44
+    readonly property int pillPad: 6
+    readonly property int pillH: chipSize + 2 * pillPad
+    readonly property int pillGap: Theme.spacingM
+    readonly property int pillEdge: Theme.spacingL
+    readonly property color pillColor: Theme.alpha(Theme.surface, 0.88)
+    readonly property color hairline: Theme.alpha(Theme.accent, 0.10)
+    // Everything around a fitted image, assuming one row or column of each
+    // (see railWidth): in floating, a row of pills above and below plus the
+    // tools on a row of their own, as on a narrow window.
+    readonly property int chromeWidth: floatingLayout ? 2 * fitPad
+                                                      : 2 * fitPad + railWidth + inspectorWidth + 1
+    readonly property int chromeHeight: floatingLayout ? 2 * pillEdge + 3 * pillH + 3 * pillGap
+                                                       : 2 * fitPad + topBar.rowHeight + statusBar.height
+    // The image size, or the last export's or OCR's result (OCR also names
+    // the selection gestures here): the status line in panels, the line under
+    // the title in floating.
+    readonly property string statusLine: editorSession.statusText !== ""
+                                         ? editorSession.statusText
+                                         : canvas.imageSize.width + " × " + canvas.imageSize.height + " px"
+    readonly property string fileTitle: editorSession.fileName !== "" ? editorSession.fileName : qsTr("Untitled")
+    // Edits since the last export: the "Edited" mark. `exported` below is
+    // the close guard's, and stays set once anything was exported.
+    property bool dirty: false
+
+    // What the inspector's header (and the floating options pill) names.
+    readonly property var focusInfo: {
+        if (canvas.ocrMode)
+            return { name: qsTr("Select text"), icon: "line-text-scan",
+                     sub: canvas.ocrBusy ? qsTr("Recognizing…") : qsTr("Text recognition") }
+        if (canvas.hasAnnotSelection) {
+            if (canvas.selectedCount > 1)
+                return { name: qsTr("%n shape(s) selected", "", canvas.selectedCount),
+                         sub: qsTr("Selected shapes"), icon: "line-square" }
+            const st = ToolCatalog.toolByEnum(canvas.selectedAnnotTool)
+            return { name: st ? st.label : qsTr("Image"), sub: qsTr("Selected shape"),
+                     icon: shapeIcon(canvas.selectedAnnotTool) }
+        }
+        const t = ToolCatalog.toolByEnum(canvas.tool)
+        if (t && canvas.tool !== AnnotationCanvas.None)
+            return { name: t.label, sub: qsTr("Active tool"), icon: shapeIcon(canvas.tool) }
+        return { name: qsTr("No tool"), sub: qsTr("Pick a tool on the left"), icon: "line-image" }
+    }
+
+    // The save formats: the split button's menu in panels, the top of
+    // "More" in floating.
+    readonly property var saveActions: [
+        { label: qsTr("Save as…"), iconName: "document-save",
+          hint: "Ctrl+Shift+S",
+          trigger: function () {
+              editorWindow.doSaveAs()
+          } },
+        { label: qsTr("Save as PNG"), iconName: "document-save",
+          separatorBefore: true,
+          hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
+          trigger: function () {
+              editorWindow.commitPendingText()
+              editorSession.saveAs("png")
+          } },
+        { label: qsTr("Save as JPEG"), iconName: "document-save",
+          hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
+          trigger: function () {
+              editorWindow.commitPendingText()
+              editorSession.saveAs("jpg")
+          } },
+        { label: qsTr("Save as WebP"), iconName: "document-save",
+          hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
+          trigger: function () {
+              editorWindow.commitPendingText()
+              editorSession.saveAs("webp")
+          } },
+        { label: qsTr("Save as GIF"), iconName: "document-save",
+          enabled: App.ffmpegAvailable,
+          hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
+                : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
+          trigger: function () {
+              editorWindow.commitPendingText()
+              editorSession.saveAs("gif")
+          } }
+    ]
 
     // A Flow wrapped into `limit`, by the Flow's own rule (a child goes on the
     // current line unless it would cross the edge and is not alone there):
@@ -113,8 +209,10 @@ Window {
     Connections {
         target: editorSession
         function onStatusTextChanged() {
-            if (editorSession.statusText !== "" && editorSession.statusExported)
+            if (editorSession.statusText !== "" && editorSession.statusExported) {
                 editorWindow.exported = true
+                editorWindow.dirty = false
+            }
         }
     }
 
@@ -183,61 +281,108 @@ Window {
         var s = App.settings.recentColors
         return s ? s.split(",").filter(function (x) { return x.length > 0 }) : []
     }
+    // The Sticker tool's quick row: the library's picks, newest first, or its
+    // defaults until there is one.
+    function stickerList() {
+        var s = App.settings.recentStickers
+        return s ? s.split(",").filter(function (x) { return x.length > 0 }) : stickerPopup.quickDefaults
+    }
+    // A sticker already in the row stays where it is: the row never moves
+    // under the pointer that is using it.
+    function addRecentSticker(sticker) {
+        var list = stickerList()
+        if (list.indexOf(sticker) >= 0)
+            return
+        list = [sticker].concat(list).slice(0, stickerPopup.quickDefaults.length)
+        App.settings.recentStickers = list.join(",")
+    }
 
-    // ---- tool grouping (Shapes) ----
-    readonly property var shapesTools: ToolCatalog.groupTools("shapes", "editor", App.settings.hiddenTools)
-    readonly property bool shapesActive: ToolCatalog.groupForEnum(canvas.tool) === "shapes"
-    // Last shape picked from the sub-bar; the group chip re-selects it.
-    property string currentShapeId: "rect"
-    function toggleShapesGroup() {
-        if (shapesActive) { canvas.tool = AnnotationCanvas.None; return }
-        var pick = null
-        for (var i = 0; i < shapesTools.length; ++i)
-            if (shapesTools[i].id === currentShapeId) pick = shapesTools[i]
-        if (!pick && shapesTools.length > 0) pick = shapesTools[0]
-        if (pick) canvas.tool = pick.tool
+    // ---- tools ----
+    // The rail (panels) or the bar (floating), in ToolCatalog's order. The
+    // bar folds some tools into group chips; each chip stands for the member
+    // last used, shows its glyph, and opens its members in the options pill.
+    readonly property var toolSequence: ToolCatalog.editorSequence(floatingLayout, App.settings.hiddenTools)
+    property var lastInGroup: ({})
+    readonly property var activeEntry: {
+        const g = ToolCatalog.editorGroupOf(canvas.tool)
+        if (!floatingLayout || g === "")
+            return null
+        for (var i = 0; i < toolSequence.length; ++i)
+            if (toolSequence[i].kind === "group" && toolSequence[i].group.id === g)
+                return toolSequence[i]
+        return null
+    }
+    function groupPick(entry) {
+        const id = lastInGroup[entry.group.id]
+        for (var i = 0; i < entry.members.length; ++i)
+            if (entry.members[i].id === id)
+                return entry.members[i]
+        return entry.members[0]
+    }
+    function toggleGroup(entry) {
+        canvas.tool = activeEntry && activeEntry.group.id === entry.group.id
+                      ? AnnotationCanvas.None : groupPick(entry).tool
     }
     function activateToolShortcut(key) {
         const picked = ToolCatalog.toolForShortcut(key, "editor")
         if (!picked)
             return false
         canvas.tool = picked.tool
-        if (picked.group)
-            currentShapeId = picked.id
         return true
     }
-    // The visible members of a group, each with its letter - for the group
-    // chip's spoken description. ToolCatalog.groups carries NO `shortcut`
-    // field: the letters belong to the tools (L/A/M/R/O/D), never to the group,
-    // so the chip says which keys its members answer to instead of implying it
-    // has one of its own. Follows the hidden-tools setting, like the sub-bar.
-    function groupMembers(groupId) {
-        const ts = ToolCatalog.groupTools(groupId, "editor", App.settings.hiddenTools)
-        var out = []
-        for (var i = 0; i < ts.length; ++i)
-            out.push(ToolCatalog.labelWithShortcut(ts[i]))
-        return out.join(", ")
-    }
-    // Main-row model: ungrouped tools in catalog order, with each group's chip
-    // inserted at its first member's position.
-    function mainRowModel() {
-        var out = []
-        var seen = {}
-        var ts = ToolCatalog.visibleFor("editor", App.settings.hiddenTools)
-        for (var i = 0; i < ts.length; ++i) {
-            var t = ts[i]
-            if (t.group) {
-                if (!seen[t.group]) {
-                    seen[t.group] = true
-                    for (var g = 0; g < ToolCatalog.groups.length; ++g)
-                        if (ToolCatalog.groups[g].id === t.group)
-                            out.push({ kind: "group", group: ToolCatalog.groups[g] })
-                }
-            } else {
-                out.push({ kind: "tool", tool: t })
-            }
+    Connections {
+        target: canvas
+        function onToolChanged() {
+            const g = ToolCatalog.editorGroupOf(canvas.tool)
+            if (g === "")
+                return
+            var m = Object.assign({}, editorWindow.lastInGroup)
+            m[g] = ToolCatalog.toolByEnum(canvas.tool).id
+            editorWindow.lastInGroup = m
         }
-        return out
+        function onHistoryChanged() {
+            editorWindow.dirty = canvas.canUndo
+            Qt.callLater(editorWindow.refreshShapes)
+        }
+        function onSelectedAnnotChanged() { Qt.callLater(editorWindow.refreshShapes) }
+    }
+
+    // The inspector's shape list, top of the stack first; `index` is the
+    // canvas's own (bottom first) for selectAnnotIndex.
+    property var shapes: []
+    function refreshShapes() {
+        const list = canvas.annotationList()
+        var out = []
+        for (var i = list.length - 1; i >= 0; --i) {
+            const a = list[i]
+            out.push({ index: i, tool: a.tool, color: a.color, selected: a.selected,
+                       name: shapeName(a) })
+        }
+        shapes = out
+    }
+    function shapeName(a) {
+        const t = ToolCatalog.toolByEnum(a.tool)
+        if (a.tool === AnnotationCanvas.Step)
+            return qsTr("Step %1").arg(a.number)
+        if (a.redactKind !== "")
+            return qsTr("Redaction") + " · " + redactReview.kindName(a.redactKind)
+        const base = t ? t.label : qsTr("Image")
+        const text = String(a.text || "").replace(/\s+/g, " ").trim()
+        return text !== "" ? base + " · " + text : base
+    }
+    function shapeIcon(toolEnum) {
+        const t = ToolCatalog.toolByEnum(toolEnum)
+        return t ? ToolCatalog.toolIconName(t, "custom", "") : "line-image"
+    }
+
+    // Auto-redact on the whole image: scans for what SensitiveText finds
+    // (recognizing the text first when needed, EditorSession::scanSensitive)
+    // and opens the kinds beside the button that ran it; nothing is covered
+    // until the user switches a kind on.
+    function autoRedact(from) {
+        editorWindow.commitPendingText()
+        editorSession.scanSensitive()
+        redactReview.openFrom(from, editorWindow.floatingLayout)
     }
     function addRecent(hex) {
         var list = recentList()
@@ -277,6 +422,23 @@ Window {
         showAlpha: true
         onPicked: (c) => { canvas.textBackgroundColor = c; canvas.textBackground = true }
         onRequestScreenPick: { editorWindow.pendingColorPopup = textBgPopup; canvas.colorPicking = true }
+    }
+    RedactReview {
+        id: redactReview
+        objectName: "editorRedactReview"
+        canvas: canvas
+        status: editorSession.statusText
+        busy: canvas.ocrBusy
+        onClosed: editorSession.endSensitiveScan()
+    }
+    StickerPopup {
+        id: stickerPopup
+        objectName: "editorStickerPopup"
+        canvas: canvas
+        onPicked: (sticker) => {
+            canvas.sticker = sticker
+            editorWindow.addRecentSticker(sticker)
+        }
     }
     UConfirmDialog {
         id: discardConfirm
@@ -420,6 +582,7 @@ Window {
     }
     Item {
         id: shortcutScope
+        objectName: "editorShortcutScope"
         anchors.fill: parent
         focus: true
         Keys.onPressed: (e) => {
@@ -442,12 +605,29 @@ Window {
                 var pasteAt = canvas.toImage(canvas.width / 2, canvas.height / 2)
                 canvas.pasteClipboard(pasteAt.x, pasteAt.y)
             }
-            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_A && canvas.ocrMode) canvas.ocrSelectAll()
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_A) {
+                if (canvas.ocrMode) canvas.ocrSelectAll()
+                else canvas.selectAllAnnots()
+            }
+            else if (!canvas.ocrMode && (e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_D)
+                canvas.duplicateSelected()
+            // Ctrl+] / Ctrl+[ step the selection one place up or down the
+            // stack, with Shift all the way. Shift turns the bracket keys into
+            // braces on a US layout, so both codes are read.
+            else if (!canvas.ocrMode && (e.modifiers & Qt.ControlModifier)
+                     && (e.key === Qt.Key_BracketRight || e.key === Qt.Key_BraceRight))
+                canvas.arrangeSelected((e.modifiers & Qt.ShiftModifier) ? AnnotationCanvas.BringToFront
+                                                                       : AnnotationCanvas.BringForward)
+            else if (!canvas.ocrMode && (e.modifiers & Qt.ControlModifier)
+                     && (e.key === Qt.Key_BracketLeft || e.key === Qt.Key_BraceLeft))
+                canvas.arrangeSelected((e.modifiers & Qt.ShiftModifier) ? AnnotationCanvas.SendToBack
+                                                                       : AnnotationCanvas.SendBackward)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_U) { editorWindow.commitPendingText(); editorSession.upload() }
             else if ((e.modifiers & Qt.ControlModifier) && (e.key === Qt.Key_Plus || e.key === Qt.Key_Equal)) canvasFlick.zoomBy(1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_Minus) canvasFlick.zoomBy(1 / 1.2)
             else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_0) canvasFlick.zoom = 0
-            // Delete / Backspace removes the selected shape (Edit tool).
+            else if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_1) canvasFlick.zoomTo(Math.min(1, canvasFlick.maxZoom))
+            // Delete / Backspace removes the selected shape(s).
             else if ((e.key === Qt.Key_Delete || e.key === Qt.Key_Backspace) && canvas.hasAnnotSelection)
                 canvas.removeSelectedAnnot()
             // Single-key tool switching. Text inputs consume their own keys
@@ -465,7 +645,7 @@ Window {
                 editorSession.copyToClipboard()
                 editorWindow.close()
             }
-            // Arrow keys nudge the selected shape (Shift = ×10).
+            // Arrow keys nudge the selected shape(s) (Shift = ×10).
             else if (canvas.hasAnnotSelection && (e.key === Qt.Key_Left || e.key === Qt.Key_Right
                      || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
                 var step = (e.modifiers & Qt.ShiftModifier) ? 10 : 1
@@ -502,12 +682,159 @@ Window {
         }
 
         // ---------- layout ----------
-        // An image editor's frame: the tools in a rail down the left edge, the
-        // title, the active tool's options and the exports in one bar along
-        // the top, the view controls in a status line at the bottom, and the
-        // image alone in the card between them. Nothing floats over the image,
-        // so a fitted image is never under a bar and gets the height the old
-        // floating bars took.
+        // Two frames around the same controls (floatingLayout).
+        // Panels: a header with the file and the exports, the tools in a rail
+        // down the left edge, the inspector (what is picked, its options, the
+        // shapes on the image, whole-image actions) down the right edge, the
+        // status line and the zoom under the image.
+        // Floating: the image fills the window and the same groups float over
+        // it in pills: title, tools and exports along the top (the tools on
+        // a row of their own when the window is too narrow), whole-image
+        // actions, the options and the zoom along the bottom. A fitted image
+        // clears every pill in both; only a zoomed one passes under them.
+
+        // A group of controls floating over the image; a plain strip in
+        // panels. The shadow is drawn from the background alone, so the
+        // controls on it are not rendered through a layer.
+        component Pill: Item {
+            id: pill
+            property bool floating: editorWindow.floatingLayout
+            property color panelColor: "transparent"
+            Rectangle {
+                anchors.fill: parent
+                color: pill.floating ? editorWindow.pillColor : pill.panelColor
+                radius: pill.floating ? 20 : 0
+                border.width: pill.floating ? 1 : 0
+                border.color: Theme.alpha(Theme.accent, 0.14)
+                layer.enabled: pill.floating && pill.visible
+                layer.effect: MultiEffect {
+                    shadowEnabled: true
+                    shadowColor: Theme.shadow
+                    shadowBlur: 1.0
+                    blurMax: 40
+                    shadowVerticalOffset: 16
+                }
+            }
+        }
+
+        // A thin divider between groups of controls in a row or a column.
+        component Sep: Item {
+            property bool vertical: true
+            property int length: 24
+            implicitWidth: vertical ? 9 : length
+            implicitHeight: vertical ? length : 13
+            width: implicitWidth
+            height: implicitHeight
+            Rectangle {
+                anchors.centerIn: parent
+                width: parent.vertical ? 1 : 24
+                height: parent.vertical ? Math.min(24, parent.height) : 1
+                color: Theme.alpha(Theme.accent, parent.vertical && editorWindow.floatingLayout ? 0.18 : 0.14)
+            }
+        }
+
+        // A labelled text button: Fit and 1:1 next to the zoom.
+        component TextChip: Rectangle {
+            id: tc
+            property string text: ""
+            property string tip: ""
+            property bool active: false
+            signal clicked()
+            function _activate() { tc.clicked() }
+            implicitWidth: Math.ceil(tcText.implicitWidth) + 20
+            implicitHeight: 26
+            radius: 6
+            color: active ? Theme.secondary : tcMouse.containsMouse ? Theme.surfaceTop : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            Text {
+                id: tcText
+                anchors.centerIn: parent
+                text: tc.text
+                color: tc.active ? Theme.textPrimary : Theme.textSecondary
+                font.pixelSize: Theme.fontS
+                font.weight: Font.Medium
+                Accessible.ignored: true
+            }
+            MouseArea {
+                id: tcMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: tc._activate()
+            }
+            UHoverTip { anchor: tc; text: tc.tip; show: tcMouse.containsMouse && tc.tip !== "" }
+            activeFocusOnTab: true
+            Keys.onSpacePressed: (e) => UKeys.activate(e, tc._activate)
+            Keys.onReturnPressed: (e) => UKeys.activate(e, tc._activate)
+            Keys.onEnterPressed: (e) => UKeys.activate(e, tc._activate)
+            Accessible.role: Accessible.Button
+            Accessible.name: tc.tip !== "" ? tc.tip : tc.text
+            Accessible.focusable: true
+            Accessible.onPressAction: tc._activate()
+            UFocusRing {}
+        }
+
+        // A whole-image action: a full-width row in the inspector, a 44 px
+        // chip in the floating pill (icon only, with a tip, when `compact`).
+        component WholeButton: Rectangle {
+            id: wb
+            property string iconName: ""
+            property string text: ""
+            property bool pill: false
+            property bool compact: false
+            signal clicked()
+            function _activate() { if (wb.enabled) wb.clicked() }
+            readonly property real fullWidth: Math.ceil(wbText.implicitWidth) + (pill ? 18 + 8 + 26 : 16 + 10 + 24)
+            implicitWidth: compact ? editorWindow.chipSize : fullWidth
+            implicitHeight: pill ? editorWindow.chipSize : 36
+            radius: pill ? 14 : 8
+            color: wbMouse.containsMouse ? (pill ? Theme.alpha(Theme.accent, 0.18) : Theme.surfaceTop)
+                                         : (pill ? "transparent" : Theme.primary)
+            Behavior on color { ColorAnimation { duration: Theme.animFast } }
+            border.width: pill ? 0 : 1
+            border.color: Theme.alpha(Theme.accent, 0.12)
+            opacity: enabled ? 1 : 0.4
+            Row {
+                x: wb.compact ? Math.round((wb.width - wbIcon.width) / 2) : wb.pill ? 12 : 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: wb.pill ? 8 : 10
+                UIcon {
+                    id: wbIcon
+                    name: wb.iconName
+                    iconStyle: "custom"
+                    size: wb.pill ? 18 : 16
+                    color: Theme.accent
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    id: wbText
+                    visible: !wb.compact
+                    text: wb.text
+                    color: Theme.textPrimary
+                    font.pixelSize: 13
+                    font.weight: wb.pill ? Font.Bold : Font.Medium
+                    anchors.verticalCenter: parent.verticalCenter
+                    Accessible.ignored: true
+                }
+            }
+            MouseArea {
+                id: wbMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: wb._activate()
+            }
+            UHoverTip { anchor: wb; text: wb.text; show: wb.compact && wbMouse.containsMouse }
+            activeFocusOnTab: enabled
+            Keys.onSpacePressed: (e) => UKeys.activate(e, wb._activate)
+            Keys.onReturnPressed: (e) => UKeys.activate(e, wb._activate)
+            Keys.onEnterPressed: (e) => UKeys.activate(e, wb._activate)
+            Accessible.role: Accessible.Button
+            Accessible.name: wb.text
+            Accessible.focusable: true
+            Accessible.onPressAction: wb._activate()
+            UFocusRing { hostRadius: wb.radius }
+        }
 
         // Window drag (frameless decoration) on the bare parts of the top bar.
         // Every press on it is eaten, also with system decorations, so a click
@@ -556,152 +883,323 @@ Window {
         // that closes the chain.
         //
         // Declared first so Tab starts on the tools.
-        Item {
+        Pill {
             id: toolRail
-            anchors.top: topBar.bottom
-            anchors.left: parent.left
-            anchors.bottom: parent.bottom
-            width: toolColumn.width + 2 * Theme.spacingS
-            readonly property real oneColumn: toolRepeater.count * (40 + toolColumn.spacing) - toolColumn.spacing
-                                              + Theme.spacingM + historyColumn.height + statusBar.height
+            objectName: "editorToolRail"
+            panelColor: Theme.background
+            // Floating: one row with the title and the exports when it fits
+            // between them, centred on a row of its own under them when not.
+            readonly property real naturalW: editorWindow.flowWidth(toolFlow, 100000) + 2 * editorWindow.pillPad
+            readonly property real rowLeft: titlePill.x + titlePill.width + editorWindow.pillGap
+            readonly property real rowRight: actionsPill.x - editorWindow.pillGap
+            readonly property bool inTopRow: floating && rowRight - rowLeft >= naturalW
+            x: !floating ? 0
+               : inTopRow ? Math.round(rowLeft + (rowRight - rowLeft - width) / 2)
+               : Math.round((parent.width - width) / 2)
+            y: !floating ? topBar.height
+               : inTopRow ? editorWindow.pillEdge
+               : editorWindow.pillEdge + editorWindow.pillH + editorWindow.pillGap
+            width: floating ? Math.min(naturalW, parent.width - 2 * editorWindow.pillEdge)
+                            : Math.max(editorWindow.railWidth, toolFlow.width + 2 * editorWindow.railPad)
+            height: floating ? toolFlow.implicitHeight + 2 * editorWindow.pillPad : parent.height - y
+            // Over the stage, which fills the window in floating.
+            z: 20
+            // Panels: the chips give up height (34 down to 28 px) before
+            // the tools wrap into a second column.
+            readonly property int seps: editorWindow.toolSequence.filter(function (e) { return e.kind === "sep" }).length
+            readonly property int chips: editorWindow.toolSequence.length - seps
+            readonly property real fixedH: seps * 13 + Math.max(0, editorWindow.toolSequence.length - 1) * toolFlow.spacing + 2 * 8
+            readonly property int chipH: Math.max(28, Math.min(editorWindow.railChipH,
+                                                               Math.floor((height - fixedH) / Math.max(1, chips))))
+            // The rail's height with every tool in one column (minimumHeight).
+            readonly property real oneColumn: fixedH + chips * 28
             Accessible.role: Accessible.ToolBar
             Accessible.name: qsTr("Annotation tools")
 
-            // A window too short for one column of tools gets two, so no tool
-            // is ever scrolled away or clipped.
+            DragArea { anchors.fill: parent; visible: toolRail.floating }
+            Rectangle {
+                visible: !toolRail.floating
+                x: parent.width - 1
+                width: 1; height: parent.height
+                color: Theme.alpha(Theme.accent, 0.08)
+            }
+
+            // A window too short for one column of tools gets two, and one too
+            // narrow for one row gets two, so no tool is ever scrolled away
+            // or clipped.
             Flow {
-                id: toolColumn
-                flow: Flow.TopToBottom
-                x: Theme.spacingS
-                height: parent.height - historyColumn.height - statusBar.height - Theme.spacingM
+                id: toolFlow
+                flow: toolRail.floating ? Flow.LeftToRight : Flow.TopToBottom
+                x: toolRail.floating ? editorWindow.pillPad : editorWindow.railPad
+                y: toolRail.floating ? editorWindow.pillPad : 8
+                width: toolRail.floating
+                       ? Math.min(editorWindow.flowWidth(toolFlow, 100000),
+                                  editorWindow.width - 2 * editorWindow.pillEdge - 2 * editorWindow.pillPad)
+                       : implicitWidth
+                // Never undefined: resetting a size mid-flip left the old
+                // column's height on the row (a binding loop on the rail).
+                height: toolRail.floating ? implicitHeight : toolRail.height - 2 * 8
                 spacing: 2
                 // Same gate as the tool letters in shortcutScope.
                 enabled: !canvas.ocrMode
 
                 Repeater {
                     id: toolRepeater
-                    model: editorWindow.mainRowModel()
-                    delegate: ToolChip {
-                        iconName: modelData.kind === "group"
-                                  ? modelData.group.iconName
-                                  : ToolCatalog.toolIconName(modelData.tool, App.settings.editorIconStyle, App.settings.editorToolIcons)
-                        // The group glyph has no freedesktop equivalent - always bundled.
-                        iconStyle: modelData.kind === "group" ? "custom" : App.settings.editorIconStyle
-                        label: modelData.kind === "group"
-                               ? modelData.group.label
-                               : ToolCatalog.labelWithShortcut(modelData.tool)
-                        // A tool chip's hover-tip label already IS its
-                        // spoken name, shortcut letter included, and
-                        // ToolChip falls back to it. A GROUP chip's
-                        // label is the bare word "Shapes", which says
-                        // nothing about it being a group or about the
-                        // press opening its members in the options bar -
-                        // so it names itself here instead. The visible
-                        // label is untouched, and the spoken name still
-                        // STARTS with it, so "click Shapes" keeps working.
-                        accessibleName: modelData.kind === "group"
-                                        ? qsTr("%1 tool group").arg(modelData.group.label)
-                                        : ""
-                        accessibleDescription: modelData.kind === "group"
-                                        ? qsTr("Opens these tools in the options bar: %1. The group itself has no shortcut.")
-                                              .arg(editorWindow.groupMembers(modelData.group.id))
-                                        : ""
-                        active: modelData.kind === "group"
-                                ? editorWindow.shapesActive
-                                : canvas.tool === modelData.tool.tool
-                        // A second click puts the tool down, like the
-                        // group chip does: the pointer is the hand again.
-                        onClicked: modelData.kind === "group"
-                                   ? editorWindow.toggleShapesGroup()
-                                   : canvas.tool = canvas.tool === modelData.tool.tool
-                                                   ? AnnotationCanvas.None : modelData.tool.tool
+                    model: editorWindow.toolSequence
+                    delegate: Loader {
+                        required property var modelData
+                        sourceComponent: modelData.kind === "sep" ? sepEntry
+                                       : modelData.kind === "group" ? groupEntry : toolEntry
+                        Component {
+                            id: sepEntry
+                            Sep {
+                                vertical: toolRail.floating
+                                length: toolRail.floating ? editorWindow.chipSize : editorWindow.railChipW
+                            }
+                        }
+                        Component {
+                            id: toolEntry
+                            ToolChip {
+                                readonly property var t: modelData.tool
+                                width: toolRail.floating ? editorWindow.chipSize : editorWindow.railChipW
+                                height: toolRail.floating ? editorWindow.chipSize : toolRail.chipH
+                                radius: toolRail.floating ? 14 : 8
+                                iconSize: toolRail.floating ? 20 : 18
+                                iconName: ToolCatalog.toolIconName(t, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: App.settings.editorIconStyle
+                                label: t.label
+                                shortcut: t.shortcut || ""
+                                tipPlacement: toolRail.floating ? "auto" : "right"
+                                active: canvas.tool === t.tool
+                                // A second click puts the tool down: the
+                                // pointer is the hand again.
+                                onClicked: canvas.tool = canvas.tool === t.tool ? AnnotationCanvas.None : t.tool
+                            }
+                        }
+                        Component {
+                            id: groupEntry
+                            ToolChip {
+                                readonly property var pick: editorWindow.groupPick(modelData)
+                                width: editorWindow.chipSize
+                                height: editorWindow.chipSize
+                                radius: 14
+                                iconSize: 20
+                                grouped: true
+                                // "More tools" has a glyph of its own; the
+                                // others wear the member they would pick.
+                                iconName: modelData.group.iconName
+                                          ? modelData.group.iconName
+                                          : ToolCatalog.toolIconName(pick, App.settings.editorIconStyle, App.settings.editorToolIcons)
+                                iconStyle: modelData.group.iconName ? "custom" : App.settings.editorIconStyle
+                                label: modelData.group.label
+                                shortcut: modelData.group.iconName ? "" : (pick.shortcut || "")
+                                // A GROUP chip's label is a bare word that says
+                                // nothing about the press opening its members
+                                // in the options pill, so it names itself. The
+                                // spoken name still STARTS with the label, so
+                                // "click Shapes" keeps working.
+                                accessibleName: qsTr("%1 tool group").arg(modelData.group.label)
+                                accessibleDescription: qsTr("Opens these tools in the options bar: %1. The group itself has no shortcut.")
+                                    .arg(modelData.members.map(function (m) { return m.label }).join(", "))
+                                active: editorWindow.activeEntry !== null
+                                        && editorWindow.activeEntry.group.id === modelData.group.id
+                                onClicked: editorWindow.toggleGroup(modelData)
+                            }
+                        }
                     }
                 }
             }
-
-            // Undo and Redo close the rail, level with the bottom of the image.
-            Column {
-                id: historyColumn
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: statusBar.height
-                spacing: 2
-
-                ToolChip { iconName: "edit-undo"; label: qsTr("Undo"); enabled: canvas.canUndo; onClicked: canvas.undo() }
-                ToolChip { iconName: "edit-redo"; label: qsTr("Redo"); enabled: canvas.canRedo; onClicked: canvas.redo() }
-            }
         }
 
-        // The title bar (frameless decoration), the active tool's options and
-        // the exports. The options share the title's row when the widest
-        // tool's options fit beside the exports, and get a row of their own
-        // when they do not. Which one follows the window's width alone, never
-        // the tool, so picking a tool never moves or rescales the image.
+        // Panels: the header (file, state, exports, window buttons).
+        // Floating: the title and the exports as pills in the top corners,
+        // with the image showing between them.
         Item {
             id: topBar
             anchors.top: parent.top
             anchors.left: parent.left
             anchors.right: parent.right
-            readonly property int rowHeight: 40 + 2 * Theme.spacingS
-            // The widest tool's options: the text tool's measure 865 px in
-            // English (offscreen probe, ToolPropsBar.naturalWidth). Wider ones
-            // (a long translation, OCR mode) wrap, see ctxPanel.
-            readonly property int optionsBudget: 880
-            // The tool options start level with the stage's left edge.
-            readonly property real rowRoom: width - rightCluster.width - Theme.spacingS
-                                            - Theme.spacingM - editorWindow.railWidth
-            readonly property bool twoRows: rowRoom < optionsBudget
-            // How far the options reach below the bar once they wrap. They
-            // overlap the image's top edge instead of shrinking it, and
-            // canvasFlick.topMargin keeps that edge reachable by panning.
-            readonly property real overflow: ctxPanel.visible
-                ? Math.max(0, ctxPanel.y + ctxPanel.height - height) : 0
-            height: twoRows ? 2 * rowHeight : rowHeight
-            // Over the stage, for the wrapped options.
+            readonly property int rowHeight: 44
+            height: editorWindow.floatingLayout ? 0 : rowHeight
+            // Over the stage, which fills the window in floating.
             z: 20
 
-            DragArea { anchors.fill: parent }
-
-            // Centred while there is room beside the right cluster, then
-            // pushed left of it and elided.
-            Text {
-                readonly property real room: rightCluster.x - Theme.spacingL - Theme.spacingM
-                visible: !App.settings.useSystemDecoration && (topBar.twoRows || !ctxPanel.shown)
-                width: Math.min(implicitWidth, room)
-                x: Math.max(Theme.spacingM, Math.min((parent.width - width) / 2, room + Theme.spacingM - width))
-                y: Math.round((topBar.rowHeight - height) / 2)
-                elide: Text.ElideRight
-                text: editorWindow.title
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontM
-                font.weight: Font.DemiBold
+            DragArea { anchors.fill: parent; visible: !editorWindow.floatingLayout }
+            Rectangle {
+                visible: !editorWindow.floatingLayout
+                y: topBar.rowHeight - 1
+                width: parent.width; height: 1
+                color: editorWindow.hairline
             }
 
-            // The active tool's options, the Shapes group's members, the crop
-            // and OCR actions: whatever the moment needs, under the title or
-            // in its place.
-            Rectangle {
+            Row {
+                id: headerTitle
+                visible: !editorWindow.floatingLayout
+                x: 16
+                height: topBar.rowHeight
+                spacing: 10
+
+                Image {
+                    source: "qrc:/resources/icons/unisic.svg"
+                    sourceSize: Qt.size(20, 20)
+                    width: 20; height: 20
+                    smooth: true
+                    anchors.verticalCenter: parent.verticalCenter
+                    Accessible.ignored: true
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Editor")
+                    color: Theme.textPrimary
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "/"
+                    color: Theme.alpha(Theme.accent, 0.35)
+                    font.pixelSize: 13
+                    Accessible.ignored: true
+                }
+                Text {
+                    id: headerFile
+                    anchors.verticalCenter: parent.verticalCenter
+                    // Measured apart from the Text: an elided Text's
+                    // implicitWidth re-lays out when its width changes.
+                    width: Math.max(0, Math.min(Math.ceil(fileMetrics.advanceWidth) + 1,
+                                                rightCluster.x - 12 - headerTitle.x - x
+                                                - (editedMark.visible ? editedMark.width + headerTitle.spacing : 0)))
+                    elide: Text.ElideMiddle
+                    text: editorWindow.fileTitle
+                    color: Theme.textPrimary
+                    font.family: "monospace"
+                    font.pixelSize: 12
+                    TextMetrics { id: fileMetrics; font: headerFile.font; text: headerFile.text }
+                }
+                Row {
+                    id: editedMark
+                    visible: editorWindow.dirty
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 6
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        color: Theme.accent
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: qsTr("Edited")
+                        color: Theme.textSecondary
+                        font.pixelSize: Theme.fontS
+                    }
+                }
+            }
+
+            // Floating: back to the main window, the file and its state.
+            Pill {
+                id: titlePill
+                visible: floating
+                x: editorWindow.pillEdge
+                y: editorWindow.pillEdge
+                readonly property real textW: Math.min(260, Math.max(titleMetrics.advanceWidth,
+                                                                     subMetrics.advanceWidth + (subDot.visible ? 12 : 0)))
+                width: Math.max(editorWindow.pillH,
+                                Math.min(editorWindow.pillPad + editorWindow.chipSize + 12 + Math.ceil(textW) + 18,
+                                         actionsPill.x - editorWindow.pillGap - editorWindow.pillEdge))
+                height: editorWindow.pillH
+
+                TextMetrics { id: titleMetrics; font: pillTitle.font; text: pillTitle.text }
+                TextMetrics { id: subMetrics; font: pillSub.font; text: pillSub.text }
+
+                DragArea { anchors.fill: parent }
+
+                ToolChip {
+                    id: backButton
+                    objectName: "editorBack"
+                    x: editorWindow.pillPad
+                    y: editorWindow.pillPad
+                    width: editorWindow.chipSize; height: editorWindow.chipSize
+                    radius: 14
+                    iconSize: 20
+                    iconName: "line-back"
+                    iconStyle: "custom"
+                    label: qsTr("Back to Unisic")
+                    onClicked: {
+                        App.showMainWindowRequested()
+                        editorWindow.close()
+                    }
+                }
+                Column {
+                    x: backButton.x + backButton.width + 12
+                    width: titlePill.width - x - 18
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 1
+                    Text {
+                        id: pillTitle
+                        width: parent.width
+                        elide: Text.ElideMiddle
+                        text: editorWindow.fileTitle
+                        color: Theme.textPrimary
+                        font.pixelSize: 16
+                        font.weight: Font.Bold
+                    }
+                    Row {
+                        width: parent.width
+                        spacing: 6
+                        Rectangle {
+                            id: subDot
+                            visible: editorWindow.dirty && editorSession.statusText === ""
+                            width: 6; height: 6; radius: 3
+                            color: Theme.accent
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            id: pillSub
+                            width: parent.width - (subDot.visible ? subDot.width + parent.spacing : 0)
+                            elide: Text.ElideMiddle
+                            text: editorSession.statusText !== "" ? editorSession.statusText
+                                  : editorWindow.dirty ? qsTr("Unsaved changes")
+                                  : editorWindow.statusLine
+                            color: Theme.textSecondary
+                            font.pixelSize: Theme.fontS
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+            }
+
+            // What is picked and its options: the props of the active tool
+            // (or of the selected shape), a group's members, the crop and OCR
+            // actions, the selection's actions (floating). Declared here for
+            // the Tab order; it lives in the inspector (panels) or in the
+            // middle of the bottom row (floating).
+            Pill {
                 id: ctxPanel
+                objectName: "editorToolOptions"
+                parent: floating ? shortcutScope : inspectorBody
                 // Props follow the active tool, or the SELECTED shape when
                 // the Edit tool is active.
                 readonly property var ctxProps: ToolCatalog.contextProps(canvas.tool, canvas.selectedAnnotTool)
-                readonly property real maxW: topBar.twoRows
-                    ? topBar.width - toolRail.width - Theme.spacingS
-                    : rightCluster.x - Theme.spacingM - toolRail.width
-                readonly property bool shown: canvas.ocrMode || editorWindow.shapesActive
-                    || ctxProps.length > 0 || canvas.hasAnnotSelection
+                readonly property real minX: wholePill.x + wholePill.width + editorWindow.pillGap
+                readonly property real maxX: statusBar.x - editorWindow.pillGap
+                readonly property real maxW: floating ? maxX - minX - 2 * editorWindow.pillPad
+                                                      : inspectorBody.width
+                // Auto-redact where people go to hide text by hand: the options
+                // of Blur and Pixelate.
+                readonly property bool offersRedact: !canvas.ocrMode && !canvas.hasAnnotSelection
+                    && (canvas.tool === AnnotationCanvas.Blur || canvas.tool === AnnotationCanvas.Pixelate)
+                readonly property bool shown: canvas.ocrMode || ctxProps.length > 0 || offersRedact
                     || (canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection)
-                // Level with the stage, so lines that wrap hang over the image
-                // and never over the tool rail.
-                x: toolRail.width - Theme.spacingS
-                y: topBar.twoRows ? topBar.rowHeight : 0
-                width: ctxFlow.width + 2 * Theme.spacingS
-                height: Math.max(topBar.rowHeight, ctxFlow.height + 2 * Theme.spacingS)
-                // The bar's own colour: invisible on the bar, a panel where
-                // wrapped lines hang over the image.
-                color: Theme.backgroundDeep
-                bottomLeftRadius: Theme.radiusL
-                bottomRightRadius: Theme.radiusL
+                    || (floating && (editorWindow.activeEntry !== null || canvas.hasAnnotSelection))
+                // Floating: centred on the bottom row between the whole-image
+                // actions and the zoom, growing up over the image when its
+                // lines wrap (canvasFlick.bottomMargin keeps that edge
+                // reachable).
+                x: floating ? Math.max(minX, Math.min(Math.round((parent.width - width) / 2), maxX - width)) : 0
+                y: floating ? parent.height - editorWindow.pillEdge - height : 0
+                width: floating ? ctxFlow.width + 2 * editorWindow.pillPad : parent.width
+                height: floating ? Math.max(editorWindow.pillH, ctxFlow.height + 2 * editorWindow.pillPad)
+                                 : ctxFlow.height
+                z: 20
                 // Fades in, but hides at once: everything inside is bound to
                 // the same state and is already gone.
                 opacity: shown ? 1 : 0
@@ -710,80 +1208,78 @@ Window {
                 Accessible.role: Accessible.ToolBar
                 Accessible.name: qsTr("Tool options")
 
-                DragArea { anchors.fill: parent }
+                DragArea { anchors.fill: parent; visible: ctxPanel.floating }
 
                 Flow {
                     id: ctxFlow
-                    x: Theme.spacingS
+                    x: ctxPanel.floating ? editorWindow.pillPad : 0
                     anchors.verticalCenter: parent.verticalCenter
-                    // The widest line it lays out once wrapped evenly into
-                    // the room it has, never the whole room.
-                    width: editorWindow.flowWidth(ctxFlow, editorWindow.flowBalanced(ctxFlow, ctxPanel.maxW))
-                    // Same 6 px gap the props strip uses internally,
-                    // horizontally and between lines.
+                    // Floating: the widest line it lays out once wrapped
+                    // evenly into the room it has, never the whole room.
+                    // Panels: the inspector's width, filled line by line.
+                    width: ctxPanel.floating
+                           ? editorWindow.flowWidth(ctxFlow, editorWindow.flowBalanced(ctxFlow, ctxPanel.maxW))
+                           : ctxPanel.maxW
                     spacing: 6
 
-                    // The group chips and the delete affordance are one
-                    // block, so they wrap as one.
-                    Row {
-                        id: shapesRow
-                        spacing: 6
-                        // A zero-width but VISIBLE child still costs the
-                        // Flow a spacing gap. Spelled out rather than
-                        // derived from `implicitWidth > 0`: a positioner
-                        // reports content size 0 while it is itself
-                        // invisible, so that form latches off the first
-                        // time it is false and never comes back.
-                        visible: !canvas.ocrMode && (editorWindow.shapesActive || canvas.hasAnnotSelection)
+                    Text {
+                        visible: ctxPanel.floating
+                        height: editorWindow.chipSize
+                        leftPadding: 10
+                        rightPadding: 4
+                        verticalAlignment: Text.AlignVCenter
+                        text: editorWindow.focusInfo.name
+                        color: Theme.textPrimary
+                        font.pixelSize: 13
+                        font.weight: Font.Bold
+                        Accessible.ignored: true
+                    }
 
+                    // A group's members (floating): the group chip on the
+                    // bar stands for the one last used.
+                    Row {
+                        visible: !canvas.ocrMode && editorWindow.activeEntry !== null
+                        spacing: 2
                         Repeater {
-                            model: editorWindow.shapesActive ? editorWindow.shapesTools : []
+                            model: editorWindow.activeEntry ? editorWindow.activeEntry.members : []
                             delegate: ToolChip {
+                                width: editorWindow.chipSize; height: editorWindow.chipSize
+                                radius: 14
+                                iconSize: 20
                                 iconName: ToolCatalog.toolIconName(modelData, App.settings.editorIconStyle, App.settings.editorToolIcons)
                                 iconStyle: App.settings.editorIconStyle
-                                label: ToolCatalog.labelWithShortcut(modelData)
+                                label: modelData.label
+                                shortcut: modelData.shortcut || ""
                                 active: canvas.tool === modelData.tool
-                                onClicked: {
-                                    canvas.tool = modelData.tool
-                                    editorWindow.currentShapeId = modelData.id
-                                }
+                                onClicked: canvas.tool = modelData.tool
                             }
                         }
-
-                        // Delete affordance for the selected shape - shown for
-                        // any tool, since a plain click selects shapes now.
-                        ToolChip {
-                            visible: canvas.hasAnnotSelection
-                            iconName: "edit-delete"
-                            label: qsTr("Delete shape")
-                            anchors.verticalCenter: parent.verticalCenter
-                            onClicked: canvas.removeSelectedAnnot()
-                        }
-
-                        Rectangle {
-                            visible: ctxPanel.ctxProps.length > 0
-                            // Nothing to separate once the props wrap below.
-                            opacity: propsBar.y > shapesRow.y ? 0 : 1
-                            width: 1; height: 30; color: Theme.divider
-                            anchors.verticalCenter: parent.verticalCenter
+                        Sep {
+                            visible: propsBar.visible
+                            length: editorWindow.chipSize
                         }
                     }
 
                     ToolPropsBar {
                         id: propsBar
+                        objectName: "editorPropsBar"
                         visible: !canvas.ocrMode && ctxPanel.ctxProps.length > 0
+                        variant: ctxPanel.floating ? "pill" : "inspector"
                         canvas: canvas
                         props: ctxPanel.ctxProps
                         recentColors: editorWindow.recentList()
+                        quickStickers: editorWindow.stickerList()
                         // Bounded, the strip wraps - and the Flow drops it onto
                         // its own line first, so it only has to wrap inside
                         // itself when even a whole line is not enough. Then
                         // into even lines, like the Flow around it.
-                        maxWidth: editorWindow.flowBalanced(propsBar, ctxPanel.maxW)
+                        maxWidth: ctxPanel.floating ? editorWindow.flowBalanced(propsBar, ctxPanel.maxW) : ctxPanel.maxW
+                        groupLimit: ctxPanel.maxW
                         onStrokePickerRequested: strokePopup.openWith(canvas.strokeColor)
                         onFillPickerRequested: fillPopup.openWith(canvas.shapeFillColor)
                         onTextOutlinePickerRequested: outlinePopup.openWith(canvas.textOutlineColor)
                         onTextBackgroundPickerRequested: textBgPopup.openWith(canvas.textBackgroundColor)
+                        onStickerLibraryRequested: stickerPopup.openFor(canvas.sticker)
                         onImageFileRequested: {
                             var at = canvas.toImage(canvas.width / 2, canvas.height / 2)
                             editorSession.insertImageFile(at.x, at.y)
@@ -791,8 +1287,25 @@ Window {
                     }
 
                     UButton {
+                        id: toolRedact
+                        objectName: "editorToolRedact"
+                        // Kept while its popup is open over the scan's OCR mode.
+                        visible: ctxPanel.offersRedact
+                                 || (redactReview.visible && redactReview.anchor === toolRedact)
+                        compact: true
+                        height: ctxPanel.floating ? editorWindow.chipSize : 34
+                        cornerRadius: ctxPanel.floating ? 14 : 8
+                        iconName: "line-redact"
+                        text: qsTr("Auto-redact")
+                        onClicked: editorWindow.autoRedact(toolRedact)
+                    }
+
+                    UButton {
                         visible: !canvas.ocrMode && canvas.tool === AnnotationCanvas.Crop && canvas.hasSelection
                         compact: true
+                        height: ctxPanel.floating ? editorWindow.chipSize : 34
+                        cornerRadius: ctxPanel.floating ? 14 : 8
+                        iconName: "line-crop"
                         text: qsTr("Apply crop")
                         onClicked: canvas.applyCrop()
                     }
@@ -827,30 +1340,6 @@ Window {
                         enabled: canvas.hasOcrSelection
                         onClicked: editorSession.redactOcrSelection()
                     }
-                    // Pattern redaction: the point is to black out the few secrets
-                    // in a shot, not all of its text (Select all + Redact selection
-                    // already does that, and leaves an unreadable image). The
-                    // patterns are regexes and are NOT translated - only the labels.
-                    UMenuButton {
-                        visible: canvas.ocrMode
-                        height: 34
-                        text: qsTr("Auto-redact")
-                        enabled: !canvas.ocrBusy
-                        actions: [
-                            { label: qsTr("E-mail addresses"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("[\\w.%+-]+@[\\w.-]+\\.[A-Za-z]{2,}")
-                              } },
-                            { label: qsTr("IP addresses"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")
-                              } },
-                            { label: qsTr("Long numbers"), iconName: "edit-delete",
-                              trigger: function () {
-                                  editorSession.redactTextMatching("\\d[\\d -]{5,}\\d")
-                              } }
-                        ]
-                    }
                     UButton {
                         visible: canvas.ocrMode
                         compact: true
@@ -864,95 +1353,211 @@ Window {
                         iconName: "close"; text: qsTr("Done"); variant: "ghost"
                         onClicked: canvas.clearOcrMode()
                     }
+
+                    // Floating: the selection's actions close the pill.
+                    Row {
+                        visible: ctxPanel.floating && canvas.hasAnnotSelection && !canvas.ocrMode
+                        Sep { length: editorWindow.chipSize }
+                        Item {
+                            id: floatSelSlot
+                            width: selActions.width
+                            height: selActions.height
+                        }
+                    }
                 }
             }
 
+            // Actions on the selected shape(s): in the inspector's header
+            // (panels) or at the end of the options pill (floating). One set,
+            // moved, so shortcuts, focus and the smoke test see one.
+            Row {
+                id: selActions
+                parent: editorWindow.floatingLayout ? floatSelSlot : panelSelSlot
+                readonly property bool floating: editorWindow.floatingLayout
+                readonly property int size: floating ? editorWindow.chipSize : 34
+                spacing: 2
+                visible: canvas.hasAnnotSelection && !canvas.ocrMode
+
+                ToolChip {
+                    objectName: "editorDuplicateShape"
+                    width: selActions.size; height: selActions.size
+                    radius: selActions.floating ? 14 : 8
+                    iconName: "line-copy"
+                    iconStyle: "custom"
+                    label: qsTr("Duplicate")
+                    shortcut: "Ctrl+D"
+                    onClicked: canvas.duplicateSelected()
+                }
+                UMenuButton {
+                    objectName: "editorArrangeShapes"
+                    // Implicit, not width: flowWrap measures the implicit
+                    // size of what it lays out.
+                    implicitWidth: selActions.size; implicitHeight: selActions.size
+                    iconOnly: true
+                    flat: true
+                    iconName: "object-order-front"
+                    tooltip: qsTr("Arrange")
+                    preferAbove: selActions.floating
+                    actions: [
+                        { label: qsTr("Bring to front"), hint: "Ctrl+Shift+]",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.BringToFront) } },
+                        { label: qsTr("Bring forward"), hint: "Ctrl+]",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.BringForward) } },
+                        { label: qsTr("Send backward"), hint: "Ctrl+[",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.SendBackward) } },
+                        { label: qsTr("Send to back"), hint: "Ctrl+Shift+[",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.SendToBack) } }
+                    ]
+                }
+                ToolChip {
+                    width: selActions.size; height: selActions.size
+                    radius: selActions.floating ? 14 : 8
+                    iconName: "line-trash"
+                    iconStyle: "custom"
+                    iconColor: Theme.danger
+                    label: canvas.selectedCount > 1 ? qsTr("Delete %n shape(s)", "", canvas.selectedCount)
+                                                    : qsTr("Delete shape")
+                    shortcut: "Delete"
+                    onClicked: canvas.removeSelectedAnnot()
+                }
+            }
+
+            Pill {
+                id: actionsPill
+                visible: floating
+                x: parent.width - width - editorWindow.pillEdge
+                y: editorWindow.pillEdge
+                width: rightCluster.width + 2 * editorWindow.pillPad
+                height: editorWindow.pillH
+
+                DragArea { anchors.fill: parent }
+            }
+
+            // The exports. Primary ones stay labelled in panels; the floating
+            // pill keeps Copy and Save as chips and Upload labelled. In OCR
+            // mode its own actions sit in the options and these, which act on
+            // the whole image, are disabled until "Done" - disabled rather
+            // than hidden, so nothing in the bar moves when OCR starts.
             Row {
                 id: rightCluster
-                anchors.right: parent.right
-                anchors.rightMargin: Theme.spacingS
-                y: Math.round((topBar.rowHeight - height) / 2)
-                spacing: Theme.spacingS
+                objectName: "editorActions"
+                parent: editorWindow.floatingLayout ? actionsPill : topBar
+                readonly property bool floating: editorWindow.floatingLayout
+                readonly property int chipW: floating ? editorWindow.chipSize : 32
+                readonly property int chipH: floating ? editorWindow.chipSize : 30
+                x: floating ? editorWindow.pillPad : parent.width - width - 6
+                y: Math.round(((floating ? editorWindow.pillH : topBar.rowHeight) - height) / 2)
+                spacing: floating ? 4 : 6
 
-                // Primary exports stay labelled; the occasional OCR actions
-                // live behind one "More" menu. Closing is the title bar's (and
-                // Esc's). In OCR mode its own actions sit in the options and
-                // these, which act on the whole image, are disabled until
-                // "Done" - disabled rather than hidden, so nothing in the bar
-                // moves when OCR starts.
+                ToolChip {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: rightCluster.chipW; height: rightCluster.chipH
+                    radius: rightCluster.floating ? 14 : 7
+                    iconSize: rightCluster.floating ? 19 : 16
+                    iconName: "line-undo"
+                    iconStyle: "custom"
+                    label: qsTr("Undo")
+                    shortcut: "Ctrl+Z"
+                    enabled: canvas.canUndo
+                    onClicked: canvas.undo()
+                }
+                ToolChip {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: rightCluster.chipW; height: rightCluster.chipH
+                    radius: rightCluster.floating ? 14 : 7
+                    iconSize: rightCluster.floating ? 19 : 16
+                    iconName: "line-redo"
+                    iconStyle: "custom"
+                    label: qsTr("Redo")
+                    shortcut: "Ctrl+Shift+Z"
+                    enabled: canvas.canRedo
+                    onClicked: canvas.redo()
+                }
+                Sep {
+                    anchors.verticalCenter: parent.verticalCenter
+                    length: rightCluster.floating ? 24 : 20
+                }
+
                 Row {
                     id: actionRow
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: Theme.spacingS
+                    spacing: rightCluster.spacing
                     enabled: !canvas.ocrMode
                     Accessible.role: Accessible.ToolBar
                     Accessible.name: qsTr("Editor actions")
 
                     UButton {
+                        visible: !rightCluster.floating
+                        anchors.verticalCenter: parent.verticalCenter
                         compact: true
-                        iconName: "edit-copy"; text: qsTr("Copy"); variant: "tonal"
+                        height: 30
+                        cornerRadius: 7
+                        variant: "outline"
+                        iconName: "line-copy"; text: qsTr("Copy")
+                        onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
+                    }
+                    ToolChip {
+                        visible: rightCluster.floating
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: editorWindow.chipSize; height: editorWindow.chipSize
+                        radius: 14
+                        iconSize: 19
+                        iconName: "line-copy"
+                        iconStyle: "custom"
+                        label: qsTr("Copy")
+                        shortcut: "Ctrl+C"
                         onClicked: { editorWindow.commitPendingText(); editorSession.copyToClipboard() }
                     }
                     USplitMenuButton {
+                        visible: !rightCluster.floating
+                        anchors.verticalCenter: parent.verticalCenter
                         compact: true
-                        iconName: "document-save"
+                        outline: true
+                        height: 30
+                        cornerRadius: 7
+                        iconName: "line-save"
                         text: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
                         tooltip: editorSession.overwriteMode ? qsTr("Overwrite (Ctrl+S)") : qsTr("Save (Ctrl+S)")
                         dropdownTooltip: qsTr("More save options")
                         onClicked: editorWindow.doSave()
-                        actions: [
-                            { label: qsTr("Save as…"), iconName: "document-save",
-                              hint: "Ctrl+Shift+S",
-                              trigger: function () {
-                                  editorWindow.doSaveAs()
-                              } },
-                            { label: qsTr("Save as PNG"), iconName: "document-save",
-                              separatorBefore: true,
-                              hint: App.settings.imageFormat === "png" ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("png")
-                              } },
-                            { label: qsTr("Save as JPEG"), iconName: "document-save",
-                              hint: (App.settings.imageFormat === "jpg" || App.settings.imageFormat === "jpeg") ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("jpg")
-                              } },
-                            { label: qsTr("Save as WebP"), iconName: "document-save",
-                              hint: App.settings.imageFormat === "webp" ? qsTr("Default") : "",
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("webp")
-                              } },
-                            { label: qsTr("Save as GIF"), iconName: "document-save",
-                              enabled: App.ffmpegAvailable,
-                              hint: !App.ffmpegAvailable ? qsTr("Needs ffmpeg")
-                                    : (App.settings.imageFormat === "gif" ? qsTr("Default") : ""),
-                              trigger: function () {
-                                  editorWindow.commitPendingText()
-                                  editorSession.saveAs("gif")
-                              } }
-                        ]
+                        actions: editorWindow.saveActions
+                    }
+                    ToolChip {
+                        visible: rightCluster.floating
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: editorWindow.chipSize; height: editorWindow.chipSize
+                        radius: 14
+                        iconSize: 19
+                        iconName: "line-save"
+                        iconStyle: "custom"
+                        label: editorSession.overwriteMode ? qsTr("Overwrite") : qsTr("Save")
+                        shortcut: "Ctrl+S"
+                        onClicked: editorWindow.doSave()
                     }
                     UButton {
+                        anchors.verticalCenter: parent.verticalCenter
                         compact: true
-                        iconName: "document-send"; text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
-                        variant: "tonal"; enabled: !App.uploads.busy
+                        height: rightCluster.floating ? editorWindow.chipSize : 30
+                        cornerRadius: rightCluster.floating ? 14 : 7
+                        iconName: rightCluster.floating ? "line-upload" : "line-send"
+                        text: App.uploads.busy ? qsTr("Uploading…") : qsTr("Upload")
+                        enabled: !App.uploads.busy
                         onClicked: { editorWindow.commitPendingText(); editorSession.upload() }
                     }
-                    // "More": the occasional text and whole-picture actions. OCR is always built in.
+                    // "More": the occasional picture actions (and, floating,
+                    // the save formats the split button holds in panels).
                     UMenuButton {
                         id: moreMenu
-                        width: 34; height: 34
                         anchors.verticalCenter: parent.verticalCenter
+                        width: rightCluster.chipW; height: rightCluster.chipH
                         iconOnly: true
+                        flat: true
                         iconName: "view-more"
                         tooltip: qsTr("More")
-                        actions: [
-                            { label: qsTr("Copy all text"), iconName: "ocr",
-                              trigger: function () { editorSession.ocrCopyText() } },
+                        preferAbove: false
+                        actions: (rightCluster.floating ? editorWindow.saveActions : []).concat([
                             { label: qsTr("Select text…"), iconName: "select",
+                              separatorBefore: rightCluster.floating,
                               trigger: function () { editorSession.startOcrPick() } },
                             { label: qsTr("Rotate left"), iconName: "object-rotate-left", separatorBefore: true,
                               trigger: function () { editorWindow.commitPendingText(); canvas.rotateImage(false) } },
@@ -964,22 +1569,17 @@ Window {
                               trigger: function () { editorWindow.commitPendingText(); canvas.flipImage(false) } },
                             { label: qsTr("Resize…"), iconName: "transform-scale",
                               trigger: function () { resizeDialog.openFor() } },
-                            App.backgroundRemover.available
-                            ? { label: qsTr("Remove background"), iconName: "draw-eraser",
-                                enabled: !App.backgroundRemover.busy,
-                                trigger: function () { editorWindow.commitPendingText(); editorSession.removeBackground() } }
-                            : null,
                             { label: qsTr("Print…"), iconName: "document-print", hint: "Ctrl+P",
                               separatorBefore: true,
                               trigger: function () { editorWindow.commitPendingText(); editorSession.print() } }
-                        ].filter(a => a !== null)
+                        ])
                     }
                 }
 
-                Rectangle {
+                Sep {
                     visible: !App.settings.useSystemDecoration
-                    width: 1; height: 30; color: Theme.divider
                     anchors.verticalCenter: parent.verticalCenter
+                    length: rightCluster.floating ? 24 : 20
                 }
 
                 Row {
@@ -987,19 +1587,21 @@ Window {
                     visible: !App.settings.useSystemDecoration
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
+                    readonly property int w: rightCluster.floating ? 36 : 34
+                    readonly property int h: rightCluster.floating ? 36 : 30
                     UIconButton {
-                        iconName: "minus"; iconSize: 14; width: 30; height: 30
+                        iconName: "minus"; iconSize: 14; width: titleButtons.w; height: titleButtons.h
                         tooltip: qsTr("Minimize")
                         onClicked: editorWindow.showMinimized()
                     }
                     UIconButton {
-                        iconName: "window"; iconSize: 13; width: 30; height: 30
+                        iconName: "window"; iconSize: 13; width: titleButtons.w; height: titleButtons.h
                         tooltip: qsTr("Maximize")
                         onClicked: editorWindow.visibility === Window.Maximized
                                    ? editorWindow.showNormal() : editorWindow.showMaximized()
                     }
                     UIconButton {
-                        iconName: "close"; iconSize: 14; width: 30; height: 30
+                        iconName: "close"; iconSize: 14; width: titleButtons.w; height: titleButtons.h
                         tooltip: qsTr("Close")
                         onClicked: editorWindow.close()
                     }
@@ -1007,44 +1609,382 @@ Window {
             }
         }
 
+        // Floating: the whole-image actions in the bottom-left corner,
+        // labelled while the options beside them still fit on one line: 800
+        // px holds the arrow's, a selected shape's actions included. Fixed,
+        // not the current options' width, or the labels would come and go
+        // with every tool switch.
+        Pill {
+            id: wholePill
+            objectName: "editorWholeImage"
+            visible: floating
+            x: editorWindow.pillEdge
+            y: parent.height - editorWindow.pillEdge - height
+            width: wholeRow.width + 2 * editorWindow.pillPad
+            height: editorWindow.pillH
+            z: 20
+            readonly property real labelledW: wholeCopy.fullWidth + wholeRedact.fullWidth
+                + (wholeBg.visible ? wholeBg.fullWidth + wholeRow.spacing : 0) + wholeRow.spacing
+                + 2 * editorWindow.pillPad
+            readonly property bool labelled: editorWindow.width - 2 * editorWindow.pillEdge
+                - 2 * editorWindow.pillGap - statusBar.width - labelledW >= 800
+            Accessible.role: Accessible.ToolBar
+            Accessible.name: qsTr("On the whole image")
+
+            DragArea { anchors.fill: parent }
+
+            Row {
+                id: wholeRow
+                x: editorWindow.pillPad
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
+                WholeButton {
+                    id: wholeCopy
+                    pill: true
+                    compact: !wholePill.labelled
+                    iconName: "line-text-scan"
+                    text: qsTr("Copy text")
+                    onClicked: editorSession.ocrCopyText()
+                }
+                WholeButton {
+                    id: wholeRedact
+                    objectName: "editorWholeRedact"
+                    pill: true
+                    compact: !wholePill.labelled
+                    iconName: "line-redact"
+                    text: qsTr("Auto-redact")
+                    enabled: !canvas.ocrBusy
+                    onClicked: editorWindow.autoRedact(wholeRedact)
+                }
+                WholeButton {
+                    id: wholeBg
+                    pill: true
+                    compact: !wholePill.labelled
+                    visible: App.backgroundRemover.available
+                    iconName: "line-remove-bg"
+                    text: qsTr("Remove background")
+                    enabled: !App.backgroundRemover.busy && !canvas.ocrMode
+                    onClicked: { editorWindow.commitPendingText(); editorSession.removeBackground() }
+                }
+            }
+        }
+
+        // Panels: what is picked and its options, the shapes on the image,
+        // the whole-image actions.
+        Rectangle {
+            id: inspector
+            objectName: "editorInspector"
+            visible: !editorWindow.floatingLayout
+            x: parent.width - width
+            y: topBar.height
+            width: editorWindow.inspectorWidth
+            height: parent.height - y
+            color: Theme.surface
+
+            Rectangle { width: 1; height: parent.height; color: editorWindow.hairline }
+
+            Flickable {
+                id: inspectorFlick
+                anchors.fill: parent
+                anchors.leftMargin: 1
+                clip: true
+                contentHeight: inspectorColumn.height
+                boundsBehavior: Flickable.StopAtBounds
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                Column {
+                    id: inspectorColumn
+                    width: inspectorFlick.width
+
+                    // What is picked: the selected shape, the active tool,
+                    // OCR, or nothing.
+                    Item {
+                        width: parent.width
+                        height: 18 + 36 + 16
+                        Rectangle {
+                            id: focusTile
+                            x: 20; y: 18
+                            width: 36; height: 36; radius: 9
+                            color: Theme.secondary
+                            UIcon {
+                                anchors.centerIn: parent
+                                name: editorWindow.focusInfo.icon
+                                iconStyle: "custom"
+                                size: 18
+                                color: Theme.accent
+                            }
+                        }
+                        Column {
+                            x: focusTile.x + focusTile.width + 12
+                            width: panelSelSlot.x - 12 - x
+                            anchors.verticalCenter: focusTile.verticalCenter
+                            spacing: 1
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                text: editorWindow.focusInfo.name
+                                color: Theme.textPrimary
+                                font.pixelSize: 14
+                                font.weight: Font.DemiBold
+                            }
+                            Text {
+                                width: parent.width
+                                elide: Text.ElideRight
+                                text: editorWindow.focusInfo.sub
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                            }
+                        }
+                        Item {
+                            id: panelSelSlot
+                            x: parent.width - 16 - width
+                            anchors.verticalCenter: focusTile.verticalCenter
+                            width: selActions.visible ? selActions.width : 0
+                            height: selActions.height
+                        }
+                        Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
+                    }
+
+                    Item {
+                        width: parent.width
+                        height: propsColumn.height + 2 * 16 + 1
+                        Column {
+                            id: propsColumn
+                            x: 20; y: 16
+                            width: parent.width - 2 * 20
+                            Item {
+                                id: inspectorBody
+                                objectName: "editorInspectorBody"
+                                visible: ctxPanel.shown
+                                width: parent.width
+                                height: ctxPanel.height
+                            }
+                            Text {
+                                visible: !ctxPanel.shown
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("Pick a tool to see its options here.")
+                                color: Theme.textTertiary
+                                font.pixelSize: Theme.fontS
+                            }
+                        }
+                        Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
+                    }
+
+                    // The shapes on the image, top of the stack first. A
+                    // click selects one, Ctrl or Shift adds it.
+                    Item {
+                        visible: editorWindow.shapes.length > 0
+                        width: parent.width
+                        height: shapesColumn.height + 14 + 12 + 1
+                        Column {
+                            id: shapesColumn
+                            x: 12; y: 14
+                            width: parent.width - 2 * 12
+                            spacing: 6
+                            Row {
+                                x: 8
+                                spacing: 8
+                                Text {
+                                    text: qsTr("Shapes")
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 11
+                                    font.weight: Font.DemiBold
+                                    font.capitalization: Font.AllUppercase
+                                    font.letterSpacing: 0.9
+                                }
+                                Text {
+                                    text: editorWindow.shapes.length
+                                    color: Theme.textTertiary
+                                    font.family: "monospace"
+                                    font.pixelSize: 11
+                                    Accessible.ignored: true
+                                }
+                            }
+                            Column {
+                                objectName: "editorShapeList"
+                                width: parent.width
+                                spacing: 1
+                                Accessible.role: Accessible.List
+                                Accessible.name: qsTr("Shapes")
+                                Repeater {
+                                    model: editorWindow.shapes
+                                    delegate: Rectangle {
+                                        id: shapeRow
+                                        required property var modelData
+                                        function _activate(toggle) { canvas.selectAnnotIndex(modelData.index, toggle) }
+                                        width: parent.width
+                                        height: 34
+                                        radius: 7
+                                        color: modelData.selected ? Theme.secondary
+                                               : shapeMouse.containsMouse ? Theme.surfaceTop : "transparent"
+                                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                                        UIcon {
+                                            id: shapeIconItem
+                                            x: 8
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            name: editorWindow.shapeIcon(shapeRow.modelData.tool)
+                                            iconStyle: "custom"
+                                            size: 16
+                                            color: shapeRow.modelData.selected ? Theme.textPrimary : Theme.textSecondary
+                                        }
+                                        Text {
+                                            x: shapeIconItem.x + shapeIconItem.width + 10
+                                            width: shapeChip.x - 10 - x
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            elide: Text.ElideRight
+                                            text: shapeRow.modelData.name
+                                            color: Theme.textPrimary
+                                            font.pixelSize: 13
+                                            font.weight: shapeRow.modelData.selected ? Font.DemiBold : Font.Normal
+                                        }
+                                        Rectangle {
+                                            id: shapeChip
+                                            x: parent.width - 8 - width
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 10; height: 10; radius: 3
+                                            visible: shapeRow.modelData.color.a > 0
+                                            color: shapeRow.modelData.color
+                                        }
+                                        MouseArea {
+                                            id: shapeMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: (m) => shapeRow._activate((m.modifiers & (Qt.ControlModifier | Qt.ShiftModifier)) !== 0)
+                                        }
+                                        activeFocusOnTab: true
+                                        Keys.onSpacePressed: (e) => UKeys.activate(e, function () { shapeRow._activate(false) })
+                                        Keys.onReturnPressed: (e) => UKeys.activate(e, function () { shapeRow._activate(false) })
+                                        Keys.onEnterPressed: (e) => UKeys.activate(e, function () { shapeRow._activate(false) })
+                                        Accessible.role: Accessible.ListItem
+                                        Accessible.name: modelData.name
+                                        Accessible.selectable: true
+                                        Accessible.selected: modelData.selected
+                                        Accessible.focusable: true
+                                        Accessible.onPressAction: shapeRow._activate(false)
+                                        UFocusRing { hostRadius: shapeRow.radius }
+                                    }
+                                }
+                            }
+                        }
+                        Rectangle { y: parent.height - 1; width: parent.width; height: 1; color: editorWindow.hairline }
+                    }
+
+                    // Actions on the whole picture, not on a shape.
+                    Item {
+                        width: parent.width
+                        height: wholeColumn.height + 14 + 18
+                        Column {
+                            id: wholeColumn
+                            x: 20; y: 14
+                            width: parent.width - 2 * 20
+                            spacing: 8
+                            Text {
+                                text: qsTr("On the whole image")
+                                color: Theme.textSecondary
+                                font.pixelSize: 11
+                                font.weight: Font.DemiBold
+                                font.capitalization: Font.AllUppercase
+                                font.letterSpacing: 0.9
+                            }
+                            WholeButton {
+                                width: parent.width
+                                iconName: "line-text-scan"
+                                text: qsTr("Copy text")
+                                onClicked: editorSession.ocrCopyText()
+                            }
+                            WholeButton {
+                                id: panelRedact
+                                objectName: "editorPanelRedact"
+                                width: parent.width
+                                iconName: "line-redact"
+                                text: qsTr("Auto-redact")
+                                enabled: !canvas.ocrBusy
+                                onClicked: editorWindow.autoRedact(panelRedact)
+                            }
+                            WholeButton {
+                                width: parent.width
+                                visible: App.backgroundRemover.available
+                                iconName: "line-remove-bg"
+                                text: qsTr("Remove background")
+                                enabled: !App.backgroundRemover.busy && !canvas.ocrMode
+                                onClicked: { editorWindow.commitPendingText(); editorSession.removeBackground() }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ---------- stage ----------
-        // The same card as the main window's pages, holding the image and
-        // nothing else.
+        // Panels: the column between the rail and the inspector, a dot grid
+        // under the image. Floating: the whole window, a soft vignette under
+        // the image and the pills.
         Rectangle {
             id: stage
-            anchors.top: topBar.bottom
-            anchors.left: toolRail.right
-            anchors.right: parent.right
-            anchors.bottom: statusBar.top
-            anchors.rightMargin: Theme.spacingS
-            radius: Theme.radiusL
-            color: Theme.background
-            border.width: 1
-            border.color: Theme.edgeLight
+            readonly property bool floating: editorWindow.floatingLayout
+            x: floating ? 0 : toolRail.width
+            y: floating ? 0 : topBar.height
+            width: floating ? parent.width : inspector.x - x
+            height: floating ? parent.height : statusBar.y - y
+            color: Theme.backgroundDeep
+
+            // 20 px tiles, one dot each: one tiny texture, repeated.
+            Image {
+                anchors.fill: parent
+                visible: !stage.floating
+                fillMode: Image.Tile
+                sourceSize: Qt.size(20, 20)
+                source: "data:image/svg+xml;utf8," + encodeURIComponent(
+                    "<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'>"
+                    + "<circle cx='10' cy='10' r='1' fill='" + Theme.accent + "' fill-opacity='0.10'/></svg>")
+                Accessible.ignored: true
+            }
+            // Drawn small and stretched: a gradient loses nothing to the
+            // scaling, and the texture stays 450x300.
+            Image {
+                visible: stage.floating
+                anchors.centerIn: parent
+                width: 1800; height: 1200
+                sourceSize: Qt.size(450, 300)
+                smooth: true
+                source: "data:image/svg+xml;utf8," + encodeURIComponent(
+                    "<svg xmlns='http://www.w3.org/2000/svg' width='450' height='300'>"
+                    + "<defs><radialGradient id='g' cx='0.5' cy='0.5' r='0.5'>"
+                    + "<stop offset='0' stop-color='" + Theme.primary + "'/>"
+                    + "<stop offset='0.75' stop-color='" + Theme.backgroundDeep + "'/>"
+                    + "</radialGradient></defs><rect width='450' height='300' fill='url(#g)'/></svg>")
+                Accessible.ignored: true
+            }
 
             Flickable {
                 id: canvasFlick
                 objectName: "editorCanvasFlick"  // the smoke test drives zoom through it
                 anchors.fill: parent
-                // clip is rectangular: the inset keeps a zoomed image out of
-                // the card's rounded corners.
-                anchors.margins: Theme.spacingS
                 clip: true
                 // Panning is done by hand below (drag with the hand, Space+drag,
                 // middle drag, wheel, scrollbars), never by Flickable's own
                 // flick: a drawing tool owns the left button.
                 interactive: false
                 // The clear area between the bars, in viewport coordinates.
-                readonly property real padSide: editorWindow.fitPad - Theme.spacingS
-                readonly property real padTop: padSide
-                readonly property real padBottom: padSide
+                // Floating: below the top two rows of pills and above the
+                // bottom one, which depend on the window's width alone, never
+                // on the tool, so picking a tool never moves the image.
+                readonly property real padSide: editorWindow.fitPad
+                readonly property real padTop: stage.floating
+                    ? toolRail.y + toolRail.height + editorWindow.pillGap : padSide
+                readonly property real padBottom: stage.floating
+                    ? editorWindow.pillEdge + editorWindow.pillH + editorWindow.pillGap : padSide
                 readonly property real availW: Math.max(1, width - 2 * padSide)
                 readonly property real availH: Math.max(1, height - padTop - padBottom)
-                // How far wrapped tool options hang over the stage: the image's
-                // top can be panned that far down, out from under them. A
-                // margin, so the options wrapping moves nothing on screen.
-                topMargin: Math.max(0, topBar.overflow + Theme.spacingS - editorWindow.fitPad)
-                onTopMarginChanged: clampPan()
+                // Floating: how far wrapped tool options reach above the
+                // bottom row: the image's bottom can be panned that far up,
+                // out from under them. A margin, so the options wrapping
+                // moves nothing on screen.
+                bottomMargin: stage.floating && ctxPanel.visible
+                              ? Math.max(0, ctxPanel.height - editorWindow.pillH) : 0
+                onBottomMarginChanged: clampPan()
                 contentWidth: Math.max(width, canvas.width + 2 * padSide)
                 contentHeight: Math.max(height, canvas.height + padTop + padBottom)
                 onContentWidthChanged: clampPan()
@@ -1079,13 +2019,13 @@ Window {
                 // Lower bound below fitScale would zoom IN on huge images
                 // whose fit is already under 0.1.
                 readonly property real minZoom: Math.min(0.1, fitScale)
-                readonly property bool canPan: contentWidth > width + 0.5 || contentHeight > height + 0.5 || topMargin > 0.5
+                readonly property bool canPan: contentWidth > width + 0.5 || contentHeight > height + 0.5 || bottomMargin > 0.5
                 // Held Space turns any tool into the hand (shortcutScope).
                 property bool spacePan: false
 
                 function clampPan() {
                     contentX = Math.max(0, Math.min(contentWidth - width, contentX))
-                    contentY = Math.max(-topMargin, Math.min(contentHeight - height, contentY))
+                    contentY = Math.max(0, Math.min(contentHeight - height + bottomMargin, contentY))
                 }
                 function panBy(dx, dy) {
                     contentX -= dx
@@ -1208,6 +2148,31 @@ Window {
                     }
                 }
 
+                // The image's drop shadow while it fits: drawn at a quarter
+                // of the size and scaled up, so the blurred texture stays
+                // small (a blur loses nothing to that).
+                Item {
+                    visible: canvas.width <= canvasFlick.availW + 0.5 && canvas.height <= canvasFlick.availH + 0.5
+                    x: canvas.x
+                    y: canvas.y
+                    width: canvas.width / 4
+                    height: canvas.height / 4
+                    scale: 4
+                    transformOrigin: Item.TopLeft
+                    Rectangle {
+                        anchors.fill: parent
+                        color: Theme.backgroundDeep
+                        layer.enabled: parent.visible
+                        layer.effect: MultiEffect {
+                            shadowEnabled: true
+                            shadowColor: Theme.shadow
+                            shadowBlur: 1.0
+                            blurMax: 20
+                            shadowVerticalOffset: 7.5
+                        }
+                    }
+                }
+
                 // The image's edge, for a screenshot of a dark window on the
                 // dark stage. Outside the canvas, so it covers no pixel of it.
                 Rectangle {
@@ -1217,11 +2182,12 @@ Window {
                     height: canvas.height + 2
                     color: "transparent"
                     border.width: 1
-                    border.color: Theme.edgeLight
+                    border.color: Theme.alpha(Theme.accent, stage.floating ? 0.14 : 0.12)
                 }
 
                 AnnotationCanvas {
                     id: canvas
+                    objectName: "editorCanvas"
                     width: imageSize.width * canvasFlick.effectiveScale
                     height: imageSize.height * canvasFlick.effectiveScale
                     Accessible.role: Accessible.Canvas
@@ -1232,6 +2198,21 @@ Window {
                     onCopyRequested: {
                         editorWindow.commitPendingText()
                         editorSession.copyToClipboard()
+                    }
+                    shapeMenu: true
+                    // Commit first: an open re-edit writes into the selected
+                    // shape, which the selection below is about to change.
+                    // An emptied Text shape is removed by that commit, so the
+                    // menu opens only if a shape is still under the pointer.
+                    onShapeMenuRequested: (x, y) => {
+                        editorWindow.commitPendingText()
+                        const img = canvas.toImage(x, y)
+                        canvas.selectAnnotAt(img.x, img.y, true)
+                        if (!canvas.hasAnnotSelection)
+                            return
+                        shapeMenuAnchor.x = canvas.x + x
+                        shapeMenuAnchor.y = canvas.y + y
+                        shapeContextMenu.open()
                     }
                     x: canvasFlick.padSide + Math.max(0, (canvasFlick.availW - width) / 2)
                     y: canvasFlick.padTop + Math.max(0, (canvasFlick.availH - height) / 2)
@@ -1316,6 +2297,33 @@ Window {
                         editorTextField.forceActiveFocus()
                         editorTextField.selectAll()
                     }
+                }
+
+                Item { id: shapeMenuAnchor; width: 1; height: 1 }
+                UMenuButton {
+                    id: shapeContextMenu
+                    objectName: "editorShapeMenu"
+                    visible: false
+                    anchorItem: shapeMenuAnchor
+                    preferAbove: false
+                    // The hidden trigger cannot take the keyboard back.
+                    onMenuOpenChanged: if (!menuOpen) shortcutScope.forceActiveFocus()
+                    actions: [
+                        { label: qsTr("Duplicate"), hint: "Ctrl+D",
+                          trigger: function () { canvas.duplicateSelected() } },
+                        { label: qsTr("Bring to front"), hint: "Ctrl+Shift+]", separatorBefore: true,
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.BringToFront) } },
+                        { label: qsTr("Bring forward"), hint: "Ctrl+]",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.BringForward) } },
+                        { label: qsTr("Send backward"), hint: "Ctrl+[",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.SendBackward) } },
+                        { label: qsTr("Send to back"), hint: "Ctrl+Shift+[",
+                          trigger: function () { canvas.arrangeSelected(AnnotationCanvas.SendToBack) } },
+                        { label: canvas.selectedCount > 1 ? qsTr("Delete %n shape(s)", "", canvas.selectedCount)
+                                                         : qsTr("Delete shape"),
+                          hint: "Del", separatorBefore: true,
+                          trigger: function () { canvas.removeSelectedAnnot() } }
+                    ]
                 }
 
                 Item {
@@ -1445,24 +2453,52 @@ Window {
             }
         }
 
-        // View zoom and the status line, under the image. The zoom keeps the
+        // The status line and the zoom under the image (panels); the zoom
+        // alone in the bottom-right corner (floating). The zoom keeps the
         // same steps as the wheel / Ctrl+± / Ctrl+0 for anyone who never
         // finds those, and scales the view only: the image, the annotations
         // and the export are untouched. The percentage has a fixed width so
         // "25%" -> "100%" never shifts the + button out from under a pointer
         // clicking it repeatedly.
-        Item {
+        Pill {
             id: statusBar
-            anchors.left: toolRail.right
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.rightMargin: Theme.spacingS
-            height: 32 + 2 * Theme.spacingXS
+            objectName: "editorStatusBar"
+            panelColor: Theme.background
+            x: floating ? parent.width - width - editorWindow.pillEdge : toolRail.width
+            y: floating ? parent.height - height - editorWindow.pillEdge : parent.height - height
+            width: floating ? zoomRow.width + 2 * editorWindow.pillPad : inspector.x - toolRail.width
+            height: floating ? editorWindow.pillH : 40
+            z: 20
 
             DragArea { anchors.fill: parent }
+            Rectangle {
+                visible: !statusBar.floating
+                width: parent.width; height: 1
+                color: Theme.alpha(Theme.accent, 0.08)
+            }
+
+            // Floating shows the state in the title pill instead.
+            Text {
+                id: statusLabel
+                visible: !statusBar.floating
+                x: 16
+                width: Math.max(0, zoomRow.x - 12 - x)
+                anchors.verticalCenter: parent.verticalCenter
+                text: editorSession.statusText !== "" ? editorSession.statusText
+                      : canvas.imageSize.width + " × " + canvas.imageSize.height + " px · "
+                        + qsTr("%n shape(s)", "", editorWindow.shapes.length) + " · "
+                        + App.settings.imageFormat.toUpperCase()
+                color: Theme.textSecondary
+                font.family: "monospace"
+                font.pixelSize: 11
+                elide: Text.ElideMiddle
+            }
 
             Row {
                 id: zoomRow
+                readonly property bool floating: statusBar.floating
+                readonly property int h: floating ? editorWindow.chipSize : 28
+                x: floating ? editorWindow.pillPad : parent.width - width - 12
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 2
                 Accessible.role: Accessible.ToolBar
@@ -1471,7 +2507,9 @@ Window {
                 UIconButton {
                     id: zoomOut
                     objectName: "editorZoomOut"
-                    iconName: "minus"; iconSize: 14; width: 32; height: 32
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "minus"; iconSize: 14
+                    width: zoomRow.floating ? 40 : 30; height: zoomRow.h
                     tooltip: qsTr("Zoom out (Ctrl+-)")
                     enabled: canvasFlick.effectiveScale > canvasFlick.minZoom + 0.001
                     onClicked: canvasFlick.zoomBy(1 / 1.2)
@@ -1479,10 +2517,12 @@ Window {
                 Rectangle {
                     id: zoomPct
                     objectName: "editorZoomPct"
-                    width: zoomPctMetrics.width + 2 * Theme.spacingS
-                    height: 32
-                    radius: Theme.radiusS
-                    color: zoomPctMouse.containsMouse ? Theme.alpha(Theme.accent, 0.16) : "transparent"
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.max(zoomRow.floating ? 58 : 44, Math.ceil(zoomPctMetrics.width) + 12)
+                    height: zoomRow.h
+                    radius: zoomRow.floating ? 14 : 6
+                    color: zoomPctMouse.containsMouse ? (zoomRow.floating ? Theme.alpha(Theme.accent, 0.18) : Theme.surfaceTop)
+                                                      : "transparent"
                     Behavior on color { ColorAnimation { duration: Theme.animFast } }
                     function _activate() { canvasFlick.toggleZoom() }
                     TextMetrics { id: zoomPctMetrics; font: zoomPctText.font; text: "400%" }
@@ -1490,8 +2530,10 @@ Window {
                         id: zoomPctText
                         anchors.centerIn: parent
                         text: Math.round(canvasFlick.effectiveScale * 100) + "%"
-                        color: canvasFlick.zoom > 0 ? Theme.textPrimary : Theme.textSecondary
-                        font.pixelSize: Theme.fontS + 1
+                        color: Theme.textPrimary
+                        font.family: zoomRow.floating ? Qt.application.font.family : "monospace"
+                        font.pixelSize: zoomRow.floating ? 13 : 12
+                        font.weight: zoomRow.floating ? Font.ExtraBold : Font.Normal
                         Accessible.ignored: true
                     }
                     MouseArea {
@@ -1515,40 +2557,41 @@ Window {
                     Accessible.description: canvasFlick.zoom > 0 ? qsTr("Fit to window (Ctrl+0)") : qsTr("Actual size (100%)")
                     Accessible.focusable: true
                     Accessible.onPressAction: zoomPct._activate()
-                    UFocusRing {}
+                    UFocusRing { hostRadius: zoomPct.radius }
                 }
                 UIconButton {
                     id: zoomIn
                     objectName: "editorZoomIn"
-                    iconName: "plus"; iconSize: 14; width: 32; height: 32
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "plus"; iconSize: 14
+                    width: zoomRow.floating ? 40 : 30; height: zoomRow.h
                     tooltip: qsTr("Zoom in (Ctrl++)")
                     enabled: canvasFlick.effectiveScale < canvasFlick.maxZoom - 0.001
                     onClicked: canvasFlick.zoomBy(1.2)
                 }
-            }
-
-            Rectangle {
-                id: statusDivider
-                anchors.left: zoomRow.right
-                anchors.leftMargin: Theme.spacingS
-                anchors.verticalCenter: parent.verticalCenter
-                width: 1; height: 20; color: Theme.divider
-            }
-
-            // Image size, or the last export's or OCR's result (OCR also
-            // names the selection gestures here). It has the rest of the line.
-            Text {
-                id: statusLabel
-                anchors.left: statusDivider.right
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                leftPadding: Theme.spacingM
-                text: editorSession.statusText !== ""
-                      ? editorSession.statusText
-                      : canvas.imageSize.width + " × " + canvas.imageSize.height + " px"
-                color: Theme.textSecondary
-                font.pixelSize: Theme.fontS + 1
-                elide: Text.ElideMiddle
+                Sep {
+                    visible: !zoomRow.floating
+                    anchors.verticalCenter: parent.verticalCenter
+                    length: 18
+                }
+                TextChip {
+                    objectName: "editorZoomFit"
+                    visible: !zoomRow.floating
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Fit")
+                    tip: qsTr("Fit to window (Ctrl+0)")
+                    active: canvasFlick.zoom === 0
+                    onClicked: { canvasFlick.zoom = 0; canvasFlick.clampPan() }
+                }
+                TextChip {
+                    objectName: "editorZoom100"
+                    visible: !zoomRow.floating
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("1:1")
+                    tip: qsTr("Actual size (100%)")
+                    active: canvasFlick.zoom > 0 && Math.abs(canvasFlick.zoom - 1) < 0.001
+                    onClicked: canvasFlick.zoomTo(Math.min(1, canvasFlick.maxZoom))
+                }
             }
         }
     }

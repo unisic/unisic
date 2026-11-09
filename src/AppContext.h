@@ -303,6 +303,9 @@ public:
     // True when any `warn` dependency is missing - gates the one-shot first-run
     // system-check popup so a fully-provisioned machine never sees it.
     Q_INVOKABLE bool hasDependencyWarnings() const;
+    // Name of the screenshot backend the next capture tries first (Capture
+    // page status line). Read on demand: a KWin auth denial changes it.
+    Q_INVOKABLE QString screenshotBackend() const;
     // True when the compositor exposes wlr-layer-shell - the selection overlay
     // uses it so it can appear ABOVE a fullscreen application.
     bool layerShellAvailable() const { return m_layerShellAvailable; }
@@ -323,7 +326,21 @@ public:
     Q_INVOKABLE void devTestCardPreview();
     Q_INVOKABLE void devTestEditor();
     Q_INVOKABLE void devTestEditorZoom();
+    // Lays an editor out as panels and as floating pills and checks neither
+    // covers the fitted image or spills the text tool's options.
+    Q_INVOKABLE void devTestEditorLayouts();
+    Q_INVOKABLE void devTestEditorChrome();
+    Q_INVOKABLE void devTestShapeGroups();
+    // Right click on a shape in a real editor opens its menu (see shapeMenuCheck).
+    Q_INVOKABLE void devTestShapeMenu();
+    Q_INVOKABLE void devTestStickerLibrary();
+    // Auto-redact's findings list on a real editor (see redactReviewCheck).
+    Q_INVOKABLE void devTestRedactReview();
     Q_INVOKABLE void devTestLeaveField();
+    // The Capture page at the window's current size: tiles inside the column,
+    // Recent in whole rows that fill the page without scrolling it.
+    Q_INVOKABLE void devTestCapturePage();
+    Q_INVOKABLE void devTestHeaderSearch();
     Q_INVOKABLE void devTestHistory();
     Q_INVOKABLE void devTestFavoriteHistory();
     Q_INVOKABLE void devTestEditFromHistory();
@@ -394,7 +411,7 @@ public:
     Q_INVOKABLE void devTestOverlayPreview();
     Q_INVOKABLE void devTestOcrBoxes();
     Q_INVOKABLE void devTestOcrHighlight();
-    Q_INVOKABLE void devTestOcrRedactPattern();
+    Q_INVOKABLE void devTestAutoRedact();
     Q_INVOKABLE void devTestCursorOverlay();
     Q_INVOKABLE void devTestStylePresets();
     Q_INVOKABLE void devTestOcrAutoLang();

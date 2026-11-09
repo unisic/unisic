@@ -8,9 +8,10 @@ import "../components"
 Item {
     objectName: "settingsPage"  // the smoke test drives panes through it
     id: page
-    // paneArea is already inset by spacingXL on both sides, so don't subtract it
-    // again here (that left the cards mis-centered with a big right-hand gap).
-    readonly property int cardWidth: Math.min(paneArea.width, 694)
+    // The full pane, like every other page's grid: a fixed cap left a wide or
+    // maximised window half empty to the right of the cards. paneArea is
+    // already inset by spacingXL, so the cards end flush with Import/Export.
+    readonly property int cardWidth: paneArea.width
     property int tab: 0
 
     // A text field is left by Enter or by a press anywhere outside it, not
@@ -932,8 +933,8 @@ Item {
         anchors.bottomMargin: Theme.spacingL
         // 200, not 180: the longest category name in the shipped languages is
         // German "Benachrichtigungen" at 138 px in DemiBold, which left the old
-        // rail exactly zero margin. The panes give the 20 px up without
-        // reflowing - their cards are capped at 694 px anyway.
+        // rail exactly zero margin. The panes give the 20 px up: their cards
+        // fill whatever width is left.
         width: 200
         clip: true
         contentWidth: width
@@ -2134,6 +2135,17 @@ Item {
                     width: parent.width
                     spacing: Theme.spacingS
                     SectionTitle { text: qsTr("Editor defaults") }
+                    SettingRow {
+                        label: qsTr("Layout")
+                        help: qsTr("How the editor arranges its tools around the image.")
+                        helpDetail: qsTr("“Panels” puts the tools in a rail on the left and the active tool's options in a column on the right. “Floating” gives the image the whole window, with the same controls in pills over its edges. Open editors switch at once.")
+                        UComboBox {
+                            width: 220
+                            model: [qsTr("Panels"), qsTr("Floating")]
+                            currentIndex: App.settings.editorLayout === "floating" ? 1 : 0
+                            onActivated: (i) => App.settings.editorLayout = (i === 1 ? "floating" : "panels")
+                        }
+                    }
                     SettingRow {
                         label: qsTr("Stroke color")
                         help: qsTr("Default color for new annotations.")
@@ -4150,7 +4162,15 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Notification action order"); onClicked: App.devTestNotificationOrder() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Open editor"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Editor zoom"); onClicked: App.devTestEditorZoom() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor layouts"); onClicked: App.devTestEditorLayouts() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Editor chrome"); onClicked: App.devTestEditorChrome() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape groups"); onClicked: App.devTestShapeGroups() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Shape menu"); onClicked: App.devTestShapeMenu() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Sticker library"); onClicked: App.devTestStickerLibrary() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact review"); onClicked: App.devTestRedactReview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Leave filename field"); onClicked: App.devTestLeaveField() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Capture page layout"); onClicked: App.devTestCapturePage() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Header search"); onClicked: App.devTestHeaderSearch() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (editor)"); onClicked: App.devTestEditor() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Tool shortcuts (overlay)"); onClicked: App.captureRegion() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Edit from history"); onClicked: App.devTestEditFromHistory() }
@@ -4255,7 +4275,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Overlay preview"); onClicked: App.devTestOverlayPreview() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR boxes"); onClicked: App.devTestOcrBoxes() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR highlight + redact"); onClicked: App.devTestOcrHighlight() }
-                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact pattern"); onClicked: App.devTestOcrRedactPattern() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("Auto-redact"); onClicked: App.devTestAutoRedact() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }

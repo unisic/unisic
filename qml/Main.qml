@@ -52,10 +52,35 @@ Window {
             })
         }
     }
-    // Height reserved at the top for the custom title bar (0 with system decos).
-    readonly property int chromeTop: App.settings.useSystemDecoration ? 0 : 38
+    // Height of the app header. It stays with system decorations too: it holds
+    // the version chip and the recording pill, not just the window buttons.
+    readonly property int chromeTop: 44
 
     property int currentPage: 0
+    // Settings at one category, or (tab -1) with `query` in its own search.
+    // The Loader is synchronous, so the page exists right after the switch.
+    function openSettingsAt(tab, query) {
+        window.currentPage = 5
+        const settings = pageSettings.item
+        if (!settings)
+            return
+        if (tab >= 0) {
+            settings.searchQuery = ""
+            settings.tab = tab
+        } else {
+            settings.searchQuery = query
+        }
+    }
+
+    // The rail's tiles: the kit's stacked SidebarItem at the rail's 60 px, with
+    // the hover on the raised surface colour.
+    component RailItem: SidebarItem {
+        stacked: true
+        width: 60
+        radius: 10
+        color: active ? Theme.secondary : railHover.hovered ? Theme.surfaceTop : "transparent"
+        HoverHandler { id: railHover }
+    }
     // The one page that is loaded right now. Every other Loader is inactive, so
     // its `item` is null and the chain below picks the single live one.
     readonly property Item activePageItem: pageCapture.item || pageRecord.item
@@ -140,6 +165,7 @@ Window {
     // behind the dialog.
     Shortcut { enabled: !App.shortcutRecording && !window.modalOpen; sequences: ["Ctrl+V"]; onActivated: App.pasteFromClipboard() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+,"]; onActivated: window.currentPage = 5 }
+    Shortcut { enabled: !App.shortcutRecording && !window.modalOpen; sequences: ["Ctrl+K"]; onActivated: headerSearch.focusField() }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+1"]; onActivated: window.currentPage = 0 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+2"]; onActivated: window.currentPage = 1 }
     Shortcut { enabled: !App.shortcutRecording; sequences: ["Ctrl+3"]; onActivated: window.currentPage = 2 }
@@ -155,6 +181,7 @@ Window {
             { keys: ["Ctrl", "Q"], label: qsTr("Quit Unisic") },
             { keys: ["Ctrl", "V"], label: qsTr("Paste an image into the editor") },
             { keys: ["Ctrl", ","], label: qsTr("Open Settings") },
+            { keys: ["Ctrl", "K"], label: qsTr("Search actions, settings and captures") },
             { keys: ["Ctrl", "1"], label: qsTr("Jump to a page (Ctrl+1 … Ctrl+6)") },
         ]
     }
@@ -210,18 +237,23 @@ Window {
         }
     }
 
-    Rectangle { // flat backdrop — the content card floats on this
+    // One flat surface: header and page sit on it, split by hairlines; the rail
+    // is a shade darker. The light theme's window colour equals its card
+    // colour, so it keeps its background there or the cards would vanish.
+    Rectangle {
         anchors.fill: parent
-        color: Theme.backgroundDeep
+        color: Qt.colorEqual(Theme.primary, Theme.surface) ? Theme.background : Theme.primary
     }
 
-    Item { // custom title bar (frameless decoration) — blends into the backdrop
+    // App header. Always present (it carries the version and the recording
+    // pill), but it only moves the window and shows window buttons when the
+    // app draws its own decoration.
+    Item {
         id: titleBar
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        height: 38
-        visible: !App.settings.useSystemDecoration
+        height: window.chromeTop
         z: 20
 
         // Drag anywhere on the bar to move the window (Wayland system move).
@@ -230,6 +262,7 @@ Window {
         // release, so onDoubleClicked (maximize) would never fire.
         MouseArea {
             anchors.fill: parent
+            enabled: !App.settings.useSystemDecoration
             property real pressX: 0
             property real pressY: 0
             property bool moving: false
@@ -244,324 +277,338 @@ Window {
                                                                     : window.showMaximized()
         }
 
-        Text { // app name, centered in the decoration
-            anchors.centerIn: parent
-            text: "Unisic"
-            color: Theme.textSecondary
-            font.pixelSize: Theme.fontM
-            font.weight: Font.DemiBold
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Theme.alpha(Theme.accent, 0.10)
         }
 
         Row {
+            id: headerLeft
+            anchors.left: parent.left
+            anchors.leftMargin: Theme.spacingL - 4
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 10
+            // Same reason as the rail: the first-run flow sits below the header
+            // and must not leave the release notes reachable behind it. The
+            // window buttons on the right stay enabled, the flow is closable.
+            enabled: !window.welcomeOpen
+
+            Image {
+                source: "qrc:/resources/icons/unisic.svg"
+                sourceSize: Qt.size(20, 20)
+                width: 20; height: 20
+                smooth: true
+                anchors.verticalCenter: parent.verticalCenter
+                Accessible.ignored: true
+                // Dev builds are gray everywhere (tray, menu, here too).
+                layer.enabled: App.devBuild
+                layer.effect: MultiEffect { saturation: -1.0 }
+            }
+            Text {
+                text: "Unisic"
+                color: Theme.textPrimary
+                font.pixelSize: Theme.fontM
+                font.weight: Font.DemiBold
+                anchors.verticalCenter: parent.verticalCenter
+                Accessible.ignored: true
+            }
+
+            // Version chip: opens the release notes for the running version.
+            Rectangle {
+                id: versionChip
+                width: versionText.implicitWidth + 12
+                height: versionText.implicitHeight + 4
+                radius: 4
+                anchors.verticalCenter: parent.verticalCenter
+                color: chipMouse.containsMouse ? Theme.alpha(Theme.accent, 0.18)
+                                               : Theme.alpha(Theme.accent, 0.08)
+                Behavior on color { ColorAnimation { duration: Theme.animFast } }
+
+                // One entry point for pointer, keyboard and assistive tech, so the
+                // three can never drift apart.
+                function openPatchNotes() { patchNotes.open(); App.markPatchNotesSeen() }
+
+                Text {
+                    id: versionText
+                    anchors.centerIn: parent
+                    text: App.appVersion
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    font.family: "monospace"
+                    Accessible.ignored: true
+                }
+
+                MouseArea {
+                    id: chipMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: versionChip.openPatchNotes()
+                }
+
+                // UKeys keeps the window's Ctrl+1..6, Ctrl+, and Ctrl+/ bubbling
+                // past a focused chip.
+                activeFocusOnTab: true
+                Keys.onSpacePressed: (e) => UKeys.activate(e, versionChip.openPatchNotes)
+                Keys.onReturnPressed: (e) => UKeys.activate(e, versionChip.openPatchNotes)
+                Keys.onEnterPressed: (e) => UKeys.activate(e, versionChip.openPatchNotes)
+
+                Accessible.role: Accessible.Button
+                //: Spoken name of the version chip in the header: %1 is the version.
+                Accessible.name: qsTr("Unisic %1").arg(App.appVersion)
+                Accessible.description: qsTr("Open the release notes")
+                Accessible.focusable: versionChip.activeFocusOnTab
+                Accessible.onPressAction: versionChip.openPatchNotes()
+                UFocusRing { inset: 1 }
+
+                UHoverTip {
+                    anchor: versionChip
+                    text: qsTr("What's new")
+                          + "\n" + (App.buildNumber === "dev" ? "dev" : "build " + App.buildNumber)
+                          + (App.buildDate ? " · " + App.buildDate : "")
+                    show: chipMouse.containsMouse
+                }
+            }
+
+            // One-time "new version" nudge after an update, pointing back at the
+            // chip until the release notes are opened. Gated on window.visible
+            // so it never animates while the app sits in the tray, and on the
+            // welcome flow so it can't burn frames behind the first-run backdrop.
+            Item {
+                id: patchHint
+                visible: App.patchNotesUnseen
+                width: hintRow.width
+                height: hintRow.height
+                anchors.verticalCenter: parent.verticalCenter
+
+                Row {
+                    id: hintRow
+                    spacing: 2
+                    UIcon {
+                        name: "chevron-down"
+                        rotation: 90
+                        size: 14
+                        color: Theme.accent
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: qsTr("See patch notes")
+                        color: Theme.accent
+                        font.pixelSize: Theme.fontS
+                        font.weight: Font.DemiBold
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                SequentialAnimation on opacity {
+                    running: patchHint.visible && window.visible && !welcomeLoader.active
+                    loops: Animation.Infinite
+                    NumberAnimation { from: 1.0; to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.25; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: versionChip.openPatchNotes()
+                }
+
+                // Named and pressable from assistive tech, but deliberately NOT a
+                // tab stop: the chip right next to it is already a focusable
+                // button running the same call.
+                Accessible.role: Accessible.Button
+                Accessible.name: qsTr("See patch notes")
+                Accessible.description: qsTr("Open the release notes for this version")
+                Accessible.onPressAction: versionChip.openPatchNotes()
+            }
+        }
+
+        // Centred on the window while both sides leave it room, then it gives
+        // way to them: it never slides under the version chip or the buttons.
+        HeaderSearch {
+            id: headerSearch
+            readonly property real side: Math.max(headerLeft.x + headerLeft.width,
+                                                  parent.width - headerRight.x) + 12
+            width: Math.max(160, Math.min(440, parent.width - 2 * side))
+            x: Math.round((parent.width - width) / 2)
+            anchors.verticalCenter: parent.verticalCenter
+            enabled: !window.welcomeOpen
+            onNavigate: (i) => window.currentPage = i
+            onOpenSettings: (tab, query) => window.openSettingsAt(tab, query)
+        }
+
+        Row {
+            id: headerRight
             anchors.right: parent.right
             anchors.rightMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
+
+            // Recording pill
+            Rectangle {
+                visible: App.recording || App.converting
+                width: recRow.width + Theme.spacingS + 4
+                height: 30
+                radius: Theme.radiusS
+                anchors.verticalCenter: parent.verticalCenter
+                color: Theme.alpha(Theme.danger, 0.12)
+                border.width: 1
+                border.color: Theme.alpha(Theme.danger, 0.28)
+
+                Row {
+                    id: recRow
+                    x: Theme.spacingS + 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: Theme.spacingS
+                    Rectangle {
+                        id: recDot
+                        width: 8; height: 8; radius: 4
+                        color: Theme.danger
+                        opacity: 1
+                        anchors.verticalCenter: parent.verticalCenter
+                        SequentialAnimation on opacity {
+                            // Gate on window visibility too: with the window hidden to
+                            // tray during a long recording, an infinite animation keeps
+                            // the GUI thread waking ~60x/s for an invisible dot. Freeze
+                            // solid while paused so the pill reads "held", not "live".
+                            running: App.recording && !App.recordingPaused && window.visible
+                            loops: Animation.Infinite
+                            onStopped: recDot.opacity = 1
+                            NumberAnimation { to: 0.2; duration: 600 }
+                            NumberAnimation { to: 1.0; duration: 600 }
+                        }
+                    }
+                    Text {
+                        // Manual h:mm:ss - Qt.formatTime wraps at 60 minutes.
+                        function fmtElapsed(s) {
+                            var h = Math.floor(s / 3600)
+                            var m = Math.floor((s % 3600) / 60)
+                            var sec = s % 60
+                            function p(v) { return (v < 10 ? "0" : "") + v }
+                            return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
+                        }
+                        text: App.converting ? qsTr("Encoding…")
+                              : (fmtElapsed(App.recordSeconds)
+                                 + (App.recordingPaused ? " " + qsTr("(paused)") : ""))
+                        color: Theme.textPrimary
+                        font.pixelSize: Theme.fontS
+                        font.family: "monospace"
+                        font.weight: Font.DemiBold
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    // These two carry no tooltip (the pill is already unmistakable
+                    // on screen), so their spoken name has to be supplied here -
+                    // UIconButton otherwise names itself from `tooltip`.
+                    Row {
+                        spacing: 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        UIconButton {
+                            visible: App.recordingCanPause && !App.converting
+                            iconName: App.recordingPaused ? "play" : "pause"
+                            iconSize: 13
+                            width: 26; height: 24
+                            accessibleName: App.recordingPaused ? qsTr("Resume recording")
+                                                                : qsTr("Pause recording")
+                            onClicked: App.togglePauseRecording()
+                        }
+                        UIconButton {
+                            visible: App.recording && !App.converting
+                            iconName: "stop"
+                            iconSize: 13
+                            width: 26; height: 24
+                            accessibleName: qsTr("Stop recording")
+                            onClicked: App.stopRecording()
+                        }
+                    }
+                }
+            }
+
+            Item { width: Theme.spacingS; height: 1; visible: !App.settings.useSystemDecoration }
+
             UIconButton {
-                iconName: "minus"; iconSize: 14; width: 30; height: 30
+                visible: !App.settings.useSystemDecoration
+                iconName: "minus"; iconSize: 14; width: 38; height: 30
+                anchors.verticalCenter: parent.verticalCenter
                 tooltip: qsTr("Minimize")
                 onClicked: window.showMinimized()
             }
             UIconButton {
-                iconName: "window"; iconSize: 13; width: 30; height: 30
+                visible: !App.settings.useSystemDecoration
+                iconName: "window"; iconSize: 13; width: 38; height: 30
+                anchors.verticalCenter: parent.verticalCenter
                 tooltip: qsTr("Maximize")
                 onClicked: window.visibility === Window.Maximized ? window.showNormal()
                                                                   : window.showMaximized()
             }
             UIconButton {
-                iconName: "close"; iconSize: 14; width: 30; height: 30
+                visible: !App.settings.useSystemDecoration
+                iconName: "close"; iconSize: 14; width: 38; height: 30
+                anchors.verticalCenter: parent.verticalCenter
                 tooltip: qsTr("Close")
                 onClicked: window.close()
             }
         }
     }
 
-    Item { // sidebar — flat on the backdrop, music-player style
+    // Navigation rail: the five places, then Settings pinned to the bottom.
+    Rectangle {
         id: sidebar
-        width: 224
         y: window.chromeTop
+        width: 76
         height: parent.height - window.chromeTop
+        color: Theme.background
         z: 2
         // The first-run flow is a hand-rolled full-window overlay, not a Popup,
         // so nothing takes what is behind it out of the tab chain: Tab used to
-        // walk from the flow onto the sidebar and the page under the opaque
+        // walk from the flow onto the rail and the page under the opaque
         // backdrop. `enabled` propagates to children and a disabled subtree is
         // skipped by tab navigation; the flow's own backdrop is opaque, so
-        // there is nothing to see change. The title bar stays enabled on
-        // purpose - the flow is deliberately closable while it runs.
+        // there is nothing to see change.
         enabled: !window.welcomeOpen
+
+        Rectangle {
+            anchors.right: parent.right
+            width: 1
+            height: parent.height
+            color: Theme.alpha(Theme.accent, 0.08)
+        }
 
         Column {
             anchors.top: parent.top
             anchors.topMargin: Theme.spacingM
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Theme.spacingM
-            anchors.rightMargin: Theme.spacingM
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 60
             spacing: 4
 
-            Text { // section header, like the app-name section in music players
-                text: "Unisic"
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontS
-                font.weight: Font.DemiBold
-                leftPadding: 11
-                bottomPadding: 4
+            RailItem { iconName: "line-camera";  label: qsTr("Capture"); active: currentPage === 0; onClicked: currentPage = 0 }
+            RailItem { iconName: "line-record";  label: qsTr("Record");  active: currentPage === 1; onClicked: currentPage = 1 }
+            RailItem { iconName: "line-pencil";  label: qsTr("Edit");    active: currentPage === 2; onClicked: currentPage = 2 }
+
+            Item {
+                width: parent.width
+                height: 13
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 28
+                    height: 1
+                    color: Theme.alpha(Theme.accent, 0.14)
+                }
             }
 
-            SidebarItem { iconName: "camera-photo";  label: qsTr("Capture");      active: currentPage === 0; onClicked: currentPage = 0 }
-            SidebarItem { iconName: "media-record";  label: qsTr("Record");       active: currentPage === 1; onClicked: currentPage = 1 }
-            SidebarItem { iconName: "edit";          label: qsTr("Edit");         active: currentPage === 2; onClicked: currentPage = 2 }
-
-            Item { width: 1; height: Theme.spacingM }
-
-            Text {
-                text: qsTr("Library")
-                color: Theme.textTertiary
-                font.pixelSize: Theme.fontS
-                font.weight: Font.DemiBold
-                leftPadding: 11
-                bottomPadding: 4
-            }
-
-            SidebarItem { iconName: "view-history";  label: qsTr("History");      active: currentPage === 3; onClicked: currentPage = 3 }
-            SidebarItem { iconName: "folder-cloud";  label: qsTr("Servers"); active: currentPage === 4; onClicked: currentPage = 4 }
+            RailItem { iconName: "line-history"; label: qsTr("History"); active: currentPage === 3; onClicked: currentPage = 3 }
+            RailItem { iconName: "line-upload";  label: qsTr("Servers"); active: currentPage === 4; onClicked: currentPage = 4 }
         }
 
-        // App card at the bottom (profile-card style): identity + version on
-        // the left (click for the release notes), Settings gear on the right.
-        Rectangle {
-            id: bottomCard
+        RailItem {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: Theme.spacingM
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.leftMargin: Theme.spacingM
-            anchors.rightMargin: Theme.spacingM
-            height: 56
-            radius: Theme.radiusM
-            color: cardMouse.containsMouse ? Theme.surfaceHi : Theme.surface
-            border.width: 1
-            border.color: Theme.divider
-            Behavior on color { ColorAnimation { duration: Theme.animFast } }
-
-            // One entry point for pointer, keyboard and assistive tech, so the
-            // three can never drift apart.
-            function openPatchNotes() { patchNotes.open(); App.markPatchNotesSeen() }
-
-            MouseArea {
-                id: cardMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: bottomCard.openPatchNotes()
-            }
-
-            // UKeys keeps the window's Ctrl+1..6, Ctrl+, and Ctrl+/ bubbling
-            // past a focused card.
-            activeFocusOnTab: true
-            Keys.onSpacePressed: (e) => UKeys.activate(e, bottomCard.openPatchNotes)
-            Keys.onReturnPressed: (e) => UKeys.activate(e, bottomCard.openPatchNotes)
-            Keys.onEnterPressed: (e) => UKeys.activate(e, bottomCard.openPatchNotes)
-
-            Accessible.role: Accessible.Button
-            //: Spoken name of the app card in the sidebar: %1 is the version.
-            Accessible.name: qsTr("Unisic %1").arg(App.appVersion)
-            Accessible.description: qsTr("Open the release notes")
-            Accessible.focusable: bottomCard.activeFocusOnTab
-            Accessible.onPressAction: bottomCard.openPatchNotes()
-            UFocusRing { inset: 1 }
-
-            UHoverTip {
-                anchor: bottomCard
-                text: qsTr("What's new")
-                      + (App.buildDate ? "\n" + App.buildDate : "")
-                show: cardMouse.containsMouse && !gearButton.hovered
-            }
-
-            Image {
-                id: cardIcon
-                source: "qrc:/resources/icons/unisic.svg"
-                sourceSize: Qt.size(32, 32)
-                width: 32; height: 32
-                smooth: true
-                anchors.left: parent.left
-                anchors.leftMargin: 11
-                anchors.verticalCenter: parent.verticalCenter
-                // Decorative: the card itself is the named button.
-                Accessible.ignored: true
-                // Dev builds are gray everywhere (tray, menu, here too).
-                layer.enabled: App.devBuild
-                layer.effect: MultiEffect { saturation: -1.0 }
-            }
-            Column {
-                anchors.left: cardIcon.right
-                anchors.leftMargin: 10
-                anchors.right: gearButton.left
-                anchors.rightMargin: 6
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 1
-                Text {
-                    width: parent.width
-                    text: "Unisic"
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontM
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                }
-                Text {
-                    width: parent.width
-                    text: "v" + App.appVersion + (App.buildNumber === "dev"
-                            ? " · dev"
-                            : " · build " + App.buildNumber)
-                    color: Theme.textTertiary
-                    font.pixelSize: Theme.fontS
-                    elide: Text.ElideRight
-                }
-            }
-            UIconButton {
-                id: gearButton
-                iconName: "configure"
-                iconSize: 16
-                width: 32; height: 32
-                active: currentPage === 5
-                anchors.right: parent.right
-                anchors.rightMargin: 9
-                anchors.verticalCenter: parent.verticalCenter
-                tooltip: qsTr("Settings")
-                onClicked: currentPage = 5
-            }
-        }
-
-        // Recording pill
-        Rectangle {
-            visible: App.recording || App.converting
-            anchors.bottom: bottomCard.top
-            anchors.bottomMargin: Theme.spacingM
             anchors.horizontalCenter: parent.horizontalCenter
-            width: parent.width - 2 * Theme.spacingM
-            height: 46
-            radius: 23
-            color: Theme.secondary
-            border.width: 1
-            border.color: Theme.divider
-
-            Row {
-                anchors.centerIn: parent
-                spacing: 8
-                Rectangle {
-                    id: recDot
-                    width: 10; height: 10; radius: 5
-                    color: Theme.danger
-                    opacity: 1
-                    anchors.verticalCenter: parent.verticalCenter
-                    SequentialAnimation on opacity {
-                        // Gate on window visibility too: with the window hidden to
-                        // tray during a long recording, an infinite animation keeps
-                        // the GUI thread waking ~60x/s for an invisible dot. Freeze
-                        // solid while paused so the pill reads "held", not "live".
-                        running: App.recording && !App.recordingPaused && window.visible
-                        loops: Animation.Infinite
-                        onStopped: recDot.opacity = 1
-                        NumberAnimation { to: 0.2; duration: 600 }
-                        NumberAnimation { to: 1.0; duration: 600 }
-                    }
-                }
-                Text {
-                    // Manual h:mm:ss — Qt.formatTime wraps at 60 minutes.
-                    function fmtElapsed(s) {
-                        var h = Math.floor(s / 3600)
-                        var m = Math.floor((s % 3600) / 60)
-                        var sec = s % 60
-                        function p(v) { return (v < 10 ? "0" : "") + v }
-                        return (h > 0 ? h + ":" + p(m) : p(m)) + ":" + p(sec)
-                    }
-                    text: App.converting ? qsTr("Encoding…")
-                          : (fmtElapsed(App.recordSeconds)
-                             + (App.recordingPaused ? " " + qsTr("(paused)") : ""))
-                    color: Theme.textPrimary
-                    font.pixelSize: Theme.fontM
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                // These two carry no tooltip (the pill is already unmistakable
-                // on screen), so their spoken name has to be supplied here -
-                // UIconButton otherwise names itself from `tooltip`.
-                UIconButton {
-                    visible: App.recordingCanPause && !App.converting
-                    iconName: App.recordingPaused ? "play" : "pause"
-                    iconSize: 15
-                    width: 30; height: 30
-                    anchors.verticalCenter: parent.verticalCenter
-                    accessibleName: App.recordingPaused ? qsTr("Resume recording")
-                                                        : qsTr("Pause recording")
-                    onClicked: App.togglePauseRecording()
-                }
-                UIconButton {
-                    visible: App.recording && !App.converting
-                    iconName: "stop"
-                    iconSize: 15
-                    width: 30; height: 30
-                    anchors.verticalCenter: parent.verticalCenter
-                    accessibleName: qsTr("Stop recording")
-                    onClicked: App.stopRecording()
-                }
-            }
-        }
-
-        // One-time "new version" nudge: a blinking arrow pointing at the app
-        // card after an update, until the release notes are opened. Gated on
-        // window.visible so it never animates while the app sits in the tray,
-        // and on the welcome flow so it can't burn frames invisibly behind the
-        // opaque first-run backdrop.
-        Item {
-            id: patchHint
-            visible: App.patchNotesUnseen && !App.recording && !App.converting
-            anchors.bottom: bottomCard.top
-            anchors.bottomMargin: Theme.spacingXS
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: hintCol.width
-            height: hintCol.height
-
-            Column {
-                id: hintCol
-                anchors.centerIn: parent
-                spacing: 0
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: qsTr("See patch notes")
-                    color: Theme.accent
-                    font.pixelSize: Theme.fontS
-                    font.weight: Font.DemiBold
-                }
-                UIcon {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    name: "chevron-down"
-                    size: 16
-                    color: Theme.accent
-                }
-            }
-
-            SequentialAnimation on opacity {
-                running: patchHint.visible && window.visible && !welcomeLoader.active
-                loops: Animation.Infinite
-                NumberAnimation { from: 1.0; to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
-                NumberAnimation { from: 0.25; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: bottomCard.openPatchNotes()
-            }
-
-            // Named and pressable from assistive tech, but deliberately NOT a
-            // tab stop: it is a nudge pointing at the app card, and the card
-            // right below it is already a focusable button running the same
-            // call. Two stops for one action would just pad the tab order.
-            Accessible.role: Accessible.Button
-            Accessible.name: qsTr("See patch notes")
-            Accessible.description: qsTr("Open the release notes for this version")
-            Accessible.onPressAction: bottomCard.openPatchNotes()
+            iconName: "line-sliders"
+            label: qsTr("Settings")
+            active: currentPage === 5
+            onClicked: currentPage = 5
         }
     }
 
@@ -671,64 +718,39 @@ Window {
     }
 
 
-    Rectangle { // content — a rounded card floating on the dark backdrop
+    Item { // page area, flat on the shared surface
         id: contentCard
         anchors.left: sidebar.right
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: window.chromeTop + Theme.spacingM
-        anchors.rightMargin: Theme.spacingM
-        anchors.bottomMargin: Theme.spacingM
-        radius: Theme.radiusL
-        color: Theme.background
-        border.width: 1
-        border.color: Theme.edgeLight
-        // Same reason as the sidebar: keep the page under the first-run flow's
+        anchors.topMargin: window.chromeTop
+        clip: true
+        // Same reason as the rail: keep the page under the first-run flow's
         // opaque backdrop out of the tab chain.
         enabled: !window.welcomeOpen
 
-        // Accent glow bleeding down from the card's top edge (the "album art"
-        // wash in the reference look). Its own top corners are rounded so it
-        // can't poke square pixels past the card's rounded edge.
-        Rectangle {
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: 1
-            height: 230
-            topLeftRadius: contentCard.radius - 1
-            topRightRadius: contentCard.radius - 1
-            bottomLeftRadius: 0
-            bottomRightRadius: 0
-            gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.alpha(Theme.accent, Theme.isDark ? 0.14 : 0.09) }
-                GradientStop { position: 1.0; color: Theme.alpha(Theme.accent, 0.0) }
+        // Only the visible page is instantiated; leaving a page unloads it
+        // so idle RAM tracks a single page instead of all six at once.
+        Component {
+            id: capturePage
+            CapturePage {
+                onOpenPage: (i) => window.currentPage = i
+                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
             }
         }
+        Component { id: recordPage;       RecordPage {} }
+        Component { id: editPage;         EditPage {} }
+        Component { id: historyPage;      HistoryPage {} }
+        Component { id: destinationsPage; DestinationsPage {} }
+        Component { id: settingsPage;     SettingsPage {} }
 
-        Item { // square clip: every page pads its content, so the corner
-               // regions stay empty and the rounding above shows through
-            anchors.fill: parent
-            anchors.margins: 1
-            clip: true
-
-            // Only the visible page is instantiated; leaving a page unloads it
-            // so idle RAM tracks a single page instead of all six at once.
-            Component { id: capturePage;      CapturePage {} }
-            Component { id: recordPage;       RecordPage {} }
-            Component { id: editPage;         EditPage {} }
-            Component { id: historyPage;      HistoryPage {} }
-            Component { id: destinationsPage; DestinationsPage {} }
-            Component { id: settingsPage;     SettingsPage {} }
-
-            Loader { id: pageCapture;  anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
-            Loader { id: pageRecord;   anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
-            Loader { id: pageEdit;     anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: editPage }
-            Loader { id: pageHistory;  anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: historyPage }
-            Loader { id: pageServers;  anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: destinationsPage }
-            Loader { id: pageSettings; anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: settingsPage }
-        }
+        Loader { id: pageCapture;  anchors.fill: parent; active: currentPage === 0; visible: active; sourceComponent: capturePage }
+        Loader { id: pageRecord;   anchors.fill: parent; active: currentPage === 1; visible: active; sourceComponent: recordPage }
+        Loader { id: pageEdit;     anchors.fill: parent; active: currentPage === 2; visible: active; sourceComponent: editPage }
+        Loader { id: pageHistory;  anchors.fill: parent; active: currentPage === 3; visible: active; sourceComponent: historyPage }
+        Loader { id: pageServers;  anchors.fill: parent; active: currentPage === 4; visible: active; sourceComponent: destinationsPage }
+        Loader { id: pageSettings; anchors.fill: parent; active: currentPage === 5; visible: active; sourceComponent: settingsPage }
     }
 
     // Drag and drop anywhere on the window: an image lands in the editor, a

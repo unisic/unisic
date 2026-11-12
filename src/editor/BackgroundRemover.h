@@ -2,6 +2,7 @@
 #include <QImage>
 #include <QObject>
 #include <QPointer>
+#include <QNetworkReply>
 #include <QSysInfo>
 #include <QTimer>
 #include <qqmlregistration.h>

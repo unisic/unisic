@@ -189,5 +189,5 @@ jobs:
               status=1
             fi
           done
-          [ "$status" = "0" ] && echo "all seven .ts files are complete"
+          [ "$status" = "0" ] && echo "all .ts files are complete"
           exit "$status"

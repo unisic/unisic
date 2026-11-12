@@ -798,22 +798,37 @@ void AppContext::ocrBoxes(const QImage &img,
 
 // ---------------------------------------------------------------- language
 
-void AppContext::applyLanguage()
+// The one list of UI languages. `zh_CN`, not a bare `zh`, keeps the catalog
+// name aligned with Qt's own qtbase_zh_CN.qm and QLocale("zh_CN"); a
+// Traditional Chinese desktop falls back to English until a zh_TW catalog
+// exists, rather than silently getting Simplified. Shared by applyLanguage()
+// and the notification helper subprocess, which used to carry a second copy.
+static QString resolveUiLanguage(const QString &pref)
 {
-    const QString pref = m_settings->uiLanguage();
     // Every language (incl. English) has its own .qm, so English text is
     // editable in i18n/unisic_en.ts without touching source strings.
-    static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it"),
-                                          QStringLiteral("fr"), QStringLiteral("ru"),
-                                          QStringLiteral("de")};
-    QString code;
-    if (supported.contains(pref)) {
-        code = pref;
-    } else { // "system"
-        const QString sys = QLocale::system().name().left(2); // e.g. "pl_PL" → "pl"
-        code = supported.contains(sys) ? sys : QStringLiteral("en");
-    }
+    static const QStringList supported = {
+        QStringLiteral("en"), QStringLiteral("pl"), QStringLiteral("es"),
+        QStringLiteral("it"), QStringLiteral("fr"), QStringLiteral("ru"),
+        QStringLiteral("de"), QStringLiteral("zh_CN")};
+    if (supported.contains(pref))
+        return pref;
+    const QString sys = QLocale::system().name(); // e.g. "pl_PL", "zh_CN"
+    if (supported.contains(sys))
+        return sys;
+    if (sys.startsWith(QLatin1String("zh")))
+        return (sys.startsWith(QLatin1String("zh_TW"))
+                || sys.startsWith(QLatin1String("zh_HK"))
+                || sys.startsWith(QLatin1String("zh_MO")))
+                   ? QStringLiteral("en")
+                   : QStringLiteral("zh_CN");
+    const QString two = sys.left(2);
+    return supported.contains(two) ? two : QStringLiteral("en");
+}
+
+void AppContext::applyLanguage()
+{
+    const QString code = resolveUiLanguage(m_settings->uiLanguage());
     m_uiLanguage = code;
     if (m_engine)
         m_engine->setUiLanguage(code);
@@ -2687,16 +2702,7 @@ bool AppContext::showNotificationHelper(CaptureNotification *n, const QVariantMa
 
     // Resolve the UI language exactly as applyLanguage() does, so the card's
     // qsTr strings render in the same language as the rest of the app.
-    const QString pref = m_settings->uiLanguage();
-    static const QStringList supported = {QStringLiteral("en"), QStringLiteral("pl"),
-                                          QStringLiteral("es"), QStringLiteral("it"),
-                                          QStringLiteral("fr"), QStringLiteral("ru"),
-                                          QStringLiteral("de")};
-    QString lang = pref;
-    if (!supported.contains(pref)) {
-        const QString sys = QLocale::system().name().left(2);
-        lang = supported.contains(sys) ? sys : QStringLiteral("en");
-    }
+    const QString lang = resolveUiLanguage(m_settings->uiLanguage());
 
     auto *proc = new QProcess(this);
     proc->setProgram(QCoreApplication::applicationFilePath());

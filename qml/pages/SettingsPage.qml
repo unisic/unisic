@@ -1168,10 +1168,10 @@ Item {
                         helpDetail: qsTr("“System” follows your desktop locale. Changing the language applies immediately to the interface; a few system dialogs may only switch after a restart.")
                         UComboBox {
                             width: 180
-                            property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de"]
+                            property var ids: ["system", "en", "pl", "es", "it", "fr", "ru", "de", "zh_CN"]
                             // Native names on purpose — every user recognises
                             // their own language regardless of the current UI.
-                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch"]
+                            model: [qsTr("System"), "English", "Polski", "Español", "Italiano", "Français", "Русский", "Deutsch", "简体中文"]
                             currentIndex: Math.max(0, ids.indexOf(App.settings.uiLanguage))
                             onActivated: (i) => App.settings.uiLanguage = ids[i]
                         }
@@ -2501,6 +2501,8 @@ Item {
                             text: qsTr("Filename template. Available tokens: %date%, %time%, %datetime%, %unix%, %rand%, %i% (counter)")
                             color: Theme.textTertiary
                             font.pixelSize: Theme.fontS
+                            width: parent.width
+                            wrapMode: Text.Wrap
                         }
                         UTextField {
                             id: templateField

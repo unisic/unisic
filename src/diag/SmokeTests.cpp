@@ -2780,7 +2780,7 @@ static QString languageCheck()
 {
     const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it"),
                                 QStringLiteral("fr"), QStringLiteral("ru"),
-                                QStringLiteral("de")};
+                                QStringLiteral("de"), QStringLiteral("zh_CN")};
     QStringList parts;
     for (const QString &c : codes) {
         QTranslator tr;

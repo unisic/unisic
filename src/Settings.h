@@ -671,8 +671,9 @@ public:
     // Optional per-tool freedesktop icon-name overrides, JSON {"toolId":"name"}.
     U_SETTING(QString, editorToolIcons, setEditorToolIcons, "ui/editorToolIcons", QString())
     // UI language: "system" follows the OS locale, "en" forces English, "pl"
-    // forces Polish. BARE top-level key (never a "general" group — see the
-    // constructor's key-folding + AGENTS.md). Applied via QTranslator swap.
+    // forces Polish, "zh_CN" forces Simplified Chinese. BARE top-level key
+    // (never a "general" group — see the constructor's key-folding +
+    // AGENTS.md). Applied via QTranslator swap.
     U_SETTING(QString, uiLanguage, setUiLanguage, "uiLanguage", QStringLiteral("system"))
     // Main window chrome: true = system window decoration, false = the app's own
     // custom title bar (frameless).

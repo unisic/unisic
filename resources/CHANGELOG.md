@@ -44,7 +44,7 @@ whole per release (not per individual change).
 - Settings no longer leaves the right half of a wide or maximized window empty: the options span the whole window.
 - Text recognition no longer joins words far apart on one line into one line of text: a gap wider than about four letter heights, such as between two table columns or a label and a value at the other edge of a window, starts a new segment, so Select text no longer selects the empty space between them and a redaction bar covers the text and not the space.
 - Text recognition reads a screenshot as scattered labels, buttons and cards rather than one block of text, so a sidebar and the column beside it no longer merge into garbled lines, and light text on a dark panel is read as well as dark text on a light one. A letter whose box ran into the line above or into an underline no longer stretches its line's selection and redaction bar over the next line.
-- **The portable app starts on Ubuntu without libopengl0**: the AppImage and the portable bundle stopped at launch with "libOpenGL.so.0: cannot open shared object file" on an Ubuntu without the libopengl0 package. Unisic no longer needs that library.
+- **The portable app starts on Ubuntu without libopengl0**: the AppImage and the portable bundle stopped at launch with "libOpenGL.so.0: cannot open shared object file" on an Ubuntu without the libopengl0 package. Unisic no longer needs that library. Thanks to sapiyans for reporting this ([#141](https://github.com/unisic/unisic/issues/141)).
 - **"See patch notes" stops pulsing**: the hint in the header pulsed for as long as the notes stayed unread, which kept the computer drawing the window all the time. It now pulses three times when the window opens, then stays still.
 
 ### Polski
@@ -83,7 +83,7 @@ whole per release (not per individual change).
 - Ustawienia nie zostawiają już pustej prawej połowy szerokiego albo zmaksymalizowanego okna: opcje zajmują całą jego szerokość.
 - Rozpoznawanie tekstu nie łączy już w jedną linię słów daleko od siebie w tym samym wierszu: przerwa szersza niż mniej więcej cztery wysokości litery, na przykład między dwiema kolumnami tabeli albo etykietą i wartością po drugiej stronie okna, zaczyna nowy fragment, więc Zaznacz tekst nie zaznacza już pustego miejsca między nimi, a pasek redakcji zakrywa tekst, a nie pustkę.
 - Rozpoznawanie tekstu czyta zrzut jako rozrzucone etykiety, przyciski i karty, a nie jeden blok tekstu, więc pasek boczny i kolumna obok nie zlewają się już w zniekształcone linie, a jasny tekst na ciemnym panelu jest odczytywany tak samo jak ciemny na jasnym. Litera, której ramka zahaczyła o linię wyżej albo o podkreślenie, nie rozciąga już zaznaczenia i paska redakcji swojej linii na następną.
-- **Wersja przenośna uruchamia się na Ubuntu bez libopengl0**: AppImage i przenośne archiwum kończyły się przy starcie błędem „libOpenGL.so.0: cannot open shared object file” na Ubuntu bez pakietu libopengl0. Unisic nie potrzebuje już tej biblioteki.
+- **Wersja przenośna uruchamia się na Ubuntu bez libopengl0**: AppImage i przenośne archiwum kończyły się przy starcie błędem „libOpenGL.so.0: cannot open shared object file” na Ubuntu bez pakietu libopengl0. Unisic nie potrzebuje już tej biblioteki. Podziękowania dla sapiyans za zgłoszenie ([#141](https://github.com/unisic/unisic/issues/141)).
 - **„Zobacz nowości” przestaje pulsować**: podpowiedź w nagłówku pulsowała, dopóki notatki nie zostały przeczytane, przez co komputer bez przerwy rysował okno. Teraz pulsuje trzy razy po otwarciu okna i zostaje nieruchoma.
 
 ## 0.8.9

@@ -200,8 +200,8 @@ Window {
         editorSession.bindCanvas(canvas)
     }
 
-    // True once the user has taken any export action (save/copy/upload/OCR)
-    // - a statusText with statusExported is only ever set by those. Used to skip the
+    // True once the user has taken any export action (save/copy/upload, or
+    // copying recognized text) - a statusText with statusExported is only ever set by those. Used to skip the
     // discard-confirm nag: once exported, closing never nags.
     property bool exported: false
     // Set by the discard confirmation so the second close() pass goes through.

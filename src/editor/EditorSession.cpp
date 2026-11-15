@@ -113,7 +113,7 @@ QString EditorSession::save()
             }
             // Its own file, so its own tile - the original keeps the one it has.
             m_app->history()->addEntry(path, img, QStringLiteral("image"));
-            setStatus(tr("Saved as %1").arg(QFileInfo(path).fileName()));
+            setStatus(tr("Saved as %1").arg(QFileInfo(path).fileName()), true);
             return path;
         }
         // Encoded for the extension the file already has, so a .jpg keeps the
@@ -121,7 +121,7 @@ QString EditorSession::save()
         // ffmpeg instead of failing silently.
         if (m_app->overwriteImageFile(img, m_overwritePath)) {
             m_app->history()->refreshEntry(m_overwritePath, img);
-            setStatus(tr("Saved (overwrote %1)").arg(fi.fileName()));
+            setStatus(tr("Saved (overwrote %1)").arg(fi.fileName()), true);
             return m_overwritePath;
         }
         setStatus(tr("Save failed"));
@@ -141,7 +141,7 @@ QString EditorSession::save()
             m_app->history()->refreshEntry(path, img); // thumbnail of the EDITED image
         else
             m_app->history()->addEntry(path, img, QStringLiteral("image"));
-        setStatus(tr("Saved to %1").arg(path));
+        setStatus(tr("Saved to %1").arg(path), true);
     } else {
         setStatus(tr("Save failed"));
     }
@@ -169,7 +169,7 @@ QString EditorSession::saveAs(const QString &format)
         m_app->history()->refreshEntry(path, img);
     else
         m_app->history()->addEntry(path, img, QStringLiteral("image"));
-    setStatus(tr("Saved to %1").arg(path));
+    setStatus(tr("Saved to %1").arg(path), true);
     return path;
 }
 
@@ -215,14 +215,14 @@ QString EditorSession::saveAsDialog()
         m_app->history()->refreshEntry(path, img);
     else
         m_app->history()->addEntry(path, img, QStringLiteral("image"));
-    setStatus(tr("Saved to %1").arg(path));
+    setStatus(tr("Saved to %1").arg(path), true);
     return path;
 }
 
 void EditorSession::copyToClipboard()
 {
     m_app->copyImageToClipboard(composited());
-    setStatus(tr("Copied to clipboard"));
+    setStatus(tr("Copied to clipboard"), true);
 }
 
 void EditorSession::print()
@@ -240,7 +240,8 @@ void EditorSession::upload()
         if (!self)
             return;
         self->setStatus(error.isEmpty() ? tr("Uploaded, link copied: %1").arg(url)
-                                        : tr("Upload failed: %1").arg(error));
+                                        : tr("Upload failed: %1").arg(error),
+                        error.isEmpty());
     }, m_historyId); // one capture, one tile: the link lands on its own entry
 }
 
@@ -301,7 +302,7 @@ void EditorSession::copyOcrSelection()
         return;
     }
     m_app->copyText(text);
-    setStatus(tr("Copied selected text"));
+    setStatus(tr("Copied selected text"), true);
 }
 
 void EditorSession::highlightOcrSelection()

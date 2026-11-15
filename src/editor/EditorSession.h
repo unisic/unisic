@@ -75,7 +75,9 @@ signals:
 
 private:
     QImage composited() const;
-    void setStatus(const QString &s, bool exported = true);
+    // exported: a finished save, copy or upload, which lifts the close guard.
+    // Progress, failures and edits (OCR, redaction) must not.
+    void setStatus(const QString &s, bool exported = false);
     void reportSensitive(const QString &ocrError);
 
     AppContext *m_app;

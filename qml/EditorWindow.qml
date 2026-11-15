@@ -1691,6 +1691,7 @@ Window {
                 contentHeight: inspectorColumn.height
                 boundsBehavior: Flickable.StopAtBounds
                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                WheelBoost { flickable: inspectorFlick }
 
                 Column {
                     id: inspectorColumn

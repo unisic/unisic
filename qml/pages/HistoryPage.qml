@@ -555,23 +555,7 @@ Item {
                 Accessible.description: qsTr("Arrow keys move, Space selects, Return opens, Delete removes")
 
                 MiddleScroll { flickable: grid }
-                WheelBoost {
-                    flickable: grid
-                    // The kit's 220 px default is written for a page of short
-                    // rows; here a row is a whole tile (213 px at the default
-                    // window and 223 px at 1920 when this was tuned, about
-                    // 190 px at both since the Recent-style tiles), so a
-                    // notch moved exactly one
-                    // row - a quarter of the viewport maximized, a sixth at
-                    // 1440p, which is what "far too slow" felt like. A row and
-                    // a half is the floor, and once about four and a half rows
-                    // fit the viewport takes over, so the big window stops
-                    // crawling while the small one still keeps ~30% of the
-                    // previous view. WheelBoost caps a boosted notch at 90% of
-                    // the viewport by itself, so nothing here can skip a row
-                    // nobody saw.
-                    stepPx: Math.max(Math.round(grid.cellHeight * 1.5), Math.round(grid.height / 3))
-                }
+                WheelBoost { flickable: grid }
 
                 // Click past the tiles = deselect, like a file manager.
                 MouseArea {

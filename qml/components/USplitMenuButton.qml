@@ -321,6 +321,7 @@ Rectangle {
             Keys.onEscapePressed: (e) => { if (UKeys.claim(e)) popup._dismiss() }
             interactive: contentHeight > height
             boundsBehavior: Flickable.StopAtBounds
+            WheelBoost { flickable: menuFlick }
 
             Column {
                 id: col

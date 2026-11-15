@@ -1037,9 +1037,7 @@ Item {
         MiddleScroll { flickable: navRail }
         // The rail scrolls like every other pane instead of falling back to
         // Flickable's own wheel physics, which needed a spin per row here.
-        // 120, not the 220 default: a rail row is 40 px with its spacing, so a
-        // notch is three rows - a pane-sized step would jump most of the list.
-        WheelBoost { flickable: navRail; stepPx: 120 }
+        WheelBoost { flickable: navRail }
         Column {
             id: navCol
             width: parent.width
@@ -4248,26 +4246,9 @@ Item {
                                 font.pixelSize: Theme.fontS
                                 wrapMode: Text.WrapAnywhere
                             }
-                        }
-                        // The console is a strict scroll island: the wheel over
-                        // it moves ONLY the log (fixed steps, never Flickable's
-                        // physics) and is always consumed, so the page behind
-                        // never scrolls from over the console — and scrolling
-                        // the page stops at its edge instead of dying inside
-                        // it. Wheel-only (NoButton): clicks and drags pass
-                        // through untouched.
-                        MouseArea {
-                            anchors.fill: parent
-                            acceptedButtons: Qt.NoButton
-                            Accessible.ignored: true
-                            onWheel: (w) => {
-                                const dy = w.pixelDelta.y !== 0 ? w.pixelDelta.y
-                                                                : (w.angleDelta.y / 120) * 110
-                                devLogFlick.contentY = Math.max(0, Math.min(
-                                    Math.max(0, devLogFlick.contentHeight - devLogFlick.height),
-                                    devLogFlick.contentY - dy))
-                                w.accepted = true
-                            }
+                            // A scroll island once the log overflows: the wheel
+                            // over it moves only the log, never the page behind.
+                            WheelBoost { flickable: devLogFlick }
                         }
                     }
                 }

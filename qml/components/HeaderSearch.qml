@@ -287,9 +287,11 @@ Rectangle {
         }
 
         contentItem: Flickable {
+            id: resultFlick
             clip: true
             contentHeight: resultCol.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
+            WheelBoost { flickable: resultFlick }
             Column {
                 id: resultCol
                 width: popup.availableWidth

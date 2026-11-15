@@ -305,10 +305,10 @@ Item {
         return t
     }
     readonly property var tabIcons: {
-        var t = ["configure", "camera-photo", "media-record", "edit",
-                 "document-save", "bell", "fill-color", "keyboard"]
+        var t = ["line-sliders", "line-camera", "line-record", "line-pencil",
+                 "line-save", "line-bell", "line-palette", "line-keyboard"]
         if (App.devBuild)
-            t.push("terminal")
+            t.push("line-terminal")
         return t
     }
 

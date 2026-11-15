@@ -63,6 +63,10 @@ Rectangle {
             t.push(qsTr("Developer", "Settings category"))
         return t
     }
+    // Same order and glyphs as SettingsPage.tabIcons; change both together.
+    readonly property var settingsTabIcons: ["line-sliders", "line-camera", "line-record", "line-pencil",
+                                             "line-save", "line-bell", "line-palette", "line-keyboard",
+                                             "line-terminal"]
 
     // At most six actions and every matching Settings category, then one row
     // that hands the words to the Settings search, which looks inside the panes.
@@ -78,7 +82,7 @@ Rectangle {
         }
         for (var t = 0; t < settingsTabs.length; ++t) {
             if (settingsTabs[t].toLowerCase().indexOf(q) >= 0)
-                out.push({ title: settingsTabs[t], sub: qsTr("Settings"), icon: "line-sliders",
+                out.push({ title: settingsTabs[t], sub: qsTr("Settings"), icon: settingsTabIcons[t],
                            run: (function (tab) { return function () { root.openSettings(tab, "") } })(t) })
         }
         out.push({ title: qsTr("Search settings for \"%1\"").arg(root.query), sub: qsTr("Settings"), icon: "line-search",

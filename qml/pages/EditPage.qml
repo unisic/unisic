@@ -178,8 +178,7 @@ Item {
                     ActionTile {
                         width: shareGrid.cellW
                         compact: page.compact
-                        // The kit's QR glyph; the line set has none.
-                        iconName: "view-preview"
+                        iconName: "line-qr"
                         title: qsTr("QR code")
                         sub: qsTr("Of the text you copied")
                         onActivated: App.qrFromClipboard()

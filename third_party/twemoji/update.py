@@ -3,7 +3,7 @@
 
     python3 -I update.py <twemoji>/assets/svg emoji-test.txt <cldr-dir> <this dir>
 
-<cldr-dir> holds, per UI language, <lang>.json and <lang>.d.json: cldr-json's
+<cldr-dir> holds, per UI language, <lang>.json and <lang>.d.json (zh.* for zh_CN): cldr-json's
 cldr-annotations-full/annotations/<lang>/annotations.json and
 cldr-annotations-derived-full/annotationsDerived/<lang>/annotations.json.
 Every SVG here is replaced by the ones catalog.json names, copied unmodified;
@@ -15,7 +15,7 @@ import os
 import shutil
 import sys
 
-LANGS = ["en", "pl", "es", "it", "fr", "ru", "de"]
+LANGS = ["en", "pl", "es", "it", "fr", "ru", "de", "zh_CN"]
 TONES = [0x1F3FB, 0x1F3FC, 0x1F3FD, 0x1F3FE, 0x1F3FF]
 
 
@@ -65,7 +65,8 @@ def main(svg_dir, test_txt, cldr_dir, out_dir):
     names, keywords = {}, {}
     for lang in LANGS:
         ann = {}
-        for part in (lang + ".json", lang + ".d.json"):
+        stem = lang.split("_")[0]  # zh_CN reads CLDR's zh
+        for part in (stem + ".json", stem + ".d.json"):
             with open(os.path.join(cldr_dir, part), encoding="utf-8") as f:
                 data = json.load(f)
             ann.update(next(iter(data.values()))["annotations"])

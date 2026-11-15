@@ -18,7 +18,8 @@ first, then without U+FE0F.
 
 `catalog.json` lists the emoji in Unicode's order with their group and skin
 tones; `names.<lang>.json` holds, in the same order, each one's name and
-search words in the seven UI languages. The groups and order come from
+search words in every UI language except Simplified Chinese, which has no
+`names.zh_CN.json` yet and shows the English names. The groups and order come from
 Unicode's `emoji-test.txt` (https://unicode.org/Public/17.0.0/emoji/emoji-test.txt),
 the names and search words from CLDR 48.0.0 annotations
 (https://github.com/unicode-org/cldr-json, `cldr-annotations-full` and

@@ -2838,7 +2838,7 @@ static QString languageCheck()
 {
     const QStringList codes = {QStringLiteral("pl"), QStringLiteral("es"), QStringLiteral("it"),
                                 QStringLiteral("fr"), QStringLiteral("ru"),
-                                QStringLiteral("de")};
+                                QStringLiteral("de"), QStringLiteral("zh_CN")};
     QStringList parts;
     for (const QString &c : codes) {
         QTranslator tr;
@@ -5377,7 +5377,7 @@ QString AppContext::vgyMeCheck() const
     m_uploads->removeDestination(scratch);
     if (!guardCalled)
         fails << QStringLiteral("no user key: upload was attempted, not refused");
-    // Every translation of both refusals names vgy.me (checked in all seven
+    // Every translation of both refusals names vgy.me (checked in all eight
     // i18n/*.ts), so this holds in any UI language. A per-language word list
     // missed one (Russian) and failed the check on a correct message.
     else if (!guardError.contains(QStringLiteral("vgy.me")))

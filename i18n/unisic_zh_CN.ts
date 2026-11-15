@@ -6870,6 +6870,11 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>选择用哪种识别器读取截图中的文字。</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>Windows 中未安装 OCR 语言，改由 Tesseract 识别文本。</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR 内置于 Windows，识别为你的 Windows 帐户安装的语言。Tesseract 使用自己的语言包和下方的语言设置。如果没有安装任何 Windows OCR 语言，Unisic 会改用 Tesseract 识别。</translation>

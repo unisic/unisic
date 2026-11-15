@@ -32,4 +32,15 @@ inline QString resolve(const QString &id)
     return available().contains(id) ? id : QStringLiteral("tesseract");
 }
 
+// The engine that actually runs. Windows OCR needs an OCR language installed
+// for one of the user's Windows languages; without one Tesseract runs, whether
+// "windows" is the default or the user's pick, and Settings shows Tesseract
+// with a hint saying why. The stored id is never rewritten, so installing a
+// language later brings Windows OCR back with no change in Settings.
+inline QString effective(const QString &id, bool windowsUsable)
+{
+    const QString e = resolve(id);
+    return e == QLatin1String("windows") && !windowsUsable ? QStringLiteral("tesseract") : e;
+}
+
 } // namespace OcrEngines

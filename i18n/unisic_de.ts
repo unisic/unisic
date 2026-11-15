@@ -7201,6 +7201,11 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Welche Erkennung den Text in Ihren Aufnahmen liest.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>In Windows ist keine OCR-Sprache installiert. Stattdessen liest Tesseract den Text.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR ist in Windows eingebaut und liest die Sprachen, die für Ihr Windows-Konto installiert sind. Tesseract nutzt eigene Sprachpakete und die Spracheinstellungen darunter. Ist keine Sprache für Windows OCR installiert, erkennt Unisic den Text stattdessen mit Tesseract.</translation>

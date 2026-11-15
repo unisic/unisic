@@ -14,6 +14,11 @@ namespace WindowsOcr {
 
 bool built();
 
+// Whether recognize() can run here at all: one of the user's profile languages
+// has Windows OCR installed. Blocks on WinRT like recognize(), so call it on a
+// worker thread; the stub says false.
+bool usable();
+
 // Recognizes on the CALLING thread, which must be a worker: it joins the
 // multithreaded apartment for the call and blocks until the result is in.
 // Returns false, with `why` set, when the engine cannot run here (no OCR

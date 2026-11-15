@@ -7201,6 +7201,11 @@ S’applique à la prochaine capture.</translation>
         <translation>Le moteur qui lit le texte de vos captures.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>Aucune langue OCR n'est installée dans Windows. Tesseract lit le texte à la place.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR est intégré à Windows et lit les langues installées pour votre compte Windows. Tesseract utilise ses propres packs de langue et les réglages de langue ci-dessous. Si aucune langue Windows OCR n’est installée, Unisic reconnaît le texte avec Tesseract.</translation>

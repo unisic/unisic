@@ -1284,14 +1284,20 @@ Item {
                         // a lone disabled "Tesseract" combo would offer nothing.
                         visible: App.ocrEngines.length > 1
                         label: qsTr("Text recognition engine")
-                        help: qsTr("Which recognizer reads the text in your captures.")
+                        // Only the text changes when the answer lands, so the
+                        // row keeps its place; the combo shows the engine that
+                        // actually runs (OcrEngines::effective()).
+                        help: App.windowsOcrUsable
+                              ? qsTr("Which recognizer reads the text in your captures.")
+                              : qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
+                        Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
                         helpDetail: qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
                         UComboBox {
                             width: 180
                             // Product names, the same in every language.
                             readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract" })
                             model: App.ocrEngines.map((id) => names[id] || id)
-                            currentIndex: Math.max(0, App.ocrEngines.indexOf(App.settings.ocrEngine))
+                            currentIndex: Math.max(0, App.ocrEngines.indexOf(App.ocrEffectiveEngine))
                             onActivated: (i) => App.settings.ocrEngine = App.ocrEngines[i]
                         }
                     }

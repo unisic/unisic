@@ -10,11 +10,11 @@ whole per release (not per individual change).
 
 ### English
 **Added**
-- **Windows OCR on Windows**: text recognition (OCR region, picking text in the editor, Auto-redact) now uses the recognizer built into Windows by default, in the languages installed for your Windows account. Tesseract stays available under Settings > General > Text recognition engine, and takes over on its own when no Windows OCR language is installed. Linux keeps Tesseract.
+- **Windows OCR on Windows**: text recognition (OCR region, picking text in the editor, Auto-redact) now uses the recognizer built into Windows by default, in the languages installed for your Windows account. Tesseract stays available under Settings > General > Text recognition engine, and takes over on its own when no Windows OCR language is installed: Settings then shows Tesseract as the engine in use and says why. Linux keeps Tesseract.
 
 ### Polski
 **Dodane**
-- **Windows OCR w systemie Windows**: rozpoznawanie tekstu (OCR obszaru, zaznaczanie tekstu w edytorze, Auto-redakcja) korzysta teraz domyślnie z mechanizmu rozpoznawania wbudowanego w Windows, w językach zainstalowanych dla Twojego konta Windows. Tesseract jest nadal dostępny w Ustawienia > Ogólne > Silnik rozpoznawania tekstu i sam przejmuje rozpoznawanie, gdy nie jest zainstalowany żaden język Windows OCR. Linux nadal używa Tesseract.
+- **Windows OCR w systemie Windows**: rozpoznawanie tekstu (OCR obszaru, zaznaczanie tekstu w edytorze, Auto-redakcja) korzysta teraz domyślnie z mechanizmu rozpoznawania wbudowanego w Windows, w językach zainstalowanych dla Twojego konta Windows. Tesseract jest nadal dostępny w Ustawienia > Ogólne > Silnik rozpoznawania tekstu i sam przejmuje rozpoznawanie, gdy nie jest zainstalowany żaden język Windows OCR: Ustawienia pokazują wtedy Tesseract jako używany silnik i wyjaśniają dlaczego. Linux nadal używa Tesseract.
 
 ## 0.8.10
 

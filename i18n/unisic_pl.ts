@@ -6467,6 +6467,11 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>Który mechanizm odczytuje tekst z Twoich zrzutów.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>W systemie Windows nie zainstalowano żadnego języka OCR. Tekst odczytuje Tesseract.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR jest wbudowany w system Windows i odczytuje języki zainstalowane dla Twojego konta Windows. Tesseract korzysta z własnych pakietów językowych i z ustawień języka poniżej. Gdy nie jest zainstalowany żaden język Windows OCR, Unisic rozpoznaje tekst za pomocą Tesseract.</translation>

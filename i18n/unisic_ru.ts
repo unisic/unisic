@@ -7208,6 +7208,11 @@ Applies to the next capture.</source>
         <translation>Чем распознавать текст на ваших снимках.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>В Windows не установлен ни один язык OCR. Текст распознаёт Tesseract.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR встроен в Windows и распознаёт языки, установленные для вашей учётной записи Windows. Tesseract использует собственные языковые пакеты и настройки языка ниже. Если ни один язык Windows OCR не установлен, Unisic распознаёт текст с помощью Tesseract.</translation>

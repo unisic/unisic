@@ -7109,6 +7109,11 @@ Si applica alla prossima cattura.</translation>
         <translation>Quale riconoscitore legge il testo delle tue catture.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1291"/>
+        <source>No OCR language is installed in Windows. Tesseract reads the text instead.</source>
+        <translation>In Windows non è installata alcuna lingua OCR. Il testo viene letto da Tesseract.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
         <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
         <translation>Windows OCR è integrato in Windows e legge le lingue installate per il tuo account Windows. Tesseract usa i propri pacchetti lingua e le impostazioni della lingua qui sotto. Se non è installata alcuna lingua di Windows OCR, Unisic riconosce il testo con Tesseract.</translation>

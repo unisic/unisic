@@ -32,6 +32,18 @@ private slots:
                  WindowsOcr::built() ? QStringLiteral("windows") : QStringLiteral("tesseract"));
     }
 
+    void unusableWindowsOcrRunsTesseract()
+    {
+        const QString windows = QStringLiteral("windows"), tesseract = QStringLiteral("tesseract");
+        // No OCR language installed: Tesseract runs for the default and for an explicit pick alike.
+        QCOMPARE(OcrEngines::effective(windows, false), tesseract);
+        QCOMPARE(OcrEngines::effective(windows, true), OcrEngines::resolve(windows));
+        QCOMPARE(OcrEngines::effective(tesseract, false), tesseract);
+        QCOMPARE(OcrEngines::effective(tesseract, true), tesseract);
+        QCOMPARE(OcrEngines::effective(QStringLiteral("paddle"), true), tesseract);
+        QCOMPARE(OcrEngines::effective(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE), false), tesseract);
+    }
+
     void wordSplitsIntoTilingGlyphs()
     {
         QVector<OcrWord> g;

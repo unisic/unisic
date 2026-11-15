@@ -160,6 +160,13 @@ class AppContext : public QObject
     // (OcrEngines::available()). Settings shows its engine row only when there
     // is a choice, which is decided per platform and never changes at runtime.
     Q_PROPERTY(QStringList ocrEngines READ ocrEngines CONSTANT)
+    // Windows OCR can run: an OCR language is installed for one of the user's
+    // Windows languages. Asked once per session by checkOcrEngines() (the
+    // Settings engine row calls it), off the GUI thread; optimistic until the
+    // answer lands, false off Windows once asked.
+    Q_PROPERTY(bool windowsOcrUsable READ windowsOcrUsable NOTIFY ocrEngineStateChanged)
+    // The engine OCR actually runs (OcrEngines::effective()).
+    Q_PROPERTY(QString ocrEffectiveEngine READ ocrEffectiveEngine NOTIFY ocrEngineStateChanged)
     // ffmpeg is in PATH. Recording already reports its own absence when it
     // fails; this exists so the GIF actions can grey out with a reason BEFORE
     // the user picks one, rather than failing afterwards.
@@ -484,6 +491,9 @@ public:
     bool watchFolderActive() const;
     bool ocrHasLanguages() const;
     QStringList ocrEngines() const;
+    bool windowsOcrUsable() const { return m_windowsOcrUsable; }
+    QString ocrEffectiveEngine() const;
+    Q_INVOKABLE void checkOcrEngines();
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
@@ -855,6 +865,7 @@ signals:
     void shortcutRecordingChanged();
     void editorWindowsOpenChanged();
     void watchFolderActiveChanged();
+    void ocrEngineStateChanged();
     void smokeTestChanged();
     void patchNotesUnseenChanged();
     void autostartEnabledChanged();
@@ -1276,6 +1287,8 @@ private:
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
+    bool m_ocrEnginesChecked = false;
+    bool m_windowsOcrUsable = true;
     QTranslator *m_appTranslator = nullptr; // bundled unisic_<lang>.qm
     QTranslator *m_qtTranslator = nullptr;  // Qt's own strings for the locale
     QSystemTrayIcon *m_tray = nullptr;

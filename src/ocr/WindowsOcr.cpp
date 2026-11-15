@@ -8,6 +8,11 @@ bool WindowsOcr::built()
     return false;
 }
 
+bool WindowsOcr::usable()
+{
+    return false;
+}
+
 bool WindowsOcr::recognize(const QImage &, const std::atomic_bool &, QVector<OcrWord> *,
                            QString *, QString *why)
 {

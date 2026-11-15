@@ -53,6 +53,21 @@ bool WindowsOcr::built()
     return true;
 }
 
+bool WindowsOcr::usable()
+{
+    const Apartment apartment;
+    if (FAILED(apartment.hr))
+        return false;
+    try {
+        // The engine is a temporary, released before the apartment is left.
+        return bool(wmo::OcrEngine::TryCreateFromUserProfileLanguages());
+    } catch (const winrt::hresult_error &) {
+        return false;
+    } catch (const std::exception &) {
+        return false;
+    }
+}
+
 bool WindowsOcr::recognize(const QImage &src, const std::atomic_bool &cancelled,
                            QVector<OcrWord> *glyphs, QString *text, QString *why)
 {

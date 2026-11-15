@@ -3032,7 +3032,7 @@ QString AppContext::ocrEngineCheck() const
     if (!split)
         return QStringLiteral("FAIL (word box split into %1 glyphs, not 3 tiling slices)").arg(g.size());
     return QStringLiteral("PASS (engines: %1; using: %2)")
-        .arg(engines.join(u','), OcrEngines::resolve(m_settings->ocrEngine()));
+        .arg(engines.join(u','), ocrEffectiveEngine());
 }
 
 void AppContext::devTestOcrEngine()

@@ -330,9 +330,11 @@ AppContext::AppContext(QObject *parent)
     }
 
     m_ocr = new OcrEngine(this);
-    m_ocr->setEngine(m_settings->ocrEngine());
-    connect(m_settings, &Settings::ocrEngineChanged, m_ocr,
-            [this] { m_ocr->setEngine(m_settings->ocrEngine()); });
+    m_ocr->setEngine(ocrEffectiveEngine());
+    connect(m_settings, &Settings::ocrEngineChanged, m_ocr, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
 }
 
 AppContext::~AppContext()
@@ -566,6 +568,33 @@ bool AppContext::capScreenCastPortal() const
 QStringList AppContext::ocrEngines() const
 {
     return OcrEngines::available();
+}
+
+QString AppContext::ocrEffectiveEngine() const
+{
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable);
+}
+
+void AppContext::checkOcrEngines()
+{
+    if (m_ocrEnginesChecked)
+        return;
+    m_ocrEnginesChecked = true;
+    if (!WindowsOcr::built()) {
+        m_windowsOcrUsable = false;
+        emit ocrEngineStateChanged();
+        return;
+    }
+    // WinRT activation can take a moment and joins an apartment, so it runs on
+    // a pool thread; the watcher is ours and dies with us if the answer is late.
+    auto *probe = new QFutureWatcher<bool>(this);
+    connect(probe, &QFutureWatcher<bool>::finished, this, [this, probe] {
+        m_windowsOcrUsable = probe->result();
+        probe->deleteLater();
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    probe->setFuture(QtConcurrent::run(WindowsOcr::usable));
 }
 
 bool AppContext::ocrHasLanguages() const

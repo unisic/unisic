@@ -2484,12 +2484,12 @@
     <message>
         <location filename="../qml/components/SourceTile.qml" line="132"/>
         <source>No hotkey yet,</source>
-        <translation>Noch kein Tastenkürzel,</translation>
+        <translation>Kein Kürzel,</translation>
     </message>
     <message>
         <location filename="../qml/components/SourceTile.qml" line="138"/>
         <source>set one</source>
-        <translation>eines festlegen</translation>
+        <translation>festlegen</translation>
     </message>
     <message>
         <location filename="../qml/components/SourceTile.qml" line="139"/>

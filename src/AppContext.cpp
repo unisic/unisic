@@ -2546,7 +2546,11 @@ void AppContext::hotkeyBindStatusAsync(
                         }
                         m_hotkeys->setShortcutAsync(
                             action.id, action.name, action.keys, this,
-                            [state, action](bool accepted) {
+                            [this, state, action](bool accepted) {
+                                // First launch beside a holder (e.g. Spectacle's
+                                // Meta+Shift+R): unbound, so no owner was checked above.
+                                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys),
+                                                      !accepted);
                                 state->lines
                                     << (accepted
                                             ? action.id + QStringLiteral(": was unbound, re-asserted ")

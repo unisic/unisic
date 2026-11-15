@@ -402,11 +402,16 @@ Window {
                     }
                 }
 
+                // A few pulses each time the window is shown, then rest at full
+                // opacity: an endless loop rendered ~57 fps for as long as the
+                // notes stayed unread.
                 SequentialAnimation on opacity {
                     running: patchHint.visible && window.visible && !welcomeLoader.active
-                    loops: Animation.Infinite
-                    NumberAnimation { from: 1.0; to: 0.25; duration: 650; easing.type: Easing.InOutQuad }
-                    NumberAnimation { from: 0.25; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
+                    loops: 3
+                    NumberAnimation { from: 1.0; to: 0.4; duration: 650; easing.type: Easing.InOutQuad }
+                    NumberAnimation { from: 0.4; to: 1.0; duration: 650; easing.type: Easing.InOutQuad }
+                    // Hidden mid-pulse: rest readable, not at the faint phase.
+                    onStopped: patchHint.opacity = 1.0
                 }
 
                 MouseArea {

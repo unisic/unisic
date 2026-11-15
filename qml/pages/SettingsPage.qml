@@ -2068,6 +2068,7 @@ Item {
                         }
                     }
                     SettingRow {
+                        id: rippleRow
                         visible: App.settings.cursorHighlight
                         label: qsTr("Show a ripple on click")
                         // The reason is computed once per shown row rather than bound:
@@ -2082,11 +2083,16 @@ Item {
                         help: qsTr("Draws an expanding ring wherever you click.")
                         footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
+                            // Named here: the fix button in the footer makes the row two
+                            // controls, and UNameBridge then names neither.
+                            accessibleName: rippleRow.label
+                            accessibleDescription: rippleRow.detail
                             checked: App.settings.cursorClickRipple
                             onToggled: (c) => App.settings.cursorClickRipple = c
                         }
                     }
                     SettingRow {
+                        id: keysRow
                         label: qsTr("Show pressed keys")
                         // Same one-shot probe and same `available` rule as the ripple
                         // row above.
@@ -2097,6 +2103,10 @@ Item {
                         helpDetail: qsTr("A screenkey-style pill at the bottom of the recording shows shortcuts and typed keys, with held modifiers and a ×N repeat counter. Works in GIF and video recordings. Key labels use the physical (US) key legend.")
                         footer: InputFixFooter { command: App.inputAccessFixCommand() }
                         USwitch {
+                            // Named here: the fix button in the footer makes the row two
+                            // controls, and UNameBridge then names neither.
+                            accessibleName: keysRow.label
+                            accessibleDescription: keysRow.detail
                             checked: App.settings.recordKeystrokes
                             onToggled: (c) => App.settings.recordKeystrokes = c
                         }
@@ -3804,6 +3814,9 @@ Item {
                         font.pixelSize: Theme.fontS
                         Accessible.role: Accessible.StaticText
                         Accessible.name: text
+                        // Hidden it has no text, and Qt still lists it as a
+                        // focusable unnamed label.
+                        Accessible.ignored: !visible
                         text: !stop ? ""
                               : stop.kind === "release"
                               ? qsTr("The emergency stop %1 is held by the release build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.").arg(stop.keys)

@@ -1992,8 +1992,8 @@ Window {
                 onWidthChanged: clampPan()
                 onHeightChanged: clampPan()
                 boundsBehavior: Flickable.StopAtBounds
-                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; Accessible.name: qsTr("Annotation canvas") }
+                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded; Accessible.name: qsTr("Annotation canvas") }
 
                 // 0 = fit-to-window (never upscales); anything else is an
                 // absolute zoom factor set by the wheel, a pinch, the zoom bar

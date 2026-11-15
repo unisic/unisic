@@ -123,18 +123,23 @@ Rectangle {
             }
             Row {
                 x: 4
+                width: parent.width - 8
                 anchors.verticalCenter: parent.verticalCenter
                 visible: tile.bindable && tile.hotkey === ""
                 spacing: 4
                 // Context kept as CapturePage: these strings moved out of that
                 // file together with their translations.
+                // The lead-in elides, the link never does: it is the action.
                 Text {
+                    width: Math.max(0, Math.min(implicitWidth, parent.width - parent.spacing - setLink.implicitWidth))
+                    elide: Text.ElideRight
                     text: qsTranslate("CapturePage", "No hotkey yet,")
                     color: Theme.textSecondary
                     font.pixelSize: Theme.fontS
                     Accessible.ignored: true
                 }
                 Link {
+                    id: setLink
                     text: qsTranslate("CapturePage", "set one")
                     Accessible.description: qsTranslate("CapturePage", "Open Settings at Hotkeys")
                     onActivated: tile.openHotkeys()

@@ -126,10 +126,13 @@ jobs:
           $m = Select-String -Path CMakeLists.txt -Pattern '^set\(UNISIC_VERSION_STRING "([^"]+)"\)'
           if (-not $m) { throw 'UNISIC_VERSION_STRING not found in CMakeLists.txt' }
           $version = $m.Matches[0].Groups[1].Value
+          $n = Select-String -Path CMakeLists.txt -Pattern '^project\(unisic VERSION ([0-9]+\.[0-9]+\.[0-9]+)'
+          if (-not $n) { throw 'project(unisic VERSION x.y.z) not found in CMakeLists.txt' }
+          $numeric = "$($n.Matches[0].Groups[1].Value).0"
           $iscc = (Get-Command iscc.exe -ErrorAction SilentlyContinue).Source
           if (-not $iscc) { $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe' }
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 not found (looked on PATH and at $iscc)" }
-          & $iscc /Q "/DAppVersion=$version" "/DBundleDir=$PWD\dist-win" "/DOutputDir=$PWD\installer" packaging\windows\unisic.iss
+          & $iscc /Q "/DAppVersion=$version" "/DAppVersionNumeric=$numeric" "/DBundleDir=$PWD\dist-win" "/DOutputDir=$PWD\installer" packaging\windows\unisic.iss
           if ($LASTEXITCODE -ne 0) { throw "iscc exited with $LASTEXITCODE" }
           Get-ChildItem installer | Format-Table Name, Length
 

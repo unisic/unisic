@@ -43,8 +43,22 @@ target_sources(unisic PRIVATE
     src/notify/NativeSound_win.cpp
     src/platform/DesktopShell_win.cpp
     src/update/StagedUpdate_win.cpp
-    # The exe's icon (Explorer, taskbar, Start menu, the uninstall entry).
+    # The exe's icon and version information (Explorer, taskbar, Start menu,
+    # the uninstall entry, file properties).
     src/platform/win/unisic.rc)
+
+# The version unisic.rc stamps into the exe, from project() and
+# UNISIC_VERSION_STRING. A header, not a -D: windres hands defines to the C
+# preprocessor through one more layer of shell quoting, and a string literal
+# does not survive it reliably. The build dir is already on the include path.
+set(_unisic_rc_patch "${unisic_VERSION_PATCH}")
+if(_unisic_rc_patch STREQUAL "")
+    set(_unisic_rc_patch 0)
+endif()
+file(CONFIGURE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/unisic_version_rc.h" @ONLY CONTENT
+"#define UNISIC_RC_VERSION @unisic_VERSION_MAJOR@,@unisic_VERSION_MINOR@,@_unisic_rc_patch@,0
+#define UNISIC_RC_VERSION_STR \"@UNISIC_VERSION_STRING@\"
+")
 
 target_include_directories(unisic BEFORE PRIVATE src/platform/win/include)
 # The test executables are created after this file runs and compile some of the

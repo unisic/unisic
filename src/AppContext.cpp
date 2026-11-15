@@ -58,6 +58,7 @@
 #include "ImageEncode.h"
 #include <QSaveFile>
 #include "ocr/OcrEngine.h"
+#include "ocr/OcrEngines.h"
 // zxing-cpp 3 removed MultiFormatWriter/BitMatrix in favour of CreateBarcode.
 #if __has_include(<ZXing/MultiFormatWriter.h>)
 #include <ZXing/BitMatrix.h>
@@ -329,6 +330,9 @@ AppContext::AppContext(QObject *parent)
     }
 
     m_ocr = new OcrEngine(this);
+    m_ocr->setEngine(m_settings->ocrEngine());
+    connect(m_settings, &Settings::ocrEngineChanged, m_ocr,
+            [this] { m_ocr->setEngine(m_settings->ocrEngine()); });
 }
 
 AppContext::~AppContext()
@@ -557,6 +561,11 @@ bool AppContext::capScreenCastPortal() const
     // Probed on the session bus at startup: a dev-tab "-" here means the
     // desktop ships no ScreenCast portal backend at all.
     return m_screenCastPortalPresent;
+}
+
+QStringList AppContext::ocrEngines() const
+{
+    return OcrEngines::available();
 }
 
 bool AppContext::ocrHasLanguages() const

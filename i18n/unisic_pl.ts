@@ -924,6 +924,11 @@
         <translation>Dev: automatyczny język OCR: %1 (zainstalowane: %2; %3; mapowanie: %4)</translation>
     </message>
     <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: silnik OCR: %1</translation>
+    </message>
+    <message>
         <location filename="../src/AppContext.cpp" line="3494"/>
         <source>No capture to copy yet</source>
         <translation>Nie ma jeszcze zrzutu do skopiowania</translation>
@@ -6452,6 +6457,21 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>Wykrywaj języki automatycznie</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1286"/>
+        <source>Text recognition engine</source>
+        <translation>Silnik rozpoznawania tekstu</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1287"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>Który mechanizm odczytuje tekst z Twoich zrzutów.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR jest wbudowany w system Windows i odczytuje języki zainstalowane dla Twojego konta Windows. Tesseract korzysta z własnych pakietów językowych i z ustawień języka poniżej. Gdy nie jest zainstalowany żaden język Windows OCR, Unisic rozpoznaje tekst za pomocą Tesseract.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3426"/>
         <source>Show a pixel loupe while selecting</source>
         <translation>Pokazuj lupę pikselową podczas zaznaczania</translation>
@@ -8105,6 +8125,11 @@ Dotyczy następnego przechwycenia.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
         <source>OCR auto language</source>
         <translation>Automatyczny język OCR</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
+        <source>OCR engine</source>
+        <translation>Silnik OCR</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="4434"/>

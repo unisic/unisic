@@ -1,4 +1,6 @@
 #include "OcrEngine.h"
+#include "OcrEngines.h"
+#include "WindowsOcr.h"
 #include <QtConcurrent>
 #include <QCoreApplication>
 #include <QFutureWatcher>
@@ -234,7 +236,7 @@ QImage normalizePolarity(const QImage &src)
 // tracking the text-line index (for per-line underlines) and word boundaries
 // (so a copied range keeps its spaces). No barcode short-circuit - a QR
 // payload has no glyph geometry.
-OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
+OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript, QString engine,
                          std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrBoxResult r;
@@ -244,6 +246,15 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
+    if (engine == QLatin1String("windows")) {
+        QString why;
+        if (WindowsOcr::recognize(img, *cancelled, &r.words, nullptr, &why))
+            return r;
+        r.words.clear();
+        if (cancelled->load())
+            return r;
+        qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
     // Auto-language: detect the script (OSD) and narrow to its langpacks - far
     // more accurate than loading every installed pack at once. Empty result
     // keeps `langs` (the full load-all spec) as the fallback.
@@ -313,7 +324,7 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript,
 // `cancelled` is flipped by ~OcrEngine so a job in flight aborts at its next
 // checkpoint on quit instead of pinning the global thread pool (whose
 // destructor waits) until tesseract finishes; nobody consumes the result then.
-OcrResult runOcr(QImage img, QString langs, bool autoScript,
+OcrResult runOcr(QImage img, QString langs, bool autoScript, QString engine,
                  std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrResult r;
@@ -342,6 +353,16 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript,
     }
     if (cancelled->load())
         return r;
+    // The barcode pass above is engine-independent; OSD below is Tesseract's own
+    // (it picks Tesseract langpacks), so the Windows engine skips it.
+    if (engine == QLatin1String("windows")) {
+        QString why;
+        if (WindowsOcr::recognize(img, *cancelled, nullptr, &r.text, &why))
+            return r;
+        if (cancelled->load())
+            return r;
+        qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
     // Auto-language: narrow to the detected script's langpacks (see runOcrBoxes).
     if (autoScript) {
         const QString picked = resolveScriptLangs(img, langs);
@@ -457,7 +478,8 @@ void OcrEngine::recognize(const QImage &img, const QString &langs, bool autoScri
         fw->deleteLater();
         cb(r.text, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript, m_cancelled));
+    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript,
+                                    OcrEngines::resolve(m_engine), m_cancelled));
 }
 
 void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool autoScript,
@@ -469,5 +491,6 @@ void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool aut
         fw->deleteLater();
         cb(r.words, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript, m_cancelled));
+    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript,
+                                    OcrEngines::resolve(m_engine), m_cancelled));
 }

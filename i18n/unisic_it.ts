@@ -1246,6 +1246,11 @@
         <translation>Dev: lingua OCR automatica: %1 (installate: %2; %3; mappa: %4)</translation>
     </message>
     <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: motore OCR: %1</translation>
+    </message>
+    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="3195"/>
         <source>Dev: active window %1x%2 at %3,%4 (logical) on %5, DPR %6; overlay selects %7x%8 at %9,%10</source>
         <translation>Dev: finestra attiva %1x%2 a %3,%4 (logico) su %5, DPR %6; l&apos;overlay seleziona %7x%8 a %9,%10</translation>
@@ -7094,6 +7099,21 @@ Si applica alla prossima cattura.</translation>
         <translation>Rileva le lingue automaticamente</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1286"/>
+        <source>Text recognition engine</source>
+        <translation>Motore di riconoscimento del testo</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1287"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>Quale riconoscitore legge il testo delle tue catture.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR è integrato in Windows e legge le lingue installate per il tuo account Windows. Tesseract usa i propri pacchetti lingua e le impostazioni della lingua qui sotto. Se non è installata alcuna lingua di Windows OCR, Unisic riconosce il testo con Tesseract.</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1671"/>
         <source>The plain Screenshot portal cannot include the cursor on this desktop.</source>
         <translation>Il portale Screenshot di base non può includere il cursore su questo desktop.</translation>
@@ -7951,6 +7971,11 @@ Si applica alla prossima cattura.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
         <source>OCR auto language</source>
         <translation>Lingua automatica OCR</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
+        <source>OCR engine</source>
+        <translation>Motore OCR</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="4432"/>

@@ -270,6 +270,11 @@
         <translation>Dev: OCR-Sprachautomatik: %1 (installiert: %2; %3; Zuordnung: %4)</translation>
     </message>
     <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: OCR-Engine: %1</translation>
+    </message>
+    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="3056"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: Aufnahmeklang „%1“ abgespielt</translation>
@@ -6980,6 +6985,11 @@ Gilt ab der nächsten Aufnahme.</translation>
         <translation>Automatische OCR-Sprache</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
+        <source>OCR engine</source>
+        <translation>OCR-Engine</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="4432"/>
         <source>Update check</source>
         <translation>Aktualisierungsprüfung</translation>
@@ -7179,6 +7189,21 @@ Gilt ab der nächsten Aufnahme.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="1283"/>
         <source>Detect languages automatically</source>
         <translation>Sprachen automatisch erkennen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1286"/>
+        <source>Text recognition engine</source>
+        <translation>Texterkennungs-Engine</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1287"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>Welche Erkennung den Text in Ihren Aufnahmen liest.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR ist in Windows eingebaut und liest die Sprachen, die für Ihr Windows-Konto installiert sind. Tesseract nutzt eigene Sprachpakete und die Spracheinstellungen darunter. Ist keine Sprache für Windows OCR installiert, erkennt Unisic den Text stattdessen mit Tesseract.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1402"/>

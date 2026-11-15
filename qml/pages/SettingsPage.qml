@@ -1278,6 +1278,24 @@ Item {
                         }
                     }
                     SettingRow {
+                        // Only where there is a choice, i.e. the Windows build.
+                        // App.ocrEngines is CONSTANT, so this is settled per
+                        // platform at load and never toggles under the pointer;
+                        // a lone disabled "Tesseract" combo would offer nothing.
+                        visible: App.ocrEngines.length > 1
+                        label: qsTr("Text recognition engine")
+                        help: qsTr("Which recognizer reads the text in your captures.")
+                        helpDetail: qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
+                        UComboBox {
+                            width: 180
+                            // Product names, the same in every language.
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract" })
+                            model: App.ocrEngines.map((id) => names[id] || id)
+                            currentIndex: Math.max(0, App.ocrEngines.indexOf(App.settings.ocrEngine))
+                            onActivated: (i) => App.settings.ocrEngine = App.ocrEngines[i]
+                        }
+                    }
+                    SettingRow {
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
@@ -4409,6 +4427,7 @@ Item {
                         UButton { compact: true; variant: "tonal"; text: qsTr("Style presets"); onClicked: App.devTestStylePresets() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Cursor overlay"); onClicked: App.devTestCursorOverlay() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("OCR auto language"); onClicked: App.devTestOcrAutoLang() }
+                        UButton { compact: true; variant: "tonal"; text: qsTr("OCR engine"); onClicked: App.devTestOcrEngine() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Language"); onClicked: App.devTestLanguage() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Update check"); onClicked: App.devTestUpdateCheck() }
                         UButton { compact: true; variant: "tonal"; text: qsTr("Simulate update"); onClicked: App.devTestUpdateAvailable() }

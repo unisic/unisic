@@ -277,7 +277,8 @@ endif()
 # grabber and arrive with HAVE_X11_HOTKEYS through its PUBLIC compile definitions.
 # PipeWireGrabber is there too, under the kit's own HAVE_PIPEWIRE, likewise PUBLIC.
 
-target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp)
+target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp src/ocr/OcrEngines.h
+                              src/ocr/WindowsOcr.h src/ocr/WindowsOcr.cpp)
 target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT ZXing::ZXing)
 target_compile_definitions(unisic PRIVATE HAVE_TESSERACT HAVE_ZXING)
 
@@ -482,7 +483,7 @@ if(WIN32)
     set(UNISIC_ALL_FEATURES
         HAVE_TESSERACT HAVE_ZXING HAVE_TRANSLATIONS
         ${UNISIC_WINDOWS_FEATURES} ${UNISIC_KIT_FEATURES})
-    set(_unisic_expected_features 5)
+    set(_unisic_expected_features 6)
 else()
     set(UNISIC_ALL_FEATURES
         HAVE_PIPEWIRE HAVE_TESSERACT HAVE_ZXING HAVE_LIBINPUT
@@ -955,6 +956,25 @@ if(BUILD_TESTING)
     target_link_libraries(unisic_kwin_force_blur_test PRIVATE Qt6::Core Qt6::Gui Qt6::DBus Qt6::Test)
     target_include_directories(unisic_kwin_force_blur_test PRIVATE src)
     add_test(NAME unisic_kwin_force_blur_test COMMAND unisic_kwin_force_blur_test)
+
+    # The OCR engine choice and the word-to-glyph split; on Windows also one real
+    # Windows.Media.Ocr run, which SKIPs where no OCR language is installed.
+    qt_add_executable(unisic_ocr_engine_test
+        tests/OcrEngineTest.cpp
+        src/ocr/OcrEngines.h src/ocr/WindowsOcr.h src/ocr/OcrWord.h
+    )
+    if(WIN32)
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr_win.cpp)
+        target_link_libraries(unisic_ocr_engine_test PRIVATE ${UNISIC_WINDOWS_OCR_LIBS})
+        target_compile_definitions(unisic_ocr_engine_test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    else()
+        target_sources(unisic_ocr_engine_test PRIVATE src/ocr/WindowsOcr.cpp)
+    endif()
+    target_link_libraries(unisic_ocr_engine_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_ocr_engine_test PRIVATE src)
+    add_test(NAME unisic_ocr_engine_test COMMAND unisic_ocr_engine_test)
+    # QPainter text needs a platform plugin.
+    set_tests_properties(unisic_ocr_engine_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

@@ -218,6 +218,11 @@
         <translation>Dev: OCR 自动语言：%1（已安装：%2；%3；映射：%4）</translation>
     </message>
     <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: OCR 引擎：%1</translation>
+    </message>
+    <message>
         <location line="+48"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: 已播放录制音效 “%1”</translation>
@@ -6631,6 +6636,11 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>OCR 自动语言</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
+        <source>OCR engine</source>
+        <translation>OCR 引擎</translation>
+    </message>
+    <message>
         <location line="+2"/>
         <source>Update check</source>
         <translation>检查更新</translation>
@@ -6848,6 +6858,21 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <location line="+606"/>
         <source>Detect languages automatically</source>
         <translation>自动检测语言</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1286"/>
+        <source>Text recognition engine</source>
+        <translation>文字识别引擎</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1287"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>选择用哪种识别器读取截图中的文字。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR 内置于 Windows，识别为你的 Windows 帐户安装的语言。Tesseract 使用自己的语言包和下方的语言设置。如果没有安装任何 Windows OCR 语言，Unisic 会改用 Tesseract 识别。</translation>
     </message>
     <message>
         <location line="+119"/>

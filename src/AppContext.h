@@ -156,6 +156,10 @@ class AppContext : public QObject
     // RUNTIME install: with no traineddata OCR can't recognize anything yet -
     // the OCR settings surface an install hint on this.
     Q_PROPERTY(bool ocrHasLanguages READ ocrHasLanguages CONSTANT)
+    // The OCR engine ids this build can run, platform default first
+    // (OcrEngines::available()). Settings shows its engine row only when there
+    // is a choice, which is decided per platform and never changes at runtime.
+    Q_PROPERTY(QStringList ocrEngines READ ocrEngines CONSTANT)
     // ffmpeg is in PATH. Recording already reports its own absence when it
     // fails; this exists so the GIF actions can grey out with a reason BEFORE
     // the user picks one, rather than failing afterwards.
@@ -421,6 +425,7 @@ public:
     Q_INVOKABLE void devTestCursorOverlay();
     Q_INVOKABLE void devTestStylePresets();
     Q_INVOKABLE void devTestOcrAutoLang();
+    Q_INVOKABLE void devTestOcrEngine();
     Q_INVOKABLE void devTestClipboardPaste();
     Q_INVOKABLE void devTestCaptureDelay();
     Q_INVOKABLE void devTestCopyAs();
@@ -478,6 +483,7 @@ public:
     int editorWindowsOpen() const { return m_editorWindows; }
     bool watchFolderActive() const;
     bool ocrHasLanguages() const;
+    QStringList ocrEngines() const;
     bool ffmpegAvailable() const;
     QString watermarkPreviewSource() const;
     bool vaapiAvailable() const { return m_vaapiAvailable; }
@@ -1008,6 +1014,11 @@ private:
     // frame count and size. Needs ffmpeg, so it reports SKIP without one -
     // which is also the state where saving a GIF falls back to PNG.
     QString staticGifCheck() const;
+    // The OCR engine choice without running a recognizer: the platform default
+    // is a runnable engine and listed first, an id this build cannot run reads
+    // as Tesseract, and a word box splits into in-order glyph slices that tile
+    // it (Windows OCR has no letter boxes). Ends with the engine in use.
+    QString ocrEngineCheck() const;
     // The conversion policy every re-encode goes through (ImageEncode::encode):
     // the three formats Qt writes come back with their own magic numbers, a
     // transparent JPEG comes back a PNG with the reason attached, and the

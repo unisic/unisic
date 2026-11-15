@@ -270,6 +270,11 @@
         <translation>Dev: OCR auto language: %1 (installed: %2; %3; map: %4)</translation>
     </message>
     <message>
+        <location filename="../src/diag/SmokeTests.cpp" line="3043"/>
+        <source>Dev: OCR engine: %1</source>
+        <translation>Dev: OCR engine: %1</translation>
+    </message>
+    <message>
         <location filename="../src/diag/SmokeTests.cpp" line="3056"/>
         <source>Dev: played recording sound &apos;%1&apos;</source>
         <translation>Dev: played recording sound &apos;%1&apos;</translation>
@@ -6980,6 +6985,11 @@ Applies to the next capture.</translation>
         <translation>OCR auto language</translation>
     </message>
     <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="4430"/>
+        <source>OCR engine</source>
+        <translation>OCR engine</translation>
+    </message>
+    <message>
         <location filename="../qml/pages/SettingsPage.qml" line="4432"/>
         <source>Update check</source>
         <translation>Update check</translation>
@@ -7179,6 +7189,21 @@ Applies to the next capture.</translation>
         <location filename="../qml/pages/SettingsPage.qml" line="1283"/>
         <source>Detect languages automatically</source>
         <translation>Detect languages automatically</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1286"/>
+        <source>Text recognition engine</source>
+        <translation>Text recognition engine</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1287"/>
+        <source>Which recognizer reads the text in your captures.</source>
+        <translation>Which recognizer reads the text in your captures.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1288"/>
+        <source>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</source>
+        <translation>Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="1402"/>

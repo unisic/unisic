@@ -8,9 +8,10 @@
 #include <memory>
 #include "OcrWord.h"
 
-// Tesseract-backed OCR. tesseract + leptonica are hard build requirements (see
-// CMakeLists), so this is always compiled in; whether any language data is
-// INSTALLED is a separate runtime question. Recognition runs on a worker
+// OCR front end. Tesseract (+ leptonica) is a hard build requirement (see
+// CMakeLists), so it is always compiled in; whether any language data is
+// INSTALLED is a separate runtime question. On Windows the OS recognizer
+// (WindowsOcr) can run instead, see setEngine(). Recognition runs on a worker
 // thread; the callback is delivered on the GUI thread.
 class OcrEngine : public QObject
 {
@@ -51,7 +52,15 @@ public:
     // no word geometry). Mirrors recognize()'s threading + cancellation.
     void recognizeBoxes(const QImage &img, const QString &langs, bool autoScript, BoxResult cb);
 
+    // An OcrEngines id ("tesseract", "windows"). Applies to the next
+    // recognize()/recognizeBoxes(); an id this build cannot run means Tesseract.
+    // `langs`/`autoScript` only steer Tesseract: Windows OCR reads the user's
+    // profile languages, and when none of them has OCR installed that run falls
+    // back to Tesseract with them.
+    void setEngine(const QString &id) { m_engine = id; }
+
 private:
+    QString m_engine = QStringLiteral("tesseract");
     // Flipped by the destructor so an in-flight worker aborts at its next
     // checkpoint: QtConcurrent tasks can't be cancelled from outside, and the
     // global pool's destructor waits for them - without this, quitting mid-

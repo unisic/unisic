@@ -56,24 +56,26 @@ jobs:
           fi
 
   # deb, rpm and arch are extracted to reusable workflows so build.yml's PR
-  # smoke check runs the identical build (no drift). Each uploads the same
+  # smoke check runs the identical build (no drift). A test build dispatched
+  # from another branch (github.ref not main) ships the AppImage and the Windows
+  # installer only, and stays off OBS and the AUR. Each uploads the same
   # artifact name the release job downloads below.
   deb:
     name: Debian package
     needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/deb.yml
 
   rpm:
     name: RPM (Fedora)
     needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/rpm.yml
 
   arch:
     name: Arch package
     needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/arch.yml
 
   appimage:
@@ -88,7 +90,7 @@ jobs:
   flatpak:
     name: Flatpak bundle
     needs: check
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     # Deliberately NOT in the release job's `needs`: the KDE runtime plus an
     # ffmpeg built from source makes this the slowest job by far, and a Flatpak
     # that fails to build must not hold back the packages that did. The bundle
@@ -121,9 +123,6 @@ jobs:
     name: GitHub Release
     needs:
       - check
-      - deb
-      - rpm
-      - arch
       - appimage
     if: ${{ needs.check.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
@@ -160,6 +159,10 @@ jobs:
           pattern: unisic-*
           path: dist
           merge-multiple: true
+
+      # Test build: the AppImage only (no .zsync, no portable tarball).
+      - name: Keep the AppImage only
+        run: find dist -type f ! -name '*.AppImage' -delete
 
       - name: Generate changelog
         run: bash scripts/gen-changelog.sh "$VERSION" > NOTES.md
@@ -198,7 +201,7 @@ jobs:
       - check
       - release
       - flatpak
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.check.outputs.version }}
@@ -239,7 +242,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "v${VERSION}" dist/*.zip dist/*-setup.exe --clobber
+        run: gh release upload "v${VERSION}" dist/*-setup.exe --clobber
 
   obs:
     name: Trigger OBS rebuild
@@ -250,7 +253,7 @@ jobs:
     needs:
       - check
       - release
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
       - name: Run OBS source services (home:unisic/unisic)
@@ -280,7 +283,7 @@ jobs:
     needs:
       - check
       - release
-    if: ${{ needs.check.outputs.should_release == 'true' }}
+    if: ${{ needs.check.outputs.should_release == 'true' && github.ref == 'refs/heads/main' }}
     uses: ./.github/workflows/aur.yml
     with:
       version: ${{ needs.check.outputs.version }}

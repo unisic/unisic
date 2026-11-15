@@ -15,6 +15,7 @@
 
 set(_unisic_linux_only
     src/capture/KWinScreenShot2.cpp
+    src/capture/KWinWindowGeometry.cpp
     src/hotkeys/PrintKeyRelay.cpp
     src/record/AudioCapture.cpp
     src/record/ClickCapture.cpp
@@ -31,6 +32,7 @@ set_source_files_properties(${_unisic_linux_only} PROPERTIES HEADER_FILE_ONLY ON
 
 target_sources(unisic PRIVATE
     src/capture/KWinScreenShot2_win.cpp
+    src/capture/KWinWindowGeometry_win.cpp
     src/hotkeys/PrintKeyRelay_win.cpp
     src/record/AudioCapture_win.cpp
     src/record/ClickCapture_win.cpp

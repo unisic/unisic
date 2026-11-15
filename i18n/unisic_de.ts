@@ -2824,7 +2824,7 @@
     <message>
         <location filename="../qml/pages/DestinationsPage.qml" line="1149"/>
         <source>e.g. your-user-key</source>
-        <translation>z. B. dein-benutzerschluessel</translation>
+        <translation>z. B. ihr-benutzerschluessel</translation>
     </message>
     <message>
         <source>Optional user key from https://vgy.me/account/details#userkeys. Attach uploads to your vgy.me account (required if anonymous uploads are disabled).</source>
@@ -3372,7 +3372,7 @@
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="61"/>
         <source>The picture changed while the background was being removed - run it again</source>
-        <translation>Das Bild hat sich beim Entfernen des Hintergrunds geändert - starte es erneut</translation>
+        <translation>Das Bild hat sich beim Entfernen des Hintergrunds geändert - starten Sie es erneut</translation>
     </message>
     <message>
         <location filename="../src/editor/EditorSession.cpp" line="64"/>
@@ -6884,7 +6884,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3834"/>
         <source>Hotkey: capture a scrolling region (long screenshot).</source>
-        <translation>Hotkey: einen scrollenden Bereich aufnehmen (langer Screenshot).</translation>
+        <translation>Tastenkürzel: einen scrollenden Bereich aufnehmen (langer Screenshot).</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3835"/>
@@ -7490,7 +7490,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2134"/>
         <source>Default input follows the system&apos;s default source. Pick a specific device to pin the microphone to it - including virtual sources such as a processed EasyEffects microphone. Press Refresh after plugging a device in.</source>
-        <translation>Der Standardeingang folgt der Standardquelle des Systems. Wähle ein bestimmtes Gerät, um das Mikrofon daran zu binden - auch virtuelle Quellen wie ein von EasyEffects verarbeitetes Mikrofon. Drücke nach dem Anschließen eines Geräts auf Aktualisieren.</translation>
+        <translation>Der Standardeingang folgt der Standardquelle des Systems. Wählen Sie ein bestimmtes Gerät, um das Mikrofon daran zu binden - auch virtuelle Quellen wie ein von EasyEffects verarbeitetes Mikrofon. Drücken Sie nach dem Anschließen eines Geräts auf Aktualisieren.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2160"/>
@@ -7884,7 +7884,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2133"/>
         <source>Default input follows the system&apos;s default recording device. Pick a specific device to pin the microphone to it - including virtual devices such as a noise-suppressed microphone. Press Refresh after plugging a device in.</source>
-        <translation>Der Standardeingang folgt dem Standard-Aufnahmegerät des Systems. Wähle ein bestimmtes Gerät, um das Mikrofon daran zu binden - auch virtuelle Geräte wie ein Mikrofon mit Rauschunterdrückung. Drücke nach dem Anschließen eines Geräts auf Aktualisieren.</translation>
+        <translation>Der Standardeingang folgt dem Standard-Aufnahmegerät des Systems. Wählen Sie ein bestimmtes Gerät, um das Mikrofon daran zu binden - auch virtuelle Geräte wie ein Mikrofon mit Rauschunterdrückung. Drücken Sie nach dem Anschließen eines Geräts auf Aktualisieren.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2150"/>
@@ -8525,7 +8525,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3891"/>
         <source>Hotkey: puts the most recent screenshot back on the clipboard.</source>
-        <translation>Tastenkürzel: legt das jüngste Bildschirmfoto wieder in die Zwischenablage.</translation>
+        <translation>Tastenkürzel: das jüngste Bildschirmfoto wieder in die Zwischenablage legen.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3892"/>
@@ -9709,7 +9709,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2376"/>
         <source>ONNX Runtime: not installed - install the onnxruntime package from your distribution</source>
-        <translation>ONNX Runtime: nicht installiert - installiere das Paket onnxruntime deiner Distribution</translation>
+        <translation>ONNX Runtime: nicht installiert - installieren Sie das Paket onnxruntime Ihrer Distribution</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="2378"/>
@@ -10453,7 +10453,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/components/UAppAudioPicker.qml" line="92"/>
         <source>No application is playing audio. Start playback and it appears here.</source>
-        <translation>Keine Anwendung spielt Ton ab. Starte die Wiedergabe, dann erscheint sie hier.</translation>
+        <translation>Keine Anwendung spielt Ton ab. Starten Sie die Wiedergabe, dann erscheint sie hier.</translation>
     </message>
     <message>
         <location filename="../qml/components/UAppAudioPicker.qml" line="94"/>
@@ -10536,7 +10536,7 @@ Gilt ab der nächsten Aufnahme.</translation>
     <message>
         <location filename="../qml/components/ULogViewer.qml" line="96"/>
         <source>The last few hundred lines from this run, with passwords, tokens and your home folder already removed. Nothing here is sent anywhere.</source>
-        <translation>Die letzten paar hundert Zeilen dieses Laufs, Passwörter, Tokens und dein Home-Ordner sind bereits entfernt. Nichts davon wird irgendwohin gesendet.</translation>
+        <translation>Die letzten paar hundert Zeilen dieses Laufs, Passwörter, Tokens und Ihr Home-Ordner sind bereits entfernt. Nichts davon wird irgendwohin gesendet.</translation>
     </message>
     <message>
         <location filename="../qml/components/ULogViewer.qml" line="108"/>

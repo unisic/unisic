@@ -7762,7 +7762,7 @@ Dotyczy następnego przechwycenia.</translation>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3834"/>
         <source>Hotkey: capture a scrolling region (long screenshot).</source>
-        <translation>Skrót klawiszowy: przechwytuje przewijany obszar (długi zrzut ekranu).</translation>
+        <translation>Skrót: przechwyć przewijany obszar (długi zrzut ekranu).</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3835"/>
@@ -8391,7 +8391,7 @@ Wyłączone lub nieobsługiwane: zamiast niej pokazywane jest natywne powiadomie
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3891"/>
         <source>Hotkey: puts the most recent screenshot back on the clipboard.</source>
-        <translation>Skrót: umieszcza najnowszy zrzut ekranu z powrotem w schowku.</translation>
+        <translation>Skrót: umieść najnowszy zrzut ekranu z powrotem w schowku.</translation>
     </message>
     <message>
         <location filename="../qml/pages/SettingsPage.qml" line="3892"/>

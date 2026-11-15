@@ -2519,7 +2519,7 @@
     <message>
         <location filename="../qml/components/SourceTile.qml" line="-26"/>
         <source>No hotkey yet,</source>
-        <translation>还没有快捷键，</translation>
+        <translation>还没有快捷键</translation>
     </message>
     <message>
         <location line="+6"/>

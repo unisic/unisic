@@ -139,10 +139,16 @@ jobs:
         # fullscreen windows and the pinned preview. Noble's
         # liblayershellqtinterface-dev is the Qt5 build (5.27), which cannot
         # serve a Qt 6.8 app, so the small KDE lib is built against the aqt Qt.
+        # --as-needed: Qt6::Gui's CMake target links every consumer to
+        # libOpenGL.so.0 and libGLX.so.0, and this library calls neither. The
+        # AppImage leaves the GL stack to the host, and Ubuntu ships
+        # libOpenGL.so.0 only in libopengl0, which a desktop install does not
+        # pull in, so the unused entry kept the app from starting (#141).
         run: |
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
@@ -155,11 +161,13 @@ jobs:
         # Klipper clipboard HISTORY - plain image/png (QClipboard/wl-copy) is
         # pasteable but never recorded (issue #51). Noble has no KF6 at all, so
         # source-build the small framework into the same prefix. It needs the
-        # plasma-wayland-protocols installed two steps up.
+        # plasma-wayland-protocols installed two steps up. --as-needed as for
+        # LayerShellQt above (#141).
         run: |
           git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/kguiaddons.git
           cmake -S kguiaddons -B build-kga -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
@@ -338,6 +346,11 @@ jobs:
             test -x "AppDir/usr/bin/$tool" \
               || { echo "::error::$tool went missing from the AppDir"; exit 1; }
           done
+          # Nothing bundled may link libOpenGL.so.0: the host supplies it, and
+          # Ubuntu only with libopengl0, which a desktop install lacks (#141).
+          gl="$(find AppDir/usr -type f \( -name '*.so*' -o -path 'AppDir/usr/bin/*' \) \
+                -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)"
+          [ -z "$gl" ] || { echo "::error::these link libOpenGL.so.0: $gl"; exit 1; }
 
           # linuxdeploy's appimage plugin emits the matching .zsync next to the
           # binary when update information is embedded. HARD-fail if it did

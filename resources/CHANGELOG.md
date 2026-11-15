@@ -42,6 +42,7 @@ whole per release (not per individual change).
 - Text recognition no longer joins words far apart on one line into one line of text: a gap wider than about four letter heights, such as between two table columns or a label and a value at the other edge of a window, starts a new segment, so Select text no longer selects the empty space between them and a redaction bar covers the text and not the space.
 - Text recognition reads a screenshot as scattered labels, buttons and cards rather than one block of text, so a sidebar and the column beside it no longer merge into garbled lines, and light text on a dark panel is read as well as dark text on a light one. A letter whose box ran into the line above or into an underline no longer stretches its line's selection and redaction bar over the next line.
 
+- **The portable app starts on Ubuntu without libopengl0**: the AppImage and the portable bundle stopped at launch with "libOpenGL.so.0: cannot open shared object file" on an Ubuntu without the libopengl0 package. Unisic no longer needs that library.
 ### Polski
 **Dodane**
 - **Wesprzyj Unisic**: Ustawienia > Ogólne zaczynają się od wyróżnionego kolorem akcentu banera Wesprzyj Unisic, nad wszystkimi innymi opcjami, a jego przycisk Wesprzyj na Ko-fi otwiera w przeglądarce [stronę Unisic na Ko-fi](https://ko-fi.com/unisic). Centra oprogramowania, np. Discover, pokazują ten sam link jako stronę darowizn.
@@ -77,6 +78,7 @@ whole per release (not per individual change).
 - Rozpoznawanie tekstu czyta zrzut jako rozrzucone etykiety, przyciski i karty, a nie jeden blok tekstu, więc pasek boczny i kolumna obok nie zlewają się już w zniekształcone linie, a jasny tekst na ciemnym panelu jest odczytywany tak samo jak ciemny na jasnym. Litera, której ramka zahaczyła o linię wyżej albo o podkreślenie, nie rozciąga już zaznaczenia i paska redakcji swojej linii na następną.
 
 ## 0.8.9
+- **Wersja przenośna uruchamia się na Ubuntu bez libopengl0**: AppImage i przenośne archiwum kończyły się przy starcie błędem „libOpenGL.so.0: cannot open shared object file” na Ubuntu bez pakietu libopengl0. Unisic nie potrzebuje już tej biblioteki.
 
 ### English
 **Added**

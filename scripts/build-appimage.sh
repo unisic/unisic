@@ -139,12 +139,17 @@ fi
 # --- 5. LayerShellQt -> HAVE_LAYERSHELL: on-top notification card,
 #        overlay-over-fullscreen capture, preview pin. Noble's
 #        liblayershellqtinterface-dev is the Qt5 build (5.27), so this one is
-#        built against the aqt Qt. --------------------------------------------
+#        built against the aqt Qt. --as-needed here and for KF6GuiAddons:
+#        Qt6::Gui's CMake target links every consumer to libOpenGL.so.0 and
+#        libGLX.so.0, which neither library calls, and Ubuntu ships
+#        libOpenGL.so.0 only in libopengl0, which a desktop install lacks, so
+#        the AppImage would not start there (#141). ----------------------------
 if ! has_config LayerShellQtConfig.cmake; then
     cd "$CACHE"
     [ -d layer-shell-qt ] || git clone --depth 1 --branch v6.3.5 \
         https://invent.kde.org/plasma/layer-shell-qt.git
     cmake -S layer-shell-qt -B build-lsq -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DCMAKE_PREFIX_PATH="$PREFIX;$QT_DIR" -DCMAKE_INSTALL_PREFIX="$PREFIX" \
         -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_TESTING=OFF
     cmake --build build-lsq --parallel
@@ -159,6 +164,7 @@ if ! has_config KF6GuiAddonsConfig.cmake; then
     [ -d kguiaddons ] || git clone --depth 1 --branch v6.10.0 \
         https://invent.kde.org/frameworks/kguiaddons.git
     cmake -S kguiaddons -B build-kga -G Ninja -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
         -DCMAKE_PREFIX_PATH="$PREFIX;$QT_DIR" -DCMAKE_INSTALL_PREFIX="$PREFIX" \
         -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_TESTING=OFF
     cmake --build build-kga --parallel
@@ -307,6 +313,11 @@ for tool in ffmpeg ffprobe wl-copy curl zip pw-record pw-dump pw-play grim; do
     test -x "$APPDIR/usr/bin/$tool" \
         || { echo "ERROR: $tool went missing from the AppDir" >&2; exit 1; }
 done
+# A $PREFIX cached from before #141 still holds the libraries linked without
+# --as-needed; delete it and run again.
+gl="$(find "$APPDIR/usr" -type f \( -name '*.so*' -o -path "$APPDIR/usr/bin/*" \) \
+      -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)"
+[ -z "$gl" ] || { echo "ERROR: these link libOpenGL.so.0 (#141): $gl" >&2; exit 1; }
 
 mkdir -p "$OUT"
 mv -f ./*.AppImage "$OUT"/

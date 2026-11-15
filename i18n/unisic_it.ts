@@ -10472,7 +10472,7 @@ Si applica alla prossima cattura.</translation>
     <name>UColorPopup</name>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="95"/>
-        <source>Colour picker</source>
+        <source>Color picker</source>
         <translation>Selettore di colore</translation>
     </message>
     <message>
@@ -10497,7 +10497,7 @@ Si applica alla prossima cattura.</translation>
     </message>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="364"/>
-        <source>Pick a colour from the screen</source>
+        <source>Pick a color from the screen</source>
         <translation>Preleva un colore dallo schermo</translation>
     </message>
     <message>

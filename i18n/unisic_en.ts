@@ -10472,8 +10472,8 @@ Applies to the next capture.</translation>
     <name>UColorPopup</name>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="95"/>
-        <source>Colour picker</source>
-        <translation>Colour picker</translation>
+        <source>Color picker</source>
+        <translation>Color picker</translation>
     </message>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="144"/>
@@ -10497,8 +10497,8 @@ Applies to the next capture.</translation>
     </message>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="364"/>
-        <source>Pick a colour from the screen</source>
-        <translation>Pick a colour from the screen</translation>
+        <source>Pick a color from the screen</source>
+        <translation>Pick a color from the screen</translation>
     </message>
     <message>
         <location filename="../external/unisic-kit/qml/components/UColorPopup.qml" line="403"/>

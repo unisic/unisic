@@ -2252,182 +2252,187 @@
         <translation type="vanished">Wszystkie monitory</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="356"/>
-        <location filename="../qml/pages/CapturePage.qml" line="1151"/>
+        <location filename="../qml/pages/CapturePage.qml" line="95"/>
+        <location filename="../qml/pages/CapturePage.qml" line="449"/>
         <source>Capture</source>
         <translation>Przechwyć</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="367"/>
+        <location filename="../qml/pages/CapturePage.qml" line="100"/>
         <source>Screenshots open in the editor, where you annotate, then save, copy or upload.</source>
         <translation>Zrzuty otwierają się w edytorze, gdzie dodajesz adnotacje, a potem zapisujesz, kopiujesz lub wysyłasz.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="381"/>
+        <location filename="../qml/pages/CapturePage.qml" line="114"/>
         <source>Open image</source>
         <translation>Otwórz obraz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="383"/>
+        <location filename="../qml/pages/CapturePage.qml" line="116"/>
+        <location filename="../qml/pages/EditPage.qml" line="92"/>
         <source>Paste</source>
         <translation>Wklej</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="384"/>
+        <location filename="../qml/pages/CapturePage.qml" line="117"/>
+        <location filename="../qml/pages/EditPage.qml" line="94"/>
         <source>Open the image on the clipboard in the editor, Ctrl+V</source>
         <translation>Otwórz obraz ze schowka w edytorze, Ctrl+V</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="452"/>
+        <location filename="../qml/pages/CapturePage.qml" line="185"/>
         <source>Screenshot</source>
         <translation>Zrzut ekranu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="480"/>
+        <location filename="../qml/pages/CapturePage.qml" line="213"/>
         <source>Every monitor at once</source>
         <translation>Wszystkie monitory naraz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="481"/>
+        <location filename="../qml/pages/CapturePage.qml" line="214"/>
         <source>Select, then annotate live</source>
         <translation>Zaznacz i od razu dodaj adnotacje</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="631"/>
+        <location filename="../qml/pages/CapturePage.qml" line="243"/>
         <source>More ways to capture</source>
         <translation>Inne sposoby przechwytywania</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="647"/>
+        <location filename="../qml/pages/CapturePage.qml" line="259"/>
         <source>Copy text</source>
         <translation>Kopiuj tekst</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="648"/>
+        <location filename="../qml/pages/CapturePage.qml" line="260"/>
         <source>Measure</source>
         <translation>Pomiar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="648"/>
+        <location filename="../qml/pages/CapturePage.qml" line="260"/>
         <source>Distances and angles</source>
         <translation>Odległości i kąty</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="649"/>
+        <location filename="../qml/pages/CapturePage.qml" line="261"/>
         <source>Record GIF</source>
         <translation>Nagraj GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="654"/>
+        <location filename="../qml/pages/CapturePage.qml" line="266"/>
         <source>Record video</source>
         <translation>Nagraj wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="770"/>
+        <location filename="../qml/components/RecentStrip.qml" line="67"/>
         <source>Recent</source>
         <translation>Ostatnie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="776"/>
+        <location filename="../qml/components/RecentStrip.qml" line="73"/>
         <source>Open History</source>
         <translation>Otwórz historię</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="828"/>
+        <location filename="../qml/pages/CapturePage.qml" line="297"/>
+        <location filename="../qml/pages/EditPage.qml" line="199"/>
         <source>Recent captures</source>
         <translation>Ostatnie zrzuty</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="841"/>
+        <location filename="../qml/components/RecentStrip.qml" line="134"/>
         <source>(not saved)</source>
         <translation>(niezapisane)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="972"/>
+        <location filename="../qml/pages/CapturePage.qml" line="298"/>
+        <location filename="../qml/pages/EditPage.qml" line="200"/>
         <source>Your captures will show up here.</source>
         <translation>Tu pojawią się twoje zrzuty.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1031"/>
+        <location filename="../qml/pages/CapturePage.qml" line="329"/>
         <source>After capture</source>
         <translation>Po przechwyceniu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1066"/>
+        <location filename="../qml/pages/CapturePage.qml" line="364"/>
         <source>Copy image to clipboard</source>
         <translation>Kopiuj obraz do schowka</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1067"/>
+        <location filename="../qml/pages/CapturePage.qml" line="365"/>
         <source>Ready to paste anywhere</source>
         <translation>Gotowy do wklejenia</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1070"/>
+        <location filename="../qml/pages/CapturePage.qml" line="368"/>
         <source>To %1</source>
         <extracomment>%1 is the name of the active upload server.</extracomment>
         <translation>Cel: %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1071"/>
-        <location filename="../qml/pages/CapturePage.qml" line="1410"/>
+        <location filename="../qml/pages/CapturePage.qml" line="369"/>
+        <location filename="../qml/pages/CapturePage.qml" line="641"/>
         <source>No server yet</source>
         <translation>Brak serwera</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1073"/>
+        <location filename="../qml/pages/CapturePage.qml" line="371"/>
         <source>Annotate and share from there</source>
         <translation>Adnotacje i udostępnianie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1132"/>
+        <location filename="../qml/pages/CapturePage.qml" line="430"/>
         <source>Step %1, %2</source>
         <extracomment>Spoken name of an after-capture switch: step number, label.</extracomment>
         <translation>Krok %1, %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1162"/>
+        <location filename="../qml/pages/CapturePage.qml" line="460"/>
         <source>Delay</source>
         <translation>Opóźnienie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1190"/>
+        <location filename="../qml/pages/CapturePage.qml" line="471"/>
         <source>Off</source>
         <translation>Brak</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1192"/>
+        <location filename="../qml/pages/CapturePage.qml" line="473"/>
         <source>%1 s</source>
         <extracomment>Capture delay preset, %1 is whole seconds.</extracomment>
         <translation>%1 s</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1249"/>
+        <location filename="../qml/pages/CapturePage.qml" line="487"/>
         <source>Include mouse cursor</source>
         <translation>Dołącz kursor myszy</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1353"/>
+        <location filename="../qml/pages/CapturePage.qml" line="584"/>
         <source>Upload to</source>
         <translation>Wysyłaj do</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1359"/>
+        <location filename="../qml/pages/CapturePage.qml" line="590"/>
+        <location filename="../qml/pages/EditPage.qml" line="245"/>
         <source>Manage</source>
         <translation>Zarządzaj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1360"/>
+        <location filename="../qml/pages/CapturePage.qml" line="591"/>
         <source>Open the Servers page</source>
         <translation>Otwórz stronę Serwery</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="480"/>
+        <location filename="../qml/pages/CapturePage.qml" line="213"/>
         <source>Full screen</source>
         <translation>Pełny ekran</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="483"/>
+        <location filename="../qml/pages/CapturePage.qml" line="216"/>
         <source>Scrolling</source>
         <translation>Przewijanie</translation>
     </message>
@@ -2436,21 +2441,21 @@
         <translation type="vanished">Długi zrzut ekranu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="616"/>
-        <location filename="../qml/pages/CapturePage.qml" line="745"/>
+        <location filename="../qml/components/ActionTile.qml" line="101"/>
+        <location filename="../qml/components/SourceTile.qml" line="157"/>
         <source>%1, %2, shortcut %3</source>
         <extracomment>Spoken name of a capture tile: title, subtitle, hotkey.</extracomment>
         <translation>%1, %2, skrót %3</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="618"/>
-        <location filename="../qml/pages/CapturePage.qml" line="747"/>
-        <location filename="../qml/pages/CapturePage.qml" line="1328"/>
+        <location filename="../qml/components/ActionTile.qml" line="102"/>
+        <location filename="../qml/components/SourceTile.qml" line="158"/>
+        <location filename="../qml/pages/CapturePage.qml" line="559"/>
         <source>%1, %2</source>
         <translation>%1, %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1007"/>
+        <location filename="../qml/pages/CapturePage.qml" line="312"/>
         <source>Capture options</source>
         <translation>Opcje przechwytywania</translation>
     </message>
@@ -2463,9 +2468,9 @@
         <translation type="vanished">Czeka tyle przed wykonaniem przechwycenia</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1299"/>
-        <location filename="../qml/pages/CapturePage.qml" line="1328"/>
-        <location filename="../qml/pages/CapturePage.qml" line="1329"/>
+        <location filename="../qml/pages/CapturePage.qml" line="530"/>
+        <location filename="../qml/pages/CapturePage.qml" line="559"/>
+        <location filename="../qml/pages/CapturePage.qml" line="560"/>
         <source>Repeat last region</source>
         <translation>Powtórz ostatni obszar</translation>
     </message>
@@ -2474,127 +2479,127 @@
         <translation type="vanished">Powtórz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1377"/>
+        <location filename="../qml/pages/CapturePage.qml" line="608"/>
         <source>Upload server</source>
         <translation>Serwer wysyłki</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1072"/>
+        <location filename="../qml/pages/CapturePage.qml" line="370"/>
         <source>Open the editor</source>
         <translation>Otwórz edytor</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="77"/>
+        <location filename="../qml/components/RecentStrip.qml" line="46"/>
         <source>Just now</source>
         <translation>Przed chwilą</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="80"/>
+        <location filename="../qml/components/RecentStrip.qml" line="49"/>
         <source>%1 min ago</source>
         <extracomment>Age of a capture in Recent, minutes. Short form, no plural.</extracomment>
         <translation>%1 min temu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="83"/>
+        <location filename="../qml/components/RecentStrip.qml" line="52"/>
         <source>%1 h ago</source>
         <extracomment>Age of a capture in Recent, hours. Short form, no plural.</extracomment>
         <translation>%1 godz. temu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="85"/>
+        <location filename="../qml/components/RecentStrip.qml" line="54"/>
         <source>Yesterday</source>
         <translation>Wczoraj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="481"/>
+        <location filename="../qml/pages/CapturePage.qml" line="214"/>
         <source>Region</source>
         <translation>Obszar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="482"/>
+        <location filename="../qml/pages/CapturePage.qml" line="215"/>
         <source>The active window, frame included</source>
         <translation>Aktywne okno wraz z ramką</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="483"/>
+        <location filename="../qml/pages/CapturePage.qml" line="216"/>
         <source>A long page, stitched as it scrolls</source>
         <translation>Długa strona, sklejana podczas przewijania</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="590"/>
+        <location filename="../qml/components/SourceTile.qml" line="132"/>
         <source>No hotkey yet,</source>
         <translation>Brak skrótu,</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="596"/>
+        <location filename="../qml/components/SourceTile.qml" line="138"/>
         <source>set one</source>
         <translation>ustaw go</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="597"/>
+        <location filename="../qml/components/SourceTile.qml" line="139"/>
         <source>Open Settings at Hotkeys</source>
         <translation>Otwórz Ustawienia na karcie Skróty</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="647"/>
+        <location filename="../qml/pages/CapturePage.qml" line="259"/>
         <source>OCR from a region</source>
         <translation>OCR z obszaru</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="651"/>
+        <location filename="../qml/pages/CapturePage.qml" line="263"/>
         <source>Region, up to %1 s</source>
         <extracomment>%1 is the GIF length limit in seconds.</extracomment>
         <translation>Obszar, do %1 s</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="652"/>
+        <location filename="../qml/pages/CapturePage.qml" line="264"/>
         <source>Region, no time limit</source>
         <translation>Obszar, bez limitu czasu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="656"/>
+        <location filename="../qml/pages/CapturePage.qml" line="268"/>
         <source>Region, %1</source>
         <extracomment>%1 is the video container, e.g. MP4.</extracomment>
         <translation>Obszar, %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="850"/>
+        <location filename="../qml/components/RecentStrip.qml" line="143"/>
         <source>Uploaded</source>
         <translation>Wysłano</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1041"/>
+        <location filename="../qml/pages/CapturePage.qml" line="339"/>
         <source>Runs top to bottom after every screenshot.</source>
         <translation>Działa od góry do dołu po każdym zrzucie.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1064"/>
+        <location filename="../qml/pages/CapturePage.qml" line="362"/>
         <source>Save to disk automatically</source>
         <translation>Zapisuj na dysk automatycznie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1419"/>
+        <location filename="../qml/pages/CapturePage.qml" line="650"/>
         <source>Add one on the Servers page</source>
         <translation>Dodaj go na stronie Serwery</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1420"/>
+        <location filename="../qml/pages/CapturePage.qml" line="651"/>
         <source>curl command</source>
         <translation>Polecenie curl</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1420"/>
+        <location filename="../qml/pages/CapturePage.qml" line="651"/>
         <source>HTTP upload</source>
         <translation>Wysyłanie HTTP</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1488"/>
+        <location filename="../qml/pages/CapturePage.qml" line="719"/>
         <source>Ready on %1</source>
         <extracomment>Capture page status line, %1 is the session: Wayland, X11 or Windows.</extracomment>
         <translation>Gotowy, sesja %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1490"/>
+        <location filename="../qml/pages/CapturePage.qml" line="721"/>
         <source>Screenshots only on %1</source>
         <extracomment>Screenshots work but recording does not; %1 is the session.</extracomment>
         <translation>Tylko zrzuty ekranu, sesja %1</translation>
@@ -2608,12 +2613,12 @@
         <translation type="vanished">Zaznacz + adnotuj na żywo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="1068"/>
+        <location filename="../qml/pages/CapturePage.qml" line="366"/>
         <source>Upload and copy the link</source>
         <translation>Wyślij i skopiuj link</translation>
     </message>
     <message>
-        <location filename="../qml/pages/CapturePage.qml" line="482"/>
+        <location filename="../qml/pages/CapturePage.qml" line="215"/>
         <source>Window</source>
         <translation>Okno</translation>
     </message>
@@ -3122,90 +3127,99 @@
 <context>
     <name>EditPage</name>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="150"/>
+        <location filename="../qml/pages/EditPage.qml" line="73"/>
         <source>Edit</source>
         <translation>Edytuj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="156"/>
+        <location filename="../qml/pages/EditPage.qml" line="78"/>
         <source>Open a picture or a video you already have - the same editor and trim window your captures use.</source>
         <translation>Otwórz zdjęcie lub film, który już masz - w tym samym edytorze i oknie przycinania, co Twoje zrzuty.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="169"/>
+        <location filename="../qml/pages/EditPage.qml" line="121"/>
         <source>Edit an image</source>
         <translation>Edytuj obraz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="170"/>
+        <location filename="../qml/pages/EditPage.qml" line="122"/>
         <source>Annotate, crop, blur</source>
         <translation>Adnotacje, kadrowanie, rozmycie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="171"/>
+        <location filename="../qml/pages/EditPage.qml" line="134"/>
         <source>Trim a video</source>
         <translation>Przytnij film</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="172"/>
+        <location filename="../qml/pages/EditPage.qml" line="135"/>
         <source>Cut a start and an end</source>
         <translation>Utnij początek i koniec</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="125"/>
         <source>%1, %2</source>
         <extracomment>Spoken name of an Edit tile: title, subtitle.</extracomment>
-        <translation>%1, %2</translation>
+        <translation type="vanished">%1, %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="200"/>
+        <location filename="../qml/pages/EditPage.qml" line="354"/>
         <source>Good to know</source>
         <translation>Warto wiedzieć</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="223"/>
+        <location filename="../qml/pages/EditPage.qml" line="359"/>
         <source>Editing an image never touches the original: the editor saves where your captures go, under a new name, unless you overwrite it yourself. Trimming always writes a new file next to the source.</source>
         <translation>Edycja obrazu nie rusza oryginału: edytor zapisuje tam, gdzie lądują Twoje zrzuty, pod nową nazwą - chyba że sam nadpiszesz. Przycinanie zawsze tworzy nowy plik obok źródła.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="231"/>
+        <location filename="../qml/pages/EditPage.qml" line="369"/>
         <source>Install qt6-qtmultimedia for a video preview while trimming; without it the trim window falls back to a slider-only range picker.</source>
         <translation>Zainstaluj qt6-qtmultimedia, aby mieć podgląd wideo przy przycinaniu; bez niego okno przycinania ma tylko suwaki zakresu.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="177"/>
+        <location filename="../qml/pages/EditPage.qml" line="148"/>
         <source>Share</source>
         <translation>Udostępnij</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="188"/>
+        <location filename="../qml/pages/EditPage.qml" line="103"/>
+        <source>Open</source>
+        <translation>Otwórz</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/EditPage.qml" line="166"/>
         <source>Upload a file</source>
         <translation>Wyślij plik</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="189"/>
+        <location filename="../qml/pages/EditPage.qml" line="167"/>
         <source>Any file, to your server</source>
         <translation>Dowolny plik, na twój serwer</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="190"/>
+        <location filename="../qml/pages/EditPage.qml" line="174"/>
         <source>Upload clipboard</source>
         <translation>Wyślij schowek</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="191"/>
+        <location filename="../qml/pages/EditPage.qml" line="175"/>
         <source>A copied image, file or text</source>
         <translation>Skopiowany obraz, plik lub tekst</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="192"/>
+        <location filename="../qml/pages/EditPage.qml" line="183"/>
         <source>QR code</source>
         <translation>Kod QR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="193"/>
+        <location filename="../qml/pages/EditPage.qml" line="184"/>
         <source>Of the text you copied</source>
         <translation>Ze skopiowanego tekstu</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/EditPage.qml" line="246"/>
+        <source>Open Settings at Editor</source>
+        <translation>Otwórz ustawienia w zakładce Edytor</translation>
     </message>
 </context>
 <context>
@@ -4376,72 +4390,72 @@
 <context>
     <name>HistoryPage</name>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="97"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="925"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="98"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1073"/>
         <source>(not saved)</source>
         <translation>(niezapisane)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="166"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="263"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="193"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="293"/>
         <source>Clear all</source>
         <translation>Wyczyść wszystko</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="117"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="118"/>
         <source>Today</source>
         <translation>Dziś</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="89"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="90"/>
         <source>Image</source>
         <translation>Obraz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="90"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="91"/>
         <source>GIF</source>
         <translation>GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="91"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="92"/>
         <source>Recording</source>
         <translation>Nagranie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="100"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="101"/>
         <source>%1, %2, %3</source>
         <extracomment>Spoken name of a history tile: file name or link, kind, time.</extracomment>
         <translation>%1, %2, %3</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="102"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="103"/>
         <source>%1, %2</source>
         <extracomment>Spoken name of a history tile with no timestamp: file name or link, kind.</extracomment>
         <translation>%1, %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="118"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="140"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="119"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="141"/>
         <source>Yesterday</source>
         <translation>Wczoraj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="119"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="120"/>
         <source>Earlier this week</source>
         <translation>Wcześniej w tym tygodniu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="164"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="191"/>
         <source>Clear the whole history?</source>
         <translation>Wyczyścić całą historię?</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="172"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="199"/>
         <source>Delete the selected captures?</source>
         <translation>Usunąć zaznaczone zrzuty?</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="173"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="200"/>
         <source>This moves the selected capture files to the trash.
 
 Starred (favorite) captures in the selection are kept - un-star them first.</source>
@@ -4450,219 +4464,225 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
 Zrzuty oznaczone (ulubione) w zaznaczeniu zostają - najpierw usuń im oznaczenie.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="174"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="398"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="201"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="424"/>
         <source>Delete</source>
         <translation>Usuń</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="222"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="250"/>
         <source>%1 of %2</source>
         <translation>%1 z %2</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="223"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="251"/>
         <source>%1 items</source>
         <translation>%1 elementów</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="245"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="275"/>
         <source>Search name or link</source>
         <translation>Szukaj nazwy lub linku</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="257"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="287"/>
         <source>Clear search</source>
         <translation>Wyczyść wyszukiwanie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="301"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="168"/>
         <source>All</source>
         <translation>Wszystko</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="302"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="169"/>
         <source>Images</source>
         <translation>Obrazy</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="304"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="171"/>
         <source>Recordings</source>
         <translation>Nagrania</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="320"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="550"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="324"/>
+        <source>Capture type</source>
+        <translation>Typ przechwytywania</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/HistoryPage.qml" line="333"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="638"/>
         <source>Starred</source>
         <translation>Oznaczone</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="326"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="339"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="797"/>
         <source>Uploaded</source>
         <translation>Wysłane</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="341"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="367"/>
         <source>%1 selected</source>
         <translation>Zaznaczono: %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="353"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="379"/>
         <source>Star</source>
         <translation>Oznacz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="358"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="384"/>
         <source>Unstar</source>
         <translation>Usuń oznaczenie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="363"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="389"/>
         <source>Copy paths</source>
         <translation>Kopiuj ścieżki</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="371"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="397"/>
         <source>Nothing to copy: the selected captures were never saved</source>
         <translation>Nie ma czego kopiować: zaznaczone zrzuty nie zostały zapisane</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="375"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="401"/>
         <source>Copied %1 file paths</source>
         <translation>Skopiowano ścieżki: %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="388"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="414"/>
         <source>Nothing to upload: the selected captures were never saved</source>
         <translation>Nie ma czego wysłać: zaznaczone zrzuty nie zostały zapisane</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="393"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="419"/>
         <source>Export ZIP</source>
         <translation>Eksport ZIP</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="403"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="434"/>
         <source>Cancel</source>
         <translation>Anuluj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="422"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="498"/>
         <source>No capture matches the current search and filters.</source>
         <translation>Żaden zrzut nie pasuje do wyszukiwania i filtrów.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="427"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="506"/>
         <source>Reset filters</source>
         <translation>Wyczyść filtry</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="468"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="554"/>
         <source>Capture history</source>
         <translation>Historia przechwyceń</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="469"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="555"/>
         <source>Arrow keys move, Space selects, Return opens, Delete removes</source>
         <translation>Strzałki przesuwają, Spacja zaznacza, Enter otwiera, Delete usuwa</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="723"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="855"/>
         <source>Select this capture</source>
         <translation>Zaznacz to przechwycenie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="753"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="885"/>
         <source>Star this capture</source>
         <translation>Oznacz to przechwycenie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="754"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="886"/>
         <source>Starred captures survive Clear all</source>
         <translation>Oznaczone przechwycenia przetrwają Wyczyść wszystko</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="807"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="946"/>
         <source>Copy image</source>
         <translation>Kopiuj obraz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="807"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="946"/>
         <source>Copy file</source>
         <translation>Kopiuj plik</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="853"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="995"/>
         <source>File path</source>
         <translation>Ścieżka pliku</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="855"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="997"/>
         <source>Markdown image</source>
         <translation>Obraz Markdown</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="857"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="999"/>
         <source>HTML image</source>
         <translation>Obraz HTML</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="815"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="954"/>
         <source>Copy link</source>
         <translation>Kopiuj link</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="864"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1006"/>
         <source>Show QR code</source>
         <translation>Pokaż kod QR</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="839"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="978"/>
         <source>Trim recording</source>
         <translation>Przytnij nagranie</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="870"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1012"/>
         <source>Copy text (OCR)</source>
         <translation>Kopiuj tekst (OCR)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="893"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1035"/>
         <source>Convert to %1</source>
         <translation>Konwertuj do %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="903"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1045"/>
         <source>Delete (moves file to trash)</source>
         <translation>Usuń (przenosi plik do kosza)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="831"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="970"/>
         <source>Edit (overwrites the file on save)</source>
         <translation>Edytuj (nadpisuje plik przy zapisie)</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="208"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="241"/>
         <source>History</source>
         <translation>Historia</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="818"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="957"/>
         <source>Link copied</source>
         <translation>Link skopiowany</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="414"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="497"/>
         <source>Nothing here yet. Captures and recordings will appear here with thumbnails.</source>
         <translation>Jeszcze nic tu nie ma. Przechwycenia i nagrania pojawią się tutaj z miniaturami.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="303"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="170"/>
         <source>GIFs</source>
         <translation>GIF-y</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="305"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="172"/>
         <source>Clips</source>
         <translation>Klipy</translation>
     </message>
@@ -4671,17 +4691,17 @@ Zrzuty oznaczone (ulubione) w zaznaczeniu zostają - najpierw usuń im oznaczeni
         <translation type="vanished">Kopiuj ścieżkę pliku</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="823"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="962"/>
         <source>Open file</source>
         <translation>Otwórz plik</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="848"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="990"/>
         <source>More</source>
         <translation>Więcej</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="867"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1009"/>
         <source>Pin as floating preview</source>
         <translation>Przypnij jako pływający podgląd</translation>
     </message>
@@ -4690,17 +4710,17 @@ Zrzuty oznaczone (ulubione) w zaznaczeniu zostają - najpierw usuń im oznaczeni
         <translation type="vanished">Zapisz jako GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="897"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1039"/>
         <source>Needs ffmpeg</source>
         <translation>Wymaga ffmpeg</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="902"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1044"/>
         <source>Starred. Unstar to allow deleting</source>
         <translation>Oznaczone. Usuń oznaczenie, aby móc usunąć</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="165"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="192"/>
         <source>This removes every history entry AND moves the capture files to the trash.
 
 Starred (favorite) captures are kept, both the entry and the file.</source>
@@ -4709,13 +4729,13 @@ Starred (favorite) captures are kept, both the entry and the file.</source>
 Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="380"/>
-        <location filename="../qml/pages/HistoryPage.qml" line="861"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="406"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1003"/>
         <source>Upload</source>
         <translation>Wyślij</translation>
     </message>
     <message>
-        <location filename="../qml/pages/HistoryPage.qml" line="873"/>
+        <location filename="../qml/pages/HistoryPage.qml" line="1015"/>
         <source>Print…</source>
         <translation>Drukuj…</translation>
     </message>
@@ -4798,32 +4818,32 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>Unisic nie zamknął się poprawnie przy ostatnim uruchomieniu. Raport znajdziesz w Ustawienia › Ogólne › Dziennik działania.</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="922"/>
+        <location filename="../qml/Main.qml" line="934"/>
         <source>Unisic cannot open what you dropped</source>
         <translation>Unisic nie może otworzyć tego, co upuszczono</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="967"/>
+        <location filename="../qml/Main.qml" line="979"/>
         <source>Drop to open in the editor</source>
         <translation>Upuść, aby otworzyć w edytorze</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="968"/>
+        <location filename="../qml/Main.qml" line="980"/>
         <source>Drop to open in the trim window</source>
         <translation>Upuść, aby otworzyć w oknie przycinania</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="969"/>
+        <location filename="../qml/Main.qml" line="981"/>
         <source>Unisic cannot open this</source>
         <translation>Unisic nie może tego otworzyć</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="970"/>
+        <location filename="../qml/Main.qml" line="982"/>
         <source>Drop to try opening it</source>
         <translation>Upuść, aby spróbować otworzyć</translation>
     </message>
     <message>
-        <location filename="../qml/Main.qml" line="979"/>
+        <location filename="../qml/Main.qml" line="991"/>
         <source>Images open in the editor, recordings in the trim window.</source>
         <translation>Obrazy otwierają się w edytorze, a nagrania w oknie przycinania.</translation>
     </message>
@@ -5363,12 +5383,12 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
 <context>
     <name>RecordPage</name>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="226"/>
+        <location filename="../qml/pages/RecordPage.qml" line="304"/>
         <source>Format</source>
         <translation>Format</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="359"/>
+        <location filename="../qml/pages/RecordPage.qml" line="478"/>
         <source>Application audio only</source>
         <translation>Tylko dźwięk aplikacji</translation>
     </message>
@@ -5377,18 +5397,18 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Odśwież</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="364"/>
+        <location filename="../qml/pages/RecordPage.qml" line="495"/>
         <source>Keeps every source on its own named track for editing, behind a first track with the full mix. Needs two sources or more, otherwise the recording has one track anyway.</source>
         <translation>Każde źródło trafia na własną nazwaną ścieżkę do edycji, za pierwszą ścieżką z pełnym miksem. Wymaga co najmniej dwóch źródeł, w przeciwnym razie nagranie i tak ma jedną ścieżkę.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="371"/>
+        <location filename="../qml/pages/RecordPage.qml" line="506"/>
         <source>Replay length</source>
         <translation>Długość powtórki</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="235"/>
-        <location filename="../qml/pages/RecordPage.qml" line="279"/>
+        <location filename="../qml/pages/RecordPage.qml" line="319"/>
+        <location filename="../qml/pages/RecordPage.qml" line="378"/>
         <source>Frame rate</source>
         <translation>Liczba klatek</translation>
     </message>
@@ -5397,27 +5417,27 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Wyłącz</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="69"/>
+        <location filename="../qml/pages/RecordPage.qml" line="91"/>
         <source>GIF recording</source>
         <translation>Nagrywanie GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="87"/>
+        <location filename="../qml/pages/RecordPage.qml" line="130"/>
         <source>Video</source>
         <translation>Wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="89"/>
+        <location filename="../qml/pages/RecordPage.qml" line="131"/>
         <source>Record to an MP4 or WebM file</source>
         <translation>Nagrywaj do pliku MP4 lub WebM</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="94"/>
+        <location filename="../qml/pages/RecordPage.qml" line="130"/>
         <source>GIF</source>
         <translation>GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="96"/>
+        <location filename="../qml/pages/RecordPage.qml" line="131"/>
         <source>Record to an animated GIF</source>
         <translation>Nagrywaj do animowanego GIF-a</translation>
     </message>
@@ -5430,140 +5450,206 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Nagrywaj pełny ekran lub obszar do pliku wideo. Nagrywanie pojedynczego okna wymaga wyboru okna, którego ten pulpit nie udostępnia, więc to źródło jest tutaj niedostępne.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="121"/>
+        <location filename="../qml/pages/RecordPage.qml" line="112"/>
         <source>Recording is unavailable: this desktop has no ScreenCast portal backend, so nothing can hand Unisic the screen. A running PipeWire process is not enough - the portal is what asks you for permission and opens the stream. Cinnamon, MATE and XFCE ship no such backend yet.</source>
         <translation>Nagrywanie jest niedostępne: ten pulpit nie ma backendu portalu ScreenCast, więc nic nie może przekazać Unisic obrazu ekranu. Działający proces PipeWire nie wystarczy - to portal pyta Cię o zgodę i otwiera strumień. Cinnamon, MATE i XFCE nie mają jeszcze takiego backendu.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="146"/>
+        <location filename="../qml/pages/RecordPage.qml" line="129"/>
+        <source>Recording mode</source>
+        <translation>Tryb nagrywania</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="141"/>
+        <source>Source</source>
+        <translation>Źródło</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="162"/>
         <source>Record a whole screen to a GIF</source>
         <translation>Nagraj cały ekran do GIF-a</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="147"/>
+        <location filename="../qml/pages/RecordPage.qml" line="163"/>
         <source>Record a whole screen to a video</source>
         <translation>Nagraj cały ekran do wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="154"/>
+        <location filename="../qml/pages/RecordPage.qml" line="175"/>
         <source>Record a selected region to a GIF</source>
         <translation>Nagraj wybrany obszar do GIF-a</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="155"/>
+        <location filename="../qml/pages/RecordPage.qml" line="176"/>
         <source>Record a selected region to a video</source>
         <translation>Nagraj wybrany obszar do wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="166"/>
+        <location filename="../qml/pages/RecordPage.qml" line="192"/>
         <source>Unavailable: GIF has no single-window source</source>
         <translation>Niedostępne: GIF nie ma źródła pojedynczego okna</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="167"/>
+        <location filename="../qml/pages/RecordPage.qml" line="193"/>
+        <source>Unavailable: this desktop has no window picker</source>
+        <translation>Niedostępne: ten pulpit nie ma wyboru okna</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="194"/>
         <source>Record a single window to a video</source>
         <translation>Nagraj pojedyncze okno do wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="172"/>
+        <location filename="../qml/pages/RecordPage.qml" line="206"/>
+        <source>While recording</source>
+        <translation>W trakcie nagrywania</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="220"/>
         <source>Resume</source>
         <translation>Wznów</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="172"/>
+        <location filename="../qml/pages/RecordPage.qml" line="220"/>
         <source>Pause</source>
         <translation>Pauza</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="190"/>
+        <location filename="../qml/pages/RecordPage.qml" line="221"/>
+        <source>Paused</source>
+        <translation>Wstrzymano</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="222"/>
+        <source>Recording</source>
+        <translation>Nagrywanie</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="222"/>
+        <source>Not recording</source>
+        <translation>Nie nagrywa</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="232"/>
+        <source>Save the file</source>
+        <translation>Zapisz plik</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="246"/>
+        <source>Last %1 s, always a video</source>
+        <extracomment>Instant replay tile; %1 is the replay length in seconds.</extracomment>
+        <translation>Ostatnie %1 s, zawsze wideo</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="248"/>
         <source>Instant replay always saves a video, never a GIF</source>
         <translation>Powtórka błyskawiczna zawsze zapisuje wideo, nigdy GIF-a</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="213"/>
+        <location filename="../qml/pages/RecordPage.qml" line="261"/>
+        <source>Recent recordings</source>
+        <translation>Ostatnie nagrania</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="262"/>
+        <source>Your GIFs will show up here.</source>
+        <translation>Tu pojawią się twoje GIF-y.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="263"/>
+        <source>Your recordings will show up here.</source>
+        <translation>Tu pojawią się twoje nagrania.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="277"/>
+        <source>Recording options</source>
+        <translation>Opcje nagrywania</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="289"/>
         <source>GIF options</source>
         <translation>Opcje GIF</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="249"/>
+        <location filename="../qml/pages/RecordPage.qml" line="339"/>
         <source>Higher is sharper and bigger. 50% is the balanced default.</source>
         <translation>Wyżej znaczy ostrzej i większy plik. 50% to zrównoważone ustawienie domyślne.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="260"/>
-        <location filename="../qml/pages/RecordPage.qml" line="291"/>
+        <location filename="../qml/pages/RecordPage.qml" line="354"/>
+        <location filename="../qml/pages/RecordPage.qml" line="409"/>
         <source>Maximum duration</source>
         <translation>Maksymalny czas trwania</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="266"/>
-        <location filename="../qml/pages/RecordPage.qml" line="297"/>
+        <location filename="../qml/pages/RecordPage.qml" line="360"/>
+        <location filename="../qml/pages/RecordPage.qml" line="415"/>
         <source>0 = unlimited</source>
         <translation>0 = bez limitu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="248"/>
-        <location filename="../qml/pages/RecordPage.qml" line="303"/>
+        <location filename="../qml/pages/RecordPage.qml" line="338"/>
+        <location filename="../qml/pages/RecordPage.qml" line="396"/>
         <source>Quality</source>
         <translation>Jakość</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="117"/>
+        <location filename="../qml/pages/RecordPage.qml" line="108"/>
         <source>Press Screen or Region to start recording an optimized .gif.</source>
         <translation>Naciśnij Ekran lub Obszar, aby zacząć nagrywać zoptymalizowany .gif.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="119"/>
+        <location filename="../qml/pages/RecordPage.qml" line="110"/>
         <source>Press Screen, Region or Window to start recording to a video file.</source>
         <translation>Naciśnij Ekran, Obszar lub Okno, aby zacząć nagrywanie do pliku wideo.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="120"/>
+        <location filename="../qml/pages/RecordPage.qml" line="111"/>
         <source>Press Screen or Region to start recording to a video file. Recording a single window needs a window picker this desktop does not provide, so that source stays unavailable here.</source>
         <translation>Naciśnij Ekran lub Obszar, aby zacząć nagrywanie do pliku wideo. Nagrywanie pojedynczego okna wymaga wyboru okna, którego ten pulpit nie udostępnia, więc to źródło jest tutaj niedostępne.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="306"/>
+        <location filename="../qml/pages/RecordPage.qml" line="400"/>
         <source>Fast / small</source>
         <translation>Szybko / mało</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="306"/>
+        <location filename="../qml/pages/RecordPage.qml" line="400"/>
         <source>Balanced</source>
         <translation>Zrównoważona</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="306"/>
+        <location filename="../qml/pages/RecordPage.qml" line="400"/>
         <source>Best</source>
         <translation>Najlepsza</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="317"/>
+        <location filename="../qml/pages/RecordPage.qml" line="428"/>
         <source>Include mouse cursor</source>
         <translation>Dołącz kursor myszy</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="330"/>
+        <location filename="../qml/pages/RecordPage.qml" line="446"/>
         <source>Audio &amp; replay</source>
         <translation>Dźwięk i powtórka</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="330"/>
+        <location filename="../qml/pages/RecordPage.qml" line="446"/>
         <source>Good to know</source>
         <translation>Warto wiedzieć</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="345"/>
+        <location filename="../qml/pages/RecordPage.qml" line="457"/>
         <source>Record system audio</source>
         <translation>Nagrywaj dźwięk systemowy</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="352"/>
+        <location filename="../qml/pages/RecordPage.qml" line="466"/>
         <source>Record microphone</source>
         <translation>Nagrywaj mikrofon</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="363"/>
+        <location filename="../qml/pages/RecordPage.qml" line="494"/>
         <source>Separate audio tracks</source>
         <translation>Osobne ścieżki dźwięku</translation>
     </message>
@@ -5572,22 +5658,22 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Zostawia każde źródło na własnej, nazwanej ścieżce do montażu. Potrzebne są co najmniej dwa źródła, inaczej nagranie i tak ma jedną ścieżkę.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="398"/>
+        <location filename="../qml/pages/RecordPage.qml" line="523"/>
         <source>GIF has no audio track. For a clip with sound, switch to Video mode and record an MP4 or WebM instead.</source>
         <translation>GIF nie ma ścieżki dźwiękowej. Aby nagrać klip z dźwiękiem, przełącz się na tryb Wideo i nagraj MP4 lub WebM.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="405"/>
+        <location filename="../qml/pages/RecordPage.qml" line="524"/>
         <source>File size grows quickly with area, frame rate and duration. A small region at 15-30 FPS usually looks great and stays easy to share.</source>
         <translation>Rozmiar pliku rośnie szybko wraz z obszarem, liczbą klatek i czasem trwania. Mały obszar przy 15-30 FPS zwykle wygląda świetnie i łatwo się nim dzielić.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="412"/>
+        <location filename="../qml/pages/RecordPage.qml" line="525"/>
         <source>Every recording is converted in two passes (a color palette first, then the frames), so colors stay crisp - the trade-off is a short encode after you stop.</source>
         <translation>Każde nagranie jest konwertowane w dwóch przebiegach (najpierw paleta kolorów, potem klatki), więc kolory pozostają wyraźne - kosztem krótkiego kodowania po zatrzymaniu.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="419"/>
+        <location filename="../qml/pages/RecordPage.qml" line="526"/>
         <source>Instant replay always saves a video, never a GIF - its length and audio options live in Video mode.</source>
         <translation>Powtórka błyskawiczna zawsze zapisuje wideo, nigdy GIF-a - jej długość i opcje dźwięku znajdziesz w trybie Wideo.</translation>
     </message>
@@ -5600,42 +5686,42 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation type="vanished">Nagraj pełny ekran, obszar lub pojedyncze okno do pliku wideo.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="151"/>
+        <location filename="../qml/pages/RecordPage.qml" line="174"/>
         <source>Region</source>
         <translation>Obszar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="141"/>
+        <location filename="../qml/pages/RecordPage.qml" line="161"/>
         <source>Screen</source>
         <translation>Ekran</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="69"/>
+        <location filename="../qml/pages/RecordPage.qml" line="91"/>
         <source>Screen recording</source>
         <translation>Nagrywanie ekranu</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="178"/>
+        <location filename="../qml/pages/RecordPage.qml" line="231"/>
         <source>Stop</source>
         <translation>Zatrzymaj</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="187"/>
+        <location filename="../qml/pages/RecordPage.qml" line="244"/>
         <source>Save replay</source>
         <translation>Zapisz powtórkę</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="187"/>
+        <location filename="../qml/pages/RecordPage.qml" line="244"/>
         <source>Start replay</source>
         <translation>Uruchom powtórkę</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="213"/>
+        <location filename="../qml/pages/RecordPage.qml" line="289"/>
         <source>Video options</source>
         <translation>Opcje wideo</translation>
     </message>
     <message>
-        <location filename="../qml/pages/RecordPage.qml" line="159"/>
+        <location filename="../qml/pages/RecordPage.qml" line="187"/>
         <source>Window</source>
         <translation>Okno</translation>
     </message>
@@ -6666,6 +6752,7 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>VP9 (WebM) nie ma tu enkodera sprzętowego i trwa kilka razy dłużej niż MP4. Zmień format na MP4 powyżej, aby zapis był szybki i sprzętowy.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="258"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2139"/>
         <source>Layout</source>
         <translation>Układ</translation>
@@ -6681,11 +6768,13 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <translation>„Panele” umieszcza narzędzia w pasku po lewej, a opcje aktywnego narzędzia w kolumnie po prawej. „Pływający” oddaje obrazowi całe okno, a te same kontrolki pokazuje w pigułkach przy jego krawędziach. Otwarte edytory przełączają się od razu.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="267"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2144"/>
         <source>Panels</source>
         <translation>Panele</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="267"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2144"/>
         <source>Floating</source>
         <translation>Pływający</translation>
@@ -8155,11 +8244,13 @@ Wyłączone lub nieobsługiwane: zamiast niej pokazywane jest natywne powiadomie
         <translation>Kodowanie po zatrzymaniu nagrywania może chwilę potrwać, więc ten dźwięk informuje, że plik jest już naprawdę gotowy. Jest niezależny od dźwięku zrzutu ekranu: wybierz wbudowany dźwięk - Migawka, Klik, Bip, Ding lub Pop - dźwięk własny albo Wyłącz. Własne dźwięki to pliki .wav/.ogg w ~/.config/unisic/sounds (wspólne z dźwiękiem przechwytywania).</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="324"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2193"/>
         <source>Always start with the default colors</source>
         <translation>Zawsze zaczynaj z domyślnymi kolorami</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="328"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2194"/>
         <source>Color picks made while annotating last for that session only.</source>
         <translation>Kolory wybrane podczas adnotacji obowiązują tylko w tej sesji.</translation>
@@ -8170,11 +8261,13 @@ Wyłączone lub nieobsługiwane: zamiast niej pokazywane jest natywne powiadomie
         <translation>Gdy włączone, zmiana koloru linii, wypełnienia, obrysu tekstu lub tła tekstu w edytorze albo na nakładce przechwytywania nie nadpisuje zapisanych domyślnych - następna sesja znów zaczyna od kolorów ustawionych w Ustawienia → Edytor.</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="335"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2199"/>
         <source>Always start with the default tool options</source>
         <translation>Zawsze zaczynaj z domyślnymi opcjami narzędzi</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="339"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2200"/>
         <source>Stroke width, text style and fill toggles last for that session only.</source>
         <translation>Grubość linii, styl tekstu i przełączniki wypełnienia obowiązują tylko w tej sesji.</translation>
@@ -8537,6 +8630,8 @@ Dotyczy następnego przechwycenia.</translation>
         <translation>Edytor</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="214"/>
+        <location filename="../qml/pages/EditPage.qml" line="237"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2137"/>
         <source>Editor defaults</source>
         <translation>Domyślne ustawienia edytora</translation>
@@ -9149,11 +9244,13 @@ Dotyczy następnego przechwycenia.</translation>
         <translation>Przechowywanie i nazewnictwo plików</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="275"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2150"/>
         <source>Stroke color</source>
         <translation>Kolor linii</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="296"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2167"/>
         <source>Stroke width</source>
         <translation>Grubość linii</translation>
@@ -9199,6 +9296,7 @@ Dotyczy następnego przechwycenia.</translation>
         <translation>Renderowanie tekstu</translation>
     </message>
     <message>
+        <location filename="../qml/pages/EditPage.qml" line="310"/>
         <location filename="../qml/pages/SettingsPage.qml" line="2180"/>
         <source>Text size</source>
         <translation>Rozmiar tekstu</translation>

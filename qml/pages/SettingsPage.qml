@@ -10,9 +10,18 @@ Item {
     id: page
     // The full pane, like every other page's grid: a fixed cap left a wide or
     // maximised window half empty to the right of the cards. paneArea is
-    // already inset by spacingXL, so the cards end flush with Import/Export.
+    // already inset by the page margin, so the cards end flush with Export.
     readonly property int cardWidth: paneArea.width
     property int tab: 0
+    // The Capture page's card language: the tiles' hairline, warming on hover
+    // where a card is clickable (a search result, a disclosure).
+    readonly property color cardBorder: Theme.alpha(Theme.accent, 0.10)
+    readonly property color cardBorderHover: Theme.alpha(Theme.accent, 0.32)
+    // Capture's rule for the default 1060x700 window: tighter top margin and
+    // gaps under 760 px, the mock's sizes once the window has the room.
+    readonly property bool compact: height < 760
+    readonly property int pageMargin: 40
+    readonly property int sectionGap: compact ? 18 : 24
 
     // A text field is left by Enter or by a press anywhere outside it, not
     // only by Escape or a blank spot. A switch, slider or button consumes its
@@ -432,13 +441,16 @@ Item {
         // Just jumped to from search: accent border + tinted surface until the
         // highlight timer clears it.
         readonly property bool searchHit: page.highlightRow === settingRow
+        // Something on this row is broken right now (a hotkey another owner
+        // holds): danger frame and tint until it is resolved.
+        property bool problem: false
 
         width: parent ? parent.width : 0
         implicitHeight: inner.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
-        color: searchHit ? Theme.surfaceHi : Theme.surface
+        color: searchHit ? Theme.surfaceHi : problem ? Theme.alpha(Theme.danger, 0.08) : Theme.surface
         border.width: 1
-        border.color: searchHit ? Theme.accent : Theme.divider
+        border.color: searchHit ? Theme.accent : problem ? Theme.danger : page.cardBorder
         Behavior on border.color { ColorAnimation { duration: Theme.animMed } }
         Behavior on color { ColorAnimation { duration: Theme.animMed } }
         // The greying is per-part, not on the whole row: an unavailable row still
@@ -489,7 +501,9 @@ Item {
                             elide: Text.ElideRight
                             // Briefly tinted when this row was just jumped to from search.
                             color: settingRow.searchHit ? Theme.accent : Theme.textPrimary
-                            font.pixelSize: Theme.fontM
+                            // The Inspector row's label (InspectorRow.qml).
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
                             opacity: settingRow.available ? 1.0 : 0.5
                         }
                         Rectangle {
@@ -542,7 +556,7 @@ Item {
                         text: settingRow.detail
                         wrapMode: Text.WordWrap
                         color: (!settingRow.available && settingRow.hint !== "")
-                               ? Theme.danger : Theme.textTertiary
+                               ? Theme.danger : Theme.textSecondary
                         font.pixelSize: Theme.fontS
                     }
                 }
@@ -586,17 +600,60 @@ Item {
     component HotkeyRow: SettingRow {
         id: hotkeyRow
         property string shortcuts: ""
+        // The hotkeyActions() id, the key into App.hotkeyConflicts.
+        property string actionId: ""
+        // Replaces the old startup toast: the row itself says who holds the key.
+        readonly property string conflictText: {
+            var c = App.hotkeyConflicts[actionId]
+            if (!c)
+                return ""
+            if (c.kind === "release")
+                return qsTr("%1 is held by the release build of Unisic. Pick another key here, or clear it in that build's settings.").arg(c.keys)
+            if (c.kind === "dev")
+                return qsTr("%1 is held by the dev build of Unisic. Pick another key here, or clear it in that build's settings.").arg(c.keys)
+            if (c.kind === "app")
+                return qsTr("%1 is taken by %2. Pick another key, or free it on the Shortcuts page of System Settings.").arg(c.keys).arg(c.owner)
+            return qsTr("%1 is taken by another application. Pick another key.").arg(c.keys)
+        }
         signal changed(string shortcuts)
-        footer: UShortcutList {
+        problem: conflictText !== ""
+        // The conflict line appears only when a check finds one (startup,
+        // an edit, a System Settings change), never as a hover response, so
+        // the reflow it causes is a state change, not motion under the pointer.
+        footer: Column {
             width: parent ? parent.width : 0
-            enabled: hotkeyRow.available
-            opacity: hotkeyRow.available ? 1.0 : 0.45
-            shortcuts: hotkeyRow.shortcuts
-            onChanged: (t) => hotkeyRow.changed(t)
-            // The kit component is app-agnostic: the host supplies the key
-            // formatter and reacts to recording start/stop (hotkey suspend).
-            formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
-            onCaptureStateChanged: (active) => App.setShortcutRecording(active)
+            spacing: Theme.spacingS
+            UShortcutList {
+                width: parent.width
+                enabled: hotkeyRow.available
+                opacity: hotkeyRow.available ? 1.0 : 0.45
+                shortcuts: hotkeyRow.shortcuts
+                onChanged: (t) => hotkeyRow.changed(t)
+                // The kit component is app-agnostic: the host supplies the key
+                // formatter and reacts to recording start/stop (hotkey suspend).
+                formatKey: (key, mods, scan) => App.formatShortcut(key, mods, scan)
+                onCaptureStateChanged: (active) => App.setShortcutRecording(active)
+            }
+            // The bridge hands its name to the list as accessibleName, which the
+            // list spends as the description of every chip and recorder. A
+            // Binding, because a grouped `nameBridge.name:` on this derived
+            // component lost to the base's own binding (measured over AT-SPI).
+            Binding {
+                target: hotkeyRow.nameBridge
+                property: "name"
+                value: hotkeyRow.problem ? hotkeyRow.label + ". " + hotkeyRow.conflictText
+                                         : hotkeyRow.label
+            }
+            Text {
+                visible: hotkeyRow.problem
+                width: parent.width
+                text: hotkeyRow.conflictText
+                wrapMode: Text.WordWrap
+                color: Theme.danger
+                font.pixelSize: Theme.fontS
+                // Already in the controls' description above.
+                Accessible.ignored: true
+            }
         }
     }
 
@@ -637,10 +694,11 @@ Item {
         width: parent ? parent.width : 0
         implicitHeight: discCol.implicitHeight + 2 * Theme.spacingM
         radius: Theme.radiusM
-        color: discMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+        color: discMouse.containsMouse ? Theme.surfaceTop : Theme.surface
         border.width: 1
-        border.color: Theme.divider
-        Behavior on color { ColorAnimation { duration: Theme.animMed } }
+        border.color: discMouse.containsMouse ? page.cardBorderHover : page.cardBorder
+        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
 
         Column {
             id: discCol
@@ -655,14 +713,15 @@ Item {
                 text: disc.label
                 elide: Text.ElideRight
                 color: Theme.textPrimary
-                font.pixelSize: Theme.fontM
+                font.pixelSize: 13
+                font.weight: Font.Medium
             }
             Text {
                 width: parent.width
                 visible: disc.summary !== ""
                 text: disc.summary
                 wrapMode: Text.WordWrap
-                color: Theme.textTertiary
+                color: Theme.textSecondary
                 font.pixelSize: Theme.fontS
             }
         }
@@ -695,13 +754,14 @@ Item {
         UFocusRing { inset: 1 }
     }
 
-    component SectionTitle: Text {
-        color: Theme.textPrimary
-        font.pixelSize: Theme.fontL
-        font.weight: Font.Bold
-        // A little air between the header and the first card below it (the
-        // section Column packs its children tight at spacingS).
-        bottomPadding: Theme.spacingXS
+    // A group heading in the Capture page's language (SectionLabel). Kept as
+    // its own name so the 34 headings below did not each need an edit.
+    component SectionTitle: SectionLabel {
+        Accessible.role: Accessible.Heading
+        Accessible.name: text
+        // Capture keeps 12 px between a label and its tiles; the section
+        // Column packs its children at spacingS, so the rest is padding.
+        bottomPadding: 12 - Theme.spacingS
     }
 
     // A scrollable settings pane: give it cards as default content.
@@ -770,7 +830,9 @@ Item {
         }
     }
 
-    // One entry in the category rail: icon + label, accent-tinted when active.
+    // One entry in the category rail: icon + label. The active one takes the
+    // main rail's and the segmented controls' selected fill (Theme.secondary),
+    // hover the raised surface, as everywhere in the Capture page's language.
     component NavItem: Rectangle {
         id: nav
         property string iconName: ""
@@ -779,28 +841,20 @@ Item {
         signal clicked()
         function _activate() { nav.clicked() }
         width: parent ? parent.width : 180
-        height: 38
-        radius: Theme.radiusM
-        color: active ? Theme.alpha(Theme.accent, 0.18)
-             : navMouse.containsMouse ? Theme.alpha(Theme.accent, 0.10)
+        height: 36
+        radius: Theme.radiusS
+        color: active ? Theme.secondary
+             : navMouse.containsMouse ? Theme.surfaceTop
              : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.animFast } }
-        Rectangle {
-            anchors.left: parent.left
-            anchors.leftMargin: 4
-            anchors.verticalCenter: parent.verticalCenter
-            width: 3; height: 18; radius: 1.5
-            color: Theme.accent
-            visible: nav.active
-        }
         Row {
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
             UIcon {
                 name: nav.iconName
-                size: 18
+                size: 16
                 color: nav.active ? Theme.accent : Theme.textSecondary
                 anchors.verticalCenter: parent.verticalCenter
             }
@@ -808,14 +862,16 @@ Item {
                 // The rail Flickable clips, so without a width an over-long
                 // label is cut mid-glyph instead of elided: German
                 // "Benachrichtigungen" lands within a pixel of the old 180 px
-                // rail in DemiBold. 14 left margin + 18 icon + 10 spacing, and
+                // rail in DemiBold. 12 left margin + 16 icon + 10 spacing, and
                 // 10 px of breathing room before the clip edge.
-                width: Math.max(0, nav.width - 52)
+                width: Math.max(0, nav.width - 48)
                 elide: Text.ElideRight
                 text: nav.label
                 color: nav.active ? Theme.textPrimary : Theme.textSecondary
-                font.pixelSize: Theme.fontM
-                font.weight: nav.active ? Font.DemiBold : Font.Normal
+                font.pixelSize: 13
+                // The kit SidebarItem's weights; the label has a fixed width,
+                // so the bolder active weight cannot move anything.
+                font.weight: nav.active ? Font.DemiBold : Font.Medium
                 anchors.verticalCenter: parent.verticalCenter
             }
         }
@@ -849,28 +905,79 @@ Item {
     // Basic-styled Qt Quick dialog here, which looked out of place.
 
     // ---------------- header ----------------
+    // The History page's header: title and a line under it on the left, the
+    // search and the page's commands on the right, bottom-aligned. Nothing
+    // between the two blocks can grow into the other: the title column ends
+    // at the actions, and the search field is the one elastic control.
     Item {
         id: header
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.margins: Theme.spacingXL
-        anchors.bottomMargin: 0
-        height: 44
-        Text {
+        anchors.topMargin: page.compact ? 20 : 28
+        anchors.leftMargin: page.pageMargin
+        anchors.rightMargin: page.pageMargin
+        height: Math.max(titleCol.height, headerActions.height)
+
+        Column {
+            id: titleCol
             anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            text: qsTr("Settings")
-            color: Theme.textPrimary
-            font.pixelSize: Theme.fontTitle
-            font.weight: Font.Bold
+            anchors.right: headerActions.left
+            anchors.rightMargin: 24
+            anchors.bottom: parent.bottom
+            spacing: 6
+            PageTitle {
+                id: titleText
+                width: parent.width
+                text: qsTr("Settings")
+            }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Browse by category, or search every option at once.")
+                color: Theme.textSecondary
+                font.pixelSize: 13
+            }
         }
+
         Row {
+            id: headerActions
             anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Theme.spacingS
-            UButton { compact: true; variant: "tonal"; iconName: "folder-open"; text: qsTr("Import"); onClicked: App.importSettingsDialog() }
-            UButton { compact: true; variant: "tonal"; iconName: "document-save"; text: qsTr("Export"); onClicked: App.exportSettingsDialog() }
+            anchors.bottom: parent.bottom
+            spacing: 8
+
+            // Settings search: type to list matching rows across ALL
+            // categories; click a result to jump to its pane (label flashes
+            // accent for a moment). First in the row, so Tab reaches it before
+            // Import and Export, as it did above the rail.
+            UTextField {
+                id: searchField
+                // 240 when the window can afford it, never below 150: the
+                // placeholder elides itself, a narrower box stops being usable.
+                width: Math.max(150, Math.min(240, header.width - titleText.implicitWidth - 24
+                                              - importButton.width - exportButton.width
+                                              - 2 * headerActions.spacing))
+                height: 36
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "magnify"
+                placeholder: qsTr("Search settings…")
+                text: page.searchQuery
+                onEdited: (t) => page.searchQuery = t
+            }
+            HeaderButton {
+                id: importButton
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "folder-open"
+                text: qsTr("Import")
+                onActivated: App.importSettingsDialog()
+            }
+            HeaderButton {
+                id: exportButton
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: "document-save"
+                text: qsTr("Export")
+                onActivated: App.exportSettingsDialog()
+            }
         }
     }
 
@@ -880,11 +987,11 @@ Item {
         id: persistWarn
         visible: !App.settings.persistent
         anchors.top: header.bottom
-        anchors.topMargin: Theme.spacingM
+        anchors.topMargin: visible ? page.sectionGap : 0
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.leftMargin: Theme.spacingXL
-        anchors.rightMargin: Theme.spacingXL
+        anchors.leftMargin: page.pageMargin
+        anchors.rightMargin: page.pageMargin
         height: visible ? warnText.implicitHeight + 2 * Theme.spacingM : 0
         radius: Theme.radiusM
         color: Theme.alpha(Theme.danger, 0.15)
@@ -907,28 +1014,12 @@ Item {
     }
 
     // ---------------- category rail ----------------
-    // Settings search: type to list matching rows across ALL categories; click
-    // a result to jump to its pane (label flashes accent for a moment). Sits
-    // on top of the rail so "find a setting" and "browse categories" are the
-    // same place.
-    UTextField {
-        id: searchField
-        anchors.top: persistWarn.bottom
-        anchors.topMargin: persistWarn.visible ? Theme.spacingM : 0
-        anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingXL
-        width: navRail.width
-        placeholder: qsTr("Search settings…")
-        text: page.searchQuery
-        onEdited: (t) => page.searchQuery = t
-    }
-
     Flickable {
         id: navRail
-        anchors.top: searchField.bottom
-        anchors.topMargin: Theme.spacingM
+        anchors.top: persistWarn.bottom
+        anchors.topMargin: page.sectionGap
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingXL
+        anchors.leftMargin: page.pageMargin
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
         // 200, not 180: the longest category name in the shipped languages is
@@ -971,11 +1062,11 @@ Item {
     // ---------------- panes ----------------
     Item {
         id: paneArea
-        anchors.top: searchField.top
+        anchors.top: navRail.top
         anchors.left: navRail.right
-        anchors.leftMargin: Theme.spacingL
+        anchors.leftMargin: 24
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingXL
+        anchors.rightMargin: page.pageMargin
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spacingL
         clip: true
@@ -1018,9 +1109,11 @@ Item {
                         width: page.cardWidth
                         height: 46
                         radius: Theme.radiusM
-                        color: resMouse.containsMouse ? Theme.surfaceHi : Theme.surface
+                        color: resMouse.containsMouse ? Theme.surfaceTop : Theme.surface
                         border.width: 1
-                        border.color: Theme.divider
+                        border.color: resMouse.containsMouse ? page.cardBorderHover : page.cardBorder
+                        Behavior on color { ColorAnimation { duration: Theme.animFast } }
+                        Behavior on border.color { ColorAnimation { duration: Theme.animFast } }
                         Text {
                             anchors.left: parent.left
                             anchors.leftMargin: Theme.spacingM
@@ -1030,23 +1123,31 @@ Item {
                             text: modelData.label
                             elide: Text.ElideRight
                             color: Theme.textPrimary
-                            font.pixelSize: Theme.fontM
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
                         }
-                        Rectangle {
+                        // Where the row lives, as the rail names it: the
+                        // category's icon and name, quiet, so the result's own
+                        // label is what reads first.
+                        Row {
                             id: tabChip
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.spacingM
                             anchors.verticalCenter: parent.verticalCenter
-                            width: chipText.implicitWidth + 16
-                            height: 22
-                            radius: 11
-                            color: Theme.alpha(Theme.accent, 0.18)
+                            spacing: 6
+                            UIcon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                name: page.tabIcons[modelData.tab] !== undefined ? page.tabIcons[modelData.tab] : ""
+                                size: 14
+                                color: Theme.textSecondary
+                            }
                             Text {
                                 id: chipText
-                                anchors.centerIn: parent
+                                anchors.verticalCenter: parent.verticalCenter
                                 text: page.tabNames[modelData.tab] !== undefined ? page.tabNames[modelData.tab] : ""
-                                color: Theme.accent
+                                color: Theme.textSecondary
                                 font.pixelSize: Theme.fontS
+                                Accessible.ignored: true
                             }
                         }
                         MouseArea {
@@ -1114,10 +1215,10 @@ Item {
                 readonly property string help: qsTr("Unisic is free and open source. A donation helps fund its development.")
                 width: page.cardWidth
                 height: Math.max(supportText.implicitHeight, donateButton.height) + 2 * Theme.spacingL
-                radius: Theme.radiusL
-                color: Theme.alpha(Theme.accent, 0.14)
+                radius: Theme.radiusM
+                color: Theme.alpha(Theme.accent, 0.12)
                 border.width: 1
-                border.color: Theme.accent
+                border.color: Theme.alpha(Theme.accent, 0.45)
                 Accessible.role: Accessible.Grouping
                 Accessible.name: label
                 Accessible.description: help
@@ -1134,8 +1235,9 @@ Item {
                         text: supportBanner.label
                         Accessible.ignored: true
                         color: Theme.textPrimary
-                        font.pixelSize: Theme.fontL
-                        font.weight: Font.Bold
+                        // A Capture tile's title.
+                        font.pixelSize: 15
+                        font.weight: Font.DemiBold
                     }
                     Text {
                         width: parent.width
@@ -3688,10 +3790,32 @@ Item {
                         color: Theme.textTertiary
                         font.pixelSize: Theme.fontS
                     }
+                    // The emergency stop is fixed, so it has no row to mark: its
+                    // conflict (often Unisic's other build holding it) is this
+                    // line instead of a toast on every launch.
+                    Text {
+                        readonly property var stop: App.hotkeyConflicts["stop-recording"]
+                        visible: stop !== undefined
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        color: Theme.danger
+                        font.pixelSize: Theme.fontS
+                        Accessible.role: Accessible.StaticText
+                        Accessible.name: text
+                        text: !stop ? ""
+                              : stop.kind === "release"
+                              ? qsTr("The emergency stop %1 is held by the release build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.").arg(stop.keys)
+                              : stop.kind === "dev"
+                              ? qsTr("The emergency stop %1 is held by the dev build of Unisic and cannot be changed here. Only one Unisic build can hold it at a time.").arg(stop.keys)
+                              : stop.kind === "app"
+                              ? qsTr("The emergency stop %1 is taken by %2 and cannot be changed here. Free it on the Shortcuts page of System Settings.").arg(stop.keys).arg(stop.owner)
+                              : qsTr("The emergency stop %1 is taken by another application and cannot be changed here. Free it in that application.").arg(stop.keys)
+                    }
                     HotkeyRow {
                         label: qsTr("Full screen")
                         help: qsTr("Hotkey: capture all monitors at once.")
                         helpDetail: qsTr("Grabs the entire workspace silently (KWin path) or via the portal elsewhere, then runs the normal after-capture pipeline. The “Full screen captures” preference in Capture can narrow it to the screen under the cursor.")
+                        actionId: "capture-fullscreen"
                         shortcuts: App.settings.hotkeyFullScreen
                         onChanged: (t) => { App.settings.hotkeyFullScreen = t; App.applyHotkey("capture-fullscreen") }
                     }
@@ -3699,6 +3823,7 @@ Item {
                         label: qsTr("Region")
                         help: qsTr("Hotkey: capture a selected region.")
                         helpDetail: qsTr("Opens the selection overlay with annotation tools, so you can draw on the frozen screen before the capture is finalized.")
+                        actionId: "capture-region"
                         shortcuts: App.settings.hotkeyRegion
                         onChanged: (t) => { App.settings.hotkeyRegion = t; App.applyHotkey("capture-region") }
                     }
@@ -3706,6 +3831,7 @@ Item {
                         label: qsTr("Scrolling region")
                         help: qsTr("Hotkey: capture a scrolling region (long screenshot).")
                         helpDetail: qsTr("Select a region, then scroll content in the window beneath it. Unisic continuously stitches the frames together.")
+                        actionId: "capture-scroll"
                         shortcuts: App.settings.hotkeyScroll
                         onChanged: (t) => { App.settings.hotkeyScroll = t; App.applyHotkey("capture-scroll") }
                     }
@@ -3713,6 +3839,7 @@ Item {
                         label: qsTr("Window")
                         help: qsTr("Hotkey: capture a single window.")
                         helpDetail: qsTr("Uses the desktop's window picker where available, so you get exactly one window without manual cropping.")
+                        actionId: "capture-window"
                         shortcuts: App.settings.hotkeyWindow
                         onChanged: (t) => { App.settings.hotkeyWindow = t; App.applyHotkey("capture-window") }
                     }
@@ -3722,6 +3849,7 @@ Item {
                         helpDetail: App.hotkeyBackend === "win32"
                                     ? qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Alt+Esc is the always-on emergency stop (Windows keeps Ctrl+Esc for the Start menu).")
                                     : qsTr("First press opens the recording setup for a region; pressing again while recording stops and finalizes the file. Ctrl+Esc is the always-on emergency stop.")
+                        actionId: "record-video"
                         shortcuts: App.settings.hotkeyRecord
                         onChanged: (t) => { App.settings.hotkeyRecord = t; App.applyHotkey("record-video") }
                     }
@@ -3729,6 +3857,7 @@ Item {
                         label: qsTr("GIF start/stop")
                         help: qsTr("Hotkey: toggle GIF recording.")
                         helpDetail: qsTr("Same flow as video recording, but the result is converted into an optimized GIF (two-pass palette) when you stop.")
+                        actionId: "record-gif"
                         shortcuts: App.settings.hotkeyGif
                         onChanged: (t) => { App.settings.hotkeyGif = t; App.applyHotkey("record-gif") }
                     }
@@ -3742,29 +3871,34 @@ Item {
                         summary: qsTr("OCR region, Copy last capture, Instant replay")
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        // A conflicting row shows even while collapsed: it is
+                        // the only place the conflict is reported.
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("OCR region (copy text)")
                         help: qsTr("Hotkey: select a region, its text lands in the clipboard.")
                         helpDetail: qsTr("Opens the region selector and runs OCR on the crop. Nothing is saved and no notification is shown; the recognized text is simply copied. QR and bar codes are read too: a code in the region copies its content instead.")
+                        actionId: "ocr-region"
                         shortcuts: App.settings.hotkeyOcr
                         onChanged: (t) => { App.settings.hotkeyOcr = t; App.applyHotkey("ocr-region") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("Copy last capture")
                         help: qsTr("Hotkey: puts the most recent screenshot back on the clipboard.")
                         helpDetail: qsTr("Copies the last screenshot taken in this session, whenever you press it. A dedicated shortcut never collides with the normal Ctrl+C - this replaces the old 2-second Ctrl+C grab, which could steal an ordinary copy right after a capture.")
+                        actionId: "copy-last"
                         shortcuts: App.settings.hotkeyCopyLast
                         onChanged: (t) => { App.settings.hotkeyCopyLast = t; App.applyHotkey("copy-last") }
                     }
                     HotkeyRow {
-                        visible: advancedHotkeys.expanded || page.searchActive
+                        visible: advancedHotkeys.expanded || page.searchActive || problem
                         discloser: advancedHotkeys
                         label: qsTr("Instant replay")
                         help: qsTr("Starts the rolling replay ring; later presses save the recent segment window.")
                         helpDetail: qsTr("The first press opens the screen-sharing portal and starts the bounded encoded ring. While it is active, each press saves the latest configured duration without stopping capture.")
+                        actionId: "instant-replay"
                         shortcuts: App.settings.hotkeyInstantReplay
                         onChanged: (t) => { App.settings.hotkeyInstantReplay = t; App.applyHotkey("instant-replay") }
                     }

@@ -343,6 +343,20 @@ qt_add_qml_module(unisic
         qml/components/StickerPopup.qml
         qml/components/RedactReview.qml
         qml/components/Kbd.qml
+        qml/components/Hotkeys.js
+        qml/components/SectionLabel.qml
+        qml/components/Link.qml
+        qml/components/MiniSwitch.qml
+        qml/components/PageTitle.qml
+        qml/components/SegmentedControl.qml
+        qml/components/InspectorRow.qml
+        qml/components/Inspector.qml
+        qml/components/TileArt.qml
+        qml/components/SourceTile.qml
+        qml/components/ActionTile.qml
+        qml/components/RecentStrip.qml
+        qml/components/HeaderButton.qml
+        qml/components/FilterToggle.qml
         qml/components/HeaderSearch.qml
         qml/components/UNotifPreview.qml
         qml/components/UOverlayPreview.qml

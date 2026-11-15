@@ -739,8 +739,20 @@ Window {
                 onOpenSettings: (tab) => window.openSettingsAt(tab, "")
             }
         }
-        Component { id: recordPage;       RecordPage {} }
-        Component { id: editPage;         EditPage {} }
+        Component {
+            id: recordPage
+            RecordPage {
+                onOpenPage: (i) => window.currentPage = i
+                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
+            }
+        }
+        Component {
+            id: editPage
+            EditPage {
+                onOpenPage: (i) => window.currentPage = i
+                onOpenSettings: (tab) => window.openSettingsAt(tab, "")
+            }
+        }
         Component { id: historyPage;      HistoryPage {} }
         Component { id: destinationsPage; DestinationsPage {} }
         Component { id: settingsPage;     SettingsPage {} }

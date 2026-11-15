@@ -180,6 +180,16 @@ Item {
     // "Add custom server" behind the scrim would open a second sheet.
     readonly property bool interactive: !editSheet.visible
 
+    // The Capture page's rhythm: 40 px sides, a tighter top and gaps below
+    // 760 px of height, which is what keeps the seven shipped servers above
+    // the fold at the default 1060x700.
+    readonly property bool compact: height < 760
+    // A list of one-line rows has no grid to fill a wide window with, and on
+    // a maximized 1920 px one Edit sat 1.6k px from the name it edits. Capped
+    // past the default window (904 px of column there), header included so
+    // its buttons still end where the rows end.
+    readonly property real columnWidth: Math.max(0, Math.min(width - 2 * 40, 1120))
+
     // Pinned, like the Settings header: the two ways to ADD a server must not
     // depend on how many servers you already have. Measured at the default
     // 1060x700 with the five shipped destinations, they used to be the last row
@@ -190,73 +200,64 @@ Item {
         id: header
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.margins: Theme.spacingXL
-        anchors.bottomMargin: 0
-        height: titleRow.height + Theme.spacingS + intro.implicitHeight
+        anchors.topMargin: page.compact ? 20 : 28
+        anchors.leftMargin: 40
+        width: page.columnWidth
+        height: Math.max(titleCol.height, addRow.height)
         enabled: page.interactive
 
-        Item {
-            id: titleRow
-            anchors.top: parent.top
+        Column {
+            id: titleCol
             anchors.left: parent.left
-            anchors.right: parent.right
-            height: Math.max(44, addRow.height)
-
-            Text {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
+            anchors.right: addRow.left
+            anchors.rightMargin: 24
+            anchors.bottom: parent.bottom
+            spacing: 6
+            PageTitle {
+                width: parent.width
                 text: qsTr("Servers")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontTitle
-                font.weight: Font.Bold
             }
-            Row {
-                id: addRow
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: Theme.spacingS
-                UButton {
-                    id: addBtn
-                    compact: true
-                    iconName: "list-add"; text: qsTr("Add custom server")
-                    onClicked: {
-                        page.editing = { name: "", type: "http", requestUrl: "", method: "POST",
-                                         fileFormName: "file", responseType: "json", urlPath: "$json:url$" }
-                        editSheet.open(addBtn)
-                    }
-                }
-                UButton {
-                    compact: true
-                    iconName: "folder-open"; variant: "tonal"; text: qsTr("Import .sxcu")
-                    onClicked: sxcuDialog.open()
-                }
+            Text {
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
+                color: Theme.textSecondary
+                font.pixelSize: 13
             }
         }
-        Text {
-            id: intro
-            anchors.top: titleRow.bottom
-            anchors.topMargin: Theme.spacingS
-            anchors.left: parent.left
+        Row {
+            id: addRow
             anchors.right: parent.right
-            wrapMode: Text.WordWrap
-            text: qsTr("Modular uploaders: custom HTTP APIs plus FTP/SFTP via curl. After every upload the link is copied to your clipboard.")
-            color: Theme.textSecondary
-            font.pixelSize: Theme.fontM
+            anchors.bottom: parent.bottom
+            spacing: 8
+            HeaderButton {
+                id: addBtn
+                text: qsTr("Add custom server")
+                iconName: "line-plus"
+                onActivated: {
+                    page.editing = { name: "", type: "http", requestUrl: "", method: "POST",
+                                     fileFormName: "file", responseType: "json", urlPath: "$json:url$" }
+                    editSheet.open(addBtn)
+                }
+            }
+            HeaderButton {
+                text: qsTr("Import .sxcu")
+                iconName: "folder-open"
+                onActivated: sxcuDialog.open()
+            }
         }
     }
 
     Flickable {
         id: pageFlick
         anchors.top: header.bottom
-        anchors.topMargin: Theme.spacingL
+        anchors.topMargin: page.compact ? 18 : 24
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        anchors.leftMargin: Theme.spacingXL
-        anchors.rightMargin: Theme.spacingXL
-        anchors.bottomMargin: Theme.spacingXL
-        contentHeight: col.height
+        anchors.leftMargin: 40
+        anchors.rightMargin: 40
+        contentHeight: col.y + col.height + (page.compact ? 20 : 28)
         clip: true
         boundsBehavior: Flickable.StopAtBounds
         enabled: page.interactive
@@ -269,29 +270,86 @@ Item {
 
         Column {
             id: col
-            width: parent.width
-            spacing: Theme.spacingL
+            // Room for the focus ring of the switch above it, which the clip
+            // would cut otherwise.
+            y: 4
+            width: page.columnWidth
+            spacing: 8
 
-            USettingRow {
+            // The order IS the failure chain, so the switch that turns the
+            // chain on sits on the list's own heading, where Capture puts
+            // "Open history" and "Manage", instead of in a card of its own.
+            Item {
                 width: parent.width
-                label: qsTr("Failure Chain")
-                sub: qsTr("Drag a server to the top to make it the default. When the default fails, the next server down the list gets the capture; servers that still need setup are skipped. A server picked by hand (right-click Upload on the capture card) is never swapped for another.")
-                USwitch {
-                    checked: App.settings.uploadFailureChain
-                    onToggled: (c) => App.settings.uploadFailureChain = c
+                height: Math.max(orderLabel.height, chainRow.height)
+                SectionLabel {
+                    id: orderLabel
+                    anchors.left: parent.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTr("Upload order")
+                    Accessible.role: Accessible.Heading
+                    Accessible.name: text
+                }
+                Row {
+                    id: chainRow
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 10
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: qsTr("Failure Chain")
+                        color: Theme.textPrimary
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                        // The switch carries the name; the caption is a
+                        // bigger target for the same toggle.
+                        Accessible.ignored: true
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: chainSwitch.toggle()
+                        }
+                    }
+                    MiniSwitch {
+                        id: chainSwitch
+                        anchors.verticalCenter: parent.verticalCenter
+                        checked: App.settings.uploadFailureChain
+                        onToggled: (c) => App.settings.uploadFailureChain = c
+                        accessibleName: qsTr("Failure Chain")
+                        accessibleDescription: chainSub.text
+                    }
                 }
             }
+            // Two lines at most below 760 px of height, as InspectorRow's
+            // compact sub: a longer translation must not push the list into
+            // scrolling at 1060x700. The cut text shows in full on hover.
+            Text {
+                id: chainSub
+                width: parent.width
+                wrapMode: Text.Wrap
+                // undefined resets to Qt's own "no limit".
+                maximumLineCount: page.compact ? 2 : undefined
+                elide: page.compact ? Text.ElideRight : Text.ElideNone
+                text: qsTr("Drag a server to the top to make it the default. When the default fails, the next server down the list gets the capture; servers that still need setup are skipped. A server picked by hand (right-click Upload on the capture card) is never swapped for another.")
+                color: Theme.textSecondary
+                font.pixelSize: Theme.fontS
+                Accessible.ignored: true
+                HoverHandler { id: chainSubHover }
+                UHoverTip {
+                    anchor: chainSub
+                    text: chainSub.text
+                    show: chainSubHover.hovered && chainSub.truncated
+                }
+            }
+            Item { width: 1; height: 4 }
 
-            // The server list is ONE group of cards, so it uses the same tight
-            // card rhythm Settings uses inside a section (spacingS) rather than
-            // the between-sections spacingL. That is also what buys the fit: at
-            // 1060x700 the five shipped destinations came to 476 px of content
-            // in a 462 px viewport, and their four 20 px gaps were part of it -
-            // now 420 px of content with 42 px to spare.
+            // The server list is ONE group of rows, in the tight rhythm of
+            // Capture's "More ways to capture" tiles (8 px), which is also what
+            // buys the fit: seven 56 px rows come to 440 px.
             Column {
                 id: listCol
                 width: parent.width
-                spacing: Theme.spacingS
+                spacing: 8
 
                 // Defensive empty state: ensureBuiltins() normally keeps at least the
                 // built-in services here, so this shows only if every one is removed.
@@ -300,8 +358,8 @@ Item {
                     width: parent.width
                     wrapMode: Text.WordWrap
                     text: qsTr("No upload destinations yet. Add one to send captures straight to your own server or a public host.")
-                    color: Theme.textTertiary
-                    font.pixelSize: Theme.fontM
+                    color: Theme.textSecondary
+                    font.pixelSize: 13
                 }
 
                 // Every move glides, the card in hand included: it swaps slot
@@ -312,6 +370,10 @@ Item {
 
                 Repeater {
                     model: orderModel
+                    // ActionTile's look (56 px, radius 10, icon in a square,
+                    // title over a subtitle), but not its click: the row is a
+                    // list entry and its buttons are the controls, so the row
+                    // itself has no hover state to promise one.
                     delegate: Rectangle {
                         id: card
                         required property string name
@@ -320,12 +382,14 @@ Item {
                         // The top server is the one every upload starts on.
                         readonly property bool isDefault: index === 0
                         width: listCol.width
-                        height: 64
-                        radius: Theme.radiusM
+                        height: 56
+                        radius: 10
                         z: grip.pressed ? 5 : 0
-                        color: grip.pressed ? Theme.surfaceHi : Theme.surface
+                        color: grip.pressed ? Theme.surfaceTop : Theme.surface
                         border.width: 1
-                        border.color: isDefault || grip.pressed ? Theme.accent : Theme.divider
+                        border.color: grip.pressed ? Theme.accent
+                                    : isDefault ? Theme.alpha(Theme.accent, 0.55)
+                                    : Theme.alpha(Theme.accent, 0.10)
 
                         // The row is a list entry, not a control (its buttons are
                         // the controls); "default" is only shown as a chip and an
@@ -341,10 +405,9 @@ Item {
                         // from there. Up/Down do the same from the keyboard.
                         Item {
                             id: handle
-                            anchors.left: parent.left
-                            anchors.leftMargin: Theme.spacingS
+                            x: 6
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 28
+                            width: 24
                             height: 40
                             activeFocusOnTab: true
                             Keys.onUpPressed: page.moveByKey(card.index, -1)
@@ -402,101 +465,130 @@ Item {
                             }
                         }
 
-                        Row {
-                            id: infoRow
+                        // The transport, in ActionTile's icon square.
+                        Rectangle {
+                            id: typeIcon
                             anchors.left: handle.right
-                            anchors.leftMargin: Theme.spacingS
+                            anchors.leftMargin: 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 34
+                            height: 34
+                            radius: 8
+                            color: Theme.secondary
+                            UIcon {
+                                anchors.centerIn: parent
+                                name: card.dest.type === "curl" ? "lock" : "globe"
+                                size: 18
+                                color: Theme.accent
+                            }
+                        }
+
+                        Column {
+                            id: infoCol
+                            anchors.left: typeIcon.right
+                            anchors.leftMargin: 12
                             // Stop before the action buttons so a long request URL
                             // elides instead of sliding under Edit/Delete.
                             anchors.right: actionRow.left
-                            anchors.rightMargin: Theme.spacingM
+                            anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: Theme.spacingM
-                            UIcon { name: card.dest.type === "curl" ? "lock" : "globe"; size: 22; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
-                            Column {
-                                id: infoCol
-                                width: infoRow.width - 22 - Theme.spacingM
-                                anchors.verticalCenter: parent.verticalCenter
-                                // Imgur ships without a Client-ID (it is per-user), so
-                                // say so on the row instead of letting every upload fail.
-                                readonly property bool needsClientId:
-                                    App.uploads.isImgurDestination(card.dest)
-                                    && App.uploads.imgurClientIdOf(card.dest) === ""
-                                readonly property bool needsUserKey:
-                                    App.uploads.isVgyMeDestination(card.dest)
-                                    && App.uploads.vgyMeUserKeyOf(card.dest) === ""
-                                // GitHub Pages (parked, docs/dev/architecture.md):
-                                // readonly property bool needsRepo:
-                                //     App.uploads.isGitHubDestination(card.dest)
-                                //     && !App.uploads.gitHubReadyOf(card.dest)
-                                Row {
-                                    id: nameRow
-                                    width: parent.width
-                                    spacing: Theme.spacingS
+                            spacing: 1
+                            // Imgur ships without a Client-ID (it is per-user), so
+                            // say so on the row instead of letting every upload fail.
+                            readonly property bool needsClientId:
+                                App.uploads.isImgurDestination(card.dest)
+                                && App.uploads.imgurClientIdOf(card.dest) === ""
+                            readonly property bool needsUserKey:
+                                App.uploads.isVgyMeDestination(card.dest)
+                                && App.uploads.vgyMeUserKeyOf(card.dest) === ""
+                            // GitHub Pages (parked, docs/dev/architecture.md):
+                            // readonly property bool needsRepo:
+                            //     App.uploads.isGitHubDestination(card.dest)
+                            //     && !App.uploads.gitHubReadyOf(card.dest)
+                            Row {
+                                id: nameRow
+                                width: parent.width
+                                spacing: 8
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: card.dest.name || ""; color: Theme.textPrimary
+                                    font.pixelSize: 13; font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    width: Math.min(implicitWidth, parent.width
+                                                    - (defaultChip.visible ? defaultChip.width + nameRow.spacing : 0)
+                                                    - (setupChip.visible ? setupChip.width + nameRow.spacing : 0))
+                                    Accessible.ignored: true
+                                }
+                                Rectangle {
+                                    id: defaultChip
+                                    visible: card.isDefault
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: defaultChipText.implicitWidth + 12
+                                    height: 18
+                                    radius: 9
+                                    color: Theme.alpha(Theme.accent, 0.18)
+                                    border.width: 1
+                                    border.color: Theme.alpha(Theme.accent, 0.5)
                                     Text {
-                                        text: card.dest.name || ""; color: Theme.textPrimary
-                                        font.pixelSize: Theme.fontM; font.weight: Font.DemiBold
-                                        elide: Text.ElideRight
-                                        width: Math.min(implicitWidth, parent.width
-                                                        - (defaultChip.visible ? defaultChip.width + Theme.spacingS : 0)
-                                                        - (setupChip.visible ? setupChip.width + Theme.spacingS : 0))
-                                    }
-                                    Rectangle {
-                                        id: defaultChip
-                                        visible: card.isDefault
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: defaultChipText.implicitWidth + 12
-                                        height: 18
-                                        radius: 9
-                                        color: Theme.alpha(Theme.accent, 0.18)
-                                        border.width: 1
-                                        border.color: Theme.alpha(Theme.accent, 0.5)
-                                        Text {
-                                            id: defaultChipText
-                                            anchors.centerIn: parent
-                                            text: qsTr("Default")
-                                            color: Theme.accent
-                                            font.pixelSize: Theme.fontS - 2
-                                            font.weight: Font.DemiBold
-                                        }
-                                    }
-                                    Rectangle {
-                                        id: setupChip
-                                        // GitHub Pages (parked): || infoCol.needsRepo
-                                        visible: infoCol.needsClientId || infoCol.needsUserKey
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: setupChipText.implicitWidth + 12
-                                        height: 18
-                                        radius: 9
-                                        color: Theme.alpha(Theme.danger, 0.18)
-                                        border.width: 1
-                                        border.color: Theme.alpha(Theme.danger, 0.5)
-                                        Text {
-                                            id: setupChipText
-                                            anchors.centerIn: parent
-                                            // GitHub Pages (parked), between the two:
-                                            // : infoCol.needsRepo ? qsTr("Needs a repository and a token")
-                                            text: infoCol.needsClientId
-                                                  ? qsTr("Needs a Client-ID")
-                                                  : qsTr("Needs a user key")
-                                            color: Theme.danger
-                                            font.pixelSize: Theme.fontS - 2
-                                            font.weight: Font.DemiBold
-                                        }
+                                        id: defaultChipText
+                                        anchors.centerIn: parent
+                                        text: qsTr("Default")
+                                        color: Theme.accent
+                                        font.pixelSize: 11
+                                        font.weight: Font.DemiBold
+                                        Accessible.ignored: true
                                     }
                                 }
-                                Text { width: parent.width; text: card.dest.requestUrl || ""; color: Theme.textTertiary; font.pixelSize: Theme.fontS; elide: Text.ElideMiddle }
+                                Rectangle {
+                                    id: setupChip
+                                    // GitHub Pages (parked): || infoCol.needsRepo
+                                    visible: infoCol.needsClientId || infoCol.needsUserKey
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: setupChipText.implicitWidth + 12
+                                    height: 18
+                                    radius: 9
+                                    color: Theme.alpha(Theme.danger, 0.18)
+                                    border.width: 1
+                                    border.color: Theme.alpha(Theme.danger, 0.5)
+                                    Text {
+                                        id: setupChipText
+                                        anchors.centerIn: parent
+                                        // GitHub Pages (parked), between the two:
+                                        // : infoCol.needsRepo ? qsTr("Needs a repository and a token")
+                                        text: infoCol.needsClientId
+                                              ? qsTr("Needs a Client-ID")
+                                              : qsTr("Needs a user key")
+                                        color: Theme.danger
+                                        font.pixelSize: 11
+                                        font.weight: Font.DemiBold
+                                    }
+                                }
+                            }
+                            Text {
+                                width: parent.width
+                                text: card.dest.requestUrl || ""
+                                color: Theme.textSecondary
+                                font.pixelSize: Theme.fontS
+                                elide: Text.ElideMiddle
+                                Accessible.ignored: true
                             }
                         }
+                        // Sized for both buttons on every row and laid out from
+                        // the right, so Edit stands in one column at the edge
+                        // whether or not the row can be deleted (a built-in
+                        // server cannot). Tab still meets Edit first: focus
+                        // order follows the children, not the layout.
                         Row {
                             id: actionRow
                             anchors.right: parent.right
-                            anchors.rightMargin: Theme.spacingM
+                            anchors.rightMargin: 9
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
+                            width: 2 * editBtn.width + spacing
+                            layoutDirection: Qt.RightToLeft
+                            spacing: 2
                             UIconButton {
                                 id: editBtn
-                                iconName: "edit"; iconSize: 16
+                                iconName: "line-pencil"; iconSize: 16
                                 accessibleName: qsTr("Edit %1").arg(card.dest.name)
                                 onClicked: {
                                     page.editing = JSON.parse(JSON.stringify(card.dest))
@@ -504,7 +596,7 @@ Item {
                                 }
                             }
                             UIconButton {
-                                iconName: "edit-delete"; iconSize: 16
+                                iconName: "line-trash"; iconSize: 16
                                 accessibleName: qsTr("Delete %1").arg(card.dest.name)
                                 visible: !card.dest.builtin
                                 onClicked: App.uploads.removeDestination(card.dest.name)
@@ -799,7 +891,9 @@ Item {
                 text: page.editing && page.editing.name !== "" ? qsTr("Edit server") : qsTr("New server")
                 color: Theme.textPrimary
                 font.pixelSize: Theme.fontXL
-                font.weight: Font.Bold
+                // PageTitle's weight and tracking, one step smaller.
+                font.weight: Font.DemiBold
+                font.letterSpacing: -0.4
                 elide: Text.ElideRight
             }
 

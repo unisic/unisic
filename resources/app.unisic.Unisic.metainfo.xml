@@ -71,6 +71,11 @@
     <binary>unisic</binary>
   </provides>
   <releases>
+    <release version="0.8.10" date="2026-11-15">
+      <description>
+        <p>Unisic speaks Simplified Chinese, and every page has the look of the new Capture page, with a search field in the header. The editor gains stickers, a spotlight, cutting out a strip, rotate and resize, background removal on your own computer, auto-redact of sensitive text, two layouts and work on several shapes at once. Any file or the clipboard can be uploaded, a watched folder uploads new files by itself, S3 storage works as a server, links can be shortened, and a capture can be printed or moved to the trash after its upload. A taken hotkey is shown on Settings, Hotkeys instead of a message at every start, and the portable app starts on Ubuntu without libopengl0.</p>
+      </description>
+    </release>
     <release version="0.8.9" date="2026-11-05">
       <description>
         <p>When an upload fails, the next server on your list takes the file (the Failure Chain), and the capture card lets you pick the server for one capture; GitHub Pages is a built-in destination. The editor is laid out like an image editor, a capture can be acted on straight from its History preview, Unisic counts your screenshots per day for unisic.app/stats, and bash and zsh complete its command line. Recordings keep sound and picture in sync on a busy computer, a scrolling capture is no longer blurred under Better Blur, and the experimental Windows build gets thumbnails in History, faster full-screen recording and a series of fixes.</p>

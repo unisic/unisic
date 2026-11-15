@@ -4,7 +4,7 @@
 <context>
     <name>AppContext</name>
     <message>
-        <location filename="../src/AppContext.cpp" line="+279"/>
+        <location filename="../src/AppContext.cpp" line="+285"/>
         <source>Encoding…</source>
         <translation>正在编码…</translation>
     </message>
@@ -460,7 +460,8 @@
         <translation>Unisic %1 已发布，正在自动更新</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-10"/>
+        <location line="+11"/>
         <source>Unisic %1 is available</source>
         <translation>Unisic %1 已发布</translation>
     </message>
@@ -1202,7 +1203,12 @@
         <translation>无法编码截图</translation>
     </message>
     <message>
-        <location line="-2160"/>
+        <location line="-3271"/>
+        <source>It installs itself in the background. Click to open Unisic.</source>
+        <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
+    </message>
+    <message>
+        <location line="+1111"/>
         <location line="+1"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>选区太小，无法进行滚动截图</translation>
@@ -1919,7 +1925,7 @@
         <translation>打开 Unisic</translation>
     </message>
     <message>
-        <location line="+322"/>
+        <location line="+324"/>
         <source>Images (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</source>
         <translation>图像 (*.png *.svg *.svgz *.xpm *.ico *.jpg *.jpeg *.webp)</translation>
     </message>

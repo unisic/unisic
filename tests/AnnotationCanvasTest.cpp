@@ -41,6 +41,7 @@ private slots:
     void ocrCaretSelectionIsCharacterPrecise();
     void autoRedactCoversFindingsAndToggles();
     void autoRedactStopsAtAColumnGap();
+    void autoRedactWordsOutliveTheScan();
     void sensitiveTextFindsWhatToCover();
     void ocrLineSplitsAtWideGap();
     void measureRulerModesAndCopy();
@@ -614,6 +615,49 @@ void AnnotationCanvasTest::autoRedactCoversFindingsAndToggles()
     out = canvas.rendered();
     QCOMPARE(out.pixelColor(15, 29), QColor(Qt::black));
     QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
+}
+
+// Auto-redact's scan leaves OCR mode once the words are in, so a click or
+// Ctrl+A acts on the shapes while the review stays open. Its kinds keep
+// working from the kept words, and the words stop counting once the picture
+// they were read from is gone (rotated here), and count again after undo.
+void AnnotationCanvasTest::autoRedactWordsOutliveTheScan()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(60);
+    QImage image(200, 60, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    const QString glyphs = QStringLiteral("a@b.cozc@d.eu");
+    QVector<OcrWord> words;
+    for (int i = 0; i < glyphs.size(); ++i)
+        words.append({QRect(10 + i * 12, 20, 10, 18), QString(glyphs.at(i)), 0, 100.f, i == 6 || i == 7});
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+    canvas.leaveOcrModeKeepingWords();
+
+    QVERIFY(!canvas.ocrMode());
+    QVERIFY(canvas.hasOcrWords());
+    QCOMPARE(canvas.sensitiveCounts().value(QStringLiteral("email")).toInt(), 2);
+    QCOMPARE(canvas.autoRedact({QStringLiteral("email")}), 2);
+    QCOMPARE(canvas.annotCount(), 2);
+
+    canvas.selectAnnotAt(15, 29);
+    QCOMPARE(canvas.selectedCount(), 1);
+    canvas.selectAllAnnots();
+    QCOMPARE(canvas.selectedCount(), 2);
+    QCOMPARE(canvas.redactions().size(), 2);
+    QCOMPARE(canvas.sensitiveCounts().value(QStringLiteral("email")).toInt(), 2);
+    QCOMPARE(canvas.removeRedactions(QStringLiteral("email")), 2);
+    QCOMPARE(canvas.autoRedact({QStringLiteral("email")}), 2);
+
+    canvas.rotateImage(true);
+    QVERIFY(!canvas.hasOcrWords());
+    QVERIFY(canvas.sensitiveCounts().isEmpty());
+    QCOMPARE(canvas.autoRedact(), 0);
+    canvas.undo();
+    QVERIFY(canvas.hasOcrWords());
 }
 
 // Tesseract reports two table columns as one text line. The canvas splits it at

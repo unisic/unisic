@@ -58,10 +58,12 @@ public:
     Q_INVOKABLE void copyOcrSelection();      // copy the canvas's selected words
     Q_INVOKABLE void highlightOcrSelection(); // make the selected text permanent
     Q_INVOKABLE void redactOcrSelection();    // black out the selected text permanently
-    // Auto-redact's scan: recognizes the text when OCR mode has no words yet
+    // Auto-redact's scan: recognizes the text when the canvas has no words yet
     // and reports what AnnotationCanvas::sensitiveCounts() finds, covering
-    // nothing; the user then picks the kinds to cover. endSensitiveScan()
-    // leaves OCR mode again when the scan was the one to enter it.
+    // nothing; the user then picks the kinds to cover. A scan that had to
+    // enter OCR mode leaves it as soon as the words arrive, keeping them, so
+    // the editor takes clicks and Ctrl+A as usual while the review stays
+    // open. endSensitiveScan() calls off a recognition still running.
     Q_INVOKABLE void scanSensitive();
     Q_INVOKABLE void endSensitiveScan();
     // Cut the subject out (BackgroundRemover) as one undo step, annotations

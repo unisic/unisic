@@ -4235,9 +4235,14 @@ static QString redactReviewCheck(QQuickWindow *win)
         // recognition, which the close has to call off again.
         const bool fromTool = run.button == toolButton;
         canvas->setTool(fromTool ? AnnotationCanvas::Blur : tool0);
-        if (!fromTool) {
-            canvas->setOcrMode(true);
+        // Where a finished scan leaves the canvas: out of OCR mode, words kept.
+        // The tool's run drops them, so it recognizes for real.
+        canvas->setOcrMode(true);
+        if (fromTool) {
+            canvas->setOcrMode(false);
+        } else {
             canvas->setOcrWords(words);
+            canvas->leaveOcrModeKeepingWords();
         }
         QCoreApplication::processEvents();
         polishTree(win->contentItem());
@@ -4278,6 +4283,40 @@ static QString redactReviewCheck(QQuickWindow *win)
                 fails << where + QStringLiteral(": the e-mail switch shows off");
             if (!inside())
                 fails << where + QStringLiteral(": popup outside the window once filled");
+            // Working on the picture is part of the review: a press on it and
+            // Ctrl+A act as they always do, and the review stays open.
+            QQuickItem *frame = content->parentItem();
+            const QRectF popupRect = frame ? frame->mapRectToScene(QRectF(0, 0, frame->width(), frame->height()))
+                                           : QRectF();
+            const QRectF view = canvas->mapRectToScene(QRectF(0, 0, canvas->width(), canvas->height()))
+                                    .intersected(QRectF(0, 0, win->width(), win->height()));
+            QPointF onImage(-1, -1);
+            for (const QPointF &p : {view.center(), view.topLeft() + QPointF(8, 8), view.bottomLeft() + QPointF(8, -8),
+                                     view.topRight() + QPointF(-8, 8)})
+                if (!popupRect.contains(p)) {
+                    onImage = p;
+                    break;
+                }
+            QMouseEvent press(QEvent::MouseButtonPress, onImage, win->mapToGlobal(onImage), Qt::LeftButton,
+                              Qt::LeftButton, Qt::NoModifier);
+            QMouseEvent release(QEvent::MouseButtonRelease, onImage, win->mapToGlobal(onImage), Qt::LeftButton,
+                                Qt::NoButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(win, &press);
+            QCoreApplication::sendEvent(win, &release);
+            QKeyEvent allDown(QEvent::KeyPress, Qt::Key_A, Qt::ControlModifier);
+            QKeyEvent allUp(QEvent::KeyRelease, Qt::Key_A, Qt::ControlModifier);
+            QCoreApplication::sendEvent(win, &allDown);
+            QCoreApplication::sendEvent(win, &allUp);
+            settle();
+            if (onImage.x() < 0)
+                fails << where + QStringLiteral(": the popup covers the picture");
+            else if (!popup->property("visible").toBool())
+                fails << where + QStringLiteral(": a press on the picture or Ctrl+A closed the review");
+            else if (canvas->selectedCount() != canvas->annotCount() || canvas->ocrMode())
+                fails << where + QStringLiteral(": Ctrl+A selected %1 of %2 shapes%3")
+                                     .arg(canvas->selectedCount()).arg(canvas->annotCount())
+                                     .arg(canvas->ocrMode() ? QStringLiteral(", in OCR mode") : QString());
+            canvas->clearAnnotSelection();
             // A list taller than the room on either side scrolls, UFlyout's cap;
             // a cut is a fault when the popup stopped short of the room it has
             // or the other side would have shown every row.
@@ -4309,6 +4348,16 @@ static QString redactReviewCheck(QQuickWindow *win)
             if (canvas->annotCount() != before || rowCount() != kKinds)
                 fails << where + QStringLiteral(": switched off, %1 bars and %2 rows remain")
                                      .arg(canvas->annotCount() - before).arg(rowCount());
+            // The keyboard went back to the editor with the press: its Escape
+            // closes the review before anything else.
+            if (popup->property("visible").toBool()) {
+                QKeyEvent escDown(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+                QKeyEvent escUp(QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+                QCoreApplication::sendEvent(win, &escDown);
+                QCoreApplication::sendEvent(win, &escUp);
+                if (!waitOpen(false))
+                    fails << where + QStringLiteral(": Escape left the review open");
+            }
         }
         QMetaObject::invokeMethod(popup, "close");
         waitOpen(false);
@@ -4323,7 +4372,8 @@ static QString redactReviewCheck(QQuickWindow *win)
     QCoreApplication::processEvents();
     if (!fails.isEmpty())
         return QStringLiteral("FAIL (%1)").arg(fails.join(QStringLiteral("; ")));
-    return QStringLiteral("PASS (panels, floating, Blur options: %1 kinds, nothing covered on open; e-mail on covers and lists 2, a finding uncovers, off removes)")
+    return QStringLiteral("PASS (panels, floating, Blur options: %1 kinds, nothing covered on open; e-mail on covers and lists 2, "
+                          "a press on the picture and Ctrl+A keep it open, a finding uncovers, off removes, Escape closes)")
         .arg(kKinds);
 }
 

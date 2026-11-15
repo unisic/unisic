@@ -1010,12 +1010,27 @@ void AnnotationCanvas::setOcrMode(bool on)
     } else {
         // Entering: any placed-shape selection chrome would clutter the overlay.
         if (m_selectedAnnot >= 0) { m_selectedAnnot = -1; m_extraSel.clear(); emit selectedAnnotChanged(); }
+        if (m_ocrWordsBaseKey != m_base.cacheKey()) { m_ocrWords.clear(); m_ocrLines.clear(); }
     }
     emit ocrChanged();
     update();
 }
 
 void AnnotationCanvas::clearOcrMode() { setOcrMode(false); }
+
+void AnnotationCanvas::leaveOcrModeKeepingWords()
+{
+    const QVector<OcrWord> words = m_ocrWords;
+    const QVector<OcrLine> lines = m_ocrLines;
+    setOcrMode(false);
+    m_ocrWords = words;
+    m_ocrLines = lines;
+}
+
+bool AnnotationCanvas::hasOcrWords() const
+{
+    return !m_ocrWords.isEmpty() && (m_ocrMode || m_ocrWordsBaseKey == m_base.cacheKey());
+}
 
 void AnnotationCanvas::setOcrBusy(bool on)
 {
@@ -1028,6 +1043,7 @@ void AnnotationCanvas::setOcrBusy(bool on)
 void AnnotationCanvas::setOcrWords(const QVector<OcrWord> &words)
 {
     m_ocrWords = words;
+    m_ocrWordsBaseKey = m_base.cacheKey();
     rebuildOcrLines();
     m_ocrCaretA = m_ocrCaretB = m_ocrPressCaret = -1;
     m_ocrHoverLine = -1;
@@ -1413,7 +1429,7 @@ QString AnnotationCanvas::ocrAllText(QVector<int> *charToGlyph) const
 QVariantMap AnnotationCanvas::sensitiveCounts() const
 {
     QVariantMap out;
-    if (m_ocrWords.isEmpty())
+    if (!hasOcrWords())
         return out;
     for (const SensitiveMatch &m : findSensitiveText(ocrAllText()))
         out[m.kind] = out.value(m.kind).toInt() + 1;
@@ -1440,7 +1456,7 @@ int AnnotationCanvas::removeRedactions(const QString &kind)
 
 int AnnotationCanvas::autoRedact(const QStringList &kinds)
 {
-    if (m_ocrWords.isEmpty())
+    if (!hasOcrWords())
         return 0;
     QVector<int> map;
     const QString text = ocrAllText(&map);

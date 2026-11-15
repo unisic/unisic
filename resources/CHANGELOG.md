@@ -51,6 +51,7 @@ whole per release (not per individual change).
 - **One scroll speed everywhere**: a notch of the mouse wheel now moves every page, list and pop-up by the same distance, about as far as in a web browser, and eases in the same way. Settings no longer races, History no longer crawls, and spinning the wheel fast just adds notch after notch instead of speeding up. A touchpad still scrolls exactly as far as your fingers move.
 - **Highlight the cursor can be turned on and off on Windows and in an X11 session**: Settings > Overlays in recordings > Highlight the cursor was grayed out on Windows, saying the portal cannot deliver the cursor separately, while recordings showed the glow around the pointer anyway, and in an X11 session turning it off did not remove the glow. The switch now works: on, it draws the glow and the click ripples; off, it leaves just the pointer, as on a Wayland session.
 - **W selects the active window on Windows too**: in the screenshot and region-recording overlay, W did nothing on Windows, while on KDE it fits the selection to the window that was active when the overlay opened. It now does the same on Windows.
+- **Auto-redact stays open while you work on the picture**: clicking the picture, a bar on it or Select all closed the Auto-redact list and left text recognition, so the next look meant reading the picture again. The list now stays open until Escape, a click selects shapes as usual, Ctrl+A selects every shape, and opening Auto-redact again on the same picture shows what it found at once.
 
 ### Polski
 **Dodane**
@@ -95,6 +96,7 @@ whole per release (not per individual change).
 - **Jedna prędkość przewijania wszędzie**: ząbek kółka myszy przesuwa teraz każdą stronę, listę i okienko o tę samą odległość, mniej więcej tyle co w przeglądarce, i tak samo płynnie. Ustawienia już nie pędzą, Historia już się nie wlecze, a szybkie kręcenie kółkiem po prostu dodaje ząbek do ząbka zamiast przyspieszać. Touchpad nadal przewija dokładnie tyle, ile przesuną się palce.
 - **Podświetlanie kursora można włączać i wyłączać na Windowsie i w sesji X11**: Ustawienia > Nakładki w nagraniach > Podświetlaj kursor było na Windowsie wyszarzone z informacją, że portal nie przekazuje kursora osobno, a nagrania i tak pokazywały poświatę wokół wskaźnika, a w sesji X11 wyłączenie go nie usuwało poświaty. Teraz przełącznik działa: włączony rysuje poświatę i kręgi kliknięć, wyłączony zostawia sam wskaźnik, tak jak w sesji Wayland.
 - **W zaznacza aktywne okno także na Windowsie**: w nakładce zrzutu i nagrywania obszaru klawisz W nie robił na Windowsie nic, choć na KDE dopasowuje zaznaczenie do okna, które było aktywne przy jej otwarciu. Teraz robi to samo na Windowsie.
+- **Auto-redakcja zostaje otwarta, gdy pracujesz na obrazie**: kliknięcie obrazu, paska na nim albo Zaznacz wszystko zamykało listę Auto-redakcji i wychodziło z rozpoznawania tekstu, więc każde kolejne otwarcie czytało obraz od nowa. Lista zostaje teraz otwarta do Escape, kliknięcie zaznacza kształty jak zwykle, Ctrl+A zaznacza wszystkie kształty, a ponowne otwarcie Auto-redakcji na tym samym obrazie od razu pokazuje, co znalazła.
 
 ## 0.8.9
 

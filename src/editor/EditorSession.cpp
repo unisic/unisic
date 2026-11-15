@@ -273,6 +273,10 @@ void EditorSession::startOcrPick()
         canvas->setOcrWords(words);
         if (self && self->m_scanPending) {
             self->m_scanPending = false;
+            if (self->m_scanLeavesOcr) {
+                self->m_scanLeavesOcr = false;
+                canvas->leaveOcrModeKeepingWords();
+            }
             self->reportSensitive(err);
             return;
         }
@@ -322,7 +326,7 @@ void EditorSession::scanSensitive()
 {
     if (!m_canvas)
         return;
-    if (m_canvas->ocrMode() && !m_canvas->ocrBusy()) {
+    if (m_canvas->ocrMode() ? !m_canvas->ocrBusy() : m_canvas->hasOcrWords()) {
         reportSensitive(QString());
         return;
     }

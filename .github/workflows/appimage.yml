@@ -139,16 +139,12 @@ jobs:
         # fullscreen windows and the pinned preview. Noble's
         # liblayershellqtinterface-dev is the Qt5 build (5.27), which cannot
         # serve a Qt 6.8 app, so the small KDE lib is built against the aqt Qt.
-        # --as-needed: Qt6::Gui's CMake target links every consumer to
-        # libOpenGL.so.0 and libGLX.so.0, and this library calls neither. The
-        # AppImage leaves the GL stack to the host, and Ubuntu ships
-        # libOpenGL.so.0 only in libopengl0, which a desktop install does not
-        # pull in, so the unused entry kept the app from starting (#141).
+        # It links libOpenGL.so.0 like KF6GuiAddons does; the Build AppImage
+        # step removes that entry from the bundled copies (#141).
         run: |
           git clone --depth 1 --branch v6.3.5 https://invent.kde.org/plasma/layer-shell-qt.git
           cmake -S layer-shell-qt -B build-lsq -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
@@ -161,13 +157,11 @@ jobs:
         # Klipper clipboard HISTORY - plain image/png (QClipboard/wl-copy) is
         # pasteable but never recorded (issue #51). Noble has no KF6 at all, so
         # source-build the small framework into the same prefix. It needs the
-        # plasma-wayland-protocols installed two steps up. --as-needed as for
-        # LayerShellQt above (#141).
+        # plasma-wayland-protocols installed two steps up.
         run: |
           git clone --depth 1 --branch v6.10.0 https://invent.kde.org/frameworks/kguiaddons.git
           cmake -S kguiaddons -B build-kga -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_SHARED_LINKER_FLAGS=-Wl,--as-needed \
             -DCMAKE_PREFIX_PATH="$PWD/lsq-prefix" \
             -DCMAKE_INSTALL_PREFIX="$PWD/lsq-prefix" \
             -DKDE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_LIBDIR=lib \
@@ -322,8 +316,26 @@ jobs:
             "${HELPER_ARGS[@]}" \
             --exclude-library "libwayland-client*" \
             --exclude-library "libwayland-cursor*" \
-            --exclude-library "libwayland-egl*" \
-            --output appimage
+            --exclude-library "libwayland-egl*"
+
+          # Ubuntu ships libOpenGL.so.0 only in libopengl0, which a desktop
+          # install lacks (#141), and the bundled KDE libraries list it without
+          # calling it: aqt's libQt6Gui calls glGetString and glGetIntegerv but
+          # lists libGL.so.1, not libOpenGL.so.0, so ld keeps libOpenGL.so.0
+          # for them in anything that links Qt6::Gui, --as-needed (Ubuntu's
+          # default) or not. libGL.so.1 serves those calls at run time. Only
+          # the AppDir copies are patched, after unisic was linked: in
+          # lsq-prefix the entry is what keeps it out of unisic's own NEEDED
+          # list. A library that does call gl* keeps it and fails the check
+          # below.
+          while IFS= read -r lib; do
+            nm -D --undefined-only "$lib" | grep -E ' gl[A-Z]' >/dev/null && continue
+            patchelf --remove-needed libOpenGL.so.0 "$lib"
+          done < <(find AppDir/usr -type f \( -name '*.so*' -o -path 'AppDir/usr/bin/*' \) \
+                   -exec sh -c 'readelf -d "$1" 2>/dev/null | grep -q "\[libOpenGL\.so\.0\]" && echo "$1"' _ {} \;)
+          # A second run only packs: linuxdeploy never overwrites a file the
+          # AppDir already has.
+          ./tools/linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
 
           # The wayland platform plugin must actually be in the AppDir - fail
           # loudly instead of shipping another XWayland-only build.

@@ -70,7 +70,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 - **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
 - **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.
 
-Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: the only request Unisic makes on its own is a release check against GitHub ([details](https://unisic.app/docs/introduction#privacy)).
+Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: the only request Unisic makes on its own is a release check against GitHub, which you can turn off ([privacy policy](PRIVACY.md)).
 
 <details>
 <summary><b>X11 also works (best-effort second target)</b></summary>
@@ -106,6 +106,8 @@ Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for
 
 A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> works either way.
 
+To uninstall: the setup wizard's copy goes through Windows Settings > Apps > Installed apps > Unisic > Uninstall, which also removes staged updates. For the zip, quit Unisic from the tray, turn off "Start at login" first if you turned it on, then delete the unpacked folder. Either way, your settings and capture history stay in `%APPDATA%\Unisic` and `%LOCALAPPDATA%\Unisic`; delete those two folders to remove them too.
+
 </details>
 
 <details>
@@ -123,6 +125,17 @@ cmake --build build && ./build/unisic
 Every dependency is required: configure stops and names the missing package instead of building a Unisic with a feature quietly absent. The one exception is background removal: ONNX Runtime is loaded only when it is used, bundled in the Flatpak, and elsewhere comes from your distribution or a download in Settings. Dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [Members of the unisic organization](https://github.com/orgs/unisic/people)
+- Approvers: [Owners](https://github.com/orgs/unisic/people?query=role%3Aowner)
+
+The Windows binaries are built by GitHub Actions from this repository ([.github/workflows/windows.yml](.github/workflows/windows.yml)).
+
+Privacy policy: This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it, apart from the automatic update check described in [PRIVACY.md](PRIVACY.md), which can be turned off.
 
 ## Contributing
 

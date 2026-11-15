@@ -75,6 +75,10 @@ public:
     bool updatesManagedExternally() const;
     bool canSelfUpdate() const;
     bool canInstallViaScript() const;
+    // A found update is also announced by a tray notification (platform half):
+    // on Windows the in-app toast is the only other sign of it, and that needs
+    // the window open, while the app spends its day in the tray.
+    static bool notifiesFromTray();
 
     // Automatic policy: first check shortly after startup, then daily. No-op
     // (and stops the timer) on dev builds and while the autoCheckUpdates

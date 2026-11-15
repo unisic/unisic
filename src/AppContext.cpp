@@ -187,6 +187,12 @@ AppContext::AppContext(QObject *parent)
     // download-progress chunk and would rebuild the tray continuously.
     connect(m_updater, &UpdateChecker::availabilityChanged, this, &AppContext::setupTray);
     connect(m_updater, &UpdateChecker::updateFound, this, [this](const QString &v) {
+        // Windows: also a system notification, once per version like the rest
+        // of this handler. Never while recording: the direct grab would film it.
+        if (UpdateChecker::notifiesFromTray() && m_tray && m_settings->showNotifications()
+            && !recording())
+            m_tray->showMessage(tr("Unisic %1 is available").arg(v),
+                                tr("It installs itself in the background. Click to open Unisic."));
         // Native package install: no silent self-update path, but we CAN offer to
         // run install.sh in a terminal. Ask instead of toasting - QML opens the
         // "Install now?" prompt (once per version, gated by updateFound itself).
@@ -6454,6 +6460,8 @@ void AppContext::setupTray()
         if (r == QSystemTrayIcon::Trigger)
             emit showMainWindowRequested();
     });
+    // The only message this icon shows is the update notice above (Windows).
+    connect(m_tray, &QSystemTrayIcon::messageClicked, this, &AppContext::showMainWindowRequested);
     m_tray->show();
     emit trayAvailableChanged();
 }

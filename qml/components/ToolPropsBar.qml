@@ -770,7 +770,7 @@ Flow {
             count: swatchGroup.baseCount + swatchGroup.recentCount
             entryIndex: swatchGroup._selected()
 
-            Accessible.name: qsTr("Stroke colour")
+            Accessible.name: qsTr("Stroke color")
             Accessible.description: qsTr("Left and right arrows move between the swatches, Space picks one")
 
             // Where the ring lands on entry: the swatch holding the colour the
@@ -802,7 +802,7 @@ Flow {
                     width: root.pill ? 24 : 26
                     height: width
                     radius: width / 2
-                    accessibleName: qsTr("Stroke colour %1").arg(String(modelData))
+                    accessibleName: qsTr("Stroke color %1").arg(String(modelData))
                     dotColor: modelData
                     active: Qt.colorEqual(root.canvas.strokeColor, modelData)
                     onClicked: root.canvas.strokeColor = modelData
@@ -834,7 +834,7 @@ Flow {
                     width: root.pill ? 24 : 26
                     height: width
                     radius: width / 2
-                    accessibleName: qsTr("Recent stroke colour %1").arg(String(modelData))
+                    accessibleName: qsTr("Recent stroke color %1").arg(String(modelData))
                     dotColor: modelData
                     active: Qt.colorEqual(root.canvas.strokeColor, modelData)
                     onClicked: root.canvas.strokeColor = modelData
@@ -1057,7 +1057,7 @@ Flow {
         }
         ColorDot {
             activeFocusOnTab: root.controlsFocusable && enabled
-            accessibleName: qsTr("Shape fill colour %1").arg(String(root.canvas.shapeFillColor))
+            accessibleName: qsTr("Shape fill color %1").arg(String(root.canvas.shapeFillColor))
             visible: root.has("fill")
             dotColor: root.canvas.shapeFillColor
             active: root.canvas.shapeFillEnabled
@@ -1146,7 +1146,7 @@ Flow {
         }
         ColorDot {
             activeFocusOnTab: root.controlsFocusable && enabled
-            accessibleName: qsTr("Text outline colour %1").arg(String(root.canvas.textOutlineColor))
+            accessibleName: qsTr("Text outline color %1").arg(String(root.canvas.textOutlineColor))
             visible: root.has("font")
             dotColor: root.canvas.textOutlineColor
             active: root.canvas.textOutline
@@ -1164,7 +1164,7 @@ Flow {
         }
         ColorDot {
             activeFocusOnTab: root.controlsFocusable && enabled
-            accessibleName: qsTr("Text background colour %1").arg(String(root.canvas.textBackgroundColor))
+            accessibleName: qsTr("Text background color %1").arg(String(root.canvas.textBackgroundColor))
             visible: root.has("font")
             dotColor: root.canvas.textBackgroundColor
             active: root.canvas.textBackground

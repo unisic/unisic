@@ -3142,7 +3142,7 @@ void AppContext::devTestSaveDialog()
         m_settings->saveDirectory() + QLatin1Char('/') + makeFileName(),
         tr("Images (*.png *.jpg *.jpeg *.webp)"));
     if (chosen.isEmpty()) {
-        showToast(tr("Dev: save dialog cancelled"));
+        showToast(tr("Dev: save dialog canceled"));
         return;
     }
     const QFileInfo fi(chosen);

@@ -579,7 +579,7 @@ Window {
                     // is; nowhere else can an app learn that.
                     const win = (overlayController.activeWindowKnown
                               ? qsTr(" · W selects the active window") : "")
-                              + (App.settings.pixelLoupe ? qsTr(" · C copies the colour") : "")
+                              + (App.settings.pixelLoupe ? qsTr(" · C copies the color") : "")
                     // The verb has to match the mode: the same sentence used to
                     // promise a capture whether it took a screenshot, read text
                     // or started recording.

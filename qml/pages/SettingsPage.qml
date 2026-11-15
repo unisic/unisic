@@ -226,7 +226,7 @@ Item {
         if (detail && detail.length > 0)
             t += "\n\n" + detail
         if (reason && reason.length > 0)
-            t += "\n\n⚠ " + qsTr("Greyed out: ") + reason
+            t += "\n\n⚠ " + qsTr("Grayed out: ") + reason
         helpDialog.title = label
         helpDialog.text = t
         helpDialog.open()
@@ -1483,7 +1483,7 @@ Item {
                             text: App.buildNumber === "dev"
                                   ? qsTr("Self-update is disabled in dev builds.")
                                   : App.updater.installKind === "flatpak"
-                                    ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software centre do it.")
+                                    ? qsTr("Flatpak keeps this install up to date - run \"flatpak update\" or let your software center do it.")
                                     : App.updater.installKind === "aur"
                                     ? qsTr("Your AUR helper keeps this install up to date - run \"paru -Syu\", \"yay -Syu\" or whichever helper you use.")
                                     : App.updater.installKind === "appimage"
@@ -1677,7 +1677,7 @@ Item {
                         help: App.capDoNotDisturb
                               ? qsTr("Temporarily pauses desktop notifications during captures and recordings.")
                               : qsTr("Available on KDE Plasma; this desktop does not expose the compatible notification inhibitor.")
-                        helpDetail: qsTr("The previous notification state is restored as soon as capture stops, fails, or is cancelled. Encoding and uploads do not keep notifications paused.")
+                        helpDetail: qsTr("The previous notification state is restored as soon as capture stops, fails, or is canceled. Encoding and uploads do not keep notifications paused.")
                         USwitch {
                             checked: App.settings.doNotDisturbWhileCapturing
                             enabled: App.capDoNotDisturb || App.devBuild
@@ -2042,8 +2042,8 @@ Item {
                     }
                     SettingRow {
                         visible: App.settings.cursorHighlight && App.settings.cursorHighlightHalo
-                        label: qsTr("Halo colour")
-                        help: qsTr("Colour of the glow drawn under the pointer.")
+                        label: qsTr("Halo color")
+                        help: qsTr("Color of the glow drawn under the pointer.")
                         Row {
                             spacing: 6
                             Repeater {
@@ -2597,7 +2597,7 @@ Item {
                     SettingRow {
                         label: qsTr("Image format")
                         help: qsTr("File format for saved captures: PNG, JPEG, WebP or GIF.")
-                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colours - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
+                        helpDetail: qsTr("PNG is lossless and largest; JPEG and WebP are smaller with adjustable quality. GIF makes every capture a single-frame GIF, needs ffmpeg, and is limited to 256 colors - pick it for a site that takes nothing else. The format also applies to uploads and to the clipboard-encoded image where relevant.")
                         UComboBox {
                             width: 150
                             model: ["png", "jpg", "webp", "gif"]
@@ -2608,7 +2608,7 @@ Item {
                     SettingRow {
                         label: qsTr("Quality (JPEG/WebP/GIF): %1").arg(App.settings.imageQuality)
                         help: qsTr("Compression quality for lossy formats.")
-                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colours below 40, 128 below 75, the full 256 above.")
+                        helpDetail: qsTr("Higher means better fidelity and larger files. PNG ignores this setting because it is always lossless. For GIF it buys palette entries instead: 64 colors below 40, 128 below 75, the full 256 above.")
                         USlider {
                             width: 200
                             from: 10; to: 100
@@ -2690,12 +2690,12 @@ Item {
                     SettingRow {
                         label: qsTr("Ask where to save")
                         help: qsTr("Prompts for a location for each capture instead of saving straight to the folder.")
-                        helpDetail: qsTr("Requires saving to be enabled. Cancelling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
+                        helpDetail: qsTr("Requires saving to be enabled. Canceling the dialog skips the save - the capture still lands in history and on the clipboard. The screenshots folder above is the starting location.")
                         USwitch { checked: App.settings.askWhereToSave; onToggled: (c) => App.settings.askWhereToSave = c }
                     }
                     SettingRow {
                         label: qsTr("Date subfolders")
-                        help: qsTr("Organises saved screenshots and recordings into per-month subfolders (yyyy-MM).")
+                        help: qsTr("Organizes saved screenshots and recordings into per-month subfolders (yyyy-MM).")
                         helpDetail: qsTr("Keeps busy capture folders tidy. The subfolder is created under both the screenshots and the recordings folder above.")
                         USwitch { checked: App.settings.dateSubfolders; onToggled: (c) => App.settings.dateSubfolders = c }
                     }
@@ -2899,7 +2899,7 @@ Item {
                         available: App.settings.watermarkEnabled
                                    && App.settings.watermarkPattern === "single"
                         label: qsTr("Position")
-                        help: qsTr("Corner, centre edge, or middle of the image for the watermark.")
+                        help: qsTr("Corner, center edge, or middle of the image for the watermark.")
                         UComboBox {
                             width: 180
                             model: page.watermarkPosNames
@@ -3399,15 +3399,15 @@ Item {
                     }
                     SettingRow {
                         label: qsTr("Show which capture mode is running")
-                        help: qsTr("A mode indicator and a coloured screen frame on the selection overlay.")
-                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's colour, and the overlay's own colours come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
+                        help: qsTr("A mode indicator and a colored screen frame on the selection overlay.")
+                        helpDetail: qsTr("The overlay looks the same whether you are taking a screenshot, measuring, reading text or starting a recording, so a mis-fired hotkey only shows itself once the shot is taken - or the recording has already started. With this on, the mode is drawn on the overlay (as a badge or a faded icon, whichever style is picked below), the screen edge and the selection handles take that mode's color, and the overlay's own colors come from the theme (a custom theme can set modeShot, modeMeasure, modeOcr, modeGif and modeVideo). The confirm button and the hint always name the right action, with this on or off.")
                         USwitch { checked: App.settings.overlayModeBadge; onToggled: (c) => App.settings.overlayModeBadge = c }
                     }
                     SettingRow {
                         label: qsTr("Mode indicator style")
                         available: App.settings.overlayModeBadge
                         help: qsTr("Name the mode in a badge at the top, or draw its icon faded in the middle.")
-                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the centre of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The coloured screen frame and selection handles stay in both.")
+                        helpDetail: qsTr("“Badge at the top” names the mode in a pill above the screen, which is unmissable but is a strip of chrome over the desktop you are about to capture. “Icon in the middle” draws that mode's icon large and faded in the center of the screen instead, with your selection cut out of it: the part you are framing over is not drawn, and the rest keeps naming the capture. The colored screen frame and selection handles stay in both.")
                         UComboBox {
                             width: 200
                             model: [qsTr("Badge at the top"), qsTr("Icon in the middle")]
@@ -3425,7 +3425,7 @@ Item {
                     SettingRow {
                         label: qsTr("Show a pixel loupe while selecting")
                         help: qsTr("A magnifier by the cursor shows the exact pixel you are on.")
-                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and colour - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
+                        helpDetail: qsTr("A zoomed pixel grid follows the cursor with the hovered pixel highlighted, plus its position and color - so a selection edge lands on exactly the pixel you mean. Scroll on the overlay to zoom it in and out; scroll all the way out to hide the loupe. Purely visual and never captured into the image.")
                         USwitch { checked: App.settings.pixelLoupe; onToggled: (c) => App.settings.pixelLoupe = c }
                     }
                 }

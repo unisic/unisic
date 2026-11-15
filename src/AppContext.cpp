@@ -1286,7 +1286,7 @@ void AppContext::onScrollRegionPicked(const QRect &physRegion, QScreen *screen, 
     endCaptureIsolation();
     if (!picked) {
         m_nextCaptureTask = {};
-        clearCliCapture(tr("Capture cancelled"));
+        clearCliCapture(tr("Capture canceled"));
     }
 }
 
@@ -1317,7 +1317,7 @@ void AppContext::startScrollCapture(const QRect &physRegion, QScreen *screen, qr
         connect(m_scrollCapture, &ScrollCaptureController::cancelled, this, [this] {
             endScrollIsolation();
             m_nextCaptureTask = {};
-            clearCliCapture(tr("Capture cancelled"));
+            clearCliCapture(tr("Capture canceled"));
         });
     }
     // The session is a capture for as long as it runs: our window stays out of
@@ -1381,7 +1381,7 @@ void AppContext::captureRegionWithTool(int initialTool)
             else
             {
                 m_nextCaptureTask = {};
-                clearCliCapture(tr("Capture cancelled"));
+                clearCliCapture(tr("Capture canceled"));
             }
         }, initialTool == AnnotationCanvas::Measure ? OverlayController::Purpose::Measure
                                                   : OverlayController::Purpose::Shot,

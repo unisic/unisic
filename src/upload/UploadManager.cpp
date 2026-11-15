@@ -965,7 +965,7 @@ void UploadManager::startUploadTo(const QJsonObject &dest, const QByteArray &dat
     if (isImgur(dest) && imgurClientId(dest).isEmpty()) {
         cb({}, {}, tr("Imgur needs your own Client-ID. Register a free application at "
                       "https://api.imgur.com/oauth2/addclient (\"Anonymous usage without "
-                      "user authorisation\"), then paste the Client-ID into "
+                      "user authorization\"), then paste the Client-ID into "
                       "Destinations → %1 → Edit.").arg(dest.value(QStringLiteral("name")).toString()));
         return;
     }

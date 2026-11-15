@@ -331,7 +331,19 @@ AppContext::AppContext(QObject *parent)
 
     m_ocr = new OcrEngine(this);
     m_ocr->setEngine(ocrEffectiveEngine());
+    m_ocr->setPaddleSetup([this] { return m_bgRemover->ocrSetup(); });
     connect(m_settings, &Settings::ocrEngineChanged, m_ocr, [this] {
+        m_ocr->setEngine(ocrEffectiveEngine());
+        emit ocrEngineStateChanged();
+    });
+    // A finished download of the better OCR model selects it, once there is a
+    // runtime to run it (none found and none downloadable: Settings says to
+    // install onnxruntime); removing it goes back to the platform default.
+    connect(m_bgRemover, &BackgroundRemover::ocrModelChanged, this, [this] {
+        if (!m_bgRemover->ocrModel().isEmpty() && m_bgRemover->runtimeFound())
+            m_settings->setOcrEngine(QStringLiteral("paddle"));
+        else if (m_settings->ocrEngine() == QLatin1String("paddle"))
+            m_settings->setOcrEngine(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE));
         m_ocr->setEngine(ocrEffectiveEngine());
         emit ocrEngineStateChanged();
     });
@@ -572,7 +584,8 @@ QStringList AppContext::ocrEngines() const
 
 QString AppContext::ocrEffectiveEngine() const
 {
-    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable);
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable,
+                                 !m_bgRemover->ocrModel().isEmpty());
 }
 
 void AppContext::checkOcrEngines()

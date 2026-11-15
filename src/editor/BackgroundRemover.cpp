@@ -36,7 +36,7 @@ struct Pin {
     qint64 bytes;
     const char *sha256;
 };
-enum { RuntimePin, ModelPin };
+enum { RuntimePin, ModelPin, OcrTinyDetPin, OcrTinyRecPin, OcrSmallDetPin, OcrSmallRecPin };
 const Pin kPins[] = {
     {"https://github.com/microsoft/onnxruntime/releases/download/v1.31.1/"
      "onnxruntime-linux-x64-1.31.1.tgz",
@@ -46,7 +46,29 @@ const Pin kPins[] = {
     {"https://github.com/unisic/unisic-models/releases/download/birefnet-lite-dcn-1/"
      "birefnet-lite-dcn.onnx",
      181120537, "ef0bfeb72e5d83fa032433b4017accd338b74bcfb98af53f3240a751ef0ae961"},
+    // The better OCR model: PP-OCRv6 (PaddleOCR, Apache-2.0) as RapidOCR 3.10
+    // converts it, byte for byte the files RapidOCR pins (its default_models.yaml).
+    {"https://github.com/unisic/unisic-models/releases/download/ppocr-v6-1/PP-OCRv6_det_tiny.onnx",
+     1829618, "f42c0fbd294d95eac1a550e131b277dac97462c8025fa4b6c3cec1b7894bd3d5"},
+    {"https://github.com/unisic/unisic-models/releases/download/ppocr-v6-1/PP-OCRv6_rec_tiny.onnx",
+     4489813, "e16e242de5937ad92609223f19bc2aff3727ee40b095f996907c24749bad251b"},
+    {"https://github.com/unisic/unisic-models/releases/download/ppocr-v6-1/PP-OCRv6_det_small.onnx",
+     9929594, "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f"},
+    {"https://github.com/unisic/unisic-models/releases/download/ppocr-v6-1/PP-OCRv6_rec_small.onnx",
+     21234383, "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"},
 };
+
+PaddleOcr::Model ocrModelOf(const QString &id)
+{
+    return id == QLatin1String("small") ? PaddleOcr::Model::Small : PaddleOcr::Model::Tiny;
+}
+
+// The detection and recognition pins of one OCR model size.
+QList<int> ocrPins(PaddleOcr::Model m)
+{
+    return m == PaddleOcr::Model::Small ? QList<int>{OcrSmallDetPin, OcrSmallRecPin}
+                                        : QList<int>{OcrTinyDetPin, OcrTinyRecPin};
+}
 // The first release with a CPU kernel for DeformConv, which the model uses
 // (microsoft/onnxruntime 163f614, in v1.25.0 and not in v1.24.4). Older ones
 // would load and then fail on every run, so the probe passes them over.
@@ -93,6 +115,29 @@ QString dataDir()
 QString runtimeDir()
 {
     return dataDir() + QStringLiteral("/onnxruntime");
+}
+
+QString pinPath(int pin)
+{
+    switch (pin) {
+    case RuntimePin: return runtimeDir() + QStringLiteral("/runtime.tgz");
+    case ModelPin: return BackgroundRemover::modelPath();
+    case OcrTinyDetPin: return PaddleOcr::detPath(PaddleOcr::Model::Tiny);
+    case OcrTinyRecPin: return PaddleOcr::recPath(PaddleOcr::Model::Tiny);
+    case OcrSmallDetPin: return PaddleOcr::detPath(PaddleOcr::Model::Small);
+    default: return PaddleOcr::recPath(PaddleOcr::Model::Small);
+    }
+}
+
+bool pinInstalled(int pin)
+{
+    return QFileInfo(pinPath(pin)).size() == kPins[pin].bytes;
+}
+
+bool ocrInstalled(PaddleOcr::Model m)
+{
+    const QList<int> pins = ocrPins(m);
+    return std::all_of(pins.begin(), pins.end(), pinInstalled);
 }
 
 struct Cut {
@@ -437,7 +482,9 @@ bool BackgroundRemover::modelInstalled() const
 
 bool BackgroundRemover::hasDownloads() const
 {
-    return QFile::exists(modelPath()) || QFile::exists(runtimeDir() + QLatin1Char('/') + QLatin1String(kRuntimeFile));
+    // A downloaded runtime the OCR model still uses is not this row's to delete.
+    return QFile::exists(modelPath())
+           || (ocrModel().isEmpty() && QFile::exists(runtimeDir() + QLatin1Char('/') + QLatin1String(kRuntimeFile)));
 }
 
 bool BackgroundRemover::runtimeFound()
@@ -530,15 +577,30 @@ void BackgroundRemover::fail(const QString &message)
 
 void BackgroundRemover::download()
 {
-    if (downloading())
+    start(BackgroundJob, {ModelPin});
+}
+
+void BackgroundRemover::downloadOcr()
+{
+    start(OcrJob, ocrPins(ocrModelOf(m_ocrChoice)));
+}
+
+// Queues the runtime when it is missing and can be fetched, then whichever of
+// `pins` is not already on disk.
+void BackgroundRemover::start(Job job, QList<int> pins)
+{
+    if (fetching() || !available())
         return;
+    m_job = job;
+    m_errorJob = job;
     m_error.clear();
     m_queue.clear();
     m_cancelled = false;
     if (!runtimeFound() && canDownloadRuntime())
         m_queue << RuntimePin;
-    if (!modelInstalled())
-        m_queue << ModelPin;
+    for (int pin : std::as_const(pins))
+        if (!pinInstalled(pin))
+            m_queue << pin;
     m_totalBytes = 0;
     for (int pin : std::as_const(m_queue))
         m_totalBytes += kPins[pin].bytes;
@@ -551,6 +613,14 @@ void BackgroundRemover::download()
 void BackgroundRemover::fetchNext()
 {
     if (m_queue.isEmpty()) {
+        // Everything arrived. The OCR model replaces the other size on disk.
+        if (m_job == OcrJob) {
+            const PaddleOcr::Model other = ocrModelOf(m_ocrChoice) == PaddleOcr::Model::Small
+                                               ? PaddleOcr::Model::Tiny : PaddleOcr::Model::Small;
+            for (int pin : ocrPins(other))
+                QFile::remove(pinPath(pin));
+            emit ocrModelChanged();
+        }
         emit stateChanged();
         return;
     }
@@ -560,7 +630,7 @@ void BackgroundRemover::fetchNext()
 void BackgroundRemover::fetch(int pin)
 {
     const Pin &p = kPins[pin];
-    const QString dest = pin == ModelPin ? modelPath() : runtimeDir() + QStringLiteral("/runtime.tgz");
+    const QString dest = pinPath(pin);
     auto file = std::make_shared<QSaveFile>(dest);
     if (!QDir().mkpath(QFileInfo(dest).absolutePath()) || !file->open(QIODevice::WriteOnly)) {
         fail(tr("Cannot write %1: %2").arg(dest, file->errorString()));
@@ -677,14 +747,86 @@ void BackgroundRemover::cancelDownload()
 
 void BackgroundRemover::deleteDownloads()
 {
-    cancelDownload();
+    if (downloading())
+        cancelDownload();
     m_idle.stop();
     if (m_rt)
         m_rt->dropIdle();
     QFile::remove(modelPath());
-    QDir(runtimeDir()).removeRecursively();
+    if (ocrModel().isEmpty() && !ocrDownloading())
+        QDir(runtimeDir()).removeRecursively();
     m_error.clear();
     emit stateChanged();
+}
+
+QString BackgroundRemover::ocrModel() const
+{
+    if (!available())
+        return {};
+    const PaddleOcr::Model chosen = ocrModelOf(m_ocrChoice);
+    const PaddleOcr::Model other = chosen == PaddleOcr::Model::Small ? PaddleOcr::Model::Tiny
+                                                                     : PaddleOcr::Model::Small;
+    for (PaddleOcr::Model m : {chosen, other})
+        if (ocrInstalled(m))
+            return m == PaddleOcr::Model::Small ? QStringLiteral("small") : QStringLiteral("tiny");
+    return {};
+}
+
+void BackgroundRemover::setOcrChoice(const QString &model)
+{
+    const QString m = model == QLatin1String("small") ? model : QStringLiteral("tiny");
+    if (m == m_ocrChoice)
+        return;
+    m_ocrChoice = m;
+    emit stateChanged();
+}
+
+QString BackgroundRemover::ocrDownloadSizeText()
+{
+    qint64 bytes = 0;
+    if (!runtimeFound() && canDownloadRuntime())
+        bytes += kPins[RuntimePin].bytes;
+    for (int pin : ocrPins(ocrModelOf(m_ocrChoice)))
+        if (!pinInstalled(pin))
+            bytes += kPins[pin].bytes;
+    return QLocale().formattedDataSize(bytes, 0, QLocale::DataSizeTraditionalFormat);
+}
+
+QString BackgroundRemover::ocrModelSizeText(const QString &model) const
+{
+    qint64 bytes = 0;
+    for (int pin : ocrPins(ocrModelOf(model)))
+        bytes += kPins[pin].bytes;
+    return QLocale().formattedDataSize(bytes, 0, QLocale::DataSizeTraditionalFormat);
+}
+
+void BackgroundRemover::deleteOcrModel()
+{
+    if (ocrDownloading())
+        cancelDownload();
+    for (int pin : {OcrTinyDetPin, OcrTinyRecPin, OcrSmallDetPin, OcrSmallRecPin})
+        QFile::remove(pinPath(pin));
+    if (!modelInstalled() && !downloading())
+        QDir(runtimeDir()).removeRecursively();
+    if (m_errorJob == OcrJob)
+        m_error.clear();
+    emit ocrModelChanged();
+    emit stateChanged();
+}
+
+PaddleOcr::Setup BackgroundRemover::ocrSetup()
+{
+    PaddleOcr::Setup s;
+    if (!available() || !runtimeFound())
+        return s;
+    s.api = m_rt->api;
+    s.env = m_rt->env;
+    const QString m = ocrModel();
+    if (!m.isEmpty()) {
+        s.det = PaddleOcr::detPath(ocrModelOf(m));
+        s.rec = PaddleOcr::recPath(ocrModelOf(m));
+    }
+    return s;
 }
 
 void BackgroundRemover::remove(const QImage &img, QObject *context, Done done)

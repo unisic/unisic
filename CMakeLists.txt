@@ -278,7 +278,8 @@ endif()
 # PipeWireGrabber is there too, under the kit's own HAVE_PIPEWIRE, likewise PUBLIC.
 
 target_sources(unisic PRIVATE src/ocr/OcrEngine.h src/ocr/OcrEngine.cpp src/ocr/OcrEngines.h
-                              src/ocr/WindowsOcr.h src/ocr/WindowsOcr.cpp)
+                              src/ocr/WindowsOcr.h src/ocr/WindowsOcr.cpp
+                              src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp)
 target_link_libraries(unisic PRIVATE PkgConfig::TESSERACT ZXing::ZXing)
 target_compile_definitions(unisic PRIVATE HAVE_TESSERACT HAVE_ZXING)
 
@@ -975,6 +976,28 @@ if(BUILD_TESTING)
     add_test(NAME unisic_ocr_engine_test COMMAND unisic_ocr_engine_test)
     # QPainter text needs a platform plugin.
     set_tests_properties(unisic_ocr_engine_test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
+    # The better OCR model's pure pieces: DB boxes on a synthetic probability
+    # map, CTC decode, glyph boxes, row grouping. No runtime, no model.
+    qt_add_executable(unisic_paddle_ocr_test
+        tests/PaddleOcrTest.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp src/ocr/OcrWord.h)
+    target_link_libraries(unisic_paddle_ocr_test PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+    target_include_directories(unisic_paddle_ocr_test PRIVATE src third_party)
+    add_test(NAME unisic_paddle_ocr_test COMMAND unisic_paddle_ocr_test)
+
+    # Developer harness, not a test and never installed: runs the better OCR
+    # model over a folder of pictures and writes the benchmark's JSON
+    # (tests/PaddleOcrBench.cpp). Built on demand: cmake --build build --target unisic_paddle_ocr_bench
+    if(NOT WIN32)
+        qt_add_executable(unisic_paddle_ocr_bench
+            tests/PaddleOcrBench.cpp src/ocr/PaddleOcr.h src/ocr/PaddleOcr.cpp
+            src/editor/BackgroundRemover.h src/editor/BackgroundRemover.cpp)
+        set_target_properties(unisic_paddle_ocr_bench PROPERTIES EXCLUDE_FROM_ALL ON)
+        target_link_libraries(unisic_paddle_ocr_bench PRIVATE
+            Qt6::Core Qt6::Gui Qt6::Network Qt6::Concurrent Qt6::Qml)
+        target_include_directories(unisic_paddle_ocr_bench PRIVATE src third_party)
+        target_compile_definitions(unisic_paddle_ocr_bench PRIVATE UNISIC_VERSION="${UNISIC_VERSION_STRING}")
+    endif()
 
     if(WIN32)
         # Windows has no session bus. A test that asks for one (the theme seed

@@ -19,6 +19,7 @@ private slots:
         QCOMPARE(engines.value(0), QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE));
         QVERIFY(engines.contains(QStringLiteral("tesseract")));
         QCOMPARE(engines.contains(QStringLiteral("windows")), WindowsOcr::built());
+        QCOMPARE(engines.contains(QStringLiteral("paddle")), !WindowsOcr::built());
         QCOMPARE(OcrEngines::resolve(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE)),
                  QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE));
     }
@@ -26,7 +27,7 @@ private slots:
     void foreignIdRunsTesseract()
     {
         QCOMPARE(OcrEngines::resolve(QString()), QStringLiteral("tesseract"));
-        QCOMPARE(OcrEngines::resolve(QStringLiteral("paddle")), QStringLiteral("tesseract"));
+        QCOMPARE(OcrEngines::resolve(QStringLiteral("no-such-engine")), QStringLiteral("tesseract"));
         // Settings imported from Windows into a build without the engine.
         QCOMPARE(OcrEngines::resolve(QStringLiteral("windows")),
                  WindowsOcr::built() ? QStringLiteral("windows") : QStringLiteral("tesseract"));
@@ -36,12 +37,24 @@ private slots:
     {
         const QString windows = QStringLiteral("windows"), tesseract = QStringLiteral("tesseract");
         // No OCR language installed: Tesseract runs for the default and for an explicit pick alike.
-        QCOMPARE(OcrEngines::effective(windows, false), tesseract);
-        QCOMPARE(OcrEngines::effective(windows, true), OcrEngines::resolve(windows));
-        QCOMPARE(OcrEngines::effective(tesseract, false), tesseract);
-        QCOMPARE(OcrEngines::effective(tesseract, true), tesseract);
-        QCOMPARE(OcrEngines::effective(QStringLiteral("paddle"), true), tesseract);
-        QCOMPARE(OcrEngines::effective(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE), false), tesseract);
+        QCOMPARE(OcrEngines::effective(windows, false, true), tesseract);
+        QCOMPARE(OcrEngines::effective(windows, true, true), OcrEngines::resolve(windows));
+        QCOMPARE(OcrEngines::effective(tesseract, false, true), tesseract);
+        QCOMPARE(OcrEngines::effective(tesseract, true, true), tesseract);
+        QCOMPARE(OcrEngines::effective(QStringLiteral("no-such-engine"), true, true), tesseract);
+        QCOMPARE(OcrEngines::effective(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE), false, true), tesseract);
+    }
+
+    void paddleRunsOnlyWithItsModel()
+    {
+        const QString paddle = QStringLiteral("paddle"), tesseract = QStringLiteral("tesseract");
+        if (WindowsOcr::built()) {
+            QCOMPARE(OcrEngines::effective(paddle, true, true), tesseract);
+            return;
+        }
+        QCOMPARE(OcrEngines::effective(paddle, false, true), paddle);
+        QCOMPARE(OcrEngines::effective(paddle, false, false), tesseract);
+        QCOMPARE(OcrEngines::effective(tesseract, false, true), tesseract);
     }
 
     void wordSplitsIntoTilingGlyphs()

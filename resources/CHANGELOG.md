@@ -10,11 +10,13 @@ whole per release (not per individual change).
 
 ### English
 **Added**
-- **Windows OCR on Windows**: text recognition (OCR region, picking text in the editor, Auto-redact) now uses the recognizer built into Windows by default, in the languages installed for your Windows account. Tesseract stays available under Settings > General > Text recognition engine, and takes over on its own when no Windows OCR language is installed: Settings then shows Tesseract as the engine in use and says why. Linux keeps Tesseract.
+- **Windows OCR on Windows**: text recognition (OCR region, picking text in the editor, Auto-redact) now uses the recognizer built into Windows by default, in the languages installed for your Windows account. Tesseract stays available under Settings > General > Text recognition engine, and takes over on its own when no Windows OCR language is installed: Settings then shows Tesseract as the engine in use and says why. Linux keeps Tesseract as its default.
+- **Better OCR model on Linux**: Settings > General can download PaddleOCR's PP-OCRv6 text recognizer, tiny (6 MB, recommended) or small (30 MB, the most accurate), together with ONNX Runtime when it is missing. On the screenshot benchmark it gets about one character in a hundred wrong (tiny) or one in two hundred and fifty (small), where Tesseract gets about one in ten, and it needs no language packs. A finished download selects it as the text recognition engine; Remove goes back to Tesseract. It reads Latin-script languages and Chinese (small also Japanese), so keep Tesseract for Cyrillic, Arabic and other scripts. It runs on this computer and nothing is uploaded.
 
 ### Polski
 **Dodane**
 - **Windows OCR w systemie Windows**: rozpoznawanie tekstu (OCR obszaru, zaznaczanie tekstu w edytorze, Auto-redakcja) korzysta teraz domyślnie z mechanizmu rozpoznawania wbudowanego w Windows, w językach zainstalowanych dla Twojego konta Windows. Tesseract jest nadal dostępny w Ustawienia > Ogólne > Silnik rozpoznawania tekstu i sam przejmuje rozpoznawanie, gdy nie jest zainstalowany żaden język Windows OCR: Ustawienia pokazują wtedy Tesseract jako używany silnik i wyjaśniają dlaczego. Linux nadal używa Tesseract.
+- **Lepszy model OCR w Linuksie**: w Ustawienia > Ogólne można pobrać model rozpoznawania tekstu PP-OCRv6 z PaddleOCR, najmniejszy (6 MB, zalecany) albo mały (30 MB, najdokładniejszy), razem z ONNX Runtime, jeśli go brakuje. W teście na zrzutach ekranu myli się w mniej więcej jednym znaku na sto (najmniejszy) albo jednym na dwieście pięćdziesiąt (mały), podczas gdy Tesseract w mniej więcej jednym na dziesięć, i nie potrzebuje pakietów językowych. Po pobraniu od razu zostaje wybrany jako silnik rozpoznawania tekstu; Usuń przywraca Tesseract. Czyta języki zapisywane alfabetem łacińskim i chiński (mały model także japoński), więc do cyrylicy, arabskiego i innych pism zostań przy Tesseract. Działa na tym komputerze i nic nie jest wysyłane.
 
 ## 0.8.10
 

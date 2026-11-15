@@ -9367,6 +9367,76 @@ Applies to the next capture.</source>
         <source>Auto-restart gate</source>
         <translation>自动重启校验</translation>
     </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="244"/>
+        <source>Remove the better OCR model?</source>
+        <translation>移除更好的 OCR 模型？</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="245"/>
+        <source>Text recognition goes back to Tesseract. Any ONNX Runtime that Unisic downloaded is removed too, unless background removal still needs it.</source>
+        <translation>文字识别将改回使用 Tesseract。Unisic 下载的 ONNX Runtime 也会一并移除，除非背景移除仍需要它。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1307"/>
+        <source>Download the better OCR model below to choose it.</source>
+        <translation>在下方下载更好的 OCR 模型后即可选择它。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1312"/>
+        <source>Tesseract uses its own language packs and the language settings below. The better OCR model makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese, and the small model also Japanese.</source>
+        <translation>Tesseract 使用自己的语言包和下方的语言设置。更好的 OCR 模型在截图上的错误少得多，也不需要语言包，但只能识别拉丁字母语言和中文，小型模型还能识别日文。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1317"/>
+        <source>Better OCR model</source>
+        <translation>更好的 OCR 模型</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1370"/>
+        <source>Reads the text in your captures with PaddleOCR&apos;s PP-OCRv6 instead of Tesseract: far fewer mistakes on screenshots, and no language packs to install. It reads Latin-script languages and Chinese, and the small model also Japanese; for Cyrillic, Arabic and other scripts keep Tesseract. It runs on this computer and nothing is uploaded.</source>
+        <translation>使用 PaddleOCR 的 PP-OCRv6 代替 Tesseract 读取截图中的文字：截图上的错误少得多，且无需安装语言包。它能识别拉丁字母语言和中文，小型模型还能识别日文；西里尔字母、阿拉伯文等其他文字请继续使用 Tesseract。它在本机运行，不会上传任何内容。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1375"/>
+        <source>Model size</source>
+        <translation>模型大小</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1376"/>
+        <source>Downloading a model selects it; the other size is removed.</source>
+        <translation>下载模型后会自动选用它，另一种大小的模型会被移除。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1380"/>
+        <source>Tiny (recommended)</source>
+        <translation>微型（推荐）</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1380"/>
+        <source>Small (most accurate)</source>
+        <translation>小型（最准确）</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1392"/>
+        <source>Tiny: %1 download, about 200 MB of memory while reading (up to 400 MB for a 4K screenshot). Fast, with few mistakes.</source>
+        <translation>微型：下载 %1，识别时占用约 200 MB 内存（4K 截图最多 400 MB）。速度快，错误少。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1394"/>
+        <source>Small: %1 download, about 350 MB of memory while reading (up to 600 MB for a 4K screenshot). About five times slower than tiny, with about a third of its mistakes.</source>
+        <translation>小型：下载 %1，识别时占用约 350 MB 内存（4K 截图最多 600 MB）。比微型慢约五倍，错误约为其三分之一。</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1409"/>
+        <source>Model: small, downloaded</source>
+        <translation>模型：小型，已下载</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1410"/>
+        <source>Model: tiny, downloaded</source>
+        <translation>模型：微型，已下载</translation>
+    </message>
 </context>
 <context>
     <name>StickerPopup</name>

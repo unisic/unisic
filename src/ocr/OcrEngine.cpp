@@ -1,6 +1,8 @@
 #include "OcrEngine.h"
 #include "OcrEngines.h"
 #include "WindowsOcr.h"
+#include <QThread>
+#include <algorithm>
 #include <QtConcurrent>
 #include <QCoreApplication>
 #include <QFutureWatcher>
@@ -29,6 +31,22 @@ using ZXingOptions = ZXing::DecodeHints;
 namespace {
 struct OcrResult { QString text; QString error; };
 struct OcrBoxResult { QVector<OcrWord> words; QString error; };
+
+// The better OCR model, when it is the engine. false means Tesseract reads
+// instead: the runtime went away, a model file was deleted, or a run failed.
+bool runPaddle(const PaddleOcr::Setup &s, const QImage &img, const std::atomic_bool &cancelled,
+               QVector<OcrWord> *words, QString *text)
+{
+    QString why = QStringLiteral("ONNX Runtime or the model is missing");
+    // Four threads: 107 ms a screenshot for tiny on an i5-13400F against 144 ms
+    // with ORT's own pick (every core) and 197 ms with one.
+    if (s.api && !s.det.isEmpty()
+        && PaddleOcr::recognize(s, img, cancelled, words, text, &why, std::min(4, QThread::idealThreadCount())))
+        return true;
+    if (!cancelled.load())
+        qWarning("OCR: the better OCR model cannot run (%s), using Tesseract", qUtf8Printable(why));
+    return false;
+}
 
 // The tessdata directories the loader consults, honouring TESSDATA_PREFIX (when
 // set, ONLY its dir is valid - advertising langs from the distro dirs there
@@ -237,7 +255,7 @@ QImage normalizePolarity(const QImage &src)
 // (so a copied range keeps its spaces). No barcode short-circuit - a QR
 // payload has no glyph geometry.
 OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript, QString engine,
-                         std::shared_ptr<std::atomic_bool> cancelled)
+                         PaddleOcr::Setup paddle, std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrBoxResult r;
     if (img.isNull()) {
@@ -254,6 +272,13 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript, QString eng
         if (cancelled->load())
             return r;
         qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
+    if (engine == QLatin1String("paddle")) {
+        if (runPaddle(paddle, img, *cancelled, &r.words, nullptr))
+            return r;
+        r.words.clear();
+        if (cancelled->load())
+            return r;
     }
     // Auto-language: detect the script (OSD) and narrow to its langpacks - far
     // more accurate than loading every installed pack at once. Empty result
@@ -325,7 +350,7 @@ OcrBoxResult runOcrBoxes(QImage img, QString langs, bool autoScript, QString eng
 // checkpoint on quit instead of pinning the global thread pool (whose
 // destructor waits) until tesseract finishes; nobody consumes the result then.
 OcrResult runOcr(QImage img, QString langs, bool autoScript, QString engine,
-                 std::shared_ptr<std::atomic_bool> cancelled)
+                 PaddleOcr::Setup paddle, std::shared_ptr<std::atomic_bool> cancelled)
 {
     OcrResult r;
     if (img.isNull()) {
@@ -362,6 +387,12 @@ OcrResult runOcr(QImage img, QString langs, bool autoScript, QString engine,
         if (cancelled->load())
             return r;
         qWarning("OCR: Windows OCR cannot run (%s), using Tesseract", qUtf8Printable(why));
+    }
+    if (engine == QLatin1String("paddle")) {
+        if (runPaddle(paddle, img, *cancelled, nullptr, &r.text))
+            return r;
+        if (cancelled->load())
+            return r;
     }
     // Auto-language: narrow to the detected script's langpacks (see runOcrBoxes).
     if (autoScript) {
@@ -478,8 +509,9 @@ void OcrEngine::recognize(const QImage &img, const QString &langs, bool autoScri
         fw->deleteLater();
         cb(r.text, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript,
-                                    OcrEngines::resolve(m_engine), m_cancelled));
+    const QString engine = OcrEngines::resolve(m_engine);
+    fw->setFuture(QtConcurrent::run(runOcr, img, langs, autoScript, engine, paddleSetup(engine),
+                                    m_cancelled));
 }
 
 void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool autoScript,
@@ -491,6 +523,7 @@ void OcrEngine::recognizeBoxes(const QImage &img, const QString &langs, bool aut
         fw->deleteLater();
         cb(r.words, r.error);
     });
-    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript,
-                                    OcrEngines::resolve(m_engine), m_cancelled));
+    const QString engine = OcrEngines::resolve(m_engine);
+    fw->setFuture(QtConcurrent::run(runOcrBoxes, img, langs, autoScript, engine, paddleSetup(engine),
+                                    m_cancelled));
 }

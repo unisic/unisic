@@ -9774,6 +9774,76 @@ Gilt ab der nächsten Aufnahme.</translation>
         <source>Delete downloaded files</source>
         <translation>Heruntergeladene Dateien löschen</translation>
     </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="244"/>
+        <source>Remove the better OCR model?</source>
+        <translation>Besseres OCR-Modell entfernen?</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="245"/>
+        <source>Text recognition goes back to Tesseract. Any ONNX Runtime that Unisic downloaded is removed too, unless background removal still needs it.</source>
+        <translation>Die Texterkennung wechselt zurück zu Tesseract. Eine von Unisic heruntergeladene ONNX Runtime wird ebenfalls entfernt, sofern das Entfernen des Hintergrunds sie nicht mehr braucht.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1307"/>
+        <source>Download the better OCR model below to choose it.</source>
+        <translation>Laden Sie das bessere OCR-Modell unten herunter, um es auszuwählen.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1312"/>
+        <source>Tesseract uses its own language packs and the language settings below. The better OCR model makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese, and the small model also Japanese.</source>
+        <translation>Tesseract nutzt eigene Sprachpakete und die Spracheinstellungen unten. Das bessere OCR-Modell macht auf Bildschirmfotos deutlich weniger Fehler und braucht keine Sprachpakete, liest aber nur Sprachen in lateinischer Schrift und Chinesisch, das kleine Modell zusätzlich Japanisch.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1317"/>
+        <source>Better OCR model</source>
+        <translation>Besseres OCR-Modell</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1370"/>
+        <source>Reads the text in your captures with PaddleOCR&apos;s PP-OCRv6 instead of Tesseract: far fewer mistakes on screenshots, and no language packs to install. It reads Latin-script languages and Chinese, and the small model also Japanese; for Cyrillic, Arabic and other scripts keep Tesseract. It runs on this computer and nothing is uploaded.</source>
+        <translation>Liest den Text in Ihren Aufnahmen mit PP-OCRv6 von PaddleOCR statt mit Tesseract: deutlich weniger Fehler auf Bildschirmfotos und keine Sprachpakete zu installieren. Es liest Sprachen in lateinischer Schrift und Chinesisch, das kleine Modell zusätzlich Japanisch; für Kyrillisch, Arabisch und andere Schriften bleiben Sie bei Tesseract. Es läuft auf diesem Computer, nichts wird hochgeladen.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1375"/>
+        <source>Model size</source>
+        <translation>Modellgröße</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1376"/>
+        <source>Downloading a model selects it; the other size is removed.</source>
+        <translation>Ein heruntergeladenes Modell wird gleich ausgewählt, die andere Größe entfernt.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1380"/>
+        <source>Tiny (recommended)</source>
+        <translation>Winzig (empfohlen)</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1380"/>
+        <source>Small (most accurate)</source>
+        <translation>Klein (am genauesten)</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1392"/>
+        <source>Tiny: %1 download, about 200 MB of memory while reading (up to 400 MB for a 4K screenshot). Fast, with few mistakes.</source>
+        <translation>Winzig: %1 Download, etwa 200 MB Arbeitsspeicher beim Lesen (bis zu 400 MB bei einem 4K-Bildschirmfoto). Schnell, mit wenigen Fehlern.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1394"/>
+        <source>Small: %1 download, about 350 MB of memory while reading (up to 600 MB for a 4K screenshot). About five times slower than tiny, with about a third of its mistakes.</source>
+        <translation>Klein: %1 Download, etwa 350 MB Arbeitsspeicher beim Lesen (bis zu 600 MB bei einem 4K-Bildschirmfoto). Etwa fünfmal langsamer als winzig, mit etwa einem Drittel der Fehler.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1409"/>
+        <source>Model: small, downloaded</source>
+        <translation>Modell: klein, heruntergeladen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/SettingsPage.qml" line="1410"/>
+        <source>Model: tiny, downloaded</source>
+        <translation>Modell: winzig, heruntergeladen</translation>
+    </message>
 </context>
 <context>
     <name>StickerPopup</name>

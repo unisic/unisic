@@ -17,12 +17,14 @@
 
 namespace OcrEngines {
 
-// The engines this build can run, the platform default first.
+// The engines this build can run, the platform default first. "paddle" is the
+// better OCR model (PaddleOcr), run by the ONNX Runtime BackgroundRemover
+// loads: Linux only, and only once its model is downloaded (see effective()).
 inline QStringList available()
 {
     if (WindowsOcr::built())
         return {QStringLiteral("windows"), QStringLiteral("tesseract")};
-    return {QStringLiteral("tesseract")};
+    return {QStringLiteral("tesseract"), QStringLiteral("paddle")};
 }
 
 // The engine a stored id actually runs: an id this build cannot run (settings
@@ -36,11 +38,14 @@ inline QString resolve(const QString &id)
 // for one of the user's Windows languages; without one Tesseract runs, whether
 // "windows" is the default or the user's pick, and Settings shows Tesseract
 // with a hint saying why. The stored id is never rewritten, so installing a
-// language later brings Windows OCR back with no change in Settings.
-inline QString effective(const QString &id, bool windowsUsable)
+// language later brings Windows OCR back with no change in Settings. The same
+// goes for "paddle" without its model on disk.
+inline QString effective(const QString &id, bool windowsUsable, bool paddleInstalled)
 {
     const QString e = resolve(id);
-    return e == QLatin1String("windows") && !windowsUsable ? QStringLiteral("tesseract") : e;
+    if ((e == QLatin1String("windows") && !windowsUsable) || (e == QLatin1String("paddle") && !paddleInstalled))
+        return QStringLiteral("tesseract");
+    return e;
 }
 
 } // namespace OcrEngines

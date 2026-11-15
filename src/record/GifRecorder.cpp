@@ -263,7 +263,7 @@ QByteArray GifRecorder::compositeCursorOverlay(const QByteArray &encoded, qint64
 
 void GifRecorder::startClickCapture()
 {
-    if (!m_settings->cursorClickRipple() || m_clicks)
+    if (!m_settings->cursorClickRipple() || !m_cursorOverlay.style().ripple || m_clicks)
         return;
     // Reading global pointer buttons needs access to /dev/input, i.e. the
     // `input` group. Most desktop users are NOT in it, so this has to be a
@@ -343,14 +343,17 @@ void GifRecorder::stopKeyCapture()
 // mode fails SelectSources outright, so a portal without it silently degrades
 // to the plain embedded cursor rather than killing the recording (KWin's own
 // protocol always understands Metadata - the probe only gates the portal).
-uint GifRecorder::resolveCursorMode()
+// A direct grab (X11 session, Windows) never has the pointer in its frames and
+// always delivers it as data, so it needs no probe, and the overlay is its only
+// pointer even with the highlight off.
+uint GifRecorder::resolveCursorMode(bool directGrab)
 {
     m_cursorOverlayActive = false;
     uint cursorMode = m_settings->includeCursor()
                           ? uint(ScreenCastSession::CursorMode::Embedded)
                           : uint(ScreenCastSession::CursorMode::Hidden);
     if (m_settings->includeCursor() && m_settings->cursorHighlight()) {
-        if (m_nativeStream
+        if (directGrab || m_nativeStream
             || (ScreenCastSession::availableCursorModes()
                 & uint(ScreenCastSession::CursorMode::Metadata))) {
             cursorMode = uint(ScreenCastSession::CursorMode::Metadata);
@@ -370,6 +373,13 @@ uint GifRecorder::resolveCursorMode()
     style.highlight = m_settings->cursorHighlightHalo();
     style.highlightColor = QColor(m_settings->cursorHighlightColor());
     style.ripple = m_settings->cursorClickRipple();
+    if (directGrab && m_settings->includeCursor() && !m_cursorOverlayActive) {
+        // Highlight off: the bare pointer the compositor embeds on the portal
+        // path, so no halo and no ripples either.
+        style.highlight = false;
+        style.ripple = false;
+        m_cursorOverlayActive = true;
+    }
     m_cursorOverlay.setStyle(style);
     m_cursorOverlay.reset();
     m_cursorSmoother = CursorSmoother();
@@ -644,14 +654,11 @@ void GifRecorder::openX11Session()
         return;
     }
     m_targetScreen = scr;
-    // Configure the cursor overlay (style, smoother, reset) exactly like the
-    // Wayland paths, then FORCE it on whenever the cursor is wanted: XShmGetImage
-    // never grabs the hardware cursor, so the XFixes-fed overlay is the ONLY
-    // cursor source on X11 - there is no compositor-embedded fallback, so the
-    // Metadata/Embedded distinction resolveCursorMode() makes for the portal
-    // does not apply here.
-    resolveCursorMode();
-    m_cursorOverlayActive = m_settings->includeCursor();
+    // XShmGetImage (and DXGI/BitBlt on Windows) never grabs the pointer, so the
+    // XFixes/GetCursorInfo-fed overlay is the ONLY cursor source here: it is on
+    // whenever the cursor is wanted, and the highlight setting only decides
+    // whether it adds the halo and ripples.
+    resolveCursorMode(true);
     // Grab the WHOLE monitor and let beginEncoding apply m_crop, exactly as the
     // Wayland monitor stream - so the region crop, cursor offset and rescale
     // logic downstream are unchanged.

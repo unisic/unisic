@@ -154,7 +154,8 @@ private:
     void openKWinWindowStream(uint cursorMode);
     // Resolve the requested cursor mode (Hidden/Embedded/Metadata wire value,
     // shared by the portal and the KWin protocol) and arm m_cursorOverlayActive.
-    uint resolveCursorMode();
+    // directGrab: the X11ShmGrabber source, whose frames never carry the pointer.
+    uint resolveCursorMode(bool directGrab = false);
     // Attach the PipeWireGrabber to a negotiated stream. fd = the portal's
     // OpenPipeWireRemote fd, or -1 for the KWin-native path (default daemon).
     void attachStream(int fd, uint nodeId);

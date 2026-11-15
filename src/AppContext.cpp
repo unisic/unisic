@@ -1030,9 +1030,12 @@ bool AppContext::capDoNotDisturb() const
     return NotificationInhibitor::supportedDesktop();
 }
 
+// The direct grabbers (X11 session, Windows) always deliver the cursor as data;
+// only the portal has to be asked.
 bool AppContext::capCursorMetadata() const
 {
-    return (ScreenCastSession::availableCursorModes()
+    return X11ShmGrabber::isAvailable()
+        || (ScreenCastSession::availableCursorModes()
             & uint(ScreenCastSession::CursorMode::Metadata)) != 0;
 }
 

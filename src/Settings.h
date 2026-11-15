@@ -204,7 +204,7 @@ public:
         // the STABLE app's config so testing starts from familiar settings —
         // EXCEPT hotkeys, which are seeded unbound: the stable component
         // still owns its keys daemon-side, so copied bindings would lose
-        // every press and fire the conflict toast on each launch. Assign
+        // every press and come up as conflicts on each launch. Assign
         // dev-specific keys in Settings → Hotkeys when needed.
         const QString stableConf = UnisicConfig::stableConfigDir() + QStringLiteral("/unisic.conf");
         if (m_s.allKeys().isEmpty() && QFile::exists(stableConf)) {

@@ -228,6 +228,11 @@ AppContext::AppContext(QObject *parent)
     // Live two-way sync: a KCM edit updates the app's stored/displayed key.
     connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
             &AppContext::syncHotkeyFromDaemon);
+    // The new key may be free (drop the row's conflict mark) or held elsewhere.
+    connect(m_hotkeys, &GlobalHotkeys::shortcutChanged, this,
+            [this](const QString &actionId, const QString &portable) {
+                recheckHotkeyConflict(actionId, GlobalHotkeys::keysFor(portable), false, true);
+            });
 
     connect(m_recorder, &GifRecorder::started, this, &AppContext::recordingChanged);
     connect(m_recorder, &GifRecorder::pausedChanged, this, &AppContext::recordingChanged);
@@ -890,11 +895,8 @@ void AppContext::setShortcutRecording(bool recording)
     // press went to dispatchHotkey, which drops it while recording, and the
     // field sat on "Press shortcut..." for good. bindX11Hotkeys() keeps only
     // the emergency stop while a recorder listens.
-    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
-        const bool report = !recording && m_hotkeyEditedWhileRecording;
-        m_hotkeyEditedWhileRecording = false;
-        bindX11Hotkeys(report);
-    }
+    if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND))
+        bindX11Hotkeys();
 }
 
 void AppContext::setNextCaptureDelayMs(int delayMs)
@@ -2334,6 +2336,66 @@ AppContext::CheckWindowCollector::~CheckWindowCollector()
     ctx->m_checkWindows.clear();
 }
 
+void AppContext::setHotkeyConflict(const QString &actionId, const QString &keys,
+                                   const QString &owner, bool refused, bool keepRefused)
+{
+    if ((owner.isEmpty() && !refused) || keys.isEmpty()) {
+        if (keepRefused && m_hotkeyConflicts.value(actionId).toMap().value(QStringLiteral("refused")).toBool())
+            return;
+        if (m_hotkeyConflicts.remove(actionId))
+            emit hotkeyConflictsChanged();
+        return;
+    }
+    // The two builds register separate components (GlobalHotkeys::COMPONENT),
+    // so each sees the other as a foreign owner of a shared default key.
+    QString kind = QStringLiteral("app");
+    if (owner.isEmpty())
+        kind = QStringLiteral("unknown");
+    else if (owner.startsWith(QLatin1String("unisic/")))
+        kind = QStringLiteral("release");
+    else if (owner.startsWith(QLatin1String("unisic_dev/")))
+        kind = QStringLiteral("dev");
+    const QVariantMap entry{{QStringLiteral("keys"), keys},
+                            {QStringLiteral("owner"), owner},
+                            {QStringLiteral("kind"), kind},
+                            {QStringLiteral("refused"), refused}};
+    if (m_hotkeyConflicts.value(actionId).toMap() == entry)
+        return;
+    m_hotkeyConflicts.insert(actionId, entry);
+    emit hotkeyConflictsChanged();
+}
+
+void AppContext::recheckHotkeyConflict(const QString &actionId, const QList<int> &keys,
+                                       bool refused, bool keepRefused)
+{
+    if (keys.isEmpty()) {
+        setHotkeyConflict(actionId, QString(), QString(), false, keepRefused);
+        return;
+    }
+    auto remaining = std::make_shared<int>(keys.size());
+    auto found = std::make_shared<std::pair<int, QString>>(0, QString());
+    for (int key : keys) {
+        m_hotkeys->keyOwnerAsync(
+            key, this,
+            [this, actionId, keys, refused, keepRefused, key, remaining, found](const QString &owner) {
+                if (!found->first && !owner.isEmpty()
+                    && !owner.startsWith(GlobalHotkeys::componentPrefix()))
+                    *found = {key, owner};
+                if (--*remaining != 0)
+                    return;
+                // Refused with no foreign owner found: still taken, owner unknown.
+                const int shown = found->first ? found->first : (refused ? keys.first() : 0);
+                if (shown)
+                    qWarning().noquote() << QStringLiteral("Hotkey conflict: %1 %2 held by %3")
+                                                .arg(actionId, QKeySequence(shown).toString(),
+                                                     found->second.isEmpty() ? QStringLiteral("(unknown)")
+                                                                             : found->second);
+                setHotkeyConflict(actionId, shown ? QKeySequence(shown).toString() : QString(),
+                                  found->second, refused, keepRefused);
+            });
+    }
+}
+
 QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *conflicts)
 {
     QStringList lines;
@@ -2347,15 +2409,21 @@ QStringList AppContext::hotkeyBindStatus(int *unbound, bool heal, QStringList *c
         // list while resolving the actual press to another component (a KWin
         // script, another app) - the action looks bound but never fires.
         if (conflicts && ok) {
+            bool marked = false;
             for (int k : raw) {
                 const QString owner = m_hotkeys->keyOwner(k);
                 if (!owner.isEmpty() && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                    if (!marked)
+                        setHotkeyConflict(a.id, QKeySequence(k).toString(), owner);
+                    marked = true;
                     const QString line = QKeySequence(k).toString() + QStringLiteral(" (")
                                          + a.name + QStringLiteral(") → ") + owner;
                     conflicts->append(line);
                     lines << a.id + QStringLiteral(": CONFLICT ") + line;
                 }
             }
+            if (!marked)
+                setHotkeyConflict(a.id, QString(), QString());
         }
         if (!ok) {
             lines << a.id + QStringLiteral(": query failed");
@@ -2438,8 +2506,15 @@ void AppContext::hotkeyBindStatusAsync(
             action.id, this,
             [this, state, action](bool ok, const QList<int> &raw) {
                 const QString actual = GlobalHotkeys::portableFromKeys(raw);
+                // First key of this action another component holds (0: none).
+                auto found = std::make_shared<std::pair<int, QString>>(0, QString());
 
-                const auto process = [this, state, action, ok, raw, actual] {
+                const auto process = [this, state, action, ok, raw, actual, found] {
+                    if (ok)
+                        setHotkeyConflict(action.id,
+                                          found->first ? QKeySequence(found->first).toString()
+                                                       : QString(),
+                                          found->second);
                     if (!ok) {
                         state->lines << action.id + QStringLiteral(": query failed");
                         ++state->bad;
@@ -2507,9 +2582,11 @@ void AppContext::hotkeyBindStatusAsync(
                 for (int key : raw) {
                     m_hotkeys->keyOwnerAsync(
                         key, this,
-                        [state, action, key, remaining, process](const QString &owner) {
+                        [state, action, key, remaining, found, process](const QString &owner) {
                             if (!owner.isEmpty()
                                 && !owner.startsWith(GlobalHotkeys::componentPrefix())) {
+                                if (!found->first)
+                                    *found = {key, owner};
                                 const QString conflict = QKeySequence(key).toString()
                                     + QStringLiteral(" (") + action.name
                                     + QStringLiteral(") → ") + owner;
@@ -5876,17 +5953,21 @@ void AppContext::defineHotkeys()
         // Fixed emergency stop: ALWAYS Ctrl+Escape, not user-configurable.
         // Pushed with SetPresent|NoAutoloading on every startup, so even a KCM
         // edit is reverted at the next launch. Stock Plasma ships Ctrl+Esc
-        // bound to "Show System Activity" - the daemon then refuses the grab,
-        // so tell the user instead of failing silently.
+        // bound to "Show System Activity" - the daemon then refuses the grab.
+        // Marked in hotkeyConflicts ("stop-recording") for the Hotkeys pane,
+        // which names the owner (often Unisic's other build), not a toast on
+        // every launch. Re-checked on acceptance too: the reply can accept a
+        // key whose presses still resolve to another component.
         m_hotkeys->setShortcutAsync(
             QStringLiteral("stop-recording"), tr("Stop recording (emergency)"),
             QStringLiteral("Ctrl+Escape"), this, [this](bool accepted) {
+                recheckHotkeyConflict(QStringLiteral("stop-recording"),
+                                      GlobalHotkeys::keysFor(QStringLiteral("Ctrl+Escape")),
+                                      !accepted);
                 if (accepted)
                     return;
                 qWarning() << "Ctrl+Escape emergency stop could not be bound (owned by another"
                               " component - on stock Plasma: Show System Activity)";
-                showToast(tr("Ctrl+Esc emergency stop unavailable: the key is taken by the system "
-                             "(System Settings → Shortcuts to free it)"));
             });
 #ifdef UNISIC_DEV_BUILD
         // Dev-only: F8 runs the smoke test. Fixed key (not user-configurable).
@@ -5943,14 +6024,12 @@ void AppContext::defineHotkeys()
                     qWarning().noquote()
                         << "Hotkey repair:\n" + report.join(QLatin1Char('\n'));
                 // A key another component owns daemon-side never reaches us
-                // even though it shows as bound.
-                if (!conflicts.isEmpty()) {
+                // even though it shows as bound. The rows in Settings > Hotkeys
+                // carry it (hotkeyConflicts, set per action during the audit);
+                // a toast on every launch only nagged about it.
+                if (!conflicts.isEmpty())
                     qWarning().noquote()
                         << "Hotkey conflicts:\n" + conflicts.join(QLatin1Char('\n'));
-                    showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                                 "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
-                                  .arg(conflicts.join(QStringLiteral("; "))), true);
-                }
             });
         return;
     }
@@ -6005,9 +6084,9 @@ void AppContext::bindPortalHotkeys()
 }
 
 // Grab the whole set through XGrabKey (X11 session). Re-grabs everything (the
-// backend has no per-action rebind); a key another client owns is surfaced as a
-// conflict toast, mirroring the KGlobalAccel path.
-void AppContext::bindX11Hotkeys(bool reportConflicts)
+// backend has no per-action rebind); a key another client owns is marked in
+// hotkeyConflicts, mirroring the KGlobalAccel path.
+void AppContext::bindX11Hotkeys()
 {
     // Only ever non-null when defineHotkeys() elected the X11 backend, so this
     // is the guard for "not an X11 session" as well.
@@ -6034,14 +6113,22 @@ void AppContext::bindX11Hotkeys(bool reportConflicts)
         qWarning().noquote() << QStringLiteral("Hotkey conflicts (%1):\n")
                                         .arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
                                     + conflicts.join(QLatin1Char('\n'));
-        if (reportConflicts)
-            showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                         "Settings → Hotkeys.").arg(conflicts.join(QStringLiteral("; "))), true);
     }
+    // The emergency stop is grabbed even while a recorder listens.
+    setHotkeyConflict(QStringLiteral("stop-recording"),
+                      QStringLiteral(UNISIC_HOTKEY_EMERGENCY_STOP), QString(),
+                      conflicts.contains(QStringLiteral("stop-recording")));
+    // While a recorder listens the action keys were not grabbed at all, so the
+    // empty answer says nothing about them: keep the marks until the re-grab.
+    if (m_shortcutRecording)
+        return;
+    const auto acts = hotkeyActions();
+    for (const HotkeyAction &a : acts)
+        setHotkeyConflict(a.id, a.keys, QString(), conflicts.contains(a.id));
 }
 
 // Push ONE action's stored key to the system. KGlobalAccel: setShortcut with
-// SetPresent|NoAutoloading, conflict surfaced as a toast + the daemon's actual
+// SetPresent|NoAutoloading, conflict marked in hotkeyConflicts + the daemon's actual
 // key synced back into the UI. Portal: re-bind the whole set (the portal has
 // no per-shortcut rebind; unchanged sets don't re-prompt on KDE/GNOME).
 void AppContext::applyHotkey(const QString &actionId)
@@ -6049,10 +6136,8 @@ void AppContext::applyHotkey(const QString &actionId)
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
         // A recorder hands its key over before it lets go, while the grabs
         // are released for it: they come back, with the new key, when it does.
-        if (m_shortcutRecording) {
-            m_hotkeyEditedWhileRecording = true;
+        if (m_shortcutRecording)
             return;
-        }
         bindX11Hotkeys();
         return;
     }
@@ -6069,10 +6154,11 @@ void AppContext::applyHotkey(const QString &actionId)
         m_hotkeys->setShortcutAsync(
             action.id, action.name, action.keys, this,
             [this, action](bool accepted) {
+                // Accepted: re-check what is active now (clears a stale mark).
+                // Refused: name who holds the wished key on the row.
+                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys), !accepted);
                 if (accepted)
                     return;
-                showToast(tr("Could not bind %1; the key is taken by another shortcut")
-                              .arg(action.keys), true);
                 // Show what is actually bound instead of the refused wish.
                 m_hotkeys->activeKeysAsync(
                     action.id, this,
@@ -6091,10 +6177,8 @@ void AppContext::applyHotkey(const QString &actionId)
 void AppContext::applyHotkeys()
 {
     if (m_hotkeyBackend == QLatin1String(UNISIC_HOTKEY_NATIVE_BACKEND)) {
-        if (m_shortcutRecording) {
-            m_hotkeyEditedWhileRecording = true;
+        if (m_shortcutRecording)
             return;
-        }
         bindX11Hotkeys();
         return;
     }
@@ -6112,12 +6196,11 @@ void AppContext::applyHotkeys()
     for (const HotkeyAction &action : acts) {
         m_hotkeys->setShortcutAsync(
             action.id, action.name, action.keys, this,
-            [this, remaining, allOk](bool accepted) {
+            [this, action, remaining, allOk](bool accepted) {
+                recheckHotkeyConflict(action.id, GlobalHotkeys::keysFor(action.keys), !accepted);
                 *allOk &= accepted;
                 if (--*remaining != 0 || *allOk)
                     return;
-                showToast(tr("Some hotkeys could not be bound (keys taken); showing the actual state"),
-                          true);
                 syncAllHotkeysFromDaemon();
             });
     }

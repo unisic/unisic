@@ -177,6 +177,12 @@ class AppContext : public QObject
     Q_PROPERTY(bool hotkeysAvailable READ hotkeysAvailable NOTIFY hotkeysAvailableChanged)
     // "kglobalaccel" | "portal" | "" - lets the UI tailor its hints.
     Q_PROPERTY(QString hotkeyBackend READ hotkeyBackend NOTIFY hotkeysAvailableChanged)
+    // actionId -> {keys, owner, kind, refused} for every action whose key another owner
+    // holds, so Settings > Hotkeys can mark the row instead of a toast on every
+    // launch. kind: "release" | "dev" (Unisic's other build owns it), "app"
+    // (another KGlobalAccel component, `owner` is "component/action"), or
+    // "unknown" (the backend only says it is taken). One entry per action.
+    Q_PROPERTY(QVariantMap hotkeyConflicts READ hotkeyConflicts NOTIFY hotkeyConflictsChanged)
     // With no hotkey backend: whether this desktop's own custom-shortcut store
     // can be written for us (COSMIC/GNOME/Cinnamon/Xfce), and its display name.
     // Lets the Hotkeys tab offer a one-click "bind these commands" install.
@@ -493,6 +499,7 @@ public:
     Q_INVOKABLE void applyLanguage();
     bool hotkeysAvailable() const;
     QString hotkeyBackend() const { return m_hotkeyBackend; }
+    QVariantMap hotkeyConflicts() const { return m_hotkeyConflicts; }
     bool desktopShortcutsAuto() const;
     QString desktopShortcutName() const;
     bool autostartEnabled() const;
@@ -834,6 +841,7 @@ signals:
     // caller and keeps running, it is the user's app.
     void cliCaptureFinished(bool ok, const QString &error);
     void hotkeysAvailableChanged();
+    void hotkeyConflictsChanged();
     void watermarkPreviewChanged();
     void recordingAvailableChanged();
     void scrollCaptureActiveChanged();
@@ -910,9 +918,16 @@ private:
     int m_shortcutReassertMisses = 0;
     void dispatchHotkey(const QString &actionId);
     void bindPortalHotkeys();
-    // reportConflicts=false keeps a re-grab silent when nothing changed (a
-    // recorder cancelled with Escape must not repeat the last conflict toast).
-    void bindX11Hotkeys(bool reportConflicts = true);
+    void bindX11Hotkeys();
+    // Record (owner non-empty or refused) or drop the conflict of one action.
+    // `refused`: the daemon would not take the key at all (an edit), so the row
+    // keeps showing it until the next push of that action or the next launch;
+    // keepRefused stops a later passive re-check from erasing that.
+    void setHotkeyConflict(const QString &actionId, const QString &keys, const QString &owner,
+                           bool refused = false, bool keepRefused = false);
+    // Owner lookups for `keys` of one action, then setHotkeyConflict.
+    void recheckHotkeyConflict(const QString &actionId, const QList<int> &keys, bool refused,
+                               bool keepRefused = false);
     void syncHotkeyFromDaemon(const QString &actionId, const QString &portable);
     void syncAllHotkeysFromDaemon();
     // Query each action's live daemon binding; with heal, re-assert stored
@@ -1246,6 +1261,7 @@ private:
     PortalGlobalShortcuts *m_portalHotkeys = nullptr;
     X11Hotkeys *m_x11hotkeys = nullptr;
     QString m_hotkeyBackend; // "kglobalaccel" | "portal" | "x11" | "win32" | ""
+    QVariantMap m_hotkeyConflicts; // see hotkeyConflicts; at most one entry per action of our component
     GifRecorder *m_recorder;
     ScrollCaptureController *m_scrollCapture = nullptr;
     OcrEngine *m_ocr = nullptr;
@@ -1301,9 +1317,6 @@ private:
     int m_editorWindows = 0;
     bool m_converting = false;
     bool m_shortcutRecording = false;
-    // A hotkey was edited while the native grabs were released for a recorder;
-    // the re-grab when it lets go then reports conflicts for the new key.
-    bool m_hotkeyEditedWhileRecording = false;
     // Delivers Print Screen to a listening recorder on Windows (see its header).
     PrintKeyRelay m_printKeyRelay;
     bool m_captureInFlight = false; // re-entry guard for portal captures

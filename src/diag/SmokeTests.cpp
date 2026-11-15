@@ -6425,9 +6425,8 @@ void AppContext::devTestHotkeyBinds()
     const QStringList lines = hotkeyBindStatus(&bad, true, &conflicts);
     qInfo().noquote() << "[dev] hotkey binds:\n" + lines.join(QLatin1Char('\n'));
     if (!conflicts.isEmpty())
-        showToast(tr("Hotkey taken by another app: %1. Pick a different key in "
-                     "Settings → Hotkeys, or free it in System Settings → Shortcuts.")
-                      .arg(conflicts.join(QStringLiteral("; "))), true);
+        showToast(tr("Dev: %1 hotkey conflicts, %2 rows marked on the Hotkeys pane (details in the log)")
+                      .arg(conflicts.size()).arg(m_hotkeyConflicts.size()), true);
     else if (bad == 0)
         showToast(tr("Hotkeys: all %1 bound in the daemon").arg(lines.size()));
     else
@@ -6672,6 +6671,24 @@ void AppContext::runSmokeTest()
                                   .arg(conflicts.size())
                             : bad == 0 ? QStringLiteral("PASS")
                                        : QStringLiteral("HEALED %1 (re-run to confirm)").arg(bad)));
+            // Every conflicting action must be marked for its Settings row (the
+            // only place a conflict is shown), and no clean one may stay marked.
+            QSet<QString> conflicted, audited;
+            for (const QString &l : lines) {
+                audited.insert(l.section(QLatin1Char(':'), 0, 0));
+                if (l.contains(QLatin1String(": CONFLICT ")))
+                    conflicted.insert(l.section(QLatin1Char(':'), 0, 0));
+            }
+            QSet<QString> marked;
+            for (auto it = m_hotkeyConflicts.cbegin(); it != m_hotkeyConflicts.cend(); ++it)
+                if (audited.contains(it.key())
+                    && !it.value().toMap().value(QStringLiteral("refused")).toBool())
+                    marked.insert(it.key());
+            smokeLog(QStringLiteral("  conflict marks: ")
+                     + (marked == conflicted
+                            ? QStringLiteral("PASS (%1 marked)").arg(marked.size())
+                            : QStringLiteral("FAIL (%1 conflicting, %2 marked)")
+                                  .arg(conflicted.size()).arg(marked.size())));
         }
         smokeLog(QStringLiteral("native hotkeys (%1): ").arg(QStringLiteral(UNISIC_HOTKEY_NATIVE_BACKEND))
                  + x11HotkeysCheck(hotkeyBackend()));

@@ -26,6 +26,7 @@
   zip,
   grim,
   xdg-desktop-portal,
+  onnxruntime,
   # Nix cannot express the distro-style "one of these desktop backends" virtual
   # dependency. KDE is the default because it is Unisic's primary target; a
   # caller packaging for another desktop can override this one argument.
@@ -187,6 +188,10 @@ stdenv.mkDerivation (finalAttrs: {
       ]
     }"
     "--set-default TESSDATA_PREFIX ${tesseractWithData}/share/tessdata"
+    # ONNX Runtime is dlopen()ed by name (src/editor/BackgroundRemover.cpp), so
+    # the linker never records it: PaddleOCR, the default OCR engine, and
+    # background removal find it only through this path.
+    "--prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ onnxruntime ]}"
   ];
 
   doCheck = true;

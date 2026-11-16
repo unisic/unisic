@@ -215,6 +215,19 @@ jobs:
             cp "$data" AppDir/usr/share/tessdata/
           done
           ls -la AppDir/usr/share/tessdata
+          # ONNX Runtime for PaddleOCR (the default OCR engine) and background
+          # removal: the same pinned upstream build the Flatpak bundles and
+          # src/editor/BackgroundRemover.cpp downloads (kPins, kRuntimeFile).
+          # dlopen()ed, so linuxdeploy cannot find it; probe() looks for this
+          # exact file in <bin>/../lib before any system copy.
+          ort=1.31.1
+          curl -fsSL -o ort.tgz "https://github.com/microsoft/onnxruntime/releases/download/v${ort}/onnxruntime-linux-x64-${ort}.tgz"
+          echo "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9  ort.tgz" | sha256sum -c -
+          tar -xzf ort.tgz
+          install -Dm755 "onnxruntime-linux-x64-${ort}/lib/libonnxruntime.so.${ort}" "AppDir/usr/lib/libonnxruntime.so.${ort}"
+          install -Dm644 "onnxruntime-linux-x64-${ort}/LICENSE" AppDir/usr/share/licenses/onnxruntime/LICENSE
+          install -Dm644 "onnxruntime-linux-x64-${ort}/ThirdPartyNotices.txt" AppDir/usr/share/licenses/onnxruntime/ThirdPartyNotices.txt
+          rm -rf ort.tgz "onnxruntime-linux-x64-${ort}"
 
       - name: Build AppImage
         env:
@@ -350,6 +363,8 @@ jobs:
           # prove any of them reached the package.
           test -s AppDir/usr/share/tessdata/eng.traineddata \
             || { echo "::error::tessdata went missing from the AppDir"; exit 1; }
+          test -s AppDir/usr/lib/libonnxruntime.so.1.31.1 \
+            || { echo "::error::ONNX Runtime went missing from the AppDir"; exit 1; }
           test -f AppDir/usr/qml/QtMultimedia/libquickmultimediaplugin.so \
             || { echo "::error::QtMultimedia QML plugin was not deployed"; exit 1; }
           test -f AppDir/usr/plugins/multimedia/libffmpegmediaplugin.so \
@@ -390,9 +405,10 @@ jobs:
 
               ./AppRun
 
-          Qt, the KDE libraries, QtMultimedia, OCR with English/Polish/script
-          data, ffmpeg, curl, zip, wl-copy, grim and the PipeWire command-line
-          tools are bundled. No FUSE and no package manager are needed.
+          Qt, the KDE libraries, QtMultimedia, OCR (PaddleOCR with ONNX Runtime,
+          and Tesseract with English/Polish/script data), ffmpeg, curl, zip,
+          wl-copy, grim and the PipeWire command-line tools are bundled. No
+          FUSE and no package manager are needed.
 
           The desktop still supplies its platform services: a running PipeWire
           service and xdg-desktop-portal with the backend for KDE, GNOME or

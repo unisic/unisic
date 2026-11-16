@@ -654,10 +654,13 @@ string(JOIN ", " CPACK_DEBIAN_PACKAGE_DEPENDS ${UNISIC_DEBIAN_RUNTIME_DEPENDS})
 # The portal BACKEND stays a Recommends: which one is right depends on the
 # desktop, the alternation cannot be expressed as a Depends without picking for
 # the user, and a session always has one.
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp")
-# ONNX Runtime, the one optional feature (docs/dev/packaging.md "Background
-# removal"), is not suggested here: it needs 1.25 or newer, Debian 13 has 1.21
-# and Ubuntu 26.04 1.23, so Settings downloads it instead.
+# ONNX Runtime (docs/dev/packaging.md "Background removal") is a Recommends too:
+# it runs PaddleOCR, the default OCR engine, and Debian names the library
+# package after its minor version (Debian 13 and Ubuntu 25.10 ship 1.21,
+# Ubuntu 26.04 1.23); on a release with neither, apt skips the line and
+# Tesseract reads the text.
+# shortcut: one name per shipped minor, add the next when Debian/Ubuntu move on.
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "xdg-desktop-portal-kde | xdg-desktop-portal-gnome | xdg-desktop-portal-wlr | xdg-desktop-portal-lxqt | xdg-desktop-portal-phosh | xdg-desktop-portal-gtk | xdg-desktop-portal-xapp, libonnxruntime1.23 | libonnxruntime1.21")
 # Direct-download debs self-register the OBS apt repo (postinst) so later
 # versions arrive natively via apt; postrm drops the entry on purge.
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
@@ -695,8 +698,10 @@ set(CPACK_RPM_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION}")
 #   and autodeps can see none of it.
 #   Boolean per distro again, since the langpack names differ (Fedora
 #   tesseract-langpack-*, and its OSD data is plain "tesseract-osd").
-set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd)")
-set(CPACK_RPM_PACKAGE_SUGGESTS "onnxruntime")
+# - ONNX Runtime is dlopen()ed, so no autodep sees it either: it runs
+#   PaddleOCR, the default OCR engine, and every Fedora this rpm targets ships
+#   1.20 or newer (openSUSE names the library package libonnxruntime1).
+set(CPACK_RPM_PACKAGE_REQUIRES "/usr/bin/ffmpeg, pipewire, (pipewire-utils or pipewire-tools), wl-clipboard, xdg-desktop-portal, curl, grim, zip, (qt6-qtdeclarative or qt6-declarative-imports), (qt6-qtwayland or qt6-wayland), (qt6-qtmultimedia or qt6-multimedia-imports), (tesseract-langpack-eng or tesseract-ocr-traineddata-eng), (tesseract-langpack-pol or tesseract-ocr-traineddata-pol), (tesseract-osd or tesseract-ocr-traineddata-osd), (onnxruntime or libonnxruntime1)")
 # Direct-download rpms self-register the COPR repo (%post - dnf repo on
 # Fedora, zypp repo on openSUSE) so later versions arrive natively;
 # %postun drops the entry on erase.

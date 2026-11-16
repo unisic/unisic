@@ -64,7 +64,7 @@ Every hotkey is rebindable in Settings → Hotkeys. The same actions run from th
 - **Annotate before the shot** - the selection overlay is already a canvas: arrows, shapes, text, blur and numbered steps, burned into the crop on <kbd>Enter</kbd>.
 - **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, a library of Twemoji emoji or a picture from a file), rotate, flip, resize, remove the background (on your computer, with a model downloaded once from Settings), undo/redo and zoom, then print it.
 - **Record** - region, full screen or window to GIF, MP4 or WebM, with optional system and microphone audio.
-- **Read pixels** - OCR any region or scan a QR/barcode, and copy the result. On Linux, Settings > General can download a better OCR model (PaddleOCR PP-OCRv6, Apache-2.0, tiny 6 MB or small 30 MB) that makes far fewer mistakes on screenshots than Tesseract; it reads Latin-script languages and Chinese (small also Japanese), so keep Tesseract for Cyrillic, Arabic and other scripts.
+- **Read pixels** - OCR any region or scan a QR/barcode, and copy the result. On Linux the text is read by PaddleOCR (PP-OCRv6 tiny, Apache-2.0, 6 MB, shipped with Unisic), which makes far fewer mistakes on screenshots than Tesseract; it reads Latin-script languages and Chinese, so pick Tesseract in Settings for Cyrillic, Korean, Arabic and other scripts.
 - **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, Amazon S3 and S3-compatible storage and built-in hosts, plus every new file in a watched folder; the link auto-copies (the local file can go to the trash after it), and copied text turns into a QR code.
 - **Remember** - thumbnail history of every capture; deleting moves the file to the trash.
 - **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
@@ -122,7 +122,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Every dependency is required: configure stops and names the missing package instead of building a Unisic with a feature quietly absent. The one exception is ONNX Runtime, for background removal and the better OCR model (Linux only): it is loaded only when one of them is used, bundled in the Flatpak, and elsewhere comes from your distribution or a download in Settings. Dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Every dependency is required: configure stops and names the missing package instead of building a Unisic with a feature quietly absent. The one exception is ONNX Runtime, for PaddleOCR and background removal (Linux only): it is loaded only when one of them is used, bundled in the Flatpak and the AppImage, installed with the native packages where the distribution has it, and otherwise Tesseract reads the text and Settings can download the runtime for background removal. Dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
 

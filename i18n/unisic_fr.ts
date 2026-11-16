@@ -5839,6 +5839,16 @@ Les captures en favori (étoilées) de la sélection sont conservées - retirez 
         <source>None found</source>
         <translation>Aucun</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Fermer</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Sélectionner du texte à caviarder…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

@@ -255,7 +255,14 @@ void EditorSession::startOcrPick()
     if (!m_canvas)
         return;
     m_scanPending = m_scanLeavesOcr = false;
+    // Words an auto-redact scan left for this same image are reused: running
+    // the model again costs seconds and gives the same boxes.
+    const bool reuse = !m_canvas->ocrMode() && m_canvas->hasOcrWords();
     m_canvas->setOcrMode(true);
+    if (reuse) {
+        setStatus(tr("Text recognized - click a line, double-click a word, or drag for letters · Ctrl+A all · Ctrl+C copy"));
+        return;
+    }
     m_canvas->setOcrBusy(true);
     setStatus(tr("Recognizing text…"));
     // OCR the clean base (annotations would interfere with recognition); word

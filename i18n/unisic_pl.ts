@@ -5846,6 +5846,16 @@ Oznaczone (ulubione) przechwycenia są zachowywane, zarówno wpis, jak i plik.</
         <source>None found</source>
         <translation>Nie znaleziono</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Zamknij</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Zaznacz tekst do zakrycia…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

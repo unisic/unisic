@@ -5839,6 +5839,16 @@ Le catture con stella (preferite) nella selezione vengono mantenute - rimuovi pr
         <source>None found</source>
         <translation>Nessuno</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Chiudi</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Seleziona testo da oscurare…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

@@ -5839,6 +5839,16 @@ Mit Stern markierte (favorisierte) Aufnahmen in der Auswahl bleiben erhalten - e
         <source>None found</source>
         <translation>Keine gefunden</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Schließen</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Text zum Schwärzen auswählen…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

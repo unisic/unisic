@@ -5839,6 +5839,16 @@ Starred (favorite) captures in the selection are kept - un-star them first.</tra
         <source>None found</source>
         <translation>None found</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Close</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Select text to cover…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

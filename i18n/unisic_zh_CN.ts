@@ -5572,6 +5572,16 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <source>None found</source>
         <translation>未找到</translation>
     </message>
+    <message>
+        <location line="+11"/>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <location line="+39"/>
+        <source>Select text to cover…</source>
+        <translation>选择要遮盖的文本…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

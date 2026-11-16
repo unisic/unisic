@@ -17,6 +17,8 @@ Popup {
     property bool busy: false
     property Item anchor: null
     property bool preferAbove: false
+    // The way to cover text the scan did not flag: select the words yourself.
+    signal selectTextRequested()
 
     // SensitiveText.h names the kinds. The three people reach for first lead.
     readonly property var kinds: ["ip", "email", "number", "secret", "card", "iban", "mac"]
@@ -111,7 +113,7 @@ Popup {
     x: anchor ? anchor.width - width : 0
 
     property bool flyUp: false
-    readonly property real flyWant: head.implicitHeight + col.spacing + listWant
+    readonly property real flyWant: head.implicitHeight + foot.implicitHeight + 2 * col.spacing + listWant
                                     + topPadding + bottomPadding
     readonly property var flyFit: visible ? UFlyout.rooms(anchor, _overlay, flyWant) : null
     // Once open, UFlyout holds the side until less than minRoom is left. The
@@ -152,11 +154,32 @@ Popup {
             id: head
             width: parent.width
             spacing: Theme.spacingXS
-            Text {
-                text: qsTr("Auto-redact")
-                color: Theme.textPrimary
-                font.pixelSize: Theme.fontM
-                font.weight: Font.DemiBold
+            // A press outside leaves the list open (see closePolicy), so the
+            // pointer needs its own way out besides Escape.
+            Item {
+                width: parent.width
+                height: Math.max(title.implicitHeight, closeButton.height)
+                Text {
+                    id: title
+                    anchors.left: parent.left
+                    anchors.right: closeButton.left
+                    anchors.rightMargin: Theme.spacingS
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                    text: qsTr("Auto-redact")
+                    color: Theme.textPrimary
+                    font.pixelSize: Theme.fontM
+                    font.weight: Font.DemiBold
+                }
+                UIconButton {
+                    id: closeButton
+                    objectName: "redactReviewClose"
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    iconName: "close"; iconSize: 12; width: 24; height: 24
+                    tooltip: qsTr("Close")
+                    onClicked: root.close()
+                }
             }
             Text {
                 objectName: "redactReviewStatus"
@@ -181,7 +204,7 @@ Popup {
             id: list
             objectName: "redactReviewList"
             width: parent.width
-            height: Math.max(0, root.availableHeight - head.height - col.spacing)
+            height: Math.max(0, root.availableHeight - head.height - foot.height - 2 * col.spacing)
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             model: rows
@@ -253,6 +276,18 @@ Popup {
                     color: Theme.divider
                 }
             }
+        }
+
+        UButton {
+            id: foot
+            objectName: "redactReviewSelectText"
+            width: parent.width
+            compact: true
+            variant: "tonal"
+            iconName: "select"
+            text: qsTr("Select text to cover…")
+            enabled: !root.busy
+            onClicked: root.selectTextRequested()
         }
     }
 }

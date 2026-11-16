@@ -41,6 +41,7 @@ private slots:
     void ocrCaretSelectionIsCharacterPrecise();
     void autoRedactCoversFindingsAndToggles();
     void autoRedactStopsAtAColumnGap();
+    void autoRedactTightLinesStayApart();
     void autoRedactWordsOutliveTheScan();
     void sensitiveTextFindsWhatToCover();
     void ocrLineSplitsAtWideGap();
@@ -571,6 +572,15 @@ void AnnotationCanvasTest::autoRedactCoversFindingsAndToggles()
     QCOMPARE(out.pixelColor(15, 29), QColor(Qt::black));
     QCOMPARE(out.pixelColor(99, 29), QColor(Qt::black));
     QCOMPARE(out.pixelColor(87, 29), QColor(Qt::white));
+    // The bar reaches past the 20..38 glyph band and the first glyph's left
+    // edge at 10 (descenders and overhangs a tight OCR box cut off), by a
+    // fifth of the band's height and no further.
+    QCOMPARE(out.pixelColor(15, 17), QColor(Qt::black));
+    QCOMPARE(out.pixelColor(15, 40), QColor(Qt::black));
+    QCOMPARE(out.pixelColor(8, 29), QColor(Qt::black));
+    QCOMPARE(out.pixelColor(15, 12), QColor(Qt::white));
+    QCOMPARE(out.pixelColor(15, 45), QColor(Qt::white));
+    QCOMPARE(out.pixelColor(3, 29), QColor(Qt::white));
 
     QVariantList found = canvas.redactions();
     QCOMPARE(found.size(), 2);
@@ -660,6 +670,28 @@ void AnnotationCanvasTest::autoRedactWordsOutliveTheScan()
     QVERIFY(canvas.hasOcrWords());
 }
 
+// Bars grow past their line, so on lines 2 px apart the IP bar reaches into
+// the e-mail line below. That must not count the e-mail as already covered.
+void AnnotationCanvasTest::autoRedactTightLinesStayApart()
+{
+    TestAnnotationCanvas canvas;
+    canvas.setWidth(200);
+    canvas.setHeight(80);
+    QImage image(200, 80, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    canvas.setImage(image);
+    const QString lines[] = {QStringLiteral("10.0.0.1"), QStringLiteral("a@b.co")};
+    QVector<OcrWord> words;
+    for (int l = 0; l < 2; ++l)
+        for (int i = 0; i < lines[l].size(); ++i)
+            words.append({QRect(10 + i * 12, 20 + l * 20, 10, 18), QString(lines[l].at(i)), l, 100.f, false});
+    canvas.setOcrMode(true);
+    canvas.setOcrWords(words);
+    QCOMPARE(canvas.autoRedact({QStringLiteral("ip")}), 1);
+    QCOMPARE(canvas.autoRedact({QStringLiteral("email")}), 1);
+    QCOMPARE(canvas.redactions().size(), 2);
+}
+
 // Tesseract reports two table columns as one text line. The canvas splits it at
 // the wide gap, and the detector must see that split too: "12345" and "6789"
 // joined by one space read as a nine-digit phone number nobody wrote.
@@ -734,6 +766,23 @@ void AnnotationCanvasTest::sensitiveTextFindsWhatToCover()
         {QStringLiteral("commit 3f2a9c1e5b7d4f6a8c0e2b4d6f8a0c2e4b6d8f0a"), {}},
         {QStringLiteral("key AbCdEf0123456789GhIjKlMnOpQrStUv"),
          {QStringLiteral("secret:AbCdEf0123456789GhIjKlMnOpQrStUv")}},
+        // Unlabeled generator passwords, the first as both OCR models read
+        // Bitwarden's generator (the box is the icon beside it).
+        {QStringLiteral("&r^K58W&41j#0Fz7mqtBN63# \u53e3"),
+         {QStringLiteral("secret:&r^K58W&41j#0Fz7mqtBN63#")}},
+        {QStringLiteral("Xk3mP9qLw2Rt7v"), {QStringLiteral("secret:Xk3mP9qLw2Rt7v")}},
+        {QStringLiteral("pin q7#Rt2!vL9@x ok"), {QStringLiteral("secret:q7#Rt2!vL9@x")}},
+        // The same password as Tesseract reads it, split at a misread glyph:
+        // the piece joins it, the button beside it does not.
+        {QStringLiteral("&rK58W&41j20Fz7 MqtBN63= Copy"),
+         {QStringLiteral("secret:&rK58W&41j20Fz7 MqtBN63=")}},
+        {QStringLiteral("(copied) &rK5 8W&41j20Fz7MqtBN63="),
+         {QStringLiteral("secret:&rK5 8W&41j20Fz7MqtBN63=")}},
+        // Ordinary tokens of the same length stay visible.
+        {QStringLiteral("Ctrl+Shift+F12 m_ocrWordsBaseKey AppContext2 iPhone15Pro --lang=en-US"), {}},
+        {QStringLiteral("2026-11-15T23:16:22 x86_64-linux-gnu v1.2.3-beta4 qt6-qtbase-devel"), {}},
+        {QStringLiteral("/home/dean/Projects/unisic IMG_20240512_1234.jpg unisic-0.8.10-x86_64.AppImage"), {}},
+        {QStringLiteral("color \"#C8ACD6\", A-Z a-z 0-9 !@#$%^&*"), {}},
     };
     for (const auto &c : cases) {
         QStringList got;

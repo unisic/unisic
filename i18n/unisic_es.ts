@@ -5839,6 +5839,16 @@ Las capturas destacadas (favoritas) de la selección se conservan: quítales la 
         <source>None found</source>
         <translation>Ninguno</translation>
     </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="180"/>
+        <source>Close</source>
+        <translation>Cerrar</translation>
+    </message>
+    <message>
+        <location filename="../qml/components/RedactReview.qml" line="288"/>
+        <source>Select text to cover…</source>
+        <translation>Seleccionar texto para censurar…</translation>
+    </message>
 </context>
 <context>
     <name>ScrollCaptureOverlay</name>

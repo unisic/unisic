@@ -336,14 +336,9 @@ AppContext::AppContext(QObject *parent)
         m_ocr->setEngine(ocrEffectiveEngine());
         emit ocrEngineStateChanged();
     });
-    // A finished download of the better OCR model selects it, once there is a
-    // runtime to run it (none found and none downloadable: Settings says to
-    // install onnxruntime); removing it goes back to the platform default.
-    connect(m_bgRemover, &BackgroundRemover::ocrModelChanged, this, [this] {
-        if (!m_bgRemover->ocrModel().isEmpty() && m_bgRemover->runtimeFound())
-            m_settings->setOcrEngine(QStringLiteral("paddle"));
-        else if (m_settings->ocrEngine() == QLatin1String("paddle"))
-            m_settings->setOcrEngine(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE));
+    // The first OCR run, or Settings, looks for ONNX Runtime; without one
+    // Settings shows Tesseract as the engine that runs.
+    connect(m_bgRemover, &BackgroundRemover::stateChanged, this, [this] {
         m_ocr->setEngine(ocrEffectiveEngine());
         emit ocrEngineStateChanged();
     });
@@ -584,8 +579,7 @@ QStringList AppContext::ocrEngines() const
 
 QString AppContext::ocrEffectiveEngine() const
 {
-    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable,
-                                 !m_bgRemover->ocrModel().isEmpty());
+    return OcrEngines::effective(m_settings->ocrEngine(), m_windowsOcrUsable, m_bgRemover->ocrUsable());
 }
 
 void AppContext::checkOcrEngines()
@@ -595,6 +589,10 @@ void AppContext::checkOcrEngines()
     m_ocrEnginesChecked = true;
     if (!WindowsOcr::built()) {
         m_windowsOcrUsable = false;
+        // Looks for ONNX Runtime now (one dlopen, when the OCR settings open),
+        // so Settings names the engine that will really run.
+        m_bgRemover->ocrSetup();
+        m_ocr->setEngine(ocrEffectiveEngine());
         emit ocrEngineStateChanged();
         return;
     }

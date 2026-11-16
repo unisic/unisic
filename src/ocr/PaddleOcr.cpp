@@ -2,9 +2,11 @@
 
 #include <onnxruntime/onnxruntime_c_api.h>
 
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QImage>
-#include <QStandardPaths>
 
 #include <algorithm>
 #include <array>
@@ -260,18 +262,28 @@ struct Read {
 
 } // namespace
 
-QString detPath(Model m)
+// Found from the binary, like the bundled tessdata (OcrEngine.cpp): an AppImage
+// or tarball sets no variable. <bin>/share is the build tree, where CMake links
+// resources/models so a dev build and the tests run the same files.
+static QString bundledModel(const QString &file)
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-           + (m == Model::Small ? QStringLiteral("/models/PP-OCRv6_det_small.onnx")
-                                : QStringLiteral("/models/PP-OCRv6_det_tiny.onnx"));
+    const QString bin = QCoreApplication::applicationDirPath();
+    for (const QString &dir : {bin + QStringLiteral("/../share/unisic/models/"), bin + QStringLiteral("/share/unisic/models/")}) {
+        const QString path = QDir::cleanPath(dir + file);
+        if (QFileInfo::exists(path))
+            return path;
+    }
+    return {};
 }
 
-QString recPath(Model m)
+QString detPath()
 {
-    return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation)
-           + (m == Model::Small ? QStringLiteral("/models/PP-OCRv6_rec_small.onnx")
-                                : QStringLiteral("/models/PP-OCRv6_rec_tiny.onnx"));
+    return bundledModel(QStringLiteral("PP-OCRv6_det_tiny.onnx"));
+}
+
+QString recPath()
+{
+    return bundledModel(QStringLiteral("PP-OCRv6_rec_tiny.onnx"));
 }
 
 // shortcut: axis-aligned boxes, not cv2.minAreaRect, so rotated text gets a loose crop; upgrade if tilted text (photos, rotated UI) must be read.

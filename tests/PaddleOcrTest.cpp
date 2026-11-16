@@ -11,6 +11,17 @@ class PaddleOcrTest : public QObject
 {
     Q_OBJECT
 private slots:
+    // The build tree mirrors the install (CMake links share/unisic/models), so
+    // this checks the lookup every Linux package relies on.
+    void modelShipsWithTheBuild()
+    {
+#ifdef _WIN32
+        QSKIP("Windows reads with Windows OCR and ships no model");
+#endif
+        QVERIFY(PaddleOcr::detPath().endsWith(QLatin1String("/PP-OCRv6_det_tiny.onnx")));
+        QVERIFY(PaddleOcr::recPath().endsWith(QLatin1String("/PP-OCRv6_rec_tiny.onnx")));
+        QCOMPARE(QFileInfo(PaddleOcr::recPath()).size(), qint64(4489813));
+    }
     void detectorBoxes()
     {
         const int w = 100, h = 60;

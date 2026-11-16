@@ -10,24 +10,20 @@ class QImage;
 struct OrtApi;
 struct OrtEnv;
 
-// The "Better OCR model": PP-OCRv6 text detection and recognition (PaddleOCR,
+// Linux's OCR engine: PP-OCRv6 text detection and recognition (PaddleOCR,
 // Apache-2.0, the ONNX export RapidOCR 3.10 ships) on the ONNX Runtime that
-// background removal dlopen()s, so it exists exactly where that does: Linux,
-// downloaded from Settings (docs/dev/packaging.md "Background removal"). The
+// BackgroundRemover dlopen()s; the model ships with the package
+// (docs/dev/packaging.md "OCR"). The
 // pipeline is RapidOCR's, rewritten without OpenCV, with the settings the
 // screenshot benchmark ran (PaddleOcr.cpp lists them); the angle classifier is
 // left out because a screenshot's text is upright.
 namespace PaddleOcr {
 
-// The sizes Settings offers. The list stops at small on purpose: medium is a
-// 139 MB download and ~10 s a picture on one CPU core for 0.4 -> 0.2% CER on
-// the screenshot benchmark, and server read worse than small.
-enum class Model { Tiny, Small };
-
-// Where the downloaded pair lives (the user's data folder, beside the
-// background removal model). File names are the upstream ones.
-QString detPath(Model m);
-QString recPath(Model m);
+// The tiny pair every Linux package installs into share/unisic/models (6.3 MB
+// against 31 MB for small and 139 MB for medium). File names are the upstream
+// ones. "" when the file is missing.
+QString detPath();
+QString recPath();
 
 struct Setup {
     const OrtApi *api = nullptr;

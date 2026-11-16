@@ -12,7 +12,7 @@
 // OCR front end. Tesseract (+ leptonica) is a hard build requirement (see
 // CMakeLists), so it is always compiled in; whether any language data is
 // INSTALLED is a separate runtime question. On Windows the OS recognizer
-// (WindowsOcr) can run instead, on Linux the better OCR model (PaddleOcr),
+// (WindowsOcr) can run instead, on Linux PaddleOcr is the default,
 // see setEngine(). Recognition runs on a worker
 // thread; the callback is delivered on the GUI thread.
 class OcrEngine : public QObject

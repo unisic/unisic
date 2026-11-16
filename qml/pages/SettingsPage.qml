@@ -240,14 +240,6 @@ Item {
         onAccepted: App.backgroundRemover.deleteDownloads()
     }
     UConfirmDialog {
-        id: ocrDeleteConfirm
-        title: qsTr("Remove the better OCR model?")
-        text: qsTr("Text recognition goes back to Tesseract. Any ONNX Runtime that Unisic downloaded is removed too, unless background removal still needs it.")
-        confirmText: qsTr("Remove")
-        destructive: true
-        onAccepted: App.backgroundRemover.deleteOcrModel()
-    }
-    UConfirmDialog {
         id: helpDialog
         showCancel: false
         confirmText: qsTr("Close")
@@ -1288,46 +1280,44 @@ Item {
                     SettingRow {
                         id: ocrEngineRow
                         // Only where there is a choice: Windows OCR on Windows,
-                        // the better OCR model on Linux. App.ocrEngines is
-                        // CONSTANT, so this is settled per platform at load and
-                        // never toggles under the pointer. The better OCR model
-                        // joins the list only once it is downloaded; until then
-                        // the combo holds Tesseract alone, disabled, and the help
-                        // points to the download, so the row keeps its place.
+                        // PaddleOCR on Linux. App.ocrEngines is CONSTANT, so
+                        // this is settled per platform at load and never
+                        // toggles under the pointer.
                         visible: App.ocrEngines.length > 1
                         readonly property bool win: App.ocrEngines.indexOf("windows") >= 0
-                        readonly property var ids: App.ocrEngines.filter((id) => id !== "paddle" || App.backgroundRemover.ocrModel !== "")
-                        label: qsTr("Text recognition engine")
+                        readonly property var ids: App.ocrEngines
+                        label: qsTr("OCR engine")
                         // Only the text changes when the answer lands, so the
                         // row keeps its place; the combo shows the engine that
                         // actually runs (OcrEngines::effective()).
                         help: win && !App.windowsOcrUsable
                               ? qsTr("No OCR language is installed in Windows. Tesseract reads the text instead.")
-                              : !win && ids.length < 2
-                                ? qsTr("Download the better OCR model below to choose it.")
+                              : !win && App.settings.ocrEngine === "paddle" && App.ocrEffectiveEngine !== "paddle"
+                                ? qsTr("PaddleOCR cannot run: ONNX Runtime or its model is missing. Tesseract reads the text instead.")
                                 : qsTr("Which recognizer reads the text in your captures.")
                         Component.onCompleted: if (App.ocrEngines.length > 1) App.checkOcrEngines()
                         helpDetail: win
                                     ? qsTr("Windows OCR is built into Windows and reads the languages installed for your Windows account. Tesseract uses its own language packs and the language settings below. When no Windows OCR language is installed, Unisic recognizes with Tesseract instead.")
-                                    : qsTr("Tesseract uses its own language packs and the language settings below. The better OCR model makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese, and the small model also Japanese.")
+                                    : qsTr("PaddleOCR makes far fewer mistakes on screenshots and needs no language packs, but it reads only Latin-script languages and Chinese. Tesseract uses its own language packs and the language settings below, and reads the scripts PaddleOCR cannot, such as Cyrillic, Korean or Arabic.")
                         UComboBox {
                             width: 180
-                            enabled: ocrEngineRow.ids.length > 1
                             // Product names, the same in every language.
-                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: qsTr("Better OCR model") })
+                            readonly property var names: ({ windows: "Windows OCR", tesseract: "Tesseract", paddle: "PaddleOCR" })
                             model: ocrEngineRow.ids.map((id) => names[id] || id)
                             currentIndex: Math.max(0, ocrEngineRow.ids.indexOf(App.ocrEffectiveEngine))
                             onActivated: (i) => App.settings.ocrEngine = ocrEngineRow.ids[i]
                         }
                     }
+                    // The language rows below only steer Tesseract.
                     SettingRow {
+                        available: App.ocrEffectiveEngine === "tesseract"
                         label: qsTr("Detect languages automatically")
                         help: qsTr("Detects the script and recognizes with the matching language pack.")
                         helpDetail: qsTr("No need to know Tesseract language codes. With the OSD data installed (the “osd” Tesseract pack), Unisic detects the script of each capture - Latin, Arabic, Hebrew, Chinese/Japanese/Korean, Devanagari, and so on - and recognizes with just that script's installed packs, which is faster and more accurate than loading them all. Without the OSD pack it falls back to loading every installed pack. Install the packs for the scripts you use.")
                         USwitch { checked: App.settings.ocrAutoLanguage; onToggled: (c) => App.settings.ocrAutoLanguage = c }
                     }
                     SettingRow {
-                        available: !App.settings.ocrAutoLanguage
+                        available: App.ocrEffectiveEngine === "tesseract" && !App.settings.ocrAutoLanguage
                         label: qsTr("OCR languages")
                         help: qsTr("Tesseract language spec used when recognizing text.")
                         helpDetail: qsTr("Combine languages with “+”, e.g. “pol+eng”; each needs its Tesseract langpack installed. OCR also scans QR and bar codes: a code found in the region copies its content instead of the surrounding text.")
@@ -1342,114 +1332,12 @@ Item {
                     // the real "OCR does nothing" trap. The language data is a
                     // separate install that no build flag can supply.
                     Text {
-                        visible: !App.ocrHasLanguages
+                        visible: !App.ocrHasLanguages && App.ocrEffectiveEngine === "tesseract"
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: qsTr("No Tesseract language pack is installed, so OCR can't recognize anything yet. Install one, e.g. “tesseract-langpack-eng”.")
                         color: Theme.danger
                         font.pixelSize: Theme.fontS
-                    }
-                }
-            }
-
-            // Built like the background removal group, whose runtime and
-            // download code it shares; Linux only for the same reason
-            // (`available` is CONSTANT, so nothing toggles).
-            SettingsGroup {
-                width: page.cardWidth
-                visible: App.backgroundRemover.available
-                Component.onCompleted: if (App.backgroundRemover.ocrModel !== "")
-                                           App.backgroundRemover.ocrChoice = App.backgroundRemover.ocrModel
-                Column {
-                    width: parent.width
-                    spacing: Theme.spacingS
-                    SectionTitle { text: qsTr("Better OCR model") }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Reads the text in your captures with PaddleOCR's PP-OCRv6 instead of Tesseract: far fewer mistakes on screenshots, and no language packs to install. It reads Latin-script languages and Chinese, and the small model also Japanese; for Cyrillic, Arabic and other scripts keep Tesseract. It runs on this computer and nothing is uploaded.")
-                        color: Theme.textTertiary
-                        font.pixelSize: Theme.fontS
-                    }
-                    SettingRow {
-                        label: qsTr("Model size")
-                        help: qsTr("Downloading a model selects it; the other size is removed.")
-                        UComboBox {
-                            width: 240
-                            enabled: !App.backgroundRemover.fetching
-                            model: [qsTr("Tiny (recommended)"), qsTr("Small (most accurate)")]
-                            currentIndex: App.backgroundRemover.ocrChoice === "small" ? 1 : 0
-                            onActivated: (i) => App.backgroundRemover.ocrChoice = i === 1 ? "small" : "tiny"
-                        }
-                    }
-                    // Memory is the measured peak of a run (VmHWM over the
-                    // benchmark's screenshots, and over one 3840x2160 one),
-                    // rounded; speed and accuracy are relative on purpose,
-                    // since the milliseconds depend on the computer.
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: qsTr("Tiny: %1 download, about 200 MB of memory while reading (up to 400 MB for a 4K screenshot). Fast, with few mistakes.")
-                                  .arg(App.backgroundRemover.ocrModelSizeText("tiny"))
-                              + "\n" + qsTr("Small: %1 download, about 350 MB of memory while reading (up to 600 MB for a 4K screenshot). About five times slower than tiny, with about a third of its mistakes.")
-                                  .arg(App.backgroundRemover.ocrModelSizeText("small"))
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: (App.backgroundRemover.runtimeFound
-                               ? App.backgroundRemover.runtimeInfo
-                               : App.backgroundRemover.canDownloadRuntime
-                                 ? qsTr("ONNX Runtime: not installed, it is downloaded with the model")
-                                 : App.backgroundRemover.runtimeInfo !== ""
-                                   ? App.backgroundRemover.runtimeInfo
-                                   : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
-                              + "\n" + (App.backgroundRemover.ocrModel === "small" ? qsTr("Model: small, downloaded")
-                                        : App.backgroundRemover.ocrModel === "tiny" ? qsTr("Model: tiny, downloaded")
-                                        : qsTr("Model: not downloaded"))
-                        color: Theme.textSecondary
-                        font.pixelSize: Theme.fontS
-                    }
-                    Text {
-                        visible: App.backgroundRemover.ocrError !== ""
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: App.backgroundRemover.ocrError
-                        color: Theme.danger
-                        font.pixelSize: Theme.fontS
-                    }
-                    Row {
-                        spacing: Theme.spacingM
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "folder-cloud"
-                            visible: App.backgroundRemover.ocrDownloading
-                                     || App.backgroundRemover.ocrModel !== App.backgroundRemover.ocrChoice
-                                     || (!App.backgroundRemover.runtimeFound && App.backgroundRemover.canDownloadRuntime)
-                            enabled: !App.backgroundRemover.fetching
-                            text: App.backgroundRemover.ocrDownloading
-                                  ? qsTr("Downloading… %1%").arg(Math.round(App.backgroundRemover.progress * 100))
-                                  : qsTr("Download (%1)").arg(App.backgroundRemover.ocrDownloadSizeText)
-                            onClicked: App.backgroundRemover.downloadOcr()
-                        }
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            visible: App.backgroundRemover.ocrDownloading
-                            text: qsTr("Cancel")
-                            onClicked: App.backgroundRemover.cancelDownload()
-                        }
-                        UButton {
-                            compact: true
-                            variant: "tonal"
-                            iconName: "edit-delete"
-                            visible: App.backgroundRemover.ocrModel !== "" && !App.backgroundRemover.ocrDownloading
-                            text: qsTr("Remove")
-                            onClicked: ocrDeleteConfirm.open()
-                        }
                     }
                 }
             }
@@ -2523,7 +2411,9 @@ Item {
                         text: (App.backgroundRemover.runtimeFound
                                ? App.backgroundRemover.runtimeInfo
                                : App.backgroundRemover.canDownloadRuntime
-                                 ? qsTr("ONNX Runtime: not installed, it is downloaded with the model")
+                                 ? (App.backgroundRemover.runtimeInfo !== ""
+                                    ? qsTr("%1; a newer one is downloaded with the model").arg(App.backgroundRemover.runtimeInfo)
+                                    : qsTr("ONNX Runtime: not installed, it is downloaded with the model"))
                                  : App.backgroundRemover.runtimeInfo !== ""
                                    ? App.backgroundRemover.runtimeInfo
                                    : qsTr("ONNX Runtime: not installed - install the onnxruntime package from your distribution"))
@@ -2548,7 +2438,7 @@ Item {
                             iconName: "folder-cloud"
                             visible: App.backgroundRemover.downloading || !App.backgroundRemover.modelInstalled
                                      || (!App.backgroundRemover.runtimeFound && App.backgroundRemover.canDownloadRuntime)
-                            enabled: !App.backgroundRemover.fetching
+                            enabled: !App.backgroundRemover.downloading
                             text: App.backgroundRemover.downloading
                                   ? qsTr("Downloading… %1%").arg(Math.round(App.backgroundRemover.progress * 100))
                                   : qsTr("Download (%1)").arg(App.backgroundRemover.downloadSizeText)

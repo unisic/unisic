@@ -42,7 +42,8 @@ private slots:
         QCOMPARE(OcrEngines::effective(tesseract, false, true), tesseract);
         QCOMPARE(OcrEngines::effective(tesseract, true, true), tesseract);
         QCOMPARE(OcrEngines::effective(QStringLiteral("no-such-engine"), true, true), tesseract);
-        QCOMPARE(OcrEngines::effective(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE), false, true), tesseract);
+        if (WindowsOcr::built())
+            QCOMPARE(OcrEngines::effective(QStringLiteral(UNISIC_OCR_DEFAULT_ENGINE), false, true), tesseract);
     }
 
     void paddleRunsOnlyWithItsModel()

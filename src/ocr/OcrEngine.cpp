@@ -32,8 +32,8 @@ namespace {
 struct OcrResult { QString text; QString error; };
 struct OcrBoxResult { QVector<OcrWord> words; QString error; };
 
-// The better OCR model, when it is the engine. false means Tesseract reads
-// instead: the runtime went away, a model file was deleted, or a run failed.
+// PaddleOCR, when it is the engine. false means Tesseract reads instead: no
+// runtime, a model file missing, or a run failed.
 bool runPaddle(const PaddleOcr::Setup &s, const QImage &img, const std::atomic_bool &cancelled,
                QVector<OcrWord> *words, QString *text)
 {
@@ -44,7 +44,7 @@ bool runPaddle(const PaddleOcr::Setup &s, const QImage &img, const std::atomic_b
         && PaddleOcr::recognize(s, img, cancelled, words, text, &why, std::min(4, QThread::idealThreadCount())))
         return true;
     if (!cancelled.load())
-        qWarning("OCR: the better OCR model cannot run (%s), using Tesseract", qUtf8Printable(why));
+        qWarning("OCR: PaddleOCR cannot run (%s), using Tesseract", qUtf8Printable(why));
     return false;
 }
 

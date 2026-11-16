@@ -528,6 +528,20 @@ install(FILES third_party/twemoji/LICENSE
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.twemoji)
 install(FILES third_party/twemoji/LICENSE.unicode
     DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic)
+# The OCR model, PP-OCRv6 tiny (PaddleOCR, Apache-2.0) as RapidOCR 3.10
+# converts it, byte for byte the unisic/unisic-models ppocr-v6-1 release.
+# PaddleOcr.cpp finds it from the binary at <bin>/../share/unisic/models, or
+# <bin>/share/unisic/models in the build tree, linked here for dev runs and
+# tests. Linux only: Windows reads with Windows.Media.Ocr.
+if(NOT WIN32)
+    install(FILES third_party/paddleocr/PP-OCRv6_det_tiny.onnx third_party/paddleocr/PP-OCRv6_rec_tiny.onnx
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic/models)
+    install(FILES third_party/paddleocr/LICENSE
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/unisic RENAME LICENSE.paddleocr)
+    file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/share/unisic)
+    file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/third_party/paddleocr
+        ${CMAKE_BINARY_DIR}/share/unisic/models SYMBOLIC)
+endif()
 # Man page. Generated so the version in its header cannot drift from
 # UNISIC_VERSION_STRING, and so the date is the build's, not whenever the file
 # was last hand-edited. Debian's linters flag a binary that ships without one.

@@ -181,6 +181,18 @@ void OverlayController::createWindows()
             }
         }
 
+        // The first overlay takes the focus once it is mapped (first frame
+        // swapped), never before - see the fullscreen branch below for why.
+        // Connected BEFORE showing: the threaded render loop can swap that
+        // frame before control returns here, and a missed signal would leave
+        // no overlay focused (Escape/Enter dead until the pointer moves).
+        // A layer surface takes the keyboard by itself (exclusive
+        // interactivity), so the wait costs it nothing either.
+        if (m_windows.isEmpty()) {
+            connect(win, &QQuickWindow::frameSwapped, win,
+                    [win] { win->requestActivate(); }, Qt::SingleShotConnection);
+        }
+
         bool shown = false;
         // A fullscreen toplevel can't sit above a fullscreen application on
         // Wayland, so region/window selection over a fullscreen game/video
@@ -202,14 +214,33 @@ void OverlayController::createWindows()
             win->show();
             shown = true;
         }
-        if (!shown)
-            win->showFullScreen();
+        if (!shown) {
+            // Not showFullScreen(): QWindow::showFullScreen() also calls
+            // requestActivate(), and on Wayland that sends an xdg_activation
+            // request for a surface that has no buffer yet. cosmic-comp files
+            // an activation on an unmapped surface as a pending activation
+            // carrying the ACTIVE output's workspace, and map_window() then
+            // places the window there and ignores the output named in
+            // set_fullscreen - so from the second overlay of a session on (the
+            // first key press is what gives Qt a serial to ask a token with)
+            // every overlay landed on the monitor with focus, stacked, and the
+            // other monitors had none. Whether the token beats the first frame
+            // is a race (Qt 6.8 loses it, 6.11 mostly wins), so no activation
+            // may be requested before the window has drawn. setVisible(true)
+            // keeps the fullscreen state set here; show() would reset it.
+            // QtWayland's xdg-shell plugin ALSO asks for a token on every show
+            // (requestActivateOnShow) right after the initial, bufferless
+            // commit; _q_showWithoutActivating is the property it checks to
+            // skip that (present in the 6.8 the AppImage bundles and in 6.11).
+            win->setProperty("_q_showWithoutActivating", true);
+            win->setWindowStates(Qt::WindowFullScreen);
+            win->setVisible(true);
+        }
         m_windows.append(win);
         m_windowScreens.append(screen);
     }
     if (!m_windows.isEmpty()) {
         m_starting = false;
-        m_windows.first()->requestActivate();
         // Each canvas took its own copy — don't pin a second full-resolution
         // image per monitor for the overlay's whole lifetime.
         m_frozen.clear();

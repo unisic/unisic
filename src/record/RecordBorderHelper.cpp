@@ -514,8 +514,9 @@ int runRecordBorderHelper(int argc, char *argv[])
     }
 
     // REC badge just above the region (or below if there is no room above),
-    // shown only once recording has begun. A fixed generous width means the
-    // ticking clock never needs the window resized. Never in countdownOnly mode
+    // shown only once recording has begun. Placed at the widest badge so it
+    // never runs off the screen's right edge; updateInputShape() then shrinks
+    // the window to the pill whenever its width changes. Never in countdownOnly mode
     // (the overlay is gone the moment recording begins).
     std::unique_ptr<BadgeWindow> badgeWin;
     if (!countdownOnly) {

@@ -129,6 +129,11 @@ void OverlayController::createWindows()
         return;
     }
 
+    // The deferred activation below is a Wayland fix (xdg_activation on a
+    // bufferless surface). xcb and Windows keep showFullScreen() and the
+    // immediate requestActivate(): a delayed one can lose the foreground
+    // right a hotkey grants there.
+    const bool wayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
     for (int i = 0; i < m_screens.size(); ++i) {
         QScreen *screen = m_screens[i];
         // Parented to the window below — a context parented to this
@@ -188,7 +193,7 @@ void OverlayController::createWindows()
         // no overlay focused (Escape/Enter dead until the pointer moves).
         // A layer surface takes the keyboard by itself (exclusive
         // interactivity), so the wait costs it nothing either.
-        if (m_windows.isEmpty()) {
+        if (wayland && m_windows.isEmpty()) {
             connect(win, &QQuickWindow::frameSwapped, win,
                     [win] { win->requestActivate(); }, Qt::SingleShotConnection);
         }
@@ -214,7 +219,9 @@ void OverlayController::createWindows()
             win->show();
             shown = true;
         }
-        if (!shown) {
+        if (!shown && !wayland) {
+            win->showFullScreen();
+        } else if (!shown) {
             // Not showFullScreen(): QWindow::showFullScreen() also calls
             // requestActivate(), and on Wayland that sends an xdg_activation
             // request for a surface that has no buffer yet. cosmic-comp files
@@ -241,6 +248,8 @@ void OverlayController::createWindows()
     }
     if (!m_windows.isEmpty()) {
         m_starting = false;
+        if (!wayland)
+            m_windows.first()->requestActivate();
         // Each canvas took its own copy — don't pin a second full-resolution
         // image per monitor for the overlay's whole lifetime.
         m_frozen.clear();

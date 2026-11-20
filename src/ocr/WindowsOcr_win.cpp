@@ -9,7 +9,10 @@
 #include <winrt/Windows.Media.Ocr.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
+#include <memory>
+#include <mutex>
 
 // Windows.Media.Ocr through the C++/WinRT projection MSYS2 ships as the
 // header-only `cppwinrt` package (mingw-w64's own headers carry no
@@ -110,11 +113,35 @@ bool WindowsOcr::recognize(const QImage &src, const std::atomic_bool &cancelled,
 
         // Polled rather than get(), so quitting mid-recognition cancels the
         // operation instead of holding the thread pool (and the exit) until it ends.
+        // Not op.wait_for() in a loop: each call assigns op.Completed, which an
+        // async operation accepts once, so the second poll of a run longer than
+        // one interval threw 0x80000018 (E_ILLEGAL_DELEGATE_ASSIGNMENT). One
+        // handler, shared state it owns a reference to, so it may fire late.
+        struct Done {
+            std::mutex m;
+            std::condition_variable cv;
+            bool done = false;
+        };
+        const auto state = std::make_shared<Done>();
         const auto op = engine.RecognizeAsync(bitmap);
-        while (op.wait_for(std::chrono::milliseconds(100)) == wf::AsyncStatus::Started) {
-            if (cancelled.load()) {
-                op.Cancel();
-                return fail(QStringLiteral("cancelled"));
+        op.Completed([state](const wf::IAsyncOperation<wmo::OcrResult> &, wf::AsyncStatus) {
+            const std::lock_guard<std::mutex> lock(state->m);
+            state->done = true;
+            state->cv.notify_all();
+        });
+        {
+            std::unique_lock<std::mutex> lock(state->m);
+            while (!state->cv.wait_for(lock, std::chrono::milliseconds(100), [&] { return state->done; })) {
+                if (cancelled.load()) {
+                    // Unlocked: the handler may run inside Cancel(). Cancel
+                    // completes the operation promptly; it is still awaited
+                    // so the apartment is not left with it running.
+                    lock.unlock();
+                    op.Cancel();
+                    lock.lock();
+                    state->cv.wait_for(lock, std::chrono::seconds(2), [&] { return state->done; });
+                    return fail(QStringLiteral("cancelled"));
+                }
             }
         }
         if (op.Status() == wf::AsyncStatus::Canceled)

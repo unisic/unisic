@@ -216,13 +216,14 @@ jobs:
           done
           ls -la AppDir/usr/share/tessdata
           # ONNX Runtime for PaddleOCR (the default OCR engine) and background
-          # removal: the same pinned upstream build the Flatpak bundles and
+          # removal: the same pinned upstream build (our unisic-models mirror,
+          # microsoft/onnxruntime answers 404) the Flatpak bundles and
           # src/editor/BackgroundRemover.cpp downloads (kPins, kRuntimeFile).
           # dlopen()ed, so linuxdeploy cannot find it; probe() looks for this
           # exact file in <bin>/../lib before any system copy.
           ort=1.31.1
-          curl -fsSL -o ort.tgz "https://github.com/microsoft/onnxruntime/releases/download/v${ort}/onnxruntime-linux-x64-${ort}.tgz"
-          echo "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9  ort.tgz" | sha256sum -c -
+          curl -fsSL -o ort.tgz "https://github.com/unisic/unisic-models/releases/download/onnxruntime-${ort}/onnxruntime-linux-x64-${ort}.tgz"
+          echo "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490  ort.tgz" | sha256sum -c -
           tar -xzf ort.tgz
           install -Dm755 "onnxruntime-linux-x64-${ort}/lib/libonnxruntime.so.${ort}" "AppDir/usr/lib/libonnxruntime.so.${ort}"
           install -Dm644 "onnxruntime-linux-x64-${ort}/LICENSE" AppDir/usr/share/licenses/onnxruntime/LICENSE

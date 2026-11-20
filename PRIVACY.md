@@ -60,8 +60,7 @@ check, each one starts from something you do.
 ## When you ask: background removal download (Linux)
 
 - What: a download of the ONNX Runtime library and the background removal
-  model from GitHub release pages (`github.com/microsoft/onnxruntime` and
-  `github.com/unisic/unisic-models`). Nothing is uploaded; the model runs on
+  model from a GitHub release page (`github.com/unisic/unisic-models`). Nothing is uploaded; the model runs on
   your computer.
 - When: only when you press Download in Settings > Editor.
 - Third party: GitHub, see above.

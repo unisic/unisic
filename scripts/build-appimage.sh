@@ -219,12 +219,13 @@ for lang in eng pol osd; do
 done
 
 # ONNX Runtime for PaddleOCR and background removal, the pinned upstream build
+# from our unisic-models mirror (microsoft/onnxruntime answers 404)
 # (same steps as .github/workflows/appimage.yml). dlopen()ed, so linuxdeploy
 # cannot find it; BackgroundRemover::probe() looks in <bin>/../lib.
 ORT=1.31.1
 [ -s "$TOOLS/onnxruntime-$ORT.tgz" ] || curl -fL -o "$TOOLS/onnxruntime-$ORT.tgz" \
-    "https://github.com/microsoft/onnxruntime/releases/download/v$ORT/onnxruntime-linux-x64-$ORT.tgz"
-echo "c849e36a1ef3e22d4ff217b9d1ce4a3cf5b9467b975610913ae959ad5b16bdc9  $TOOLS/onnxruntime-$ORT.tgz" | sha256sum -c -
+    "https://github.com/unisic/unisic-models/releases/download/onnxruntime-$ORT/onnxruntime-linux-x64-$ORT.tgz"
+echo "8b5b171ec86280789101de7ad7c762b65054aa24790a057d7950b41c1d01a490  $TOOLS/onnxruntime-$ORT.tgz" | sha256sum -c -
 tar -xzf "$TOOLS/onnxruntime-$ORT.tgz" -C "$TOOLS"
 install -Dm755 "$TOOLS/onnxruntime-linux-x64-$ORT/lib/libonnxruntime.so.$ORT" "$APPDIR/usr/lib/libonnxruntime.so.$ORT"
 install -Dm644 "$TOOLS/onnxruntime-linux-x64-$ORT/LICENSE" "$APPDIR/usr/share/licenses/onnxruntime/LICENSE"

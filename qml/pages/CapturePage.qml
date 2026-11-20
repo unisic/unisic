@@ -18,7 +18,7 @@ Item {
     // Main.qml owns the page index; the "Open History", "Manage" and "set one"
     // links ask it to switch instead of reaching into it.
     signal openPage(int index)
-    signal openSettings(int tab)
+    signal openSettings(int tab, string query)
 
     // Fields sunk into a card (key caps, the delay switch, the Repeat and
     // Upload rows) take the window colour. A theme whose window colour equals
@@ -224,7 +224,7 @@ Item {
                             title: modelData.title
                             sub: modelData.sub
                             hotkey: modelData.hotkey
-                            onOpenHotkeys: page.openSettings(7)
+                            onOpenHotkeys: page.openSettings(7, "")
                             onActivated: {
                                 if (modelData.action === 0) App.captureFullScreen()
                                 else if (modelData.action === 1) App.captureRegion()
@@ -257,7 +257,7 @@ Item {
                     Repeater {
                         model: [
                             { iconName: "line-text-scan", title: qsTr("Copy text"),    sub: qsTr("OCR from a region"),     hotkey: App.settings.hotkeyOcr,    action: 0 },
-                            { iconName: "line-ruler",     title: qsTr("Measure"),      sub: qsTr("Distances and angles"),  hotkey: "",                        action: 1 },
+                            { iconName: "line-ruler",     title: qsTr("Measure"),      sub: qsTr("Distances and angles"),  hotkey: App.settings.hotkeyMeasure, action: 1 },
                             { iconName: "line-film",      title: qsTr("Record GIF"),
                               //: %1 is the GIF length limit in seconds.
                               sub: App.settings.gifMaxDurationSec > 0 ? qsTr("Region, up to %1 s").arg(App.settings.gifMaxDurationSec)

@@ -27,7 +27,7 @@ Item {
     readonly property bool idle: App.recordingAvailable && !App.recording && !App.converting
 
     signal openPage(int index)
-    signal openSettings(int tab)
+    signal openSettings(int tab, string query)
 
     // FPS segments (15/30/45/60): snap a stored value to the nearest.
     // Both frame-rate controls (video and GIF) resolve through this - it is
@@ -161,10 +161,10 @@ Item {
                         title: qsTr("Screen")
                         sub: page.gifMode ? qsTr("Record a whole screen to a GIF")
                                           : qsTr("Record a whole screen to a video")
-                        // No hotkey action records the whole screen, so no
-                        // "set one" link either.
-                        bindable: false
+                        hotkey: page.gifMode ? App.settings.hotkeyGifScreen : App.settings.hotkeyRecordScreen
                         enabled: page.idle
+                        onOpenHotkeys: page.openSettings(-1, page.gifMode ? qsTranslate("SettingsPage", "GIF of the full screen")
+                                                                          : qsTranslate("SettingsPage", "Video of the full screen"))
                         onActivated: page.gifMode ? App.startGifFullScreen() : App.startVideoScreen()
                     }
                     SourceTile {
@@ -177,7 +177,7 @@ Item {
                         // The record-gif / record-video actions start a region.
                         hotkey: page.gifMode ? App.settings.hotkeyGif : App.settings.hotkeyRecord
                         enabled: page.idle
-                        onOpenHotkeys: page.openSettings(7)
+                        onOpenHotkeys: page.openSettings(7, "")
                         onActivated: page.gifMode ? App.startGifRegion() : App.startVideoRegion()
                     }
                     SourceTile {
@@ -192,8 +192,10 @@ Item {
                         sub: page.gifMode ? qsTr("Unavailable: GIF has no single-window source")
                              : !App.capRecordWindowSource ? qsTr("Unavailable: this desktop has no window picker")
                              : qsTr("Record a single window to a video")
-                        bindable: false
+                        hotkey: page.gifMode ? "" : App.settings.hotkeyRecordWindow
+                        bindable: !page.gifMode && App.capRecordWindowSource
                         enabled: page.idle && !page.gifMode && App.capRecordWindowSource
+                        onOpenHotkeys: page.openSettings(-1, qsTranslate("SettingsPage", "Video of a window"))
                         onActivated: App.startVideoWindow()
                     }
                 }
@@ -221,6 +223,7 @@ Item {
                         sub: App.recordingPaused ? qsTr("Paused")
                              : App.recording ? qsTr("Recording") : qsTr("Not recording")
                         enabled: App.recordingCanPause && !App.converting
+                        hotkey: App.settings.hotkeyPauseRecording
                         onActivated: App.togglePauseRecording()
                     }
                     ActionTile {

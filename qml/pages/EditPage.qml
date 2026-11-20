@@ -28,7 +28,7 @@ Item {
 
     // Main.qml owns the page index and the Settings tab.
     signal openPage(int index)
-    signal openSettings(int tab)
+    signal openSettings(int tab, string query)
 
     // Same rule as the Capture page, for two tiles instead of four.
     readonly property bool compact: height < 760 || width - aside.width - 2 * 40 < 2 * 200 + 14
@@ -120,11 +120,9 @@ Item {
                         art: editArt
                         title: qsTr("Edit an image")
                         sub: qsTr("Annotate, crop, blur")
-                        // No hotkey action opens a file: no hotkey line at
-                        // all, and a subtitle that fits on one line.
-                        bindable: false
-                        hotkeyRow: false
+                        hotkey: App.settings.hotkeyEditImage
                         subLines: 1
+                        onOpenHotkeys: page.openSettings(-1, qsTranslate("SettingsPage", "Edit an image"))
                         onActivated: App.openFileForEditing("image")
                     }
                     SourceTile {
@@ -133,9 +131,9 @@ Item {
                         art: trimArt
                         title: qsTr("Trim a video")
                         sub: qsTr("Cut a start and an end")
-                        bindable: false
-                        hotkeyRow: false
+                        hotkey: App.settings.hotkeyTrimVideo
                         subLines: 1
+                        onOpenHotkeys: page.openSettings(-1, qsTranslate("SettingsPage", "Trim a video"))
                         onActivated: App.openFileForEditing("video")
                     }
                 }
@@ -165,6 +163,7 @@ Item {
                         iconName: "line-upload"
                         title: qsTr("Upload a file")
                         sub: qsTr("Any file, to your server")
+                        hotkey: App.settings.hotkeyUploadFile
                         onActivated: App.uploadAnyFile()
                     }
                     ActionTile {
@@ -173,6 +172,7 @@ Item {
                         iconName: "line-send"
                         title: qsTr("Upload clipboard")
                         sub: qsTr("A copied image, file or text")
+                        hotkey: App.settings.hotkeyUploadClipboard
                         onActivated: App.uploadClipboard()
                     }
                     ActionTile {
@@ -181,6 +181,7 @@ Item {
                         iconName: "line-qr"
                         title: qsTr("QR code")
                         sub: qsTr("Of the text you copied")
+                        hotkey: App.settings.hotkeyQrClipboard
                         onActivated: App.qrFromClipboard()
                     }
                 }
@@ -243,7 +244,7 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     text: qsTranslate("CapturePage", "Manage")
                     Accessible.description: qsTr("Open Settings at Editor")
-                    onActivated: page.openSettings(3)
+                    onActivated: page.openSettings(3, "")
                 }
             }
 

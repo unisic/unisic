@@ -19,7 +19,7 @@
         <translation>无法将 %1 移到回收站，文件仍在磁盘上</translation>
     </message>
     <message>
-        <location line="+3242"/>
+        <location line="+3262"/>
         <location line="+1883"/>
         <location line="+20"/>
         <source>Copied to clipboard</source>
@@ -32,12 +32,12 @@
         <translation>没有可识别的内容</translation>
     </message>
     <message>
-        <location line="-631"/>
+        <location line="-651"/>
         <source>Unisic %1 installed - it will start on the next launch</source>
         <translation>Unisic %1 已安装，下次启动时将使用新版本</translation>
     </message>
     <message>
-        <location line="+609"/>
+        <location line="+629"/>
         <source>Recognizing text…</source>
         <translation>正在识别文本…</translation>
     </message>
@@ -82,7 +82,7 @@
         <translation>Dev: 形状编辑：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+5273"/>
+        <location filename="../src/AppContext.cpp" line="+5293"/>
         <location filename="../src/diag/SmokeTests.cpp" line="+818"/>
         <location line="+3580"/>
         <source>Quit</source>
@@ -114,7 +114,7 @@
         <translation>Dev: 释放时截图：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="-6129"/>
+        <location filename="../src/AppContext.cpp" line="-6169"/>
         <source>Opened a terminal to install the update.</source>
         <translation>已打开终端以安装更新。</translation>
     </message>
@@ -124,7 +124,7 @@
         <translation>无法启动更新：%1</translation>
     </message>
     <message>
-        <location line="+922"/>
+        <location line="+942"/>
         <source>Reading key presses needs access to input devices. Run “%1”, then log out and back in.</source>
         <translation>读取按键需要访问输入设备。运行 “%1”，然后注销并重新登录。</translation>
     </message>
@@ -449,18 +449,18 @@
     </message>
     <message>
         <location filename="../src/AppContext.cpp" line="+131"/>
-        <location line="+273"/>
+        <location line="+293"/>
         <location line="+286"/>
         <source>Copy last capture</source>
         <translation>复制上次截图</translation>
     </message>
     <message>
-        <location line="-2740"/>
+        <location line="-2760"/>
         <source>Uploaded, link copied</source>
         <translation>已上传，链接已复制</translation>
     </message>
     <message>
-        <location line="-3390"/>
+        <location line="-3410"/>
         <source>Unisic %1 is available - updating automatically</source>
         <translation>Unisic %1 已发布，正在自动更新</translation>
     </message>
@@ -476,7 +476,7 @@
         <translation>即时回放失败：%1</translation>
     </message>
     <message>
-        <location line="+735"/>
+        <location line="+755"/>
         <location line="+5"/>
         <source>Capture in %1…</source>
         <translation>将在 %1 秒后截图…</translation>
@@ -1208,12 +1208,12 @@
         <translation>无法编码截图</translation>
     </message>
     <message>
-        <location line="-3322"/>
+        <location line="-3342"/>
         <source>It installs itself in the background. Click to open Unisic.</source>
         <translation>更新会在后台自动安装。点击打开 Unisic。</translation>
     </message>
     <message>
-        <location line="+1162"/>
+        <location line="+1182"/>
         <location line="+1"/>
         <source>Selection is too small for scrolling capture</source>
         <translation>选区太小，无法进行滚动截图</translation>
@@ -1677,31 +1677,46 @@
     </message>
     <message>
         <location line="+10"/>
-        <location line="+549"/>
+        <location line="+569"/>
         <location filename="../src/diag/SmokeTests.cpp" line="-205"/>
         <source>Capture full screen</source>
         <translation>截取全屏</translation>
     </message>
     <message>
-        <location line="-548"/>
-        <location line="+547"/>
+        <location line="-568"/>
+        <location line="+567"/>
         <location filename="../src/diag/SmokeTests.cpp" line="-1"/>
         <source>Capture region</source>
         <translation>截取区域</translation>
     </message>
     <message>
-        <location line="-546"/>
-        <location line="+552"/>
+        <location line="-566"/>
+        <location line="+572"/>
         <source>Capture scrolling region</source>
         <translation>截取滚动区域</translation>
     </message>
     <message>
-        <location line="-551"/>
+        <location line="-571"/>
         <source>Capture active window</source>
         <translation>截取当前活动窗口</translation>
     </message>
     <message>
-        <location line="+48"/>
+        <location line="+9"/>
+        <source>Pause/resume recording</source>
+        <translation>暂停/继续录制</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Edit an image</source>
+        <translation>编辑图片</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Trim a video</source>
+        <translation>剪辑视频</translation>
+    </message>
+    <message>
+        <location line="+46"/>
         <source>This desktop can&apos;t be set up automatically - use the commands below.</source>
         <translation>此桌面无法自动设置，请使用下面的命令。</translation>
     </message>
@@ -1743,7 +1758,7 @@
         <translation>Dev: 桌面快捷键：%1</translation>
     </message>
     <message>
-        <location filename="../src/AppContext.cpp" line="+208"/>
+        <location filename="../src/AppContext.cpp" line="+218"/>
         <location line="+257"/>
         <source>Capture screen under cursor</source>
         <translation>截取光标所在的屏幕</translation>
@@ -1755,7 +1770,7 @@
         <translation>重新截取上次区域</translation>
     </message>
     <message>
-        <location line="-551"/>
+        <location line="-571"/>
         <source>Record GIF (start/stop)</source>
         <translation>录制 GIF（开始/停止）</translation>
     </message>
@@ -1770,12 +1785,12 @@
         <translation>OCR 区域（复制文本）</translation>
     </message>
     <message>
-        <location line="+280"/>
+        <location line="+300"/>
         <source>Open quick task chooser</source>
         <translation>打开快速任务选择器</translation>
     </message>
     <message>
-        <location line="-278"/>
+        <location line="-298"/>
         <source>Start/save instant replay</source>
         <translation>开始/保存即时回放</translation>
     </message>
@@ -1805,7 +1820,7 @@
         <translation>已上传，但 %1 无法缩短链接（%2）。已使用完整链接。</translation>
     </message>
     <message>
-        <location line="+2403"/>
+        <location line="+2423"/>
         <location line="+119"/>
         <source>Stop recording (emergency)</source>
         <translation>停止录制（紧急）</translation>
@@ -1843,7 +1858,8 @@
         <translation>截取窗口</translation>
     </message>
     <message>
-        <location line="+3"/>
+        <location line="-560"/>
+        <location line="+563"/>
         <source>Measure</source>
         <translation>测量</translation>
     </message>
@@ -1859,12 +1875,14 @@
         <translation>录制视频（区域）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-569"/>
+        <location line="+570"/>
         <source>Record video (full screen)</source>
         <translation>录制视频（全屏）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-568"/>
+        <location line="+569"/>
         <source>Record video (window)</source>
         <translation>录制视频（窗口）</translation>
     </message>
@@ -1874,7 +1892,8 @@
         <translation>录制 GIF（区域）</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-571"/>
+        <location line="+572"/>
         <source>Record GIF (full screen)</source>
         <translation>录制 GIF（全屏）</translation>
     </message>
@@ -1894,17 +1913,20 @@
         <translation>停止录制</translation>
     </message>
     <message>
-        <location line="+2"/>
+        <location line="-569"/>
+        <location line="+571"/>
         <source>Upload a file…</source>
         <translation>上传文件…</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-570"/>
+        <location line="+571"/>
         <source>Upload clipboard</source>
         <translation>上传剪贴板内容</translation>
     </message>
     <message>
-        <location line="+1"/>
+        <location line="-570"/>
+        <location line="+571"/>
         <source>QR code of copied text</source>
         <translation>复制文本的二维码</translation>
     </message>
@@ -2071,7 +2093,7 @@
 <context>
     <name>BackgroundRemover</name>
     <message>
-        <location filename="../src/editor/BackgroundRemover.cpp" line="+510"/>
+        <location filename="../src/editor/BackgroundRemover.cpp" line="+517"/>
         <location line="+12"/>
         <source>ONNX Runtime %1 is too old, %2 or newer is needed</source>
         <translation>ONNX Runtime %1 版本过旧，需要 %2 或更高版本</translation>
@@ -2369,7 +2391,7 @@
     </message>
     <message>
         <location line="+29"/>
-        <location filename="../qml/pages/EditPage.qml" line="+104"/>
+        <location filename="../qml/pages/EditPage.qml" line="+105"/>
         <source>Recent captures</source>
         <translation>最近的截图</translation>
     </message>
@@ -2946,7 +2968,7 @@
 <context>
     <name>EditPage</name>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="-171"/>
+        <location filename="../qml/pages/EditPage.qml" line="-172"/>
         <source>Edit</source>
         <translation>编辑</translation>
     </message>
@@ -2971,7 +2993,7 @@
         <translation>标注、裁剪、模糊</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+10"/>
         <source>Trim a video</source>
         <translation>剪辑视频</translation>
     </message>
@@ -3001,7 +3023,7 @@
         <translation>任意文件，上传到你的服务器</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+8"/>
         <source>Upload clipboard</source>
         <translation>上传剪贴板内容</translation>
     </message>
@@ -3011,7 +3033,7 @@
         <translation>复制的图像、文件或文本</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+8"/>
         <source>QR code</source>
         <translation>二维码</translation>
     </message>
@@ -3021,7 +3043,7 @@
         <translation>使用你复制的文本</translation>
     </message>
     <message>
-        <location line="+62"/>
+        <location line="+63"/>
         <source>Open Settings at Editor</source>
         <translation>打开设置中的编辑器</translation>
     </message>
@@ -3321,49 +3343,49 @@
     </message>
     <message>
         <location line="+227"/>
-        <location line="+926"/>
+        <location line="+929"/>
         <source>Duplicate</source>
         <translation>复制一份</translation>
     </message>
     <message>
-        <location line="-914"/>
+        <location line="-917"/>
         <source>Arrange</source>
         <translation>排列</translation>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+913"/>
+        <location line="+916"/>
         <source>Bring to front</source>
         <translation>置于顶层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Bring forward</source>
         <translation>上移一层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Send backward</source>
         <translation>下移一层</translation>
     </message>
     <message>
-        <location line="-911"/>
-        <location line="+913"/>
+        <location line="-914"/>
+        <location line="+916"/>
         <source>Send to back</source>
         <translation>置于底层</translation>
     </message>
     <message numerus="yes">
-        <location line="-903"/>
-        <location line="+905"/>
+        <location line="-906"/>
+        <location line="+908"/>
         <source>Delete %n shape(s)</source>
         <translation>
             <numerusform>删除 %n 个形状</numerusform>
         </translation>
     </message>
     <message>
-        <location line="-761"/>
+        <location line="-764"/>
         <source>Rotate left</source>
         <translation>向左旋转</translation>
     </message>
@@ -3389,24 +3411,24 @@
     </message>
     <message>
         <location line="+62"/>
-        <location line="+253"/>
+        <location line="+156"/>
         <source>On the whole image</source>
         <translation>整张图片</translation>
     </message>
     <message>
-        <location line="-239"/>
-        <location line="+249"/>
+        <location line="-142"/>
+        <location line="+152"/>
         <source>Copy text</source>
         <translation>复制文本</translation>
     </message>
     <message>
-        <location line="-230"/>
-        <location line="+246"/>
+        <location line="-133"/>
+        <location line="+149"/>
         <source>Remove background</source>
         <translation>移除背景</translation>
     </message>
     <message>
-        <location line="+671"/>
+        <location line="+771"/>
         <source>Fit</source>
         <translation>适应</translation>
     </message>
@@ -3416,7 +3438,7 @@
         <translation>1:1</translation>
     </message>
     <message>
-        <location line="-1019"/>
+        <location line="-1022"/>
         <source>Print…</source>
         <translation>打印…</translation>
     </message>
@@ -3467,23 +3489,23 @@
     </message>
     <message>
         <location line="+110"/>
-        <location line="+905"/>
+        <location line="+908"/>
         <source>Delete shape</source>
         <translation>删除形状</translation>
     </message>
     <message>
-        <location line="-557"/>
+        <location line="-560"/>
         <source>Pick a tool to see its options here.</source>
         <translation>选择工具后，其选项会显示在这里。</translation>
     </message>
     <message>
-        <location line="+23"/>
+        <location line="+70"/>
         <location line="+20"/>
         <source>Shapes</source>
         <translation>形状</translation>
     </message>
     <message>
-        <location line="+186"/>
+        <location line="+142"/>
         <location line="+1"/>
         <location line="+198"/>
         <source>Annotation canvas</source>
@@ -3522,7 +3544,7 @@
         <translation>缩放</translation>
     </message>
     <message>
-        <location line="-1019"/>
+        <location line="-1022"/>
         <source>Editor actions</source>
         <translation>编辑器操作</translation>
     </message>
@@ -3648,7 +3670,7 @@
         <translation>保存为…</translation>
     </message>
     <message>
-        <location line="+2418"/>
+        <location line="+2421"/>
         <source>Zoom out (Ctrl+-)</source>
         <translation>缩小（Ctrl+-）</translation>
     </message>
@@ -3677,7 +3699,7 @@
         <translation>放大（Ctrl++）</translation>
     </message>
     <message>
-        <location line="-2449"/>
+        <location line="-2452"/>
         <source>Save as GIF</source>
         <translation>保存为 GIF</translation>
     </message>
@@ -3710,7 +3732,7 @@
     <message>
         <location line="-40"/>
         <location line="+356"/>
-        <location line="+248"/>
+        <location line="+151"/>
         <source>Auto-redact</source>
         <translation>自动遮盖</translation>
     </message>
@@ -3727,7 +3749,7 @@
         <translation type="vanished">长数字</translation>
     </message>
     <message>
-        <location line="-557"/>
+        <location line="-460"/>
         <source>Select all</source>
         <translation>全选</translation>
     </message>
@@ -5269,7 +5291,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>将单个窗口录制为视频</translation>
     </message>
     <message>
-        <location line="+12"/>
+        <location line="+14"/>
         <source>While recording</source>
         <translation>录制时</translation>
     </message>
@@ -5299,7 +5321,7 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
         <translation>未在录制</translation>
     </message>
     <message>
-        <location line="+9"/>
+        <location line="+10"/>
         <source>Stop</source>
         <translation>停止</translation>
     </message>
@@ -5665,12 +5687,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+2"/>
-        <location line="+3882"/>
+        <location line="+3976"/>
         <source>Developer</source>
         <translation>开发者</translation>
     </message>
     <message>
-        <location line="-3866"/>
+        <location line="-3960"/>
         <source>System Theme</source>
         <translation>系统主题</translation>
     </message>
@@ -5780,12 +5802,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+170"/>
-        <location line="+3181"/>
+        <location line="+3275"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
     <message>
-        <location line="-3180"/>
+        <location line="-3274"/>
         <source>Language of the Unisic interface.</source>
         <translation>Unisic 界面的语言。</translation>
     </message>
@@ -5907,12 +5929,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="-1038"/>
-        <location line="+2705"/>
+        <location line="+2799"/>
         <source>Capture delay</source>
         <translation>截图延迟</translation>
     </message>
     <message>
-        <location line="-2704"/>
+        <location line="-2798"/>
         <source>Waits this long before taking the capture.</source>
         <translation>截图前等待这么长时间。</translation>
     </message>
@@ -5933,12 +5955,12 @@ Starred (favorite) captures in the selection are kept - un-star them first.</sou
     </message>
     <message>
         <location line="+1439"/>
-        <location line="+1238"/>
+        <location line="+1332"/>
         <source>Capture sound</source>
         <translation>截图音效</translation>
     </message>
     <message>
-        <location line="-1237"/>
+        <location line="-1331"/>
         <source>Plays a short sound when a screenshot is taken.</source>
         <translation>截图时播放一段短音效。</translation>
     </message>
@@ -6233,12 +6255,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="+74"/>
-        <location line="+1187"/>
+        <location line="+1281"/>
         <source>Recording sound</source>
         <translation>录制提示音</translation>
     </message>
     <message>
-        <location line="-1186"/>
+        <location line="-1280"/>
         <source>Plays a short sound when a recording or GIF is finished.</source>
         <translation>录制或 GIF 完成时播放一段短提示音。</translation>
     </message>
@@ -6512,7 +6534,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>可选：用 freedesktop 图标名覆盖单个工具。</translation>
     </message>
     <message>
-        <location line="+1594"/>
+        <location line="+1688"/>
         <source>This desktop offers neither KGlobalAccel nor a working GlobalShortcuts portal, so Unisic cannot register global shortcuts itself. Instead each capture action can be bound to a command in your desktop&apos;s own shortcut settings; a running Unisic instance then picks it up.</source>
         <translation>此桌面既没有 KGlobalAccel，也没有可用的 GlobalShortcuts 桌面门户，因此 Unisic 无法自行注册全局快捷键。替代办法是：在你的桌面自己的快捷键设置中为每个截图动作绑定一条命令；运行中的 Unisic 实例会接收它。</translation>
     </message>
@@ -6533,7 +6555,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>在你的桌面中绑定这些命令：</translation>
     </message>
     <message>
-        <location line="-311"/>
+        <location line="-405"/>
         <source>Record the key you want for each action, then use “Add shortcuts to %1” below - Unisic binds each one as a command in %1&apos;s keyboard settings.</source>
         <translation>为每个动作录制你想要的按键，然后使用下方的“添加快捷键到 %1”，Unisic 会把每个快捷键作为命令绑定到 %1 的键盘设置中。</translation>
     </message>
@@ -6584,7 +6606,7 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>选择一个区域，然后滚动其下方窗口中的内容。Unisic 会持续把各帧拼接起来。</translation>
     </message>
     <message>
-        <location line="+330"/>
+        <location line="+424"/>
         <source>Drawn as a click-through overlay surface just outside the recorded area, so the frame never appears inside the recording itself. Hosted on layer-shell (KWin, wlroots, COSMIC), a KWin fullscreen fallback, or an XWayland helper on GNOME.</source>
         <translation>绘制为紧贴录制区域外侧的点击穿透覆盖层，因此边框绝不会出现在录像画面里。承载方式为 layer-shell（KWin、wlroots、COSMIC）、KWin 全屏回退，或 GNOME 上的 XWayland 辅助进程。</translation>
     </message>
@@ -6599,7 +6621,8 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>X11 录制抓取</translation>
     </message>
     <message>
-        <location line="+93"/>
+        <location line="-421"/>
+        <location line="+514"/>
         <source>Measure</source>
         <translation>测量</translation>
     </message>
@@ -6648,8 +6671,8 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>OCR 自动语言</translation>
     </message>
     <message>
-        <location line="-3157"/>
-        <location line="+3158"/>
+        <location line="-3251"/>
+        <location line="+3252"/>
         <source>OCR engine</source>
         <translation>OCR 引擎</translation>
     </message>
@@ -6664,9 +6687,21 @@ Off or unsupported: a native desktop notification is shown instead - the capture
         <translation>模拟更新</translation>
     </message>
     <message>
-        <location filename="../qml/pages/EditPage.qml" line="-125"/>
+        <location filename="../qml/pages/EditPage.qml" line="-214"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-539"/>
+        <source>Edit an image</source>
+        <translation>编辑图片</translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+9"/>
+        <source>Trim a video</source>
+        <translation>剪辑视频</translation>
+    </message>
+    <message>
+        <location line="+78"/>
         <location line="+23"/>
-        <location filename="../qml/pages/SettingsPage.qml" line="-2170"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-1734"/>
         <source>Editor defaults</source>
         <translation>编辑器默认值</translation>
     </message>
@@ -6813,12 +6848,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="-892"/>
-        <location line="+2719"/>
+        <location line="+2813"/>
         <source>Capture on release</source>
         <translation>松开即截图</translation>
     </message>
     <message>
-        <location line="-2718"/>
+        <location line="-2812"/>
         <source>Takes the screenshot the moment you release the selection.</source>
         <translation>松开选区的那一刻就截图。</translation>
     </message>
@@ -6960,12 +6995,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="+5"/>
-        <location line="+2718"/>
+        <location line="+2812"/>
         <source>Welcome screen</source>
         <translation>欢迎界面</translation>
     </message>
     <message>
-        <location line="-2717"/>
+        <location line="-2811"/>
         <source>Reopen the short setup card shown on the first launch.</source>
         <translation>重新打开首次启动时显示的简短设置卡片。</translation>
     </message>
@@ -6991,12 +7026,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="+5"/>
-        <location line="+2794"/>
+        <location line="+2888"/>
         <source>Copy diagnostics</source>
         <translation>复制诊断信息</translation>
     </message>
     <message>
-        <location line="-2793"/>
+        <location line="-2887"/>
         <source>Diagnostics copied</source>
         <translation>已复制诊断信息</translation>
     </message>
@@ -7158,12 +7193,12 @@ Off or unsupported: a native desktop notification is shown instead - the capture
     </message>
     <message>
         <location line="-1573"/>
-        <location line="+2523"/>
+        <location line="+2617"/>
         <source>External action</source>
         <translation>外部操作</translation>
     </message>
     <message>
-        <location line="-2245"/>
+        <location line="-2339"/>
         <source>Uses the input device selected below. Mixed with system audio when both are enabled. GIFs have no audio.</source>
         <translation>使用下方选择的输入设备。两者都启用时会与系统音频混合。GIF 没有音频。</translation>
     </message>
@@ -7210,7 +7245,7 @@ Applies to the next capture.</source>
 应用于下一次截图。</translation>
     </message>
     <message>
-        <location line="+1309"/>
+        <location line="+1403"/>
         <source>Template variables</source>
         <translation>模板变量</translation>
     </message>
@@ -7220,7 +7255,7 @@ Applies to the next capture.</source>
         <translation>外部操作超时</translation>
     </message>
     <message>
-        <location line="-2520"/>
+        <location line="-2614"/>
         <source>Run one program after each capture. Use $input for the capture file and $output for an optional result file. Commands are launched directly, without a shell.</source>
         <translation>每次截图后运行一个程序。用 $input 表示截图文件，用 $output 表示可选的结果文件。命令会被直接启动，不经过 shell。</translation>
     </message>
@@ -7821,7 +7856,7 @@ Applies to the next capture.</source>
         <translation>第一次按下会打开区域录制设置；录制中再次按下会停止并生成文件。Ctrl+Alt+Esc 是始终生效的紧急停止（Windows 的 Ctrl+Esc 留给开始菜单）。</translation>
     </message>
     <message>
-        <location line="+181"/>
+        <location line="+275"/>
         <source>Global hotkeys unavailable on this desktop</source>
         <translation>此桌面环境不支持全局快捷键</translation>
     </message>
@@ -7836,7 +7871,7 @@ Applies to the next capture.</source>
         <translation>显示命令</translation>
     </message>
     <message>
-        <location line="-308"/>
+        <location line="-402"/>
         <source>Global hotkeys</source>
         <translation>全局快捷键</translation>
     </message>
@@ -7962,12 +7997,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+3"/>
-        <location line="+2545"/>
+        <location line="+2639"/>
         <source>Watched folder</source>
         <translation>监视文件夹</translation>
     </message>
     <message>
-        <location line="-2544"/>
+        <location line="-2638"/>
         <source>Uploads every new file that lands in this folder. Empty is off.</source>
         <translation>上传进入此文件夹的每个新文件。留空表示关闭。</translation>
     </message>
@@ -7998,12 +8033,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+116"/>
-        <location line="+2000"/>
+        <location line="+2094"/>
         <source>Background removal</source>
         <translation>背景移除</translation>
     </message>
     <message>
-        <location line="-1996"/>
+        <location line="-2090"/>
         <source>&quot;Remove background&quot; in the editor&apos;s More menu cuts the subject out with the BiRefNet lite model. It runs on this computer and nothing is uploaded. One run takes a few seconds and about 2 GB of memory.</source>
         <translation>编辑器“更多”菜单中的“移除背景”会用 BiRefNet lite 模型抠出主体。它在本机运行，不会上传任何内容。每次运行需要几秒钟和约 2 GB 内存。</translation>
     </message>
@@ -8069,12 +8104,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+104"/>
-        <location line="+1628"/>
+        <location line="+1722"/>
         <source>Image conversion</source>
         <translation>图片转换</translation>
     </message>
     <message>
-        <location line="-1624"/>
+        <location line="-1718"/>
         <source>Re-encodes pictures into another format on the way in, on the way out, or when one turns out too big. The quality slider above applies to every conversion.</source>
         <translation>在导入、导出，或文件过大时，把图片重新编码为另一种格式。上面的质量滑块对所有转换都生效。</translation>
     </message>
@@ -8155,12 +8190,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+66"/>
-        <location line="+1524"/>
+        <location line="+1618"/>
         <source>Watermark preview</source>
         <translation>水印预览</translation>
     </message>
     <message>
-        <location line="-1523"/>
+        <location line="-1617"/>
         <source>A sample capture with the current watermark settings applied.</source>
         <translation>应用当前水印设置的示例截图。</translation>
     </message>
@@ -8320,12 +8355,11 @@ Applies to the next capture.</source>
         <translation>流程与视频录制相同，但停止时会转换为优化过的 GIF（两遍调色板）。</translation>
     </message>
     <message>
-        <location line="+12"/>
         <source>OCR region, Copy last capture, Instant replay</source>
-        <translation>OCR 区域、复制上次截图、即时回放</translation>
+        <translation type="vanished">OCR 区域、复制上次截图、即时回放</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+19"/>
         <source>OCR region (copy text)</source>
         <translation>OCR 区域（复制文本）</translation>
     </message>
@@ -8341,12 +8375,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+8"/>
-        <location line="+419"/>
+        <location line="+513"/>
         <source>Copy last capture</source>
         <translation>复制上次截图</translation>
     </message>
     <message>
-        <location line="-418"/>
+        <location line="-512"/>
         <source>Hotkey: puts the most recent screenshot back on the clipboard.</source>
         <translation>快捷键：把最近一张截图放回剪贴板。</translation>
     </message>
@@ -8357,12 +8391,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+8"/>
-        <location line="+474"/>
+        <location line="+568"/>
         <source>Instant replay</source>
         <translation>即时回放</translation>
     </message>
     <message>
-        <location line="-473"/>
+        <location line="-567"/>
         <source>Starts the rolling replay ring; later presses save the recent segment window.</source>
         <translation>启动滚动回放缓冲区；之后每次按下会保存最近一段时长的片段。</translation>
     </message>
@@ -8372,7 +8406,7 @@ Applies to the next capture.</source>
         <translation>第一次按下会打开屏幕共享门户并启动限定长度的编码环形缓冲。它运行期间，每次按下都会保存最近一段设定时长的片段，且不会停止采集。</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+101"/>
         <source>Apply hotkeys</source>
         <translation>应用快捷键</translation>
     </message>
@@ -8704,8 +8738,8 @@ Applies to the next capture.</source>
         <translation>复制为</translation>
     </message>
     <message>
-        <location line="-1576"/>
-        <location line="+1577"/>
+        <location line="-1670"/>
+        <location line="+1671"/>
         <source>Watermark</source>
         <translation>水印</translation>
     </message>
@@ -8775,7 +8809,7 @@ Applies to the next capture.</source>
         <translation>运行中…</translation>
     </message>
     <message>
-        <location line="-2192"/>
+        <location line="-2286"/>
         <source>Unisic draws the pointer itself, so it can be styled, enlarged and highlighted.</source>
         <translation>Unisic 自行绘制指针，因此可以设置样式、放大和高亮。</translation>
     </message>
@@ -8865,7 +8899,7 @@ Applies to the next capture.</source>
         <translation>光标所在屏幕</translation>
     </message>
     <message>
-        <location line="+2578"/>
+        <location line="+2672"/>
         <source>Re-capture last region</source>
         <translation>重新截取上次区域</translation>
     </message>
@@ -8875,7 +8909,7 @@ Applies to the next capture.</source>
         <translation>运行完整冒烟测试（F8）</translation>
     </message>
     <message>
-        <location line="-2239"/>
+        <location line="-2333"/>
         <source>Video quality</source>
         <translation>视频质量</translation>
     </message>
@@ -8891,12 +8925,12 @@ Applies to the next capture.</source>
     </message>
     <message>
         <location line="+188"/>
-        <location line="+2226"/>
+        <location line="+2320"/>
         <source>Separate audio tracks</source>
         <translation>独立音轨</translation>
     </message>
     <message>
-        <location line="-2225"/>
+        <location line="-2319"/>
         <source>Writes every source as its own named track instead of mixing them together.</source>
         <translation>把每个来源写成各自命名的轨道，而不是混在一起。</translation>
     </message>
@@ -8946,7 +8980,87 @@ Applies to the next capture.</source>
         <translation>显示高级快捷键</translation>
     </message>
     <message>
-        <location line="+379"/>
+        <location line="+1"/>
+        <source>OCR region, Copy last capture, Instant replay, more recording, Measure, Edit and Upload</source>
+        <translation>OCR 区域、复制上次截图、即时回放、更多录制、测量、编辑和上传</translation>
+    </message>
+    <message>
+        <location line="+40"/>
+        <source>Hotkey: start or stop a video of the whole screen.</source>
+        <translation>快捷键：开始或停止录制整个屏幕的视频。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Hotkey: start or stop a GIF of the whole screen.</source>
+        <translation>快捷键：开始或停止录制整个屏幕的 GIF。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Hotkey: start or stop a video of one window you pick.</source>
+        <translation>快捷键：开始或停止录制你选择的单个窗口的视频。</translation>
+    </message>
+    <message>
+        <location line="+2"/>
+        <source>Recording one window needs the desktop&apos;s window picker, which this session does not have.</source>
+        <translation>录制单个窗口需要桌面提供的窗口选择器，而当前会话没有。</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>Pause or resume recording</source>
+        <translation>暂停或继续录制</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hotkey: pause the running recording, or resume it.</source>
+        <translation>快捷键：暂停正在进行的录制，或继续录制。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Hotkey: select a region and measure distances and angles in it.</source>
+        <translation>快捷键：选择一个区域并测量其中的距离和角度。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Hotkey: pick an image file and open it in the editor.</source>
+        <translation>快捷键：选择一个图片文件并在编辑器中打开。</translation>
+    </message>
+    <message>
+        <location line="+9"/>
+        <source>Hotkey: pick a recording and open it in the trim window.</source>
+        <translation>快捷键：选择一个录像并在剪辑窗口中打开。</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>Upload a file</source>
+        <translation>上传文件</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hotkey: pick any file and upload it.</source>
+        <translation>快捷键：选择任意文件并上传。</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>Upload clipboard</source>
+        <translation>上传剪贴板内容</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hotkey: upload the copied file, image or text.</source>
+        <translation>快捷键：上传复制的文件、图片或文本。</translation>
+    </message>
+    <message>
+        <location line="+8"/>
+        <source>QR code of copied text</source>
+        <translation>复制文本的二维码</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Hotkey: show the copied text as a QR code.</source>
+        <translation>快捷键：将复制的文本显示为二维码。</translation>
+    </message>
+    <message>
+        <location line="+349"/>
         <source>Run a single action</source>
         <translation>运行单个操作</translation>
     </message>
@@ -9445,6 +9559,24 @@ Applies to the next capture.</source>
     <message>
         <source>Model: tiny, downloaded</source>
         <translation type="vanished">模型：微型，已下载</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/RecordPage.qml" line="-265"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-578"/>
+        <source>GIF of the full screen</source>
+        <translation>整个屏幕的 GIF</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="-9"/>
+        <source>Video of the full screen</source>
+        <translation>整个屏幕的视频</translation>
+    </message>
+    <message>
+        <location line="+31"/>
+        <location filename="../qml/pages/SettingsPage.qml" line="+18"/>
+        <source>Video of a window</source>
+        <translation>单个窗口的视频</translation>
     </message>
 </context>
 <context>

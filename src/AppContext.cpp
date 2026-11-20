@@ -505,7 +505,27 @@ void AppContext::dispatchHotkey(const QString &action)
     } else if (action == QLatin1String("instant-replay")) {
         if (instantReplayActive()) saveInstantReplay();
         else if (!recording()) startInstantReplay();
-    } else if (action == QLatin1String("smoke-test")) {
+    } else if (action == QLatin1String("record-screen")) {
+        if (recording()) stopRecording();
+        else startVideoScreen();
+    } else if (action == QLatin1String("gif-screen")) {
+        if (recording()) stopRecording();
+        else startGifFullScreen();
+    } else if (action == QLatin1String("record-window")) {
+        if (recording()) stopRecording();
+        else startVideoWindow();
+    } else if (action == QLatin1String("pause-recording")) {
+        if (recordingCanPause()) togglePauseRecording();
+    } else if (action == QLatin1String("measure")) {
+        if (m_captureInFlight || m_overlay->active()) return;
+        captureMeasure();
+    }
+    else if (action == QLatin1String("edit-image")) openFileForEditing(QStringLiteral("image"));
+    else if (action == QLatin1String("trim-video")) openFileForEditing(QStringLiteral("video"));
+    else if (action == QLatin1String("upload-file")) uploadAnyFile();
+    else if (action == QLatin1String("upload-clipboard")) uploadClipboard();
+    else if (action == QLatin1String("qr-clipboard")) qrFromClipboard();
+    else if (action == QLatin1String("smoke-test")) {
         if (devBuild()) runSmokeTest();
     }
 }
@@ -5775,6 +5795,16 @@ QVector<AppContext::HotkeyAction> AppContext::hotkeyActions() const
         {QStringLiteral("ocr-region"), tr("OCR region (copy text)"), m_settings->hotkeyOcr()},
         {QStringLiteral("copy-last"), tr("Copy last capture"), m_settings->hotkeyCopyLast()},
         {QStringLiteral("instant-replay"), tr("Start/save instant replay"), m_settings->hotkeyInstantReplay()},
+        {QStringLiteral("record-screen"), tr("Record video (full screen)"), m_settings->hotkeyRecordScreen()},
+        {QStringLiteral("gif-screen"), tr("Record GIF (full screen)"), m_settings->hotkeyGifScreen()},
+        {QStringLiteral("record-window"), tr("Record video (window)"), m_settings->hotkeyRecordWindow()},
+        {QStringLiteral("pause-recording"), tr("Pause/resume recording"), m_settings->hotkeyPauseRecording()},
+        {QStringLiteral("measure"), tr("Measure"), m_settings->hotkeyMeasure()},
+        {QStringLiteral("edit-image"), tr("Edit an image"), m_settings->hotkeyEditImage()},
+        {QStringLiteral("trim-video"), tr("Trim a video"), m_settings->hotkeyTrimVideo()},
+        {QStringLiteral("upload-file"), tr("Upload a file…"), m_settings->hotkeyUploadFile()},
+        {QStringLiteral("upload-clipboard"), tr("Upload clipboard"), m_settings->hotkeyUploadClipboard()},
+        {QStringLiteral("qr-clipboard"), tr("QR code of copied text"), m_settings->hotkeyQrClipboard()},
     };
 }
 
@@ -5957,6 +5987,16 @@ void AppContext::syncHotkeyFromDaemon(const QString &actionId, const QString &po
     else if (actionId == QLatin1String("ocr-region")) m_settings->setHotkeyOcr(portable);
     else if (actionId == QLatin1String("copy-last")) m_settings->setHotkeyCopyLast(portable);
     else if (actionId == QLatin1String("instant-replay")) m_settings->setHotkeyInstantReplay(portable);
+    else if (actionId == QLatin1String("record-screen")) m_settings->setHotkeyRecordScreen(portable);
+    else if (actionId == QLatin1String("gif-screen")) m_settings->setHotkeyGifScreen(portable);
+    else if (actionId == QLatin1String("record-window")) m_settings->setHotkeyRecordWindow(portable);
+    else if (actionId == QLatin1String("pause-recording")) m_settings->setHotkeyPauseRecording(portable);
+    else if (actionId == QLatin1String("measure")) m_settings->setHotkeyMeasure(portable);
+    else if (actionId == QLatin1String("edit-image")) m_settings->setHotkeyEditImage(portable);
+    else if (actionId == QLatin1String("trim-video")) m_settings->setHotkeyTrimVideo(portable);
+    else if (actionId == QLatin1String("upload-file")) m_settings->setHotkeyUploadFile(portable);
+    else if (actionId == QLatin1String("upload-clipboard")) m_settings->setHotkeyUploadClipboard(portable);
+    else if (actionId == QLatin1String("qr-clipboard")) m_settings->setHotkeyQrClipboard(portable);
     else return;
     // Rare + important: flush so a SIGTERM/logout doesn't resurrect the stale key.
     m_settings->raw()->sync();

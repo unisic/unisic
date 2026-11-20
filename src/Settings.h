@@ -157,6 +157,16 @@ class Settings : public QObject
     Q_PROPERTY(QString hotkeyInstantReplay READ hotkeyInstantReplay WRITE setHotkeyInstantReplay NOTIFY hotkeyInstantReplayChanged)
     Q_PROPERTY(QString hotkeyRecord READ hotkeyRecord WRITE setHotkeyRecord NOTIFY hotkeyRecordChanged)
     Q_PROPERTY(QString hotkeyOcr READ hotkeyOcr WRITE setHotkeyOcr NOTIFY hotkeyOcrChanged)
+    Q_PROPERTY(QString hotkeyRecordScreen READ hotkeyRecordScreen WRITE setHotkeyRecordScreen NOTIFY hotkeyRecordScreenChanged)
+    Q_PROPERTY(QString hotkeyGifScreen READ hotkeyGifScreen WRITE setHotkeyGifScreen NOTIFY hotkeyGifScreenChanged)
+    Q_PROPERTY(QString hotkeyRecordWindow READ hotkeyRecordWindow WRITE setHotkeyRecordWindow NOTIFY hotkeyRecordWindowChanged)
+    Q_PROPERTY(QString hotkeyPauseRecording READ hotkeyPauseRecording WRITE setHotkeyPauseRecording NOTIFY hotkeyPauseRecordingChanged)
+    Q_PROPERTY(QString hotkeyMeasure READ hotkeyMeasure WRITE setHotkeyMeasure NOTIFY hotkeyMeasureChanged)
+    Q_PROPERTY(QString hotkeyEditImage READ hotkeyEditImage WRITE setHotkeyEditImage NOTIFY hotkeyEditImageChanged)
+    Q_PROPERTY(QString hotkeyTrimVideo READ hotkeyTrimVideo WRITE setHotkeyTrimVideo NOTIFY hotkeyTrimVideoChanged)
+    Q_PROPERTY(QString hotkeyUploadFile READ hotkeyUploadFile WRITE setHotkeyUploadFile NOTIFY hotkeyUploadFileChanged)
+    Q_PROPERTY(QString hotkeyUploadClipboard READ hotkeyUploadClipboard WRITE setHotkeyUploadClipboard NOTIFY hotkeyUploadClipboardChanged)
+    Q_PROPERTY(QString hotkeyQrClipboard READ hotkeyQrClipboard WRITE setHotkeyQrClipboard NOTIFY hotkeyQrClipboardChanged)
     Q_PROPERTY(bool showCapturePopup READ showCapturePopup WRITE setShowCapturePopup NOTIFY showCapturePopupChanged)
     Q_PROPERTY(QString capturePopupPosition READ capturePopupPosition WRITE setCapturePopupPosition NOTIFY capturePopupPositionChanged)
     Q_PROPERTY(QString capturePopupStyle READ capturePopupStyle WRITE setCapturePopupStyle NOTIFY capturePopupStyleChanged)
@@ -638,6 +648,19 @@ public:
               "hotkeys/instantReplay", QStringLiteral("Meta+Shift+I"))
     U_SETTING(QString, hotkeyRecord, setHotkeyRecord, "hotkeys/record", QStringLiteral(UNISIC_HOTKEY_RECORD))
     U_SETTING(QString, hotkeyOcr, setHotkeyOcr, "hotkeys/ocrRegion", QStringLiteral(UNISIC_HOTKEY_OCR))
+    // One per page tile that had no hotkey. Unbound by default: every free
+    // Meta+Shift letter is already someone's, and an unbound action costs only
+    // its row in the desktop's shortcut list.
+    U_SETTING(QString, hotkeyRecordScreen, setHotkeyRecordScreen, "hotkeys/recordScreen", QString())
+    U_SETTING(QString, hotkeyGifScreen, setHotkeyGifScreen, "hotkeys/gifScreen", QString())
+    U_SETTING(QString, hotkeyRecordWindow, setHotkeyRecordWindow, "hotkeys/recordWindow", QString())
+    U_SETTING(QString, hotkeyPauseRecording, setHotkeyPauseRecording, "hotkeys/pauseRecording", QString())
+    U_SETTING(QString, hotkeyMeasure, setHotkeyMeasure, "hotkeys/measure", QString())
+    U_SETTING(QString, hotkeyEditImage, setHotkeyEditImage, "hotkeys/editImage", QString())
+    U_SETTING(QString, hotkeyTrimVideo, setHotkeyTrimVideo, "hotkeys/trimVideo", QString())
+    U_SETTING(QString, hotkeyUploadFile, setHotkeyUploadFile, "hotkeys/uploadFile", QString())
+    U_SETTING(QString, hotkeyUploadClipboard, setHotkeyUploadClipboard, "hotkeys/uploadClipboard", QString())
+    U_SETTING(QString, hotkeyQrClipboard, setHotkeyQrClipboard, "hotkeys/qrClipboard", QString())
     // Deliberately NOT a Q_PROPERTY: machine-local state ("the user installed
     // desktop custom shortcuts here"), must not travel via settings export.
     // Read on startup to re-assert stores the desktop itself rewrites
@@ -788,6 +811,10 @@ public:
         emit videoFpsChanged(); emit videoFormatChanged(); emit videoQualityPercentChanged();
         emit videoMaxDurationSecChanged(); emit hotkeyRecordChanged();
         emit hotkeyOcrChanged();
+        emit hotkeyRecordScreenChanged(); emit hotkeyGifScreenChanged(); emit hotkeyRecordWindowChanged();
+        emit hotkeyPauseRecordingChanged(); emit hotkeyMeasureChanged(); emit hotkeyEditImageChanged();
+        emit hotkeyTrimVideoChanged(); emit hotkeyUploadFileChanged(); emit hotkeyUploadClipboardChanged();
+        emit hotkeyQrClipboardChanged();
         emit recordSystemAudioChanged(); emit recordMicrophoneChanged();
         emit recordAppAudioAppsChanged(); emit microphoneSourceChanged();
         emit videoEncoderChanged();
@@ -924,6 +951,16 @@ signals:
     void hotkeyInstantReplayChanged();
     void hotkeyRecordChanged();
     void hotkeyOcrChanged();
+    void hotkeyRecordScreenChanged();
+    void hotkeyGifScreenChanged();
+    void hotkeyRecordWindowChanged();
+    void hotkeyPauseRecordingChanged();
+    void hotkeyMeasureChanged();
+    void hotkeyEditImageChanged();
+    void hotkeyTrimVideoChanged();
+    void hotkeyUploadFileChanged();
+    void hotkeyUploadClipboardChanged();
+    void hotkeyQrClipboardChanged();
     void desktopShortcutsInstalledChanged();
     void showCapturePopupChanged();
     void capturePopupPositionChanged();

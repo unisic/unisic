@@ -32,54 +32,47 @@ Draw on the selection before the shot is taken · polish it in the editor · rec
 
 </div>
 
-## Install in one line
+## What it does
+
+- **Capture**: full screen, a region, the active window, or a scrolling page taller than the screen. Draw arrows, shapes, text, blur and numbered steps on the selection before the shot is taken.
+- **Edit**: crop, highlight, pixelate, magnifier, spotlight, stickers, rotate, resize, remove the background on your own computer, and more.
+- **Record**: a region, the full screen or a window as GIF, MP4 or WebM, with system and microphone sound.
+- **Read**: copy the text out of any region (OCR) or scan a QR code or barcode.
+- **Share**: upload to your own HTTP server, ShareX `.sxcu` destinations, FTP/SFTP, S3 or a built-in host, and the link is copied for you.
+- **Remember**: a history of every capture, themes and a translated interface.
+
+Built for **Linux Wayland** on the system's own APIs (xdg-desktop-portal, KWin ScreenShot2, PipeWire). KDE Plasma gets the silent native path, GNOME and wlroots desktops go through the portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no account. The only thing Unisic does online by itself is check GitHub for a new release (and download it, where Unisic updates itself), and one switch turns that off ([privacy policy](PRIVACY.md)).
+
+## Install
 
 ```sh
 curl -fsSL https://unisic.app/install.sh | bash
 ```
 
-An arrow-key menu opens. The recommended entry installs the self-updating AppImage in `~/.local` - no password, no build. The other installs your distro's package (`.deb`, Fedora `.rpm`, Arch `.pkg.tar.zst`, the openSUSE repo) and asks for your password. The same menu updates, uninstalls, installs an older version and toggles automatic updates. Every download is checked against the SHA-256 published with the release, and a mismatch is deleted instead of installed.
+A menu opens. The recommended entry installs the self-updating AppImage in `~/.local`, with no password. The other entry installs your distribution's package (`.deb`, Fedora `.rpm`, Arch, openSUSE). The same menu updates, uninstalls and turns automatic updates on or off. Every download is checked against the SHA-256 published with the release.
 
-To read the script before running it: `curl -fsSLO https://unisic.app/install.sh`, then `less install.sh && bash install.sh`.
+Prefer to do it by hand? Take the AppImage or a package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**, or follow the [installation docs](https://unisic.app/docs/installation) for COPR, Debian/Ubuntu, openSUSE, Arch and Nix repositories.
 
-By hand: grab the **AppImage** or a native package from the **[latest release](https://github.com/unisic/unisic/releases/latest)**. Install downloaded packages with `sudo dnf install ./unisic-*.fedora.x86_64.rpm` or `sudo apt install ./unisic_*_amd64.deb` so dependencies get resolved. Windows 11 takes `unisic-<version>-windows-x64-experimental-setup.exe` or `Unisic-<version>-windows-x86_64-experimental.zip` from the same page (see Windows below). Repo snippets for Fedora COPR, Debian/Ubuntu, openSUSE, Arch and Nix: **[unisic.app → Download](https://unisic.app/#download)** or the [installation docs](https://unisic.app/docs/installation).
+## Hotkeys
 
-## Press a hotkey, go
-
-| Keys | Description |
+| Keys | Action |
 | --- | --- |
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>1</kbd> | Capture the full screen |
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>2</kbd> | Capture a region |
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>3</kbd> | Capture the active window |
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> | Record a GIF (region) |
 | <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> | Record video (region) |
-| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | OCR - copy text out of a region |
+| <kbd>Meta</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd> | Copy text out of a region (OCR) |
 | <kbd>Ctrl</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-Every hotkey is rebindable in Settings → Hotkeys. The same actions run from the command line (`unisic --region | --fullscreen | --window | --scroll | --gif`, see `unisic --help`; bash and zsh complete the options on Tab), which is how a compositor keybind should call it. Docs: [full CLI](https://unisic.app/docs/configuration#command-line-interface), [file locations](https://unisic.app/docs/configuration#file-locations), [wlroots setup](https://unisic.app/docs/compositors).
-
-## What it does
-
-- **Capture** - full screen across monitors, an interactive region with live dimensions, the active window, or a scrolling capture of a page taller than the screen; optional delay and cursor.
-- **Annotate before the shot** - the selection overlay is already a canvas: arrows, shapes, text, blur and numbered steps, burned into the crop on <kbd>Enter</kbd>.
-- **Edit after it** - highlight, pixelate, eraser, magnifier, spotlight, callout, crop, cut out a strip, stickers (a mouse pointer, a library of Twemoji emoji or a picture from a file), rotate, flip, resize, remove the background (on your computer, with a model downloaded once from Settings), undo/redo and zoom, then print it.
-- **Record** - region, full screen or window to GIF, MP4 or WebM, with optional system and microphone audio.
-- **Read pixels** - OCR any region or scan a QR/barcode, and copy the result.
-- **Share** - captures, any file or the clipboard to custom HTTP destinations, ShareX `.sxcu` import, FTP/SFTP, Amazon S3 and S3-compatible storage and built-in hosts, plus every new file in a watched folder; the link auto-copies (the local file can go to the trash after it), and copied text turns into a QR code.
-- **Remember** - thumbnail history of every capture; deleting moves the file to the trash.
-- **Count** - screenshots per day in a small `unisic.stats` file; drop it on [unisic.app/stats](https://unisic.app/stats/) for an activity chart and a review of your year, drawn in your browser.
-- **Make it yours** - themes (one follows your system light/dark scheme and accent color) and a translated interface.
-
-Built for **Linux Wayland** on legitimate APIs only - xdg-desktop-portal, KWin ScreenShot2, PipeWire. KDE Plasma gets the fully silent native path; GNOME and wlroots desktops go through portals ([compositor support](https://unisic.app/docs/compositors)). No telemetry, no analytics, no account: on its own, Unisic only checks GitHub for a new release and, where it updates itself (AppImage, Windows), downloads it; one switch turns both off ([privacy policy](PRIVACY.md)).
+Change them in Settings → Hotkeys. The same actions run from a terminal or a compositor keybind: `unisic --region`, `--fullscreen`, `--window`, `--scroll`, `--gif` (all options in `unisic --help` and the [CLI docs](https://unisic.app/docs/configuration#command-line-interface)).
 
 <details>
-<summary><b>X11 also works (best-effort second target)</b></summary>
+<summary><b>X11 (best effort)</b></summary>
 
 <br />
 
-Screenshots, the overlay, the editor, OCR, history and uploads work the same as on Wayland. Screen recording grabs frames from the X server (XShm), so it works even on desktops with no portal backend, and global hotkeys use `XGrabKey` where KGlobalAccel is absent. Recording a single **window** stays Wayland-only (it needs the portal's window picker); record the full screen or a region instead.
-
-Daily use happens on Wayland, so X11 was verified by walking through the features once, on one desktop. If something breaks, [file an issue](https://github.com/unisic/unisic/issues) with your desktop and window manager.
+Screenshots, the editor, OCR, history and uploads work as on Wayland. Recording grabs frames from the X server, so it works even without a portal, and hotkeys use `XGrabKey`. Recording a single **window** needs Wayland (the window picker comes from the portal); record the screen or a region instead. Daily use is on Wayland and X11 was checked once on one desktop, so please [report](https://github.com/unisic/unisic/issues) what breaks, with your desktop and window manager.
 
 </details>
 
@@ -90,23 +83,21 @@ Daily use happens on Wayland, so X11 was verified by walking through the feature
 
 The Windows port is written entirely by AI. The author will not touch the code it takes to port Unisic to a system this poorly thought out, so everything Windows-specific, from the capture and recording paths to the installer and the CI that tests it, was written by an AI model and checked by running it, not written by hand.
 
-Screenshots (full screen, region, active window), the overlay, the editor, saving (GIF included, through the ffmpeg the build carries), the clipboard, OCR, the tray and global hotkeys work on Windows 11, and so does recording a GIF or video of the full screen or a region, with system sound, a microphone and (Windows 10 version 2004 or later) single applications' sound, plus the scrolling capture. Recording a single window does not, yet, and the editor has no "Remove background" there. From 0.8.8 on, every [release](https://github.com/unisic/unisic/releases) carries two Windows files, both marked experimental because the port is a preview (volunteers check it by hand on Windows 11, not the author, and they do not know Unisic as thoroughly as the author does, so not everything could be checked): `unisic-<version>-windows-x64-experimental-setup.exe`, a setup wizard that installs Unisic for your user only, with a Start menu entry and an uninstaller, and `Unisic-<version>-windows-x86_64-experimental.zip`, the same files to unpack anywhere and run as `bin\unisic.exe`. Neither needs administrator rights. Both update themselves: a newer release's zip is downloaded, checked against its sha256 and unpacked under `%APPDATA%\Unisic\unisic\updates`, and the installed or unpacked `unisic.exe` starts that copy from then on, so keep an unpacked folder where it is. To build it yourself, use MSYS2 ([build notes](AGENTS.md#3-build-run-and-dependencies)).
+On Windows 11, screenshots, the editor, OCR, the tray, hotkeys and recording a GIF or video of the screen or a region (with sound) work, and so does the scrolling capture. Recording a single window and "Remove background" are not available there. Each [release](https://github.com/unisic/unisic/releases) has a setup wizard (`unisic-<version>-windows-x64-experimental-setup.exe`) and a portable zip (`Unisic-<version>-windows-x86_64-experimental.zip`, run `bin\unisic.exe`). Neither needs administrator rights, and both update themselves.
 
-Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the default hotkeys there sit on Print Screen:
+Windows keeps <kbd>Win</kbd> + <kbd>Shift</kbd> with digits and most letters for itself, so the defaults move:
 
-| Keys | Description |
+| Keys | Action |
 | --- | --- |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Print</kbd> | Capture the full screen |
 | <kbd>Print</kbd> or <kbd>Ctrl</kbd> + <kbd>Print</kbd> | Capture a region |
 | <kbd>Alt</kbd> + <kbd>Print</kbd> | Capture the active window |
 | <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>G</kbd> | Record a GIF (region) |
 | <kbd>Shift</kbd> + <kbd>Print</kbd> | Record video (region) |
-| <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> | OCR - copy text out of a region |
-| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop; <kbd>Ctrl</kbd> + <kbd>Esc</kbd> is the Start menu) |
+| <kbd>Win</kbd> + <kbd>Shift</kbd> + <kbd>O</kbd> | Copy text out of a region (OCR) |
+| <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Esc</kbd> | Stop recording (fixed emergency stop) |
 
-A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> works either way.
-
-To uninstall: the setup wizard's copy goes through Windows Settings > Apps > Installed apps > Unisic > Uninstall, which also removes staged updates. For the zip, quit Unisic from the tray, turn off "Start at login" first if you turned it on, then delete the unpacked folder. Either way, your settings and capture history stay in `%APPDATA%\Unisic` and `%LOCALAPPDATA%\Unisic`; delete those two folders to remove them too.
+A bare <kbd>Print</kbd> opens the Snipping Tool until you turn off Settings → Accessibility → Keyboard → "Use the Print screen key to open screen capture"; <kbd>Ctrl</kbd> + <kbd>Print</kbd> always works. To uninstall, use Settings > Apps for the setup wizard's copy, or delete the unpacked folder. Settings and history stay in `%APPDATA%\Unisic` and `%LOCALAPPDATA%\Unisic`.
 
 </details>
 
@@ -122,7 +113,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build && ./build/unisic
 ```
 
-Every dependency is required: configure stops and names the missing package instead of building a Unisic with a feature quietly absent. The one exception is background removal: ONNX Runtime is loaded only when it is used, bundled in the Flatpak, and elsewhere comes from your distribution or a download in Settings. Dev-package lines for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
+Every dependency is required: configure stops and names a missing package. The one exception is ONNX Runtime for background removal, loaded only when used. Package lists for Fedora, Debian/Ubuntu and Arch are in [CONTRIBUTING.md](CONTRIBUTING.md#building).
 
 </details>
 
